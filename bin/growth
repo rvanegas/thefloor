@@ -1,0 +1,638 @@
+#!/bin/bash
+#
+# Where the people here came from: who arrived on their own, who one of them
+# brought, and who arrived further down the chain — over time.
+#
+#   bin/growth                 every report, against the deployed server
+#   bin/growth classes         one report
+#   bin/growth classes weeks   several, in the order given
+#   bin/growth --local         the development database on this machine
+#   bin/growth --list          the report names and what each answers
+#
+# Read-only, always. Nothing here is a thing you would edit by hand; bin/db
+# --write is where editing lives and it makes you ask for it.
+#
+# ── The three classes ───────────────────────────────────────────────────────
+#
+# Every account has at most one inviter — `accounts.invited_by`, written once
+# and never moved — so the edges form a forest and every person sits at a
+# depth in it. That depth is the whole classification:
+#
+#   * **alone** (depth 0) — nobody's invitation brought them. They found this
+#     by some route the box cannot see, and they are the top of a tree.
+#   * **first circle** (depth 1) — invited by somebody who came alone. Growth
+#     that one of the founders did directly.
+#   * **onward** (depth 2 and deeper) — invited by somebody who was themselves
+#     invited. This is the class that says whether the thing spreads at all:
+#     first circle can be bought with effort, onward cannot.
+#
+# The three are exhaustive and disjoint, which is the point of naming them by
+# depth rather than by how the invitation was sent. There are two ways an edge
+# gets written — an email address resolving at sign-up, and `creditInviter`
+# when somebody makes an account inside a room to accept a member's ask — and
+# neither is more of an arrival than the other.
+#
+# **The classes are not frozen at arrival.** `creditInviter` can name an
+# inviter for an account that has been here for weeks, and the moment it does,
+# that person stops being *alone* and everybody under them moves down a class.
+# So a row in the time reports can change after the month it describes is over.
+# It cannot change twice: an account with an inviter keeps the one it has.
+#
+# ── The fourth class, which is a reading of the request and not a fact ──────
+#
+# The reports below carry a fourth number, `asked, not arrived`:
+# `pending_invites`, the people who have been invited and have not signed in.
+# The request that produced this script named four classes and described
+# three, and this is the only other population the box knows about — so it is
+# here, and it is labelled, and it is not mixed into the shares. **It is not
+# comparable with the three**: `pending_invites` is swept at INVITE_TTL_MS
+# (thirty days), so it is a backlog and not a history. bin/invites is the
+# report that is actually about it.
+#
+# ── The islands, which are a different graph ────────────────────────────────
+#
+# An **island** is a connected component of the accepted-contacts graph: a set
+# of people every one of whom can reach every other by walking mutual contacts.
+# Somebody with no accepted contact is an island of one, and they are counted,
+# being the honest denominator for whether this is one community or a heap of
+# unconnected pairs.
+#
+# **It is not the invitation forest and does not have to agree with it**, which
+# is the thing to hold on to. An invitation is not a contact and nothing makes
+# it one: somebody can be invited, arrive, and never accept a single contact
+# request, and they are an island of one under a founder who has a tree of
+# twelve. Two people who each arrived alone can become contacts, and then one
+# island holds two founders — which the forest cannot see, neither having
+# invited the other.
+#
+# So `founders_on_it` is a premise being tested rather than a fact being
+# reported. On this box, as of 2026-09-10, it fails: six of the eight who came
+# alone are on one island of nineteen. That is the network working, not a
+# defect — but it means an island is not a founder's tree and a report that
+# assumed it was would be wrong.
+#
+# ── What these numbers are not ──────────────────────────────────────────────
+#
+#   * **Not installs.** The box hears about somebody when they sign in, so a
+#     row here is an account and an install that never signed in is invisible.
+#     There is no install count anywhere in this repository; App Store Connect
+#     holds that and nothing joins the two.
+#   * **Not guests.** Somebody who opened a guest link and talked for an hour
+#     has no account and is in no class. If they later made one to accept a
+#     member's ask, `creditInviter` put them in first circle or onward, which
+#     is the only trace of that route in here.
+#   * **Erased accounts and the two App Review accounts are excluded from
+#     every count**, and the `classes` report says how many that was. A
+#     tombstone is not a person, and Apple's reviewer is not growth. But the
+#     walk still passes *through* a tombstone, exactly as `invitedCount` does:
+#     somebody whose inviter later deleted their account keeps their depth,
+#     because dropping the subtree would rewrite a third party's history on
+#     somebody else's decision.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+LOCAL_DB="$(cd "$(dirname "$0")/.." && pwd)/server/thefloor.db"
+
+local_mode=false
+wanted=()
+
+# The vocabulary, once, as temp views — so that each report below is the
+# question it asks and not four repetitions of the walk. Temp views live in
+# the temp database rather than in the file, so `-readonly` permits them; the
+# pragma keeps that database in memory rather than in whatever /tmp the box
+# has, which matters only in that it leaves nothing behind.
+growth_preamble() {
+  cat <<'SQL'
+PRAGMA temp_store = MEMORY;
+
+-- Every row in `accounts`, tombstones and reviewers included. Nothing counts
+-- these directly; they are here because the walk has to pass through them.
+CREATE TEMP VIEW everyone AS
+  SELECT id, identifier, display_name, created_at, last_seen_at, invited_by
+    FROM accounts;
+
+-- The people a growth number is about.
+CREATE TEMP VIEW person AS
+  SELECT * FROM everyone
+   WHERE identifier NOT GLOB 'erased:*'
+     AND identifier NOT GLOB 'appreview*';
+
+-- Depth in the invitation forest, and which root each person hangs from.
+--
+-- The forest is acyclic by construction for every edge but one: an inviter
+-- exists before the account naming them, except where `creditInviter` writes
+-- an edge long after both accounts do — and that one function walks the
+-- ancestry itself and refuses an edge that would close a loop. The depth cap
+-- is the guard for the case where it is wrong anyway: a cycle would make this
+-- walk produce rows forever, and `depth < 32` makes it produce a wrong number
+-- instead, which the `defects` report then shows as a row sitting at the cap.
+-- The same trade `invitedCount` makes, for the same reason.
+CREATE TEMP VIEW generation AS
+  WITH RECURSIVE gen(id, root, depth) AS (
+    SELECT id, id, 0 FROM everyone WHERE invited_by IS NULL
+    UNION ALL
+    SELECT a.id, gen.root, gen.depth + 1
+      FROM everyone a JOIN gen ON a.invited_by = gen.id
+     WHERE gen.depth < 32
+  )
+  SELECT id, root, depth FROM gen;
+
+-- One row per person who counts, with their class. An inner join, so anybody
+-- the walk cannot reach from a root is missing here rather than guessed at —
+-- which can only happen if `invited_by` names a row that is not there. That
+-- is a defect and has its own report; it is also why the totals below can be
+-- short of `SELECT COUNT(*) FROM person` without any of them being wrong.
+CREATE TEMP VIEW growth AS
+  SELECT p.id, p.identifier, p.display_name, p.created_at, p.last_seen_at,
+         p.invited_by, g.root, g.depth,
+         CASE WHEN g.depth = 0 THEN '1 alone'
+              WHEN g.depth = 1 THEN '2 first circle'
+              ELSE '3 onward' END AS class
+    FROM person p JOIN generation g ON g.id = p.id;
+
+-- The contacts graph, one row each way, so a walk over it needs no CASE.
+--
+-- `state = 'accepted'` and nothing else. A contact is somebody you have
+-- **both** agreed to be in touch with; a pending row is one person's ask and
+-- the other person's silence, and treating it as an edge would draw islands
+-- that nobody has agreed to be in. Pending rows appear once in the islands
+-- report, as the bridges that would merge islands if every one of them were
+-- accepted, which is the only question they answer here.
+--
+-- Both ends are restricted to `person`, which does two things. Erasure already
+-- deletes contacts rows in both directions — unlike `invited_by`, which
+-- deliberately survives the person — so tombstones bring no edges. The App
+-- Review accounts do: they are contacts of each other and of whoever set them
+-- up, and left in they would be a bridge joining islands through somebody who
+-- is not a user.
+CREATE TEMP VIEW link AS
+  SELECT c.a_id AS x, c.b_id AS y, c.created_at AS at
+    FROM contacts c
+    JOIN person a ON a.id = c.a_id
+    JOIN person b ON b.id = c.b_id
+   WHERE c.state = 'accepted'
+  UNION ALL
+  SELECT c.b_id, c.a_id, c.created_at
+    FROM contacts c
+    JOIN person a ON a.id = c.a_id
+    JOIN person b ON b.id = c.b_id
+   WHERE c.state = 'accepted';
+
+-- Which island each person is on: the connected components of that graph.
+--
+-- Labelled by the smallest id reachable, which is the standard way to do this
+-- in SQL and is why the walk starts from every person rather than from a
+-- frontier — each seed collects everything it can reach and the group's
+-- minimum is a label they all agree on. The label is an id and means nothing;
+-- the islands report shows each island by its oldest member instead.
+--
+-- **It is a transitive closure, so it is quadratic in the size of an island.**
+-- Twenty-one people is instant and a few thousand would not be; if this ever
+-- takes a visible moment, that is the reason and the fix is to do the labelling
+-- outside SQL rather than to tune this.
+--
+-- `UNION` rather than `UNION ALL`, which is what terminates it: the graph is
+-- full of cycles by construction — every triangle of mutual contacts is one —
+-- and deduplicating the frontier is the whole reason this walk ends.
+CREATE TEMP VIEW island AS
+  WITH RECURSIVE reach(seed, node) AS (
+    SELECT id, id FROM person
+    UNION
+    SELECT r.seed, l.y FROM reach r JOIN link l ON l.x = r.node
+  )
+  SELECT seed AS id, MIN(node) AS island FROM reach GROUP BY seed;
+SQL
+}
+
+growth_classes() {
+  cat <<'SQL'
+.print ''
+.print '── The three classes ───────────────────────────────────────────'
+.print ''
+-- `they_brought` is how many people this class invited directly, and
+-- `per_head` divides it by the size of the class. That second number is the
+-- one worth reading: it is the branching factor, and it is the difference
+-- between a thing that spreads and a thing that is being pushed. Note that
+-- first circle's `they_brought` and onward's are two halves of the onward
+-- total, since by construction anybody either class invites is onward.
+--
+-- `never_connected` is an account that signed in once and never came back far
+-- enough to send a heartbeat. `seen_this_month` is the other end of the same
+-- question: how much of this class is still here.
+WITH brought AS (
+  SELECT inviter.class AS class, COUNT(*) AS n
+    FROM growth arrival
+    JOIN growth inviter ON inviter.id = arrival.invited_by
+   GROUP BY inviter.class
+)
+SELECT g.class,
+       COUNT(*) AS people,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM growth), 1) AS share,
+       COALESCE(b.n, 0) AS they_brought,
+       ROUND(COALESCE(b.n, 0) * 1.0 / COUNT(*), 2) AS per_head,
+       SUM(g.last_seen_at IS NULL) AS never_connected,
+       SUM(g.last_seen_at > unixepoch() * 1000 - 2592000000)
+         AS seen_this_month
+  FROM growth g
+  LEFT JOIN brought b ON b.class = g.class
+ GROUP BY g.class
+ ORDER BY g.class;
+
+.print ''
+.print '   the fourth: invited, not here (a 30-day backlog, not a history)'
+.print ''
+-- Folded on case, because that is how the lookup matches: two rows differing
+-- only in case are one person waiting, not two. See bin/invites, which is the
+-- report that is really about this table.
+SELECT COUNT(*) AS asked_not_arrived,
+       COUNT(DISTINCT lower(identifier)) AS people_asked,
+       COUNT(DISTINCT requester_id) AS askers
+  FROM pending_invites;
+
+.print ''
+.print '   excluded from everything above'
+.print ''
+SELECT (SELECT COUNT(*) FROM everyone) AS rows_in_accounts,
+       (SELECT COUNT(*) FROM everyone WHERE identifier GLOB 'erased:*')
+         AS erased,
+       (SELECT COUNT(*) FROM everyone WHERE identifier GLOB 'appreview*')
+         AS app_review,
+       (SELECT COUNT(*) FROM person) - (SELECT COUNT(*) FROM growth)
+         AS unreachable;
+SQL
+}
+
+growth_weeks() {
+  cat <<'SQL'
+.print ''
+.print '── Arrivals by week, Monday-dated ──────────────────────────────'
+.print ''
+-- A week with nobody in it is not a row. That is the honest shape for a
+-- GROUP BY and it does mean the gaps have to be read off the dates rather
+-- than seen as a flat line; bin/db is where to go if a dense calendar is
+-- ever the question.
+--
+-- `to_date` is the running total of everybody who had arrived by the end of
+-- that week, which is the only cumulative number here — the per-class columns
+-- are the week's own arrivals.
+-- `-6 days` then `weekday 1`, and the order is the whole of it: `weekday 1`
+-- advances to the next Monday and is a no-op on a date that is already one, so
+-- the obvious `'weekday 1', '-7 days'` puts every Monday in the week before its
+-- own. It was written that way here first and moved four people.
+SELECT date(created_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
+       SUM(depth = 0) AS alone,
+       SUM(depth = 1) AS first_circle,
+       SUM(depth > 1) AS onward,
+       COUNT(*) AS arrived,
+       CAST(ROUND(100.0 * SUM(depth > 0) / COUNT(*)) AS INT) AS invited_pct,
+       SUM(COUNT(*)) OVER (
+         ORDER BY date(created_at / 1000, 'unixepoch', '-6 days', 'weekday 1')
+       ) AS to_date
+  FROM growth
+ GROUP BY week
+ ORDER BY week;
+SQL
+}
+
+growth_months() {
+  cat <<'SQL'
+.print ''
+.print '── Arrivals by calendar month ──────────────────────────────────'
+.print ''
+-- The same shape as the weeks report, and worth having separately only
+-- because a month is the unit anybody comparing this against a bill or a
+-- store report will already be holding. Both are truncated by the same thing:
+-- the first row is the first account, not the first install.
+SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch') AS month,
+       SUM(depth = 0) AS alone,
+       SUM(depth = 1) AS first_circle,
+       SUM(depth > 1) AS onward,
+       COUNT(*) AS arrived,
+       CAST(ROUND(100.0 * SUM(depth > 0) / COUNT(*)) AS INT) AS invited_pct,
+       SUM(COUNT(*)) OVER (
+         ORDER BY strftime('%Y-%m', created_at / 1000, 'unixepoch')
+       ) AS to_date
+  FROM growth
+ GROUP BY month
+ ORDER BY month;
+SQL
+}
+
+growth_depth() {
+  cat <<'SQL'
+.print ''
+.print '── How far the chains reach ────────────────────────────────────'
+.print ''
+-- Generation 0 is everybody who came alone, 1 is first circle, and everything
+-- from 2 down is the onward class taken apart. The interesting reading is how
+-- long the tail is and how recent it is: a generation whose `latest` is
+-- months old is a chain that has stopped, whichever way its count looks.
+SELECT depth AS generation,
+       COUNT(*) AS people,
+       COUNT(DISTINCT root) AS trees,
+       date(MIN(created_at) / 1000, 'unixepoch') AS first,
+       date(MAX(created_at) / 1000, 'unixepoch') AS latest
+  FROM growth
+ GROUP BY depth
+ ORDER BY depth;
+SQL
+}
+
+growth_founders() {
+  cat <<'SQL'
+.print ''
+.print '── Each tree, by the founder at the top of it ──────────────────'
+.print ''
+-- One row per person who came alone and brought at least one other; the count
+-- at the bottom is how many came alone and brought nobody, which is the rest
+-- of that class and would otherwise be a long tail of noughts. The same shape
+-- as `AccountRegistry.leaderboard`, and deliberately not the same query:
+-- that one ranks every inviter by their whole subtree, this one asks what
+-- each *root* is responsible for, which is the question growth has.
+--
+-- The founder is read from `everyone` rather than from `growth`, so a tree
+-- whose root has since erased their account is still a tree. It shows as
+-- `(gone)`, and everybody in it is still counted where they are.
+SELECT CASE WHEN f.identifier GLOB 'erased:*' THEN '(gone)'
+            ELSE f.display_name END AS founder,
+       date(f.created_at / 1000, 'unixepoch') AS arrived,
+       SUM(g.depth = 1) AS first_circle,
+       SUM(g.depth > 1) AS onward,
+       COUNT(*) - 1 AS brought_in_all,
+       MAX(g.depth) AS deepest,
+       date(MAX(g.created_at) / 1000, 'unixepoch') AS newest_arrival
+  FROM growth g
+  JOIN everyone f ON f.id = g.root
+ GROUP BY g.root
+HAVING COUNT(*) > 1
+ ORDER BY brought_in_all DESC, founder;
+
+.print ''
+SELECT COUNT(*) AS founders_who_brought_nobody
+  FROM growth
+ WHERE depth = 0
+   AND id NOT IN (SELECT root FROM growth WHERE depth > 0);
+SQL
+}
+
+growth_islands() {
+  cat <<'SQL'
+.print ''
+.print '── The islands: who can reach whom through contacts ────────────'
+.print ''
+-- An island is a connected component of the accepted-contacts graph: a set of
+-- people every one of whom can be reached from every other by walking mutual
+-- contacts. Somebody with no accepted contact is an island of one, and the
+-- count below includes them — they are the honest denominator for whether this
+-- is one community or a heap of unconnected pairs.
+--
+-- `people` here is everybody who counts, which is a larger set than the one
+-- the class reports total to: an island needs no invitation to be on it, so
+-- somebody the class walk could not place is still on the map.
+--
+-- `largest_share` is the fraction of everybody sitting in the biggest island,
+-- which is the single number to watch: a network that is working converges on
+-- one island holding nearly everybody, and a fleet of small ones is a product
+-- being used by people who do not know each other.
+WITH size AS (SELECT island, COUNT(*) AS n FROM island GROUP BY island)
+SELECT (SELECT COUNT(*) FROM person) AS people,
+       COUNT(*) AS islands,
+       MAX(n) AS largest,
+       CAST(ROUND(100.0 * MAX(n) / (SELECT COUNT(*) FROM person)) AS INT)
+         AS largest_share,
+       ROUND(AVG(n), 1) AS mean_size,
+       SUM(n = 1) AS islands_of_one
+  FROM size;
+
+.print ''
+.print '   each island, largest first'
+.print ''
+-- Named by its oldest member rather than by its label, the label being an id
+-- and arbitrary. The class columns can sum to less than `people` — anybody
+-- whose `invited_by` names a row that is not there has no class, which is a
+-- defect and has its own report.
+SELECT COUNT(*) AS people,
+       SUM(g.depth = 0) AS founders,
+       SUM(g.depth = 1) AS first_circle,
+       SUM(g.depth > 1) AS onward,
+       (SELECT p2.display_name
+          FROM island i2 JOIN person p2 ON p2.id = i2.id
+         WHERE i2.island = i.island
+         ORDER BY p2.created_at LIMIT 1) AS oldest_member,
+       date(MIN(p.created_at) / 1000, 'unixepoch') AS settled,
+       date(MAX(p.created_at) / 1000, 'unixepoch') AS newest_arrival
+  FROM island i
+  JOIN person p ON p.id = i.id
+  LEFT JOIN generation g ON g.id = i.id
+ GROUP BY i.island
+ ORDER BY people DESC, settled;
+
+.print ''
+.print '   founders per island — one each is the premise, not a finding'
+.print ''
+-- The claim this report was built to test: that a founder defines an island,
+-- everybody on it being there because of them. Two ways it fails, and both are
+-- ordinary rather than defects. **Two or more founders on one island** means
+-- people who each arrived alone have since become contacts, and the island is
+-- a merge rather than a tree — the invitation forest cannot see this, since
+-- neither of them invited the other. **No founder at all** means the founder
+-- has erased their account, or has no accepted contact with anybody they
+-- brought in: an invitation is not a contact, and nothing makes it one.
+WITH per_island AS (
+  SELECT i.island, COUNT(*) AS people, SUM(g.depth = 0) AS founders
+    FROM island i LEFT JOIN generation g ON g.id = i.id
+   GROUP BY i.island
+)
+SELECT founders AS founders_on_it,
+       COUNT(*) AS islands,
+       SUM(people) AS people
+  FROM per_island
+ GROUP BY founders
+ ORDER BY founders;
+
+.print ''
+.print '   what the pending asks would join'
+.print ''
+-- Every pending contact request whose two ends are on different islands is a
+-- bridge waiting on one person to tap accept, and `islands_if_all_accepted` is
+-- what the map would look like if they all did. It is the cheapest available
+-- measure of how close this is to being one network — and unlike the invited
+-- backlog it is not swept, so a bridge can sit here indefinitely.
+WITH RECURSIVE hopeful(x, y) AS (
+  SELECT c.a_id, c.b_id FROM contacts c
+    JOIN person a ON a.id = c.a_id JOIN person b ON b.id = c.b_id
+  UNION ALL
+  SELECT c.b_id, c.a_id FROM contacts c
+    JOIN person a ON a.id = c.a_id JOIN person b ON b.id = c.b_id
+),
+reach(seed, node) AS (
+  SELECT id, id FROM person
+  UNION
+  SELECT r.seed, h.y FROM reach r JOIN hopeful h ON h.x = r.node
+)
+SELECT (SELECT COUNT(*) FROM contacts c
+          JOIN island ia ON ia.id = c.a_id
+          JOIN island ib ON ib.id = c.b_id
+         WHERE c.state = 'pending' AND ia.island <> ib.island) AS bridges,
+       (SELECT COUNT(*) FROM contacts c
+          JOIN person a ON a.id = c.a_id JOIN person b ON b.id = c.b_id
+         WHERE c.state = 'pending') AS pending_in_all,
+       COUNT(DISTINCT island) AS islands_if_all_accepted
+  FROM (SELECT MIN(node) AS island FROM reach GROUP BY seed);
+
+.print ''
+.print '   islands week by week, as the graph stands today'
+.print ''
+-- **This is a reconstruction and it is a lower bound.** `contacts` is current
+-- state: a row is deleted when either person ends the relationship, when a
+-- request is declined or cancelled, and when an account is erased. So a week
+-- is drawn with the edges that still exist, and any island that has since
+-- broken up never appears. It moves in one direction — the past can only look
+-- sparser than it was, never denser.
+--
+-- The cost warning on the `island` view applies here once per week rather
+-- than once. It is the same closure with a date on both the people and the
+-- edges.
+WITH RECURSIVE
+week(w) AS (
+  SELECT date((SELECT MIN(created_at) FROM person) / 1000, 'unixepoch',
+              '-6 days', 'weekday 1')
+  UNION ALL
+  SELECT date(w, '+7 days') FROM week WHERE date(w, '+7 days') <= date('now')
+),
+cut AS (SELECT w, unixepoch(w, '+7 days') * 1000 AS ms FROM week),
+reach(w, seed, node) AS (
+  SELECT c.w, p.id, p.id FROM cut c JOIN person p ON p.created_at < c.ms
+  UNION
+  SELECT r.w, r.seed, l.y
+    FROM reach r JOIN cut c ON c.w = r.w
+    JOIN link l ON l.x = r.node AND l.at < c.ms
+),
+sized AS (
+  SELECT w, MIN(node) AS island, seed FROM reach GROUP BY w, seed
+),
+tally AS (
+  SELECT w, island, COUNT(*) AS n FROM sized GROUP BY w, island
+)
+SELECT w AS week,
+       SUM(n) AS people,
+       COUNT(*) AS islands,
+       MAX(n) AS largest,
+       CAST(ROUND(100.0 * MAX(n) / SUM(n)) AS INT) AS largest_share,
+       SUM(n = 1) AS islands_of_one
+  FROM tally
+ GROUP BY w
+ ORDER BY w;
+SQL
+}
+
+growth_defects() {
+  cat <<'SQL'
+.print ''
+.print '── Defects ─────────────────────────────────────────────────────'
+.print ''
+-- An `invited_by` naming a row that is not in `accounts`. The column is
+-- declared REFERENCES accounts(id), so any row here means either that foreign
+-- keys were off for the write or that somebody deleted rather than erased.
+-- These people are in no class and are missing from every count above.
+SELECT p.identifier, p.invited_by AS names_nobody
+  FROM person p
+  LEFT JOIN generation g ON g.id = p.id
+ WHERE g.id IS NULL;
+
+-- Somebody as their own inviter. `creditInviter` refuses this outright, so a
+-- row is a defect in whatever other path wrote it. It also makes the person
+-- unreachable from any root, so they will appear above as well.
+SELECT COUNT(*) AS self_invited FROM everyone WHERE invited_by = id;
+
+-- A person sitting at the recursion cap, which is not a depth anybody could
+-- reach honestly — it means the walk found a cycle and stopped, and every
+-- number in every report above is wrong until the table is fixed.
+SELECT COUNT(*) AS at_the_depth_cap FROM generation WHERE depth >= 32;
+
+-- A contacts row with a tombstone at one end. `erase` deletes them in both
+-- directions, so a row here means an account was emptied by some route that
+-- did not go through it — and it is somebody still holding a relationship with
+-- a person who is gone. It would also be a bridge between islands through
+-- nobody, which is why `link` restricts both ends rather than trusting this.
+SELECT COUNT(*) AS contacts_with_a_tombstone
+  FROM contacts c
+  JOIN everyone e ON e.id IN (c.a_id, c.b_id)
+ WHERE e.identifier GLOB 'erased:*';
+
+-- Not a defect: an account whose inviter has since erased theirs. Here
+-- because it is the one case where the name behind a class is unavailable
+-- while the class itself is sound, and somebody reading `(gone)` in the
+-- founders report should be able to see how much of it there is.
+SELECT COUNT(*) AS invited_by_a_tombstone
+  FROM growth g
+  JOIN everyone i ON i.id = g.invited_by
+ WHERE i.identifier GLOB 'erased:*';
+SQL
+}
+
+report_names=(classes weeks months depth founders islands defects)
+
+list_reports() {
+  cat <<'TXT'
+classes   the three classes: how many, what share, and how many each brought
+weeks     arrivals per week by class, with the running total
+months    the same by calendar month, for comparing against anything monthly
+depth     how many people sit at each generation, and how recent each is
+founders  one row per tree: who came alone, and what grew under them
+islands   connected components of the contacts graph, now and week by week
+defects   edges naming nobody, self-invites, cycles, contacts with the gone
+TXT
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    --list) list_reports; exit 0 ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    -*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *)
+      # shellcheck disable=SC2076
+      if [[ " ${report_names[*]} " == *" $arg "* ]]; then
+        wanted+=("$arg")
+      else
+        echo "No such report: $arg" >&2
+        echo "Try one of: ${report_names[*]}" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+[ ${#wanted[@]} -eq 0 ] && wanted=("${report_names[@]}")
+
+sql=$(growth_preamble)$'\n'
+for report in "${wanted[@]}"; do
+  sql+=$("growth_$report")$'\n'
+done
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else.
+opts=(-readonly -header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  echo "→ local · accounts are arrivals, not installs"
+  exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
+fi
+
+echo "→ production · accounts are arrivals, not installs"
+# Over stdin rather than interpolated into the remote shell, for the reason
+# bin/db spells out: $, backticks and backslashes are all live in that position
+# and these queries contain them.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
+  <<<"$sql"

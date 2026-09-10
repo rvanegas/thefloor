@@ -84,11 +84,13 @@ caused; the list carries the meaning.
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
+- **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
+- **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
 - **Mix** — The single file a finished recording becomes, made from its *stems*
@@ -948,6 +950,24 @@ foreground, for a control that must not compete with the one beside it. It has
 no meaning in the product: no user, channel, presence or recording is ever
 described as a ghost.
 
+## Growth classes — alone, first circle, onward
+
+The three cohorts `bin/growth` sorts every account into, by its depth in the
+invitation forest that `accounts.invited_by` describes. **Alone** arrived with
+no inviter and is the top of a tree; **first circle** was invited by somebody
+who came alone; **onward** was invited by somebody who was themselves invited,
+which is every remaining depth taken together. Exhaustive and disjoint, and
+named by depth rather than by how the invitation was sent — an address
+resolving at sign-up and `creditInviter` writing an edge inside a room are the
+same arrival.
+
+Not frozen: `creditInviter` can name an inviter for an account that has been
+here for weeks, which moves that person out of *alone* and everybody under
+them down a class. It cannot happen twice to the same account.
+
+Distinct from the *leaderboard*, which ranks every inviter by their whole
+subtree. These say what a person *is*, not what they have done.
+
 ## Guard
 
 An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`,
@@ -988,6 +1008,26 @@ composed and therefore decays: a client subtracting it from its own advancing
 clock reports the age of the snapshot on top of the real gap. A *fact* does not
 decay, which is what lets Home refresh on socket transitions rather than on a
 timer.
+
+## Island
+
+A connected component of the accepted-contacts graph: a set of accounts every
+one of whom can be reached from every other by walking mutual contacts.
+Somebody with no accepted contact is an island of one. `bin/growth islands`
+is the only thing that computes them; nothing in the server has the concept
+and no screen says the word.
+
+**Not a founder's tree, and the two do not have to agree.** An invitation is
+not a contact and nothing makes it one, so somebody can be invited, arrive,
+and sit on an island of their own; and two people who each came *alone* can
+become contacts, putting two founders on one island — which the invitation
+forest cannot see, neither having invited the other. See *growth classes* for
+the other structure, and use the right word: a tree is who brought whom, an
+island is who can reach whom.
+
+Pending contact requests are not edges. A contact is somebody you have both
+agreed to be in touch with, so an island is a claim about agreement; the
+bridges a pending request *would* build are reported separately.
 
 ## Live channel
 
