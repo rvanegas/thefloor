@@ -3,8 +3,8 @@
 
 **Built:** the attention clock and everything that reads it — any activity in
 the app refreshes it, talking never does, one clock per person per channel held
-by the server and pushed to every client, and the roster showing it for both
-absent states. A device attends what is on its screen and what it is standing
+by the server and pushed to every client, and the roster showing it on the
+*nearby* line. A device attends what is on its screen and what it is standing
 in, so reading Home holds the conversation you are in and nothing else. The *subscribeable* guard is built and is what keeps a silent listener
 present.
 
@@ -30,7 +30,10 @@ Roster display: _none_, away <time>, nearby <time>
 
 Roster may also say "Invited".
 
-Time displayed is attention clock. Same for both "away" and "nearby".
+Time displayed is not one clock. "nearby" measures time since last attention;
+"away" measures time since last presence. They coincide when the rung was lost
+to a timeout, which is why one clock looked sufficient for a day. Somebody
+never present has no "away" time and the roster shows "Invited" alone.
 
 present: in room
 absent or nearby: not in room

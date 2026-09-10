@@ -2898,12 +2898,18 @@ function ParticipantCard({
    * How long since they were last attending the application, or null when the
    * server has no clock for them.
    *
-   * **The one clock this card shows about anybody absent**, since 2026-09-09,
-   * and the reason the two lines below no longer measure different things.
-   * *Nearby* used to count from a declaration and *Stepped out* from the last
-   * sign of life in this channel, so the same person crossing between them
-   * appeared to have their history rewritten, and neither number answered the
-   * question anybody actually had: will a notification find them.
+   * **This is the *nearby* clock and only that.** It was briefly the one clock
+   * this card showed about anybody absent, on 2026-09-09, and the two states
+   * do not in fact ask the same question. *Nearby* is a claim about reach —
+   * will a notification find them — and attention is exactly the evidence for
+   * it. *Stepped out* is a claim about this room: when were they last in it.
+   * Attention cannot answer the second, and answering it anyway produced the
+   * sentence that gave the game away — somebody who has never once entered a
+   * channel, reading it for the first time, described to themselves as having
+   * been away four seconds. They had not been anywhere.
+   *
+   * The two clocks coincide when a rung was lost to a timeout, which is the
+   * common case and is why one looked like it would do for both.
    *
    * Clamped like every other duration here, and against the server's clock
    * rather than the device's — a stamp taken a moment ago can arrive as a
@@ -3087,28 +3093,29 @@ function ParticipantCard({
         // has no attention clock for them.
         `Nearby ${duration(attention ?? waitingFor ?? 0)}`
       : channel.everPresent.includes(participant.id)
-        ? attention !== null
-          ? // **"Away", not "Stepped out", once the clock is attention.** The
-            // two words are not interchangeable and the number decides which
-            // is true: *stepped out four minutes ago* is a claim about when
-            // they left this room, and the attention clock does not know when
-            // that was — it knows when they last touched the application,
-            // which for somebody who left an hour ago and is using their phone
-            // now is a few seconds. Said as *stepped out*, that sentence is
-            // simply false; said as *away*, it is the useful thing, and the
-            // one *nearby* is already saying on the line above.
-            `Away ${duration(attention)}`
-          : away === null
-            ? 'Stepped out'
-            : `Stepped out ${ago(away)}`
-        : attention !== null
-          ? // Somebody who has never been in this channel and is attending the
-            // application. *Invited* is still true and is no longer the useful
-            // half: an invitation that has been sitting there a week and one
-            // whose recipient is holding their phone are the same card, and
-            // only one of them is worth waiting a moment for.
-            `Invited · away ${duration(attention)}`
-          : 'Invited';
+        ? // **The presence clock, not the attention clock.** For one day this
+          // read `Away ${duration(attention)}`, on the argument that *stepped
+          // out four minutes ago* is a claim the attention clock cannot make.
+          // That much was right; the conclusion was not. The fix is to make
+          // the claim with the clock that can make it, rather than to keep the
+          // wrong number and soften the word until it fits — *away four
+          // seconds* about somebody who left an hour ago is no truer for being
+          // vaguer, it has just stopped saying which four seconds it means.
+          //
+          // What this line is for is the room: when was this person last in
+          // it. `idleMs` is that and nothing else. Whether they are reachable
+          // *now* is the line above, and somebody who is both gets it.
+          away === null
+          ? 'Stepped out'
+          : `Stepped out ${ago(away)}`
+        : // Never once here, so there is no interval since they were, and no
+          // number belongs on this line. It carried `Invited · away ${…}` for
+          // a day — the attention clock again, standing in for a presence that
+          // has not happened — which is the reading that gave the whole
+          // conflation away: a channel you have just been invited to, opened
+          // for the first time, telling you that you have been away a few
+          // seconds. An invitation is a standing fact with no clock on it.
+          'Invited';
 
   const body = (
     /**

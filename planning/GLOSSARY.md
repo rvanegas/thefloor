@@ -70,7 +70,7 @@ caused; the list carries the meaning.
 **Words that exist only in the codebase**
 
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
-- **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster shows about anybody absent
+- **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
@@ -440,23 +440,36 @@ out* like anything else.
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
-**One clock, and it is attention**, since 2026-09-09. How long somebody has
-been nearby, and how long they have been away, are the same number: the time
-since they were last attending *this channel*. The server holds it, one stamp
-per person per channel, fed by a report the client sends when the app is
-frontmost or a hand is on it; the tick reads it and ends both states.
+**Two clocks, and the state decides which**, corrected 2026-09-09 the same day
+one clock was adopted. *Nearby* counts attention: the time since they were last
+attending *this channel*, which is the evidence for the claim that line makes —
+a notification will find them. *Stepped out* counts presence: the time since
+they were last in this room, which is the claim that line makes and the one
+attention cannot support. Somebody who left an hour ago and is holding their
+phone now is *nearby 2s*, and if the wait has lapsed, *stepped out an hour ago*.
+
+**They coincide when a rung was lost to a timeout**, which is the common case
+and is what made one clock look sufficient. It is not: a person can attend a
+channel they have never entered, and did — the reading that caught it was a
+member opening an invitation for the first time and being told they had been
+*away 4s*, having been nowhere.
+
+The attention half is server-held, one stamp per person per channel, fed by a
+report the client sends when the app is frontmost or a hand is on it; the tick
+reads it and ends both states. Ending a state and timing it are separate jobs,
+and only the first is one clock's.
 
 **Per channel and not per person**, because the same person is stepped out of
 different rooms at different times and that difference is most of what a roster
 carries. A device names what it is attending: the channel on screen, and the
 channel it is standing in — so reading Home holds the conversation you are in,
-and a declaration in a room you are not looking at ages as it always did. So the roster says *nearby 20s* and *away 4 minutes*, and both answer
-the question anybody actually has — whether a notification will find them —
-rather than when somebody last left a room.
+and a declaration in a room you are not looking at ages as it always did. So
+the roster says *nearby 20s* — whether a notification will find them — and
+*stepped out 4 minutes ago*, which is when they last left this room.
 
 **Three clocks preceded it inside a single day**, which is worth knowing only
 because the words still exist in the code: `lastPresentAt`, the last sign of
-life in a channel, which now orders Home and nothing else a reader sees;
+life in a channel, which orders Home and is what *stepped out* counts;
 `declaredNearbyAt`, the moment a declaration was made, kept as the auto/manual
 bit and no longer a clock; and a private client-side attention clock that
 nobody but its own client could see. They disagreed at every seam — a

@@ -57,6 +57,12 @@ export const mockApp = {
       // pingable now, so a view without the map is a channel nobody has been
       // pinged in.
       pingableAt?: Record<string, number>;
+      // Likewise absent on most of these, and it means something different
+      // when it is: no attention clock for that person, which is a build too
+      // old to report one. A test that wants the *nearby* line's number sets
+      // it, and until 2026-09-09 none did — which is how a change to what the
+      // roster counts got past a suite that asserts on those very lines.
+      attentiveAt?: Record<string, number>;
       serverNow: number;
     }
   >,

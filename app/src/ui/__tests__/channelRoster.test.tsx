@@ -450,6 +450,67 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The two clocks, and the reason there are two.
+   *
+   * Neither of these had a test until 2026-09-09, because no roster test had
+   * ever supplied an `attentiveAt` — so the day the absent lines were rewired
+   * to the attention clock, the suite went on passing while the screen said
+   * something new. Both cases below are the same conflation seen from its two
+   * ends, and both were shipped.
+   */
+  it('times an absence from the room, not from the phone', () => {
+    // Somebody who left this channel five minutes ago and picked their phone
+    // up a second ago. Attention says one second; that is a true fact about
+    // their reachability and the *Nearby* line is where it belongs. This line
+    // is about the room, and the room has not seen them for five minutes.
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW))
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    mockApp.channelViews['sess_1']!.attentiveAt = {
+      [THEM]: NOW + 5 * 60_000 - 1_000,
+    };
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Stepped out 5 minutes ago');
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  it('puts no clock on somebody who has never been in', () => {
+    // The reading that gave the conflation away, and it was about the reader
+    // themselves: open a channel you have been invited to and have not yet
+    // entered, and the roster told you that you had been away four seconds.
+    // Attention had been running since the app opened; presence had never
+    // started. There is no interval to show, so there is no number.
+    const invited = reduce(
+      createChannel({ id: 'sess_1', initiator: ME, invitees: [THEM], now: NOW }),
+      { type: 'ENTER', userId: ME },
+      NOW
+    );
+    showChannel(invited);
+    mockApp.channelViews['sess_1']!.attentiveAt = { [THEM]: NOW - 4_000 };
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Invited');
+    expect(text).not.toContain('away');
+    act(() => tree.unmount());
+  });
+
   it('says somebody is nearby when their connection went, not their finger', () => {
     // A tap and a suspended phone leave the same absence and used to read the
     // same. They do not mean the same thing to whoever has just walked in:

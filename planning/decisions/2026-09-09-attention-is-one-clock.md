@@ -1,5 +1,13 @@
 # 2026-09-09 — Attention is one clock, and the server holds it
 
+**Corrected the same day in its display half — see
+`2026-09-09-one-clock-ends-two-states-but-times-one.md`.** The clock, the server
+holding it, and the tick reading it to end both nearby and presence all stand.
+What does not is the sentence below saying it is *what the roster shows about
+anybody who is not in the room*: it is what *nearby* counts, and *stepped out*
+counts presence, because those two lines make different claims. Read that file
+before this one where the two disagree.
+
 Three clocks answered overlapping questions and disagreed at every seam. There
 is one now: **the time since somebody was last attending the application.** The
 server holds it, one stamp per account, and it is what the roster shows about
