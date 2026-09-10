@@ -2611,12 +2611,18 @@ function FooterAction({
           : colors.text;
   const inert = !!disabled || !!selected;
   /**
-   * The disc behind the glyph, which says the same thing the colour does and
+   * The disc behind the control, which says the same thing the colour does and
    * is drawn wherever the colour is not `text`: the rung you are standing on,
    * the microphone you have shut, the floor you hold, the silence somebody
    * else imposed. Not on a refusal — grey on a tinted disc would read as a
    * control that is on and unavailable at once, which is neither of the two
    * things this bar says.
+   *
+   * **Behind the glyph *and* the label, since 2026-09-10**, where it used to
+   * ring the glyph alone. What gets read here is the pair — the label is what
+   * makes the icon legible the first time, per the footer's own note — so the
+   * thing the disc is selecting is the pair, and a disc that stopped above the
+   * word drew a boundary through the middle of one control.
    */
   const accented = !inert ? tone !== 'idle' : !!selected;
 
@@ -2636,12 +2642,12 @@ function FooterAction({
         pressed && !inert && styles.footerActionPressed,
       ]}
     >
-      <View style={[styles.footerIcon, accented && styles.footerIconAccented]}>
-        {icon(color)}
+      <View style={[styles.footerStack, accented && styles.footerStackAccented]}>
+        <View style={styles.footerIcon}>{icon(color)}</View>
+        <Text style={[styles.footerLabel, { color }]} numberOfLines={1}>
+          {label}
+        </Text>
       </View>
-      <Text style={[styles.footerLabel, { color }]} numberOfLines={1}>
-        {label}
-      </Text>
     </Pressable>
   );
 }
@@ -3523,32 +3529,52 @@ const styles = StyleSheet.create({
    * target shifting under the thumb at the exact moment somebody is reaching
    * for it a second time.
    *
-   * `minHeight` is the 44pt Apple asks for, which the icon and label do not
-   * reach on their own.
+   * `minHeight` is the 44pt Apple asks for. The disc inside is taller than
+   * that on its own, so this is a floor the layout already clears rather than
+   * one it depends on — kept because the disc's height is a visual decision
+   * and the target's is not.
    */
   footerAction: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
     minHeight: 44,
     paddingVertical: spacing(0.25),
   },
   footerActionPressed: { opacity: 0.6 },
   /**
-   * A fixed box around a 22px glyph, so the disc below can appear and vanish
-   * without moving the label under it or resizing the bar. Round rather than
-   * a rounded rectangle: a rectangle at this size reads as a second button
-   * inside the button.
+   * The glyph and its label as one object, and the shape the accent fills.
+   *
+   * **Fixed height and a radius of half it**, so the disc appears and vanishes
+   * without moving anything: the box is the same size accented or not, and the
+   * bar does not change height when somebody claims the floor. Round rather
+   * than a rounded rectangle, for the reason the smaller disc was round — a
+   * rectangle at this size reads as a second button inside the button.
+   *
+   * `minWidth` equal to the height is what makes it a circle for the short
+   * labels and a pill for the long ones, rather than a circle that clips
+   * "Nearby". `maxWidth` keeps it inside its fifth of the bar; the label
+   * ellipsises there rather than pushing its neighbours, which is the same
+   * promise `flex: 1` above makes about position.
    */
+  footerStack: {
+    minWidth: 54,
+    maxWidth: '100%',
+    height: 54,
+    borderRadius: 27,
+    paddingHorizontal: spacing(1),
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  footerStackAccented: { backgroundColor: colors.surfaceRaised },
+  /** A fixed box around a 22px glyph, so the icons sit on one line. */
   footerIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerIconAccented: { backgroundColor: colors.surfaceRaised },
   /**
    * 11px, which is smaller than anything else in this application and is the
    * one place that is right: it is a caption under a glyph that has already

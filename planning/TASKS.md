@@ -4,6 +4,10 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Automatic Recording
+
+Channel is configurable to record automatically.
+
 ## Walk Stepping In And Nearby
 
 The 2026-09-08 redesign is built and none of it has been heard.
@@ -26,6 +30,10 @@ slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
+
+## Growth Analytics
+
+## Introduction Checklist
 
 ## UI Restyling
 
