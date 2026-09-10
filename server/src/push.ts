@@ -564,23 +564,35 @@ export class ApnsPusher implements Pusher {
         // and an arrival stacks with its own room. See `threadId`.
         'thread-id': message.threadId,
       },
-      channelId: message.channelId,
-      // Read by the app to decide whether to show a banner over itself. Sent
-      // as the same word the server filtered on, so the two ends cannot come
-      // to different conclusions about what this notification is for.
-      reachesInApp: message.reachesInApp,
-      // And how loudly it was meant to arrive, which the app needs for the
-      // same decision: a passive ping is one somebody asked not to be
-      // interrupted by, and putting a banner over the app they are holding
-      // would be exactly the interruption they declined.
-      alert,
-      // Which of the four, so the app can tidy up after them. iOS never
-      // expires a notification it has already delivered — `apns-expiration`
-      // bounds retrying, not display — so an arrival announcing a room that
-      // emptied hours ago sits there until something removes it, and only the
-      // app can. Removing the right ones means telling them apart, and a
-      // notification is otherwise opaque to the phone that is holding it.
-      kind: message.kind,
+      // **Under `body`, and the nesting is not ours to choose.** For a
+      // *remote* notification `expo-notifications` does not hand the app the
+      // payload it received: `EXNotificationSerializer.m` returns
+      // `userInfo[@"body"]` as `content.data`, and everything outside that key
+      // is discarded before any JavaScript runs. These four sat beside `aps`
+      // until 2026-09-10, which is a shape the library reads as no data at
+      // all — so `reachesInApp` was absent on arrival, every notification
+      // looked like one that must not draw a banner, and no push has ever
+      // raised one over the open app on either platform. Nothing was logged,
+      // at either end, because nothing failed.
+      body: {
+        channelId: message.channelId,
+        // Read by the app to decide whether to show a banner over itself. Sent
+        // as the same word the server filtered on, so the two ends cannot come
+        // to different conclusions about what this notification is for.
+        reachesInApp: message.reachesInApp,
+        // And how loudly it was meant to arrive, which the app needs for the
+        // same decision: a passive ping is one somebody asked not to be
+        // interrupted by, and putting a banner over the app they are holding
+        // would be exactly the interruption they declined.
+        alert,
+        // Which of the four, so the app can tidy up after them. iOS never
+        // expires a notification it has already delivered — `apns-expiration`
+        // bounds retrying, not display — so an arrival announcing a room that
+        // emptied hours ago sits there until something removes it, and only
+        // the app can. Removing the right ones means telling them apart, and a
+        // notification is otherwise opaque to the phone that is holding it.
+        kind: message.kind,
+      },
     });
 
     try {
@@ -979,10 +991,11 @@ export class FcmPusher implements Pusher {
  *
  * **Everything in `data` crosses as a string, and that is Google's rule rather
  * than a choice here.** FCM's `data` is `map<string, string>` and it refuses a
- * body with anything else in it, so `reachesInApp` — a boolean on the APNs
- * side — arrives at the app as `"true"`. The app reads both forms; see
- * `reachesInApp` in the app's push.ts, which is where getting this wrong shows
- * up, and shows up as every in-app banner silently not appearing.
+ * body with anything else in it. That used to mean `reachesInApp` — a boolean
+ * on the APNs side — arrived at the app as `"true"`; it now travels inside the
+ * JSON under `body`, where its type survives. The app reads both forms, and
+ * that is where getting this wrong shows up: as every in-app banner silently
+ * not appearing.
  */
 export function fcmMessage(
   token: string,
@@ -1034,11 +1047,26 @@ export function fcmMessage(
         ...(message.collapseKey === null ? {} : { tag: message.collapseKey }),
       },
     },
+    // **One key, holding the JSON the app will read.** Android takes the same
+    // shape iOS does and for the same reason: `NotificationData.kt` builds
+    // what becomes `content.data` from `data["body"]`, parsed as a JSON
+    // object, and ignores every other entry in the map. These four were
+    // siblings in the map until 2026-09-10, which reads as no data at all —
+    // see the APNs payload above for what that cost.
+    //
+    // It also settles what a boolean is here. FCM's data block is
+    // `map<string, string>` and Google refuses a body with a boolean in it,
+    // which is why `reachesInApp` used to be sent as `"true"`; inside a JSON
+    // string the type survives, so both services now deliver a real boolean
+    // and the app's check against either form is insurance rather than a
+    // platform difference.
     data: {
-      channelId: message.channelId,
-      reachesInApp: String(message.reachesInApp),
-      alert,
-      kind: message.kind,
+      body: JSON.stringify({
+        channelId: message.channelId,
+        reachesInApp: message.reachesInApp,
+        alert,
+        kind: message.kind,
+      }),
     },
     // **`threadId` has no counterpart and is deliberately dropped.** Android
     // groups by an explicit `group` key under a single channel, which is not

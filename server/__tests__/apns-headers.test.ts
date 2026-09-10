@@ -140,8 +140,39 @@ describe('what a notification asks APNs to replace', () => {
       'silent'
     );
 
-    expect(requests[0].payload.kind).toBe('arrived');
-    expect(requests[0].payload.channelId).toBe('chan_1');
+    const body = requests[0].payload.body as Record<string, unknown>;
+    expect(body.kind).toBe('arrived');
+    expect(body.channelId).toBe('chan_1');
+  });
+
+  /**
+   * **The key the app's data actually arrives under, and the only one.**
+   * `expo-notifications` hands a remote notification's `content.data` from
+   * `userInfo["body"]` and discards the rest of the payload —
+   * `EXNotificationSerializer.m`, and `NotificationData.kt` on Android does
+   * the same. These four sat beside `aps` until 2026-09-10, which the library
+   * reads as no data at all: `reachesInApp` was absent, so every notification
+   * looked like one that must not draw a banner and none ever did.
+   *
+   * Asserted as the whole shape rather than key by key, because the defect is
+   * a key in the wrong *place* — one that reads perfectly well here and is
+   * discarded on the phone, with nothing logged at either end.
+   */
+  it('puts everything the app reads under `body`, and nothing beside `aps`', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', 'you about?', 'chan_1'),
+      'audible'
+    );
+
+    expect(Object.keys(requests[0].payload).sort()).toEqual(['aps', 'body']);
+    expect(requests[0].payload.body).toEqual({
+      channelId: 'chan_1',
+      // A real boolean here, which is what makes the banner appear.
+      reachesInApp: true,
+      alert: 'audible',
+      kind: 'pinged',
+    });
   });
 
   it('threads an arrival under its own room', async () => {

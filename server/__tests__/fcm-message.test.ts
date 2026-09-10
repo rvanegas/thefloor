@@ -188,10 +188,19 @@ describe('the FCM message', () => {
   });
 
   /**
-   * Google refuses a `data` block with anything but strings in it, which is
-   * why the app reads `reachesInApp` as either. See `reachesInApp` there.
+   * **One key, holding JSON, and the app never sees any other.**
+   * `NotificationData.kt` builds what becomes `content.data` from
+   * `data["body"]` parsed as an object and ignores every sibling — the same
+   * contract `EXNotificationSerializer.m` imposes on iOS. These four were
+   * siblings until 2026-09-10, which reads as no data at all: `reachesInApp`
+   * was absent, so no notification ever raised a banner over the open app,
+   * and nothing failed anywhere to say so.
+   *
+   * Google still refuses a `data` block with anything but strings in it, which
+   * this satisfies by carrying one string — and inside it the boolean keeps
+   * its type, which the sibling form could not do.
    */
-  it('sends every data value as a string', async () => {
+  it('puts everything the app reads under `body`, as one JSON string', async () => {
     const captured: Captured[] = [];
     await pusherWith(captured).send(
       ['device-1'],
@@ -199,13 +208,17 @@ describe('the FCM message', () => {
       'audible'
     );
     const data = sends(captured)[0].data;
+
+    expect(Object.keys(data)).toEqual(['body']);
     for (const value of Object.values(data)) {
       expect(typeof value).toBe('string');
     }
-    // The one that is a boolean on the APNs side.
-    expect(data.reachesInApp).toBe('true');
-    expect(data.kind).toBe('pinged');
-    expect(data.alert).toBe('audible');
+    expect(JSON.parse(data.body)).toEqual({
+      channelId: 'chan-1',
+      reachesInApp: true,
+      alert: 'audible',
+      kind: 'pinged',
+    });
   });
 });
 
