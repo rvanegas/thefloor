@@ -187,3 +187,126 @@ describe('deleting an account', () => {
     expect(app.help.forAccount(account.id)).toEqual([]);
   });
 });
+
+/**
+ * Writing an answer and sending it are two moves, and all of this is about the
+ * gap between them. `bin/help` is the only thing that drives it, so what is
+ * worth testing here is the pair of columns rather than the script: that a
+ * draft reaches nobody, that it goes on counting as unanswered, and that
+ * publishing moves it rather than copying it.
+ */
+describe('drafting an answer', () => {
+  const draftOf = (id: string) =>
+    app.db
+      .prepare('SELECT answer_draft, drafted_at FROM help_questions WHERE id = ?')
+      .get(id) as unknown as {
+      answer_draft: string | null;
+      drafted_at: number | null;
+    };
+
+  const askOne = async (text: string) => {
+    const { token, account } = await signIn('asker@example.com');
+    await ask(token, text);
+    const [question] = app.help.forAccount(account.id);
+    return { token, account, question };
+  };
+
+  it('shows the asker nothing at all until it is published', async () => {
+    // The failure the whole split exists to prevent: a half-written sentence
+    // about somebody's own account, read by them before anybody decided it was
+    // finished. Asserted over the whole serialised view rather than over the
+    // two fields, because a draft leaking through some third key would satisfy
+    // the narrower test and still be the thing that went wrong.
+    const { token, question } = await askOne('Why is my microphone off?');
+
+    expect(
+      app.help.draft(question.id, 'Somebody else has the floor.', clock + 1000)
+    ).toBe(true);
+
+    const view = (await read(token)).json();
+    expect(view.questions[0]).toMatchObject({ answer: null, answeredAt: null });
+    expect(JSON.stringify(view)).not.toContain('Somebody else has the floor.');
+  });
+
+  it('is still an unanswered question while it sits there', async () => {
+    // Nobody is less waiting on us because somebody has started typing, so a
+    // draft must not quietly hand back the slot its question was occupying.
+    const { token, account } = await signIn('waiting@example.com');
+    for (let i = 0; i < MAX_OUTSTANDING; i += 1) {
+      await ask(token, `question ${i}`);
+    }
+    const [oldest] = app.help.forAccount(account.id).slice(-1);
+
+    app.help.draft(oldest.id, 'nearly ready', clock + 1000);
+    expect((await read(token)).json().canAsk).toBe(false);
+
+    expect(app.help.publish(oldest.id, clock + 2000)).toBe('published');
+    expect((await read(token)).json().canAsk).toBe(true);
+  });
+
+  it('publishes what was drafted, stamped when it was sent', async () => {
+    const { token, question } = await askOne('How do I stop a recording?');
+    app.help.draft(question.id, 'Tap the floor once more.', clock + 1000);
+
+    expect(app.help.publish(question.id, clock + 9000)).toBe('published');
+
+    expect((await read(token)).json().questions[0]).toMatchObject({
+      answer: 'Tap the floor once more.',
+      // When it was sent, not when it was written. The asker is being told
+      // when this reached them, and the two can be days apart.
+      answeredAt: clock + 9000,
+    });
+  });
+
+  it('moves the draft rather than copying it', async () => {
+    // A draft beside a published answer has to mean an edit in progress. Left
+    // behind as a copy it would mean that on every answered question there has
+    // ever been, and the distinction would say nothing.
+    const { question } = await askOne('anything');
+    app.help.draft(question.id, 'the answer', clock + 1000);
+    app.help.publish(question.id, clock + 2000);
+
+    expect(draftOf(question.id)).toMatchObject({
+      answer_draft: null,
+      drafted_at: null,
+    });
+  });
+
+  it('refuses to publish what nobody wrote, and says which failure it was', async () => {
+    // The two failures want opposite corrections — one wants the id checked,
+    // the other wants the answer written — and a boolean covering both sends
+    // somebody to look at the wrong one.
+    const { account, question } = await askOne('unanswered');
+
+    expect(app.help.publish(question.id, clock + 1000)).toBe('nothing-drafted');
+    expect(app.help.publish('q_nosuchthing', clock + 1000)).toBe('no-such-question');
+
+    expect(app.help.forAccount(account.id)[0]).toMatchObject({
+      answer: null,
+      answeredAt: null,
+    });
+  });
+
+  it('refuses a draft that says nothing', async () => {
+    // Stored as the empty string it is indistinguishable from a draft holding
+    // a real answer, and publish would send it as an empty paragraph.
+    const { question } = await askOne('anything');
+
+    expect(app.help.draft(question.id, '   \n  ', clock + 1000)).toBe(false);
+    expect(draftOf(question.id).answer_draft).toBeNull();
+    expect(app.help.publish(question.id, clock + 2000)).toBe('nothing-drafted');
+  });
+
+  it('trims it, and replaces it when a better one is written', async () => {
+    const { token, question } = await askOne('anything');
+
+    app.help.draft(question.id, '  first attempt  ', clock + 1000);
+    expect(draftOf(question.id).answer_draft).toBe('first attempt');
+
+    app.help.draft(question.id, 'second, better', clock + 2000);
+    expect(draftOf(question.id).answer_draft).toBe('second, better');
+
+    app.help.publish(question.id, clock + 3000);
+    expect((await read(token)).json().questions[0].answer).toBe('second, better');
+  });
+});

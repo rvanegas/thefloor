@@ -5,7 +5,8 @@
 #   bin/help                        the unanswered ones, oldest first
 #   bin/help --all                  every question, answered or not
 #   bin/help <id>                   one question, whole, with the asker
-#   bin/help <id> "the answer"      write the answer to it
+#   bin/help <id> "the answer"      draft the answer to it
+#   bin/help publish <id>           send the draft to whoever asked
 #   bin/help --local                the development database on this machine
 #
 # **This is the whole of the other end of the Help screen.** Somebody types a
@@ -14,18 +15,46 @@
 # no routing, no status and nothing automated — see `server/src/help.ts`, which
 # argues for that at length.
 #
-# **Nothing notifies the asker.** Writing an answer here changes a row and
+# **Nothing notifies the asker.** Publishing an answer here changes a row and
 # reaches no phone; they see it when they next look. That is deliberate for
 # now, and it is also the reason not to sit on a question for a fortnight: the
 # only way somebody learns you replied is by coming back to check.
 #
-# ── Answering ───────────────────────────────────────────────────────────────
+# ── An id is any prefix that means one question ──────────────────────────────
+#
+# Ids look like `q_kJ8s2Lm4Qp1x`, and typing one out to answer a question is a
+# transcription job with a silent failure at the end of it: a wrong character
+# updates no rows, and the only thing that catches it is reading the line that
+# comes back. Four characters are enough to be unique among the handful of
+# questions that are ever outstanding, so `bin/help q_kJ8` is the same as
+# writing it in full.
+#
+# **Ambiguity is refused rather than resolved.** A prefix matching two
+# questions prints both and does nothing, because the alternative is answering
+# the wrong person's question with something addressed to somebody else. That
+# is why there is no "did you mean" that proceeds: the cost of the wrong guess
+# is not a wasted command, it is a private answer sent to a stranger.
+#
+# ── Drafting, and then publishing ────────────────────────────────────────────
+#
+# Writing an answer does not send it. `bin/help <id> "..."` puts the text in
+# `answer_draft`, which nobody but you can read, and `bin/help publish <id>` is
+# the move the asker ever sees. Until 2026-09-10 these were one keystroke,
+# which suits "yes, tap it twice" and badly misfits the answers that are
+# actually hard — a paragraph about somebody's own account, written to a
+# stranger, sent before it could be read back.
+#
+# Writing again replaces the draft. There is no command to discard one: a
+# better draft over the top is the whole of the edit, and one left unpublished
+# costs nothing, the question being genuinely unanswered either way. Publishing
+# clears the draft as it goes, so a draft sitting beside a published answer
+# always means an edit in progress and never the answer that is already out.
 #
 # The answer is one string, shown as prose under the question. It is **not**
 # Markdown — the screen renders it as plain text, so asterisks and brackets
 # arrive as asterisks and brackets. Newlines survive.
 #
-# The write goes through `bin/db --write`, which is the only writable path to
+# Both writes go through `bin/db --write`, which is the only writable path to
 # this database and makes you ask for it. Oldest first on purpose: a question
 # from a week ago is the one somebody has been waiting on.
 #
@@ -42,6 +71,7 @@ cd "$(dirname "$0")/.."
 
 local_flag=""
 all=false
+command=""
 id=""
 answer=""
 
@@ -55,6 +85,18 @@ for arg in "$@"; do
       # truncates the help the moment the header gains a line.
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
       exit 0
+      ;;
+    publish)
+      # A subcommand only in the leading position. Anywhere else it is an
+      # ordinary argument, so that an answer whose entire text is the word
+      # "publish" is still an answer and not a parse error.
+      if [ -z "$command" ] && [ -z "$id" ]; then
+        command="publish"
+      elif [ -z "$id" ]; then
+        id="$arg"
+      else
+        answer="$arg"
+      fi
       ;;
     *)
       if [ -z "$id" ]; then id="$arg"; else answer="$arg"; fi
@@ -75,21 +117,142 @@ quote() {
   printf "'%s'" "$escaped"
 }
 
-if [ -n "$id" ] && [ -n "$answer" ]; then
-  # The read afterwards is the confirmation, and is worth the second round
-  # trip: an id that matches nothing updates zero rows and says nothing about
-  # it, which would otherwise look exactly like success.
+# The id column out of bin/db's output, and nothing else in it.
+#
+# bin/db prints `-header -column` and offers no way to turn that off, so its
+# output carries a header, a row of dashes, and every value padded to its
+# column's width. Matching the shape of an id positively is what survives all
+# three — and survives a version of sqlite3 that disagrees about whether an
+# empty result still prints its header, which is exactly the case that decides
+# whether a prefix matched nothing.
+ids_only() {
+  tr -d ' \r' | grep -E '^q_[A-Za-z0-9_-]+$' || true
+}
+
+# The one question a prefix means, or an explanation and a non-zero exit.
+#
+# Compared with substr() rather than LIKE, and that is load-bearing: ids are
+# base64url, whose alphabet contains `_`, which is LIKE's single-character
+# wildcard. `LIKE 'q_kJ8%'` matches every id whose second character is anything
+# at all — which is to say all of them — so the prefix that looks most specific
+# is the one that would have been least.
+resolve() {
+  local prefix="$1"
+  if [ -z "$prefix" ]; then
+    echo "bin/help: no id given" >&2
+    return 1
+  fi
+
+  local matches count
+  matches=$(bin/db $local_flag "
+    SELECT id FROM help_questions
+     WHERE substr(id, 1, ${#prefix}) = $(quote "$prefix")
+     ORDER BY asked_at ASC;
+  " | ids_only)
+  count=$(printf '%s' "$matches" | grep -c . || true)
+
+  if [ "$count" -eq 0 ]; then
+    echo "bin/help: no question with an id starting $prefix" >&2
+    return 1
+  fi
+  if [ "$count" -gt 1 ]; then
+    {
+      echo "bin/help: $prefix matches $count questions — say more of it:"
+      bin/db $local_flag "
+        SELECT id,
+               datetime(asked_at / 1000, 'unixepoch') AS asked,
+               substr(replace(text, char(10), ' '), 1, 50) AS question
+          FROM help_questions
+         WHERE substr(id, 1, ${#prefix}) = $(quote "$prefix")
+         ORDER BY asked_at ASC;
+      "
+    } >&2
+    return 1
+  fi
+
+  printf '%s' "$matches"
+}
+
+# The whole of one question, which is both confirmations: what the draft now
+# says, and what the asker can now see.
+show() {
+  bin/db $local_flag "
+    SELECT q.id,
+           a.identifier AS asker,
+           a.display_name AS name,
+           datetime(q.asked_at / 1000, 'unixepoch') AS asked,
+           q.text,
+           q.answer_draft AS draft,
+           datetime(q.drafted_at / 1000, 'unixepoch') AS drafted,
+           q.answer,
+           datetime(q.answered_at / 1000, 'unixepoch') AS answered
+      FROM help_questions q JOIN accounts a ON a.id = q.account_id
+     WHERE q.id = $(quote "$1");
+  "
+}
+
+if [ "$command" = "publish" ]; then
+  if [ -n "$answer" ]; then
+    # Refused rather than taken as a draft-and-send, which would put the one
+    # move back and undo the whole point of there being two.
+    echo "bin/help: publish takes only an id — write the answer first with" >&2
+    echo "          bin/help $id \"...\", read it back, then publish it." >&2
+    exit 1
+  fi
+  resolved=$(resolve "$id") || exit 1
+
+  # Whether there is anything to send, asked before sending it. resolve() has
+  # already established the question exists, so this is the only failure left —
+  # and it is the one worth being loud about, since an UPDATE that promotes a
+  # NULL reports the same single changed row as one that promotes a paragraph.
+  drafted=$(bin/db $local_flag "
+    SELECT CASE WHEN answer_draft IS NULL THEN 'none' ELSE 'some' END AS state
+      FROM help_questions WHERE id = $(quote "$resolved");
+  " | tr -d ' \r' | grep -E '^(none|some)$' || true)
+
+  if [ "$drafted" != "some" ]; then
+    echo "bin/help: nothing drafted for $resolved — write one with" >&2
+    echo "          bin/help $resolved \"...\"" >&2
+    exit 1
+  fi
+
+  # Moved rather than copied, in one statement reading its own row: a read
+  # followed by a write of what was read leaves a window in which the answer
+  # could be improved and the improvement silently dropped.
   bin/db $local_flag --write "
     UPDATE help_questions
-       SET answer = $(quote "$answer"),
-           answered_at = unixepoch() * 1000
-     WHERE id = $(quote "$id");
+       SET answer = answer_draft,
+           answered_at = unixepoch() * 1000,
+           answer_draft = NULL,
+           drafted_at = NULL
+     WHERE id = $(quote "$resolved");
   " >/dev/null
-  bin/db $local_flag "
-    SELECT id, text, answer,
-           datetime(answered_at / 1000, 'unixepoch') AS answered
-      FROM help_questions WHERE id = $(quote "$id");
-  "
+  show "$resolved"
+  exit 0
+fi
+
+if [ -n "$id" ] && [ -n "$answer" ]; then
+  # An answer of nothing but whitespace is refused here rather than stored and
+  # published as an empty paragraph. It is also what a shell hands you when a
+  # heredoc or a quoted variable came out empty, which is the way it happens.
+  if [[ ! "$answer" =~ [^[:space:]] ]]; then
+    echo "bin/help: refusing to draft an empty answer" >&2
+    exit 1
+  fi
+  resolved=$(resolve "$id") || exit 1
+
+  # trim() in the statement rather than in the shell: trimming a string that
+  # may contain newlines is a job bash does badly and sqlite does exactly.
+  bin/db $local_flag --write "
+    UPDATE help_questions
+       SET answer_draft = trim($(quote "$answer")),
+           drafted_at = unixepoch() * 1000
+     WHERE id = $(quote "$resolved");
+  " >/dev/null
+  show "$resolved"
+  echo
+  echo "Drafted, and not sent. When it reads right:"
+  echo "  bin/help publish $resolved"
   exit 0
 fi
 
@@ -97,23 +260,19 @@ if [ -n "$id" ]; then
   # One question in full, with who asked it — which the list deliberately
   # leaves out. Answering usually needs to know whether this is somebody's
   # first day or their fiftieth, and that is one join away.
-  bin/db $local_flag "
-    SELECT q.id,
-           a.identifier AS asker,
-           a.display_name AS name,
-           datetime(q.asked_at / 1000, 'unixepoch') AS asked,
-           q.text,
-           q.answer,
-           datetime(q.answered_at / 1000, 'unixepoch') AS answered
-      FROM help_questions q JOIN accounts a ON a.id = q.account_id
-     WHERE q.id = $(quote "$id");
-  "
+  resolved=$(resolve "$id") || exit 1
+  show "$resolved"
   exit 0
 fi
 
 # The list. Text truncated because this is meant to be scanned — `bin/help
 # <id>` is how you read one whole, and a four-thousand-character question
 # rendered into an aligned column destroys the table it is in.
+#
+# A drafted question is an unanswered one and stays in the default list, which
+# is the honest place for it: nobody is less waiting on us because somebody has
+# started typing. The state column is what tells the difference between one
+# needing an answer written and one needing an answer sent.
 where="WHERE q.answer IS NULL"
 $all && where=""
 
@@ -122,7 +281,9 @@ bin/db $local_flag "
          datetime(q.asked_at / 1000, 'unixepoch') AS asked,
          a.display_name AS name,
          substr(replace(q.text, char(10), ' '), 1, 60) AS question,
-         CASE WHEN q.answer IS NULL THEN '' ELSE 'answered' END AS state
+         CASE WHEN q.answer IS NOT NULL THEN 'answered'
+              WHEN q.answer_draft IS NOT NULL THEN 'drafted'
+              ELSE '' END AS state
     FROM help_questions q JOIN accounts a ON a.id = q.account_id
     $where
    ORDER BY q.asked_at ASC;

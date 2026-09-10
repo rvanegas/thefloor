@@ -1129,6 +1129,12 @@ CREATE TABLE IF NOT EXISTS channel_notification_levels (
 -- to believe a timestamp that has no answer beside it — the pair can be left
 -- half-written in a way nothing else in this database can.
 --
+-- Since 2026-09-10 that hand happens in two moves rather than one: bin/help
+-- writes a draft into answer_draft, and bin/help publish is what the asker
+-- ever sees. An answer to a stranger question about their own account is worth
+-- reading back before it is sent, and the one-move form gave nowhere to do
+-- that.
+--
 -- Deleted with the account rather than tombstoned, unlike a donation: a
 -- question is something a person wrote in their own words, often about their
 -- own account, and nothing on the other side of it needs the row to survive.
@@ -1141,7 +1147,28 @@ CREATE TABLE IF NOT EXISTS help_questions (
   -- Null until somebody writes one. The screen shows the question either way;
   -- an unanswered question is a state to be honest about rather than to hide.
   answer      TEXT,
-  answered_at INTEGER
+  answered_at INTEGER,
+  -- The answer as it is being written, before anybody has decided it is ready.
+  --
+  -- **Its own column rather than a flag beside answer**, so that answer goes on
+  -- meaning exactly one thing: what the asker is being shown. Every read of
+  -- this table tests answer IS NULL — the screen list, the backlog count that
+  -- decides whether another question may be asked, the state column in
+  -- bin/help — and not one of them had to learn what a draft is. Had the draft
+  -- been kept in answer under an unpublished flag, every one of those reads
+  -- would need a second condition, and the one that was missed would show
+  -- somebody a half-written sentence about their own account. The failure mode
+  -- of this shape is a draft that does not appear; of the other, a draft that
+  -- appears to the wrong person.
+  --
+  -- A drafted question is still an unanswered one and counts against the
+  -- backlog, which falls out of the above rather than being arranged: nobody is
+  -- less waiting on us because somebody has started typing.
+  --
+  -- Cleared on publishing rather than kept as a copy, so that a draft sitting
+  -- beside a published answer means an edit in progress and nothing else.
+  answer_draft TEXT,
+  drafted_at   INTEGER
 );
 -- Both reads are one account's questions, and the backlog check is the same
 -- query narrowed. Nothing ever reads the table whole except bin/help, which is
@@ -1642,6 +1669,19 @@ function migrate(db: Db): void {
   // ended_at is null, and a finished run always has its state set by fileRun.
   db.exec(`UPDATE recordings SET mix_state = 'unmixed'
            WHERE mix_state IS NULL AND ended_at IS NOT NULL`);
+
+  // Where an answer is written before anybody decides it is ready, added
+  // 2026-09-10 when `bin/help` stopped publishing on the same keystroke that
+  // composed. Null for every existing row and nothing is backfilled: a question
+  // already answered has been seen by the person who asked it, and inventing a
+  // draft for it would offer to publish a sentence that is already out.
+  const helpColumns = db
+    .prepare('PRAGMA table_info(help_questions)')
+    .all() as Array<{ name: string }>;
+  if (!helpColumns.some((c) => c.name === 'answer_draft')) {
+    db.exec('ALTER TABLE help_questions ADD COLUMN answer_draft TEXT');
+    db.exec('ALTER TABLE help_questions ADD COLUMN drafted_at INTEGER');
+  }
 }
 
 export function sha256(value: string): string {
