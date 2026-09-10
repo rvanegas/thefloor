@@ -184,6 +184,10 @@ application collects little.</p>
   out or when that service reports it as dead.</li>
   <li><strong>When you were last connected</strong>, shown to your contacts so
   they can tell whether it is a reasonable moment to talk.</li>
+  <li><strong>Questions you ask from the Help screen</strong>, and the answers
+  written back to them. They are read by a person in order to answer them, and
+  they are shown to nobody else. Deleting your account deletes them, question
+  and answer alike.</li>
   <li><strong>How much the server carried for you</strong>: how many minutes
   your microphone was open, how many you spent listening, playing something or
   recording, how many you shared a channel with each other person, and how many

@@ -1118,6 +1118,36 @@ CREATE TABLE IF NOT EXISTS channel_notification_levels (
   set_at     INTEGER NOT NULL,
   PRIMARY KEY (account_id, channel_id)
 );
+
+-- Questions asked of The Floor from inside the app, and the answers written
+-- back into the same row.
+--
+-- **The answer columns are written by hand and by nothing else.** There is no
+-- route that sets them; bin/help does, through bin/db --write. That makes this
+-- the one table here whose most important column is edited by a person, which
+-- is why answer and answered_at are both nullable and why help.ts refuses
+-- to believe a timestamp that has no answer beside it — the pair can be left
+-- half-written in a way nothing else in this database can.
+--
+-- Deleted with the account rather than tombstoned, unlike a donation: a
+-- question is something a person wrote in their own words, often about their
+-- own account, and nothing on the other side of it needs the row to survive.
+-- Answering somebody who has left is not a thing anybody wants to do.
+CREATE TABLE IF NOT EXISTS help_questions (
+  id          TEXT PRIMARY KEY,
+  account_id  TEXT NOT NULL REFERENCES accounts(id),
+  text        TEXT NOT NULL,
+  asked_at    INTEGER NOT NULL,
+  -- Null until somebody writes one. The screen shows the question either way;
+  -- an unanswered question is a state to be honest about rather than to hide.
+  answer      TEXT,
+  answered_at INTEGER
+);
+-- Both reads are one account's questions, and the backlog check is the same
+-- query narrowed. Nothing ever reads the table whole except bin/help, which is
+-- run by a person and can afford a scan.
+CREATE INDEX IF NOT EXISTS help_questions_account
+  ON help_questions(account_id, asked_at DESC);
 `;
 
 export type Db = DatabaseSync;

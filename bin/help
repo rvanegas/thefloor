@@ -1,0 +1,129 @@
+#!/bin/bash
+#
+# The questions people have asked from inside the app, and how to answer them.
+#
+#   bin/help                        the unanswered ones, oldest first
+#   bin/help --all                  every question, answered or not
+#   bin/help <id>                   one question, whole, with the asker
+#   bin/help <id> "the answer"      write the answer to it
+#   bin/help --local                the development database on this machine
+#
+# **This is the whole of the other end of the Help screen.** Somebody types a
+# question in the app, it lands in `help_questions`, and the answer appears
+# under their question the next time they open that screen. There is no queue,
+# no routing, no status and nothing automated — see `server/src/help.ts`, which
+# argues for that at length.
+#
+# **Nothing notifies the asker.** Writing an answer here changes a row and
+# reaches no phone; they see it when they next look. That is deliberate for
+# now, and it is also the reason not to sit on a question for a fortnight: the
+# only way somebody learns you replied is by coming back to check.
+#
+# ── Answering ───────────────────────────────────────────────────────────────
+#
+# The answer is one string, shown as prose under the question. It is **not**
+# Markdown — the screen renders it as plain text, so asterisks and brackets
+# arrive as asterisks and brackets. Newlines survive.
+#
+# The write goes through `bin/db --write`, which is the only writable path to
+# this database and makes you ask for it. Oldest first on purpose: a question
+# from a week ago is the one somebody has been waiting on.
+#
+# ── Reading it as a source rather than as a queue ────────────────────────────
+#
+# `--all` is the useful report even when nothing is outstanding. This is the
+# only honest record of what people find confusing about The Floor, and the
+# support page at `/support` — which is a list of questions somebody *guessed*
+# at in advance — should be rewritten from it every so often. A question that
+# arrives three times is a paragraph that page is missing.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+local_flag=""
+all=false
+id=""
+answer=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_flag="--local" ;;
+    --all) all=true ;;
+    -h|--help)
+      # The whole comment block, however long it grows — the same reader
+      # bin/db uses, for the same reason: a fixed line range silently
+      # truncates the help the moment the header gains a line.
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *)
+      if [ -z "$id" ]; then id="$arg"; else answer="$arg"; fi
+      ;;
+  esac
+done
+
+# SQL literals are single-quoted, so a doubled quote is the escape. Everything
+# a person types here — an answer with an apostrophe in it, most of all — goes
+# through this before it reaches a statement.
+#
+# The substitution happens in an assignment rather than inside the printf's
+# double quotes, which is the part that bit: within double quotes a backslash
+# before an apostrophe stays in the string, so an answer with an apostrophe in
+# it reached sqlite escaped with backslashes and was a syntax error.
+quote() {
+  local escaped=${1//\'/\'\'}
+  printf "'%s'" "$escaped"
+}
+
+if [ -n "$id" ] && [ -n "$answer" ]; then
+  # The read afterwards is the confirmation, and is worth the second round
+  # trip: an id that matches nothing updates zero rows and says nothing about
+  # it, which would otherwise look exactly like success.
+  bin/db $local_flag --write "
+    UPDATE help_questions
+       SET answer = $(quote "$answer"),
+           answered_at = unixepoch() * 1000
+     WHERE id = $(quote "$id");
+  " >/dev/null
+  bin/db $local_flag "
+    SELECT id, text, answer,
+           datetime(answered_at / 1000, 'unixepoch') AS answered
+      FROM help_questions WHERE id = $(quote "$id");
+  "
+  exit 0
+fi
+
+if [ -n "$id" ]; then
+  # One question in full, with who asked it — which the list deliberately
+  # leaves out. Answering usually needs to know whether this is somebody's
+  # first day or their fiftieth, and that is one join away.
+  bin/db $local_flag "
+    SELECT q.id,
+           a.identifier AS asker,
+           a.display_name AS name,
+           datetime(q.asked_at / 1000, 'unixepoch') AS asked,
+           q.text,
+           q.answer,
+           datetime(q.answered_at / 1000, 'unixepoch') AS answered
+      FROM help_questions q JOIN accounts a ON a.id = q.account_id
+     WHERE q.id = $(quote "$id");
+  "
+  exit 0
+fi
+
+# The list. Text truncated because this is meant to be scanned — `bin/help
+# <id>` is how you read one whole, and a four-thousand-character question
+# rendered into an aligned column destroys the table it is in.
+where="WHERE q.answer IS NULL"
+$all && where=""
+
+bin/db $local_flag "
+  SELECT q.id,
+         datetime(q.asked_at / 1000, 'unixepoch') AS asked,
+         a.display_name AS name,
+         substr(replace(q.text, char(10), ' '), 1, 60) AS question,
+         CASE WHEN q.answer IS NULL THEN '' ELSE 'answered' END AS state
+    FROM help_questions q JOIN accounts a ON a.id = q.account_id
+    $where
+   ORDER BY q.asked_at ASC;
+"

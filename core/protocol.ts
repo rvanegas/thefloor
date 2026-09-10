@@ -622,6 +622,54 @@ export interface SupportView {
   } | null;
 }
 
+/**
+ * One question somebody asked of The Floor, and the answer if it has been
+ * written yet.
+ *
+ * **Not a message and not a thread.** There is one question, one answer, and
+ * no reply to the reply — the shape is a page of frequently asked questions
+ * that happens to be addressed to one person, rather than a conversation with
+ * a support agent. Anything that wants a conversation wants the email address
+ * on the support page instead, and the help screen says so.
+ *
+ * `answer` is null until somebody has written one, which is a state the screen
+ * shows rather than hides: the question is there, it has been received, and
+ * nobody has got to it yet. Saying that plainly is the difference between a
+ * screen that looks broken and one that is honest about how small this is.
+ */
+export interface HelpQuestion {
+  id: string;
+  /** What they asked, verbatim. */
+  text: string;
+  askedAt: number;
+  /** What was written back, or null while it is unanswered. */
+  answer: string | null;
+  /** When the answer was written. Null exactly when `answer` is. */
+  answeredAt: number | null;
+}
+
+/** Everything the help screen renders, read when it opens. */
+export interface HelpView {
+  /**
+   * Their own questions, newest first. Nobody else's, ever — this is not a
+   * forum, and a question is often about the asker's own account.
+   */
+  questions: HelpQuestion[];
+  /**
+   * Whether another question may be asked right now, and why not when it may
+   * not.
+   *
+   * Decided by the server rather than counted in the app, on the same
+   * principle as the donate link: the limit is a policy, and a policy in the
+   * binary is one that needs a submission to change. The screen greys the
+   * button and prints `askBlocked` underneath it, which is what every other
+   * disabled control here does.
+   */
+  canAsk: boolean;
+  /** Why not, when `canAsk` is false. Null when it is true. */
+  askBlocked: string | null;
+}
+
 /** Everything Home renders, pushed as one snapshot. */
 export interface HomeView {
   invites: InviteView[];

@@ -70,6 +70,7 @@ import {
   MIN_SUPPORTED_BUILD,
 } from './release';
 import { supportPage } from './support';
+import { Help, MAX_OUTSTANDING, MAX_QUESTION_LENGTH } from './help';
 import { watchPage } from './watch-page';
 import { donationsVisibleFor } from './region';
 import {
@@ -253,6 +254,7 @@ export interface App {
   devices: Devices;
   donations: Donations;
   transcripts: Transcripts;
+  help: Help;
 }
 
 /**
@@ -273,6 +275,7 @@ export function buildApp(options: BuildOptions = {}): App {
     accounts,
     options.kofi?.verificationToken
   );
+  const help = new Help(db);
   const fastify = Fastify({ logger: options.logger ?? false });
 
   // Several endpoints take no body, and a client that still declares
@@ -1629,6 +1632,80 @@ export function buildApp(options: BuildOptions = {}): App {
     return deletionPage({ contactEmail: options.contactEmail });
   });
 
+
+  // --- Help -----------------------------------------------------------------
+
+  /**
+   * The questions this person has asked, and whether they may ask another.
+   *
+   * A route rather than a field on the Home snapshot, on exactly the argument
+   * `/donations` makes above: that snapshot is pushed to every client on every
+   * change, and this is read by one screen when it opens. Nothing else in the
+   * app is gated on it, so there is nothing that would go stale by not holding
+   * it.
+   *
+   * **`canAsk` is decided here rather than counted in the app.** The limit is a
+   * policy, and a policy compiled into the binary is one that needs an App
+   * Store submission to loosen. The app greys its button and prints the reason
+   * underneath, which is what every other disabled control there does.
+   */
+  fastify.get('/help', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const outstanding = help.outstandingFor(account.id);
+    const canAsk = outstanding < MAX_OUTSTANDING;
+    return {
+      questions: help.forAccount(account.id),
+      canAsk,
+      // Said in the second person and about the backlog, because that is what
+      // it actually is: not a rate limit somebody has tripped, but a queue on
+      // our side that another question would only lengthen.
+      askBlocked: canAsk
+        ? null
+        : `You have ${outstanding} questions waiting for an answer. Once one comes back you can ask another.`,
+    };
+  });
+
+  /**
+   * Asks one.
+   *
+   * Answers the question as stored, so the screen renders the row the server
+   * kept rather than the string the field held — the two differ by a trim, and
+   * a list that shows the untrimmed one until the next open is a list that
+   * appears to change its mind.
+   *
+   * The refusals are 400 rather than 429 including the backlog one, which is
+   * not a rate: 429 invites a client to retry after a delay, and no delay makes
+   * this succeed. What makes it succeed is somebody answering.
+   */
+  fastify.post('/help', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const { text } = (request.body ?? {}) as { text?: unknown };
+    if (typeof text !== 'string') {
+      return reply.code(400).send({ error: 'A question is required.' });
+    }
+
+    const result = help.ask(account.id, text, now());
+    if (!result.ok) {
+      if (result.reason === 'empty') {
+        return reply.code(400).send({ error: 'A question is required.' });
+      }
+      if (result.reason === 'too-long') {
+        return reply.code(400).send({
+          error: `Questions are limited to ${MAX_QUESTION_LENGTH} characters.`,
+        });
+      }
+      return reply.code(400).send({
+        error:
+          'You have several questions waiting for an answer already. Once one comes back you can ask another.',
+      });
+    }
+
+    return { question: result.question };
+  });
 
   // --- Donations ----------------------------------------------------------
 
@@ -3457,7 +3534,16 @@ export function buildApp(options: BuildOptions = {}): App {
     });
   });
 
-  return { fastify, db, accounts, channels, devices, donations, transcripts };
+  return {
+    fastify,
+    db,
+    accounts,
+    channels,
+    devices,
+    donations,
+    transcripts,
+    help,
+  };
 }
 
 /**

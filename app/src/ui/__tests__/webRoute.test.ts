@@ -19,7 +19,7 @@ import {
 const LISTS: List[] = ['channels', 'contacts'];
 
 const ADDRESSES: Address[] = LISTS.flatMap((list) =>
-  (['none', 'settings', 'standings', 'support'] as const).map((named) => ({
+  (['none', 'settings', 'standings', 'support', 'help'] as const).map((named) => ({
     list,
     named,
   }))
@@ -33,6 +33,7 @@ const DETAILS: Detail[] = [
   { kind: 'settings' },
   { kind: 'standings' },
   { kind: 'support' },
+  { kind: 'help' },
 ];
 
 describe('addresses and their paths', () => {
@@ -79,6 +80,10 @@ describe('reading a path', () => {
     expect(addressOfPath('/contacts/standings')).toEqual({
       list: 'contacts',
       named: 'standings',
+    });
+    expect(addressOfPath('/channels/help')).toEqual({
+      list: 'channels',
+      named: 'help',
     });
     expect(addressOfPath('/channels/support')).toEqual({
       list: 'channels',

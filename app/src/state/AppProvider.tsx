@@ -11,6 +11,8 @@ import React, {
 import { AppState as NativeAppState, Platform } from 'react-native';
 import type {
   ClientAction,
+  HelpQuestion,
+  HelpView,
   HomeView,
   LeaderboardEntry,
   ProfileView,
@@ -365,6 +367,24 @@ interface AppValue extends AppState {
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
+  /**
+   * The questions you have asked of The Floor, with any answers.
+   *
+   * Read when the screen opens and held nowhere, for the reason `loadSupport`
+   * gives and one more: an answer arrives because a person wrote it, at a
+   * moment no client can be told about, so anything cached here is stale by an
+   * unknown amount.
+   */
+  loadHelp: () => Promise<HelpView>;
+  /**
+   * Asks one, and gives back the question as the server stored it — trimmed,
+   * with the id and the timestamp it will be listed under.
+   *
+   * Throws `ApiError` when the server refuses, which it does for reasons the
+   * screen can print verbatim: an empty question, one over the length, or too
+   * many already waiting.
+   */
+  askHelp: (text: string) => Promise<HelpQuestion>;
   /**
    * The invitation standings, read when the screen opens.
    *
@@ -1544,6 +1564,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadSupport: async () => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         return api.support(state.token);
+      },
+
+      loadHelp: async () => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        return api.help(state.token);
+      },
+
+      askHelp: async (text) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { question } = await api.askHelp(state.token, text);
+        return question;
       },
 
       loadLeaderboard: async () => {

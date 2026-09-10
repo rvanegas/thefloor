@@ -15,6 +15,7 @@ import { AuthView } from './src/ui/AuthView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ProfileView } from './src/ui/ProfileView';
+import { HelpView } from './src/ui/HelpView';
 import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView } from './src/ui/ChannelView';
@@ -567,6 +568,12 @@ function Root() {
       case 'support':
         return <SupportView onBack={close} />;
 
+      // Beside it, and reached the same way. Support is where you give money
+      // to this; Help is where you ask it something. The two are neighbours at
+      // the foot of the tier and are otherwise unrelated.
+      case 'help':
+        return <HelpView onBack={close} />;
+
       // The bench, for a `debug` account only. See AudioLabView's header for
       // why it exists and why it is meant to be deleted with its answer.
       case 'audiolab':
@@ -618,6 +625,7 @@ function Root() {
       // `NotificationNotice`.
       onOpenNotifications={() => setDetail({ kind: 'notifications' })}
       onOpenSupport={() => setDetail({ kind: 'support' })}
+      onOpenHelp={() => setDetail({ kind: 'help' })}
       // Same gate as the diagnostic panel and the log shipper: the `debug`
       // column, which comes from `hello`, so revoking it closes the way in at
       // the next connection.

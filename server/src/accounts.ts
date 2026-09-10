@@ -2006,6 +2006,9 @@ export class Accounts {
    *   address ever signed up again.
    * - **Sign-in codes and tokens**, so every device is signed out at once,
    *   including any this person no longer has.
+   * - **Help questions**, asked and answered alike. They are sentences this
+   *   person wrote, usually about their own account, and nothing else refers
+   *   to them.
    *
    * `invited_by` **stays**, and is the one field here that is not about this
    * account at all: it is the edge somebody else's invited-count is counted
@@ -2070,6 +2073,14 @@ export class Accounts {
       .prepare(
         'UPDATE donations SET account_id = NULL, matched_by = NULL WHERE account_id = ?'
       )
+      .run(accountId);
+    // Deleted outright, and the contrast with the line above is the point: a
+    // donation is money that changed hands and has a counterparty holding the
+    // same record, so unlinking it keeps two ends agreeing. A question is a
+    // sentence somebody wrote about themselves, nothing else refers to it, and
+    // an answer written to nobody is not a thing worth keeping a row for.
+    this.db
+      .prepare('DELETE FROM help_questions WHERE account_id = ?')
       .run(accountId);
 
     this.db

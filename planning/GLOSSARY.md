@@ -46,6 +46,7 @@ caused; the list carries the meaning.
 - **Floor, the** — The thing the app is named after
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
+- **Help** — The screen for asking The Floor a question; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, not one
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
 - **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
@@ -316,6 +317,27 @@ A link a member shares that lets somebody open a channel in a browser without
 an account. It is not self-propagating: anybody holding it can *knock*, and
 only somebody already in the room can open the door. It stops working once the
 channel is empty of members.
+
+## Help
+
+The screen for asking The Floor a question, at the foot of Home beside *chip
+in*. You write a question, it is stored, a person reads it and writes an
+answer into the same place, and the answer appears under the question the next
+time you open the screen.
+
+**It is a question box and not a chat**, which is the distinction the word has
+to carry: there is one question, one answer, and no reply to the reply. What
+wants a conversation wants the email address on the support page instead.
+
+**"Help" and "support" point in opposite directions here, and both words are
+in use.** *Help* is getting an answer; *support* — as in *chip in* and the
+Support section of Home — is giving money. The server keeps the same split:
+`/help` is the questions, `/donations` is the money, and `/support` is the
+public page App Store Connect requires. The two are neighbours on the screen
+and are otherwise unrelated.
+
+An **unanswered** question is a state the screen says out loud rather than
+hides. Nothing promises when an answer will come, because nothing can.
 
 ## Home
 

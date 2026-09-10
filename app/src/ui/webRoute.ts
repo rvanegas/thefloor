@@ -20,16 +20,16 @@ import type { Detail, List } from './detail';
 /**
  * The part of `Detail` an address can name.
  *
- * Three of the six, and the line between them is the id: settings, standings
- * and support are one of a kind each, so naming them names them. A channel and
- * a profile are one of many and would need an id to be told apart, so an
+ * Four of the seven, and the line between them is the id: settings, standings,
+ * support and help are one of a kind each, so naming them names them. A channel
+ * and a profile are one of many and would need an id to be told apart, so an
  * address says nothing about them at all — a channel open over the Channels
  * tab is `/channels`, the same as nothing open.
  *
  * That is a loss and it is the *only* one: everything this can say, it can say
  * again on the way back. See `addressOf`.
  */
-export type Named = 'none' | 'settings' | 'standings' | 'support';
+export type Named = 'none' | 'settings' | 'standings' | 'support' | 'help';
 
 /**
  * Where you are, in the two parts the app is actually in.
@@ -62,12 +62,12 @@ export interface Address {
 export const BASE = (process.env.EXPO_PUBLIC_BASE ?? '').replace(/\/$/, '');
 
 /**
- * The one path each address has. Eight of them, and no trailing slashes.
+ * The one path each address has. Ten of them, and no trailing slashes.
  *
  * `/channels`, `/contacts`, and `/<either>/settings`, `/standings`,
- * `/support`. The frame is always the first segment, including when something
- * is open over it — which is the whole point of the nesting: the tab you were
- * on is not something opening Settings should cost you.
+ * `/support`, `/help`. The frame is always the first segment, including when
+ * something is open over it — which is the whole point of the nesting: the tab
+ * you were on is not something opening Settings should cost you.
  */
 export function pathOf(address: Address): string {
   const frame = `${BASE}/${address.list}`;
@@ -106,6 +106,7 @@ export function addressOfPath(path: string): Address {
     if (parts[1] === 'settings') return { list, named: 'settings' };
     if (parts[1] === 'standings') return { list, named: 'standings' };
     if (parts[1] === 'support') return { list, named: 'support' };
+    if (parts[1] === 'help') return { list, named: 'help' };
   }
   return { list, named: 'none' };
 }
@@ -137,6 +138,8 @@ export function addressOf(detail: Detail, list: List): Address {
       return { list, named: 'standings' };
     case 'support':
       return { list, named: 'support' };
+    case 'help':
+      return { list, named: 'help' };
     case 'channel':
     case 'profile':
     // The lab is deliberately unaddressable, on the same reasoning as a
@@ -158,7 +161,7 @@ export function addressOf(detail: Detail, list: List): Address {
  *
  * **Every address restores**, which is the property the nesting bought and the
  * reason nothing in the wiring has to normalise what it reads:
- * `addressOf(detailOfAddress(a))` is `a` for all eight. The projection above
+ * `addressOf(detailOfAddress(a))` is `a` for all ten. The projection above
  * is lossy on the way out and total on the way back, so an address is never
  * something the app can be handed and fail to honour.
  */
@@ -173,6 +176,8 @@ export function detailOfAddress(address: Address): {
       return { detail: { kind: 'standings' }, list: address.list };
     case 'support':
       return { detail: { kind: 'support' }, list: address.list };
+    case 'help':
+      return { detail: { kind: 'help' }, list: address.list };
     case 'none':
       return { detail: { kind: 'none' }, list: address.list };
   }

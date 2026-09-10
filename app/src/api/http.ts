@@ -1,4 +1,6 @@
 import type {
+  HelpQuestion,
+  HelpView,
   HomeView,
   LeaderboardEntry,
   PublicAccount,
@@ -312,6 +314,30 @@ export const api = {
       token,
     });
   },
+
+  /**
+   * The questions this person has asked of us, and whether they may ask
+   * another.
+   *
+   * Read on open and never cached, for the reason `support` is not cached: an
+   * answer is written by hand at a time nobody can predict, so the only moment
+   * this is known to be current is the moment it was fetched.
+   */
+  help: (token: string) => request<HelpView>('/help', { token }),
+
+  /**
+   * Asks one, and answers the row the server stored.
+   *
+   * The stored row rather than the string that was typed: the server trims,
+   * and a list showing the untrimmed version until the next open is one that
+   * appears to change its mind about what you wrote.
+   */
+  askHelp: (token: string, text: string) =>
+    request<{ question: HelpQuestion }>('/help', {
+      method: 'POST',
+      body: { text },
+      token,
+    }),
 
   requestContact: (token: string, identifier: string) =>
     request<{ ok: true; accepted: boolean }>('/contacts/request', {

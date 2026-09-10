@@ -43,6 +43,12 @@ export type Detail =
   | { kind: 'standings' }
   | { kind: 'support' }
   /**
+   * Asking The Floor a question, and reading the answers. Reached from the
+   * foot of the tier, beside Chip in, and addressable — it is a place, one of
+   * a kind, and a link to it is a useful thing to be able to hand somebody.
+   */
+  | { kind: 'help' }
+  /**
    * The audio bench, reached from Home for a `debug` account and from nowhere
    * else. Temporary by construction: it exists to answer whether a capturing
    * session can mix with another app, and goes when that has an answer.

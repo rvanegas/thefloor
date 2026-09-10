@@ -56,6 +56,7 @@ export function HomeView({
   onOpenSettings,
   onOpenNotifications = () => {},
   onOpenSupport = () => {},
+  onOpenHelp = () => {},
   onOpenLeaderboard,
   onOpenAudioLab,
   onOpenProfile,
@@ -75,6 +76,14 @@ export function HomeView({
   onOpenNotifications?: () => void;
   /** Opens the screen that explains donating, and carries the link out. */
   onOpenSupport?: () => void;
+  /**
+   * Opens the screen for asking The Floor a question and reading the answers.
+   *
+   * Unconditional, unlike the two below it: everybody can have a question, and
+   * a way to ask one that appears only for some accounts is not a help
+   * mechanism at all.
+   */
+  onOpenHelp?: () => void;
   /**
    * Opens the invitation standings. Absent unless this account has been
    * granted them, in which case nothing here says they exist at all — the
@@ -333,6 +342,34 @@ export function HomeView({
         is passing through. That lives one tap away, where it has been chosen
         rather than imposed.
       */}
+      {/*
+        Help, at the foot of the list and above the section about the project.
+
+        **Here rather than inside `ChannelsView`, which is what was asked for
+        and is one tier off.** That component is the list of channels and
+        nothing else — everything that was not a channel left it on 2026-09-01,
+        Chip in included, and putting a button about the application back in
+        would be undoing that for the second time. This is the foot of the
+        scroll the list renders into, so it is the bottom of the channel list
+        on screen; the only difference is that it is also the bottom of the
+        contacts, which is right, a question not being about either list.
+
+        **Its own group, above Support and not in it.** The label there means
+        *support this project* — money — and this means *get support*. One
+        section holding both senses of the word is how somebody taps Chip in
+        looking for an answer.
+
+        Unconditional, where every other row down here is granted or
+        configured: anybody can have a question. There is no state in which
+        offering to take one is wrong.
+      */}
+      <SectionLabel>Help</SectionLabel>
+      <View style={styles.list}>
+        <Card>
+          <Button label="Help" variant="ghost" onPress={onOpenHelp} />
+        </Card>
+      </View>
+
       {canSupport || onOpenLeaderboard || onOpenAudioLab ? (
         <>
           <SectionLabel>Support</SectionLabel>

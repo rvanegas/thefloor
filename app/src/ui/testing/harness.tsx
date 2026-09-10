@@ -42,6 +42,42 @@ export const ME = 'acct_me';
 export const THEM = 'acct_them';
 export const NOW = 1_700_000_000_000;
 
+/** A help screen with nothing asked yet, which is where everybody starts. */
+function emptyHelp() {
+  return jest.fn(async () => ({
+    questions: [] as Array<{
+      id: string;
+      text: string;
+      askedAt: number;
+      answer: string | null;
+      answeredAt: number | null;
+    }>,
+    canAsk: true,
+    askBlocked: null as string | null,
+  }));
+}
+
+/**
+ * A server that takes the question, with a fresh id each time.
+ *
+ * Fresh rather than fixed because the screen keys its list on the id, and two
+ * questions sharing one is a React warning that a test will not fail on but
+ * that hides a real duplicate if one ever appears.
+ */
+function takesQuestion() {
+  let n = 0;
+  return jest.fn(async (text: string) => {
+    n += 1;
+    return {
+      id: `q_${n}`,
+      text,
+      askedAt: NOW,
+      answer: null as string | null,
+      answeredAt: null as number | null,
+    };
+  });
+}
+
 export const mockApp = {
   ready: true,
   token: 'token',
@@ -151,7 +187,10 @@ export const mockApp = {
   // Configured by default, so the Support section is exercised rather than
   // skipped; the tests that care about it absent override this.
   loadSupport: jest.fn(async () => ({
-    url: 'https://ko-fi.com/thefloor',
+    // Typed as nullable, which is what the protocol says: a server with
+    // nowhere to give answers null, and a test that wants that case cannot
+    // express it against a mock inferred as `string`.
+    url: 'https://ko-fi.com/thefloor' as string | null,
     identifier: 'me@example.com',
     mine: null as {
       count: number;
@@ -159,6 +198,12 @@ export const mockApp = {
       totals: Array<{ currency: string; cents: number }>;
     } | null,
   })),
+  // No questions asked yet and a slot free, which is the state everybody is
+  // in the first time they open the Help screen. The tests about a backlog or
+  // an answer replace these, and `resetHarness` puts them back — a test that
+  // seeded a question is otherwise still seeding it three tests later.
+  loadHelp: emptyHelp(),
+  askHelp: takesQuestion(),
   connectWith: jest.fn(async () => ({ accepted: false })),
   // Resolves, which is what the card's wordless shortcut expects; the tests
   // about a refusal make it reject.
@@ -457,6 +502,8 @@ export function resetHarness(): void {
   mockApp.hideControlCards = false;
   mockApp.labs = false;
   mockApp.debug = false;
+  mockApp.loadHelp = emptyHelp();
+  mockApp.askHelp = takesQuestion();
   uploads.length = 0;
   uploads.length = 0;
   jest.clearAllMocks();

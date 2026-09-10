@@ -39,6 +39,13 @@ channel that stays there between calls.</p>
 support queue, no ticket number and no bot — say what happened and what you
 expected, and if it is about a particular conversation, roughly when it was.</p>
 
+<p><strong>If you have the app, there is a Help button at the foot of the
+list.</strong> It takes a question and the answer appears under it, in the app,
+when somebody has written one. The same person reads both; the difference is
+that a question asked there already knows who you are, and the answer is
+waiting where you asked rather than in your mail. Email is the better one for
+anything that needs a conversation.</p>
+
 <h2>Signing in</h2>
 <p>There is no password. You give an email address, a six-digit code is sent to
 it, and typing the code signs you in. If the code does not arrive, check the
