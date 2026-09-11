@@ -696,9 +696,19 @@ case "$verb" in
   *)
     # An id where a verb goes is the commonest way to get here, this having
     # been the spelling until 2026-09-11.
+    #
+    # Asking the database is what makes that recognisable, because the ids
+    # worth typing no longer look like ids: `q_` is optional, so the thing in
+    # this position is four characters of base62 and is indistinguishable from
+    # a mistyped verb until somebody looks. A word that means a question is
+    # answered as one, and the cost of being wrong is one query on a path that
+    # was going to fail anyway.
     case "$verb" in
       q_*) usage_error "$verb is an id, not a command — try bin/help show $verb" ;;
-      *) usage_error "no such command: $verb" ;;
     esac
+    if resolve "$verb" >/dev/null 2>&1; then
+      usage_error "$verb is an id, not a command — try bin/help show $verb"
+    fi
+    usage_error "no such command: $verb"
     ;;
 esac
