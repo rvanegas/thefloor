@@ -29,6 +29,12 @@
 # questions that are ever outstanding, so `bin/help q_kJ8` is the same as
 # writing it in full.
 #
+# **The `q_` is optional, since it is on every one of them.** It carries no
+# information and is two of the four characters worth typing, so `bin/help kJ8`
+# and `bin/help q_kJ8` are the same prefix. A leading `q_` is stripped before
+# anything is matched; what is left is matched against the id from its third
+# character on.
+#
 # **Ambiguity is refused rather than resolved.** A prefix matching two
 # questions prints both and does nothing, because the alternative is answering
 # the wrong person's question with something addressed to somebody else. That
@@ -137,33 +143,42 @@ ids_only() {
 # at all — which is to say all of them — so the prefix that looks most specific
 # is the one that would have been least.
 resolve() {
-  local prefix="$1"
-  if [ -z "$prefix" ]; then
+  local typed="$1"
+  if [ -z "$typed" ]; then
     echo "bin/help: no id given" >&2
+    return 1
+  fi
+
+  # The `q_` every id starts with is optional, so both forms become the same
+  # prefix here — matched from the third character on, which is where an id
+  # stops being a constant.
+  local prefix="${typed#q_}"
+  if [ -z "$prefix" ]; then
+    echo "bin/help: $typed is the prefix every id has — say more of it" >&2
     return 1
   fi
 
   local matches count
   matches=$(bin/db $local_flag "
     SELECT id FROM help_questions
-     WHERE substr(id, 1, ${#prefix}) = $(quote "$prefix")
+     WHERE substr(id, 3, ${#prefix}) = $(quote "$prefix")
      ORDER BY asked_at ASC;
   " | ids_only)
   count=$(printf '%s' "$matches" | grep -c . || true)
 
   if [ "$count" -eq 0 ]; then
-    echo "bin/help: no question with an id starting $prefix" >&2
+    echo "bin/help: no question with an id starting $typed" >&2
     return 1
   fi
   if [ "$count" -gt 1 ]; then
     {
-      echo "bin/help: $prefix matches $count questions — say more of it:"
+      echo "bin/help: $typed matches $count questions — say more of it:"
       bin/db $local_flag "
         SELECT id,
                datetime(asked_at / 1000, 'unixepoch') AS asked,
                substr(replace(text, char(10), ' '), 1, 50) AS question
           FROM help_questions
-         WHERE substr(id, 1, ${#prefix}) = $(quote "$prefix")
+         WHERE substr(id, 3, ${#prefix}) = $(quote "$prefix")
          ORDER BY asked_at ASC;
       "
     } >&2
