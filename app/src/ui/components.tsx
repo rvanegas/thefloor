@@ -1282,7 +1282,10 @@ export function ShareButton({
 }
 
 const recordingStyles = StyleSheet.create({
-  search: { gap: spacing(1) },
+  // The margin is what separates the field from the list underneath it: the
+  // screen's children are flush, so without it the search box and the first
+  // recording card sit edge to edge and read as one control.
+  search: { gap: spacing(1), marginBottom: spacing(1) },
   hit: { gap: spacing(0.5) },
   // A column now, because the actions open *below* the name rather than
   // sitting beside it.
