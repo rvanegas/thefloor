@@ -23,6 +23,20 @@ presence became three rungs with the controls to match — *Be nearby* is one
 word in one place now, *Nearby* has a way out, and the footer has a fourth
 slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
+## Support Tab
+
+Remove card labels. Add explanatory text within each card.
+
+## Getting Started Checklist
+
+Remove "choose display name" and "choose username" since both are now derived 
+if unchosen. For each of remaining items, include instruction and action to 
+relevant view in app.
+
+## Tapping Nearby
+
+Tapping "Nearby", even if already in nearby state, resets its clock.
+
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, 
