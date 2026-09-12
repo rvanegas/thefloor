@@ -107,7 +107,9 @@ export interface ProfileView {
    * `lastPresentAt` is null when they have never been in that channel, which
    * is an ordinary state rather than a gap: a channel a pair get for becoming
    * contacts has been entered by nobody, and a channel somebody was asked into
-   * and has not yet answered has been entered by everybody but them.
+   * and has not yet answered has been entered by everybody but them. **Or
+   * declared themselves nearby in it**, since 2026-09-12, that being an
+   * arrival — so the null shrank without changing meaning.
    *
    * Not withheld from a non-contact, unlike availability, and the difference is
    * the scope rather than the sensitivity. Availability says where somebody is
@@ -950,6 +952,12 @@ export type ClientAction =
    * places: *step in nearby* from outside a channel, *nearby* from inside one,
    * where it abandons the claim. `DECLARE_NEARBY` in core/types.ts is where
    * the branch is.
+   *
+   * **And it is an arrival, since 2026-09-12** — equivalent to stepping in and
+   * sending this immediately afterwards. So it stamps `lastPresentAt`, and
+   * from outside the room it announces itself to the people who are not there,
+   * saying *nearby* rather than *stepped in*. See
+   * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
    */
   | { type: 'DECLARE_NEARBY' }
   /**

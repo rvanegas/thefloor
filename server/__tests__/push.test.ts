@@ -741,6 +741,94 @@ describe('a channel becoming active', () => {
 
     expect(pusher.messagesFor('bob-phone')).toHaveLength(2);
   });
+
+  /**
+   * **A declaration is an arrival, since 2026-09-12.** Tapping *Be nearby* is
+   * equivalent to stepping in and tapping it immediately afterwards, so it
+   * announces itself through the same call, under the same per-recipient
+   * window — and says *nearby* rather than *stepped in*, that being the true
+   * half of the equivalence and the one the recipient's roster will agree
+   * with. See planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+   */
+  describe('somebody declaring themselves nearby', () => {
+    it('tells the people who are not in it', async () => {
+      const { alice, bob, channelId } = await emptyChannel();
+      await registerDevice(bob.token, 'bob-phone');
+
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+
+      expect(pusher.messagesFor('bob-phone')).toEqual([
+        {
+          title: 'Alice',
+          kind: 'arrived',
+          body: 'Alice is nearby.',
+          channelId,
+          collapseKey: channelId,
+          threadId: channelId,
+          lifetimeMs: PRESENCE_LIFETIME_MS,
+          reachesInApp: true,
+        },
+      ]);
+    });
+
+    it('says nothing to the person who declared it', async () => {
+      // Who is absent, unlike somebody stepping in — which is why
+      // `announceActive` excludes whoever arrived by name rather than
+      // trusting `present` to have excluded them.
+      const { alice, channelId } = await emptyChannel();
+      await registerDevice(alice.token, 'alice-phone');
+
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+
+      expect(pusher.messagesFor('alice-phone')).toEqual([]);
+    });
+
+    it('announces nothing when it is a step out to the rung below', async () => {
+      // Declared from inside the room. Their arrival was announced when they
+      // stepped in, and this is them leaving; a second notification would ring
+      // a phone to report a departure. The window is stepped past so that it
+      // is this rule being tested rather than the suppression.
+      const { alice, bob, channelId } = await emptyChannel();
+      await registerDevice(bob.token, 'bob-phone');
+
+      app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+      await settle();
+      clock += ANNOUNCE_INTERVAL_MS;
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+
+      expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    });
+
+    it('does not announce the renewal a heartbeat makes', async () => {
+      // `STILL_HERE` re-stamps `declaredNearbyAt` every few seconds from a
+      // nearby phone, and `consume` clears the suppression window on the way
+      // past — so a rule keyed on the stamp alone would push on every beat,
+      // for fifteen minutes, from one tap.
+      const { alice, bob, channelId } = await emptyChannel();
+      await registerDevice(bob.token, 'bob-phone');
+
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+      clock += ANNOUNCE_INTERVAL_MS;
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'STILL_HERE',
+      });
+      await settle();
+
+      expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    });
+  });
 });
 
 describe('a dead address', () => {

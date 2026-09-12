@@ -58,16 +58,17 @@ describe('declaring nearby from inside a channel', () => {
     expect(canPing(declare(together(), B), A, B)).toBe(true);
   });
 
-  it('does not stamp `lastPresentAt`, which answers a different question', () => {
-    // The stamp is left to the transport, so it goes on being refreshed while
-    // the app is alive and freezes when the phone suspends — and the fifteen
-    // minutes to *Stepped out* is measured from the last sign of life rather
-    // than from the declaration. A tap on Step Out stamps it; this must not,
-    // or a phone that declares nearby and is pocketed would read as having
-    // been here right up to the moment it was put away.
+  it('stamps `lastPresentAt`, the tap being the moment they left the room', () => {
+    // **This reverses what it asserted until 2026-09-12**, which was that the
+    // stamp answered a different question and belonged to the transport. It
+    // does answer a different question — *when were they last here* — and from
+    // inside the room the answer is now: they were here until they tapped it.
+    // A declaration is an arrival, so *Stepped out* ages from the tap once the
+    // wait lapses, exactly as it does for a tap on Step Out.
     const before = together();
     const s = declare(before, B, T0 + 60_000);
-    expect(s.lastPresentAt[B]).toBe(before.lastPresentAt[B]);
+    expect(s.lastPresentAt[B]).toBe(T0 + 60_000);
+    expect(before.lastPresentAt[B]).not.toBe(T0 + 60_000);
   });
 
   it('clears the self-mute and the floor, as every departure does', () => {
@@ -96,12 +97,28 @@ describe('stepping in nearby, from outside', () => {
     expect(declare(once, B, T0 + 3_000)).toBe(once);
   });
 
-  it('does not disturb the ordering of Home', () => {
-    // `lastActiveAt` says when the room was last a room. Somebody declaring
-    // themselves reachable has not been in it, so a channel must not float to
-    // the top of anybody's list on the strength of it.
+  it('leaves `lastActiveAt` alone, whatever it does to `lastPresentAt`', () => {
+    // `lastActiveAt` says when the room was last a room, and that is still not
+    // this. Home's recency is `lastPresenceAt`, which folds both kinds of
+    // stamp together and takes the fresher — so the declaration reaches a list
+    // through the stamp above rather than through this one, and this one goes
+    // on meaning what it always did.
     const before = alone();
     expect(declare(before, B, T0 + 9_000).lastActiveAt).toBe(before.lastActiveAt);
+  });
+
+  it('counts as an arrival, stamping `lastPresentAt` where there was none', () => {
+    // The substance of 2026-09-12, and the case that has no other answer:
+    // somebody who has never been in this channel had no stamp at all, so
+    // `idleMs` returned null and a roster card whose wait had lapsed read a
+    // bare *Stepped out* with no time under it. The declaration is the moment
+    // to date it from, being equivalent to stepping in and tapping *Be
+    // nearby* immediately afterwards.
+    const before = alone();
+    expect(before.lastPresentAt[B]).toBeUndefined();
+    const s = declare(before, B, T0 + 9_000);
+    expect(s.lastPresentAt[B]).toBe(T0 + 9_000);
+    expect(idleMs(s, B, T0 + 9_000)).toBe(0);
   });
 
   it('is refused to somebody who is not a member', () => {
@@ -231,9 +248,13 @@ describe('how long a wait has been going on', () => {
     const s = declare(steppedOutAt(T0 + 1_000), B, four);
     expect(nearbyMs(s, B, four)).toBe(0);
     expect(nearbyMs(s, B, four + 30_000)).toBe(30_000);
-    // And the older question still has its old answer, which is the reason
-    // this is a second clock rather than a correction to the first.
-    expect(idleMs(s, B, four)).toBe(4 * 60_000 - 1_000);
+    // **And the older question now answers *now* as well, since 2026-09-12.**
+    // It used to answer four minutes, and that was the point of having a
+    // second clock; the declaration being an arrival, the last moment they
+    // are known to have been here is the tap. The two clocks remain two —
+    // a lost connection stamps neither, and a heartbeat from somebody nearby
+    // moves the declaration's and not this one — but in this case they agree.
+    expect(idleMs(s, B, four)).toBe(0);
   });
 
   it('gives the declaration a full window, however old the silence', () => {
@@ -265,10 +286,11 @@ describe('how long a wait has been going on', () => {
 
   it('lets somebody be nearby in a channel they have never entered', () => {
     // No `lastPresentAt` at all, so the old clock had nothing to say and the
-    // card said *Invited* for ever. A declaration is knowledge without a
-    // stamp.
+    // card said *Invited* for ever. A declaration is knowledge, and since
+    // 2026-09-12 it is also a stamp — the two clocks start together here, and
+    // part company only if the wait lapses and nothing else stamps it.
     const s = declare(alone(), B, T0 + 5_000);
-    expect(idleMs(s, B, T0 + 5_000)).toBeNull();
+    expect(idleMs(s, B, T0 + 5_000)).toBe(0);
     expect(nearbyMs(s, B, T0 + 5_000)).toBe(0);
     expect(isWaiting(s, B)).toBe(true);
   });
@@ -332,9 +354,10 @@ describe('how long a wait has been going on', () => {
       }
       expect(isWaiting(s, B)).toBe(true);
       expect(nearbyMs(s, B, T0 + 14 * 60_000)).toBe(0);
-      // And it is the declaration's clock that moved, not the presence one:
-      // nothing here says they were in the room.
-      expect(s.lastPresentAt[B]).toBe(together().lastPresentAt[B]);
+      // And it is the declaration's clock that moved, not the presence one: a
+      // heartbeat from outside the room says nothing about being in it, so
+      // this stands where the declaration left it fourteen minutes ago.
+      expect(s.lastPresentAt[B]).toBe(T0);
     });
 
     it('does not resurrect a wait that has already ended', () => {

@@ -310,12 +310,25 @@ export const notifications = {
   arrived(
     channelName: string,
     whoArrived: string,
-    channelId: string
+    channelId: string,
+    how: 'stepped in' | 'nearby' = 'stepped in'
   ): PushMessage {
     return {
       kind: 'arrived',
       title: channelName,
-      body: `${whoArrived} stepped in.`,
+      /**
+       * **Two bodies for one kind, since 2026-09-12**, on the precedent
+       * `invited` set: a declared nearby is an arrival — it is announced by
+       * the same call, suppressed by the same window, and answered by the same
+       * tap — but it is not a step in, and saying so would be contradicted by
+       * the roster the recipient is one tap away from reading. What they can
+       * act on is the same either way, and *nearby* is the more useful of the
+       * two facts: it says a notification will reach that person.
+       */
+      body:
+        how === 'nearby'
+          ? `${whoArrived} is nearby.`
+          : `${whoArrived} stepped in.`,
       channelId,
       collapseKey: channelId,
       // The one that stacks with its own room rather than with the people

@@ -285,7 +285,10 @@ export function subscribeable(state: ChannelState, userId: UserId): boolean {
  *
  * Read through by `isWaiting` and by the roster card. `idleMs` is deliberately
  * left alone: *how long since we last heard anything* is a different question
- * and still has the old answer.
+ * and still has the old answer — though since 2026-09-12 the declaration is
+ * itself something heard, so the two agree at the moment of the tap and part
+ * company only if the wait lapses. The stamps stay separate because the
+ * questions do.
  */
 export function nearbyMs(
   state: ChannelState,
@@ -1435,7 +1438,15 @@ export function reduce(
      * takes nothing from the audio system: it is a claim on a notification and
      * on nothing else.
      *
-     * Neither stamps `lastPresentAt`. See `Exit`.
+     * **Both stamp `lastPresentAt`, since 2026-09-12**, because a declaration
+     * is an arrival: tapping *Be nearby* is equivalent to stepping in and
+     * tapping it immediately afterwards, and stepping in is what that stamp
+     * records. From inside the room the claim was true already — they were
+     * here until this moment — and from outside it is the substance of the
+     * change: *Stepped out* now ages from the tap rather than from whenever
+     * they were last actually in the room, which for somebody who has never
+     * been in it was nothing at all. See `Exit`, and
+     * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
      */
     case 'DECLARE_NEARBY': {
       if (isPresent(state, action.userId)) {
@@ -1467,10 +1478,16 @@ export function reduce(
       //
       // **`declaredNearbyAt` is**, being the moment the wait began rather than
       // anything about the room. See `nearbyMs`.
+      //
+      // **And so is `lastPresentAt`, which is the arrival half.** Nothing here
+      // moves Home's own ordering directly — `lastPresenceAt` folds the two
+      // kinds of stamp together and reads the fresher, so the room stops
+      // looking idle by way of this one rather than by way of `lastActiveAt`.
       return {
         ...state,
         waiting: [...state.waiting, action.userId],
         declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
+        lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
       };
     }
 
@@ -1960,22 +1977,30 @@ function tick(state: ChannelState, now: number): ChannelState {
  * | `chosen` — a tap | stamped now | cleared |
  * | `dropped` — the grace period ran out | left alone | added |
  * | `inattentive` — the attention window ran out | left alone | cleared |
- * | `nearby` — declared, 2026-09-08 | left alone | added |
+ * | `nearby` — declared, 2026-09-08 | stamped now | added |
  *
- * **`nearby` behaves exactly as `dropped` does and is a fourth reason
+ * **`nearby` differs from `dropped` in both columns now and is a fourth reason
  * anyway**, for legibility: filing a deliberate declaration under *the
  * connection expired* would work and would read as a lie in every log that
  * prints it.
  *
- * **Leaving `lastPresentAt` alone is what keeps *stepped out* honest.** Nearby
- * has three ways in — declared from outside, declared from inside, and
- * inferred when the socket goes — and stamping this on any of them would claim
- * the person was in the room until the moment they left it by not being in it.
- * What ends all three is attention, held by the server; what this stamp
- * answers is the separate question *when were they last actually here*, which
- * is the number *Stepped out* shows. See planning/GLOSSARY.md § *Nearby /
- * Stepped out*, and
- * planning/decisions/2026-09-09-one-clock-ends-two-states-but-times-one.md.
+ * **Stamping `lastPresentAt` is what keeps *stepped out* honest, and that is a
+ * reversal of 2026-09-12.** It used to be left alone here, on the reasoning
+ * that nearby's three ways in — declared from outside, declared from inside,
+ * and inferred when the socket goes — would otherwise claim the person was in
+ * the room until the moment they left it by not being in it. That reasoning
+ * holds for the inferred way in and for no other: a **declaration is an
+ * arrival**, equivalent to stepping in and tapping *Be nearby* immediately
+ * afterwards, so the moment of the tap is a moment somebody was here. This row
+ * is the declaration made from inside the room, where the claim was true
+ * anyway — the heartbeat had this stamp within a few seconds of now — and
+ * `DECLARE_NEARBY`'s other branch makes it from outside. What ends all three
+ * is still attention, held by the server; what this stamp answers is still the
+ * separate question *when were they last here*, which is the number *Stepped
+ * out* shows once the wait has lapsed. See planning/GLOSSARY.md § *Nearby /
+ * Stepped out*,
+ * planning/decisions/2026-09-09-one-clock-ends-two-states-but-times-one.md, and
+ * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
  *
  * **`inattentive` is why this stopped being a boolean.** It matches neither
  * existing row: nobody chose it, so stamping `lastPresentAt` would claim they
@@ -2070,8 +2095,13 @@ function stepOut(
       // later, and `idleMs` reads it — so every dropped connection reported
       // itself a minute less idle than it was, for ever, from a stamp made at
       // a moment nobody was there.
+      //
+      // **A declaration stamps it too, since 2026-09-12**, for the opposite
+      // reason to the one that keeps `dropped` out: the tap happens at the
+      // moment somebody decides it does, exactly as a chosen departure does,
+      // and a declaration is an arrival. See `Exit`.
       lastPresentAt:
-        exit === 'chosen'
+        exit === 'chosen' || exit === 'nearby'
           ? { ...state.lastPresentAt, [userId]: now }
           : state.lastPresentAt,
       // The same distinction, kept rather than merely acted on. A tap is a

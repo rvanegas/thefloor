@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, and it offers you a step in when somebody arrives rather than taking one
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -469,6 +469,27 @@ out* like anything else.
 The distinction is one bit, and it is the difference between telling somebody
 to give up on a person and telling them to ping.
 
+**Declaring it is an arriving, since 2026-09-12.** Tapping *Be nearby* is
+treated as stepping in and tapping it immediately afterwards, which is what it
+would take to produce the same state by hand. Two things follow, and they are
+the whole of the change. The people who are not there are **notified**, by the
+same announcement a step in sends and under the same per-recipient window —
+worded *Alice is nearby* rather than *Alice stepped in*, that being the half of
+the equivalence their roster will agree with. And **`lastPresentAt` is stamped**,
+so once the wait lapses the card reads *stepped out* from the moment of the tap
+rather than from whenever they were last actually in the room — which, for
+somebody who has never been in it, was nothing at all.
+
+What does not follow: the declaration still claims no audio and subscribes to
+nothing, is still not `present`, still does not appear in `everPresent`, and is
+still not exclusive — you may be nearby in several channels at once, where you
+can be present in only one. And a declaration into a channel **nobody has ever
+been present in** announces nothing: the notification for that is an
+invitation, which is a month-long statement about membership sent once in a
+channel's life, and *Alice stepped in* would be false about a room the
+recipient has never heard of. See
+`decisions/2026-09-12-a-declaration-is-an-arrival.md`.
+
 **Two clocks, and the state decides which**, corrected 2026-09-09 the same day
 one clock was adopted. *Nearby* counts attention: the time since they were last
 attending *this channel*, which is the evidence for the claim that line makes —
@@ -554,8 +575,10 @@ the last sign of life or the moment anything was declared: fifteen minutes
 without evidence that somebody is at this channel and the wait is over, however
 they got onto the rung. `ATTENTION_WINDOW_MS = WAITING_WINDOW_MS` in
 `core/constants.ts`, read by the server's tick. `Exit` in `core/channel.ts` is
-still what leaves `lastPresentAt` alone for every kind but a tap — that stamp
-is what *stepped out* counts, and it is a different question from this one.
+still what leaves `lastPresentAt` alone for the two kinds a clock produces —
+since 2026-09-12 a tap and a declaration both stamp it, and a lost connection
+and an expired attention window still do not. That stamp is what *stepped out*
+counts, and it is a different question from this one.
 
 **A declared nearby holds no audio session and no media subscription**, which
 is what distinguishes it from being stepped in and muted. A muted person hears

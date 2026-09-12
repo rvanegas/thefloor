@@ -2620,7 +2620,40 @@ export class ChannelRegistry {
     const steppedIn = after.present.filter(
       (id) => !before.present.includes(id)
     );
-    this.consume(after.id, steppedIn);
+    /**
+     * **Who has just declared themselves nearby from outside the room**, which
+     * since 2026-09-12 announces itself exactly as an arrival does: tapping
+     * *Be nearby* is equivalent to stepping in and tapping it immediately
+     * afterwards, so the people who are not there hear about it. See
+     * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+     *
+     * **Asked of `declaredNearbyAt` rather than of `waiting`**, because
+     * `waiting` holds two kinds of absence and only one of them is anybody's
+     * decision — a connection running out of grace adds somebody to it too,
+     * and a phone that went quiet in a pocket is not an arrival to announce.
+     *
+     * **And only from outside.** Somebody present who taps it is stepping out
+     * to the rung below; their arrival was announced when they stepped in, and
+     * announcing it again would ring a phone to report a departure.
+     *
+     * **The `waiting` edge is what makes it the declaration and not its
+     * renewal**, and it is load-bearing rather than tidy: `STILL_HERE`
+     * re-stamps `declaredNearbyAt` on every heartbeat from a nearby phone, so
+     * a test on the stamp alone would announce every few seconds — and
+     * `consume` below would clear the suppression window each time it did.
+     */
+    const declaredNearby = Object.keys(after.declaredNearbyAt).filter(
+      (id) =>
+        after.declaredNearbyAt[id] !== before.declaredNearbyAt[id] &&
+        after.waiting.includes(id) &&
+        !before.waiting.includes(id) &&
+        !before.present.includes(id) &&
+        !after.present.includes(id)
+    );
+    // Both, for the reason either one alone would be: walking in or tapping
+    // the button beside it is direct evidence that whatever this channel last
+    // put on their lock screen has been dealt with. See `lastAnnouncedAt`.
+    this.consume(after.id, [...steppedIn, ...declaredNearby]);
     // The mark on a Home row, recorded here because here is where somebody
     // becomes present — every route in passes through this transition, so no
     // route can be forgotten. Last one wins, which is what supersedes an
@@ -2670,6 +2703,34 @@ export class ChannelRegistry {
       // The last of them, matching `lastEntry` above: several people can be
       // admitted on one transition, and the newest is the one worth naming.
       else this.announceActive(after, steppedIn[steppedIn.length - 1]!);
+    } else if (declaredNearby.length > 0 && after.everPresent.length > 0) {
+      /**
+       * **A declaration announces as an arrival**, which is the notification
+       * half of 2026-09-12. `announceActive` is the whole of it: it already
+       * computes the absent per recipient and suppresses per recipient, and a
+       * declarer is themselves absent, which is why it now excludes whoever
+       * arrived rather than relying on `present` to have done it.
+       *
+       * **`announceStarted` is not reachable from here, deliberately.** That
+       * one is an *invitation* — a month's lifetime, a membership collapse key,
+       * sent once in a channel's life because `everPresent` is written on the
+       * only route to it. Sending it for a declaration would mean either
+       * calling a declaration a presence, which it is not, or repeating a
+       * month-long invitation on every tap. So a declaration into a room
+       * nobody has ever been in tells nobody: "Alice stepped in" would be
+       * false about a channel the recipient has never heard of, and reaching
+       * that state at all takes the non-default setting where opening a
+       * channel does not enter it.
+       *
+       * The `else` is not an ordering nicety either. When somebody steps in on
+       * the same transition, that is the arrival worth naming, and it is the
+       * stronger claim of the two.
+       */
+      this.announceActive(
+        after,
+        declaredNearby[declaredNearby.length - 1]!,
+        'nearby'
+      );
     }
     if (after.status === 'active' && arrived) {
       if (after.floor.holder !== null) this.assertSilence(after);
@@ -2822,7 +2883,11 @@ export class ChannelRegistry {
     //
   }
 
-  private announceActive(channel: ChannelState, arrived: string): void {
+  private announceActive(
+    channel: ChannelState,
+    arrived: string,
+    how: 'stepped in' | 'nearby' = 'stepped in'
+  ): void {
     if (channel.status !== 'active') return;
     const now = this.now();
     // **Told who arrived rather than guessing, since 2026-09-07.** This read
@@ -2832,8 +2897,12 @@ export class ChannelRegistry {
     // arrival announces, `present[0]` is whoever has been there longest, and
     // the notification would name the wrong person to everybody outside.
     if (arrived === undefined) return;
+    // **And excluded from `absent` explicitly, since 2026-09-12.** `present`
+    // used to do that job by itself, every arrival here having been a step in;
+    // a declared nearby is an arrival that leaves somebody absent, so without
+    // this line the one person who knows about it would be the one notified.
     const absent = channel.participants.filter(
-      (id) => !channel.present.includes(id)
+      (id) => id !== arrived && !channel.present.includes(id)
     );
     // Each is titled from its own recipient's point of view, because an
     // unnamed channel is called after whoever else is in it and there is no
@@ -2855,7 +2924,8 @@ export class ChannelRegistry {
         notifications.arrived(
           this.nameFor(channel, userId),
           this.displayName(arrived),
-          channel.id
+          channel.id,
+          how
         )
       );
     }

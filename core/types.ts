@@ -552,8 +552,12 @@ export interface ChannelState {
    * So this is the second clock, and it exists because the two absences answer
    * different questions rather than because one of them was wrong. Read
    * through `nearbyMs`, which picks whichever clock applies; `idleMs` stays
-   * what it was, being the answer to *when did we last hear anything*, which
-   * a declaration does not change.
+   * what it was, being the answer to *when did we last hear anything* — and
+   * since 2026-09-12 a declaration is one of the things heard, stamping
+   * `lastPresentAt` because it is an arrival. The two clocks still differ, and
+   * where they differ is unchanged: a dropped connection is dated from the
+   * last heartbeat and a declaration from itself. What changed is that after a
+   * declaration both of them start at the same moment.
    *
    * **Not stamped for an expired connection**, which is the whole distinction:
    * `stepOut` writes this only for `exit: 'nearby'`, and `DECLARE_NEARBY`
