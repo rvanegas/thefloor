@@ -6,8 +6,9 @@ import renderer, {
 } from 'react-test-renderer';
 import { HomeView } from '../HomeView';
 import { Screen } from '../components';
+import { colors } from '../theme';
 import { ProfileView } from '../ProfileView';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, StyleSheet } from 'react-native';
 import {
   NOW,
   THEM,
@@ -783,6 +784,182 @@ describe('Home while still in a channel', () => {
       <HomeView {...homeNav} />
     );
     expect(textOf(tree)).not.toContain('tap to go back');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * Home while nearby, which is the same hoist for the rung below presence.
+ *
+ * The tier pins the channel you are standing in; these pin the ones you are
+ * within reach of. Four properties are worth holding it to, and each is a
+ * different kind of mistake: **several**, because nearby is not exclusive and
+ * a design that assumed one would drop the rest; **quieter and in another
+ * hue**, because two saturated bars in one header read as two alarms; **a tap
+ * that does not step in**, since stepping in is what ends the state; and
+ * **never both**, because presence and a wait cannot be true of one account at
+ * once and a snapshot saying so is one that has not caught up.
+ *
+ * Adopted 2026-09-12. The bit itself is `RejoinableView.nearby`, and the state
+ * it reports is planning/GLOSSARY.md § *Nearby / Stepped out*.
+ */
+describe('Home while nearby', () => {
+  const nearbyIn = (
+    ...channels: Array<{ id: string; name: string; present?: number }>
+  ) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: channels.map((channel) => ({
+        channelId: channel.id,
+        name: channel.name,
+        others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+        presentCount: channel.present ?? 0,
+        createdAt: 1,
+        lastActiveAt: 2,
+        nearby: true,
+      })),
+      contacts: [],
+      recordings: [],
+    };
+  };
+
+  it('pins a bar for it, above the list and saying which rung it is', () => {
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal', present: 2 });
+    const tree = render(<HomeView {...homeNav} />);
+    // Pinned rather than merely present, asserted on `Screen`'s header for the
+    // reason the live bar's version is: a sign that leaves the viewport on the
+    // first flick is a sign for most of a screen.
+    const [screen] = tree.root.findAll((node) => node.type === Screen);
+    const header = render(screen.props.header);
+    const text = textOf(header).replace(/\s+/g, ' ');
+    expect(text).toContain('Thursday rehearsal');
+    expect(text).toContain('Nearby · 2 present');
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('says nobody is there rather than printing a nought', () => {
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('Nearby · nobody there');
+    expect(text).not.toContain('0 present');
+    act(() => tree.unmount());
+  });
+
+  it('pins one for every channel, nearby not being exclusive', () => {
+    nearbyIn(
+      { id: 'sess_b', name: 'Thursday rehearsal' },
+      { id: 'sess_c', name: 'Book club', present: 1 },
+      { id: 'sess_d', name: 'The shop' }
+    );
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree);
+    for (const name of ['Thursday rehearsal', 'Book club', 'The shop']) {
+      // Once each: a bar or a row, never both.
+      expect(text.match(new RegExp(name, 'g'))).toHaveLength(1);
+    }
+    act(() => tree.unmount());
+  });
+
+  it('opens the channel without stepping in', () => {
+    // The whole of the difference between this bar and a list row. Stepping in
+    // ends the declaration, so a bar that dispatched ENTER could be pressed
+    // exactly once and would answer a question nobody asked — the offer lives
+    // on the channel's own screen, which is where the tap goes.
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+    const onEnterChannel = jest.fn();
+    const tree = render(
+      <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
+    );
+    const bar = findButton(tree, 'Thursday rehearsal');
+    expect(bar).toBeDefined();
+    // The dot is the whole of the distinction on screen, so the state is in
+    // the label as well — found the way somebody using VoiceOver would.
+    expect(bar!.props.accessibilityLabel).toContain('you are nearby');
+    act(() => bar!.props.onPress());
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_b');
+    expect(mockApp.act).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('is drawn over the contacts as well, the state outliving both lists', () => {
+    for (const list of ['channels', 'contacts'] as const) {
+      nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+      const tree = render(<HomeView {...homeNav} list={list} />);
+      const [screen] = tree.root.findAll((node) => node.type === Screen);
+      const header = render(screen.props.header);
+      expect(textOf(header)).toContain('Thursday rehearsal');
+      act(() => header.unmount());
+      act(() => tree.unmount());
+    }
+  });
+
+  it('reads in the nearby hue rather than the floor accent', () => {
+    // The two bars differ in hue first and weight second, and the palette has
+    // its own token for it — a dimmer `floor` would say *less of the same
+    // state* about a different one. Compared as resolved values, which on this
+    // platform is the light palette; what they look like on a phone is a walk.
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+    const tree = render(<HomeView {...homeNav} />);
+    const bar = findButton(tree, 'Thursday rehearsal')!;
+    const style = StyleSheet.flatten(bar.props.style) as {
+      backgroundColor?: unknown;
+      borderColor?: unknown;
+    };
+    expect(style.borderColor).toBe(colors.nearby);
+    expect(style.backgroundColor).toBe(colors.nearbyDim);
+    expect(style.borderColor).not.toBe(colors.floor);
+    act(() => tree.unmount());
+  });
+
+  it('draws none of it while there is a channel you are in', () => {
+    // Exclusive by construction: entering steps you out of everywhere else and
+    // a chosen exit clears the wait, so a snapshot claiming both is stale and
+    // presence is the true half. The channel keeps its row — the bar is
+    // suppressed, not the channel.
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+    const tree = render(
+      <HomeView
+        {...homeNav}
+        liveChannel={{
+          channelId: 'sess_1',
+          title: 'Book club',
+          present: 2,
+          muted: false,
+        }}
+        onReturnToChannel={() => {}}
+      />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('tap to go back');
+    expect(text).not.toContain('Nearby ·');
+    expect(text).toContain('Thursday rehearsal');
+    act(() => tree.unmount());
+  });
+
+  it('draws no bar for a channel the server said nothing about', () => {
+    // An older server sends no such key, and the client draws what every build
+    // drew before there was a bar: the row.
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_b',
+          name: 'Thursday rehearsal',
+          others: [{ id: 'acct_2', displayName: 'Dana Chu' }],
+          presentCount: 0,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      ],
+      contacts: [],
+      recordings: [],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('Thursday rehearsal');
+    expect(text).not.toContain('Nearby ·');
     act(() => tree.unmount());
   });
 });

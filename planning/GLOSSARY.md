@@ -58,7 +58,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one; Home pins a bar for each channel you are nearby in, beneath where it pins the one you are present in
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -647,6 +647,14 @@ still what leaves `lastPresentAt` alone for the two kinds a clock produces —
 since 2026-09-12 a tap and a declaration both stamp it, and a lost connection
 and an expired attention window still do not. That stamp is what *stepped out*
 counts, and it is a different question from this one.
+
+**Home hoists it, since 2026-09-12.** The tier pins a bar for each channel you
+are nearby in, under where it pins the channel you are present in and never
+beside it — a paler hue of its own, a hollow dot, and *Nearby · 2 present*.
+Several bars is ordinary and one live bar excludes them all, which is the
+exclusivity above drawn rather than stated. Pressing one opens the channel and
+steps in nowhere, that being the act which ends the state. See
+`decisions/2026-09-12-nearby-is-hoisted-too.md`.
 
 **A declared nearby holds no audio session and no media subscription**, which
 is what distinguishes it from being stepped in and muted. A muted person hears

@@ -7,7 +7,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import type { InviteView, RejoinableView } from '../../../core/protocol';
+import type {
+  HomeView as HomeViewData,
+  InviteView,
+  RejoinableView,
+} from '../../../core/protocol';
 import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
@@ -61,6 +65,7 @@ import { colors, radius, spacing, type } from './theme';
 export function ChannelsView({
   onEnterChannel,
   liveChannelId = null,
+  nearbyChannelIds = [],
 }: {
   onEnterChannel: (channelId: string) => void;
   /**
@@ -70,6 +75,18 @@ export function ChannelsView({
    * passed down rather than worked out again here.
    */
   liveChannelId?: string | null;
+  /**
+   * The channels the tier's *nearby* bars are already showing, left out on
+   * exactly the live channel's reasoning: a bar and a row are two renderings
+   * of one channel, so one of them appears.
+   *
+   * Ids rather than a flag on the card, though every card knows whether it is
+   * a nearby one — because whether a bar was drawn for it is the tier's
+   * answer, not this list's. The tier suppresses the bars while there is a
+   * live channel, and a card dropped from here on its own judgement would then
+   * be a channel showing nowhere at all.
+   */
+  nearbyChannelIds?: readonly string[];
 }) {
   const app = useApp();
 
@@ -126,7 +143,11 @@ export function ChannelsView({
       // unopenable there — so it is drawn where it leads somewhere.
       .filter((entry) => !entry.seat || Platform.OS === 'web')
       .map(memberCard),
-  ].filter((card) => card.channelId !== liveChannelId);
+  ].filter(
+    (card) =>
+      card.channelId !== liveChannelId &&
+      !nearbyChannelIds.includes(card.channelId)
+  );
 
   /**
    * The three sections, as a priority ladder: each channel appears once, in
@@ -401,6 +422,12 @@ type Card = {
   steppedInAt: number | null | undefined;
   /** False only for a channel nobody has ever been in. */
   everUsed: boolean;
+  /**
+   * Whether the reader is nearby in it — `RejoinableView.nearby`, straight
+   * through. Read by `nearbyChannels` rather than by the row: a nearby channel
+   * is drawn as a bar in the tier above and is not in this list at all.
+   */
+  nearby: boolean;
   /** Who asked you in, for an invitation. */
   from?: string;
 };
@@ -430,6 +457,10 @@ function inviteCard(invite: InviteView): Card {
     // Somebody has been in it: that is what makes it an invitation rather than
     // the standing channel a pair of contacts share.
     everUsed: true,
+    // Nearby in a channel you have never entered, which a declaration leaves
+    // you in: it is an arrival for the roster's purposes and still not an
+    // entry, so the invitation stands and this bit rides on it.
+    nearby: invite.nearby ?? false,
     from: invite.from.displayName,
   };
 }
@@ -452,6 +483,8 @@ function memberCard(channel: RejoinableView): Card {
       lastPresenceByOthers: undefined,
       steppedInAt: undefined,
       everUsed: true,
+      // A guest is never on that rung; the way back to a seat is the door.
+      nearby: false,
     };
   }
   return {
@@ -475,7 +508,61 @@ function memberCard(channel: RejoinableView): Card {
     lastPresenceByOthers: channel.lastPresenceByOthers,
     steppedInAt: channel.steppedInAt,
     everUsed: channel.everUsed ?? true,
+    // Absent from a server that predates the field, and read as *not nearby*:
+    // no bar is drawn, which is exactly what every build did before there was
+    // one to draw.
+    nearby: channel.nearby ?? false,
   };
+}
+
+/**
+ * One channel the reader is nearby in, as the tier's pinned bar needs it.
+ *
+ * Deliberately the same three facts the live bar carries, since the two bars
+ * are one shape in two states — and deliberately not a `Card`, which is this
+ * list's private shape and carries six things a bar has no line for.
+ */
+export type NearbyChannel = {
+  channelId: string;
+  title: string;
+  /** How many people are in it, which is what makes it worth going back to. */
+  presentCount: number;
+};
+
+/**
+ * Every channel the reader is nearby in, in the order this list would have put
+ * them in.
+ *
+ * **Exported, and built out of the card machinery above rather than beside
+ * it.** What a channel is *called* is a decided question — a name if somebody
+ * wrote one, a description of the roster if not — and answering it twice is
+ * how the bar and the row come to disagree about the same channel. The tier
+ * draws these; it does not name them.
+ *
+ * `byIdleness` for the reason the sections use it: whoever else was here most
+ * recently, first. Several bars is an ordinary state, nearby not being
+ * exclusive, so their order has to be somebody's decision rather than the
+ * order the server happened to build its list in.
+ */
+export function nearbyChannels(home: HomeViewData | null): NearbyChannel[] {
+  if (!home) return [];
+  return [
+    ...(home.invites ?? []).map(inviteCard),
+    ...(home.rejoinable ?? []).map(memberCard),
+  ]
+    .filter((card) => card.nearby)
+    .sort(byIdleness)
+    .map((card) => ({
+      channelId: card.channelId,
+      title: card.title,
+      // Undefined only from a server that predates the count on an
+      // invitation, and read as nought here rather than as *occupied* the way
+      // the section ladder reads it. The ladder is deciding where to file a
+      // row; this is a sentence, and "2 present" invented from an absent
+      // number would be the bar telling somebody there is a conversation
+      // waiting for them when nobody knows whether there is.
+      presentCount: card.presentCount ?? 0,
+    }));
 }
 
 const isLive = (card: Card) =>

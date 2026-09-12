@@ -27,6 +27,22 @@ const dark = {
   /** The floor: the app's one distinguishing mechanic gets the accent. */
   floor: '#7C5CFF',
   floorDim: '#3A2F6B',
+  /**
+   * Nearby: within reach, and not in the room.
+   *
+   * **Its own hue rather than a dimmer `floor`.** Home pins a bar for the
+   * channel you are standing in and a bar for each one you are merely within
+   * reach of, and those are different states rather than two intensities of
+   * one — so they differ in hue first and in weight second. Blue against the
+   * accent's violet, and paler than it: nothing here is happening to you, and
+   * a second saturated colour beside the floor's would read as a second alarm.
+   *
+   * Distinct from every other coloured thing on the palette on purpose —
+   * `silenced` is orange, `recording` and `danger` red, `success` green — so
+   * the blue is unclaimed and means this and nothing else.
+   */
+  nearby: '#7FBBE8',
+  nearbyDim: '#1B2A36',
   /** Being force-muted by the other party. */
   silenced: '#F0824D',
   recording: '#F04438',
@@ -66,6 +82,15 @@ const light: Record<keyof typeof dark, string> = {
   floor: '#6338E8',
   /** A tinted fill sitting under *dark* text now, so it inverts rather than dims. */
   floorDim: '#EDE8FF',
+  /**
+   * Paler than `floor` on this side too, which takes a little care: the light
+   * accent was *darkened* until white button text passed on it, and this
+   * carries no text at all — it is a border and a 9pt dot — so it is free to
+   * stay light and should, being the quieter of the two states.
+   */
+  nearby: '#5B93C7',
+  /** `floorDim`'s counterpart: a tinted fill under dark text, in the other hue. */
+  nearbyDim: '#E7F1FA',
   /** Orange on white is the classic contrast failure; this is nearly brown. */
   silenced: '#B24A11',
   recording: '#D92D20',

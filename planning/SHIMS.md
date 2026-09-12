@@ -39,6 +39,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `mediaRoom` | `core/channel.ts`, `server/src/channels.ts` |
 | — | `declaredNearbyAt` optionality | `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
+| 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 
 The floor is **51**. `oldestBuild` read **80** on 2026-09-09, so the first
 three are already free and the rest are not.
@@ -73,6 +74,27 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 188 — `RejoinableView.nearby` / `InviteView.nearby` optionality
+
+The bit that tells Home which channels the reader is nearby in, so the tier can
+pin a bar for each the way it pins the channel you are standing in. Optional on
+both shapes because a server that predates it sends no such key, and the client
+reads absence as *not nearby* — which draws no bar and leaves the channel as
+the row every build drew before there was a bar to draw.
+
+Set unconditionally in `rejoinableFor` and `invitesFor`,
+`server/src/channels.ts`. The client-side fallbacks are the two `?? false` in
+`inviteCard` and `memberCard`, `app/src/ui/ChannelsView.tsx`.
+
+**What must not be deleted with it**: the seat entry's explicit `nearby: false`,
+in both files. That is not a fallback for an older server — a guest is never in
+`waiting`, the rung being a member's — so it stays when the optionality goes.
+
+Gate 188 because build 187 is already tagged: the client that speaks this ships
+in the next upload.
 
 ---
 

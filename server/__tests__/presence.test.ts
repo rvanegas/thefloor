@@ -543,3 +543,57 @@ describe('the attention clock', () => {
     expect(pushes).toBeLessThanOrEqual(11);
   });
 });
+
+/**
+ * What Home is told about the rung, which is one bit per channel.
+ *
+ * The app hoists these the way it hoists the channel you are standing in — a
+ * pinned bar each, in another hue — so the snapshot has to carry the state
+ * rather than leave the client to infer it from a roster it does not hold for
+ * a channel it is not watching. See `RejoinableView.nearby` and `ui/HomeView`.
+ */
+describe('Home is told which channels you are nearby in', () => {
+  const entryFor = (userId: string, channelId: string) =>
+    app.channels.rejoinableFor(userId).find((e) => e.channelId === channelId)!;
+
+  it('reports a declaration, and clears it when the wait ends', async () => {
+    const { bob, channelId } = await roomOfTwo();
+    // Present is not nearby: the two states are what the app draws one bar or
+    // the other from, and an account in both would be drawn twice.
+    expect(entryFor(bob.id, channelId).nearby).toBe(false);
+
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+    expect(isWaiting(channel(channelId), bob.id)).toBe(true);
+    expect(entryFor(bob.id, channelId).nearby).toBe(true);
+
+    // Stepping out of *Nearby* is the way off the rung, and the bit goes with
+    // it rather than ageing out on the client's own clock.
+    app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
+    expect(entryFor(bob.id, channelId).nearby).toBe(false);
+  });
+
+  it('says nothing about it to anybody else', async () => {
+    // The bit is *the reader's own*, not the roster's. Alice is present in the
+    // same channel and her entry reports her own state, which is not nearby —
+    // her view of Bob is the roster's business and is on the channel snapshot.
+    const { alice, bob, channelId } = await roomOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+    expect(entryFor(alice.id, channelId).nearby).toBe(false);
+  });
+
+  it('is one bit per channel, several being an ordinary state', async () => {
+    // Presence is exclusive; this is not. Two declarations stand at once and
+    // both entries say so, which is why the wire carries a bit per channel
+    // rather than one id on the snapshot.
+    const { bob, channelId } = await roomOfTwo();
+    const created = app.channels.create(bob.id, []);
+    expect(created.ok).toBe(true);
+    const other = (created as { ok: true; channel: { id: string } }).channel.id;
+
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+    app.channels.dispatch(other, bob.id, { type: 'DECLARE_NEARBY' });
+
+    expect(entryFor(bob.id, channelId).nearby).toBe(true);
+    expect(entryFor(bob.id, other).nearby).toBe(true);
+  });
+});

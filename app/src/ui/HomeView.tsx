@@ -17,7 +17,7 @@ import {
   Segmented,
 } from './components';
 import { SettingsIcon } from './icons';
-import { ChannelsView } from './ChannelsView';
+import { ChannelsView, nearbyChannels } from './ChannelsView';
 import { ContactsView } from './ContactsView';
 import { Introduction } from './Introduction';
 import { ProfileView } from './ProfileView';
@@ -141,6 +141,31 @@ export function HomeView({
   onReturnToChannel?: (channelId: string) => void;
 }) {
   const app = useApp();
+
+  /**
+   * The channels this reader is nearby in, which get the live bar's treatment
+   * in a different hue — see `nearbyBar` in the styles and § *Nearby / Stepped
+   * out* in planning/GLOSSARY.md.
+   *
+   * **Read off the Home snapshot rather than handed down like `liveChannel`**,
+   * and the asymmetry is the two states' rather than an oversight. Presence is
+   * the account's *and* the device's: the server can hold you present in a
+   * channel this process has never heard of, so that bar is drawn from what
+   * the app knows it is connected to and `App.tsx` is the only place that
+   * knows. Nearby claims no audio and no room, so there is nothing for a
+   * device to disagree with — the account is within reach of these channels,
+   * which is the same bit everybody else's roster is reading, and the snapshot
+   * is the whole answer.
+   *
+   * **Suppressed entirely while there is a live channel.** The two states are
+   * exclusive by construction — entering steps you out of everywhere else, and
+   * a chosen exit clears the wait — so a snapshot claiming both is one that has
+   * not caught up yet, and presence is the one that is true. Nothing is lost
+   * from the screen: a channel with no bar is a channel with a row, the
+   * suppression here and the exclusion passed to `ChannelsView` being one
+   * decision made in one place.
+   */
+  const nearby = liveChannel ? [] : nearbyChannels(app.home);
 
   /**
    * A profile, when there is no pane to put it in. Held here rather than in
@@ -308,6 +333,75 @@ export function HomeView({
           </Pressable>
         ) : null}
 
+        {/*
+          A bar for each channel you are within reach of, under the live bar's
+          place and never beside it — see `nearby` above for why the two cannot
+          both be drawn.
+
+          **Several is the ordinary case.** Presence is exclusive and this is
+          not: a declaration is one tap in one channel and says nothing about
+          any other, so somebody who has said *be nearby* in three rooms is
+          within reach of three. They are pinned for the live bar's reason
+          rather than by analogy with it — being reachable in a room you are
+          not looking at is a state with no other sign of itself, and the
+          arrival that answers it is offered on the channel's own screen, which
+          is precisely where you are not.
+
+          Quieter than the live bar, in hue and in weight: nothing is happening
+          to you in these rooms, and the one thing that could — somebody
+          arriving — is a number this bar already carries.
+        */}
+        {nearby.map((channel) => (
+          <Pressable
+            key={channel.channelId}
+            accessibilityRole="button"
+            // Said in words for the reason the live bar's is: the dot is the
+            // whole of the distinction on screen, and a dot reads as nothing.
+            accessibilityLabel={`${channel.title}, you are nearby. ${
+              channel.presentCount === 0
+                ? 'Nobody is there.'
+                : `${channel.presentCount} present.`
+            } Tap to open.`}
+            // `onEnterChannel` rather than `onReturnToChannel`, which is the
+            // live bar's — and neither of them steps in. Both navigate and
+            // nothing more; the tap that arrives is `ENTER`, dispatched by
+            // whoever sends it, and a nearby bar must not: stepping in ends
+            // the declaration, so a bar that did it could not be pressed
+            // twice and would answer a question nobody asked. The channel's
+            // own screen offers *Step in* under a thumb, which is where the
+            // choice belongs.
+            onPress={() => onEnterChannel(channel.channelId)}
+            style={styles.nearbyBar}
+          >
+            <View style={styles.rowMain}>
+              <View style={styles.liveTitleRow}>
+                {/*
+                  Hollow, where presence is filled. The live bar spends this
+                  same 9pt on availability; here there is nothing to be
+                  available with, so the shape carries the rung instead — an
+                  outline is the room you are outside of.
+                */}
+                <View style={styles.nearbyDot} />
+                <Text style={styles.nearbyTitle} numberOfLines={1}>
+                  {channel.title}
+                </Text>
+              </View>
+              {/*
+                "Nearby" first, because the state is the point of the bar and
+                the count is what to do about it. `0 present` is not said as a
+                number: a room with nobody in it is a fact about the room, and
+                a nought beside a word like *present* reads as a failure to
+                load.
+              */}
+              <Text style={styles.nearbySub}>
+                {channel.presentCount === 0
+                  ? 'Nearby · nobody there'
+                  : `Nearby · ${channel.presentCount} present`}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+
         <InstallNotice />
 
         <NotificationNotice onExplain={onOpenNotifications} />
@@ -357,6 +451,9 @@ export function HomeView({
           // separate questions, while the bar was suppressed in a split and
           // the row was not — see `App.tsx`, which no longer suppresses it.
           liveChannelId={liveChannel?.channelId ?? null}
+          // And the same for the bars above: exactly the channels a bar was
+          // drawn for, so a suppressed bar leaves its row where it was.
+          nearbyChannelIds={nearby.map((channel) => channel.channelId)}
         />
       ) : (
         <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />
@@ -688,6 +785,53 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   liveSub: { fontSize: 13, color: colors.textMuted },
+  /**
+   * The nearby bar: the live bar's shape, in the other hue.
+   *
+   * **A copy of `liveBar` rather than a variant of it**, which is the smaller
+   * of two evils here. Sharing the block and overriding two colours reads
+   * tidily and hides the fact that these are two states rather than one state
+   * at two strengths — and the next difference between them, whatever it is,
+   * lands as a third override rather than in a block that says what this is.
+   * Four lines are shared and stated twice; if a fifth arrives, extract then.
+   *
+   * `marginTop` is the one structural difference, and it exists because there
+   * can be several of these: the header's rows are spaced by the gap on
+   * `headerInner`, which spaces siblings and not the members of a mapped run.
+   */
+  nearbyBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1.5),
+    backgroundColor: colors.nearbyDim,
+    borderColor: colors.nearby,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing(1.75),
+    marginTop: spacing(1.5),
+  },
+  /**
+   * A step down from `liveTitle`, which is 17pt semibold. The room you are in
+   * is the loudest thing in this header and stays that way; a room you are
+   * within reach of is 15pt and regular, which is the list's own body weight —
+   * these bars are hoisted rows, and presence is not.
+   */
+  nearbyTitle: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  nearbySub: { fontSize: 13, color: colors.textMuted },
+  /** Hollow, in the nearby hue: outside the room, within reach of it. */
+  nearbyDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.nearby,
+  },
   liveDot: {
     width: 9,
     height: 9,

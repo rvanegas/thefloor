@@ -1990,6 +1990,10 @@ export class ChannelRegistry {
             .filter((account): account is PublicAccount => !!account),
           presentCount: channel.present.length,
           lastPresenceAt: lastPresenceAt(channel),
+          // Nearby in a channel you have never entered is a real state: a
+          // declaration is not an entry, so `everPresent` still excludes you
+          // and this stays an invitation while you stand outside it.
+          nearby: isWaiting(channel, userId),
         });
       }
     }
@@ -2067,6 +2071,12 @@ export class ChannelRegistry {
         // own clock instead of waiting for a snapshot that may not come.
         steppedInAt: entry?.by === userId ? entry.at : null,
         everUsed: channel.everPresent.length > 0,
+        // **Which rooms they are within reach of**, which Home hoists the way
+        // it hoists the one they are standing in. The account's bit, read off
+        // `waiting` exactly as every roster in the channel reads it — a wait
+        // declared on their other phone is one everybody else can ping into,
+        // so it is one this list may say out loud.
+        nearby: isWaiting(channel, userId),
       });
     }
     // Every channel this account is sitting in as a guest, which is a place
@@ -2099,6 +2109,10 @@ export class ChannelRegistry {
         createdAt: session.admitted_at,
         lastActiveAt: session.admitted_at,
         everUsed: true,
+        // Said rather than left absent: a guest is never in `waiting` — the
+        // rung is a member's, and a seat's way back is the door — so this is a
+        // no and not the older server's silence.
+        nearby: false,
         seat: true,
       });
     }

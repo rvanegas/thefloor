@@ -318,6 +318,29 @@ export interface InviteView {
    * and a client meeting that shows no idleness rather than inventing one.
    */
   lastPresenceAt?: number;
+  /**
+   * Whether **the reader** is nearby in this channel: in `waiting`, declared
+   * or inferred, which is the same bit everybody else's roster reads.
+   *
+   * Home hoists it, the way it hoists the channel you are present in — see
+   * `ui/HomeView`. The two cannot both be true of one account for long:
+   * entering steps you out of everywhere else, and a chosen exit clears the
+   * wait, so presence is exclusive where this is not. **You may be nearby in
+   * several channels at once**, which is why this is a bit on every entry
+   * rather than one id on the snapshot.
+   *
+   * The account's, not this device's. A wait declared on another phone is one
+   * everybody else can see and ping into, so saying so here is the same claim
+   * their roster makes. What is *not* here is the device's own declaration,
+   * `nearbyIn` in `AppProvider` — that one exists to decide whose screen an
+   * arrival is offered on, which is a narrower question than which rooms you
+   * are within reach of.
+   *
+   * Optional for the wire's sake: a server that predates it sends no such key,
+   * and a client meeting that draws no bar rather than an emptiness nothing
+   * reported. See planning/SHIMS.md.
+   */
+  nearby?: boolean;
 }
 
 export interface RejoinableView {
@@ -353,6 +376,29 @@ export interface RejoinableView {
    * shown for.
    */
   lastPresenceAt?: number;
+  /**
+   * Whether **the reader** is nearby in this channel: in `waiting`, declared
+   * or inferred, which is the same bit everybody else's roster reads.
+   *
+   * Home hoists it, the way it hoists the channel you are present in — see
+   * `ui/HomeView`. The two cannot both be true of one account for long:
+   * entering steps you out of everywhere else, and a chosen exit clears the
+   * wait, so presence is exclusive where this is not. **You may be nearby in
+   * several channels at once**, which is why this is a bit on every entry
+   * rather than one id on the snapshot.
+   *
+   * The account's, not this device's. A wait declared on another phone is one
+   * everybody else can see and ping into, so saying so here is the same claim
+   * their roster makes. What is *not* here is the device's own declaration,
+   * `nearbyIn` in `AppProvider` — that one exists to decide whose screen an
+   * arrival is offered on, which is a narrower question than which rooms you
+   * are within reach of.
+   *
+   * Optional for the wire's sake: a server that predates it sends no such key,
+   * and a client meeting that draws no bar rather than an emptiness nothing
+   * reported. See planning/SHIMS.md.
+   */
+  nearby?: boolean;
   /**
    * The most recent moment anybody *other than this reader* was in the channel
    * — see `lastPresenceByOthers` in core/channel.ts. **This is what Home draws
