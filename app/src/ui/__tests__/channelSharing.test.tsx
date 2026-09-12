@@ -22,6 +22,9 @@ import {
   render,
   resetHarness,
   showChannel,
+  showNotes,
+  showPlayer,
+  showWatch,
   textOf,
 } from '../testing/harness';
 
@@ -79,7 +82,27 @@ describe('Channel, watching together', () => {
     );
   }
 
+  /**
+   * The screen, on the tab the watch card lives on.
+   *
+   * The card is one tap from the roster since the channel screen became six
+   * tabs, and the tap is here rather than in every test because it is not
+   * what any of them is about. `showWatch` throws when the tab is missing,
+   * which is what keeps a test from quietly going on to assert against the
+   * roster instead.
+   */
   function open() {
+    const tree = openOnRoster();
+    showWatch(tree);
+    return tree;
+  }
+
+  /**
+   * The screen left where it opens, for the three tests whose subject is not
+   * the card: the party-muted line, which is a claim about the roster, and
+   * the gate, which is about the tab not being offered at all.
+   */
+  function openOnRoster() {
     return render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
@@ -224,7 +247,11 @@ describe('Channel, watching together', () => {
 
   it('refuses Record with the reason, rather than a dead button', () => {
     showChannel(watching());
-    const tree = open();
+    // On *Player*, which is where recording is: the refusal and the thing
+    // causing it are a tab apart now, which is exactly why the reason has to
+    // travel with the button rather than be inferred from the card next to it.
+    const tree = openOnRoster();
+    showPlayer(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     expect(textOf(tree)).toContain('Stop the watch party to record');
     act(() => tree.unmount());
@@ -341,7 +368,11 @@ describe('Channel, watching together', () => {
     // would also imply each person had been muted individually, which is the
     // one thing this deliberately does not do.
     showChannel(muted());
-    const tree = open();
+    // On the roster, which is the tab it is a claim about: those people cannot
+    // be heard right now. It is not on the watch tab at all, where the control
+    // is — the same separation the card and the roster had when both were on
+    // one scroll.
+    const tree = openOnRoster();
     const text = textOf(tree);
     expect(text).toContain('Party-muted');
     expect(text.match(/Party-muted/g)).toHaveLength(1);
@@ -350,7 +381,7 @@ describe('Channel, watching together', () => {
 
   it('says nothing about party-muting when the room is not muted', () => {
     showChannel(watching());
-    const tree = open();
+    const tree = openOnRoster();
     expect(textOf(tree)).not.toContain('Party-muted');
     act(() => tree.unmount());
   });
@@ -498,7 +529,11 @@ describe('Channel, watching together', () => {
   it('is not on the screen at all without Labs', () => {
     mockApp.labs = false;
     showChannel(channelOf());
-    const tree = open();
+    const tree = openOnRoster();
+    // The tab itself, first: since the card became one there is a way to hide
+    // it that leaves the word *Watch* on the screen with nothing behind it,
+    // which would be the gate failing in the one place somebody reads it.
+    expect(findButton(tree, 'Watch')).toBeUndefined();
     expect(textOf(tree)).not.toContain('Watch together');
     expect(findButton(tree, 'Watch something together')).toBeUndefined();
     expect(findButton(tree, 'Watch on another screen')).toBeUndefined();
@@ -546,13 +581,21 @@ describe('the channel clipboard', () => {
     showChannel(channelOf((s) => ({ ...s, clip: { ...CLIP, ...clip } })));
   }
 
+  /**
+   * The screen, on *Notes* — where the clipboard lives with the channel's
+   * description, the two of them being text the channel holds rather than a
+   * control on the room. One tap from the roster, taken here rather than in
+   * every test because it is not what any of them is about.
+   */
   function open() {
-    return render(<ChannelView
+    const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showNotes(tree);
+    return tree;
   }
 
   beforeEach(() => {

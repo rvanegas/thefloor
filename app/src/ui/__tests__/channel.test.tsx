@@ -3,8 +3,8 @@ import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import { type Guest } from '../../../../core/types';
 import { type RecordingView } from '../../../../core/protocol';
-import { ChannelView, GroupHeading, uploadingLabel } from '../ChannelView';
-import { Screen, SectionLabel } from '../components';
+import { ChannelView, uploadingLabel } from '../ChannelView';
+import { Screen, SectionLabel, Segmented } from '../components';
 import { BellIcon, StepIcon } from '../icons';
 import {
   Alert,
@@ -31,7 +31,11 @@ import {
   resetHarness,
   showChannel,
   showInvites,
+  showNotes,
+  showPlayer,
+  showRecordings,
   showRoster,
+  showWatch,
   textOf,
   uploads,
 } from '../testing/harness';
@@ -334,18 +338,26 @@ describe('Channel', () => {
     // is asking, so the loudest button on the screen was wired to nothing.
     expect(disabled('Let them speak')).toEqual(off('Let them speak'));
     expect(disabled('Remove')).toEqual(off('Remove'));
+    expect(textOf(tree)).toContain('Step in to answer for what a guest may do');
 
+    // A tab apiece from here down. The rule is one rule and the sentence
+    // explaining it is different on each, which is the thing worth checking:
+    // a disabled cluster with nothing saying why is the shape this codebase
+    // does not allow.
+    showNotes(tree);
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
+    expect(textOf(tree)).toContain(
+      'Step in to put something on the channel clipboard'
+    );
+
+    showPlayer(tree);
     expect(disabled('Play something together')).toEqual(
       off('Play something together')
     );
+    expect(textOf(tree)).toContain(
+      'What everybody is listening to is for whoever is listening'
+    );
 
-    const text = textOf(tree);
-    expect(text).toContain('Step in to answer for what a guest may do');
-    expect(text).toContain('Step in to put something on the channel clipboard');
-    // The shared-audio hint, which is a different sentence and was the one
-    // disabled cluster on this screen with nothing explaining itself.
-    expect(text).toContain('What everybody is listening to is for whoever is listening');
     showInvites(tree);
     expect(disabled('Invite')).toEqual(off('Invite'));
     expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
@@ -355,8 +367,8 @@ describe('Channel', () => {
     // And the list of contacts is still shown rather than emptied by the
     // filter, which would have claimed every contact was already in here.
     expect(invites).toContain('Miro Okafor');
-    showRoster(tree);
 
+    showRecordings(tree);
     // The recording row's actions are behind a tap, and two of the three are
     // refused. Share is not, and that is the assertion worth having.
     act(() => findButton(tree, 'Book club')!.props.onPress());
@@ -416,13 +428,14 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
+    showNotes(tree);
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
 
     showInvites(tree);
     expect(on('Invite')).toEqual({ disabled: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
-    showRoster(tree);
 
+    showRecordings(tree);
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
     expect(on('Delete')).toEqual({ disabled: false });
@@ -430,16 +443,20 @@ describe('Channel', () => {
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes
     // in an empty room".
+    showRoster(tree);
     expect(textOf(tree)).toContain('Step in');
     expect(on('Claim the floor')).toEqual({ disabled: true });
-    expect(on('Record')).toEqual({ disabled: true });
 
+    showPlayer(tree);
+    expect(on('Record')).toEqual({ disabled: true });
     // And since 2026-08-24, putting something on. This asserted the opposite
     // until then: loading a track and starting a party are the two acts that
     // leave something behind for whoever steps in next, so they ask presence
     // where driving what is already there asks only the room. `canLoadTrack`
     // and `canStartWatch` in core.
     expect(on('Play something together')).toEqual({ disabled: true });
+
+    showWatch(tree);
     expect(on('Watch something together')).toEqual({ disabled: true });
     // The screen link is not one of them — it changes nothing, and an empty
     // channel is nobody's conversation to intrude on.
@@ -519,6 +536,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
@@ -681,6 +699,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
     expect(findButton(tree, 'Play something together')).toBeDefined();
     act(() => tree.unmount());
   });
@@ -699,6 +718,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
 
     await act(async () => {
       findButton(tree, 'Play something together')!.props.onPress();
@@ -736,6 +756,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
 
     await act(async () => {
       findButton(tree, 'Play something together')!.props.onPress();
@@ -779,6 +800,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
     const text = textOf(tree);
     expect(text).toContain('Kind of Blue');
     expect(text).toContain('0:30');
@@ -814,6 +836,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
 
     expect(textOf(tree)).toContain('Dana Chu has the floor, so they decide what plays');
     expect(findButton(tree, 'Pause')!.props.accessibilityState.disabled).toBe(
@@ -856,6 +879,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
 
     const share = findButton(tree, 'Share track')!;
     expect(share.props.accessibilityState.disabled).toBe(false);
@@ -889,6 +913,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
     act(() => findButton(tree, '+15s')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SEEK',
@@ -1168,16 +1193,24 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('orders the screen by what somebody in a conversation reaches for', () => {
-    // Roughly by how often it is wanted, and pinned here because the order is
-    // a decision rather than an accident of how the JSX was written. It has
-    // changed twice already: the floor used to sit at the top, inviting
-    // directly under the roster, and the clipboard between the audio cards —
-    // and this test is what noticed each time. The three audio sections are
-    // contiguous on purpose, which is the constraint most easily broken by
-    // adding a section in the obvious place.
-    // Labs on, so the order under test is the whole screen rather than
-    // the screen minus its experimental section.
+  it('orders each tab by what somebody in a conversation reaches for', () => {
+    /*
+      Roughly by how often it is wanted, and pinned here because the order is
+      a decision rather than an accident of how the JSX was written. It has
+      changed three times: the floor used to sit at the top, inviting directly
+      under the roster, and the clipboard between the audio cards — and this
+      test is what noticed each time.
+
+      **Six tabs since 2026-09-12, and the order is now two orders.** The tabs
+      run in the order somebody reaches for them, and within each the sections
+      do too. What was one column of ten labels under a *What the channel is
+      carrying* heading is the heading made structural: the seam that used to
+      be a rule and a phrase is the switch itself, and the group heading has
+      gone with it.
+
+      Labs on, so the order under test is the whole screen rather than the
+      screen minus its experimental tab.
+    */
     mockApp.labs = true;
     showChannel(channelOf());
     const tree = render(<ChannelView
@@ -1187,93 +1220,132 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    const order = [
-      // The floor is first among the controls as of 2026-08-31, directly under
-      // the roster. It was fifth — under the microphone and under the
-      // departure — which put the one mechanic the application is named after
-      // below a readout about yourself and at the same weight as the guest
-      // link. It is about the roster above it: it decides who among those
-      // people may be heard.
-      'The floor',
-      'Your microphone',
-      // Sentence case now, with the rest of them. It was "Step Out",
-      // capitalised, because one label served both departures and flipped to
-      // "Step In" when you were not present; splitting them left nothing for
-      // the capital to distinguish. The lowercase hazard the capital guarded
-      // against is gone with the text search — this reads the `SectionLabel`s
-      // themselves, so a "step out" in some card's prose cannot be mistaken
-      // for the heading.
-      'Step out',
-      'Shared clipboard',
-      // Above the audio rather than below it, moved 2026-08-23. Both are
-      // things the channel can be attending to and only one can be, so the
-      // order is a claim about which is reached for first — and a party is a
-      // deliberate act somebody sets up, where a track is loaded and left.
-      'Watch together',
-      'Shared audio',
-      'Recording',
-      'Recordings',
-      // And that is the whole of this tab. The two invitation sections used
-      // to close the list; they are the other tab now, and are ordered
-      // against each other at the foot of this test rather than here.
-    ];
     /*
       Read off the `SectionLabel`s themselves rather than by searching the
       flattened text for each word.
-      **The search version was quietly wrong and this move is what exposed it**:
-      the watch card's own prose contained the word "Recording", so
+      **The search version was quietly wrong and the watch card is what
+      exposed it**: that card's own prose contains the word "Recording", so
       `indexOf('Recording')` found a sentence rather than the heading, and the
       order it computed depended on which cards happened to mention each
-      other. It passed for the wrong reason until the card moved above the one
-      whose name it mentioned.
+      other.
     */
-    const labels = tree.root
-      .findAll((node) => node.type === SectionLabel)
-      .map((node) => labelOf(node).trim());
-    expect(labels).toEqual(order);
+    const sections = () =>
+      tree.root
+        .findAll((node) => node.type === SectionLabel)
+        .map((node) => labelOf(node).trim());
 
     /*
-      And the seams, in among the sections rather than checked apart from
-      them. Two groups, not ten equal sections: everything before the first
-      heading is the conversation — the room, the floor, your microphone, the
-      way out — and the headings are the only thing on this screen that says
-      the sections below them are a different kind of thing.
+      **The tabs, in their own order**, read off the switch rather than
+      restated: what this asserts is the order they are offered in, and the
+      labels are the whole of what somebody chooses between.
 
-      Read as one interleaved sequence on purpose. Asking separately whether
-      both headings render would pass with either of them in the wrong run,
-      which is the only way this can actually go wrong.
+      Roster first because it is what the screen is for and what you land on.
+      Then the four the channel carries, in the order they were listed when
+      they were asked for. Invite links last, as the rarest thing anybody does
+      here — which is why it is not the tab you land on, and no longer why it
+      is at the bottom of a scroll.
     */
-    const structure = tree.root
-      .findAll(
-        (node) => node.type === SectionLabel || node.type === GroupHeading
-      )
-      .map((node) => labelOf(node).trim());
-    expect(structure).toEqual([
-      'The floor',
-      'Your microphone',
-      'Step out',
-      'What the channel is carrying',
-      'Shared clipboard',
-      'Watch together',
-      'Shared audio',
-      'Recording',
+    // `findAll` with a predicate rather than `findByType`, which the installed
+    // react-test-renderer types do not declare.
+    expect(
+      tree.root
+        .findAll((node) => node.type === Segmented)[0]!
+        .props.options.map((option: { label: string }) => option.label)
+    ).toEqual([
+      'Roster',
+      'Notes',
+      'Player',
       'Recordings',
+      'Watch',
+      'Invite links',
     ]);
 
     /*
-      The other tab, which is the rest of the screen and is two sections with
-      no heading over them: the tab is the heading, and *Who gets in* said
-      over it read as a second, narrower claim about the pair.
+      The roster's own, which is what is true of the conversation right now.
+      The floor is first among the controls as of 2026-08-31, directly under
+      the roster itself. It was fifth — under the microphone and under the
+      departure — which put the one mechanic the application is named after
+      below a readout about yourself and at the same weight as the guest link.
+      It is about the roster above it: it decides who among those people may
+      be heard.
+
+      *Step out* is sentence case with the rest of them. It was "Step Out",
+      capitalised, because one label served both departures and flipped to
+      "Step In" when you were not present; splitting them left nothing for the
+      capital to distinguish.
+    */
+    expect(sections()).toEqual(['The floor', 'Your microphone', 'Step out']);
+
+    // What the channel has written down, at two speeds: the description,
+    // which was above the tabs until this tab existed, and the clipboard.
+    showNotes(tree);
+    expect(sections()).toEqual(['Description', 'Shared clipboard']);
+
+    // What is playing and what is being kept, which are one tab because the
+    // second is what the first is doing to the room right now.
+    showPlayer(tree);
+    expect(sections()).toEqual(['Shared audio', 'Recording']);
+
+    showRecordings(tree);
+    expect(sections()).toEqual(['Recordings']);
+
+    showWatch(tree);
+    expect(sections()).toEqual(['Watch together']);
+
+    /*
+      The ways in, which are two sections with no heading over them: the tab
+      is the heading, and *Who gets in* said over it read as a second,
+      narrower claim about the pair. A contact who already has an account
+      first, then a link for somebody who has not.
     */
     showInvites(tree);
-    expect(
-      tree.root
-        .findAll(
-          (node) => node.type === SectionLabel || node.type === GroupHeading
-        )
-        .map((node) => labelOf(node).trim())
-    ).toEqual(['Invite', 'Guest link']);
+    expect(sections()).toEqual(['Invite', 'Guest link']);
     act(() => tree.unmount());
+  });
+
+  /*
+    The watch tab is the one that comes and goes, and what decides is Labs
+    rather than anything about the room — a tab that appeared and vanished as
+    people started and stopped things would be the wrong one pressed. The
+    exception is a party already running, which somebody without Labs has to
+    be able to see and stop; `watchOffered` is both halves.
+  */
+  it('offers the watch tab to Labs, and to anybody in a party already on', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    expect(findButton(tree, 'Watch')).toBeUndefined();
+    act(() => tree.unmount());
+
+    // The same account, the same channel, and a party running in it: the tab
+    // is there, because the Stop button is on it.
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          s,
+          {
+            type: 'START_WATCH',
+            userId: ME,
+            videoId: 'dQw4w9WgXcQ',
+            url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          },
+          NOW
+        )
+      )
+    );
+    const party = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showWatch(party);
+    expect(findButton(party, 'Stop')).toBeDefined();
+    act(() => party.unmount());
   });
 
   /*
@@ -1350,12 +1422,14 @@ describe('Channel', () => {
     expect(findButton(header, 'Close')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
 
-    // And the description stayed behind, in the scroll. It is prose of any
-    // length, and a pinned header is the one place on this screen that cannot
-    // afford something that grows. Asserted against a description the channel
+    // And the description stayed behind, in the scroll — on *Notes* since the
+    // six tabs, and out of the header either way. It is prose of any length,
+    // and a pinned header is the one place on this screen that cannot afford
+    // something that grows. Asserted against a description the channel
     // actually has, so that the absence means something.
-    expect(textOf(tree)).toContain('Reading Dune on Thursdays.');
     expect(textOf(header)).not.toContain('Reading Dune on Thursdays.');
+    showNotes(tree);
+    expect(textOf(tree)).toContain('Reading Dune on Thursdays.');
     act(() => header.unmount());
     act(() => tree.unmount());
   });
@@ -1927,6 +2001,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
     const text = textOf(tree);
     expect(text).toContain('Book club');
     expect(text).not.toContain('Nothing recorded here yet');
@@ -1973,6 +2048,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(mine);
     act(() => findButton(mine, 'Tuesday')!.props.onPress());
     expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
     act(() => mine.unmount());
@@ -1987,6 +2063,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(theirs);
     act(() => findButton(theirs, 'Tuesday')!.props.onPress());
     expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
     expect(textOf(theirs)).toContain('the floor decides what plays');
@@ -2010,6 +2087,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
 
     // Share, Rename and Delete rather than Play, which is also the name of
     // the shared audio control further up the screen — and 'Share track' is
@@ -2049,6 +2127,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { Alert } = require('react-native');
@@ -2094,6 +2173,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { api } = require('../../api/http');
@@ -2148,6 +2228,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
 
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
     act(() => findButton(tree, 'Rename')!.props.onPress());
@@ -2173,6 +2254,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showRecordings(tree);
     expect(textOf(tree)).toContain('Nothing recorded here yet');
     act(() => tree.unmount());
   });
@@ -2230,7 +2312,7 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('renders the description under the title, above the roster', () => {
+  it('renders the description on Notes, with its markup rendered', () => {
     showChannel(
       channelOf((s) =>
         reduce(
@@ -2250,6 +2332,15 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    // Not on the roster, which is where it was until the six tabs: it is what
+    // the channel is *for*, which is a slower fact than anything the roster
+    // carries, and a line of it was being paid for by every screenful of every
+    // other section. Asserted from both sides, a tab being worth nothing if
+    // the thing it holds is drawn on the one beside it too.
+    expect(textOf(tree)).not.toContain('Dune');
+    expect(linksIn(tree)).toEqual([]);
+
+    showNotes(tree);
     const text = textOf(tree);
     // The markup is gone and the words remain.
     expect(text).toContain('Reading');
@@ -2258,14 +2349,13 @@ describe('Channel', () => {
     expect(text).not.toContain('**Dune**');
     expect(text).not.toContain('https://example.com');
 
-    // The link is a link, and the roster still follows it. Host nodes only:
-    // findAll matches the composite and the host element for one <Text>.
+    // The link is a link. Host nodes only: findAll matches the composite and
+    // the host element for one <Text>.
     expect(linksIn(tree)).toEqual(['notes']);
-    expect(text).toContain('Dana Chu');
     act(() => tree.unmount());
   });
 
-  it('shows nothing where the description would be when there is none', () => {
+  it('says where to write one when the channel has no description', () => {
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -2273,7 +2363,13 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showNotes(tree);
     expect(linksIn(tree)).toEqual([]);
+    // A heading with nothing under it reads as something that failed to load,
+    // which the tab made possible: nothing was drawn where the description
+    // went when it sat above the switch, and nothing was the right answer
+    // there. Settings is in the header, on every tab.
+    expect(textOf(tree)).toContain('Nobody has described this channel');
     act(() => tree.unmount());
   });
 
@@ -2382,6 +2478,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showPlayer(tree);
     expect(textOf(tree)).toContain(
       'This channel records itself. One starts as soon as there is somebody else in the room.'
     );

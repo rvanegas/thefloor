@@ -434,6 +434,36 @@ export function Card({
 }
 
 /**
+ * How many segments a row of this control may hold before it is worth
+ * breaking into two.
+ *
+ * Four, because a segment is `flex: 1` and what sits in one is a word rather
+ * than a glyph: a fifth on a phone leaves each of them about forty points,
+ * which is not a word. See `segmentRows`.
+ */
+const MAX_PER_ROW = 4;
+
+/**
+ * The rows a set of options is laid out in, which is one until it cannot be.
+ *
+ * **Balanced rather than filled.** Six options are three and three, not four
+ * and two — a short row beside a full one reads as an afterthought stuck on
+ * the end, and its segments come out half again as wide as the ones above for
+ * no reason anybody can see. Five are three and two, which is the closest
+ * balance an odd number has.
+ *
+ * Two rows at most, because the caller that wants more than one row wants six
+ * tabs and a third row would be a menu. Exported for its own test: the
+ * arithmetic is two lines and the shape it produces is the whole of how the
+ * channel screen's tabs look.
+ */
+export function segmentRows<T>(options: readonly T[]): T[][] {
+  if (options.length <= MAX_PER_ROW) return [options.slice()];
+  const perRow = Math.ceil(options.length / 2);
+  return [options.slice(0, perRow), options.slice(perRow)];
+}
+
+/**
  * A segmented control: one track, two or more halves, and the selected one
  * raised out of it rather than coloured.
  *
@@ -447,6 +477,15 @@ export function Card({
  * announces the selection itself — "Roster, selected, button". Every segment
  * stays pressable when selected: a control that goes inert where you already
  * are is one people press twice wondering whether it registered.
+ *
+ * **One track or two, and never a scroller.** The channel screen carries six
+ * of these, which is more than a phone's width will spell, and the answer is
+ * a second row rather than a strip that drags sideways. A tab you have to find
+ * by dragging is a tab most people never learn is there, and it breaks the
+ * rule the footer on that same screen is built on: position is what a set of
+ * fixed controls is for, and one that moves under a finger already on its way
+ * is the wrong one pressed. Two rows keep every tab visible and every tab
+ * still. See `segmentRows`.
  *
  * Extracted from HomeView's channels/contacts switch when the channel screen
  * needed the same thing, so the two cannot drift apart.
@@ -462,27 +501,34 @@ export function Segmented<T extends string>({
 }) {
   return (
     <View style={styles.segmented}>
-      {options.map((option) => (
-        <Pressable
-          key={option.value}
-          accessibilityRole="button"
-          accessibilityState={{ selected: value === option.value }}
-          onPress={() => onChange(option.value)}
-          style={({ pressed }) => [
-            styles.segment,
-            value === option.value && styles.segmentOn,
-            pressed && styles.segmentPressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.segmentLabel,
-              value === option.value && styles.segmentLabelOn,
-            ]}
-          >
-            {option.label}
-          </Text>
-        </Pressable>
+      {segmentRows(options).map((row) => (
+        // Keyed by the row's own first option rather than by its index, so a
+        // set that gains or loses one — the watch tab, which is behind Labs —
+        // does not hand a row's identity to a different row.
+        <View key={row[0].value} style={styles.segmentRow}>
+          {row.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: value === option.value }}
+              onPress={() => onChange(option.value)}
+              style={({ pressed }) => [
+                styles.segment,
+                value === option.value && styles.segmentOn,
+                pressed && styles.segmentPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.segmentLabel,
+                  value === option.value && styles.segmentLabelOn,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       ))}
     </View>
   );
@@ -551,12 +597,15 @@ const styles = StyleSheet.create({
     padding: spacing(2),
   },
   segmented: {
-    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: 3,
     gap: 3,
   },
+  // One row of segments. A control that fits on one track has exactly one of
+  // these, and draws identically to the single flex row this was before it
+  // could wrap.
+  segmentRow: { flexDirection: 'row', gap: 3 },
   segment: {
     flex: 1,
     alignItems: 'center',

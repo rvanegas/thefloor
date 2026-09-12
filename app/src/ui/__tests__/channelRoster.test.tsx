@@ -29,6 +29,8 @@ import {
   resetHarness,
   showChannel,
   showInvites,
+  showNotes,
+  showPlayer,
   textOf,
 } from '../testing/harness';
 
@@ -1365,12 +1367,18 @@ describe('a channel screen without the repeated cards', () => {
 
   it('leaves everything the footer does not represent alone', () => {
     const tree = showBare();
-    const text = textOf(tree);
-    // The roster above the seam and the whole of what is below it.
-    expect(text).toContain('Dana Chu');
-    expect(text).toContain('What the channel is carrying');
-    expect(text).toContain('Shared clipboard');
-    expect(text).toContain('Recording');
+    // The roster, and then the tabs the setting has no business touching: what
+    // it decides is whether the footer's own three controls are said twice,
+    // and nothing on these is a second way of doing anything in the bar.
+    expect(textOf(tree)).toContain('Dana Chu');
+    showNotes(tree);
+    expect(textOf(tree)).toContain('Shared clipboard');
+    showPlayer(tree);
+    expect(textOf(tree)).toContain('Recording');
+    // And the tabs themselves are all still offered. A preference about
+    // repetition that quietly removed a tab would be removing abilities.
+    expect(findButton(tree, 'Recordings')).toBeDefined();
+    expect(findButton(tree, 'Invite links')).toBeDefined();
     act(() => tree.unmount());
   });
 

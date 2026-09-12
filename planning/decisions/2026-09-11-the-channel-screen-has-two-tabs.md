@@ -1,6 +1,10 @@
 # The channel screen has two tabs
 
-2026-09-11.
+2026-09-11. **Superseded the next day by
+`2026-09-12-the-channel-screen-is-six-tabs.md`**, which kept the mechanism
+described here and finished the split: the roster tab was still the whole of
+the old scroll, and four more tabs came off it. What is below is still the
+reasoning for *Invite links* being a tab and for `Segmented` being the drawing.
 
 The channel screen is one scroll with ten sections on it, and the two that say
 who gets in were at the bottom of it: *Invite*, then *Guest link*, under a

@@ -395,12 +395,39 @@ export function showInvites(tree: ReactTestRenderer): void {
   showTab(tree, 'Invite links');
 }
 
-/** The other tab, for a test that has to look at both in one render. */
+/** The tab you land on, for a test that has to look at two in one render. */
 export function showRoster(tree: ReactTestRenderer): void {
   showTab(tree, 'Roster');
 }
 
-function showTab(tree: ReactTestRenderer, label: string): void {
+/** The description and the channel clipboard. */
+export function showNotes(tree: ReactTestRenderer): void {
+  showTab(tree, 'Notes');
+}
+
+/** The shared track and the recording controls. */
+export function showPlayer(tree: ReactTestRenderer): void {
+  showTab(tree, 'Player');
+}
+
+/** What has been recorded here, and the search over their transcripts. */
+export function showRecordings(tree: ReactTestRenderer): void {
+  showTab(tree, 'Recordings');
+}
+
+/**
+ * The watch party — which is the one tab that is not always there.
+ *
+ * `showTab` throws when it is missing, which is the behaviour a test wants: a
+ * party is behind Labs, so a test that reaches for this tab without setting
+ * `mockApp.labs` is a test that would otherwise go on quietly asserting
+ * against the roster.
+ */
+export function showWatch(tree: ReactTestRenderer): void {
+  showTab(tree, 'Watch');
+}
+
+export function showTab(tree: ReactTestRenderer, label: string): void {
   const tab = findButton(tree, label);
   if (!tab) throw new Error(`No ${label} tab on this screen.`);
   act(() => tab.props.onPress());

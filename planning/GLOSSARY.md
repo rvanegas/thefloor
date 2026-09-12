@@ -37,6 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
+- **Channel tabs** — The six views of a channel, one at a time: Roster, Notes, Player, Recordings, Watch, Invite links
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, in Settings
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -190,6 +191,35 @@ It used to be withheld in a split whose detail pane held that very channel, on
 the grounds that offering to take you back is false when you are already there
 — which left the sidebar naming it nowhere at all. See
 planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
+
+## Channel tabs
+
+**The six views of a channel**, one at a time, on the switch at the top of a
+channel screen: *Roster*, *Notes*, *Player*, *Recordings*, *Watch*, *Invite
+links*. Peers, in the way *Channels* and *Contacts* are on Home — none is a
+child of another.
+
+**What separates them is how long what they hold stays true.** *Roster* is the
+conversation as it is happening: who is here, the *floor*, your microphone, the
+ways in and out. The four in the middle are what the channel is carrying, which
+outlives the moment — what has been written down, what is playing and whether it
+is being recorded, what was recorded before, what is being watched. *Invite
+links* is who gets in.
+
+**Two of them, since 2026-09-12; six before that is wrong and two is what it
+was.** *Roster* and *Invite links* were the pair, and everything else ran down
+the roster's own scroll under a *What the channel is carrying* heading — five
+sections that are not about the people in the room, stacked under the one that
+is, on the longest screen in the application. The heading is gone: the switch
+draws that seam now.
+
+*Watch* is the one that is not always there, being behind *Labs* — except to
+somebody sitting in a channel where a party is already running, who has to be
+able to stop it. Every other tab is offered to everybody at all times, whatever
+the room is doing; a set of fixed controls that changes shape under a finger
+already on its way is the wrong one pressed.
+
+See planning/decisions/2026-09-12-the-channel-screen-is-six-tabs.md.
 
 ## Channels
 
