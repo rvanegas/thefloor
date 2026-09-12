@@ -212,9 +212,63 @@ describe('floor restriction on recording controls', () => {
       [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 2_000],
     ]);
-    expect(canResumeRecording(s)).toBe(true);
+    expect(canResumeRecording(s, B)).toBe(true);
     const resumed = reduce(s, { type: 'RESUME_RECORDING', userId: B }, T0 + 3_000);
     expect(resumed.recording.status).toBe('recording');
+  });
+});
+
+/**
+ * The rule the glossary already stated — *started and stopped by anybody
+ * present* — and which only the starting half enforced until 2026-09-12. A
+ * member who is not in the room could pause, resume or end the record of a
+ * conversation they were not in, from the channel screen of a channel they had
+ * stepped out of.
+ */
+describe('the transport belongs to whoever is in the room', () => {
+  /** A runs alone in the room; B belongs to the channel and has stepped out. */
+  const running = (): ChannelState =>
+    apply(joined(), [
+      [start(A), T0],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 1_000],
+    ]);
+
+  it('refuses pause and stop to a member who has stepped out', () => {
+    const s = running();
+    expect(s.recording.status).toBe('recording');
+    expect(s.present).toEqual([A]);
+    expect(canPauseRecording(s, B)).toBe(false);
+    expect(canStopRecording(s, B)).toBe(false);
+    expect(reduce(s, { type: 'PAUSE_RECORDING', userId: B }, T0 + 2_000)).toBe(s);
+    expect(reduce(s, { type: 'STOP_RECORDING', userId: B }, T0 + 2_000)).toBe(s);
+  });
+
+  it('refuses resume to a member who has stepped out', () => {
+    const s = reduce(running(), { type: 'PAUSE_RECORDING', userId: A }, T0 + 2_000);
+    expect(s.recording.status).toBe('paused');
+    expect(canResumeRecording(s, B)).toBe(false);
+    expect(reduce(s, { type: 'RESUME_RECORDING', userId: B }, T0 + 3_000)).toBe(s);
+    // And is still the person in the room's to drive, which is the half of
+    // this that must not have broken.
+    expect(canResumeRecording(s, A)).toBe(true);
+  });
+
+  it('gives the transport back the moment they step in', () => {
+    const s = reduce(running(), { type: 'ENTER', userId: B }, T0 + 2_000);
+    expect(canPauseRecording(s, B)).toBe(true);
+    expect(canStopRecording(s, B)).toBe(true);
+  });
+
+  it('has no empty-channel case for `hasTheRoom` to allow', () => {
+    // Why this asks presence rather than `hasTheRoom` like the clipboard and
+    // the name: a run cannot outlive the room, so there is never a paused or
+    // running transport in an empty channel for an absent member to tidy.
+    const s = apply(running(), [[{ type: 'STEP_OUT', userId: A }, T0 + 2_000]]);
+    expect(s.present).toEqual([]);
+    expect(s.recording.status).toBe('idle');
+    expect(canPauseRecording(s, B)).toBe(false);
+    expect(canResumeRecording(s, B)).toBe(false);
+    expect(canStopRecording(s, B)).toBe(false);
   });
 });
 

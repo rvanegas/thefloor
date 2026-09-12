@@ -559,9 +559,19 @@ speaker event does not report a departure.
 **Conditions.** `runId` is non-null exactly while a run is in progress — total
 by construction, because there is no `'stopped'`: a stopped run is simply over
 and the channel returns to idle, which is what makes several recordings in one
-channel possible. Guarded by `canStartRecording` (`core/channel.ts:275`), which
-requires the actor to be **present** and nothing more. One person alone may
-record; the run stops the moment nobody is present.
+channel possible. Guarded by `canStartRecording`, which requires the actor to
+be **present** and requires somebody else in the room or media playing into it
+— one person alone may not record, since 2026-09-07. The run stops the moment
+nobody is present.
+
+**Every action on the transport asks the same presence, since 2026-09-12.**
+Pause, resume and stop asked only whether the floor had silenced the actor, so
+a member who had stepped out could reach into a conversation they were not in
+and end the record of it; `canResumeRecording` did not take a user at all.
+They all ask `isPresent` now, alongside the floor clause the two cutting
+actions already carried. Presence rather than `hasTheRoom`, deliberately: the
+empty-channel half of that guard can never be reached here, because a run
+cannot outlive the last person stepping out.
 
 **Where the sources disagree.** `failure` exists because this is the one feature
 whose interface makes a promise about the world rather than about itself. A red

@@ -686,7 +686,11 @@ it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
 
 ## Recording
 
-Audio kept from a channel, started and stopped by anybody present. A recording
+Audio kept from a channel, started and stopped by anybody present — and
+paused and resumed by them too, the transport being one act split four ways.
+*Present* is the operative word and is the whole of who may touch it: somebody
+who has stepped out is outside the conversation being recorded, and until
+2026-09-12 only the starting half of this sentence was enforced. A recording
 belongs to the channel, is named when it stops, and carries the same name for
 everybody who was in it. A recording in progress is announced continuously to
 everybody in the room, guests included.

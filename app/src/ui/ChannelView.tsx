@@ -2504,7 +2504,7 @@ export function ChannelView({
                 <Button
                   label="Resume"
                   style={styles.flexButton}
-                  disabled={!canResumeRecording(channel)}
+                  disabled={!canResumeRecording(channel, me)}
                   onPress={() => act({ type: 'RESUME_RECORDING' })}
                 />
               ) : (
@@ -2523,7 +2523,16 @@ export function ChannelView({
               />
             </View>
           )}
-          {iAmSilenced && recordingLive ? (
+          {recordingLive && !isPresent(channel, me) ? (
+            // Before the silenced line, which would otherwise claim this
+            // person's microphone is being captured — `isSilenced` asks only
+            // who holds the floor, and somebody who is not in the room is not
+            // on the recording at all. The transport is theirs again the
+            // moment they step in; see `canPauseRecording`.
+            <Text style={type.muted}>
+              Step in to pause or stop this recording.
+            </Text>
+          ) : iAmSilenced && recordingLive ? (
             <Text style={type.muted}>
               Silenced — pause and stop unavailable, and your microphone is
               still being captured.

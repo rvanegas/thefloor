@@ -432,9 +432,9 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  * than leaning on this one to do both jobs; see `canManageGuest`.
  *
  * What this does **not** govern is anything that is already about presence for
- * its own reasons — claiming the floor, self-mute, starting a recording,
- * answering the door — nor leaving, which is personal and always yours. See
- * planning/STATES.md.
+ * its own reasons — claiming the floor, self-mute, every one of the recording
+ * transport's four actions, answering the door — nor leaving, which is
+ * personal and always yours. See planning/STATES.md.
  */
 export function hasTheRoom(state: ChannelState, id: UserId): boolean {
   return state.present.length === 0 || inRoom(state, id);
@@ -768,6 +768,30 @@ export function canInvite(
   );
 }
 
+/**
+ * Whether `userId` may pause the run in progress.
+ *
+ * **Presence, which the whole transport asks and none of it asked until
+ * 2026-09-12.** `canStartRecording` has always required the actor to be in the
+ * room; pause, resume and stop required only that the floor had not silenced
+ * them, so any member could reach in from the channel list and pause, resume
+ * or end the record of a conversation they were not in and could not hear. The
+ * glossary said *started and stopped by anybody present* the whole time, which
+ * is the half of the pair that was right.
+ *
+ * Presence rather than `hasTheRoom`, unlike the clipboard and the name. The
+ * empty half of that guard exists so that an absent member may furnish a room
+ * nobody is in, and there is no such thing here: a run cannot outlive the last
+ * person stepping out, `settleEmpty` ending it on that transition, so whenever
+ * there is a transport to drive somebody is present and the two guards would
+ * answer alike. Saying `isPresent` puts this in the family it belongs to —
+ * recording is one of the things `hasTheRoom` names as being about presence
+ * for its own reasons — and says what the rule is rather than what it
+ * collapses to.
+ *
+ * The floor clause is the older one and is unchanged: a silenced party may not
+ * cut off the record while they have no voice in the channel.
+ */
 export function canPauseRecording(
   state: ChannelState,
   userId: UserId
@@ -775,19 +799,37 @@ export function canPauseRecording(
   return (
     state.status === 'active' &&
     state.recording.status === 'recording' &&
+    isPresent(state, userId) &&
     canPauseOrStopRecording(state.floor, userId)
   );
 }
 
-/** Resuming does not cut off the record, so it carries no floor restriction. */
-export function canResumeRecording(state: ChannelState): boolean {
-  return state.status === 'active' && state.recording.status === 'paused';
+/**
+ * Whether `userId` may set a paused run going again.
+ *
+ * Resuming does not cut off the record, so it carries no floor restriction —
+ * but it does put capture back on in a room, which is why it takes a user at
+ * all. It did not until 2026-09-12, and a guard with nobody to authorise is
+ * one that cannot refuse the person who is not there. See
+ * `canPauseRecording`.
+ */
+export function canResumeRecording(
+  state: ChannelState,
+  userId: UserId
+): boolean {
+  return (
+    state.status === 'active' &&
+    state.recording.status === 'paused' &&
+    isPresent(state, userId)
+  );
 }
 
+/** Pause's rule, applied to the end of the run. See `canPauseRecording`. */
 export function canStopRecording(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     isRecordingActive(state.recording) &&
+    isPresent(state, userId) &&
     canPauseOrStopRecording(state.floor, userId)
   );
 }
@@ -1781,7 +1823,7 @@ export function reduce(
     }
 
     case 'RESUME_RECORDING': {
-      if (!canResumeRecording(state)) return state;
+      if (!canResumeRecording(state, action.userId)) return state;
       return { ...state, recording: resumeRecording(state.recording, now) };
     }
 
