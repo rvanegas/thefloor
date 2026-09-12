@@ -487,6 +487,20 @@ export function segmentRows<T>(options: readonly T[]): T[][] {
  * is the wrong one pressed. Two rows keep every tab visible and every tab
  * still. See `segmentRows`.
  *
+ * **A glyph above the word where a caller offers one, since 2026-09-12**, and
+ * the construction is the channel footer's rather than a second one invented
+ * here: same 22px Lucide glyph in a 24px box, same 11pt caption under it, same
+ * reasoning about which of the two is doing the work. The label is what makes
+ * the icon legible the first time and the icon is what makes it findable
+ * after that, so neither half is ever dropped — an icon-only tab bar is one
+ * where the third tab is a guess.
+ *
+ * `icon` is optional per option and absent for Home's two-way switch, which
+ * has two halves of one question rather than six destinations; the labels
+ * carry that on their own and a glyph over each would be decoration. A caller
+ * gives every option one or none: a row with a gap in it draws two different
+ * heights of segment.
+ *
  * Extracted from HomeView's channels/contacts switch when the channel screen
  * needed the same thing, so the two cannot drift apart.
  */
@@ -495,7 +509,16 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: readonly { value: T; label: string }[];
+  options: readonly {
+    value: T;
+    label: string;
+    /**
+     * Drawn above the label, and handed the colour the label is about to take
+     * so the two cannot disagree — which is the same contract `FooterAction`
+     * has with its icons, for the same reason.
+     */
+    icon?: (color: ColorValue) => React.ReactNode;
+  }[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -506,28 +529,37 @@ export function Segmented<T extends string>({
         // set that gains or loses one — the watch tab, which is behind Labs —
         // does not hand a row's identity to a different row.
         <View key={row[0].value} style={styles.segmentRow}>
-          {row.map((option) => (
-            <Pressable
-              key={option.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: value === option.value }}
-              onPress={() => onChange(option.value)}
-              style={({ pressed }) => [
-                styles.segment,
-                value === option.value && styles.segmentOn,
-                pressed && styles.segmentPressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.segmentLabel,
-                  value === option.value && styles.segmentLabelOn,
+          {row.map((option) => {
+            const on = value === option.value;
+            const color = on ? colors.text : colors.textMuted;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                onPress={() => onChange(option.value)}
+                style={({ pressed }) => [
+                  styles.segment,
+                  on && styles.segmentOn,
+                  pressed && styles.segmentPressed,
                 ]}
               >
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
+                {option.icon ? (
+                  <View style={styles.segmentIcon}>{option.icon(color)}</View>
+                ) : null}
+                <Text
+                  style={[
+                    styles.segmentLabel,
+                    option.icon && styles.segmentLabelUnderIcon,
+                    on && styles.segmentLabelOn,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       ))}
     </View>
@@ -615,7 +647,26 @@ const styles = StyleSheet.create({
   },
   segmentOn: { backgroundColor: colors.surfaceRaised },
   segmentPressed: { opacity: 0.7 },
+  /**
+   * A fixed box around a 22px glyph, so a row's icons sit on one line whatever
+   * their own proportions are. The footer's `footerIcon` is the same box, and
+   * they are two rather than one because this file may not import that screen.
+   */
+  segmentIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   segmentLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  /**
+   * 11px under a glyph, which is the footer's caption size and is right here
+   * for the footer's reason: the glyph has already said it, and the pair is
+   * what gets read. A segment with no icon keeps the 14px above, that being
+   * the whole of what it has to say.
+   */
+  segmentLabelUnderIcon: { fontSize: 11 },
   segmentLabelOn: { color: colors.text },
   empty: { paddingVertical: spacing(2) },
 });

@@ -2046,13 +2046,14 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Writes the settings that belong to the account rather than to the phone.
    *
-   * Four of them: the colour scheme, whether a tap only looks, whether the
-   * channel screen has dropped its control cards, and labs. **A fifth setting
-   * on that screen was never here on purpose** — keeping the hands-free link
-   * steady was about the headset somebody is wearing, so it stayed on the
-   * device and never reached this server. See core/settings.ts.
+   * Five of them: the colour scheme, whether a tap only looks, whether the
+   * channel screen has dropped its control cards, where that screen's tabs
+   * are drawn, and labs. **A further setting on that screen was never here on
+   * purpose** — keeping the hands-free link steady was about the headset
+   * somebody is wearing, so it stayed on the device and never reached this
+   * server. See core/settings.ts.
    *
-   * Two of the four are accepted under their old names as well as their
+   * Two of the five are accepted under their old names as well as their
    * current ones, for as long as builds that know only the old names are
    * installed; settings-wire.ts is that whole arrangement.
    *
@@ -2104,6 +2105,16 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     if (hideControlCards !== undefined) {
       changes.hideControlCards = hideControlCards;
+    }
+    // One name only, this having shipped after the turn that renamed the two
+    // above: there is no build out there that knows it by anything else.
+    if (body?.tabsAtFoot !== undefined) {
+      if (typeof body.tabsAtFoot !== 'boolean') {
+        return reply
+          .code(400)
+          .send({ error: 'tabsAtFoot must be true or false.' });
+      }
+      changes.tabsAtFoot = body.tabsAtFoot;
     }
     if (body?.labs !== undefined) {
       if (typeof body.labs !== 'boolean') {

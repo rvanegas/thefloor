@@ -48,6 +48,7 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.tapToStepIn',
   'thefloor.hideControlCards',
   'thefloor.controlCards',
+  'thefloor.tabsAtFoot',
   'thefloor.labs',
   'thefloor.notifications.launches',
   'thefloor.notifications.conversed',

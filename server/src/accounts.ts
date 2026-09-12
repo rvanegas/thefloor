@@ -175,6 +175,18 @@ export class Accounts {
     private review?: { identifier: string; code: string; contact?: string }
   ) {}
 
+  /**
+   * The coin `settings` tosses for an account that has never said where it
+   * wants the channel tabs. See `tabsAtFootFor` below, which is the whole of
+   * what this is for.
+   *
+   * A property rather than a constructor argument because exactly one caller
+   * ever sets it — a test that needs to know which way it lands — and adding a
+   * third parameter to a constructor for that would put it in front of every
+   * other reader of this class. Real operation never touches it.
+   */
+  coin: () => boolean = () => Math.random() < 0.5;
+
   // --- Maintenance --------------------------------------------------------
 
   /**
@@ -468,8 +480,42 @@ export class Accounts {
         row.hide_control_cards === null
           ? DEFAULT_ACCOUNT_SETTINGS.hideControlCards
           : row.hide_control_cards === 1,
+      tabsAtFoot: this.tabsAtFootFor(row),
       labs: row.labs === null ? DEFAULT_ACCOUNT_SETTINGS.labs : row.labs === 1,
     };
+  }
+
+  /**
+   * Where this account's channel tabs go, tossing for it the first time and
+   * remembering how it landed.
+   *
+   * **The one setting whose untouched case is not a fixed default**, and the
+   * one place in this class a read writes. Both halves of that are the point:
+   * the tabs at the top and the tabs above the footer are two answers to a
+   * question nobody here knows the answer to, so half of the accounts that
+   * have never said get each, and what is being learnt is which half goes on
+   * to change it. A default picked by whoever wrote the screen would teach
+   * nothing.
+   *
+   * **Tossed once and stored, rather than read as random.** A preference that
+   * came back different on the next connection would not be an experiment, it
+   * would be a screen that moves its tabs while you are using it — and the
+   * account is what the answer belongs to, so a second device has to be told
+   * the same thing this one was. Null therefore means *not yet tossed* here
+   * rather than *the default*, which is the opposite of every other column on
+   * this row; `DEFAULT_ACCOUNT_SETTINGS.tabsAtFoot` stays false and is what
+   * the app shows in the second before the server has spoken.
+   *
+   * The write is skipped for an account being read without a row, which
+   * `settings` has already answered for above.
+   */
+  private tabsAtFootFor(row: AccountRow): boolean {
+    if (row.tabs_at_foot !== null) return row.tabs_at_foot === 1;
+    const tossed = this.coin();
+    this.db
+      .prepare('UPDATE accounts SET tabs_at_foot = ? WHERE id = ?')
+      .run(tossed ? 1 : 0, row.id);
+    return tossed;
   }
 
   /**
@@ -508,6 +554,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET hide_control_cards = ? WHERE id = ?')
         .run(changes.hideControlCards ? 1 : 0, accountId);
+    }
+    if (changes.tabsAtFoot !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET tabs_at_foot = ? WHERE id = ?')
+        .run(changes.tabsAtFoot ? 1 : 0, accountId);
     }
     if (changes.labs !== undefined) {
       this.db

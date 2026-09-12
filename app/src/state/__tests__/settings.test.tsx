@@ -54,6 +54,7 @@ jest.mock('../../api/http', () => ({
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
+        tabsAtFoot: false,
         labs: false,
       };
     }),
@@ -81,7 +82,8 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToLook ? 'open' : 'tap'}/
-      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}
+      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}/
+      {app.tabsAtFoot ? 'foot' : 'top'}
     </Text>
   );
 }
@@ -104,6 +106,7 @@ function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
   tapToLook: boolean;
   hideControlCards: boolean;
+  tabsAtFoot: boolean;
   labs: boolean;
 } | null): void {
   handlers.onHello?.(
@@ -154,26 +157,29 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.appearance'] = 'light';
     mockStored['thefloor.tapToLook'] = 'false';
     mockStored['thefloor.hideControlCards'] = 'true';
-    // All three read as "only 'true' turns it on", every one of them
-    // defaulting off since 2026-09-07.
+    mockStored['thefloor.tabsAtFoot'] = 'true';
+    // All of them read as "only 'true' turns it on", every one defaulting
+    // off since 2026-09-07.
     mockStored['thefloor.labs'] = 'true';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap/bare/labs');
+    expect(textOf(tree)).toContain('light/tap/bare/labs/foot');
 
     await act(async () =>
       hello({
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: false,
+        tabsAtFoot: false,
         labs: false,
       })
     );
-    expect(textOf(tree)).toContain('dark/open/cards/plain');
+    expect(textOf(tree)).toContain('dark/open/cards/plain/top');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
     expect(mockStored['thefloor.tapToLook']).toBe('true');
     expect(mockStored['thefloor.hideControlCards']).toBe('false');
+    expect(mockStored['thefloor.tabsAtFoot']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
   });
 
@@ -200,6 +206,7 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: true,
         hideControlCards: true,
+        tabsAtFoot: true,
         labs: false,
       })
     );
@@ -226,6 +233,7 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
+        tabsAtFoot: false,
         labs: false,
       })
     );
@@ -234,6 +242,7 @@ describe('the settings that follow the account', () => {
         appearance: 'light',
         tapToLook: true,
         hideControlCards: true,
+        tabsAtFoot: true,
         labs: true,
       })
     );
@@ -251,6 +260,7 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
+        tabsAtFoot: false,
         labs: false,
       })
     );
@@ -279,6 +289,16 @@ describe('the settings that follow the account', () => {
       { hideControlCards: true },
       { labs: true },
     ]);
+
+    await act(async () => latest!.setTabsAtFoot(true));
+    expect(textOf(tree)).toContain('dark/open/bare/labs/foot');
+    expect(mockSaved).toEqual([
+      { appearance: 'dark' },
+      { tapToLook: true },
+      { hideControlCards: true },
+      { labs: true },
+      { tabsAtFoot: true },
+    ]);
   });
 
   /**
@@ -293,6 +313,7 @@ describe('the settings that follow the account', () => {
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: true,
+        tabsAtFoot: true,
         labs: true,
       })
     );

@@ -132,6 +132,17 @@ export interface AccountRow {
    */
   hide_control_cards: number | null;
   /**
+   * Whether the channel screen's tabs are pinned above its footer rather than
+   * drawn at the top: 1 for yes, 0 for no, null for **not yet tossed for**.
+   *
+   * The one column on this row where null does not mean the default. An
+   * account that has never said gets a coin toss the first time its settings
+   * are read, and the answer is written here — so null is a state that lasts
+   * until the first read and 0 is a real answer, which is the opposite of
+   * every setting beside it. See `tabsAtFootFor` in accounts.ts.
+   */
+  tabs_at_foot: number | null;
+  /**
    * Whether this account has asked to see the experimental features: 1 for
    * yes, 0 for no, null for never having said. The default is off, so null
    * and 0 mean the same thing today — the same argument as the two above, and
@@ -427,13 +438,16 @@ CREATE TABLE IF NOT EXISTS accounts (
   im_telegram  TEXT,
   im_signal    TEXT,
   -- What this person chose on the Home settings screen, null until they chose
-  -- anything. Three of the four settings there; the fourth is about the
+  -- anything. Four of the five settings there; the fourth is about the
   -- headset in somebody's ears rather than about them, and lives on the phone.
   -- See core/settings.ts and the row type above for why the untouched case is
   -- null rather than the default written down.
   appearance         TEXT,
   tap_to_look        INTEGER,
   hide_control_cards INTEGER,
+  -- Where the channel tabs go, and the one settings column whose null is not
+  -- the default: it means the coin has not been tossed yet. See accounts.ts.
+  tabs_at_foot       INTEGER,
   -- Whether the experimental features are visible to this account, null until
   -- somebody says. Off is the default here, as it is for all three: each of
   -- these booleans is named for the departure from what an untouched account
@@ -1468,6 +1482,12 @@ function migrate(db: Db): void {
   // arrived on 2026-09-06, days after both of them.
   if (!accountColumns.some((c) => c.name === 'labs')) {
     db.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
+  }
+  // And this one on 2026-09-12, with the channel tabs. Same shape, same
+  // reason: its own guard, so it runs on a database that has every column
+  // above it and is missing only this.
+  if (!accountColumns.some((c) => c.name === 'tabs_at_foot')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN tabs_at_foot INTEGER');
   }
   // The 2026-09-07 turn: both channel settings were stored as the thing they
   // switched *on* and defaulted to 1, and are now stored as the departure from

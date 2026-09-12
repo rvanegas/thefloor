@@ -83,6 +83,11 @@ beforeEach(async () => {
     now: () => clock,
     heartbeatIntervalMs: sweepMs,
   });
+  // Where the channel tabs go is a coin toss for an account that has never
+  // said, and these tests read whole settings objects back. Pinned to the
+  // top, which is what an account that has never seen the toss would have got
+  // before it existed. See `tabsAtFootFor` in accounts.ts.
+  app.accounts.coin = () => false;
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');
@@ -314,6 +319,7 @@ describe('websocket', () => {
       appearance: 'system',
       tapToLook: false,
       hideControlCards: false,
+      tabsAtFoot: false,
       labs: false,
       // The two names builds already installed know, sent beside the current
       // ones so that a phone that has not been updated reads a hello from this
@@ -331,6 +337,7 @@ describe('websocket', () => {
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: true,
+        tabsAtFoot: false,
         labs: true,
       },
     });
@@ -340,6 +347,7 @@ describe('websocket', () => {
       appearance: 'dark',
       tapToLook: true,
       hideControlCards: true,
+      tabsAtFoot: false,
       labs: true,
       tapToStepIn: false,
       controlCards: false,
@@ -384,6 +392,7 @@ describe('websocket', () => {
         appearance: 'dark',
         tapToLook: false,
         hideControlCards: false,
+        tabsAtFoot: false,
         labs: false,
         // Both names here too, and that is the point of putting the
         // translation in one function: a client that learnt one shape from the

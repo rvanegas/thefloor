@@ -1240,10 +1240,10 @@ describe('Channel', () => {
       labels are the whole of what somebody chooses between.
 
       Roster first because it is what the screen is for and what you land on.
-      Then the four the channel carries, in the order they were listed when
-      they were asked for. Invite links last, as the rarest thing anybody does
-      here — which is why it is not the tab you land on, and no longer why it
-      is at the bottom of a scroll.
+      Then the people: what they have written down, and how somebody who is
+      not here gets in. Then the three things the channel carries, with Watch
+      last because it is the one tab that can be absent — see the type in
+      ChannelView, which is where the whole argument for this order is.
     */
     // `findAll` with a predicate rather than `findByType`, which the installed
     // react-test-renderer types do not declare.
@@ -1254,10 +1254,10 @@ describe('Channel', () => {
     ).toEqual([
       'Roster',
       'Notes',
+      'Invite links',
       'Player',
       'Recordings',
       'Watch',
-      'Invite links',
     ]);
 
     /*
@@ -1301,6 +1301,71 @@ describe('Channel', () => {
     showInvites(tree);
     expect(sections()).toEqual(['Invite', 'Guest link']);
     act(() => tree.unmount());
+  });
+
+  /*
+    Every tab carries a glyph, and the switch is the only thing that draws
+    them — which is what this asserts rather than which glyph is which. The
+    shapes are a judgement and are argued at each one in icons.tsx; that a tab
+    was added without one is a mistake, and it is silent, since a segment with
+    no icon simply draws its word a size larger than its neighbours.
+  */
+  it('gives every tab a glyph as well as a word', () => {
+    mockApp.labs = true;
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    const options = tree.root.findAll((node) => node.type === Segmented)[0]!
+      .props.options as Array<{ label: string; icon?: unknown }>;
+    expect(options).toHaveLength(6);
+    expect(options.every((option) => typeof option.icon === 'function')).toBe(
+      true
+    );
+    act(() => tree.unmount());
+  });
+
+  /*
+    **Where the tabs are drawn, which is a setting since 2026-09-12.** See
+    `tabsAtFoot` in core/settings.ts.
+
+    Read as a position in the rendered tree rather than by looking for a
+    footer: `Screen` puts its `footer` below the scroll, so a switch drawn
+    before the roster's first heading is at the top of the screen and one
+    drawn after every heading on it is at the foot. That is the whole of what
+    the setting does, and it is the only thing asserted here — the same six
+    tabs in the same order either way is asserted by the test above, which
+    does not know the setting exists.
+  */
+  it('draws the tabs at the top, or above the footer when asked', () => {
+    showChannel(channelOf());
+    const positions = () => {
+      const tree = render(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />);
+      const nodes = tree.root.findAll(
+        (node) => node.type === Segmented || node.type === SectionLabel
+      );
+      const at = nodes.findIndex((node) => node.type === Segmented);
+      const headings = nodes.length - 1;
+      act(() => tree.unmount());
+      return { at, headings };
+    };
+
+    const top = positions();
+    expect(top.at).toBe(0);
+    expect(top.headings).toBeGreaterThan(0);
+
+    mockApp.tabsAtFoot = true;
+    const foot = positions();
+    expect(foot.at).toBe(foot.headings);
+    expect(foot.headings).toBe(top.headings);
   });
 
   /*

@@ -6,13 +6,14 @@ import type { ColorValue } from 'react-native';
  * The icons this app draws, from Lucide path data copied into this file.
  *
  * Four of them are the channel footer's, and were the reason the file
- * exists; the two below them are the header's *Close* and *Settings*, which
- * were words until 2026-09-02.
+ * exists; the two after them are the header's *Close* and *Settings*, which
+ * were words until 2026-09-02; the six at the end are that same screen's tabs,
+ * which were words until 2026-09-12.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
  * default on SDK 54 — so the barrel import that reads most naturally is the
- * one that risks dragging a 25MB, 9,251-file package into the graph. Seven
+ * one that risks dragging a 25MB, 9,251-file package into the graph. A dozen
  * glyphs do not need an icon system. See DECISIONS.md § *The channel grows a
  * footer*. That argument is about the dependency rather than about the number
  * of glyphs, so it holds unchanged as this file grows.
@@ -260,6 +261,170 @@ export function SettingsIcon({
     <Glyph color={color} size={size}>
       <Path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
       <Circle cx="12" cy="12" r="3" />
+    </Glyph>
+  );
+}
+
+/**
+ * The channel screen's six tabs, below.
+ *
+ * Added 2026-09-12, when the tabs stopped being words alone. They follow the
+ * footer's construction exactly — same grid, same stroke, same `Glyph` — for
+ * the reason the footer's own note gives: a screen whose pinned controls and
+ * whose tabs drew icons two different weights would read as two applications.
+ * Each names what the tab *holds* rather than what you do there, since a tab
+ * is a place and not an act; the footer's are the other way round, which is
+ * the one difference between the two sets and is the correct one.
+ */
+
+/**
+ * Who is in the room. `lucide/users`.
+ *
+ * People rather than a door or a microphone: the roster tab is the
+ * conversation as it is happening, and what is on it is a card per person.
+ */
+export function RosterIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <Path d="M16 3.128a4 4 0 0 1 0 7.744" />
+      <Path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <Circle cx="9" cy="7" r="4" />
+    </Glyph>
+  );
+}
+
+/**
+ * What the channel has written down. `lucide/clipboard-list`.
+ *
+ * A clipboard because the tab's larger half *is* the shared clipboard, and the
+ * description above it is the same kind of thing — text this channel keeps.
+ * A pencil would have said "write", which is an act and only half of what the
+ * tab is for; most visits to it are reading.
+ */
+export function NotesIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <Path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <Path d="M12 11h4" />
+      <Path d="M12 16h4" />
+      <Path d="M8 11h.01" />
+      <Path d="M8 16h.01" />
+    </Glyph>
+  );
+}
+
+/**
+ * The ways somebody who is not here gets in. `lucide/user-plus`.
+ *
+ * A person gained rather than a chain link, though the tab is called *Invite
+ * links*: what both controls on it produce is a new member, and the link is
+ * the mechanism. `lucide/link` was the obvious alternative and names the
+ * mechanism instead — and this application already spends that shape on
+ * sharing a recording.
+ *
+ * It stands beside `RosterIcon`, which is two figures to this one's one; that
+ * adjacency is deliberate rather than a collision, the two tabs being the same
+ * subject at two times — who is here, and who is not here yet.
+ */
+export function InviteIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <Circle cx="9" cy="7" r="4" />
+      <Path d="M19 8v6" />
+      <Path d="M22 11h-6" />
+    </Glyph>
+  );
+}
+
+/**
+ * What is playing into the room. `lucide/music`.
+ *
+ * Notes rather than a triangle: a play arrow is a button, and there is a real
+ * one on the tab it would be labelling. What the tab holds is a track the
+ * whole channel hears, which is a thing rather than an act.
+ */
+export function PlayerIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M9 18V5l12-2v13" />
+      <Circle cx="6" cy="18" r="3" />
+      <Circle cx="18" cy="16" r="3" />
+    </Glyph>
+  );
+}
+
+/**
+ * What has been kept. `lucide/circle-dot`.
+ *
+ * The record dot, which is the one glyph in this set nobody has to be taught —
+ * it has meant this on hardware since before any of it was software. Drawn
+ * plain whether or not a recording is running: the tab is where recordings
+ * live, and a tab bar that started pulsing would be saying something the
+ * screen already says twice, on the roster and in the header.
+ */
+export function RecordingsIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Circle cx="12" cy="12" r="1" />
+      <Circle cx="12" cy="12" r="10" />
+    </Glyph>
+  );
+}
+
+/**
+ * Watching together. `lucide/monitor-play`.
+ *
+ * A screen on a stand, which is literally what the feature is: the video plays
+ * on a laptop or a tablet that follows the channel, and the phone in your hand
+ * is the remote. The play triangle inside it is the one place a triangle is
+ * right here — it is part of the picture of a screen rather than a control.
+ */
+export function WatchIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z" />
+      <Path d="M12 17v4" />
+      <Path d="M8 21h8" />
+      <Rect x="2" y="3" width="20" height="14" rx="2" />
     </Glyph>
   );
 }

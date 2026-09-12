@@ -255,8 +255,16 @@ export const mockApp = {
   setHideControlCards: jest.fn((value: boolean) => {
     mockApp.hideControlCards = value;
   }),
+  // Off, which is where the tabs have always been: at the top of the channel
+  // screen. A test that wants them above the footer says so, and every
+  // assertion written before the setting existed is about the screen an
+  // untouched account gets.
+  tabsAtFoot: false,
+  setTabsAtFoot: jest.fn((value: boolean) => {
+    mockApp.tabsAtFoot = value;
+  }),
   // Off, which is what every account has until somebody asks — as it is for
-  // all three of these now. The tests about the watch party turn it on, in as
+  // all four of these now. The tests about the watch party turn it on, in as
   // many words, which is the point: a screen that draws a watch card without
   // it would be a screen no ordinary account ever sees.
   labs: false,
@@ -596,6 +604,7 @@ export function resetHarness(): void {
   mockApp.appearance = 'system';
   mockApp.tapToLook = false;
   mockApp.hideControlCards = false;
+  mockApp.tabsAtFoot = false;
   mockApp.labs = false;
   mockApp.debug = false;
   mockApp.loadHelp = emptyHelp();

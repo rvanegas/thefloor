@@ -63,10 +63,10 @@ describe('Segmented', () => {
   const OPTIONS = [
     { value: 'roster', label: 'Roster' },
     { value: 'notes', label: 'Notes' },
+    { value: 'invites', label: 'Invite links' },
     { value: 'player', label: 'Player' },
     { value: 'recordings', label: 'Recordings' },
     { value: 'watch', label: 'Watch' },
-    { value: 'invites', label: 'Invite links' },
   ] as const;
 
   /**
@@ -126,7 +126,7 @@ describe('Segmented', () => {
     const pressable = tree.root.findAll(
       (n) => typeof n.props?.onPress === 'function' && n.type !== 'View'
     );
-    act(() => pressable[4]!.props.onPress());
+    act(() => pressable[5]!.props.onPress());
     expect(onChange).toHaveBeenCalledWith('watch');
     act(() => tree.unmount());
   });

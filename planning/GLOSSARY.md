@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Roster, Notes, Player, Recordings, Watch, Invite links
+- **Channel tabs** — The six views of a channel, one at a time: Roster, Notes, Invite links, Player, Recordings, Watch
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, in Settings
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -45,6 +45,7 @@ caused; the list carries the meaning.
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Floor, the** — The thing the app is named after
+- **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
 - **Help** — The screen for asking The Floor a question; a person answers it in place, under the question
@@ -194,17 +195,34 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 
 ## Channel tabs
 
-**The six views of a channel**, one at a time, on the switch at the top of a
-channel screen: *Roster*, *Notes*, *Player*, *Recordings*, *Watch*, *Invite
-links*. Peers, in the way *Channels* and *Contacts* are on Home — none is a
-child of another.
+**The six views of a channel**, one at a time, on the switch a channel screen
+draws: *Roster*, *Notes*, *Invite links*, *Player*, *Recordings*, *Watch*.
+Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
+another. A glyph and a word each, since 2026-09-12, built the way the channel
+*footer*'s controls are.
 
-**What separates them is how long what they hold stays true.** *Roster* is the
-conversation as it is happening: who is here, the *floor*, your microphone, the
-ways in and out. The four in the middle are what the channel is carrying, which
-outlives the moment — what has been written down, what is playing and whether it
-is being recorded, what was recorded before, what is being watched. *Invite
-links* is who gets in.
+**Who, then what.** The first three are the people — who is here, what they
+have written down, and how somebody who is not here gets in. The last three are
+what the channel is carrying, which outlives the moment: what is playing and
+whether it is being recorded, what was recorded before, what is being watched.
+*Watch* being last is also what keeps the other five still, it being the only
+one that can be absent.
+
+**The order ran differently until 2026-09-12**, with the four carried things
+together and *Invite links* at the end as the rarest thing anybody does here.
+Rarity is a reason not to make a tab the one you land on; it is not a reason to
+file it away from the subject it belongs to.
+
+**At the top of the screen, or pinned above the footer.** *Floor Settings*
+carries the choice, and it moves them and does nothing else — the same six, in
+the same order, drawn by the same control, either on the bar that holds the
+microphone and the ways in and out or above the first card.
+
+**Which one a new account gets is a coin toss**, since 2026-09-12, and the
+settings card says so. It is the only setting in the application whose
+untouched case is not a fixed default: the server tosses once per account and
+remembers how it landed, so that which side people go on to change is
+something that can be counted. See `tabsAtFootFor` in server/src/accounts.ts.
 
 **Two of them, since 2026-09-12; six before that is wrong and two is what it
 was.** *Roster* and *Invite links* were the pair, and everything else ran down
@@ -333,6 +351,22 @@ transport belong to the floor-holder while a claim is live.
 **Not the same as a mute.** A claim is about who may be heard *in this moment*
 and is temporary by construction; a *self-mute* is a decision about your own
 microphone and costs you nothing. Neither writes the other. See STATES.md.
+
+## Floor Settings
+
+**The settings screen behind the gear in Home's header**, and the one the word
+*Settings* used to name on its own. Called this since 2026-09-12, because a
+channel has a screen of its own reached by an identical gear from an identical
+header — *Channel settings* — and two screens with one name leave which of them
+you are on to be inferred from what is on it.
+
+What is on it belongs to the account rather than to the phone, so it follows
+somebody to a second device: the colour scheme, whether a tap on a channel
+looks or steps in, whether the channel screen repeats its footer's controls as
+cards, where the *channel tabs* go, and *Labs*. Below those sit the things
+about this install and this account — notifications, the policies, chipping in,
+signing out, and deleting the account. See core/settings.ts, which is where the
+five that travel are defined.
 
 ## Guest
 

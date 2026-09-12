@@ -85,6 +85,38 @@ export interface AccountSettings {
    */
   hideControlCards: boolean;
   /**
+   * Whether the channel screen's tabs are pinned above its footer rather than
+   * drawn at the top of the screen.
+   *
+   * Unset, which is the default, they sit above the content and scroll with
+   * nothing — they are the first thing on the screen, where a tab bar has been
+   * since the tabs existed. Set, they move to the foot and sit directly on top
+   * of the bar that holds the microphone and the ways in and out, so that
+   * every control on the screen is within a thumb's reach of every other and
+   * the top of the screen is the conversation.
+   *
+   * **It moves them and changes nothing else.** The same six tabs in the same
+   * order, drawn by the same control; what a setting must never do here is
+   * reorder them or take one away, since position is the whole of how somebody
+   * finds a tab they have used before. See `ChannelView`.
+   *
+   * A preference about reach, which is about a hand rather than a handset —
+   * so it follows the person, on the same reasoning as the two above. Somebody
+   * who wants the tabs under their thumb wants that on both phones.
+   *
+   * **The one setting here whose untouched case is a coin toss rather than a
+   * default**, since 2026-09-12. The server tosses once per account, the first
+   * time it reads one that has never said, and stores how it landed — see
+   * `tabsAtFootFor` in server/src/accounts.ts, which carries the argument.
+   * That covers accounts that already existed as well as new ones, neither
+   * having said anything. The `false` below is therefore not what half of
+   * them get; it is
+   * what the app draws in the second before the server has spoken, and the
+   * top is the right answer for that second because it is where the tabs were
+   * before this setting existed.
+   */
+  tabsAtFoot: boolean;
+  /**
    * Whether the experimental parts of the app are visible and usable at all.
    *
    * Unset, which is the default, this app is what it has always been: a
@@ -133,6 +165,12 @@ export interface AccountSettings {
  * reasonably choose to stop being shown it. Both of those are now the false
  * case rather than the true one, and neither behaviour changed.
  *
+ * **The tabs are the exception, and the value here is not the answer.** An
+ * account that has never said gets a coin toss from the server rather than
+ * this, which is what makes it an experiment rather than a guess; the `false`
+ * here is what a client draws before the server has spoken. See `tabsAtFoot`
+ * above.
+ *
  * Labs defaults off because that is what the word means. Everything behind it
  * is unfinished by admission, and an experimental feature that arrives without
  * being asked for is not experimental — it has shipped.
@@ -141,5 +179,6 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
   tapToLook: false,
   hideControlCards: false,
+  tabsAtFoot: false,
   labs: false,
 };

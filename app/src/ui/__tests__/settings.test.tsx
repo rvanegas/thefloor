@@ -305,7 +305,12 @@ describe('the Labs setting', () => {
     return tree;
   };
 
-  /** The third On/Off pair: the tap, then the cards, then this. */
+  /**
+   * The fourth On/Off pair: the tap, the cards, where the tabs go, then this.
+   * Positional, so it moves when a setting is added above it — which is what
+   * happened on 2026-09-12, and is the whole of why the number is here rather
+   * than buried in the expression below.
+   */
   const labsButton = (tree: ReactTestRenderer, label: string) =>
     tree.root
       .findAll(
@@ -313,7 +318,44 @@ describe('the Labs setting', () => {
           n.props?.accessibilityRole === 'button' &&
           typeof n.props.onPress === 'function'
       )
-      .filter((n) => labelOf(n).includes(label))[2];
+      .filter((n) => labelOf(n).includes(label))[3];
+
+  /**
+   * The heading, which names which of the two settings screens this is.
+   * A channel has one too, reached by an identical gear from an identical
+   * header, and both said *Settings* until 2026-09-12.
+   */
+  it('says whose settings these are', async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain('Floor Settings');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Where the channel tabs go. The card promises the one thing worth
+   * promising — that moving them is all it does — so that is what is read
+   * back, along with the setter being the only one the press reaches.
+   */
+  it('offers the tabs a place above the footer, and moves nothing else', async () => {
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(text).toContain('Put the channel tabs above the footer');
+    expect(text).toContain('the same tabs, in the same');
+    // The third On/Off pair on this screen: the tap, the cards, then this.
+    const tabsButton = (label: string) =>
+      tree.root
+        .findAll(
+          (n) =>
+            n.props?.accessibilityRole === 'button' &&
+            typeof n.props.onPress === 'function'
+        )
+        .filter((n) => labelOf(n).includes(label))[2]!;
+    act(() => tabsButton('On').props.onPress());
+    expect(mockApp.setTabsAtFoot).toHaveBeenCalledWith(true);
+    expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
+    expect(mockApp.setLabs).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
 
   it('names the two things it turns on', async () => {
     const tree = await openSettings();
@@ -333,6 +375,7 @@ describe('the Labs setting', () => {
     expect(mockApp.setLabs).toHaveBeenCalledWith(true);
     expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
     expect(mockApp.setTapToLook).not.toHaveBeenCalled();
+    expect(mockApp.setTabsAtFoot).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 

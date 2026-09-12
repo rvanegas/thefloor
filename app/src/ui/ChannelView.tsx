@@ -71,9 +71,15 @@ import {
   BellIcon,
   CloseIcon,
   FloorIcon,
+  InviteIcon,
   MicIcon,
+  NotesIcon,
+  PlayerIcon,
+  RecordingsIcon,
+  RosterIcon,
   SettingsIcon,
   StepIcon,
+  WatchIcon,
 } from './icons';
 import {
   Button,
@@ -105,20 +111,28 @@ import { useOfflineNotice } from './useOfflineNotice';
 const SKIP_MS = 15_000;
 
 /**
- * The tabs at the top of the channel screen, in the order they are drawn.
+ * The tabs of the channel screen, in the order they are drawn.
  *
- * The order is the order somebody in a channel reaches for them, which is the
- * order the sections were already in down the single scroll this replaced —
- * the roster first, the ways in last, and what the channel is carrying in
- * between. `watch` is the one that is not always there; see `tabs` below.
+ * **Who, then what, since 2026-09-12.** The first three are the people —
+ * who is here, what they have written down, and how somebody who is not here
+ * gets in — and the last three are what the channel is carrying: the track,
+ * the recordings, the video. The order before this one ran the four carried
+ * things together and put the ways in at the end, on the grounds that
+ * inviting somebody is the rarest thing done here; rarity is a reason to keep
+ * a tab off the one you land on and not a reason to file it away from the
+ * subject it belongs to.
+ *
+ * It also puts the conditional tab last, which the earlier order did not.
+ * `watch` is the one that is not always there — see `tabs` below — and a set
+ * that loses its final entry leaves every other tab exactly where it was.
  */
 type Tab =
   | 'roster'
   | 'notes'
+  | 'invites'
   | 'player'
   | 'recordings'
-  | 'watch'
-  | 'invites';
+  | 'watch';
 
 /**
  * What the upload button says while it is uploading.
@@ -661,6 +675,12 @@ export function ChannelView({
    */
   const controlCards = !app.hideControlCards;
   /**
+   * Where the tabs are drawn, which is the top unless somebody has said
+   * otherwise. From Home settings; see `AppValue.tabsAtFoot` and the two
+   * places below that read it.
+   */
+  const tabsAtFoot = app.tabsAtFoot;
+  /**
    * What Step Out does about the screen, as against about the room.
    *
    * Stepping out closed this screen from the first build, because for that
@@ -867,15 +887,45 @@ export function ChannelView({
    * or not — neither of them something that flickers — and the alternative was
    * a tab named *Watch* offered to somebody for whom watching does not exist.
    */
-  const tabs: readonly { value: Tab; label: string }[] = [
-    { value: 'roster', label: 'Roster' },
-    { value: 'notes', label: 'Notes' },
-    { value: 'player', label: 'Player' },
-    { value: 'recordings', label: 'Recordings' },
+  const tabs: readonly {
+    value: Tab;
+    label: string;
+    icon: (color: ColorValue) => React.ReactNode;
+  }[] = [
+    {
+      value: 'roster',
+      label: 'Roster',
+      icon: (color) => <RosterIcon color={color} />,
+    },
+    {
+      value: 'notes',
+      label: 'Notes',
+      icon: (color) => <NotesIcon color={color} />,
+    },
+    {
+      value: 'invites',
+      label: 'Invite links',
+      icon: (color) => <InviteIcon color={color} />,
+    },
+    {
+      value: 'player',
+      label: 'Player',
+      icon: (color) => <PlayerIcon color={color} />,
+    },
+    {
+      value: 'recordings',
+      label: 'Recordings',
+      icon: (color) => <RecordingsIcon color={color} />,
+    },
     ...(watchOffered
-      ? ([{ value: 'watch', label: 'Watch' }] as const)
+      ? [
+          {
+            value: 'watch' as const,
+            label: 'Watch',
+            icon: (color: ColorValue) => <WatchIcon color={color} />,
+          },
+        ]
       : []),
-    { value: 'invites', label: 'Invite links' },
   ];
   /**
    * The tab actually drawn, which is the one chosen unless it has gone.
@@ -1210,6 +1260,24 @@ export function ChannelView({
   */
   const footer = (
     <View style={styles.footer}>
+      {/*
+        **The tabs, when somebody has asked for them down here.** From Home
+        settings; see `AppValue.tabsAtFoot`. Inside the footer's own surface
+        rather than in a bar of its own, so the two read as one pinned block
+        with the tabs sitting on the actions — which is what they are, the
+        actions being true of the channel whichever tab is showing.
+
+        Nothing about the tabs themselves changes with the setting: same six,
+        same order, same control. What a preference may move is where a set of
+        controls *is*; what it may not do is which of them there are or what
+        order they come in, which is the same rule the footer's own note
+        states about state.
+      */}
+      {tabsAtFoot ? (
+        <View style={[styles.tabs, styles.tabsFooter]}>
+          <Segmented options={tabs} value={shown} onChange={setTab} />
+        </View>
+      ) : null}
       <View style={styles.footerInner}>
       <FooterAction
         label={iAmSelfMuted ? 'Unmute' : 'Mute'}
@@ -1344,9 +1412,11 @@ export function ChannelView({
           `Segmented`, which does the wrapping so that Home's two-way switch
           and this cannot drift apart.
         */}
-        <View style={styles.tabs}>
-          <Segmented options={tabs} value={shown} onChange={setTab} />
-        </View>
+        {tabsAtFoot ? null : (
+          <View style={styles.tabs}>
+            <Segmented options={tabs} value={shown} onChange={setTab} />
+          </View>
+        )}
 
         {shown === 'roster' ? (
           <>
@@ -3614,6 +3684,24 @@ const styles = StyleSheet.create({
    * the roster is not.
    */
   tabs: { marginTop: spacing(0.5), marginBottom: spacing(0.5) },
+  /**
+   * The same switch, pinned above the bar instead.
+   *
+   * Capped and centred on `footerInner`'s width for the reason that style
+   * exists: a third of a 1300pt iPad is not a control, and a tab bar run edge
+   * to edge above a bar that is not would be two objects rather than one. The
+   * top margin goes — the footer's own `paddingTop` is already the gap above
+   * this — and what is left below is the space between the tabs and the
+   * actions.
+   */
+  tabsFooter: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingHorizontal: spacing(1),
+    marginTop: 0,
+    marginBottom: spacing(1),
+  },
   roster: { gap: spacing(1), marginTop: spacing(1) },
   guestActions: { flexDirection: 'row', gap: spacing(1), flexWrap: 'wrap' },
   participantCard: {

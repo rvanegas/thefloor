@@ -34,6 +34,11 @@ their own, and the heading goes with them:
 
 Asked for by Rodrigo in that shape, minus the two that were already there.
 
+**The order above is the one this decision shipped and is no longer current.**
+Later the same day *Invite links* moved up to third and *Watch* to last, the
+tabs grew glyphs, and where they are drawn became a setting; see
+2026-09-12-where-the-channel-tabs-go.md. What is on each tab is unchanged.
+
 ## What moved, and the two that are worth arguing about
 
 **The description moved onto *Notes*.** It was above the switch, outside it,
