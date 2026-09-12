@@ -626,8 +626,8 @@ function ListSwitch({
   return (
     <Segmented
       options={[
-        { value: 'channels', label: 'Channels' },
         { value: 'contacts', label: 'Contacts' },
+        { value: 'channels', label: 'Channels' },
       ]}
       value={list}
       onChange={onList}
