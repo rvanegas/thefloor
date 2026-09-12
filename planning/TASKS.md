@@ -25,41 +25,8 @@ slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
 ## Audio Announcement
 
-When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
-
-## Onboarding Checklist
-
-**Built on 2026-09-10 and not yet landed** — planning/ONBOARDING.md is both the
-design and the account of what was written, including the three things building
-it changed. What is built is the checklist; the growth card and the three
-campaign gaps below are not, and one of them is more urgent than any of it.
-
-An activation ladder for a new account, not a guided first-run walkthrough:
-four items derived from the Home snapshot — say who you are, get somebody here,
-open a channel, step in — retiring on the last of them rather than on all boxes
-ticked. **planning/ONBOARDING.md is the design**, and it is where the argument
-lives: no third-party module and why, no modal because this codebase has
-refused overlays twice and has none, the render site in `HomeView` and the
-dated decision it displaces, and what is deliberately left off the list —
-notifications, Chip in, recordings, the microphone — each for a reason that
-predates this.
-
-**The list is derived because the two arrivals start from different places.**
-An invited account is born with items 1 and 2 ticked, which leaves it a single
-card rather than a checklist; an uninvited one — the cohort a campaign
-produces — needs *choose a username* as a real item, since that is the gate on
-the only recruitment route that works while you sleep. **The open question is
-what the invited majority sees**, and it is a scope call rather than a design
-one.
-
-Two things it turned up that are not this task and are larger. **The alone
-cohort can never be asked about notifications**: `worthAsking` stands on
-`somebody`, sharing an invite link creates none of the three, so a campaign
-install's most likely first action leaves no trace and the account is
-unreachable for good — that is a change to `notificationAsk.ts` and it should
-go before the campaign, not after. And **growth prompting is a standing card
-rather than a checklist**, ordered by warmth, whose first tier is already coded
-and unprompted: the guest who was just in your channel.
+When member steps in or steps out, there ought to be an audible announcement, 
+such as two inverse distinguishable subtle chimes.
 
 ## UI Restyling
 
@@ -87,7 +54,8 @@ Small video in the corner.
 
 ## App as Watch Party Player
 
-If watch party is started and a there is a second session with the same account, let the second app become the player.
+If watch party is started and a there is a second session with the same 
+account, let the second app become the player.
 
 ## Review S3
 
@@ -95,7 +63,7 @@ What's there? How many files? What kind? What is the lifecycle?
 
 ## Lock Screen
 
-explore options in case screen locks during a call. lock screen, control center, etc.
+Explore options in case screen locks during a call. lock screen, control center, etc.
 
 ## SMS Authentication
 
@@ -114,9 +82,17 @@ These are recordings, sharing the infrastructure with the existing recordings, b
 
 ## Publishable Recordings
 
-A channel may declare itself public. If public, then it has a page at thefloor.rvanegas.co where anyone can listen to selected recordings. Settings would include image. Name and description would show on the page. Contacts remain private, though they may be explicitly described in the description.
+A channel may declare itself public. If public, then it has a page at 
+thefloor.rvanegas.co where anyone can listen to selected recordings. 
+Settings would include image. Name and description would show on the 
+page. Contacts remain private, though they may be explicitly described 
+in the description.
 
-PODCAST.md designs an RSS feed as the machine-readable half of the same publication — an addition to this entry rather than a reading of it, and it carries what publishing costs: the Ogg/Opus mix no podcast client plays, the consent a guest cannot give, and the fact that unpublishing recalls nothing.
+PODCAST.md designs an RSS feed as the machine-readable half of the same 
+publication — an addition to this entry rather than a reading of it, and 
+it carries what publishing costs: the Ogg/Opus mix no podcast client plays, 
+the consent a guest cannot give, and the fact that unpublishing recalls 
+nothing.
 
 ## Calendar Integrations
 
@@ -124,9 +100,14 @@ Explore scheduling and usage patterns
 
 ## Introduce Radiate
 
-A channel owner can gen a link defining the channel as root. Define a user's radiate number relative to a channel as 0 if user is in channel, and 1 + n the minimum radiate number of one's recently connected contacts is n. Recency is defined as having exchanged words in a channel. Having exchanhed words is defined as taking immediate turns in both directions in a channel.
+A channel owner can gen a link defining the channel as root. Define a user's 
+radiate number relative to a channel as 0 if user is in channel, and 1 + n 
+the minimum radiate number of one's recently connected contacts is n. Recency
+is defined as having exchanged words in a channel. Having exchanhed words is
+defined as taking immediate turns in both directions in a channel.
 
-Number is updated lazily when exchange occurs. In User View display radiate number.
+Number is updated lazily when exchange occurs. In User View display radiate
+number.
 
 ## Build for Android
 
@@ -144,7 +125,7 @@ once real hardware was involved. **Background audio was first and was built on
 at `app/modules/call-service/`, started for as long as this app is in a
 channel. It compiles and autolinks and nobody has watched it work: what stops a
 process being killed off screen is the platform's judgement, which neither a
-test nor an emulator can stand in for.
+ytest nor an emulator can stand in for.
 
 So what is first now is **a handset**, carrying four questions rather than one:
 whether a backgrounded call survives, and the three that were already waiting —
@@ -203,8 +184,7 @@ muted channel should have. `anyMicrophoneOpen` in `core/micNeeded.ts` says the
 opposite, in exactly the case it was written for: it excludes self-muted people
 by construction, so *everybody* muted means `anyMicOpen` is false, and
 `sessionFor(false, 0)` is `IDLE` — `playback` with `mixWithOthers`. The music
-is supposed to keep playing. What one person's self-mute keeps a call is
-everybody else's session while somebody else's microphone is still open; when
+is supposed to keep playing. What one person's self-mute keeps a call is everybody else's session while somebody else's microphone is still open; when
 no microphone is open there is nothing to be exclusive for, and `IDLE` exists
 precisely so that a quiet channel costs another app's audio nothing.
 
