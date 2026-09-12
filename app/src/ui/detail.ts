@@ -70,21 +70,28 @@ export type Detail =
 export const NO_DETAIL: Detail = { kind: 'none' };
 
 /**
- * Which of the tier's two lists is in its body.
+ * Which of the tier's bodies is showing.
  *
- * **Two peers, not a root and a child**, which is the whole of what the name
+ * **Peers, not a root and a child**, which is the whole of what the name
  * change on 2026-09-01 says. This was `contactsOpen`, a boolean, back when the
  * channel list was the app's root and the contacts were a screen you opened
  * over it; nothing about the pair justified which way round that was. `'home'`
  * would name the tier that contains both, which is not what this chooses
  * between. See planning/decisions/DECISIONS.md § *The tier above both lists*.
  *
+ * **`'support'` is the third, and it is not a list.** The name stayed because
+ * what this type chooses between is which body the tier is showing, and that
+ * question is the same whether the body enumerates people or not. Help and
+ * Chip in used to be the tail of whichever list was up, below everything
+ * somebody had come to do; they are about the application rather than about
+ * either list, and a tab is what says so without making them any louder.
+ *
  * **It is the first half of every address**, which is the shape the addresses
- * took on 2026-09-04: `/channels` and `/contacts` are the two frames, and
- * anything an address can name beyond them hangs off one of the two. Nothing
+ * took on 2026-09-04: `/channels`, `/contacts` and `/support` are the frames,
+ * and anything an address can name beyond them hangs off one of them. Nothing
  * here needs to know that; `webRoute.ts` does.
  */
-export type List = 'channels' | 'contacts';
+export type List = 'channels' | 'contacts' | 'support';
 
 /** The channel whose screen is showing, or none — read in four places. */
 export function channelOf(detail: Detail): string | null {

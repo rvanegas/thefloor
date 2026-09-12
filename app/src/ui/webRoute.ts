@@ -36,7 +36,7 @@ export type Named = 'none' | 'settings' | 'standings' | 'support' | 'help';
  *
  * **A frame and what is open over it**, which is the shape of the application
  * rather than a route table somebody chose: the tier always holds one of its
- * two lists — that is `list`, and it never goes away — and a detail is opened
+ * three bodies — that is `list`, and it never goes away — and a detail is opened
  * over it on a phone or beside it in a split, and closed again.
  *
  * It was six flat screens until 2026-09-04, with `home` for the Channels tab,
@@ -62,12 +62,20 @@ export interface Address {
 export const BASE = (process.env.EXPO_PUBLIC_BASE ?? '').replace(/\/$/, '');
 
 /**
- * The one path each address has. Ten of them, and no trailing slashes.
+ * The one path each address has. Fifteen of them, and no trailing slashes.
  *
- * `/channels`, `/contacts`, and `/<either>/settings`, `/standings`,
- * `/support`, `/help`. The frame is always the first segment, including when
- * something is open over it — which is the whole point of the nesting: the tab
- * you were on is not something opening Settings should cost you.
+ * `/channels`, `/contacts`, `/support`, and `/<any of the three>/settings`,
+ * `/standings`, `/support`, `/help`. The frame is always the first segment,
+ * including when something is open over it — which is the whole point of the
+ * nesting: the tab you were on is not something opening Settings should cost
+ * you.
+ *
+ * **`/support/support` is one of the fifteen and is not a mistake.** The two
+ * segments are two different things wearing one word: the Support *tab*, and
+ * the screen explaining where the money goes, which is opened from it. The
+ * word is doing the job it does on screen in both places, and the alternative
+ * — renaming one of them so the path reads better — would be letting the
+ * address bar pick the vocabulary.
  */
 export function pathOf(address: Address): string {
   const frame = `${BASE}/${address.list}`;
@@ -98,7 +106,13 @@ export function addressOfPath(path: string): Address {
   const parts = rest.split('/').filter(Boolean);
 
   const list: List | null =
-    parts[0] === 'channels' ? 'channels' : parts[0] === 'contacts' ? 'contacts' : null;
+    parts[0] === 'channels'
+      ? 'channels'
+      : parts[0] === 'contacts'
+        ? 'contacts'
+        : parts[0] === 'support'
+          ? 'support'
+          : null;
   if (!list) return { list: 'channels', named: 'none' };
 
   if (parts.length === 1) return { list, named: 'none' };
@@ -161,7 +175,7 @@ export function addressOf(detail: Detail, list: List): Address {
  *
  * **Every address restores**, which is the property the nesting bought and the
  * reason nothing in the wiring has to normalise what it reads:
- * `addressOf(detailOfAddress(a))` is `a` for all ten. The projection above
+ * `addressOf(detailOfAddress(a))` is `a` for all fifteen. The projection above
  * is lossy on the way out and total on the way back, so an address is never
  * something the app can be handed and fail to honour.
  */

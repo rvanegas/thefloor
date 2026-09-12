@@ -27,7 +27,7 @@ import { colors, measure, radius, spacing, type } from './theme';
 
 /**
  * What the app opens on: a frame with a pinned top, and inside it one of the
- * two lists of people you can reach.
+ * two lists of people you can reach — or the Support tab.
  *
  * **This is a tier, and it is new on 2026-09-01.** Home used to *be* the
  * channel list, and Contacts a screen you opened from a button in its header
@@ -48,8 +48,15 @@ import { colors, measure, radius, spacing, type } from './theme';
  * this. See planning/decisions/DECISIONS.md § *The tier above both lists*.
  *
  * **Three things are pinned and one scrolls.** The title and Settings, the
- * room you are in if there is one, and the switch between the two lists; then
- * the selected list, scrolling, with Chip in and Standings at the foot of it.
+ * room you are in if there is one, and the switch between the tier's three
+ * bodies; then the selected body, scrolling.
+ *
+ * **The third body is Support**, added because Help and Chip in had been the
+ * tail of whichever list was showing since they were promoted here on
+ * 2026-09-01. That was the right container and the wrong place in it: a row
+ * about the application waited out every channel somebody had, and did it
+ * twice, once under each list. A tab is the same one tap from anywhere and
+ * pushes nothing down. See `SupportBody`.
  *
  * **The lists are bodies rather than screens.** `ChannelsView` and
  * `ContactsView` render into this scroll and own no header, which is what
@@ -71,7 +78,7 @@ export function HomeView({
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
-  /** Which of the two lists is in the body. See `List` in `ui/detail.ts`. */
+  /** Which of the three bodies is showing. See `List` in `ui/detail.ts`. */
   list: List;
   onList: (list: List) => void;
   onEnterChannel: (channelId: string) => void;
@@ -430,90 +437,106 @@ export function HomeView({
 
   return (
     <Screen header={header} contentStyle={styles.container}>
-      {/*
-        First in the scroll, above whichever list is showing, and only until
-        this account has had a conversation.
-
-        **It belongs to the tier for the live bar's reason.** A checklist
-        spanning *get somebody here* and *open a channel* is about neither
-        list, and drawing it inside one of them would put it in front of half
-        the people it is for — and take it away when they flipped tabs
-        mid-rung.
-
-        **In the scroll rather than pinned above it**, unlike the two notices,
-        because it is longer than a banner and pinning it would spend a fixed
-        share of a small screen on something nobody opened the app to read. It
-        is the mirror of Chip in at the foot: that sits last because everything
-        above it is what somebody came here to do, and for an account with
-        nothing in it yet, this *is* that.
-
-        The trade, said out loud: it pushes `StartChannelRow` down, and that
-        row went to the top of the scroll on 2026-09-02 so it would sit where
-        *Add contact* sits on the other tab. It is bounded — this is gone the
-        moment somebody has had a conversation, and the rungs point at that row
-        rather than competing with it — but it does contradict a dated
-        decision. See planning/ONBOARDING.md.
-      */}
-      <Introduction
-        onEnterChannel={onEnterChannel}
-        onOpenProfile={openProfile}
-        onList={onList}
-      />
-
-      {list === 'channels' ? (
-        <ChannelsView
-          onEnterChannel={onEnterChannel}
-          // The bar above and a row down here are two renderings of one
-          // channel, so exactly one of them appears. They were briefly
-          // separate questions, while the bar was suppressed in a split and
-          // the row was not — see `App.tsx`, which no longer suppresses it.
-          liveChannelId={liveChannel?.channelId ?? null}
-          // And the same for the bars above: exactly the channels a bar was
-          // drawn for, so a suppressed bar leaves its row where it was.
-          nearbyChannelIds={nearby.map((channel) => channel.channelId)}
+      {list === 'support' ? (
+        <SupportBody
+          canSupport={canSupport}
+          onOpenHelp={onOpenHelp}
+          onOpenSupport={onOpenSupport}
+          onOpenLeaderboard={onOpenLeaderboard}
+          onOpenAudioLab={onOpenAudioLab}
         />
       ) : (
-        <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />
+        <>
+          {/*
+            First in the scroll, above whichever list is showing, and only until
+            this account has had a conversation.
+
+            **It belongs to the tier for the live bar's reason.** A checklist
+            spanning *get somebody here* and *open a channel* is about neither
+            list, and drawing it inside one of them would put it in front of half
+            the people it is for — and take it away when they flipped tabs
+            mid-rung.
+
+            **In the scroll rather than pinned above it**, unlike the two notices,
+            because it is longer than a banner and pinning it would spend a fixed
+            share of a small screen on something nobody opened the app to read.
+            It is the mirror of the Support tab: that is a tap away because
+            everything on this one is what somebody came here to do, and for an
+            account with nothing in it yet, this *is* that.
+
+            The trade, said out loud: it pushes `StartChannelRow` down, and that
+            row went to the top of the scroll on 2026-09-02 so it would sit where
+            *Add contact* sits on the other tab. It is bounded — this is gone the
+            moment somebody has had a conversation, and the rungs point at that row
+            rather than competing with it — but it does contradict a dated
+            decision. See planning/ONBOARDING.md.
+          */}
+          <Introduction
+            onEnterChannel={onEnterChannel}
+            onOpenProfile={openProfile}
+            onList={onList}
+          />
+
+          {list === 'channels' ? (
+            <ChannelsView
+              onEnterChannel={onEnterChannel}
+              // The bar above and a row down here are two renderings of one
+              // channel, so exactly one of them appears. They were briefly
+              // separate questions, while the bar was suppressed in a split and
+              // the row was not — see `App.tsx`, which no longer suppresses it.
+              liveChannelId={liveChannel?.channelId ?? null}
+              // And the same for the bars above: exactly the channels a bar was
+              // drawn for, so a suppressed bar leaves its row where it was.
+              nearbyChannelIds={nearby.map((channel) => channel.channelId)}
+            />
+          ) : (
+            <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />
+          )}
+        </>
       )}
+    </Screen>
+  );
+}
 
+/**
+ * The Support tab's body: how to ask for help, and how to help.
+ *
+ * **The tail of the scroll, made a place.** All of this used to sit under
+ * whichever list was showing, and the argument for it being there was that
+ * everything above it was what somebody opened the app to do. That argument
+ * says where a thing goes when it has nowhere of its own; it stops applying
+ * the moment it does. Nothing here is louder for having a tab — a tab is
+ * still one tap, and it is one that never pushes a list down or waits at the
+ * end of a hundred channels.
+ *
+ * **Two groups, and the split is the one the label forces.** *Support* here
+ * means support this project — money — and *Help* means get support. One
+ * section holding both senses of the word is how somebody taps Chip in
+ * looking for an answer, and putting them on one tab does not merge them.
+ */
+function SupportBody({
+  canSupport,
+  onOpenHelp,
+  onOpenSupport,
+  onOpenLeaderboard,
+  onOpenAudioLab,
+}: {
+  /** Whether the server has anywhere to donate to. See `HomeView`. */
+  canSupport: boolean;
+  onOpenHelp: () => void;
+  onOpenSupport: () => void;
+  onOpenLeaderboard?: () => void;
+  onOpenAudioLab?: () => void;
+}) {
+  return (
+    <>
       {/*
-        Last in the scroll, below whichever list is showing, and one line
-        rather than three.
+        Help first, and above the section about the project.
 
-        **Promoted to the tier and left exactly as loud as it was**, which is
-        the decision HOME.md was written to make. Being about the application
-        rather than about either list is a claim about what it belongs to, not
-        about how loudly it should ask — and the comment it inherited governs
-        the tier exactly as it governed Home: everything above it is what
-        somebody opened the app to do, and a request for money that sat above
-        that would be reading the room wrong. Pinning it to the foot of the
-        frame was the other option, and it loses on precisely that.
-
-        The argument for it — what the server costs, that it unlocks nothing,
-        which address to pay with — is longer than belongs on a screen somebody
-        is passing through. That lives one tap away, where it has been chosen
-        rather than imposed.
-      */}
-      {/*
-        Help, at the foot of the list and above the section about the project.
-
-        **Here rather than inside `ChannelsView`, which is what was asked for
-        and is one tier off.** That component is the list of channels and
-        nothing else — everything that was not a channel left it on 2026-09-01,
-        Chip in included, and putting a button about the application back in
-        would be undoing that for the second time. This is the foot of the
-        scroll the list renders into, so it is the bottom of the channel list
-        on screen; the only difference is that it is also the bottom of the
-        contacts, which is right, a question not being about either list.
-
-        **Its own group, above Support and not in it.** The label there means
-        *support this project* — money — and this means *get support*. One
-        section holding both senses of the word is how somebody taps Chip in
-        looking for an answer.
-
-        Unconditional, where every other row down here is granted or
-        configured: anybody can have a question. There is no state in which
-        offering to take one is wrong.
+        Unconditional, where every other row here is granted or configured:
+        anybody can have a question. There is no state in which offering to
+        take one is wrong — and since it is the one row that always draws, it
+        is also what stops this tab ever being empty.
       */}
       <SectionLabel>Help</SectionLabel>
       <View style={styles.list}>
@@ -524,6 +547,19 @@ export function HomeView({
 
       {canSupport || onOpenLeaderboard || onOpenAudioLab ? (
         <>
+          {/*
+            Below Help, and one line rather than three.
+
+            **As loud as it was**, which is the decision HOME.md was written to
+            make and which the tab does not disturb. Being about the
+            application rather than about either list is a claim about what it
+            belongs to, not about how loudly it should ask.
+
+            The argument for it — what the server costs, that it unlocks
+            nothing, which address to pay with — is longer than belongs on a
+            screen somebody is passing through. That lives one tap away, where
+            it has been chosen rather than imposed.
+          */}
           <SectionLabel>Support</SectionLabel>
           {/* The gap between cards, as every other group of them here gets
               it. Two cards flush against each other read as one card with a
@@ -575,27 +611,31 @@ export function HomeView({
           </View>
         </>
       ) : null}
-    </Screen>
+    </>
   );
 }
 
 /**
- * The two lists, and which one you are looking at.
+ * The tier's three bodies, and which one you are looking at.
  *
- * **A switch rather than two buttons that navigate**, which is the whole of
+ * **A switch rather than buttons that navigate**, which is the whole of
  * what this change is about. Channels and contacts are peers — two indexes
  * onto the people you can reach, one by the conversations you have with them
  * and one by name — and the pair used to be dressed as a root and a child: a
  * *Contacts* button in one header, a *Home* button in the other. Nothing about
  * them justified which was which.
  *
+ * **Support is the third and is not a peer of the other two**, which the
+ * order says and nothing else needs to: it is last, and it is what the tier
+ * holds that is about the application rather than about anybody in it.
+ *
  * Drawn as a segmented control rather than as a tab bar at the foot. A tab bar
- * is for the top level of a whole application and there are two things in this
- * one, so it would spend a permanent strip of a small screen saying something
- * a line under the title says as well.
+ * is for the top level of a whole application and there are three things in
+ * this one, so it would spend a permanent strip of a small screen saying
+ * something a line under the title says as well.
  *
  * The drawing is `Segmented`, shared with the channel screen's tabs; the
- * argument for why these two are peers is this one's alone.
+ * argument for why these belong side by side is this one's alone.
  */
 /**
  * The one thing a browser cannot do, said once to somebody using one.
@@ -742,6 +782,15 @@ function ListSwitch({
       options={[
         { value: 'contacts', label: 'Contacts' },
         { value: 'channels', label: 'Channels' },
+        /*
+          Third and last, which is the whole of the claim being made about it.
+          Contacts and Channels are the two indexes onto the people you can
+          reach and are what somebody opened the app for; this is the part of
+          the tier that is about the application, and it sits after both for
+          the same reason its contents sat at the foot of the scroll before —
+          reachable in one tap, and never in front of anything.
+        */
+        { value: 'support', label: 'Support' },
       ]}
       value={list}
       onChange={onList}

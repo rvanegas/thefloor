@@ -8,6 +8,7 @@ import { HomeView } from '../HomeView';
 import { HomeSettingsView } from '../HomeSettingsView';
 import { SupportView } from '../SupportView';
 import { LeaderboardView } from '../LeaderboardView';
+import { SectionLabel } from '../components';
 import { Alert, StyleSheet } from 'react-native';
 import {
   NOW,
@@ -659,8 +660,19 @@ describe('Support', () => {
     return tree;
   }
 
-  const home = () =>
-    open(<HomeView {...homeNav} />);
+  /** The headings a tree draws, in order — see the case that asks for them. */
+  const sectionLabels = (tree: ReactTestRenderer): string[] =>
+    tree.root
+      .findAll((node) => node.type === SectionLabel)
+      .map((node) => String(node.props.children));
+
+  /**
+   * The tier with its third body showing, which is where every row below
+   * lives. They were the tail of whichever list was up until the Support tab
+   * arrived; what each of them asserts is unchanged by the move, so the tab is
+   * set here once rather than at each call.
+   */
+  const home = () => open(<HomeView {...homeNav} list="support" />);
 
   it('offers a way in from Home, and nothing more than that', async () => {
     const tree = await home();
@@ -676,6 +688,7 @@ describe('Support', () => {
     const tree = await open(
       <HomeView
         {...homeNav}
+        list="support"
         onOpenSupport={opened}
       />
     );
@@ -692,18 +705,27 @@ describe('Support', () => {
     });
     const tree = await home();
     expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(textOf(tree)).not.toContain('Support');
+    // The section, not the word: the tab is labelled *Support* and is drawn
+    // whatever the server says, so the text is no longer the thing to ask.
+    // What must not appear is a heading over nothing.
+    expect(sectionLabels(tree)).not.toContain('Support');
     act(() => tree.unmount());
   });
 
   it('leaves Home alone when support cannot be read at all', async () => {
     // An older server, or one that fails. Home is what somebody opened the app
-    // for and must not wait on, or break with, an extra fetch.
+    // for and must not wait on, or break with, an extra fetch — so the tier
+    // still draws, on the tab that fetch is for as well as on the lists.
     mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
     const tree = await home();
     expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(textOf(tree)).toContain('Start a channel');
+    expect(findButton(tree, 'Help')).toBeTruthy();
     act(() => tree.unmount());
+
+    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
+    const channels = await open(<HomeView {...homeNav} />);
+    expect(textOf(channels)).toContain('Start a channel');
+    act(() => channels.unmount());
   });
 
   it('makes the case on its own screen, and names the address', async () => {
@@ -760,7 +782,7 @@ describe('Support', () => {
 
     const opened = jest.fn();
     const granted = await open(
-      <HomeView {...homeNav} onOpenLeaderboard={opened} />
+      <HomeView {...homeNav} list="support" onOpenLeaderboard={opened} />
     );
     const button = findButton(granted, 'Leaderboard');
     expect(button).toBeTruthy();
@@ -781,7 +803,7 @@ describe('Support', () => {
       mine: null,
     });
     const tree = await open(
-      <HomeView {...homeNav} onOpenLeaderboard={() => {}} />
+      <HomeView {...homeNav} list="support" onOpenLeaderboard={() => {}} />
     );
     expect(findButton(tree, 'Chip in')).toBeUndefined();
     expect(findButton(tree, 'Leaderboard')).toBeTruthy();

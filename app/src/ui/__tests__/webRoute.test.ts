@@ -16,7 +16,7 @@ import {
  * the only division of the problem that leaves anything proven at all.
  */
 
-const LISTS: List[] = ['channels', 'contacts'];
+const LISTS: List[] = ['channels', 'contacts', 'support'];
 
 const ADDRESSES: Address[] = LISTS.flatMap((list) =>
   (['none', 'settings', 'standings', 'support', 'help'] as const).map((named) => ({
@@ -66,6 +66,28 @@ describe('addresses and their paths', () => {
     expect(pathOf({ list: 'contacts', named: 'settings' })).toBe(
       '/contacts/settings'
     );
+  });
+
+  /**
+   * The one path where the same word is both halves, and it is not a
+   * collision: the Support tab, and the screen about giving that is opened
+   * from it. Pinned because it looks like a bug and is not — see `pathOf`.
+   */
+  it('spells the Support screen over the Support tab', () => {
+    expect(pathOf({ list: 'support', named: 'none' })).toBe('/support');
+    expect(pathOf({ list: 'support', named: 'support' })).toBe(
+      '/support/support'
+    );
+    expect(addressOfPath('/support/support')).toEqual({
+      list: 'support',
+      named: 'support',
+    });
+    // And the other way, which is the one that would quietly go wrong: the
+    // Chip in screen opened over Channels is still the Channels frame.
+    expect(addressOfPath('/channels/support')).toEqual({
+      list: 'channels',
+      named: 'support',
+    });
   });
 
   it('never produces a query or an id', () => {

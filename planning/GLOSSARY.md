@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite links, Player, Recordings, Watch
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
-- **Chip in** — The donation link, in Settings
+- **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses
 - **Contact** — Somebody you have both agreed to be in touch with
@@ -48,8 +48,8 @@ caused; the list carries the meaning.
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
-- **Help** — The screen for asking The Floor a question; a person answers it in place, under the question
-- **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, not one
+- **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
+- **Home** — The screen the app opens on and the frame the rest sits in; holds two lists and the *Support* tab, not one thing
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
 - **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
 - **Invite pin** — The six digits at the end of an invite link, good once
@@ -67,6 +67,7 @@ caused; the list carries the meaning.
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
+- **Support tab** — Home's third tab, after the two lists: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
 - **Voice** — One speaker within a transcript
@@ -258,8 +259,8 @@ you talk to them in.
 
 ## Chip in
 
-The donation link, in Settings. Voluntary, unlocks nothing, and shown only to
-people the server places in the United States storefront — see
+The donation link, on Home's *Support* tab. Voluntary, unlocks nothing, and
+shown only to people the server places in the United States storefront — see
 `server/src/region.ts` for why that is a server decision rather than an app
 one.
 
@@ -391,8 +392,8 @@ channel is empty of members.
 
 ## Help
 
-The screen for asking The Floor a question, at the foot of Home beside *chip
-in*. You write a question, it is stored, a person reads it and writes an
+The screen for asking The Floor a question, on Home's *Support* tab beside
+*chip in*. You write a question, it is stored, a person reads it and writes an
 answer into the same place, and the answer appears under the question the next
 time you open the screen.
 
@@ -413,16 +414,18 @@ hides. Nothing promises when an answer will come, because nothing can.
 ## Home
 
 **The screen the app opens on, and the frame everything else on it sits in.**
-Not a list: it holds two of them — *Channels* and *Contacts* — with a switch
-between, and above that the room you are present in if there is one. Settings,
-*Chip in* and the *Leaderboard* are Home's rather than either list's, being
-about the application rather than about anybody you can reach.
+Not a list: it holds two of them — *Channels* and *Contacts* — and the
+*Support* tab, with a switch between the three, and above that the room you
+are present in if there is one. Settings is Home's rather than either list's,
+being about the application rather than about anybody you can reach; *Chip in*,
+*Help* and the *Leaderboard* were Home's on the same grounds and are now the
+Support tab's.
 
 **Home has no address**, which follows from the same fact and took until
-2026-09-04 to reach the code. The two lists have one each — `/channels` and
-`/contacts` — and Home is the frame around both, so there is nothing left for a
-third address to name: whenever nothing is open, one of the two lists is what is
-showing. The `Screen` type called the pair `home` and `contacts` until then,
+2026-09-04 to reach the code. Each of its tabs has one — `/channels`,
+`/contacts`, `/support` — and Home is the frame around them, so there is
+nothing left for a further address to name: whenever nothing is open, one of
+the three is what is showing. The `Screen` type called the pair `home` and `contacts` until then,
 which was the root-and-child asymmetry surviving one layer up from the boolean
 it had already been renamed out of.
 
@@ -932,6 +935,29 @@ both doors: a tap opens the screen without entering, and stepping out gives up
 the room and leaves you looking. *Close* is what takes you off the screen. See
 `tapToLook` in core/settings.ts.
 
+## Support tab
+
+**Home's third tab, after the two lists**, and the one thing on the tier that
+is about the application rather than about anybody you can reach. It holds
+*Help* — always — and, when each is available, *Chip in*, the *Leaderboard*
+and the audio bench. `/support` in a browser.
+
+**It is not a list, and the type that names it still says `List`.** What that
+type chooses between is which body the tier is showing, which is the same
+question whether the body enumerates people or not.
+
+**All of it was the tail of whichever list was showing until 2026-09-12.**
+That was the right container — these rows had been promoted out of the channel
+list on 2026-09-01, when they stopped being at the bottom of somebody's
+channels by accident — and the wrong place in it: a row about the application
+still waited out every channel or contact somebody had, and did it twice, once
+under each list. A tab is one tap from either, and pushes neither down.
+
+**Both senses of the word are here and are two sections, not one.** *Support*
+the section means support this project — money; *Help* means get support. The
+tab's own label is the first sense, which is why Help is the section above it
+rather than a row inside it.
+
 ## Transcript
 
 Behind *Labs*, since 2026-09-06: without it, a recording shows no transcript
@@ -995,10 +1021,12 @@ confers nothing.
 
 ## Address
 
-**What a URL says, in the two parts the app is actually in**: which list the
-tier is showing, and what is open over it. `/channels` and `/contacts` are the
-frames; `/channels/settings`, `/contacts/standings` and the rest hang off them.
-Eight paths, under the train's prefix, and never anything else.
+**What a URL says, in the two parts the app is actually in**: which of the
+tier's bodies is showing, and what is open over it. `/channels`, `/contacts`
+and `/support` are the frames; `/channels/settings`, `/contacts/standings` and
+the rest hang off them. Fifteen paths, under the train's prefix, and never
+anything else. `/support/support` is one of them and is not a mistake — the
+tab, and the screen about giving that opens over it.
 
 **An address names a place and never an id.** Not an account, not a channel,
 not a recording. So it can name Settings, Standings and Support — one of a kind
@@ -1109,9 +1137,9 @@ thing the pane above is showing — `none`, a channel, a profile, settings,
 standings or support. Named after the pane, and it is what `App.tsx` holds
 where it used to hold a channel id and four booleans resolved in order.
 
-**Which of Home's two lists is showing is not one of its kinds**, which is the
-distinction worth keeping: that is not something you opened but which index of
-people the *list* pane is showing. It is `List` — `'channels' | 'contacts'` —
+**Which of Home's tabs is showing is not one of its kinds**, which is the
+distinction worth keeping: that is not something you opened but which body the
+*list* pane is showing. It is `List` — `'channels' | 'contacts' | 'support'` —
 its own value, and it reads the same in both layouts. It was a boolean called
 `contactsOpen` until 2026-09-01, which was the asymmetry written down: it named
 one list and called the other *not that one*.

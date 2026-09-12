@@ -282,6 +282,9 @@ describe('a tap on a notification', () => {
       tree = renderer.create(<App />);
     });
 
+    // The way in is on the Support tab since the tier grew a third body —
+    // the tab first, then the row it holds.
+    pressButton(tree, 'Support');
     pressButton(tree, 'Leaderboard');
     expect(textOf(tree)).toContain('Invitations');
 

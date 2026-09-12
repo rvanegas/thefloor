@@ -672,19 +672,39 @@ describe('Home while still in a channel', () => {
 
   /*
     And Chip in is the tier's too, for the same reason said the other way
-    round: it is about the application rather than about either list, so it is
-    under both of them rather than at the tail of somebody's channels.
+    round: it is about the application rather than about either list. It was
+    drawn under both of them until the tier grew a third body; now it is on
+    that body, one tap from either list and at the tail of neither.
   */
-  it('offers Chip in under either list', async () => {
+  it('offers Chip in on the Support tab and under neither list', async () => {
     home();
     // The default stub is a server with somewhere to give, which is what makes
     // this about where the row is drawn rather than about whether it is.
-    for (const list of ['channels', 'contacts'] as const) {
+    for (const list of ['channels', 'contacts', 'support'] as const) {
       let tree!: ReactTestRenderer;
       await act(async () => {
         tree = renderer.create(<HomeView {...homeNav} list={list} />);
       });
-      expect(findButton(tree, 'Chip in')).toBeTruthy();
+      if (list === 'support') expect(findButton(tree, 'Chip in')).toBeTruthy();
+      else expect(findButton(tree, 'Chip in')).toBeUndefined();
+      act(() => tree.unmount());
+    }
+  });
+
+  /*
+    The tab itself, which is the whole of how anybody reaches any of that.
+    Asserted from either list rather than only from Channels: the switch is
+    the tier's, so a body that drew two of the three would be a body somebody
+    could get stuck on.
+  */
+  it('offers the Support tab from either list', () => {
+    home();
+    for (const list of ['channels', 'contacts'] as const) {
+      const tree = render(<HomeView {...homeNav} list={list} />);
+      const [screen] = tree.root.findAll((node) => node.type === Screen);
+      const header = render(screen.props.header);
+      expect(textOf(header)).toContain('Support');
+      act(() => header.unmount());
       act(() => tree.unmount());
     }
   });

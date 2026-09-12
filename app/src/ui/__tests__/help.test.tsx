@@ -21,7 +21,7 @@ jest.mock('../../state/AppProvider', () =>
 );
 
 /**
- * Asking The Floor a question, from the button at the foot of the list to the
+ * Asking The Floor a question, from the button on the Support tab to the
  * answer appearing under what was asked.
  *
  * What is worth pinning here is small and is all about honesty: that the way
@@ -39,20 +39,37 @@ const settle = async () => {
 };
 
 describe('the way in', () => {
-  it('offers Help at the foot of the channel list', async () => {
+  it('offers Help on the Support tab', async () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
-    const tree = render(<HomeView {...homeNav} />);
+    const tree = render(<HomeView {...homeNav} list="support" />);
     await settle();
 
     expect(findButton(tree, 'Help')).toBeDefined();
     act(() => tree.unmount());
   });
 
+  /*
+    And nowhere else. It was the tail of whichever list was showing until the
+    tier grew a third body; leaving it in both places would be the move that
+    makes a tab pointless.
+  */
+  it('is not under either list', async () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    for (const list of ['channels', 'contacts'] as const) {
+      const tree = render(<HomeView {...homeNav} list={list} />);
+      await settle();
+
+      expect(findButton(tree, 'Help')).toBeUndefined();
+      act(() => tree.unmount());
+    }
+  });
+
   it('offers it with nowhere to donate and no granted screens', async () => {
-    // Every other row in that part of the tier is conditional — the donate
-    // link on a region, the standings and the bench on a column set by hand.
-    // A way to ask a question that only some accounts have is not a help
-    // mechanism, so this is the one row down there with no gate on it.
+    // Every other row on that tab is conditional — the donate link on a
+    // region, the standings and the bench on a column set by hand. A way to
+    // ask a question that only some accounts have is not a help mechanism, so
+    // this is the one row there with no gate on it, and the one that stops the
+    // tab ever coming up empty.
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     mockApp.loadSupport.mockResolvedValueOnce({
       url: null,
@@ -60,7 +77,7 @@ describe('the way in', () => {
       mine: null,
     });
 
-    const tree = render(<HomeView {...homeNav} />);
+    const tree = render(<HomeView {...homeNav} list="support" />);
     await settle();
 
     expect(findButton(tree, 'Help')).toBeDefined();
@@ -71,7 +88,9 @@ describe('the way in', () => {
   it('opens the screen rather than doing anything itself', async () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
     const onOpenHelp = jest.fn();
-    const tree = render(<HomeView {...homeNav} onOpenHelp={onOpenHelp} />);
+    const tree = render(
+      <HomeView {...homeNav} list="support" onOpenHelp={onOpenHelp} />
+    );
     await settle();
 
     act(() => findButton(tree, 'Help')!.props.onPress());
