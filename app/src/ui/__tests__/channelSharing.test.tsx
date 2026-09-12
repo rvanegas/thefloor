@@ -22,7 +22,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showNotes,
+  showNotepad,
   showPlayer,
   showWatch,
   textOf,
@@ -582,7 +582,7 @@ describe('the channel clipboard', () => {
   }
 
   /**
-   * The screen, on *Notes* — where the clipboard lives with the channel's
+   * The screen, on *Notepad* — where the clipboard lives with the channel's
    * description, the two of them being text the channel holds rather than a
    * control on the room. One tap from the roster, taken here rather than in
    * every test because it is not what any of them is about.
@@ -594,7 +594,7 @@ describe('the channel clipboard', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showNotes(tree);
+    showNotepad(tree);
     return tree;
   }
 

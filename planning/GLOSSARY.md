@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Roster, Notes, Invite links, Player, Recordings, Watch
+- **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite links, Player, Recordings, Watch
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, in Settings
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -196,7 +196,7 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *Roster*, *Notes*, *Invite links*, *Player*, *Recordings*, *Watch*.
+draws: *Roster*, *Notepad*, *Invite links*, *Player*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.

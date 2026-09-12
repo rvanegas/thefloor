@@ -29,7 +29,7 @@ import {
   resetHarness,
   showChannel,
   showInvites,
-  showNotes,
+  showNotepad,
   showPlayer,
   textOf,
 } from '../testing/harness';
@@ -1371,7 +1371,7 @@ describe('a channel screen without the repeated cards', () => {
     // it decides is whether the footer's own three controls are said twice,
     // and nothing on these is a second way of doing anything in the bar.
     expect(textOf(tree)).toContain('Dana Chu');
-    showNotes(tree);
+    showNotepad(tree);
     expect(textOf(tree)).toContain('Shared clipboard');
     showPlayer(tree);
     expect(textOf(tree)).toContain('Recording');

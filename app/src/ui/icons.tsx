@@ -308,7 +308,7 @@ export function RosterIcon({
  * A pencil would have said "write", which is an act and only half of what the
  * tab is for; most visits to it are reading.
  */
-export function NotesIcon({
+export function NotepadIcon({
   color,
   size = 22,
 }: {

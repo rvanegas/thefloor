@@ -409,8 +409,8 @@ export function showRoster(tree: ReactTestRenderer): void {
 }
 
 /** The description and the channel clipboard. */
-export function showNotes(tree: ReactTestRenderer): void {
-  showTab(tree, 'Notes');
+export function showNotepad(tree: ReactTestRenderer): void {
+  showTab(tree, 'Notepad');
 }
 
 /** The shared track and the recording controls. */

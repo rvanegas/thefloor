@@ -73,7 +73,7 @@ import {
   FloorIcon,
   InviteIcon,
   MicIcon,
-  NotesIcon,
+  NotepadIcon,
   PlayerIcon,
   RecordingsIcon,
   RosterIcon,
@@ -128,7 +128,7 @@ const SKIP_MS = 15_000;
  */
 type Tab =
   | 'roster'
-  | 'notes'
+  | 'notepad'
   | 'invites'
   | 'player'
   | 'recordings'
@@ -898,9 +898,9 @@ export function ChannelView({
       icon: (color) => <RosterIcon color={color} />,
     },
     {
-      value: 'notes',
-      label: 'Notes',
-      icon: (color) => <NotesIcon color={color} />,
+      value: 'notepad',
+      label: 'Notepad',
+      icon: (color) => <NotepadIcon color={color} />,
     },
     {
       value: 'invites',
@@ -1149,6 +1149,43 @@ export function ChannelView({
           </Text>
         </View>
         <View style={styles.headerActions}>
+          {/*
+            **The circle, and nothing else.** That a recording is running is
+            the one fact on this screen somebody needs at every moment, so it
+            is pinned — but it was pinned as a second row of the header, a
+            pill carrying the word and the clock, and a whole row of every
+            screenful is a great deal to spend on a fact that a dot states.
+            The dot stays up here where it cannot scroll away; the word and
+            the elapsed time went down to the Recording card on the Player
+            tab, which is where the transport is and where somebody who wants
+            the number is already going.
+
+            Not a button. It sits in the row of buttons because that is where
+            the space at the end of the name is, and it is the only thing in
+            it that does nothing when pressed — hence the plain `View` with
+            its own accessible name rather than an `IconButton` that would
+            promise a control.
+          */}
+          {recordingLive ? (
+            <View
+              style={styles.headerRecording}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={
+                channel.recording.status === 'paused'
+                  ? 'Recording paused'
+                  : 'Recording'
+              }
+            >
+              <View
+                style={[
+                  styles.recordingDot,
+                  channel.recording.status === 'paused' &&
+                    styles.recordingDotPaused,
+                ]}
+              />
+            </View>
+          ) : null}
           <IconButton
             label="Settings"
             icon={(color) => <SettingsIcon color={color} />}
@@ -1179,29 +1216,27 @@ export function ChannelView({
       </View>
 
       {/*
-        The recording indicator comes into the header with them, and it is the
-        piece that gains most by being pinned. It marked the top of the scroll,
-        so the one fact on this screen somebody needs at every moment — that
-        they are being captured — was the fact that left the viewport first.
-        A second row rather than a third thing on the first, and only while a
-        recording is running, so the header is one row the rest of the time.
+        **The tabs, pinned with everything else up here.** They were the first
+        thing in the scroll, which made them the first thing to leave it: two
+        rows of switch that were only reachable by scrolling back to the top,
+        on the longest screen in the application. A tab bar you have to go and
+        find is one that quietly stops being used.
+
+        Pinning them also settles what the header is *for*: which channel you
+        are in, the ways out of it, whether you are being recorded, and which
+        part of it you are looking at. Everything below scrolls; nothing that
+        tells you where you are does.
+
+        Inside `headerInner`, so the switch lines up with the cards below
+        rather than running to the window's edge. Nothing here when they have
+        been asked for at the foot — the footer draws them then, and the two
+        must never both be true. See `AppValue.tabsAtFoot`.
       */}
-      {recordingLive ? (
-        <View style={styles.recordingIndicator}>
-          <View
-            style={[
-              styles.recordingDot,
-              channel.recording.status === 'paused' && styles.recordingDotPaused,
-            ]}
-          />
-          <Text style={styles.recordingLabel}>
-            {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
-          </Text>
-          <Text style={styles.recordingTime}>
-            {formatDuration(recordedMs(channel.recording, now))}
-          </Text>
+      {tabsAtFoot ? null : (
+        <View style={[styles.tabs, styles.tabsHeader]}>
+          <Segmented options={tabs} value={shown} onChange={setTab} />
         </View>
-      ) : null}
+      )}
       </View>
     </View>
   );
@@ -1389,35 +1424,6 @@ export function ChannelView({
 
   return (
     <Screen header={header} footer={footer} contentStyle={styles.container}>
-        {/*
-          **Six tabs, and between them they hold the whole screen.** The roster
-          carries the conversation as it is happening — who is here, the floor,
-          your microphone, the ways in and out. The four in the middle carry
-          what the channel holds, which outlives the moment: what has been
-          written down, what is playing, what was recorded, what is being
-          watched. The last carries the two ways somebody who is not here gets
-          in.
-
-          The description used to sit above the switch, outside it, on the
-          reasoning that it is what the channel *is* and so is as true of who
-          gets in as of who is here. It is on *Notes* now with the clipboard,
-          which is the tab of things the channel has written down — and the
-          line it cost was a line every screenful of every tab paid for, on the
-          screen that has least room to spare.
-
-          A switch rather than a tab bar at the foot, for the same reason
-          Home's is one — the foot of this screen is already spent, on the
-          controls that claim the floor and step in and out. It is two rows
-          here rather than one, six words not fitting across a phone; see
-          `Segmented`, which does the wrapping so that Home's two-way switch
-          and this cannot drift apart.
-        */}
-        {tabsAtFoot ? null : (
-          <View style={styles.tabs}>
-            <Segmented options={tabs} value={shown} onChange={setTab} />
-          </View>
-        )}
-
         {shown === 'roster' ? (
           <>
         <View style={styles.presence}>
@@ -1991,7 +1997,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'notes' ? (
+        {shown === 'notepad' ? (
           <>
         {/*
           **What the channel has written down**, which is two things and was
@@ -2005,6 +2011,12 @@ export function ChannelView({
           room; one is written once and rarely changed, the other is replaced
           whenever anybody pastes. Nothing here claims audio, nothing here is
           refused by the floor, and neither is worth a line on every other tab.
+
+          **Named *Notepad* rather than *Notes*.** *Notes* reads as a list of
+          them, one per thing somebody wanted to say, which is what this tab is
+          not: it is one surface the channel keeps, with what it is for at the
+          top and the last thing anybody handed round below. A notepad is a
+          single sheet that gets written over, which is both halves exactly.
 
           **The description is read-only here**, deliberately. Changing it is a
           settings act — it is the channel's name and purpose, which everybody

@@ -31,7 +31,7 @@ import {
   resetHarness,
   showChannel,
   showInvites,
-  showNotes,
+  showNotepad,
   showPlayer,
   showRecordings,
   showRoster,
@@ -344,7 +344,7 @@ describe('Channel', () => {
     // explaining it is different on each, which is the thing worth checking:
     // a disabled cluster with nothing saying why is the shape this codebase
     // does not allow.
-    showNotes(tree);
+    showNotepad(tree);
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
     expect(textOf(tree)).toContain(
       'Step in to put something on the channel clipboard'
@@ -428,7 +428,7 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
-    showNotes(tree);
+    showNotepad(tree);
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
 
     showInvites(tree);
@@ -1253,7 +1253,7 @@ describe('Channel', () => {
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
       'Roster',
-      'Notes',
+      'Notepad',
       'Invite links',
       'Player',
       'Recordings',
@@ -1278,7 +1278,7 @@ describe('Channel', () => {
 
     // What the channel has written down, at two speeds: the description,
     // which was above the tabs until this tab existed, and the clipboard.
-    showNotes(tree);
+    showNotepad(tree);
     expect(sections()).toEqual(['Description', 'Shared clipboard']);
 
     // What is playing and what is being kept, which are one tab because the
@@ -1487,13 +1487,13 @@ describe('Channel', () => {
     expect(findButton(header, 'Close')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
 
-    // And the description stayed behind, in the scroll — on *Notes* since the
+    // And the description stayed behind, in the scroll — on *Notepad* since the
     // six tabs, and out of the header either way. It is prose of any length,
     // and a pinned header is the one place on this screen that cannot afford
     // something that grows. Asserted against a description the channel
     // actually has, so that the absence means something.
     expect(textOf(header)).not.toContain('Reading Dune on Thursdays.');
-    showNotes(tree);
+    showNotepad(tree);
     expect(textOf(tree)).toContain('Reading Dune on Thursdays.');
     act(() => header.unmount());
     act(() => tree.unmount());
@@ -2377,7 +2377,7 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('renders the description on Notes, with its markup rendered', () => {
+  it('renders the description on Notepad, with its markup rendered', () => {
     showChannel(
       channelOf((s) =>
         reduce(
@@ -2405,7 +2405,7 @@ describe('Channel', () => {
     expect(textOf(tree)).not.toContain('Dune');
     expect(linksIn(tree)).toEqual([]);
 
-    showNotes(tree);
+    showNotepad(tree);
     const text = textOf(tree);
     // The markup is gone and the words remain.
     expect(text).toContain('Reading');
@@ -2428,7 +2428,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showNotes(tree);
+    showNotepad(tree);
     expect(linksIn(tree)).toEqual([]);
     // A heading with nothing under it reads as something that failed to load,
     // which the tab made possible: nothing was drawn where the description
