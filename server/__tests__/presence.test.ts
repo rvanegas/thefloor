@@ -596,4 +596,193 @@ describe('Home is told which channels you are nearby in', () => {
     expect(entryFor(bob.id, channelId).nearby).toBe(true);
     expect(entryFor(bob.id, other).nearby).toBe(true);
   });
+
+  /**
+   * **And how many other people are beside it**, added 2026-09-12 so that Home
+   * can hoist a channel nobody is in but somebody is near. One step in from
+   * being a conversation is a better reason to put a room in front of somebody
+   * than the idleness that used to sort it down the list. See
+   * `RejoinableView.nearbyCount` and `isLive` in `ui/ChannelsView`.
+   */
+  describe('and how many others are nearby in it', () => {
+    it('counts them, and leaves the reader out', async () => {
+      const { alice, bob, channelId } = await roomOfTwo();
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(0);
+
+      app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+
+      // Alice sees the one person standing beside her room.
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(1);
+      // Bob does not count himself: a channel is not worth hoisting in front
+      // of somebody on the strength of their own reachability, and his own
+      // bit is the `nearby` above.
+      expect(entryFor(bob.id, channelId).nearbyCount).toBe(0);
+      expect(entryFor(bob.id, channelId).nearby).toBe(true);
+    });
+
+    it('drops them again when the wait ends', async () => {
+      const { alice, bob, channelId } = await roomOfTwo();
+      app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(1);
+
+      app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(0);
+    });
+  });
+});
+
+/**
+ * **The cap, and it is about the screen rather than the state.**
+ *
+ * Being within reach of a room costs nothing — no audio session, no media
+ * subscription, one bit on a snapshot — so nothing about the mechanism wants a
+ * limit. Home does: each one pins a bar in the tier above the lists, and enough
+ * of them push the channels and the contacts off the bottom of the phone.
+ * Somebody who cannot reach either list has lost more than the bars were worth.
+ */
+describe('how many channels you may be nearby in', () => {
+  /** Bob, with `count` channels of his own that he is not in. */
+  async function rooms(count: number) {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const ids: string[] = [];
+    for (let n = 0; n < count; n += 1) {
+      const created = app.channels.create(bob.account.id, []);
+      expect(created.ok).toBe(true);
+      const id = (created as { ok: true; channel: { id: string } }).channel.id;
+      // Named, because one *unnamed* channel per set of people is the rule and
+      // these all hold the same set — namely Bob. Without it every create
+      // hands back the same channel.
+      app.channels.dispatch(id, bob.account.id, {
+        type: 'SET_NAME',
+        name: `Room ${n}`,
+      } as never);
+      // Creating one puts you in it, and presence is not what is being counted.
+      app.channels.dispatch(id, bob.account.id, { type: 'STEP_OUT' });
+      ids.push(id);
+    }
+    return { bob: bob.account, ids };
+  }
+
+  const nearbyIn = (userId: string) =>
+    app.channels
+      .rejoinableFor(userId)
+      .filter((entry) => entry.nearby)
+      .map((entry) => entry.channelId);
+
+  it('holds five at once', async () => {
+    const { bob, ids } = await rooms(5);
+    for (const id of ids) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'DECLARE_NEARBY' });
+    }
+
+    expect(nearbyIn(bob.id).sort()).toEqual([...ids].sort());
+  });
+
+  it('steps out of the oldest when a sixth is declared', async () => {
+    const { bob, ids } = await rooms(6);
+    for (const id of ids.slice(0, 5)) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'DECLARE_NEARBY' });
+    }
+    clock += 1_000;
+
+    app.channels.dispatch(ids[5]!, bob.id, { type: 'DECLARE_NEARBY' });
+
+    // First in, first out: the wait held longest is the one least likely to
+    // still be true, and it had a quarter of an hour to age out anyway.
+    const held = nearbyIn(bob.id);
+    expect(held).toHaveLength(5);
+    expect(held).not.toContain(ids[0]);
+    // And what the tap actually asked for is still there, which is the one
+    // outcome the reader could not have read any other way.
+    expect(held).toContain(ids[5]);
+  });
+
+  it('never evicts the declaration that caused the eviction', async () => {
+    // The sixth is the newest by its own clock, so FIFO would spare it anyway;
+    // this asserts the guard rather than the accident. A wait with no dateable
+    // start sorts as the newest, so the check is that the tap survives whatever
+    // the ordering says.
+    const { bob, ids } = await rooms(6);
+    for (const id of ids.slice(0, 5)) {
+      app.channels.dispatch(id, bob.id, { type: 'DECLARE_NEARBY' });
+    }
+    // No clock movement at all: every wait began in the same millisecond.
+    app.channels.dispatch(ids[5]!, bob.id, { type: 'DECLARE_NEARBY' });
+
+    expect(nearbyIn(bob.id)).toHaveLength(5);
+    expect(nearbyIn(bob.id)).toContain(ids[5]);
+  });
+
+  it('reads the evicted channel as stepped out, not as anything else', async () => {
+    // There is no rung below *nearby* but this one. It is a claim withdrawn
+    // because too many were held at once, which is not the room-to-room move
+    // `stepOutOfOthers` answers.
+    const { bob, ids } = await rooms(6);
+    for (const id of ids.slice(0, 5)) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'DECLARE_NEARBY' });
+    }
+    clock += 1_000;
+    app.channels.dispatch(ids[5]!, bob.id, { type: 'DECLARE_NEARBY' });
+
+    const evicted = app.channels.get(ids[0]!)!;
+    expect(isWaiting(evicted, bob.id)).toBe(false);
+    expect(evicted.present).not.toContain(bob.id);
+    expect(evicted.declaredNearbyAt[bob.id]).toBeUndefined();
+    // A member still, which every departure but leaving preserves.
+    expect(evicted.participants).toContain(bob.id);
+  });
+
+  it('re-declaring one already held evicts nothing', async () => {
+    const { bob, ids } = await rooms(5);
+    for (const id of ids) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'DECLARE_NEARBY' });
+    }
+    clock += 1_000;
+
+    app.channels.dispatch(ids[0]!, bob.id, { type: 'DECLARE_NEARBY' });
+
+    expect(nearbyIn(bob.id).sort()).toEqual([...ids].sort());
+  });
+
+  it('counts the ones walking between rooms puts you on', async () => {
+    // The way onto the rung that takes no tap: entering a channel leaves you
+    // nearby in the one you were in, so walking a corridor fills the cap
+    // without anybody having declared anything.
+    //
+    // Six rooms in turn is exactly five waits and one presence, which is why
+    // this walks seven: the seventh entry is the one that overflows.
+    const { bob, ids } = await rooms(7);
+    for (const id of ids) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'ENTER' });
+    }
+
+    // Present in the last, nearby in the five before it — the first room
+    // having been evicted as the oldest wait.
+    expect(app.channels.channelsFor(bob.id)).toEqual([ids[6]]);
+    const held = nearbyIn(bob.id);
+    expect(held).toHaveLength(5);
+    expect(held).not.toContain(ids[0]);
+    expect(held).toContain(ids[5]);
+  });
+
+  it('stays at the cap when the sixth room is merely entered', async () => {
+    // The boundary the test above walks past. Presence is not a wait, so six
+    // rooms in turn is five and one rather than six — nothing is evicted and
+    // the room just left is the newest of the five.
+    const { bob, ids } = await rooms(6);
+    for (const id of ids) {
+      clock += 1_000;
+      app.channels.dispatch(id, bob.id, { type: 'ENTER' });
+    }
+
+    expect(app.channels.channelsFor(bob.id)).toEqual([ids[5]]);
+    expect(nearbyIn(bob.id).sort()).toEqual([...ids].slice(0, 5).sort());
+  });
 });

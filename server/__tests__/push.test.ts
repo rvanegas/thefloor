@@ -808,6 +808,43 @@ describe('a channel becoming active', () => {
       expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
     });
 
+    it('announces nothing when entering another channel made it', async () => {
+      // The same rule as the one above, reached by the other route: since
+      // 2026-09-12 stepping into a second channel leaves you *nearby* in the
+      // first rather than stepped out, and that is a departure from the first
+      // however it reads. `commit`'s `declaredNearby` diff passes over anybody
+      // who was present before the transition, so it falls out rather than
+      // needing a flag — but it is the sort of thing that would come back if
+      // that clause were ever relaxed, so it is asserted from here too.
+      const { alice, bob, channelId } = await emptyChannel();
+      await registerDevice(bob.token, 'bob-phone');
+      // A second channel holding the same pair, which takes naming the first:
+      // one *unnamed* channel per set of people is the rule, and a name is
+      // what distinguishes two channels holding the same people.
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_NAME',
+        name: 'Thursday',
+      } as never);
+      const elsewhere = await createChannel(alice.token, [bob.account.id]);
+      app.channels.dispatch(elsewhere, alice.account.id, { type: 'STEP_OUT' });
+      await settle();
+
+      app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+      await settle();
+      clock += ANNOUNCE_INTERVAL_MS;
+      pusher.sent.length = 0;
+
+      // Into the other one, which leaves her nearby in this one.
+      app.channels.dispatch(elsewhere, alice.account.id, { type: 'ENTER' });
+      await settle();
+
+      expect(app.channels.get(channelId)!.waiting).toContain(alice.account.id);
+      // Only the arrival in the channel she actually entered.
+      expect(
+        pusher.messagesFor('bob-phone').map((push) => push.channelId)
+      ).toEqual([elsewhere]);
+    });
+
     it('does not announce the renewal a heartbeat makes', async () => {
       // `STILL_HERE` re-stamps `declaredNearbyAt` every few seconds from a
       // nearby phone, and `consume` clears the suppression window on the way

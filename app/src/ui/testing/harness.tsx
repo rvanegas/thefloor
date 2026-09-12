@@ -112,6 +112,14 @@ export const mockApp = {
    * phone, in the room. A test that wants the other case clears it by hand.
    */
   standingIn: null as string | null,
+  /**
+   * The channels this *device* declared itself nearby in, and who has walked
+   * into each since — `AppProvider.nearbyIn` and `nearbyArrival`, both keyed
+   * by channel because nearby is not exclusive. Empty by default, which is
+   * every test here but the arrival ones: no declaration, so no offer.
+   */
+  nearbyIn: [] as string[],
+  nearbyArrival: {} as Record<string, string[]>,
   displaced: false,
   /**
    * Below the compatibility floor, which stops anything from being live
@@ -593,6 +601,8 @@ export function resetHarness(): void {
   mockApp.channelViews = {};
   mockApp.goneChannels = [];
   mockApp.standingIn = null;
+  mockApp.nearbyIn = [];
+  mockApp.nearbyArrival = {};
   mockApp.displaced = false;
   mockApp.expired = false;
   mockApp.updateUrl = null;

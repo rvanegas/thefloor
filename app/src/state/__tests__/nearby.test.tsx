@@ -52,9 +52,13 @@ const onArrival = (channelId: string, who: string[]) => {
 };
 
 /** Me nearby, one other person in the room or not. */
-function channelOf(present: string[], waiting: string[]): ChannelState {
+function channelOf(
+  present: string[],
+  waiting: string[],
+  id = 'chan_1'
+): ChannelState {
   let channel = createChannel({
-    id: 'chan_1',
+    id,
     initiator: ME,
     invitees: [THEM, THIRD],
     now: T0,
@@ -82,12 +86,19 @@ const viewOf = (channel: ChannelState): ChannelView => ({
 
 function Probe({
   view,
+  views,
   nearbyIn,
 }: {
-  view: ChannelView | null;
-  nearbyIn: string | null;
+  view?: ChannelView | null;
+  views?: Record<string, ChannelView | undefined>;
+  nearbyIn: string | readonly string[] | null;
 }) {
-  useNearby(view, ME, nearbyIn, onArrival);
+  useNearby(
+    views ?? (view ? { [view.channel.id]: view } : {}),
+    ME,
+    nearbyIn === null ? [] : typeof nearbyIn === 'string' ? [nearbyIn] : nearbyIn,
+    onArrival
+  );
   return null;
 }
 
@@ -275,6 +286,127 @@ describe('the offer', () => {
     });
 
     expect(offered).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
+});
+
+/**
+ * **Nearby is not exclusive, and until 2026-09-12 this hook assumed it was.**
+ * It took one view and one id, so a second declaration stopped the first from
+ * ever raising an offer: Home went on pinning the forgotten room's bar and the
+ * push still arrived, and the one thing being nearby is *for* — a step in
+ * under the thumb when somebody walks in — silently stopped happening there.
+ */
+describe('two rooms at once', () => {
+  beforeEach(() => {
+    offered.length = 0;
+    captureAppState();
+  });
+
+  const bothEmpty = {
+    chan_1: viewOf(channelOf([], [ME], 'chan_1')),
+    chan_2: viewOf(channelOf([], [ME], 'chan_2')),
+  };
+
+  async function nearbyInBoth(): Promise<ReactTestRenderer> {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <Probe views={bothEmpty} nearbyIn={['chan_1', 'chan_2']} />
+      );
+    });
+    return tree;
+  }
+
+  it('offers an arrival in either of them', async () => {
+    const tree = await nearbyInBoth();
+
+    await act(async () => {
+      tree.update(
+        <Probe
+          views={{
+            chan_1: viewOf(channelOf([THEM], [ME], 'chan_1')),
+            chan_2: bothEmpty.chan_2,
+          }}
+          nearbyIn={['chan_1', 'chan_2']}
+        />
+      );
+    });
+    expect(offered).toEqual([{ channelId: 'chan_1', who: [THEM] }]);
+
+    // The second room, which the single-id version had already forgotten by
+    // the time the first was declared.
+    await act(async () => {
+      tree.update(
+        <Probe
+          views={{
+            chan_1: viewOf(channelOf([THEM], [ME], 'chan_1')),
+            chan_2: viewOf(channelOf([THIRD], [ME], 'chan_2')),
+          }}
+          nearbyIn={['chan_1', 'chan_2']}
+        />
+      );
+    });
+    expect(offered).toEqual([
+      { channelId: 'chan_1', who: [THEM] },
+      { channelId: 'chan_2', who: [THIRD] },
+    ]);
+    await act(async () => tree.unmount());
+  });
+
+  it('keeps each room’s roster apart', async () => {
+    // One memory per channel. Compared against the wrong room's roster,
+    // somebody standing in the second is an arrival in the first.
+    const tree = await nearbyInBoth();
+
+    await act(async () => {
+      tree.update(
+        <Probe
+          views={{
+            chan_1: bothEmpty.chan_1,
+            chan_2: viewOf(channelOf([THEM], [ME], 'chan_2')),
+          }}
+          nearbyIn={['chan_1', 'chan_2']}
+        />
+      );
+    });
+
+    expect(offered).toEqual([{ channelId: 'chan_2', who: [THEM] }]);
+    await act(async () => tree.unmount());
+  });
+
+  it('forgets a room whose declaration ended, and starts it afresh', async () => {
+    const tree = await nearbyInBoth();
+
+    // Stepped out of the second: it is no longer watched, so what happens in
+    // it is not an arrival to anybody.
+    await act(async () => {
+      tree.update(
+        <Probe
+          views={{
+            chan_1: bothEmpty.chan_1,
+            chan_2: viewOf(channelOf([THEM], [], 'chan_2')),
+          }}
+          nearbyIn={['chan_1']}
+        />
+      );
+    });
+    expect(offered).toEqual([]);
+
+    // Declared again, with that same person still standing there. The first
+    // sight of a room is not an arrival, however recently it was watched.
+    await act(async () => {
+      tree.update(
+        <Probe
+          views={{
+            chan_1: bothEmpty.chan_1,
+            chan_2: viewOf(channelOf([THEM], [ME], 'chan_2')),
+          }}
+          nearbyIn={['chan_1', 'chan_2']}
+        />
+      );
+    });
+    expect(offered).toEqual([]);
     await act(async () => tree.unmount());
   });
 });

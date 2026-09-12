@@ -244,7 +244,7 @@ interface AppState {
    */
   standingIn: string | null;
   /**
-   * The channel this **device** declared itself nearby in, or null.
+   * The channels this **device** declared itself nearby in.
    *
    * **Its own fact, beside `standingIn` and for the same reason.** Being in
    * `waiting` is the account's, and a snapshot says it whether the wait was
@@ -253,32 +253,49 @@ interface AppState {
    * when somebody arrives — see `useNearby` — because a wait somebody's other
    * phone is in the middle of is not this screen's to answer.
    *
-   * Cleared by anything that ends the declaration: entering, stepping out,
-   * leaving, being displaced, and signing out. Not cleared by the wait lapsing
-   * to *Stepped out*, which the server decides and `useNearby` reads off the
-   * snapshot rather than from here.
+   * **A set rather than one id, since 2026-09-12, because nearby is not
+   * exclusive and this was the one place that assumed it was.** `standingIn`
+   * beside it is a single id and correctly so: entering steps you out of
+   * everywhere else, so there is one room a device can be standing in. Nothing
+   * of the kind is true here — the wire says so, `nearby` being a bit on every
+   * home entry rather than one id on the snapshot — and holding one id meant
+   * declaring in a second channel silently forgot the first. The server went
+   * on listing both waits, Home went on pinning both bars, and the absent
+   * phone went on buzzing when somebody walked into the forgotten one; the
+   * only thing that stopped happening was the offer, which is the whole of
+   * what being nearby does for the person who declared it.
+   *
+   * Entries are cleared by anything that ends *that* declaration: entering,
+   * stepping out, leaving. Being displaced and signing out clear the lot. Not
+   * cleared by a wait lapsing to *Stepped out*, which the server decides and
+   * `useNearby` reads off the snapshot rather than from here.
    */
-  nearbyIn: string | null;
+  nearbyIn: string[];
   /**
-   * Somebody who has just stepped into the channel this device is nearby in,
-   * and has not been answered yet.
+   * Who has just stepped into each channel this device is nearby in and has
+   * not been answered yet, keyed by channel.
    *
    * **The offer, which is all that is left of promotion.** Until 2026-09-08
    * an arrival stepped this phone in by itself; it now says who arrived and
    * puts a *Step in* under the thumb instead. `state/nearby.ts` carries the
    * rule and `decisions/2026-09-08-the-arrival-is-offered.md` the reversal.
    *
-   * `who` accumulates while the offer stands, so two people arriving in
+   * **Keyed rather than single, for the reason `nearbyIn` is a set**: two
+   * rooms you are within reach of can each receive somebody, and one slot
+   * meant the second arrival overwrote the first — an offer disappearing off
+   * a screen nobody had answered. Each channel's screen draws its own.
+   *
+   * The array accumulates while an offer stands, so two people arriving in
    * quick succession are one offer naming both rather than a card that
    * forgets the first. It is not filtered here: whether somebody named is
    * still in the room is a question about the roster the screen is already
    * drawing, and `ChannelView` answers it there rather than this provider
    * keeping a second copy of presence.
    *
-   * Cleared by everything that clears `nearbyIn`, since an offer outside a
-   * declaration is an offer about nothing.
+   * An entry is cleared by whatever clears its channel from `nearbyIn`, since
+   * an offer outside a declaration is an offer about nothing.
    */
-  nearbyArrival: { channelId: string; who: string[] } | null;
+  nearbyArrival: Record<string, string[]>;
   /**
    * A channel where recording has been asked for and not yet confirmed.
    *
@@ -467,7 +484,8 @@ interface AppValue extends AppState {
   leaveChannelView: (channelId: string) => void;
   act: (channelId: string, action: ClientAction) => void;
   /**
-   * Records that somebody arrived in the channel this device is nearby in.
+   * Records that somebody arrived in one of the channels this device is nearby
+   * in.
    *
    * Called by `useNearby`, which does the noticing and nothing else. It is
    * here rather than in that hook's own state because the offer is drawn on a
@@ -476,12 +494,15 @@ interface AppValue extends AppState {
    */
   noteNearbyArrival: (channelId: string, who: string[]) => void;
   /**
-   * Puts the offer away without stepping in — the *Stay nearby* half of it.
+   * Puts one channel's offer away without stepping in — the *Stay nearby* half
+   * of it.
    *
    * Answering an offer is not the same as ending the declaration: you remain
-   * nearby, and the next arrival offers again.
+   * nearby, and the next arrival offers again. **It names the channel**, since
+   * a second room you are nearby in may have an offer standing of its own and
+   * this tap says nothing about that one.
    */
-  dismissNearbyArrival: () => void;
+  dismissNearbyArrival: (channelId: string) => void;
   /**
    * Tells this provider whether a microphone track is published right now.
    *
@@ -820,8 +841,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     movedChannel: null,
     displaced: false,
     standingIn: null,
-    nearbyIn: null,
-    nearbyArrival: null,
+    nearbyIn: [],
+    nearbyArrival: {},
     status: 'closed',
     lastError: null,
   });
@@ -964,7 +985,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // another device has taken the account somewhere, and this one is no
         // longer nearby anything.
         onDisplaced: () =>
-          setState((s) => ({ ...s, displaced: true, nearbyIn: null, nearbyArrival: null })),
+          setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
         // Mirrored rather than derived. Every transition of it is a decision
         // already taken in `Realtime` — entering, stepping out, being
         // displaced, following a move, giving up a stale re-entry past the
@@ -1325,8 +1346,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         movedChannel: null,
         displaced: false,
         standingIn: null,
-        nearbyIn: null,
-        nearbyArrival: null,
+        nearbyIn: [],
+        nearbyArrival: {},
         status: 'closed',
         lastError:
           'You were signed out. Sign in again with a fresh code by email.',
@@ -1549,8 +1570,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
         standingIn: null,
-          nearbyIn: null,
-          nearbyArrival: null,
+          nearbyIn: [],
+          nearbyArrival: {},
           status: 'closed',
           lastError: null,
         });
@@ -1602,8 +1623,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
         standingIn: null,
-          nearbyIn: null,
-          nearbyArrival: null,
+          nearbyIn: [],
+          nearbyArrival: {},
           status: 'closed',
           lastError: null,
         });
@@ -1885,51 +1906,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // moment it is answered, and leaving this set would let a second
         // arrival raise an offer again against a room this phone is now
         // standing in.
+        //
+        // **All of it is per channel, and that is the correction of
+        // 2026-09-12.** Each clause used to compare one id against this one, so
+        // declaring in a second room dropped the first and stepping out of any
+        // room dropped whichever was held. Only this channel's declaration is
+        // touched now; the others are none of this action's business, presence
+        // being the exclusive one and this not.
         if (action.type === 'DECLARE_NEARBY') {
-          setState((s) => (s.nearbyIn === channelId ? s : { ...s, nearbyIn: channelId }));
+          setState((s) =>
+            s.nearbyIn.includes(channelId)
+              ? s
+              : { ...s, nearbyIn: [...s.nearbyIn, channelId] }
+          );
         } else if (
           action.type === 'ENTER' ||
           action.type === 'STEP_OUT' ||
           action.type === 'ATTENTION_EXPIRED' ||
           action.type === 'LEAVE_CHANNEL'
         ) {
-          setState((s) =>
-            s.nearbyIn === channelId
-              ? { ...s, nearbyIn: null, nearbyArrival: null }
-              : s
-          );
+          setState((s) => {
+            if (!s.nearbyIn.includes(channelId) && !(channelId in s.nearbyArrival)) {
+              return s;
+            }
+            const { [channelId]: _gone, ...rest } = s.nearbyArrival;
+            return {
+              ...s,
+              nearbyIn: s.nearbyIn.filter((id) => id !== channelId),
+              nearbyArrival: rest,
+            };
+          });
         }
         realtime.act(channelId, action);
       },
 
       noteNearbyArrival: (channelId, who) => {
-        setState((s) =>
-          // Only for the channel this device is actually nearby in, and only
+        setState((s) => {
+          // Only for a channel this device is actually nearby in, and only
           // while it still is: a snapshot can outrun the action that ended the
           // declaration, and an offer raised after that would be answered by a
           // button on a screen that no longer has one.
-          s.nearbyIn === channelId
-            ? {
-                ...s,
-                nearbyArrival: {
-                  channelId,
-                  who:
-                    s.nearbyArrival?.channelId === channelId
-                      ? [
-                          ...s.nearbyArrival.who,
-                          ...who.filter(
-                            (id) => !s.nearbyArrival!.who.includes(id)
-                          ),
-                        ]
-                      : who,
-                },
-              }
-            : s
-        );
+          if (!s.nearbyIn.includes(channelId)) return s;
+          const standing = s.nearbyArrival[channelId];
+          return {
+            ...s,
+            nearbyArrival: {
+              ...s.nearbyArrival,
+              [channelId]: standing
+                ? [...standing, ...who.filter((id) => !standing.includes(id))]
+                : who,
+            },
+          };
+        });
       },
 
-      dismissNearbyArrival: () => {
-        setState((s) => (s.nearbyArrival ? { ...s, nearbyArrival: null } : s));
+      // **Named**, because there may be an offer standing in another room and
+      // dismissing this one is not an answer to that one.
+      dismissNearbyArrival: (channelId) => {
+        setState((s) => {
+          if (!(channelId in s.nearbyArrival)) return s;
+          const { [channelId]: _gone, ...rest } = s.nearbyArrival;
+          return { ...s, nearbyArrival: rest };
+        });
       },
 
       reportMicPublished: (published) => {

@@ -911,6 +911,61 @@ describe('presence is exclusive', () => {
     app.channels.dispatch(first, alice.account.id, { type: 'ENTER' });
     expect(app.channels.channelsFor(alice.account.id)).toEqual([first]);
   });
+
+  /**
+   * **Which rung the room you left puts you on**, corrected 2026-09-12. It was
+   * *Stepped out*, which is the one thing it is not: that word means somebody
+   * left deliberately and tells the room to give up on them, and nobody chose
+   * to leave the room they are being removed from here. The act that removed
+   * them is the strongest evidence there is that they are holding their phone,
+   * which is exactly what *Nearby* claims.
+   */
+  it('leaves you nearby in the channel you stepped out of, not stepped out', async () => {
+    const { alice, first, second } = await twoChannels();
+
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+
+    const left = app.channels.get(first)!;
+    expect(left.present).not.toContain(alice.account.id);
+    expect(left.waiting).toContain(alice.account.id);
+    // Dated from the move rather than from a heartbeat, so the fifteen
+    // minutes run from the moment she actually went.
+    expect(left.declaredNearbyAt[alice.account.id]).toBe(clock);
+    // She was here until this moment, which is what *stepped out* counts once
+    // the wait lapses.
+    expect(left.lastPresentAt[alice.account.id]).toBe(clock);
+  });
+
+  it('holds the audio in the room entered and nowhere else', async () => {
+    // Nearby claims no audio session and no media subscription, so nothing
+    // about exclusivity is loosened by the rung above: the one microphone and
+    // one pair of ears are still in the channel just entered.
+    const { alice, first, second } = await twoChannels();
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+
+    expect(app.channels.channelsFor(alice.account.id)).toEqual([second]);
+    expect(app.channels.get(second)!.waiting).not.toContain(alice.account.id);
+  });
+
+  it('carries the wait from door to door, and only presence moves', async () => {
+    // Knocking on three doors in turn: nearby in the two behind you, present
+    // in the one you are at. Nearby is not exclusive and never was — what was
+    // wrong was that the first two read as *Stepped out*.
+    const { alice, bob, carol, first, second } = await twoChannels();
+    const third = (await createSessionWith(alice, [
+      bob.account.id,
+      carol.account.id,
+    ]).then((r) => r.json())) as { channelId: string };
+
+    app.channels.dispatch(second, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(third.channelId, alice.account.id, { type: 'ENTER' });
+
+    expect(app.channels.get(first)!.waiting).toContain(alice.account.id);
+    expect(app.channels.get(second)!.waiting).toContain(alice.account.id);
+    expect(app.channels.channelsFor(alice.account.id)).toEqual([
+      third.channelId,
+    ]);
+  });
 });
 
 describe('a channel everybody else has left', () => {

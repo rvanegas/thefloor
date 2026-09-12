@@ -323,11 +323,18 @@ export interface InviteView {
    * or inferred, which is the same bit everybody else's roster reads.
    *
    * Home hoists it, the way it hoists the channel you are present in — see
-   * `ui/HomeView`. The two cannot both be true of one account for long:
-   * entering steps you out of everywhere else, and a chosen exit clears the
-   * wait, so presence is exclusive where this is not. **You may be nearby in
+   * `ui/HomeView`, which draws both tiers at once. **You may be nearby in
    * several channels at once**, which is why this is a bit on every entry
-   * rather than one id on the snapshot.
+   * rather than one id on the snapshot; presence is exclusive where this is
+   * not, entering stepping you out of everywhere else.
+   *
+   * **Present in one and nearby in another is ordinary, since 2026-09-12**,
+   * and this comment used to say the opposite — that the two could not both be
+   * true of one account for long. Entering a channel no longer steps you
+   * *out* of the others: it leaves you nearby in them, that being the rung
+   * the situation actually supports. The one pair that still cannot both hold
+   * is presence and nearby in the **same** channel, `ENTER` clearing the wait.
+   * See planning/decisions/2026-09-12-moving-rooms-leaves-you-nearby.md.
    *
    * The account's, not this device's. A wait declared on another phone is one
    * everybody else can see and ping into, so saying so here is the same claim
@@ -341,6 +348,29 @@ export interface InviteView {
    * reported. See planning/SHIMS.md.
    */
   nearby?: boolean;
+  /**
+   * **How many people other than the reader are nearby in this channel** —
+   * within reach of it, one notification away, whether they declared it or a
+   * connection ran out of grace.
+   *
+   * Added 2026-09-12, and it exists because *nobody present* stopped meaning
+   * *nothing happening*. A room two people are standing beside is a room where
+   * a single step in starts a conversation, which is a far stronger reason to
+   * put a channel in front of somebody than the idleness that used to sort it
+   * down the list. Home reads it as a second way of being live — see `isLive`
+   * in `ui/ChannelsView` — so such a channel is hoisted rather than filed
+   * under the rooms nobody is in.
+   *
+   * **The reader is left out**, on `lastPresenceByOthers`' reasoning: a
+   * channel is not something to hoist in front of you on the strength of your
+   * own reachability, and a channel the reader is nearby in is drawn as a bar
+   * in the tier above rather than as a row here at all.
+   *
+   * Optional for the wire's sake: a server that predates it sends no such key,
+   * and a client meeting that reads nought — which files the channel exactly
+   * where every build filed it before. See planning/SHIMS.md.
+   */
+  nearbyCount?: number;
 }
 
 export interface RejoinableView {
@@ -381,11 +411,18 @@ export interface RejoinableView {
    * or inferred, which is the same bit everybody else's roster reads.
    *
    * Home hoists it, the way it hoists the channel you are present in — see
-   * `ui/HomeView`. The two cannot both be true of one account for long:
-   * entering steps you out of everywhere else, and a chosen exit clears the
-   * wait, so presence is exclusive where this is not. **You may be nearby in
+   * `ui/HomeView`, which draws both tiers at once. **You may be nearby in
    * several channels at once**, which is why this is a bit on every entry
-   * rather than one id on the snapshot.
+   * rather than one id on the snapshot; presence is exclusive where this is
+   * not, entering stepping you out of everywhere else.
+   *
+   * **Present in one and nearby in another is ordinary, since 2026-09-12**,
+   * and this comment used to say the opposite — that the two could not both be
+   * true of one account for long. Entering a channel no longer steps you
+   * *out* of the others: it leaves you nearby in them, that being the rung
+   * the situation actually supports. The one pair that still cannot both hold
+   * is presence and nearby in the **same** channel, `ENTER` clearing the wait.
+   * See planning/decisions/2026-09-12-moving-rooms-leaves-you-nearby.md.
    *
    * The account's, not this device's. A wait declared on another phone is one
    * everybody else can see and ping into, so saying so here is the same claim
@@ -399,6 +436,14 @@ export interface RejoinableView {
    * reported. See planning/SHIMS.md.
    */
   nearby?: boolean;
+  /**
+   * **How many people other than the reader are nearby in this channel** — the
+   * same count `InviteView.nearbyCount` carries, for the same reason: a room
+   * somebody is standing beside is one step from being a conversation, so Home
+   * reads it as a second way of being live and hoists it. See `isLive` in
+   * `ui/ChannelsView`, and planning/SHIMS.md for the optionality.
+   */
+  nearbyCount?: number;
   /**
    * The most recent moment anybody *other than this reader* was in the channel
    * — see `lastPresenceByOthers` in core/channel.ts. **This is what Home draws

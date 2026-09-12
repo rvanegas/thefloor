@@ -58,7 +58,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one; Home pins a bar for each channel you are nearby in, beneath where it pins the one you are present in
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -551,7 +551,15 @@ somebody who has never been in it, was nothing at all.
 What does not follow: the declaration still claims no audio and subscribes to
 nothing, is still not `present`, still does not appear in `everPresent`, and is
 still not exclusive — you may be nearby in several channels at once, where you
-can be present in only one. And a declaration into a channel **nobody has ever
+can be present in only one, and since 2026-09-12 being present in one while
+nearby in another is the ordinary state of somebody who has moved rather than a
+snapshot that has not caught up. **Five at once is the limit**, from the same
+day: a sixth steps you out of the oldest, first in first out. That is a limit on
+the screen rather than on the state — each one pins a bar on Home, and enough of
+them push the channel and contact lists off the bottom of the phone.
+`MAX_NEARBY_CHANNELS`, enforced by `capNearby` in `server/src/channels.ts`,
+since the reducer sees one channel at a time and this is a fact about a person
+across all of them. And a declaration into a channel **nobody has ever
 been present in** announces nothing: the notification for that is an
 invitation, which is a month-long statement about membership sent once in a
 channel's life, and *Alice stepped in* would be false about a room the
@@ -601,7 +609,7 @@ protects a silent listener from the window is *subscribeable* — whether there
 was anything in the room to listen to — so presence ends only when somebody is
 both inattentive and alone.
 
-**Nearby has three ways in, and since 2026-09-08 two of them are declared.**
+**Nearby has four ways in, and since 2026-09-08 two of them are declared.**
 It used to be only something that happened *to* somebody.
 
 - **Declared** — *be nearby*, from outside a channel.
@@ -609,6 +617,15 @@ It used to be only something that happened *to* somebody.
   audio system.
 - **Inferred** — present, and the connection ran out of grace before the
   attention clock expired.
+- **Implied** — you stepped into another channel, since 2026-09-12. Presence is
+  exclusive, so entering one room removes you from every other; the rung that
+  removal drops you to is this one and not *Stepped out*, which means somebody
+  left deliberately and tells the room to give up on them. Nobody chose to
+  leave the room they are taken out of here, and the act that took them out is
+  the strongest evidence there is that they are holding their phone. It
+  announces nothing — a declaration announces because it is an arrival, and
+  this is a departure. See
+  `decisions/2026-09-12-moving-rooms-leaves-you-nearby.md`.
 
 **One name for the two declarations, since 2026-09-09**, because they are one
 action — `DECLARE_NEARBY`, whose internal branch is the whole of the difference
@@ -651,10 +668,25 @@ counts, and it is a different question from this one.
 **Home hoists it, since 2026-09-12.** The tier pins a bar for each channel you
 are nearby in, under where it pins the channel you are present in and never
 beside it — a paler hue of its own, a hollow dot, and *Nearby · 2 present*.
-Several bars is ordinary and one live bar excludes them all, which is the
-exclusivity above drawn rather than stated. Pressing one opens the channel and
-steps in nowhere, that being the act which ends the state. See
+Several bars is ordinary. Pressing one opens the channel and steps in nowhere,
+that being the act which ends the state. See
 `decisions/2026-09-12-nearby-is-hoisted-too.md`.
+
+**Both tiers are drawn at once**, corrected later the same day. A live bar used
+to exclude every nearby bar, on the premise that presence and nearby could not
+both hold of one account for long — which stopped being true when moving
+between rooms started leaving you nearby in the one behind you. The one channel
+that still cannot appear in both is the live one itself, `ENTER` clearing its
+own wait.
+
+**And the *other* direction: a channel nobody is in and somebody is beside is
+hoisted into LIVE**, from the same day. *Nobody present* used to mean *nothing
+happening*, so such a room sorted down among the ones nobody had opened in a
+week — when it is the most answerable thing on the screen, one step in from
+being a conversation with people who have already said they can be reached.
+The row reads *2 nearby*; ordinary idleness is the wrong measure for it, since
+what would be worth reporting has not happened yet. `nearbyCount` on the wire,
+`isLive` in `ui/ChannelsView`, and the reader is left out of the count.
 
 **A declared nearby holds no audio session and no media subscription**, which
 is what distinguishes it from being stepped in and muted. A muted person hears

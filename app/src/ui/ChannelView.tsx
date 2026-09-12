@@ -604,13 +604,14 @@ export function ChannelView({
    * still in the room.
    *
    * `app.nearbyArrival` is raised by `state/useNearby.ts` and cleared by
-   * everything that ends the declaration; the presence filter is this screen's,
-   * for the reason in the card below.
+   * everything that ends the declaration; it is keyed by channel because a
+   * device may be nearby in several at once, so this screen takes its own
+   * room's entry and no other. The presence filter is this screen's, for the
+   * reason in the card below.
    */
-  const arrived =
-    app.nearbyArrival?.channelId === channel.id
-      ? app.nearbyArrival.who.filter((id) => channel.present.includes(id))
-      : [];
+  const arrived = (app.nearbyArrival[channel.id] ?? []).filter((id) =>
+    channel.present.includes(id)
+  );
   /**
    * Standing here, but not on this device.
    *
@@ -1664,7 +1665,10 @@ export function ChannelView({
                 variant="primary"
                 onPress={() => act({ type: 'ENTER' })}
               />
-              <Button label="Stay nearby" onPress={app.dismissNearbyArrival} />
+              <Button
+                label="Stay nearby"
+                onPress={() => app.dismissNearbyArrival(channel.id)}
+              />
               <Text style={type.muted}>
                 You are nearby, so you cannot hear them yet. Stepping in opens
                 your microphone and stops whatever else this phone is playing.

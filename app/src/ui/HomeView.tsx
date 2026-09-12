@@ -157,15 +157,28 @@ export function HomeView({
    * which is the same bit everybody else's roster is reading, and the snapshot
    * is the whole answer.
    *
-   * **Suppressed entirely while there is a live channel.** The two states are
-   * exclusive by construction — entering steps you out of everywhere else, and
-   * a chosen exit clears the wait — so a snapshot claiming both is one that has
-   * not caught up yet, and presence is the one that is true. Nothing is lost
-   * from the screen: a channel with no bar is a channel with a row, the
-   * suppression here and the exclusion passed to `ChannelsView` being one
-   * decision made in one place.
+   * **Only the live channel itself is suppressed, corrected 2026-09-12.** The
+   * whole tier used to be, on the grounds that the two states were exclusive
+   * by construction — entering stepped you out of everywhere else — so a
+   * snapshot claiming both had merely not caught up. Half of that survives and
+   * half of it does not. Entering a channel now leaves you *nearby* in the one
+   * you left rather than stepped out of it, so present here and nearby there
+   * is the ordinary state of somebody who has moved rather than a stale
+   * snapshot, and suppressing the tier hid the reader's own nearby rooms from
+   * the reader alone — everybody else's roster said *Nearby* about them the
+   * whole time, and the way back was a bar that was not drawn.
+   *
+   * What is still true is the narrow claim, and it is what is kept: you cannot
+   * be present in a room and nearby in **that** room, `ENTER` clearing the
+   * wait, so a snapshot saying both about one channel has not caught up and
+   * presence is the one that is true. Nothing is lost from the screen either
+   * way: a channel with no bar is a channel with a row, the filter here and
+   * the exclusion passed to `ChannelsView` being one decision made in one
+   * place.
    */
-  const nearby = liveChannel ? [] : nearbyChannels(app.home);
+  const nearby = nearbyChannels(app.home).filter(
+    (channel) => channel.channelId !== liveChannel?.channelId
+  );
 
   /**
    * A profile, when there is no pane to put it in. Held here rather than in
@@ -334,14 +347,18 @@ export function HomeView({
         ) : null}
 
         {/*
-          A bar for each channel you are within reach of, under the live bar's
-          place and never beside it — see `nearby` above for why the two cannot
-          both be drawn.
+          A bar for each channel you are within reach of, under the live bar
+          and never beside it. Both tiers are drawn at once since 2026-09-12,
+          stepping from one room to the next being what now leaves you nearby
+          in the first — see `nearby` above, where the one channel that cannot
+          appear in both is filtered out.
 
           **Several is the ordinary case.** Presence is exclusive and this is
           not: a declaration is one tap in one channel and says nothing about
           any other, so somebody who has said *be nearby* in three rooms is
-          within reach of three. They are pinned for the live bar's reason
+          within reach of three — and somebody who has walked through three
+          rooms is within reach of the two behind them without having tapped
+          anything at all. They are pinned for the live bar's reason
           rather than by analogy with it — being reachable in a room you are
           not looking at is a state with no other sign of itself, and the
           arrival that answers it is offered on the channel's own screen, which

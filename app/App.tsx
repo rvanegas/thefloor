@@ -245,16 +245,12 @@ function Root() {
    * `planning/decisions/2026-09-08-the-arrival-is-offered.md`. What this
    * produces is `app.nearbyArrival`, which `ChannelView` draws as an offer.
    *
-   * It reads the snapshot rather than `live`, because the whole point is that
-   * this device is *not* standing in the channel it is nearby in. See
-   * `state/useNearby.ts`.
+   * It reads the snapshots rather than `live`, because the whole point is that
+   * this device is *not* standing in the channels it is nearby in — and there
+   * may be several of them, presence being the exclusive state and this not.
+   * See `state/useNearby.ts`.
    */
-  useNearby(
-    app.nearbyIn ? (app.channelViews[app.nearbyIn] ?? null) : null,
-    me,
-    app.nearbyIn,
-    app.noteNearbyArrival
-  );
+  useNearby(app.channelViews, me, app.nearbyIn, app.noteNearbyArrival);
 
   /**
    * Which screen you are on, in the audio log.

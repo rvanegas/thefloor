@@ -250,6 +250,27 @@ export const WAITING_WINDOW_MS = 15 * 60 * 1000;
 export const ATTENTION_WINDOW_MS = WAITING_WINDOW_MS;
 
 /**
+ * How many channels one account may be nearby in at once.
+ *
+ * **A limit on the screen, not on the state.** Being within reach of a room
+ * costs nothing — no audio session, no media subscription, one bit on a
+ * snapshot — so nothing about the mechanism wants a cap. Home does: each one
+ * pins a bar in the tier above the lists, and enough of them push the channels
+ * and the contacts off the bottom of the phone. A person who cannot reach
+ * either list has lost more than the bars were worth.
+ *
+ * **Five**, which is the number that fits beside a live bar without crowding
+ * out what the lists are for.
+ *
+ * Enforced across channels by `capNearby` in `server/src/channels.ts`, the
+ * reducer seeing one channel at a time and this being a fact about a person
+ * across all of them — the same reason `stepOutOfOthers` lives there. A sixth
+ * steps you out of the oldest: first in, first out, the wait you have held
+ * longest being the one least likely to still be true.
+ */
+export const MAX_NEARBY_CHANNELS = 5;
+
+/**
  * How often a client says it is still attending.
  *
  * Attention moves on a gesture and on the app being frontmost, neither of

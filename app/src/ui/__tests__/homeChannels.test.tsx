@@ -1025,6 +1025,76 @@ describe('how quiet a channel is, counting other people only', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * **A room nobody is in and somebody is beside**, hoisted since 2026-09-12.
+   * *Nobody present* used to mean *nothing happening*, and such a channel
+   * sorted down among the rooms nobody had opened in a week — when it is the
+   * most answerable thing on the screen, one step in from being a conversation
+   * with people who have already said they can be reached.
+   */
+  describe('a channel people are standing beside', () => {
+    it('is hoisted above the rooms nobody is near', () => {
+      const tree = show([
+        row('chan_quiet', 'Book club', {
+          lastPresenceAt: NOW,
+          lastPresenceByOthers: NOW,
+        }),
+        row('chan_near', 'Thursday rehearsal', {
+          nearbyCount: 2,
+          lastPresenceAt: NOW - 30 * 86_400_000,
+          lastPresenceByOthers: NOW - 30 * 86_400_000,
+        }),
+      ]);
+      const text = textOf(tree);
+      // Under the LIVE heading, which is what hoisting means here — and above
+      // the fresher room, idleness being the wrong measure for a channel where
+      // what is worth reporting has not happened yet.
+      expect(text.indexOf('Thursday rehearsal')).toBeLessThan(
+        text.indexOf('Book club')
+      );
+      expect(text.indexOf('Live')).toBeLessThan(
+        text.indexOf('Thursday rehearsal')
+      );
+      act(() => tree.unmount());
+    });
+
+    it('says how many are nearby rather than that none are present', () => {
+      const tree = show([row('chan_a', 'Book club', { nearbyCount: 2 })]);
+      const text = textOf(tree);
+      expect(text).toContain('2 nearby');
+      expect(text).not.toContain('0 present');
+      act(() => tree.unmount());
+    });
+
+    it('says how many are present once anybody is, and not both', () => {
+      // The two are not added and not said together: *present* is a
+      // conversation you can walk into and *nearby* is one that has not
+      // started, so the stronger claim is the only one drawn.
+      const tree = show([
+        row('chan_a', 'Book club', { presentCount: 1, nearbyCount: 2 }),
+      ]);
+      const text = textOf(tree);
+      expect(text).toContain('1 present');
+      expect(text).not.toContain('2 nearby');
+      act(() => tree.unmount());
+    });
+
+    it('files it where every build filed it when the server says nothing', () => {
+      // An older server sends no count, which is not a fact about anybody.
+      const tree = show([
+        row('chan_a', 'Book club', {
+          lastPresenceAt: NOW - 30 * 86_400_000,
+          lastPresenceByOthers: NOW - 30 * 86_400_000,
+        }),
+      ]);
+      const text = textOf(tree);
+      expect(text).not.toContain('nearby');
+      // The idleness line every build has drawn for a room nobody is in.
+      expect(text).toContain('A month ago');
+      act(() => tree.unmount());
+    });
+  });
+
   it('says only how many are present when somebody is in it', () => {
     // The interval and the count answer different questions and never draw at
     // once — which is what makes them impossible to contradict.

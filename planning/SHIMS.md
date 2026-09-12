@@ -40,6 +40,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `declaredNearbyAt` optionality | `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
+| 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 
 The floor is **51**. `oldestBuild` read **80** on 2026-09-09, so the first
 three are already free and the rest are not.
@@ -74,6 +75,33 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 189 — `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality
+
+How many people **other than the reader** are nearby in a channel, which Home
+reads as a second way of being live: a room nobody is in and two people are
+standing beside is one step in from being a conversation, and is hoisted rather
+than sorted down among the rooms nobody has opened in a week.
+
+Optional on both shapes because a server that predates it sends no such key,
+and the client reads absence as nought — which files the channel exactly where
+every build filed it, under the idleness line and not under LIVE.
+
+Set unconditionally in `rejoinableFor` and `invitesFor`,
+`server/src/channels.ts`, from `othersWaiting` in `core/channel.ts`. The
+client-side fallbacks are the two `?? 0` in `inviteCard` and `memberCard`,
+`app/src/ui/ChannelsView.tsx`.
+
+**What must not be deleted with it**: the seat entry's explicit
+`nearbyCount: 0`, in both files — who is standing beside a room is not a
+guest's to read, so that is a rule rather than a fallback. Nor the
+`presentCount === undefined` arm of `isLive`, which belongs to a different
+shim and reads an older server's silence the other way about.
+
+Gate 189 because build 188 is already tagged: the client that speaks this ships
+in the next upload.
 
 ---
 

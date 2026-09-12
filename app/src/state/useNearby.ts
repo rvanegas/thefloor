@@ -5,7 +5,7 @@ import { recordEvent } from '../audio/diagnostics';
 import { somebodyArrived, whoArrived } from './nearby';
 
 /**
- * Notices somebody arriving in the channel this device is standing nearby, and
+ * Notices somebody arriving in a channel this device is standing nearby, and
  * reports it. **It takes no action on the room and no claim on the audio.**
  *
  * The rule and its reasoning are in `nearby.ts`; this is the wiring. Three
@@ -33,15 +33,23 @@ import { somebodyArrived, whoArrived } from './nearby';
  *   not looking — that, rather than this hook, is the half that does the
  *   reaching.
  *
- * **It reads the snapshot of the channel declared in, not the screen in
- * front.** The arrival comes over the ordinary websocket in channel state,
- * which a nearby phone is still receiving. Where the offer is *drawn* is
+ * **Every channel declared in, not one, since 2026-09-12.** Presence is
+ * exclusive and nearby is not — you may be within reach of several rooms at
+ * once, and the wire says so with a bit per channel rather than an id. This
+ * used to take a single view and a single id, so a second declaration stopped
+ * the first from ever raising an offer: the room went on showing *Nearby* on
+ * Home, the push still arrived, and the one thing being nearby is *for* — a
+ * step in under the thumb when somebody walks in — silently did not happen.
+ *
+ * **It reads the snapshots of the channels declared in, not the screen in
+ * front.** An arrival comes over the ordinary websocket in channel state,
+ * which a nearby phone is still receiving. Where an offer is *drawn* is
  * `ChannelView`, which is that channel's screen.
  */
 export function useNearby(
-  view: ChannelView | null,
+  views: Record<string, ChannelView | undefined>,
   me: string,
-  nearbyIn: string | null,
+  nearbyIn: readonly string[],
   onArrival: (channelId: string, who: string[]) => void
 ): void {
   const [foreground, setForeground] = useState(
@@ -55,43 +63,51 @@ export function useNearby(
   }, []);
 
   /**
-   * The room as this device last saw it, or null before it has seen it.
+   * Each room as this device last saw it, keyed by channel, holding nothing
+   * for one it has not seen yet.
    *
-   * Keyed by channel so that looking at a second channel and coming back does
-   * not compare one room's roster against another's. Cleared when the
-   * declaration ends, so a fresh one starts from *not seen yet* rather than
-   * from a roster that may be minutes old.
+   * Keyed so that looking at a second channel and coming back does not compare
+   * one room's roster against another's — and, since the declaration became a
+   * set, so that two rooms watched at once each keep their own. An entry is
+   * dropped when its declaration ends, so a fresh one starts from *not seen
+   * yet* rather than from a roster that may be minutes old.
    */
-  const seen = useRef<{ channelId: string; present: string[] } | null>(null);
-
-  const channel = view?.channel ?? null;
-  const nearbyHere =
-    !!channel &&
-    channel.id === nearbyIn &&
-    channel.status === 'active' &&
-    channel.waiting.includes(me);
+  const seen = useRef(new Map<string, string[]>());
 
   useEffect(() => {
-    if (!channel || !nearbyHere) {
-      seen.current = null;
+    if (nearbyIn.length === 0) {
+      seen.current.clear();
       return;
     }
+    // Declarations that have ended take their memory with them; the rooms
+    // still declared in are compared against what this device last saw.
+    for (const id of seen.current.keys()) {
+      if (!nearbyIn.includes(id)) seen.current.delete(id);
+    }
     // See the foreground note above: nothing is observed from the background,
-    // so that the arrival is still there to be offered when the phone is
-    // picked up.
+    // so that an arrival is still there to be offered when the phone is picked
+    // up.
     if (!foreground) return;
-    const before =
-      seen.current && seen.current.channelId === channel.id
-        ? seen.current.present
-        : null;
-    seen.current = { channelId: channel.id, present: [...channel.present] };
-    if (!somebodyArrived(before, channel.present, me)) return;
-    // Worth a line in the audio log even though no audio moves: this is the
-    // moment the design used to open a microphone, and a walk that finds the
-    // offer missing needs to know whether the arrival was seen at all.
-    recordEvent('nearby arrival offered');
-    onArrival(channel.id, whoArrived(before, channel.present, me));
-    // `present` rather than the view: a snapshot arrives for anything that
-    // changes in the room, and only the roster can be an arrival.
-  }, [channel, channel?.present, nearbyHere, foreground, me, onArrival]);
+    for (const channelId of nearbyIn) {
+      const channel = views[channelId]?.channel ?? null;
+      if (
+        !channel ||
+        channel.status !== 'active' ||
+        !channel.waiting.includes(me)
+      ) {
+        seen.current.delete(channelId);
+        continue;
+      }
+      const before = seen.current.get(channelId) ?? null;
+      seen.current.set(channelId, [...channel.present]);
+      if (!somebodyArrived(before, channel.present, me)) continue;
+      // Worth a line in the audio log even though no audio moves: this is the
+      // moment the design used to open a microphone, and a walk that finds the
+      // offer missing needs to know whether the arrival was seen at all.
+      recordEvent('nearby arrival offered');
+      onArrival(channelId, whoArrived(before, channel.present, me));
+    }
+    // `views` rather than any one room: a snapshot arrives for anything that
+    // changes in any of them, and only a roster can be an arrival.
+  }, [views, nearbyIn, foreground, me, onArrival]);
 }

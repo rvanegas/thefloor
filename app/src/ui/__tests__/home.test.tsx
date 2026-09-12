@@ -913,11 +913,14 @@ describe('Home while nearby', () => {
     act(() => tree.unmount());
   });
 
-  it('draws none of it while there is a channel you are in', () => {
-    // Exclusive by construction: entering steps you out of everywhere else and
-    // a chosen exit clears the wait, so a snapshot claiming both is stale and
-    // presence is the true half. The channel keeps its row — the bar is
-    // suppressed, not the channel.
+  it('draws it under the live bar, both at once', () => {
+    // **Corrected 2026-09-12**, when entering a channel stopped stepping you
+    // out of the others and started leaving you nearby in them: present here
+    // and nearby there is now the ordinary state of somebody who has moved
+    // rather than a stale snapshot. The whole tier used to be suppressed
+    // whenever anything was live, which hid the reader's own nearby rooms from
+    // the reader alone — everybody else's roster said *Nearby* about them, and
+    // the way back was a bar that was not drawn.
     nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
     const tree = render(
       <HomeView
@@ -933,8 +936,33 @@ describe('Home while nearby', () => {
     );
     const text = textOf(tree).replace(/\s+/g, ' ');
     expect(text).toContain('tap to go back');
-    expect(text).not.toContain('Nearby ·');
+    expect(text).toContain('Nearby ·');
     expect(text).toContain('Thursday rehearsal');
+    act(() => tree.unmount());
+  });
+
+  it('draws no bar for the live channel itself, however the snapshot reads', () => {
+    // The half of the old rule that survives, and it is the narrow one: you
+    // cannot be present in a room and nearby in *that* room, `ENTER` clearing
+    // the wait — so a snapshot saying both about one channel has not caught up
+    // and presence is the one that is true. It keeps its row rather than
+    // gaining a second bar.
+    nearbyIn({ id: 'sess_b', name: 'Thursday rehearsal' });
+    const tree = render(
+      <HomeView
+        {...homeNav}
+        liveChannel={{
+          channelId: 'sess_b',
+          title: 'Thursday rehearsal',
+          present: 2,
+          muted: false,
+        }}
+        onReturnToChannel={() => {}}
+      />
+    );
+    const text = textOf(tree).replace(/\s+/g, ' ');
+    expect(text).toContain('tap to go back');
+    expect(text).not.toContain('Nearby ·');
     act(() => tree.unmount());
   });
 

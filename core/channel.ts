@@ -230,6 +230,23 @@ export function isWaiting(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * How many people **other than `userId`** are nearby in this channel.
+ *
+ * What Home hoists a roomless channel on, since 2026-09-12: *nobody present*
+ * stopped meaning *nothing happening* once a room could have people standing
+ * beside it, one step in from being a conversation. See
+ * `RejoinableView.nearbyCount` in core/protocol.ts.
+ *
+ * **The reader is subtracted**, on `lastPresenceByOthers`' reasoning — a
+ * channel is not worth putting in front of somebody on the strength of their
+ * own reachability, and it would be the one number on the row that counted
+ * them.
+ */
+export function othersWaiting(state: ChannelState, userId: UserId): number {
+  return state.waiting.filter((id) => id !== userId).length;
+}
+
+/**
  * Whether there is anything in this room for `userId` to be here *for*.
  *
  * The other half of the attention rule, and the half that stops it retiring

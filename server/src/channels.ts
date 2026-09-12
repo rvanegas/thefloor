@@ -8,6 +8,7 @@ import {
   DELETED_RETENTION_MS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
+  MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
   WAITING_WINDOW_MS,
@@ -30,6 +31,7 @@ import {
   isPresent,
   canPing,
   isWaiting,
+  othersWaiting,
   isWithheld,
   lastPresenceAt,
   lastPresenceByOthers,
@@ -861,16 +863,35 @@ export class ChannelRegistry {
   tick(): void {
     const now = this.now();
     const changed: string[] = [];
+    /**
+     * Anybody a tick has just put on the *nearby* rung, so the cap can be
+     * checked once for each of them rather than once per channel.
+     *
+     * This is the third way onto the rung and the only one nobody chose: a
+     * connection running out of grace while somebody was present. It is
+     * reachable over the limit — nearby in five rooms, present in a sixth, and
+     * then the phone goes into a pocket — so it is capped like the other two.
+     * Collected rather than acted on inside the loop, since `capNearby` steps
+     * out of channels and this is iterating over them.
+     */
+    const gainedWait = new Set<string>();
     for (const [id, channel] of this.channels) {
       if (channel.status !== 'active') continue;
       const attended = this.expireInattentive(channel, now);
       const next = reduce(attended, { type: 'TICK' }, now);
       if (next !== channel) {
+        for (const userId of next.waiting) {
+          if (!channel.waiting.includes(userId)) gainedWait.add(userId);
+        }
         this.commit(channel, next);
         changed.push(id);
       }
     }
     if (changed.length > 0) this.emit(changed);
+    // After the emit above rather than before: each eviction is an `apply`,
+    // which emits its own channel, so folding them into that batch would mean
+    // holding the loop open across a write it makes.
+    for (const userId of gainedWait) this.capNearby(userId, null);
 
     // The media plane's self-correction. Both of these exist for the same
     // race: someone can enter a channel before their track exists, so a mute
@@ -1351,6 +1372,16 @@ export class ChannelRegistry {
     // the state watchers would otherwise be told about.
     if (action.type === 'ENTER') {
       this.stepOutOfOthers(userId, channelId);
+    }
+
+    // A declaration is the ordinary way onto a rung there is a limit on, so
+    // the limit is checked as it lands. Afterwards rather than before: what
+    // decides whether anything must go is the state the tap produced, and a
+    // re-declaration in a channel already held changes no count at all.
+    if (action.type === 'DECLARE_NEARBY') {
+      const declared = this.apply(channelId, userId, action);
+      this.capNearby(userId, channelId);
+      return declared;
     }
 
     // Both carry a guest id from the wire, so both check it is a string before
@@ -1894,7 +1925,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * Steps `userId` out of every channel but `keep`.
+   * Leaves `userId` **nearby** in every channel but `keep`.
    *
    * **Presence is exclusive.** A person has one microphone and one pair of
    * ears, so being present in two channels is not a state that can be
@@ -1904,12 +1935,105 @@ export class ChannelRegistry {
    * than having left, because a channel you are present in is filtered out of
    * your own home screen, so there was no way back to it.
    *
+   * **The rung it drops you to is *Nearby*, corrected 2026-09-12.** It was
+   * *Stepped out* — a plain `STEP_OUT`, the `chosen` exit — and that is the
+   * one thing it is not. *Stepped out* means they left, deliberately, and it
+   * tells the room to give up on them; nobody chose to leave the room they
+   * are being removed from here, and the act that removed them is the
+   * strongest evidence there is that they are holding their phone. *Nearby*
+   * is exactly the claim the situation supports — within reach, one
+   * notification away, ping rather than give up — and it is the one the
+   * ladder puts directly below *In*. Somebody who steps from one room to the
+   * next now falls one rung in the first rather than two.
+   *
+   * **Nothing about exclusivity changes**, because nearby is not presence: it
+   * holds no audio session and no media subscription, so the one microphone
+   * and one pair of ears are still in `keep`. What used to be true of it —
+   * "the two cannot both be true of one account for long" — is simply no
+   * longer the shape of the thing: present here and nearby there is now the
+   * ordinary state of somebody who has moved, and being nearby in several at
+   * once is what the wire has always said it is. Knocking on three doors in
+   * turn leaves you nearby in the first two until the attention clock ends
+   * each of them, which is the fifteen minutes it always was.
+   *
+   * **It announces nothing**, and that falls out of `commit` rather than
+   * needing a flag: the `declaredNearby` diff there asks `!before.present`,
+   * so somebody who *was* in the room and is now nearby is excluded. A
+   * declaration announces because it is an arrival; this is a departure, and
+   * ringing the absent to report one would be the opposite of the rule.
+   *
+   * `DECLARE_NEARBY` is the action rather than a second spelling of the
+   * transition, because its present branch is precisely this: `stepOut` with
+   * the `nearby` exit, which stamps `lastPresentAt` — they were here until
+   * this moment — and dates the wait from now rather than from a heartbeat.
+   * See `Exit` in core/channel.ts.
+   *
    * It lives here rather than in the reducer because the reducer sees one
    * channel at a time and this is a fact about a person across all of them.
    */
   private stepOutOfOthers(userId: string, keep: string): void {
     for (const id of this.channelsFor(userId)) {
-      if (id !== keep) this.apply(id, userId, { type: 'STEP_OUT' });
+      if (id !== keep) this.apply(id, userId, { type: 'DECLARE_NEARBY' });
+    }
+    // The rung this now leaves them on is one there is a limit on, so the
+    // limit is checked here too — walking from room to room is a way onto it
+    // that takes no tap at all, and is therefore the easiest way to collect
+    // more bars than Home can carry.
+    this.capNearby(userId, keep);
+  }
+
+  /**
+   * Steps `userId` out of the oldest waits until at most
+   * `MAX_NEARBY_CHANNELS` are left.
+   *
+   * **The cap is about the screen, not the state.** Being within reach of a
+   * room costs nothing — no audio session, no media subscription, one bit on a
+   * snapshot — so the mechanism would happily carry twenty. Home would not:
+   * each one pins a bar in the tier above the lists, and enough of them push
+   * the channels and the contacts off the bottom of the phone. Somebody who
+   * cannot reach either list has lost more than the bars were worth.
+   *
+   * **First in, first out.** The wait held longest is the one least likely to
+   * still be true — fifteen minutes is the window it would have aged out in
+   * anyway — and evicting it is the only order that leaves what somebody just
+   * did intact. `keep` is never evicted however it sorts: it is the
+   * declaration that caused this call, and answering a tap by undoing it would
+   * be the one outcome nobody could read.
+   *
+   * Dated by `nearbyMs`, which is the age of the wait however it began — from
+   * the declaration where there was one, and from the last sign of life where
+   * the connection simply ran out of grace. A wait with no dateable start
+   * sorts as the newest rather than the oldest: an absent stamp is not
+   * evidence of staleness, and reading it as one would evict on missing data
+   * ahead of a wait that is measurably old.
+   *
+   * Ordinary `STEP_OUT`s, so the evicted channels read as *Stepped out* —
+   * which is what they are. This is not the room being left for another room,
+   * the case `stepOutOfOthers` answers; it is a claim being withdrawn because
+   * too many were held at once, and there is no rung below *nearby* but this
+   * one.
+   *
+   * It lives here, beside `stepOutOfOthers`, for the same reason: the reducer
+   * sees one channel at a time and this is a fact about a person across all of
+   * them.
+   */
+  private capNearby(userId: string, keep: string | null): void {
+    const now = this.now();
+    const held: { id: string; age: number }[] = [];
+    for (const [id, channel] of this.channels) {
+      if (channel.status !== 'active') continue;
+      if (!isWaiting(channel, userId)) continue;
+      held.push({ id, age: nearbyMs(channel, userId, now) ?? -1 });
+    }
+    const excess = held.length - MAX_NEARBY_CHANNELS;
+    if (excess <= 0) return;
+    const evictable = held
+      .filter((entry) => entry.id !== keep)
+      // Oldest first, and stable enough for the purpose: two waits that began
+      // in the same millisecond are interchangeable by this rule.
+      .sort((a, b) => b.age - a.age);
+    for (const entry of evictable.slice(0, excess)) {
+      this.apply(entry.id, userId, { type: 'STEP_OUT' });
     }
   }
 
@@ -1994,6 +2118,10 @@ export class ChannelRegistry {
           // declaration is not an entry, so `everPresent` still excludes you
           // and this stays an invitation while you stand outside it.
           nearby: isWaiting(channel, userId),
+          // Everybody else within reach of it, which Home reads as a second
+          // way of being live. The reader is subtracted rather than filtered
+          // by name because `waiting` holds ids and nothing else.
+          nearbyCount: othersWaiting(channel, userId),
         });
       }
     }
@@ -2077,6 +2205,8 @@ export class ChannelRegistry {
         // declared on their other phone is one everybody else can ping into,
         // so it is one this list may say out loud.
         nearby: isWaiting(channel, userId),
+        // Everybody else within reach of it — see `RejoinableView.nearbyCount`.
+        nearbyCount: othersWaiting(channel, userId),
       });
     }
     // Every channel this account is sitting in as a guest, which is a place
@@ -2113,6 +2243,11 @@ export class ChannelRegistry {
         // rung is a member's, and a seat's way back is the door — so this is a
         // no and not the older server's silence.
         nearby: false,
+        // Nought rather than the channel's real count, on the same reasoning
+        // as `others` above: who is standing beside a room is not a guest's to
+        // read. Said rather than left absent, so it is a no and not an older
+        // server's silence.
+        nearbyCount: 0,
         seat: true,
       });
     }

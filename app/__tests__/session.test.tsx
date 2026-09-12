@@ -33,6 +33,14 @@ const mockApp = {
    * this says which one is holding the room. See `AppProvider.standingIn`.
    */
   standingIn: null as string | null,
+  /**
+   * The channels this *device* declared itself nearby in, and who has walked
+   * into each since. Empty in every test here — nothing in this file is about
+   * the offer — but read on every render by `useNearby`, so they have to be
+   * the right shape rather than absent. See `AppProvider.nearbyIn`.
+   */
+  nearbyIn: [] as string[],
+  nearbyArrival: {} as Record<string, string[]>,
   displaced: false,
   recordingAsked: null as string | null,
   goneChannels: [] as string[],

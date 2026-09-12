@@ -428,6 +428,14 @@ type Card = {
    * is drawn as a bar in the tier above and is not in this list at all.
    */
   nearby: boolean;
+  /**
+   * How many people **other than the reader** are nearby in it —
+   * `RejoinableView.nearbyCount`, straight through. Nought from a server that
+   * predates the field, which files the channel exactly where every build
+   * filed it before. Read by `isLive`: a room somebody is standing beside is
+   * one step in from being a conversation. See planning/SHIMS.md.
+   */
+  nearbyCount: number;
   /** Who asked you in, for an invitation. */
   from?: string;
 };
@@ -461,6 +469,7 @@ function inviteCard(invite: InviteView): Card {
     // you in: it is an arrival for the roster's purposes and still not an
     // entry, so the invitation stands and this bit rides on it.
     nearby: invite.nearby ?? false,
+    nearbyCount: invite.nearbyCount ?? 0,
     from: invite.from.displayName,
   };
 }
@@ -483,8 +492,10 @@ function memberCard(channel: RejoinableView): Card {
       lastPresenceByOthers: undefined,
       steppedInAt: undefined,
       everUsed: true,
-      // A guest is never on that rung; the way back to a seat is the door.
+      // A guest is never on that rung; the way back to a seat is the door,
+      // and who is standing beside the room is not theirs to read either.
       nearby: false,
+      nearbyCount: 0,
     };
   }
   return {
@@ -512,6 +523,7 @@ function memberCard(channel: RejoinableView): Card {
     // no bar is drawn, which is exactly what every build did before there was
     // one to draw.
     nearby: channel.nearby ?? false,
+    nearbyCount: channel.nearbyCount ?? 0,
   };
 }
 
@@ -565,8 +577,28 @@ export function nearbyChannels(home: HomeViewData | null): NearbyChannel[] {
     }));
 }
 
+/**
+ * Whether a channel goes in the top section: somebody is in it, **or somebody
+ * is standing beside it**.
+ *
+ * The second half is new on 2026-09-12, and it is the point of
+ * `RejoinableView.nearbyCount`. *Nobody present* used to mean *nothing
+ * happening*, and a channel two people were within reach of sorted down among
+ * the rooms nobody had opened in a week — when it is in fact the most
+ * answerable thing on the screen, one step in from being a conversation with
+ * people who have already said they can be reached. Ordinary idleness is the
+ * wrong measure for it: nothing has happened there yet, which is exactly what
+ * a step in would fix.
+ *
+ * `undefined` is a server too old to send the count, and is read as occupied
+ * for `presentCount` — the old text asserted somebody was waiting — and as
+ * nought for the nearby half, which files such a channel where every build
+ * filed it.
+ */
 const isLive = (card: Card) =>
-  card.presentCount === undefined || card.presentCount > 0;
+  card.presentCount === undefined ||
+  card.presentCount > 0 ||
+  card.nearbyCount > 0;
 
 /**
  * Whoever else was here most recently, first — then the rooms only the reader
@@ -709,7 +741,18 @@ function ChannelCard({
           // promising the channel screen and opening a different page.
           `You are a guest here${live ? ` · ${card.presentCount} present` : ''}`
         : live
-          ? `${card.presentCount} present`
+          ? // **Present first, nearby only when there is nobody**, since
+            // 2026-09-12. The two are not added together and are not said
+            // together: *present* is a conversation you can walk into and
+            // *nearby* is one that has not started, so a row reading "1
+            // present · 2 nearby" would put the weaker claim beside the
+            // stronger one and make the reader do the arithmetic. A room with
+            // anybody in it says what every build has said about it; a room
+            // with nobody in it and people beside it says the only true thing
+            // there is to say, which is what earns it this section at all.
+            card.presentCount !== undefined && card.presentCount > 0
+            ? `${card.presentCount} present`
+            : `${card.nearbyCount} nearby`
         : // An empty channel used to be sixty seconds from destruction, and
           // saying so was a reason to hurry back. Channels are permanent now:
           // nobody being in one is a resting state, not a countdown.
