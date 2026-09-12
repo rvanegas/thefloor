@@ -662,9 +662,11 @@ export function ChannelView({
    *
    * The floor is the exception in shape, since 2026-08-31: its card stays and
    * only the Claim/Release button goes. What that card mostly holds is a
-   * readout — the holder, the countdown, and the sentence saying why the act
-   * is refused — and none of that is repetition of anything, a footer icon
-   * having no room to state it. See the card itself.
+   * readout — the state of the floor, and the sentence saying why the act is
+   * refused — and neither is repetition of anything, a footer icon having no
+   * room to state it. See the card itself. The countdown was a third item on
+   * that list until 2026-09-12, and is now on the holder's roster card, which
+   * this setting does not reach.
    *
    * Two sentences survive the cards that carried them, and they are marked at
    * each site. The recording warning is a notice rather than an explanation,
@@ -1269,8 +1271,8 @@ export function ChannelView({
     rather than a switch costs the bar — one more slot.
 
     **These are shortcuts, not the controls, by default.** Each of them still
-    has its card on the roster tab — with the sentence saying why it is refused, the
-    countdown, the warning about being recorded while silenced. A footer cannot
+    has its card on the roster tab — with the sentence saying why it is
+    refused, the warning about being recorded while silenced. A footer cannot
     carry any of that, and an icon that greys with no reason given is the one
     shape this codebase does not allow a control to have. So the card stays as
     the place the state is explained and this is the place the act is quick,
@@ -1285,9 +1287,10 @@ export function ChannelView({
     what a screen may show somebody who has not asked, rather than about what a
     screen may ever be: what a footer cannot state is kept rather than dropped.
     The floor keeps its card either way and loses only its button, so even
-    then this bar is not the sole account of the floor — the countdown and the
-    reason a claim is refused are still on the screen below. Nothing here is
-    conditional on the setting, and nothing here may become so — a bar that
+    then this bar is not the sole account of the floor — the reason a claim is
+    refused is still on the screen below, and the countdown is on the roster
+    card of whoever is holding it. Nothing here is conditional on the setting,
+    and nothing here may become so — a bar that
     changes shape with a preference is the same finger-under-the-thumb problem
     as one that changes shape with state.
 
@@ -1483,6 +1486,18 @@ export function ChannelView({
                 }
                 pingableAt={view.pingableAt?.[participant.id] ?? null}
                 attentiveAt={view.attentiveAt?.[participant.id] ?? null}
+                // The claim's clock, on the card of whoever is holding it and
+                // on nobody else's — `claimRemaining` is a fact about the
+                // floor, and the roster is where it becomes a fact about a
+                // person.
+                floorRemaining={
+                  channel.floor.holder === participant.id ? claimRemaining : null
+                }
+                // And the cooldown on your own, that being the only card it is
+                // about. Somebody else's wait is not information this screen
+                // owes you: it is not a thing you can act on, and six of them
+                // would turn the roster into a row of clocks.
+                cooldown={participant.id === me ? cooldown : null}
               />
             ))}
           </View>
@@ -1765,13 +1780,21 @@ export function ChannelView({
           half.
         */}
         <SectionLabel>The floor</SectionLabel>
-        <Card
-          style={[
-            styles.floorCard,
-            iHoldFloor && styles.floorCardHeld,
-            iAmSilenced && styles.floorCardSilenced,
-          ]}
-        >
+        {/*
+          **No clock and no colour here since 2026-09-12, both being the
+          roster's now.** What this card held was a large countdown and a
+          two-pixel accent, and both were describing a person — whose minute is
+          running, and whether yours has been cut — while the screen's picture
+          of the people sat above it saying neither. A reader watching the clock
+          was watching the wrong half of the screen: the number ticks down and
+          the question it raises is *who*, which is a card's width away.
+
+          So the indicator moved to the card of whoever the claim is about, and
+          what is left here is the part that is not about a person at all: the
+          state of the floor in a sentence, including the one state no roster
+          card can show — that nobody holds it — and why a claim is refused.
+        */}
+        <Card style={styles.floorCard}>
           <Text style={styles.floorStatus}>
             {iHoldFloor
               ? 'You have the floor'
@@ -1780,37 +1803,33 @@ export function ChannelView({
                 : 'Nobody has the floor'}
           </Text>
 
-          {claimRemaining !== null ? (
-            <Text style={styles.countdown}>{formatSeconds(claimRemaining)}</Text>
-          ) : cooldown !== null ? (
-            <Text style={[styles.countdown, styles.countdownMuted]}>
-              {formatSeconds(cooldown)}
-            </Text>
-          ) : null}
-
-          {claimRemaining !== null && iHoldFloor ? null : (
-            <Text style={styles.floorHint}>
-              {iHoldFloor
-                ? others.length === 1
-                  ? `${others[0].displayName} is muted until you release, up to a minute.`
-                  : 'Everyone else is muted until you release, up to a minute.'
-                : !iAmPresent
-                  ? 'Step in to claim the floor.'
-                  : theyHoldFloor
-                    ? 'You cannot claim the floor while you are silenced.'
-                    : cooldown !== null
-                      ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                      : !atLeastTwoPresent(channel)
-                        ? 'The floor becomes available once at least two people are present.'
-                        : 'Speak uninterrupted for up to a minute.'}
-            </Text>
-          )}
+          {/*
+            Always, now. The hint used to give way to the clock on the one card
+            that had both — yours, while you held it — and with the clock on
+            your own roster card there is nothing here to give way to.
+          */}
+          <Text style={styles.floorHint}>
+            {iHoldFloor
+              ? others.length === 1
+                ? `${others[0].displayName} is muted until you release, up to a minute.`
+                : 'Everyone else is muted until you release, up to a minute.'
+              : !iAmPresent
+                ? 'Step in to claim the floor.'
+                : theyHoldFloor
+                  ? 'You cannot claim the floor while you are silenced.'
+                  : cooldown !== null
+                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
+                    : !atLeastTwoPresent(channel)
+                      ? 'The floor becomes available once at least two people are present.'
+                      : 'Speak uninterrupted for up to a minute.'}
+          </Text>
 
           {/*
             The half of this card that the footer already carries, and so the
-            half the setting removes. Everything above stays: a countdown
-            nobody can reach any other way, and the sentence saying why the
-            act is refused, which a greyed icon in the bar cannot say.
+            half the setting removes. What stays is the state of the floor in a
+            sentence — including that nobody holds it, which no roster card can
+            say — and the reason a claim is refused, which a greyed icon in the
+            bar cannot say.
           */}
           {controlCards ? (
             iHoldFloor ? (
@@ -3188,6 +3207,8 @@ function ParticipantCard({
   speaking,
   failing,
   now,
+  floorRemaining = null,
+  cooldown = null,
   onPress,
   onPing,
   pingableAt = null,
@@ -3229,6 +3250,25 @@ function ParticipantCard({
    * *Nearby* line falls back to `nearbyMs`. See SHIMS.md.
    */
   attentiveAt?: number | null;
+  /**
+   * Milliseconds left in this person's claim, or null when the floor is not
+   * theirs. It is `floorRemainingMs` passed down rather than computed here, so
+   * the card and the floor's own section cannot disagree about the number.
+   *
+   * The clock is on the card because the claim is about *this person* — it is
+   * their minute, and the roster is where anybody looks to see whose it is.
+   * The floor's section below kept it until 2026-09-12, which meant the one
+   * number on the screen that changes every second was the one thing you had
+   * to look away from the room to read.
+   */
+  floorRemaining?: number | null;
+  /**
+   * Milliseconds until *you* may claim, or null when nothing is holding you
+   * back. Non-null on your own card and on nobody else's: the cooldown is a
+   * fact about what you may do next, and a step count the reducer keeps per
+   * person would be six different numbers if every card carried its own.
+   */
+  cooldown?: number | null;
 }) {
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
@@ -3522,6 +3562,25 @@ function ParticipantCard({
         </Text>
       </View>
       {/*
+        The clock, between the name and the rail rather than in place of
+        either. The dot beside it still answers a different question — the
+        floor says whose minute it is, the dot says whether they are using it,
+        and a holder who has gone quiet is worth being able to see.
+
+        Two of them, never at once: a claim is running or it is not, and
+        `cooldownRemainingMs` returns null for as long as one is. The claim's
+        is full weight on a tinted card and the cooldown's is muted on a plain
+        one, which is the difference between a minute somebody has and a wait
+        you are serving.
+      */}
+      {floorRemaining !== null ? (
+        <Text style={styles.cardClock}>{formatSeconds(floorRemaining)}</Text>
+      ) : cooldown !== null ? (
+        <Text style={[styles.cardClock, styles.cardClockMuted]}>
+          {formatSeconds(cooldown)}
+        </Text>
+      ) : null}
+      {/*
         One rail, holding whichever of the two this card has something to say
         with. The ping is offered only while they are out of reach and recently
         so, which is the state it answers — somebody who stepped out an hour ago
@@ -3558,14 +3617,24 @@ function ParticipantCard({
     </View>
   );
 
+  /**
+   * No seconds in it, deliberately. The clock beside the name ticks once a
+   * second and a label carrying it would have a screen reader announce the
+   * card afresh every time — the fact worth saying is whose the floor is, and
+   * that does not change while the number does.
+   */
   const label = `${participant.displayName}${self ? ', you' : ''}. ${status}.${
-    speaking ? ' Speaking.' : ''
-  }${onPress ? ' View profile.' : ''}`;
+    holdsFloor ? ' Has the floor.' : ''
+  }${speaking ? ' Speaking.' : ''}${onPress ? ' View profile.' : ''}`;
 
   if (!onPress) {
     return (
       <View
-        style={[styles.participantCard, speaking && styles.participantCardLive]}
+        style={[
+          styles.participantCard,
+          holdsFloor && styles.participantCardFloor,
+          speaking && styles.participantCardLive,
+        ]}
         accessibilityLabel={label}
       >
         {body}
@@ -3579,6 +3648,7 @@ function ParticipantCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.participantCard,
+        holdsFloor && styles.participantCardFloor,
         speaking && styles.participantCardLive,
         pressed && styles.participantCardPressed,
       ]}
@@ -3788,6 +3858,20 @@ const styles = StyleSheet.create({
   },
   /** The accent, the same one the floor gets: this is the app's one mechanic. */
   participantCardLive: { borderColor: colors.floor },
+  /**
+   * Whoever holds the floor, tinted rather than outlined — because the outline
+   * is taken, and by the one thing it must not be confused with.
+   *
+   * `participantCardLive` means *audible*, driven by the room; this means
+   * *permitted*, driven by the reducer. They are different questions and
+   * routinely disagree — a holder sitting silent, a self-muted person whose
+   * claim is running — so they cannot share an edge. The fill says whose
+   * minute it is and the border says whether they are spending it, and a card
+   * that is both reads as both.
+   *
+   * Before `pressed`, so pressing a holder's card still looks pressed.
+   */
+  participantCardFloor: { backgroundColor: colors.floorDim },
   participantCardPressed: { backgroundColor: colors.surfaceRaised },
   /**
    * The name and status on the left, the ping or the speaking dot on the
@@ -3813,6 +3897,29 @@ const styles = StyleSheet.create({
    * is the only thing on this screen entitled to colour.
    */
   cardPing: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(1), minHeight: 0 },
+  /**
+   * The floor's two clocks, at the weight of a name rather than of the
+   * 34-point readout they replace. A card is a line of text and a number
+   * beside it; the number was that size when it was the only thing in a card
+   * of its own, and at that size on a roster row it would be the first thing
+   * read about a person whose name it dwarfed.
+   *
+   * Tabular, so the row does not shuffle as the digits change, and
+   * `flexShrink: 0` so the name yields to it rather than the other way about.
+   *
+   * Plain text rather than the accent, as the big readout was: the claim's
+   * clock sits on a card already tinted `floorDim`, and the accent on that
+   * fill is a violet on a violet in dark mode. The card carries the colour and
+   * the number carries the number.
+   */
+  cardClock: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+    flexShrink: 0,
+  },
+  cardClockMuted: { fontWeight: '600', color: colors.textMuted },
   speakingDot: {
     width: 10,
     height: 10,
@@ -4019,31 +4126,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
-  floorCard: { gap: spacing(1), borderColor: colors.border },
   /**
-   * Two pixels rather than one while the floor is somebody's.
-   *
-   * This card is the first control on the screen now, and the two states that
-   * matter are the two where the room is not behaving normally — somebody is
-   * speaking uninterrupted, or you have been cut off. A colour change on a
-   * hairline is a small signal for a large fact, and `floorDim` alone is too
-   * quiet in light mode, where it is a pale tint on a white card.
+   * A plain card, since 2026-09-12. It used to gain a two-pixel accent while
+   * the floor was somebody's and an orange one while you were cut off, which
+   * were the two states the *room* was in and are now drawn on the cards of
+   * the people they are about — `participantCardFloor`. Two places saying the
+   * same state in two different visual languages is how a reader learns
+   * neither, and the roster is the one that can say whose state it is.
    */
-  floorCardHeld: {
-    borderWidth: 2,
-    borderColor: colors.floor,
-    backgroundColor: colors.floorDim,
-  },
-  floorCardSilenced: { borderWidth: 2, borderColor: colors.silenced },
+  floorCard: { gap: spacing(1), borderColor: colors.border },
   /** Larger than `type.heading`: it is the first sentence anybody reads here. */
   floorStatus: { fontSize: 20, fontWeight: '700', color: colors.text },
-  countdown: {
-    fontSize: 34,
-    fontWeight: '700',
-    color: colors.text,
-    fontVariant: ['tabular-nums'],
-  },
-  countdownMuted: { fontSize: 24, color: colors.textMuted },
   floorHint: { ...type.muted, lineHeight: 19 },
   progressTrack: {
     height: 6,

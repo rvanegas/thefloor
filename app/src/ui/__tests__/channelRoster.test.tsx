@@ -24,6 +24,7 @@ import {
   channelOf,
   findButton,
   knowing,
+  labelOf,
   mockApp,
   render,
   resetHarness,
@@ -315,7 +316,7 @@ describe('who is in the channel, and who is talking', () => {
       node,
       style: StyleSheet.flatten(
         typeof style === 'function' ? style({ pressed: false }) : style
-      ) as { borderColor?: unknown },
+      ) as { borderColor?: unknown; backgroundColor?: unknown },
     };
   }
 
@@ -379,6 +380,76 @@ describe('who is in the channel, and who is talking', () => {
       'Speaking'
     );
     expect(textOf(tree)).toContain('has the floor');
+    // And the claim has a mark of its own, which is the fill — so the two
+    // facts are both on the card and neither is mistakable for the other.
+    expect(them.style.backgroundColor).toBe(colors.floorDim);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The claim's clock, on the card of the person whose minute it is.
+   *
+   * It was a 34-point readout in the floor's own card until 2026-09-12, which
+   * put the one number on the screen that changes every second a card's width
+   * away from the only thing that answers the question it raises — whose. The
+   * number is counted here and nowhere else now, which is what the last
+   * assertion is for: a clock in two places is two things to keep in step.
+   */
+  it('counts the claim down on the holder’s card, and only there', () => {
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(labelOf(cardFor(tree, 'Dana Chu').node!)).toContain('60s');
+    expect(labelOf(cardFor(tree, 'Me, you').node!)).not.toContain('60s');
+    // Once on the screen, the floor's own card having stopped carrying one.
+    expect(textOf(tree).match(/60s/g)).toHaveLength(1);
+    // The label says whose the floor is and does not say the seconds: it is
+    // re-announced on every change, and the number changes every second.
+    const label = String(cardFor(tree, 'Dana Chu').node!.props.accessibilityLabel);
+    expect(label).toContain('Has the floor');
+    expect(label).not.toContain('60s');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And the cooldown on your own card, that being the only card it is about.
+   * Everybody else's wait is a number you cannot act on, and six of them would
+   * make the roster a column of clocks.
+   */
+  it('counts your own cooldown on your own card', () => {
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          reduce(s, { type: 'CLAIM_FLOOR', userId: ME }, NOW),
+          { type: 'RELEASE_FLOOR', userId: ME },
+          NOW
+        )
+      )
+    );
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    // One step, being the one person present who spoke longer ago than you.
+    expect(labelOf(cardFor(tree, 'Me, you').node!)).toContain('10s');
+    expect(labelOf(cardFor(tree, 'Dana Chu').node!)).not.toContain('10s');
+    // Nobody holds it, so no card is tinted and the floor's card says so.
+    expect(cardFor(tree, 'Me, you').style.backgroundColor).not.toBe(
+      colors.floorDim
+    );
+    expect(textOf(tree)).toContain('Nobody has the floor');
     act(() => tree.unmount());
   });
 
@@ -1330,10 +1401,12 @@ describe('a channel screen without the repeated cards', () => {
 
   /**
    * The one card that stays, and the only one the setting reaches into rather
-   * than removing. What it holds is a readout — who has the floor, how long is
-   * left, why a claim is refused — and a footer icon has no room for any of
-   * it. Only the button is a second way of doing something already under the
-   * thumb.
+   * than removing. What it holds is a readout — who has the floor, and why a
+   * claim is refused — and a footer icon has no room for either. Only the
+   * button is a second way of doing something already under the thumb.
+   *
+   * The clock used to be the first item on that list. It is the roster's since
+   * 2026-09-12, and the roster is not something this setting touches.
    */
   it('keeps the floor card and takes only its button', () => {
     const tree = showBare();
@@ -1349,8 +1422,10 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The clock, which is the reason the card stays: it is not repeated
-   * anywhere, least of all in a bar with room for one word.
+   * The clock survives the setting, wherever it is drawn. It is on the
+   * holder's roster card now rather than in the floor's own card, and a bar
+   * with room for one word is no more able to carry it than before — so the
+   * screen with the repeated cards off still counts the minute down.
    */
   it('still runs the countdown while somebody holds the floor', () => {
     const tree = showBare(
@@ -1358,7 +1433,8 @@ describe('a channel screen without the repeated cards', () => {
     );
     const text = textOf(tree);
     expect(text).toContain('has the floor');
-    // The clock itself, and the sentence saying why the act is refused.
+    // The clock itself — on Dana's card — and the sentence saying why the act
+    // is refused, which is the floor's card and is not a readout of a clock.
     expect(text).toContain('60s');
     expect(text).toContain('You cannot claim the floor while you are silenced.');
     expect(text).not.toContain('Claim the floor');
