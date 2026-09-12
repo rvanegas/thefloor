@@ -32,6 +32,10 @@ such as two inverse distinguishable subtle chimes.
 
 Improve look and feel
 
+## yt-dlp Integration
+
+Take a youtube url, determine whether an audio only download is available, and make it available to media player.
+
 ## Call if You Must
 
 special case
