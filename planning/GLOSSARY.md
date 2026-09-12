@@ -63,6 +63,7 @@ caused; the list carries the meaning.
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
+- **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
@@ -668,7 +669,7 @@ everybody who was in it. A recording in progress is announced continuously to
 everybody in the room, guests included.
 
 A recording that has just stopped is **mixing** for a few seconds before it can
-be played or exported — its card appears immediately, with those two actions
+be played or shared — its card appears immediately, with those two actions
 disabled, rather than being withheld with nothing to explain the gap.
 
 ## Seat
@@ -720,6 +721,35 @@ over the wire in every channel snapshot: renaming it is a wire change, owed the
 two-step every wire change is owed, for a word rather than a behaviour. Read it
 as "muted by hand" and it is right; read it as "only by yourself" and it is a
 year out of date.
+
+## Share
+
+Handing a copy of something to whatever else is on the device: a *recording*, a
+*transcript*, or the track the channel is listening to. One verb, three
+buttons — `Share`, `Share` and `Share track` — and on a phone all three end at
+the system share sheet.
+
+**It was called *Export* until 2026-09-12**, which said what the file did and
+not what the person was doing with it. Nothing about the mechanism changed with
+the name; the route is still `GET /recordings/:id/export`, because a wire name
+is not a word anybody reads and renaming one costs a two-step.
+
+**It is a read, and that is the whole of the rule.** Sharing changes nothing
+anybody else can see or hear, so none of the things that govern *changing* a
+channel govern it: not the *floor*, not presence, not `manageable`. A member
+may take a copy of a recording while two other people are mid-conversation in
+the channel it was made in, and may take a copy of the track while somebody
+else holds the floor and decides what plays. What is greyed out on those cards
+stays a statement about what would change the room.
+
+**A track is the odd one of the three.** A recording and a transcript are
+artefacts this project produced in formats it chose; a track is whatever file
+somebody picked on their phone, so its name and its type come back from the
+server rather than being known by the client. See `shareTrack`.
+
+**On the web there is no share sheet, so a share is a download** — the file
+lands in the browser's downloads folder and the person does the rest.
+`app/src/api/download.web.ts` carries why it cannot be a plain link.
 
 ## Step in / Step out
 

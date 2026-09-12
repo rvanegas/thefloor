@@ -23,6 +23,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findExactButton,
   labelOf,
   linksIn,
   mockApp,
@@ -357,11 +358,11 @@ describe('Channel', () => {
     showRoster(tree);
 
     // The recording row's actions are behind a tap, and two of the three are
-    // refused. Export is not, and that is the assertion worth having.
+    // refused. Share is not, and that is the assertion worth having.
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(disabled('Rename')).toEqual(off('Rename'));
     expect(disabled('Delete')).toEqual(off('Delete'));
-    expect(findButton(tree, 'Export')!.props.accessibilityState).toEqual({
+    expect(findExactButton(tree, 'Share')!.props.accessibilityState).toEqual({
       disabled: false,
     });
     expect(textOf(tree)).toContain('Step in to rename or delete');
@@ -495,7 +496,7 @@ describe('Channel', () => {
       />);
     const text = textOf(tree);
     expect(text).toContain('still being recorded');
-    expect(text).toContain('left out of the exported recording');
+    expect(text).toContain('left out of the mix anybody can play or share');
     act(() => tree.unmount());
   });
 
@@ -824,6 +825,47 @@ describe('Channel', () => {
     expect(findButton(tree, 'Louder')!.props.accessibilityState.disabled).toBe(
       true
     );
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Taking a copy of what is on, which is a read and not a control.
+   *
+   * The floor is claimed by the other person deliberately: every other button
+   * on the card goes grey at that moment, and this one must not — it changes
+   * nothing anybody in the room can hear.
+   */
+  it('shares the track, and does so even without the floor', async () => {
+    showChannel(
+      channelOf((s) => {
+        const withTrack = reduce(
+          s,
+          {
+            type: 'SET_TRACK',
+            userId: ME,
+            track: { id: 'trk_1', title: 'Kind of Blue', durationMs: 120_000 },
+          },
+          NOW
+        );
+        return reduce(withTrack, { type: 'CLAIM_FLOOR', userId: THEM }, NOW);
+      })
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    const share = findButton(tree, 'Share track')!;
+    expect(share.props.accessibilityState.disabled).toBe(false);
+
+    const { shareTrack } = require('../../api/download');
+    shareTrack.mockClear();
+    await act(async () => share.props.onPress());
+    // The title it is playing under, so the file that lands in the share sheet
+    // is recognisable as the thing on screen.
+    expect(shareTrack).toHaveBeenCalledWith('token', 'sess_1', 'Kind of Blue');
     act(() => tree.unmount());
   });
 
@@ -1891,16 +1933,16 @@ describe('Channel', () => {
 
     // Closed until asked: the list is what this section is for, and the
     // actions belong to whichever row somebody has opened.
-    expect(findButton(tree, 'Export')).toBeUndefined();
+    expect(findExactButton(tree, 'Share')).toBeUndefined();
     act(() => findButton(tree, 'Book club')!.props.onPress());
 
-    // Exported under the recording's own name, which the server fixed when the
+    // Shared under the recording's own name, which the server fixed when the
     // run stopped — not a label rebuilt here from the roster, which is how two
     // people came to call one recording two different things.
-    const { exportRecording } = require('../../api/download');
-    exportRecording.mockClear();
-    await act(async () => findButton(tree, 'Export')!.props.onPress());
-    expect(exportRecording).toHaveBeenCalledWith(
+    const { shareRecording } = require('../../api/download');
+    shareRecording.mockClear();
+    await act(async () => findExactButton(tree, 'Share')!.props.onPress());
+    expect(shareRecording).toHaveBeenCalledWith(
       'token',
       'rec_1',
       'Book club',
@@ -1969,15 +2011,16 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    // Export, Rename and Delete rather than Play, which is also the name of
-    // the shared audio control further up the screen.
-    for (const label of ['Export', 'Rename', 'Delete']) {
-      expect(findButton(tree, label)).toBeUndefined();
+    // Share, Rename and Delete rather than Play, which is also the name of
+    // the shared audio control further up the screen — and 'Share track' is
+    // that card's too.
+    for (const label of ['Share', 'Rename', 'Delete']) {
+      expect(findExactButton(tree, label)).toBeUndefined();
     }
 
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
-    for (const label of ['Export', 'Rename', 'Delete']) {
-      expect(findButton(tree, label)).toBeDefined();
+    for (const label of ['Share', 'Rename', 'Delete']) {
+      expect(findExactButton(tree, label)).toBeDefined();
     }
 
     // One row's worth of actions at a time: tapping it again puts them away.

@@ -2,7 +2,7 @@ import { API_URL } from './config';
 import { ApiError, reportSignedOut } from './http';
 
 /**
- * Exporting a recording or a transcript, from a browser.
+ * Sharing a recording, a transcript or a track, from a browser.
  *
  * **It cannot be a link, and that is the whole reason this file exists.**
  * `GET /recordings/:id/export` needs the bearer token, and an `<a href>`
@@ -23,13 +23,17 @@ import { ApiError, reportSignedOut } from './http';
 /**
  * Fetches with the token and gives the result a filename.
  *
- * Shared by both exports below, since the two differ only in the URL, the
- * extension and the sentence used when it fails.
+ * Shared by all three below, since they differ only in the URL, the name the
+ * file lands under and the sentence used when it fails.
+ *
+ * The name may be a function of the response, which is the track's case: what
+ * somebody uploaded is not something this side knows the extension of, and the
+ * server says so in `content-disposition`.
  */
 async function download(
   token: string,
   url: string,
-  filename: string,
+  filename: string | ((response: Response) => string),
   whatFailed: string
 ): Promise<void> {
   let response: Response;
@@ -70,7 +74,8 @@ async function download(
   try {
     const anchor = document.createElement('a');
     anchor.href = href;
-    anchor.download = filename;
+    anchor.download =
+      typeof filename === 'string' ? filename : filename(response);
     // In the document, because a detached anchor is not clickable in every
     // engine — the same reason the file input in upload.web.ts is appended.
     anchor.style.display = 'none';
@@ -85,7 +90,7 @@ async function download(
   }
 }
 
-export async function exportRecording(
+export async function shareRecording(
   token: string,
   recordingId: string,
   name: string,
@@ -99,7 +104,7 @@ export async function exportRecording(
   );
 }
 
-export async function exportTranscript(
+export async function shareTranscript(
   token: string,
   recordingId: string,
   name: string,
@@ -112,6 +117,44 @@ export async function exportTranscript(
     `${fileStem(name, endedAt)}.${format}`,
     'Could not download the transcript'
   );
+}
+
+/**
+ * Downloads the channel's current track under the name it was uploaded with.
+ *
+ * No `The Floor —` prefix and no timestamp, unlike the two above and for the
+ * reason the native side gives: this file is somebody else's, it already has
+ * the name they gave it, and the only thing this side supplies is the
+ * extension — which comes back from the server, since a browser knows no more
+ * about what was uploaded than the phone does.
+ */
+export async function shareTrack(
+  token: string,
+  channelId: string,
+  title: string
+): Promise<void> {
+  const safeName = title.replace(/[^\w\- ]/g, '').trim() || 'track';
+  await download(
+    token,
+    `${API_URL}/channels/${channelId}/track`,
+    (response) => `${safeName}${extensionOf(response)}`,
+    'Could not download the track'
+  );
+}
+
+/**
+ * The extension the server filed the track under.
+ *
+ * `.mp3` when the header says nothing useful — a browser download with no
+ * extension opens in nothing, and that is what the picker overwhelmingly
+ * yields. `Headers` folds case itself, which is the one respect in which this
+ * is easier than the native side.
+ */
+function extensionOf(response: Response): string {
+  const match = /filename="[^"]*(\.[A-Za-z0-9]+)"/.exec(
+    response.headers.get('content-disposition') ?? ''
+  );
+  return match ? match[1].toLowerCase() : '.mp3';
 }
 
 /**

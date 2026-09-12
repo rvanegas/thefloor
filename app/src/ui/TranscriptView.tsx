@@ -7,7 +7,7 @@ import {
   type VoiceDeclarations,
   type VoiceEntry,
 } from '../../../core/transcript';
-import { exportTranscript } from '../api/download';
+import { shareTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import {
@@ -71,8 +71,8 @@ export function TranscriptView({
    *
    * A function rather than only an effect because declaring the voices changes
    * every line's name at once, and the honest way to show that is to ask again
-   * — the naming rules live on the server precisely so that this screen, an
-   * export and a search result cannot drift apart.
+   * — the naming rules live on the server precisely so that this screen, a
+   * shared copy and a search result cannot drift apart.
    */
   const load = React.useCallback(async () => {
     if (!app.token) return;
@@ -151,7 +151,7 @@ export function TranscriptView({
     is while the transcript moves under it. Everything you can do to this
     transcript is up here, above what it says, rather than below it — a
     transcript is as long as the conversation was, and both a footer and a
-    header that scrolls away put the moment somebody decides to export it a
+    header that scrolls away put the moment somebody decides to share it a
     scroll from the control that does it. The screen reads top-down: what this
     is, what you may do to it, then the words, and the first two stay put.
   */
@@ -196,11 +196,11 @@ export function TranscriptView({
           ) : null}
           {state === 'ready' && !naming ? (
             <Button
-              label={busy ? 'Preparing…' : 'Export'}
+              label={busy ? 'Preparing…' : 'Share'}
               variant="ghost"
               disabled={busy}
               onPress={() => {
-                Alert.alert('Export transcript', 'Which format?', [
+                Alert.alert('Share transcript', 'Which format?', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Text', onPress: () => download('txt') },
                   { text: 'Subtitles', onPress: () => download('vtt') },
@@ -383,7 +383,7 @@ export function TranscriptView({
     if (!app.token) return;
     setBusy(true);
     try {
-      await exportTranscript(
+      await shareTranscript(
         app.token,
         recording.id,
         recording.name,
@@ -392,7 +392,7 @@ export function TranscriptView({
       );
     } catch (e) {
       Alert.alert(
-        'Could not export',
+        'Could not share',
         e instanceof Error ? e.message : String(e)
       );
     } finally {

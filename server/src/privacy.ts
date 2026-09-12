@@ -174,7 +174,7 @@ application collects little.</p>
   <li><strong>Audio you record.</strong> Recording is deliberate: somebody in
   the channel starts it, and everybody in the channel can see that it is
   running. Recordings are stored in Amazon S3, in the United States. Everyone
-  in the channel the recording was made in can play it, rename it, export it and
+  in the channel the recording was made in can play it, rename it, share it and
   delete it.</li>
   <li><strong>Your channels and who is in them</strong>, so that a conversation
   survives the app being closed.</li>
@@ -220,7 +220,7 @@ opened, what you tapped, or how long you spent looking at anything.</p>
 
 <h2>Deleting things</h2>
 <p>Deleting a recording or a channel marks it immediately: it disappears for
-everyone at once and can no longer be played or exported. The underlying data
+everyone at once and can no longer be played or shared. The underlying data
 is removed about ${RETENTION_DAYS} days later, so that a deletion made by
 mistake can be recovered by asking.</p>
 

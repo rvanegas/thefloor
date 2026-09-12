@@ -1538,6 +1538,37 @@ export class ChannelRegistry {
   }
 
   /**
+   * The file behind the channel's current track, for a member who wants a copy.
+   *
+   * The registry answers this rather than the route reading `trackFiles`
+   * itself, for the reason `recordingAudio` exists: where the bytes live is
+   * this class's business, and a second thing that knows the layout is a
+   * second thing to fix when a track stops being one file in one directory.
+   *
+   * **Membership of the channel, not presence and not the floor.** Taking a
+   * copy of what everybody has been listening to is a private read, like
+   * exporting a recording — it changes nothing about what plays, so the rule
+   * that governs *changing* the track has no business governing this. Somebody
+   * who has stepped out may still take the file; somebody who was never in the
+   * channel gets the same answer as if there were no track at all.
+   *
+   * `null` covers absent, not-yours and no-track-loaded together, and the
+   * route answers all three as 404: which channels exist, and whether one of
+   * them has something loaded, are both things only its members should learn.
+   */
+  trackFileFor(
+    channelId: string,
+    userId: string
+  ): { file: string; title: string } | null {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) return null;
+    const track = channel.playback.track;
+    const entry = this.trackFiles.get(channelId);
+    if (!track || !entry) return null;
+    return { file: entry.file, title: track.title };
+  }
+
+  /**
    * Reports a change in whether a user has a connection, which is not a change
    * in whether they are in the channel.
    *

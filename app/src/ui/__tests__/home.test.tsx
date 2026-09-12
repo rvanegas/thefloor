@@ -12,6 +12,7 @@ import {
   NOW,
   THEM,
   findButton,
+  findExactButton,
   homeNav,
   mockApp,
   render,
@@ -441,7 +442,7 @@ describe('Home', () => {
     const text = textOf(tree);
     expect(text).not.toContain('Dana Chu and Me');
     expect(text).not.toContain('1:32');
-    expect(findButton(tree, 'Export')).toBeUndefined();
+    expect(findExactButton(tree, 'Share')).toBeUndefined();
     act(() => tree.unmount());
   });
 

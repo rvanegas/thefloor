@@ -605,3 +605,72 @@ describe('an empty channel stops making noise', () => {
     expect(app.channels.get(channelId)!.playback.status).toBe('paused');
   });
 });
+
+describe('taking a copy of the track', () => {
+  it('hands a member the file that was uploaded', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    const sent = await audioFile(2);
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/track?name=${encodeURIComponent(
+        'A Nice Track.mp3'
+      )}`,
+      headers: { ...auth(alice.token), 'content-type': 'audio/mpeg' },
+      payload: sent,
+    });
+
+    // Bob, who uploaded nothing: a track is put on for everybody, so it is
+    // everybody's to take away.
+    const got = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/track`,
+      headers: auth(bob.token),
+    });
+    expect(got.statusCode).toBe(200);
+    expect(got.rawPayload.equals(sent)).toBe(true);
+    // Typed and named from the extension it arrived with, since what is handed
+    // back is the uploader's file rather than anything this server made.
+    expect(got.headers['content-type']).toBe('audio/mpeg');
+    expect(got.headers['content-disposition']).toContain('.mp3');
+  });
+
+  it('refuses somebody who is not in the channel', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    const carol = await signIn('carol@example.com', 'Carol');
+
+    const got = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/track`,
+      headers: auth(carol.token),
+    });
+    // 404 rather than 403: that this channel exists, and that something is
+    // loaded in it, are both things only its members should learn.
+    expect(got.statusCode).toBe(404);
+  });
+
+  it('has nothing to give when nothing is on', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    const got = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/track`,
+      headers: auth(alice.token),
+    });
+    expect(got.statusCode).toBe(404);
+  });
+
+  it('is a read, so it survives somebody else holding the floor', async () => {
+    const { alice, bob, channelId } = await sessionOfTwo();
+    await upload(alice.token, channelId);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+
+    // Bob may not change what plays while Alice has the floor, and that has
+    // nothing to do with whether he may keep a copy of it.
+    const got = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/track`,
+      headers: auth(bob.token),
+    });
+    expect(got.statusCode).toBe(200);
+  });
+});

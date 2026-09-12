@@ -79,8 +79,8 @@ const mockDeclare = jest.fn(async () => ({ ok: true as const }));
 
 const mockExport = jest.fn(async () => {});
 jest.mock('../../api/download', () => ({
-  exportRecording: jest.fn(async () => {}),
-  exportTranscript: (...args: unknown[]) => mockExport(...(args as [])),
+  shareRecording: jest.fn(async () => {}),
+  shareTranscript: (...args: unknown[]) => mockExport(...(args as [])),
 }));
 
 jest.mock('../../state/AppProvider', () => ({

@@ -56,6 +56,7 @@ import {
 import { inRoom } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { SessionAudio } from '../audio/useSessionAudio';
+import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
 import { copyText, pasteText } from '../clipboard';
 import { canShare, shareLink } from '../share';
@@ -219,6 +220,15 @@ export function ChannelView({
   } | null>(null);
   const uploading = upload !== null;
   const [uploadError, setUploadError] = useState<string | null>(null);
+  /**
+   * A copy of the track being fetched, which is a wait and not an upload.
+   *
+   * Its own flag rather than a fourth field on `upload`: the two can run at
+   * once — somebody may take a copy of what is on while replacing it — and
+   * sharing has no progress and nothing to cancel, since the file is already
+   * on the server and is at most the hundred megabytes the upload allowed.
+   */
+  const [trackSharing, setTrackSharing] = useState(false);
   // What the clipboard section is saying about itself, if anything. Refusals
   // this screen makes on its own — an empty device clipboard, text past the
   // cap — because a paste travels as a socket action and a socket refusal is
@@ -936,6 +946,29 @@ export function ChannelView({
     }
   };
 
+  /**
+   * Hands whoever asked a copy of what the channel is listening to.
+   *
+   * An `Alert` on failure rather than the warning line the upload uses, and
+   * deliberately the same one the recordings list raises: a share that does
+   * not happen is about the thing you just tapped, not about the state of the
+   * card, and the card's warning slot is for what is wrong with the track.
+   */
+  const takeTrack = async () => {
+    if (!app.token || !track) return;
+    setTrackSharing(true);
+    try {
+      await shareTrack(app.token, channelId, track.title);
+    } catch (error) {
+      Alert.alert(
+        'Could not share',
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setTrackSharing(false);
+    }
+  };
+
   /*
     Pinned, so which channel you are in and the two ways out of it do not
     scroll away. This screen is the longest in the application — eleven
@@ -1323,7 +1356,7 @@ export function ChannelView({
           {!controlCards && recordingLive && iAmSilenced ? (
             <Text style={styles.warning}>
               You are still being recorded. Nobody can hear you, but your
-              microphone is captured; it is left out of the exported recording,
+              microphone is captured; it is left out of the mix anybody can play or share,
               not out of the capture.
             </Text>
           ) : null}
@@ -1681,7 +1714,7 @@ export function ChannelView({
                 // someone speak freely on that assumption.
                 <Text style={styles.warning}>
                   You are still being recorded. Nobody can hear you, but your
-                  microphone is captured; it is left out of the exported recording,
+                  microphone is captured; it is left out of the mix anybody can play or share,
                   not out of the capture.
                 </Text>
               ) : null}
@@ -2341,6 +2374,21 @@ export function ChannelView({
                   style={styles.flexButton}
                   disabled={!mayLoadTrack || uploading}
                   onPress={loadTrack}
+                />
+                {/*
+                  The one control on this card with no floor and no presence
+                  behind it, for the reason the recordings list gives about its
+                  own: taking a copy is a read. It changes nothing anybody in
+                  the room can hear, so the rule about who decides what plays
+                  has no business governing it — and what is greyed out while
+                  somebody else holds the floor stays a statement about what
+                  would change the room.
+                */}
+                <Button
+                  label={trackSharing ? 'Preparing…' : 'Share track'}
+                  style={styles.flexButton}
+                  disabled={trackSharing}
+                  onPress={takeTrack}
                 />
                 <Button
                   label="Remove"

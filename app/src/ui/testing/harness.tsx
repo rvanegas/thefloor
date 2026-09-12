@@ -407,6 +407,24 @@ function showTab(tree: ReactTestRenderer, label: string): void {
 }
 
 /**
+ * The button whose label is *exactly* this, where a substring catches another.
+ *
+ * `Share` is the case that forced it, when the recordings list stopped saying
+ * `Export`: a channel screen carries `Share a guest link` and `Share track`
+ * beside it, so a substring search for the row's own button finds one of those
+ * instead — and an assertion that the row is closed passes or fails on a
+ * control at the other end of the screen.
+ */
+export function findExactButton(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  return tree.root
+    .findAll((n) => n.props?.accessibilityRole === 'button')
+    .find((n) => labelOf(n) === label);
+}
+
+/**
  * The text of every rendered link. Host nodes only — `findAll` matches both the
  * composite component and its host element, so an unfiltered search counts one
  * link twice.
@@ -516,7 +534,8 @@ export function knowing(...ids: string[]) {
  * `uploads`, so a helper written against either behaves the same everywhere.
  */
 export const downloadMock = () => ({
-  exportRecording: jest.fn(async () => {}),
+  shareRecording: jest.fn(async () => {}),
+  shareTrack: jest.fn(async () => {}),
 });
 
 export const uploadMock = () => ({

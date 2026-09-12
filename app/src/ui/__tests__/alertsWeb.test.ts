@@ -101,14 +101,14 @@ describe('an alert with several choices', () => {
     const vtt = jest.fn();
     let answers = [false, true];
     const io2: AlertIo = { tell: io.tell, ask: (t) => (asked.push(t), answers.shift() ?? false) };
-    showAlert(io2, 'Export transcript', 'Which format?', [
+    showAlert(io2, 'Share transcript', 'Which format?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Text', onPress: txt },
       { text: 'Subtitles', onPress: vtt },
     ]);
     expect(asked).toEqual([
-      'Export transcript\n\nWhich format?\n\nText?',
-      'Export transcript\n\nWhich format?\n\nSubtitles?',
+      'Share transcript\n\nWhich format?\n\nText?',
+      'Share transcript\n\nWhich format?\n\nSubtitles?',
     ]);
     expect(txt).not.toHaveBeenCalled();
     expect(vtt).toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe('an alert with several choices', () => {
     const cancelled = jest.fn();
     const chosen = jest.fn();
     say(false);
-    showAlert(io, 'Export transcript', 'Which format?', [
+    showAlert(io, 'Share transcript', 'Which format?', [
       { text: 'Cancel', style: 'cancel', onPress: cancelled },
       { text: 'Text', onPress: chosen },
       { text: 'Data', onPress: chosen },

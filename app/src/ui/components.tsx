@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
 import type { RecordingView } from '../../../core/protocol';
-import { exportRecording } from '../api/download';
+import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { usePane } from './layout';
@@ -606,7 +606,7 @@ export function RecordingRow({
    * recording whose channel has ended has nobody in it to interrupt, and the
    * server says the same thing by way of `hasTheRoomIn`.
    *
-   * Exporting is deliberately not covered. It is a read, it changes nothing
+   * Sharing is deliberately not covered. It is a read, it changes nothing
    * anybody in the room can see, and refusing somebody their own conversation
    * because two other people are talking would be a rule with no injury behind
    * it.
@@ -634,7 +634,7 @@ export function RecordingRow({
   /**
    * The rename field takes the place of the actions rather than joining them,
    * so a row is either offering things to do or asking for a name — never a
-   * text box wedged between Export and Delete, with Delete a thumb's width
+   * text box wedged between Share and Delete, with Delete a thumb's width
    * from a keyboard somebody is typing into.
    */
   const [renaming, setRenaming] = React.useState(false);
@@ -708,7 +708,7 @@ export function RecordingRow({
               disabled={playDisabled || !!recording.mixing}
             />
           ) : null}
-          <ExportButton recording={recording} disabled={!!recording.mixing} />
+          <ShareButton recording={recording} disabled={!!recording.mixing} />
           <Button
             label="Rename"
             disabled={!manageable}
@@ -736,7 +736,7 @@ export function RecordingRow({
           */}
           {recording.mixing ? (
             <Text style={type.muted}>
-              Still being prepared — playing and exporting will be available in
+              Still being prepared — playing and sharing will be available in
               a moment.
             </Text>
           ) : null}
@@ -749,7 +749,7 @@ export function RecordingRow({
             <Text style={type.muted}>Play is unavailable — {playDisabledReason}.</Text>
           ) : null}
           {/*
-            Export is missing from this sentence on purpose, and it is the one
+            Share is missing from this sentence on purpose, and it is the one
             button on the row still working — see `manageable`.
           */}
           {manageable ? null : (
@@ -1141,7 +1141,7 @@ function TranscriptButton({
   );
 }
 
-export function ExportButton({
+export function ShareButton({
   recording,
   disabled = false,
 }: {
@@ -1154,13 +1154,13 @@ export function ExportButton({
 
   return (
     <Button
-      label={busy ? 'Preparing…' : 'Export'}
+      label={busy ? 'Preparing…' : 'Share'}
       disabled={busy || disabled}
       onPress={async () => {
         if (!app.token) return;
         setBusy(true);
         try {
-          await exportRecording(
+          await shareRecording(
             app.token,
             recording.id,
             // Same label as the row it came from, so the file that lands in
@@ -1170,7 +1170,7 @@ export function ExportButton({
           );
         } catch (e) {
           Alert.alert(
-            'Could not export',
+            'Could not share',
             e instanceof Error ? e.message : String(e)
           );
         } finally {

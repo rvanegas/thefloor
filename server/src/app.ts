@@ -266,6 +266,29 @@ export interface App {
  */
 export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
 
+/**
+ * What to call a track's bytes when handing them back.
+ *
+ * Only what the picker actually yields — an audio file somebody has on a
+ * phone — and deliberately short rather than a mime database: anything not
+ * here is served as `application/octet-stream`, which is a file that saves
+ * and does not play, rather than a guess that plays wrongly. `.opus` and
+ * `.ogg` are the same container and are listed separately because both names
+ * are in use and the extension is all we have to go on.
+ */
+const TRACK_CONTENT_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.wav': 'audio/wav',
+  '.aiff': 'audio/aiff',
+  '.aif': 'audio/aiff',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.caf': 'audio/x-caf',
+};
+
 export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
   const db = openDb(options.dbPath ?? ':memory:');
@@ -2648,6 +2671,55 @@ export function buildApp(options: BuildOptions = {}): App {
       }
     }
   );
+
+  /**
+   * Hands a member a copy of what the channel is listening to.
+   *
+   * The counterpart of the upload directly above, and what makes a track
+   * shareable at all: somebody put this on for everybody, so everybody it
+   * played to may take it away. Membership alone governs it — the rule, and
+   * why it is not the rule that governs *changing* the track, is in
+   * `trackFileFor`.
+   *
+   * The bytes are served as they were uploaded, which is why the type is read
+   * off the extension rather than fixed the way `RECORDING_CONTENT_TYPE` is:
+   * this server produced the mix and knows what it is, and a track is whatever
+   * file somebody picked on their phone. An unrecognised extension is served
+   * as `application/octet-stream`, which saves correctly everywhere and plays
+   * nowhere — the honest answer when we do not know what it is.
+   */
+  fastify.get('/channels/:id/track', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const track = channels.trackFileFor(id, account.id);
+    if (!track) return reply.code(404).send({ error: 'Nothing is loaded.' });
+
+    let data: Buffer;
+    try {
+      data = await readFile(track.file);
+    } catch (error) {
+      // The file has gone from under a track the state still names — a channel
+      // whose track directory was swept, say. Not the caller's doing and not
+      // something they can fix, but 404 is still the true answer: there is
+      // nothing here to hand over.
+      request.log.error({ err: error, channel: id }, 'track read failed');
+      return reply.code(404).send({ error: 'Nothing is loaded.' });
+    }
+
+    channels.usage.recordBytes({
+      kind: 'track-share',
+      bytes: data.length,
+      accountId: account.id,
+    });
+
+    const ext = extname(track.file).toLowerCase();
+    return reply
+      .header('content-type', TRACK_CONTENT_TYPES[ext] ?? 'application/octet-stream')
+      .header('content-disposition', `attachment; filename="track${ext}"`)
+      .send(data);
+  });
 
   /**
    * Plays a recording into the channel it was made in.

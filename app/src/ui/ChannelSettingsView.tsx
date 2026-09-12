@@ -179,7 +179,7 @@ export function ChannelSettingsView({
         ? 'You are its last member, so this is the end of it. It cannot be undone.'
         : `You are its last member, so this deletes the channel and ${countOf(
             recordingCount
-          )} made in it. Export anything you want to keep first — this cannot be undone.`,
+          )} made in it. Share anything you want to keep first — this cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
