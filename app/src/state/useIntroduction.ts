@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HomeView } from '../../../core/protocol';
+import { recordEvent } from '../audio/diagnostics';
 import { storage } from './storage';
 import {
   arrivalOf,
@@ -114,6 +115,9 @@ export function useIntroduction(state: {
       setArrival(null);
       setDoneAt(null);
       setUsername(undefined);
+      // TEMPORARY — see `introTrace` in `AppProvider`. This is the one path
+      // that un-writes the flag, and it should appear only on a sign-out.
+      recordEvent('intro cleared (no token)');
       void storage.remove(ARRIVAL_KEY);
       void storage.remove(DONE_AT_KEY);
       return;
@@ -132,6 +136,13 @@ export function useIntroduction(state: {
       const stamp = Number(storedDoneAt);
       setDoneAt(Number.isFinite(stamp) && stamp > 0 ? stamp : null);
       setLoaded(true);
+      // TEMPORARY — see `introTrace` in `AppProvider`. What the keychain had
+      // when this account signed in, which is the other half of the question.
+      recordEvent(
+        `intro loaded arrival=${storedArrival ?? 'none'} doneAt=${
+          storedDoneAt ?? 'none'
+        }`
+      );
     })();
     return () => {
       cancelled = true;
@@ -162,6 +173,10 @@ export function useIntroduction(state: {
     if (!conversing || doneAt !== null) return;
     const now = Date.now();
     setDoneAt(now);
+    // TEMPORARY — see `introTrace` in `AppProvider`. The write itself, so that
+    // a retirement that happens and does not stick is told apart from one that
+    // never happens.
+    recordEvent(`intro retiring at=${now}`);
     void storage.set(DONE_AT_KEY, String(now));
   }, [conversing, doneAt]);
 

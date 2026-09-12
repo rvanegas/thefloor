@@ -24,6 +24,7 @@ import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
+import { recordEvent } from '../audio/diagnostics';
 import { startShippingDiagnostics } from '../audio/shipping';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
@@ -1084,6 +1085,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (view) =>
       view.channel.present.includes(mine) && view.channel.present.length > 1
   );
+
+  /**
+   * TEMPORARY — the introduction checklist not retiring. Delete with the
+   * diagnosis; see the trace in `useIntroduction`.
+   *
+   * Every input to `conversing` in one line, written only when it changes, so
+   * the panel shows why rather than only what. `me` is the id the `includes`
+   * is done with, and it is the one thing no screen displays.
+   */
+  const introTrace =
+    `intro me=${mine || 'MISSING'} conversing=${conversing} views=` +
+    (Object.values(state.channelViews)
+      .map(
+        (view) =>
+          `${view.channel.id.slice(0, 4)}[${view.channel.status}]` +
+          `present=${view.channel.present
+            .map((id) => (id === mine ? 'ME' : id.slice(0, 4)))
+            .join('|')}` +
+          `+${Object.keys(view.channel.guests ?? {}).length}g`
+      )
+      .join(' ') || 'none');
+  const lastIntroTrace = useRef('');
+  useEffect(() => {
+    if (introTrace === lastIntroTrace.current) return;
+    lastIntroTrace.current = introTrace;
+    recordEvent(introTrace);
+  }, [introTrace]);
 
   const notifications = useNotificationAsk({
     token: state.token,
