@@ -308,22 +308,98 @@ resolve() {
   printf '%s' "$matches"
 }
 
+# A paragraph, indented and wrapped to the terminal, blank lines left blank.
+wrapped() {
+  # fold -s breaks at a space and keeps it, so every wrapped line would end in
+  # one — invisible until somebody copies the text back out.
+  printf '%s\n' "$1" | fold -s -w "$2" |
+    awk '{ sub(/ +$/, ""); if (length($0)) printf "  %s\n", $0; else print "" }'
+}
+
 # The whole of one question, which is both confirmations: what the draft now
 # says, and what the asker can now see.
+#
+# **Not a table, and this is the reason the rest of this tool is.** A row here
+# is four short values and three paragraphs, and `-column` pads every value in
+# a row to the width of the longest one in it — so a four-hundred-character
+# answer becomes a four-hundred-character column, the header and the dashes run
+# off the side of the screen, and the prose that was the point arrives in a
+# strip down the right. `list` stays a table because everything in it is short
+# and the columns are what makes it scannable; this is read one at a time, so
+# it is laid out to be read.
+#
+# One query rather than a call to scalar() per field, each of which is an ssh
+# round trip to the box. char(31) separates the fields, a unit separator being
+# the one character nobody types into a help form — which a tab or a newline
+# is not.
 show() {
-  bin/db $local_flag "
-    SELECT q.id,
-           a.identifier AS asker,
-           a.display_name AS name,
-           datetime(q.asked_at / 1000, 'unixepoch') AS asked,
-           q.text,
-           q.answer_draft AS draft,
-           datetime(q.drafted_at / 1000, 'unixepoch') AS drafted,
-           q.answer,
-           datetime(q.answered_at / 1000, 'unixepoch') AS answered
+  local width blob
+  width=$(tput cols 2>/dev/null || echo 80)
+  [ "$width" -gt 80 ] && width=80
+  width=$((width - 2))
+
+  blob=$(bin/db $local_flag "
+    SELECT hex(
+      q.id || char(31)
+      || a.display_name || char(31)
+      || a.identifier || char(31)
+      || coalesce(a.last_build, '') || char(31)
+      || datetime(q.asked_at / 1000, 'unixepoch') || char(31)
+      || q.text || char(31)
+      || coalesce(q.answer_draft, '') || char(31)
+      || coalesce(datetime(q.drafted_at / 1000, 'unixepoch'), '') || char(31)
+      || coalesce(q.answer, '') || char(31)
+      || coalesce(datetime(q.answered_at / 1000, 'unixepoch'), '')
+    ) AS value
       FROM help_questions q JOIN accounts a ON a.id = q.account_id
      WHERE q.id = $(quote "$1");
-  "
+  " | tr -d ' \r' | { grep -E '^[0-9A-F]+$' || true; } | xxd -r -p)
+
+  if [ -z "$blob" ]; then
+    echo "bin/help: $1 is not a question in this database" >&2
+    return 1
+  fi
+
+  local field
+  local -a fields
+  fields=()
+  while IFS= read -r -d $'\037' field; do
+    fields+=("$field")
+  done < <(printf '%s\037' "$blob")
+
+  local qid=${fields[0]-} name=${fields[1]-} email=${fields[2]-}
+  local build=${fields[3]-} asked=${fields[4]-} text=${fields[5]-}
+  local draft=${fields[6]-} drafted=${fields[7]-}
+  local answer=${fields[8]-} answered=${fields[9]-}
+
+  echo "$qid"
+  if [ -n "$build" ]; then
+    echo "$name <$email>, on build $build"
+  else
+    echo "$name <$email>, build unknown"
+  fi
+  echo "asked $asked"
+  echo
+  wrapped "$text" "$width"
+
+  if [ -n "$answer" ]; then
+    echo
+    echo "sent $answered:"
+    wrapped "$answer" "$width"
+  fi
+
+  if [ -n "$draft" ]; then
+    echo
+    # "and not sent" every time it is printed: the whole hazard of a two-step
+    # publish is forgetting which step you are on.
+    echo "drafted $drafted, and not sent:"
+    wrapped "$draft" "$width"
+  fi
+
+  if [ -z "$answer" ] && [ -z "$draft" ]; then
+    echo
+    echo "Nothing drafted, nothing sent."
+  fi
 }
 
 # The draft write, which is one statement wherever the words came from.
