@@ -23,7 +23,7 @@ import {
   resetHarness,
   showChannel,
   showNotepad,
-  showPlayer,
+  showRecordings,
   showWatch,
   textOf,
 } from '../testing/harness';
@@ -247,11 +247,11 @@ describe('Channel, watching together', () => {
 
   it('refuses Record with the reason, rather than a dead button', () => {
     showChannel(watching());
-    // On *Player*, which is where recording is: the refusal and the thing
+    // On *Recordings*, which is where recording is: the refusal and the thing
     // causing it are a tab apart now, which is exactly why the reason has to
     // travel with the button rather than be inferred from the card next to it.
     const tree = openOnRoster();
-    showPlayer(tree);
+    showRecordings(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     expect(textOf(tree)).toContain('Stop the watch party to record');
     act(() => tree.unmount());

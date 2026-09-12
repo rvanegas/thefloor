@@ -1156,9 +1156,9 @@ export function ChannelView({
             pill carrying the word and the clock, and a whole row of every
             screenful is a great deal to spend on a fact that a dot states.
             The dot stays up here where it cannot scroll away; the word and
-            the elapsed time went down to the Recording card on the Player
-            tab, which is where the transport is and where somebody who wants
-            the number is already going.
+            the elapsed time went down to the Recording card on the
+            Recordings tab, which is where the transport is and where somebody
+            who wants the number is already going.
 
             Not a button. It sits in the row of buttons because that is where
             the space at the end of the name is, and it is the only thing in
@@ -1220,8 +1220,8 @@ export function ChannelView({
         carries the conversation as it is happening — who is here, the floor,
         your microphone, the ways in and out. The four in the middle carry
         what the channel holds, which outlives the moment: what has been
-        written down, what is playing, what was recorded, what is being
-        watched. The last carries the two ways somebody who is not here gets
+        written down, what is playing, what is being recorded and what was,
+        what is being watched. The last carries the two ways somebody who is not here gets
         in.
 
         The description used to sit above the switch, outside it, on the
@@ -2311,7 +2311,20 @@ export function ChannelView({
           </Text>
         </Card>
 
+          </>
+        ) : null}
 
+        {shown === 'recordings' ? (
+          <>
+        {/*
+          The transport, above the list it produces. It was on the *Player*
+          tab, one card under the shared audio, on the grounds that recording
+          is what playing is doing to the room; but the tab somebody goes to
+          about a recording is the one named after them, and having gone there
+          to stop one they had to find their way to a different tab to do it.
+          Above the list rather than below it, so the control that is about
+          right now is not reached past a history that may be any length.
+        */}
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
           {/*
@@ -2437,11 +2450,6 @@ export function ChannelView({
           ) : null}
         </Card>
 
-          </>
-        ) : null}
-
-        {shown === 'recordings' ? (
-          <>
         {/*
           Recordings live here because they belong to the channel: it names
           them, its members are who may hear them, and deleting it deletes

@@ -447,8 +447,10 @@ describe('Channel', () => {
     expect(textOf(tree)).toContain('Step in');
     expect(on('Claim the floor')).toEqual({ disabled: true });
 
-    showPlayer(tree);
+    showRecordings(tree);
     expect(on('Record')).toEqual({ disabled: true });
+
+    showPlayer(tree);
     // And since 2026-08-24, putting something on. This asserted the opposite
     // until then: loading a track and starting a party are the two acts that
     // leave something behind for whoever steps in next, so they ask presence
@@ -536,7 +538,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showRecordings(tree);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
@@ -1281,13 +1283,15 @@ describe('Channel', () => {
     showNotepad(tree);
     expect(sections()).toEqual(['Description', 'Shared clipboard']);
 
-    // What is playing and what is being kept, which are one tab because the
-    // second is what the first is doing to the room right now.
+    // What is playing, and nothing else: the recording transport moved to
+    // *Recordings* on 2026-09-12, the tab being named after what it makes.
     showPlayer(tree);
-    expect(sections()).toEqual(['Shared audio', 'Recording']);
+    expect(sections()).toEqual(['Shared audio']);
 
+    // The transport above the list it produces — what is being recorded now,
+    // then what was.
     showRecordings(tree);
-    expect(sections()).toEqual(['Recordings']);
+    expect(sections()).toEqual(['Recording', 'Recordings']);
 
     showWatch(tree);
     expect(sections()).toEqual(['Watch together']);
@@ -1606,7 +1610,7 @@ describe('Channel', () => {
   });
 
   /*
-    The other half of that split. The card on the Player tab is where the
+    The other half of that split. The card on the Recordings tab is where the
     transport is, so it is where the word and the clock belong — somebody who
     wants the number is already on their way here.
   */
@@ -1619,7 +1623,7 @@ describe('Channel', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showPlayer(tree);
+    showRecordings(tree);
     const text = textOf(tree);
     expect(text).toContain('Recording');
     expect(text).toContain('0:00');
@@ -2580,7 +2584,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showRecordings(tree);
     expect(textOf(tree)).toContain(
       'This channel records itself. One starts as soon as there is somebody else in the room.'
     );

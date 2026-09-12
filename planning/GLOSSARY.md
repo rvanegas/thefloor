@@ -203,8 +203,12 @@ another. A glyph and a word each, since 2026-09-12, built the way the channel
 
 **Who, then what.** The first three are the people — who is here, what they
 have written down, and how somebody who is not here gets in. The last three are
-what the channel is carrying, which outlives the moment: what is playing and
-whether it is being recorded, what was recorded before, what is being watched.
+what the channel is carrying, which outlives the moment: what is playing, what
+is being recorded and what was recorded before, what is being watched. The
+recording transport is on *Recordings* since 2026-09-12; it was a second card
+on *Player* until then, on the reasoning that recording is what playing is
+doing to the room — but the tab somebody goes to about a recording is the one
+named after them.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
 
