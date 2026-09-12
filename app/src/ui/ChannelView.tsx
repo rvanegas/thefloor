@@ -84,6 +84,7 @@ import {
   TranscriptSearch,
   Screen,
   SectionLabel,
+  Segmented,
 } from './components';
 import { ago, duration } from './relativeTime';
 import {
@@ -252,6 +253,20 @@ export function ChannelView({
    */
   const act = (action: Parameters<typeof app.act>[1]) =>
     app.act(channelId, action);
+  /**
+   * Which of the two tabs at the top of this screen is showing.
+   *
+   * **Two lists about the same set of people**: who is in the channel now, and
+   * the ways somebody else gets in. They are peers in the way Channels and
+   * Contacts are on Home — neither is a child of the other — so they are a
+   * switch rather than a section and a section, and the screen spends the room
+   * once instead of twice.
+   *
+   * Local and unremembered: a channel screen opened is a channel somebody is
+   * about to stand in, and the roster is what that person came for. Inviting
+   * is deliberate, rare, and worth one tap.
+   */
+  const [tab, setTab] = useState<'roster' | 'invites'>('roster');
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -1194,13 +1209,47 @@ export function ChannelView({
 
   return (
     <Screen header={header} footer={footer} contentStyle={styles.container}>
+        {/*
+          The description first, outside the switch: it is what the channel
+          *is*, and it is as true of who gets in as it is of who is here.
+        */}
+        {channel.description ? (
+          <InlineMarkdown
+            text={channel.description}
+            style={styles.description}
+          />
+        ) : null}
+
+        {/*
+          **Two tabs, and between them they hold the whole screen.** The
+          roster's tab carries everything a conversation in progress reaches
+          for — who is here, the floor, what the channel is carrying — and the
+          other carries the two ways somebody who is not here gets in.
+
+          Inviting used to sit last, under a *Who gets in* heading, on the
+          reasoning that it is the rarest thing anybody does here and the least
+          urgent. That is still why it is not the tab you land on. What has
+          changed is that it is no longer at the bottom of a long scroll: it is
+          one tap from anywhere on the screen, and it costs the roster nothing.
+
+          A switch rather than a tab bar at the foot, for the same reason
+          Home's is one — the foot of this screen is already spent, on the
+          controls that claim the floor and step in and out.
+        */}
+        <View style={styles.tabs}>
+          <Segmented
+            options={[
+              { value: 'roster', label: 'Roster' },
+              { value: 'invites', label: 'Invite links' },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+        </View>
+
+        {tab === 'roster' ? (
+          <>
         <View style={styles.presence}>
-          {channel.description ? (
-            <InlineMarkdown
-              text={channel.description}
-              style={styles.description}
-            />
-          ) : null}
           {/*
             A card each, rather than the status lines this used to be. Who is
             in the room and who is talking is what the screen is *for*, and it
@@ -2486,20 +2535,16 @@ export function ChannelView({
             ))}
           </View>
         )}
-
-        {/*
-          Last, after everything the channel holds. Inviting is the rarest
-          thing anyone does on this screen and the least urgent: it is not part
-          of a conversation in progress, which is what every section above it
-          is, in roughly the order somebody in one reaches for them.
-
-          This comment used to argue the opposite, Invite having sat directly
-          under the roster on the reasoning that who is here is settled before
-          what is playing. That is still true of the *roster*, which has not
-          moved; it was the invitation that did not belong beside it.
-        */}
-        <GroupHeading>Who gets in</GroupHeading>
-
+          </>
+        ) : (
+          <>
+            {/*
+              Two ways in, in the order they are reached for: a contact who
+              already has an account, then a link for somebody who has not.
+              The *Who gets in* heading that used to stand over the pair is
+              gone — the tab above says it, and said twice it reads as two
+              different claims.
+            */}
         <SectionLabel>Invite</SectionLabel>
         <Card style={styles.stack}>
           <InviteList
@@ -2565,6 +2610,8 @@ export function ChannelView({
           {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
           {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}
         </Card>
+          </>
+        )}
     </Screen>
   );
 }
@@ -3411,6 +3458,12 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
+  /**
+   * The switch between the two tabs. Its own margin rather than the
+   * description's, since the description is often absent and the gap above
+   * the roster is not.
+   */
+  tabs: { marginTop: spacing(0.5), marginBottom: spacing(0.5) },
   roster: { gap: spacing(1), marginTop: spacing(1) },
   guestActions: { flexDirection: 'row', gap: spacing(1), flexWrap: 'wrap' },
   participantCard: {

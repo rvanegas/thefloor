@@ -357,13 +357,53 @@ export function labelOf(instance: ReactTestInstance): string {
   return out.join(' ');
 }
 
+/**
+ * A control by its label — **the one whose text is exactly this, if there is
+ * one, and otherwise the first that contains it.**
+ *
+ * The substring match is what almost every caller wants: most controls here
+ * are named by a phrase out of a longer sentence. The exact pass in front of
+ * it is for the one case where the substring has two answers — the channel
+ * screen's *Invite links* tab and the *Invite* button on it. Without it, a
+ * test that pressed "Invite" switched tabs and invited nobody, which is a
+ * green test asserting the wrong thing.
+ */
 export function findButton(
   tree: ReactTestRenderer,
   label: string
 ): ReactTestInstance | undefined {
-  return tree.root
-    .findAll((n) => n.props?.accessibilityRole === 'button')
-    .find((n) => labelOf(n).includes(label));
+  const buttons = tree.root.findAll(
+    (n) => n.props?.accessibilityRole === 'button'
+  );
+  return (
+    buttons.find((n) => labelOf(n).trim() === label) ??
+    buttons.find((n) => labelOf(n).includes(label))
+  );
+}
+
+/**
+ * Press the channel screen's *Invite links* tab, so the invitation controls
+ * are rendered.
+ *
+ * The two ways into a channel used to sit at the foot of the same scroll as
+ * the roster; they are one tap away now, and a test that names a button there
+ * has to take that tap. It throws rather than returning quietly when the tab
+ * is missing: a test that went on looking at the roster would pass for the
+ * wrong reason the day a control moved back.
+ */
+export function showInvites(tree: ReactTestRenderer): void {
+  showTab(tree, 'Invite links');
+}
+
+/** The other tab, for a test that has to look at both in one render. */
+export function showRoster(tree: ReactTestRenderer): void {
+  showTab(tree, 'Roster');
+}
+
+function showTab(tree: ReactTestRenderer, label: string): void {
+  const tab = findButton(tree, label);
+  if (!tab) throw new Error(`No ${label} tab on this screen.`);
+  act(() => tab.props.onPress());
 }
 
 /**

@@ -29,6 +29,8 @@ import {
   render,
   resetHarness,
   showChannel,
+  showInvites,
+  showRoster,
   textOf,
   uploads,
 } from '../testing/harness';
@@ -332,8 +334,6 @@ describe('Channel', () => {
     expect(disabled('Let them speak')).toEqual(off('Let them speak'));
     expect(disabled('Remove')).toEqual(off('Remove'));
 
-    expect(disabled('Invite')).toEqual(off('Invite'));
-    expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
     expect(disabled('Play something together')).toEqual(
       off('Play something together')
@@ -341,15 +341,20 @@ describe('Channel', () => {
 
     const text = textOf(tree);
     expect(text).toContain('Step in to answer for what a guest may do');
-    expect(text).toContain('Step in to invite anybody');
-    expect(text).toContain('Step in to make a link');
     expect(text).toContain('Step in to put something on the channel clipboard');
     // The shared-audio hint, which is a different sentence and was the one
     // disabled cluster on this screen with nothing explaining itself.
     expect(text).toContain('What everybody is listening to is for whoever is listening');
+    showInvites(tree);
+    expect(disabled('Invite')).toEqual(off('Invite'));
+    expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
+    const invites = textOf(tree);
+    expect(invites).toContain('Step in to invite anybody');
+    expect(invites).toContain('Step in to make a link');
     // And the list of contacts is still shown rather than emptied by the
     // filter, which would have claimed every contact was already in here.
-    expect(text).toContain('Miro Okafor');
+    expect(invites).toContain('Miro Okafor');
+    showRoster(tree);
 
     // The recording row's actions are behind a tap, and two of the three are
     // refused. Export is not, and that is the assertion worth having.
@@ -410,9 +415,12 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
+    expect(on('Paste my clipboard')).toEqual({ disabled: false });
+
+    showInvites(tree);
     expect(on('Invite')).toEqual({ disabled: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
-    expect(on('Paste my clipboard')).toEqual({ disabled: false });
+    showRoster(tree);
 
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
@@ -921,6 +929,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
+    showInvites(tree);
     const invite = findButton(tree, 'Invite');
     expect(invite).toBeDefined();
     act(() => invite!.props.onPress());
@@ -1162,11 +1171,9 @@ describe('Channel', () => {
       'Shared audio',
       'Recording',
       'Recordings',
-      'Invite',
-      // Last, and absent from this list until the structural read insisted on
-      // it. A list that named eight of nine sections was only ever checking
-      // the eight it happened to name.
-      'Guest link',
+      // And that is the whole of this tab. The two invitation sections used
+      // to close the list; they are the other tab now, and are ordered
+      // against each other at the foot of this test rather than here.
     ];
     /*
       Read off the `SectionLabel`s themselves rather than by searching the
@@ -1209,10 +1216,61 @@ describe('Channel', () => {
       'Shared audio',
       'Recording',
       'Recordings',
-      'Who gets in',
-      'Invite',
-      'Guest link',
     ]);
+
+    /*
+      The other tab, which is the rest of the screen and is two sections with
+      no heading over them: the tab is the heading, and *Who gets in* said
+      over it read as a second, narrower claim about the pair.
+    */
+    showInvites(tree);
+    expect(
+      tree.root
+        .findAll(
+          (node) => node.type === SectionLabel || node.type === GroupHeading
+        )
+        .map((node) => labelOf(node).trim())
+    ).toEqual(['Invite', 'Guest link']);
+    act(() => tree.unmount());
+  });
+
+  /*
+    The tabs themselves: two views of one channel, one at a time, and the
+    roster is the one you land on. Asserted from both directions — what each
+    tab shows *and* what it hides — because a switch that renders both bodies
+    at once would pass every assertion about what is on the screen.
+  */
+  it('shows the roster first, and the ways in one tap away', () => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      recordings: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(textOf(tree)).toContain('Dana Chu');
+    expect(findButton(tree, 'Share a guest link')).toBeUndefined();
+
+    showInvites(tree);
+    expect(findButton(tree, 'Share a guest link')).toBeDefined();
+    expect(textOf(tree)).toContain('whoever is in the channel decides');
+    // The roster is not drawn underneath: the tab is the screen, not a band
+    // at the top of it.
+    expect(textOf(tree)).not.toContain('Nobody has the floor');
+
+    // And back, because a tab somebody cannot leave is a screen they are
+    // stuck on.
+    showRoster(tree);
+    expect(textOf(tree)).toContain('Dana Chu');
     act(() => tree.unmount());
   });
 

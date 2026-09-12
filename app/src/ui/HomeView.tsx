@@ -8,7 +8,14 @@ import {
   View,
 } from 'react-native';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, IconButton, Screen, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  IconButton,
+  Screen,
+  SectionLabel,
+  Segmented,
+} from './components';
 import { SettingsIcon } from './icons';
 import { ChannelsView } from './ChannelsView';
 import { ContactsView } from './ContactsView';
@@ -473,11 +480,8 @@ export function HomeView({
  * one, so it would spend a permanent strip of a small screen saying something
  * a line under the title says as well.
  *
- * `accessibilityState` rather than a word in the label: a screen reader
- * announces the selection itself, and "Channels, selected, button" is the
- * sentence it makes of this. Both halves stay pressable when selected — a
- * control that goes inert where you already are is one people press twice
- * wondering whether it registered.
+ * The drawing is `Segmented`, shared with the channel screen's tabs; the
+ * argument for why these two are peers is this one's alone.
  */
 /**
  * The one thing a browser cannot do, said once to somebody using one.
@@ -620,30 +624,14 @@ function ListSwitch({
   onList: (list: List) => void;
 }) {
   return (
-    <View style={styles.switch}>
-      {(['channels', 'contacts'] as const).map((which) => (
-        <Pressable
-          key={which}
-          accessibilityRole="button"
-          accessibilityState={{ selected: list === which }}
-          onPress={() => onList(which)}
-          style={({ pressed }) => [
-            styles.switchHalf,
-            list === which && styles.switchHalfOn,
-            pressed && styles.switchHalfPressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.switchLabel,
-              list === which && styles.switchLabelOn,
-            ]}
-          >
-            {which === 'channels' ? 'Channels' : 'Contacts'}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
+    <Segmented
+      options={[
+        { value: 'channels', label: 'Channels' },
+        { value: 'contacts', label: 'Contacts' },
+      ]}
+      value={list}
+      onChange={onList}
+    />
   );
 }
 
@@ -741,29 +729,5 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: spacing(0.5),
   },
-  /**
-   * The switch: one track, two halves, and the selected half raised out of it
-   * rather than coloured. The accent belongs to the live bar directly above,
-   * which is the one thing here meant to shout; a purple half would be
-   * competing with a room somebody is standing in.
-   */
-  switch: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: 3,
-    gap: 3,
-  },
-  switchHalf: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing(0.75),
-    borderRadius: radius.sm,
-  },
-  switchHalfOn: { backgroundColor: colors.surfaceRaised },
-  switchHalfPressed: { opacity: 0.7 },
-  switchLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  switchLabelOn: { color: colors.text },
   list: { gap: spacing(1) },
 });

@@ -433,6 +433,61 @@ export function Card({
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
+/**
+ * A segmented control: one track, two or more halves, and the selected one
+ * raised out of it rather than coloured.
+ *
+ * **A switch rather than buttons that navigate.** What it is for is a set of
+ * peers — two views onto the same thing, neither of which is a child of the
+ * other — and the accent is deliberately withheld: purple is what this app
+ * spends on a room somebody is standing in, and a selected half competing
+ * with that would be the quieter fact shouting louder.
+ *
+ * `accessibilityState` rather than a word in the label, so a screen reader
+ * announces the selection itself — "Roster, selected, button". Every segment
+ * stays pressable when selected: a control that goes inert where you already
+ * are is one people press twice wondering whether it registered.
+ *
+ * Extracted from HomeView's channels/contacts switch when the channel screen
+ * needed the same thing, so the two cannot drift apart.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <View style={styles.segmented}>
+      {options.map((option) => (
+        <Pressable
+          key={option.value}
+          accessibilityRole="button"
+          accessibilityState={{ selected: value === option.value }}
+          onPress={() => onChange(option.value)}
+          style={({ pressed }) => [
+            styles.segment,
+            value === option.value && styles.segmentOn,
+            pressed && styles.segmentPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.segmentLabel,
+              value === option.value && styles.segmentLabelOn,
+            ]}
+          >
+            {option.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return <Text style={[type.muted, styles.empty]}>{children}</Text>;
 }
@@ -495,6 +550,24 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing(2),
   },
+  segmented: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: 3,
+    gap: 3,
+  },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing(0.75),
+    borderRadius: radius.sm,
+  },
+  segmentOn: { backgroundColor: colors.surfaceRaised },
+  segmentPressed: { opacity: 0.7 },
+  segmentLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  segmentLabelOn: { color: colors.text },
   empty: { paddingVertical: spacing(2) },
 });
 

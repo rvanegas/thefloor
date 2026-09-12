@@ -28,6 +28,7 @@ import {
   render,
   resetHarness,
   showChannel,
+  showInvites,
   textOf,
 } from '../testing/harness';
 
@@ -204,6 +205,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
+    showInvites(tree);
     expect(textOf(tree)).toContain('whoever is in the channel decides');
 
     await act(async () => {
@@ -231,6 +233,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
+    showInvites(tree);
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
@@ -255,6 +258,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
+    showInvites(tree);
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
@@ -277,6 +281,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
+    showInvites(tree);
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
