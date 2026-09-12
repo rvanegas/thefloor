@@ -1562,7 +1562,20 @@ describe('Channel', () => {
     It marked the top of the scroll, so the one fact somebody needs at every
     moment — that they are being captured — was the first thing to leave the
     viewport.
+
+    **By accessible name, not by text**, since the header carries only the
+    circle now: the word and the elapsed time went to the Recording card,
+    which the test below this one holds. A search for the string would find
+    the *Recordings* tab in the pinned switch either way, which is how the
+    split was noticed.
   */
+  const recordingDots = (tree: ReactTestRenderer) =>
+    tree.root.findAll(
+      (node) =>
+        node.props?.accessibilityLabel === 'Recording' ||
+        node.props?.accessibilityLabel === 'Recording paused'
+    );
+
   it('pins the recording indicator, and only while one is running', () => {
     showChannel(channelOf());
     const idle = render(
@@ -1570,7 +1583,7 @@ describe('Channel', () => {
     );
     const [idleScreen] = idle.root.findAll((node) => node.type === Screen);
     const idleHeader = render(idleScreen.props.header);
-    expect(textOf(idleHeader)).not.toContain('Recording');
+    expect(recordingDots(idleHeader)).toHaveLength(0);
     act(() => idleHeader.unmount());
     act(() => idle.unmount());
 
@@ -1584,9 +1597,33 @@ describe('Channel', () => {
     );
     const [liveScreen] = live.root.findAll((node) => node.type === Screen);
     const liveHeader = render(liveScreen.props.header);
-    expect(textOf(liveHeader)).toContain('Recording');
+    expect(recordingDots(liveHeader).length).toBeGreaterThan(0);
+    // And the header says no more than that: what is said in words is on the
+    // Recording card, one tap away, rather than in a row of every screenful.
+    expect(textOf(liveHeader)).not.toContain('Paused');
     act(() => liveHeader.unmount());
     act(() => live.unmount());
+  });
+
+  /*
+    The other half of that split. The card on the Player tab is where the
+    transport is, so it is where the word and the clock belong — somebody who
+    wants the number is already on their way here.
+  */
+  it('carries the word and the elapsed time on the Recording card', () => {
+    showChannel(
+      channelOf((c) =>
+        reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
+      )
+    );
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showPlayer(tree);
+    const text = textOf(tree);
+    expect(text).toContain('Recording');
+    expect(text).toContain('0:00');
+    act(() => tree.unmount());
   });
 
   /*

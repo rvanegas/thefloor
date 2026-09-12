@@ -1216,7 +1216,28 @@ export function ChannelView({
       </View>
 
       {/*
-        **The tabs, pinned with everything else up here.** They were the first
+        **Six tabs, and between them they hold the whole screen.** The roster
+        carries the conversation as it is happening — who is here, the floor,
+        your microphone, the ways in and out. The four in the middle carry
+        what the channel holds, which outlives the moment: what has been
+        written down, what is playing, what was recorded, what is being
+        watched. The last carries the two ways somebody who is not here gets
+        in.
+
+        The description used to sit above the switch, outside it, on the
+        reasoning that it is what the channel *is* and so is as true of who
+        gets in as of who is here. It is on *Notepad* now with the clipboard,
+        which is the tab of things the channel has written down — and the line
+        it cost was a line every screenful of every tab paid for, on the screen
+        that has least room to spare.
+
+        A switch rather than a tab bar at the foot, for the same reason Home's
+        is one — the foot of this screen is already spent, on the controls that
+        claim the floor and step in and out. It is two rows here rather than
+        one, six words not fitting across a phone; see `Segmented`, which does
+        the wrapping so that Home's two-way switch and this cannot drift apart.
+
+        **Pinned with everything else up here.** They were the first
         thing in the scroll, which made them the first thing to leave it: two
         rows of switch that were only reachable by scrolling back to the top,
         on the longest screen in the application. A tab bar you have to go and
@@ -2293,6 +2314,28 @@ export function ChannelView({
 
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
+          {/*
+            The other half of the pinned indicator: the header keeps the
+            circle, and the word and the clock are here, above the transport
+            that acts on them. A running recording is a fact you need
+            everywhere and a duration you want in one place — the place you
+            came to in order to pause or stop it — and carrying both in the
+            header cost a row of every screenful of every tab.
+
+            Above the failure line rather than below it, so the order reads
+            downwards in time: what is running, what went wrong, what to do
+            about it.
+          */}
+          {recordingLive ? (
+            <View style={styles.recordingStatus}>
+              <Text style={styles.recordingLabel}>
+                {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
+              </Text>
+              <Text style={styles.recordingTime}>
+                {formatDuration(recordedMs(channel.recording, now))}
+              </Text>
+            </View>
+          ) : null}
           {channel.recording.failure ? (
             // Capture stopping for a reason nobody asked for must not read like
             // a recording somebody chose to end. Whoever was speaking on the
@@ -3697,6 +3740,16 @@ const styles = StyleSheet.create({
    */
   tabs: { marginTop: spacing(0.5), marginBottom: spacing(0.5) },
   /**
+   * The same switch, pinned in the header instead of scrolling with the page.
+   *
+   * No margins of its own: `headerInner` already sets the gap between the
+   * name row and this, and the header's own `paddingBottom` is the space
+   * between this and the hairline. The horizontal padding is inherited from
+   * `headerInner` too, which is what lines the switch up with the cards below
+   * rather than with the window.
+   */
+  tabsHeader: { marginTop: 0, marginBottom: 0 },
+  /**
    * The same switch, pinned above the bar instead.
    *
    * Capped and centred on `footerInner`'s width for the reason that style
@@ -3923,17 +3976,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing(0.75),
   },
-  recordingIndicator: {
+  /**
+   * The dot's place in the header's row of buttons.
+   *
+   * Sized like an `IconButton` rather than to the 8pt disc inside it, so the
+   * circle sits on the same centre line as the two glyphs beside it and the
+   * gap between it and Settings is the gap between Settings and Close. It is
+   * not pressable and deliberately looks it: a target-sized box with a dot in
+   * the middle of it reads as a light, where the same dot crowded against the
+   * gear would read as a badge on the gear.
+   */
+  headerRecording: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** The word and the clock, on the Recording card. */
+  recordingStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
     gap: spacing(0.75),
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(1.25),
-    paddingVertical: spacing(0.5),
   },
   recordingDot: {
     width: 8,
