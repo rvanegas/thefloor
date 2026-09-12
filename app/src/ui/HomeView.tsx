@@ -795,9 +795,13 @@ const styles = StyleSheet.create({
    * lands as a third override rather than in a block that says what this is.
    * Four lines are shared and stated twice; if a fifth arrives, extract then.
    *
-   * `marginTop` is the one structural difference, and it exists because there
-   * can be several of these: the header's rows are spaced by the gap on
-   * `headerInner`, which spaces siblings and not the members of a mapped run.
+   * **Nothing spaces these but `headerInner`'s gap**, which is the same
+   * `spacing(1)` the lists under the switch put between their rows — so a
+   * hoisted row sits at the same pitch as the rows it was hoisted out of.
+   * There used to be a `marginTop` here as well, on the belief that a gap
+   * does not reach the members of a mapped run; it does — `.map()` returns
+   * ordinary siblings — so the two stacked and these bars alone stood 20pt
+   * apart while everything else on the screen stood 8.
    */
   nearbyBar: {
     flexDirection: 'row',
@@ -808,7 +812,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: spacing(1.75),
-    marginTop: spacing(1.5),
   },
   /**
    * A step down from `liveTitle`, which is 17pt semibold. The room you are in
