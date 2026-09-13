@@ -125,6 +125,15 @@ dictionary does not — **and edit the list at the top in the same breath**, sin
 that is the half that gets read. A lagging source of truth authorises the wrong
 word.
 
+**`planning/STYLE.md`** is the fifth: what the app looks like and why — the
+colour tokens and which meaning each is spent on, the type roles and every
+departure, the controls, the card and row shapes, the two pinned bars, the
+icons. **Read it before adding or changing a screen, a control or a colour**;
+its § *The rules that are actually load-bearing* is the half-dozen things that
+look like tidying and are not. Maintain it as GLOSSARY.md is maintained, in
+the same commit — a guide describing the app as it was authorises the wrong
+control.
+
 Two are one-offs that stay. **`planning/POSTMORTEM-echo.md`** is the build 17
 echo bug, start to finish — read it before touching the iOS audio session,
 since three separate components configure it and the ways they disagree are not
@@ -148,7 +157,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 538 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 547 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
