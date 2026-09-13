@@ -8,8 +8,11 @@ import type { ColorValue } from 'react-native';
  * Four of them are the channel footer's, and were the reason the file
  * exists; the two after them are the header's *Close* and *Settings*, which
  * were words until 2026-09-02, with the house the channel screen's header
- * draws instead of the cross between them; the six at the end are that same
- * screen's tabs, which were words until 2026-09-12.
+ * draws instead of the cross between them; then the six of that same screen's
+ * tabs, which were words until 2026-09-12; and the two at the end are the
+ * recording transport's *Pause* and *Stop*, which were words until 2026-09-13.
+ * Its third glyph is the record dot, which is `RecordingsIcon` above — the tab
+ * and the control it offers are the same idea and take the same shape.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
@@ -459,6 +462,50 @@ export function WatchIcon({
       <Path d="M12 17v4" />
       <Path d="M8 21h8" />
       <Rect x="2" y="3" width="20" height="14" rx="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * Hold the run where it is. `lucide/pause`.
+ *
+ * The two bars, which mean this on every transport anybody has ever touched.
+ * Drawn outlined rather than filled like the rest of this file — a filled
+ * pause beside an outlined stop would read as one control being on.
+ */
+export function PauseIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Rect x="14" y="3" width="5" height="18" rx="1" />
+      <Rect x="5" y="3" width="5" height="18" rx="1" />
+    </Glyph>
+  );
+}
+
+/**
+ * End the run. `lucide/square`.
+ *
+ * A square, not a cross: stopping a recording finishes it and keeps it, and a
+ * cross is what this application draws for closing and discarding. The one
+ * that ends a recording for good is the transport square everybody learned
+ * from a tape deck.
+ */
+export function StopIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
     </Glyph>
   );
 }

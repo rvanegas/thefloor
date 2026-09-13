@@ -1294,10 +1294,12 @@ describe('Channel', () => {
     showPlayer(tree);
     expect(sections()).toEqual(['Shared audio']);
 
-    // The transport above the list it produces — what is being recorded now,
-    // then what was.
+    // The transport above the list it produces, and one heading rather than
+    // two: the transport lost its RECORDING label on 2026-09-13 along with
+    // the card around it, three glyphs under the tab named after them needing
+    // no second announcement of what they are.
     showRecordings(tree);
-    expect(sections()).toEqual(['Recording', 'Recordings']);
+    expect(sections()).toEqual(['Recordings']);
 
     showWatch(tree);
     expect(sections()).toEqual(['Watch together']);
@@ -1591,6 +1593,78 @@ describe('Channel', () => {
         node.props?.accessibilityLabel === 'Recording' ||
         node.props?.accessibilityLabel === 'Recording paused'
     );
+
+
+  /*
+    The transport, which is three glyphs and is all three of them whatever the
+    run is doing. It used to be one full-width button that changed its word,
+    swapped for a pair when a run started — so the control somebody reaches for
+    in a hurry was never twice in the same place. Greyed is how this row says
+    *not now*; nothing leaves it.
+
+    Asserted through `accessibilityState`, which is the only place the words
+    survive now that the shapes carry the meaning — and is what a screen reader
+    is told, so it is the assertion worth making.
+  */
+  it('draws record, pause and stop at all times, greying what cannot be pressed', () => {
+    const transport = (tree: ReactTestRenderer, label: string) => {
+      const button = findButton(tree, label);
+      expect(button).toBeDefined();
+      return button!.props.accessibilityState.disabled as boolean;
+    };
+
+    // Idle, in a room with somebody in it: start, and nothing to stop.
+    showChannel(channelOf());
+    const idle = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecordings(idle);
+    expect(transport(idle, 'Record')).toBe(false);
+    expect(transport(idle, 'Pause recording')).toBe(true);
+    expect(transport(idle, 'Stop recording')).toBe(true);
+    act(() => idle.unmount());
+
+    // Running: the two that end it, and no second run to start.
+    showChannel(
+      channelOf((c) =>
+        reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
+      )
+    );
+    const live = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecordings(live);
+    expect(transport(live, 'Record')).toBe(true);
+    expect(transport(live, 'Pause recording')).toBe(false);
+    expect(transport(live, 'Stop recording')).toBe(false);
+    act(() => live.unmount());
+
+    // Paused: the record glyph is what sets it going again — one control for
+    // *start capturing*, rather than a fourth shape that appears only here.
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
+          { type: 'PAUSE_RECORDING', userId: ME },
+          NOW
+        )
+      )
+    );
+    const paused = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecordings(paused);
+    expect(transport(paused, 'Resume recording')).toBe(false);
+    expect(transport(paused, 'Pause recording')).toBe(true);
+    expect(transport(paused, 'Stop recording')).toBe(false);
+    act(() =>
+      findButton(paused, 'Resume recording')!.props.onPress()
+    );
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'RESUME_RECORDING',
+    });
+    act(() => paused.unmount());
+  });
 
   it('pins the recording indicator, and only while one is running', () => {
     showChannel(channelOf());

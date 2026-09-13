@@ -77,11 +77,13 @@ import {
   InviteIcon,
   MicIcon,
   NotepadIcon,
+  PauseIcon,
   PlayerIcon,
   RecordingsIcon,
   RosterIcon,
   SettingsIcon,
   StepIcon,
+  StopIcon,
   WatchIcon,
 } from './icons';
 import {
@@ -2574,120 +2576,138 @@ export function ChannelView({
           to stop one they had to find their way to a different tab to do it.
           Above the list rather than below it, so the control that is about
           right now is not reached past a history that may be any length.
+
+          **Three glyphs and no card, since 2026-09-13.** It was a card under
+          a RECORDING label holding a full-width *Record* that became *Pause*
+          and *Stop* once a run was going — so the one control on the screen
+          that has to be found in a hurry moved, changed its word, and was
+          drawn at the size of a primary action while the state it is about
+          was already reported in the header, twice over. The label and the
+          box were saying what the tab above them says.
+
+          Always all three, and in this order: start, hold, end, which is the
+          run's own order and puts the irreversible one last where a thumb
+          moving in a hurry is least likely to land on it. What is available
+          is what is legible: a control you may press is drawn in the text
+          colour, one you may not is grey and inert. Nothing appears or disappears, so the shapes stay where the
+          thumb learned them.
         */}
-        <SectionLabel>Recording</SectionLabel>
-        <Card style={styles.stack}>
+        <View style={styles.transport}>
           {/*
-            **No indicator here.** The card carried the pill — the disc, the
-            word and the clock — while the header carried a bare disc, and
-            two drawings of one state in two places is one too many. The pill
-            went up to the header, which is the copy that cannot scroll away
-            and is on every tab; a reader who came here to press Pause or
-            Stop is looking at it while they do.
-
-            What the card keeps is what only it can say: what went wrong, and
-            the transport.
+            Record and Resume are one control, because they are one idea —
+            *start capturing* — and a paused run is the only state where the
+            second is what that means. Splitting them would put a fourth
+            glyph on a row whose whole argument is that the positions do not
+            move.
           */}
-          {channel.recording.failure ? (
-            // Capture stopping for a reason nobody asked for must not read like
-            // a recording somebody chose to end. Whoever was speaking on the
-            // strength of the indicator needs to know it was not kept.
-            <Text style={styles.warning}>
-              Recording failed — {channel.recording.failure}
-            </Text>
-          ) : null}
+          <TransportAction
+            label={
+              channel.recording.status === 'paused'
+                ? 'Resume recording'
+                : 'Record'
+            }
+            icon={(color) => <RecordingsIcon color={color} />}
+            disabled={
+              channel.recording.status === 'paused'
+                ? !canResumeRecording(channel, me)
+                : !canStartRecording(channel, me)
+            }
+            onPress={() =>
+              act({
+                type:
+                  channel.recording.status === 'paused'
+                    ? 'RESUME_RECORDING'
+                    : 'START_RECORDING',
+              })
+            }
+          />
+          <TransportAction
+            label="Pause recording"
+            icon={(color) => <PauseIcon color={color} />}
+            disabled={!canPauseRecording(channel, me)}
+            onPress={() => act({ type: 'PAUSE_RECORDING' })}
+          />
+          <TransportAction
+            label="Stop recording"
+            icon={(color) => <StopIcon color={color} />}
+            disabled={!canStopRecording(channel, me)}
+            onPress={() => act({ type: 'STOP_RECORDING' })}
+          />
+        </View>
 
-          {channel.recording.status === 'idle' ? (
-            <>
-              <Button
-                label="Record"
-                disabled={!canStartRecording(channel, me)}
-                onPress={() => act({ type: 'START_RECORDING' })}
-              />
-              {/*
-                What the previous run captured. A channel holds as many
-                recordings as people care to make, so stopping is no longer a
-                dead end — this reports the last one and the button above
-                offers another.
-              */}
-              {channel.lastRecording ? (
-                <Text style={type.muted}>
-                  {channel.lastRecording.failure ? 'Ended early — ' : 'Saved — '}
-                  {formatDuration(channel.lastRecording.durationMs)} captured.
-                </Text>
-              ) : null}
-              {/*
-                Said here rather than only in the channel's settings, because
-                a screen showing an idle Record button in a channel that
-                records itself is otherwise telling half the truth.
+        {/*
+          What the glyphs cannot say, under them and unboxed. The card is
+          gone; these are not. A capture that failed, a run that was saved,
+          and the reason a grey control is grey are the three things somebody
+          standing in front of an inert transport needs, and none of them is
+          drawable.
+        */}
+        {channel.recording.failure ? (
+          // Capture stopping for a reason nobody asked for must not read like
+          // a recording somebody chose to end. Whoever was speaking on the
+          // strength of the indicator needs to know it was not kept.
+          <Text style={styles.warning}>
+            Recording failed — {channel.recording.failure}
+          </Text>
+        ) : null}
 
-                Two sentences, because idle means two different things once
-                the setting is on. A room that is not yet recordable is
-                waiting for its recording; a room that is recordable and still
-                idle has already had one and been stopped, and the reason it
-                is not starting another is the thing somebody is about to
-                wonder. See `autoRecord` in core/types.ts for the rule both
-                sentences describe.
-              */}
-              {channel.autoRecord ? (
-                <Text style={type.muted}>
-                  {canStartRecording(channel, me)
-                    ? 'This channel records itself, and this room has had its recording. Press Record for another — one starts by itself again after everybody has left and come back.'
-                    : 'This channel records itself. One starts as soon as there is somebody else in the room.'}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <View style={styles.buttonRow}>
-              {channel.recording.status === 'paused' ? (
-                <Button
-                  label="Resume"
-                  style={styles.flexButton}
-                  disabled={!canResumeRecording(channel, me)}
-                  onPress={() => act({ type: 'RESUME_RECORDING' })}
-                />
-              ) : (
-                <Button
-                  label="Pause"
-                  style={styles.flexButton}
-                  disabled={!canPauseRecording(channel, me)}
-                  onPress={() => act({ type: 'PAUSE_RECORDING' })}
-                />
-              )}
-              <Button
-                label="Stop"
-                style={styles.flexButton}
-                disabled={!canStopRecording(channel, me)}
-                onPress={() => act({ type: 'STOP_RECORDING' })}
-              />
-            </View>
-          )}
-          {recordingLive && !isPresent(channel, me) ? (
-            // Before the silenced line, which would otherwise claim this
-            // person's microphone is being captured — `isSilenced` asks only
-            // who holds the floor, and somebody who is not in the room is not
-            // on the recording at all. The transport is theirs again the
-            // moment they step in; see `canPauseRecording`.
-            <Text style={type.muted}>
-              Step in to pause or stop this recording.
-            </Text>
-          ) : iAmSilenced && recordingLive ? (
-            <Text style={type.muted}>
-              Silenced — pause and stop unavailable, and your microphone is
-              still being captured.
-            </Text>
-          ) : channel.recording.status === 'idle' &&
-            !canStartRecording(channel, me) ? (
-            <Text style={type.muted}>
-              {party
-                ? // The reason, rather than a dead button. Named before the
-                  // presence reason because it is the one that surprises
-                  // somebody who is plainly standing in the room.
-                  'Stop the watch party to record. A video is watched on your own screen and never reaches the recording.'
-                : 'Step in to record. A recording stops when the last person leaves.'}
-            </Text>
-          ) : null}
-        </Card>
+        {/*
+          What the previous run captured. A channel holds as many recordings
+          as people care to make, so stopping is no longer a dead end — this
+          reports the last one and the dot above offers another.
+        */}
+        {channel.recording.status === 'idle' && channel.lastRecording ? (
+          <Text style={type.muted}>
+            {channel.lastRecording.failure ? 'Ended early — ' : 'Saved — '}
+            {formatDuration(channel.lastRecording.durationMs)} captured.
+          </Text>
+        ) : null}
+
+        {/*
+          Said here rather than only in the channel's settings, because a
+          screen showing an idle record dot in a channel that records itself
+          is otherwise telling half the truth.
+
+          Two sentences, because idle means two different things once the
+          setting is on. A room that is not yet recordable is waiting for its
+          recording; a room that is recordable and still idle has already had
+          one and been stopped, and the reason it is not starting another is
+          the thing somebody is about to wonder. See `autoRecord` in
+          core/types.ts for the rule both sentences describe.
+        */}
+        {channel.recording.status === 'idle' && channel.autoRecord ? (
+          <Text style={type.muted}>
+            {canStartRecording(channel, me)
+              ? 'This channel records itself, and this room has had its recording. Press record for another — one starts by itself again after everybody has left and come back.'
+              : 'This channel records itself. One starts as soon as there is somebody else in the room.'}
+          </Text>
+        ) : null}
+
+        {recordingLive && !isPresent(channel, me) ? (
+          // Before the silenced line, which would otherwise claim this
+          // person's microphone is being captured — `isSilenced` asks only
+          // who holds the floor, and somebody who is not in the room is not
+          // on the recording at all. The transport is theirs again the
+          // moment they step in; see `canPauseRecording`.
+          <Text style={type.muted}>
+            Step in to pause or stop this recording.
+          </Text>
+        ) : iAmSilenced && recordingLive ? (
+          <Text style={type.muted}>
+            Silenced — pause and stop unavailable, and your microphone is
+            still being captured.
+          </Text>
+        ) : channel.recording.status === 'idle' &&
+          !canStartRecording(channel, me) ? (
+          <Text style={type.muted}>
+            {party
+              ? // The reason, rather than a dead control. Named before the
+                // presence reason because it is the one that surprises
+                // somebody who is plainly standing in the room.
+                'Stop the watch party to record. A video is watched on your own screen and never reaches the recording.'
+              : 'Step in to record. A recording stops when the last person leaves.'}
+          </Text>
+        ) : null}
 
         {/*
           Recordings live here because they belong to the channel: it names
@@ -3274,6 +3294,55 @@ function FooterAction({
           {label}
         </Text>
       </View>
+    </Pressable>
+  );
+}
+
+/**
+ * One glyph of the recording transport: record, pause, stop.
+ *
+ * **Not `FooterAction`, and the difference is what the two bars mean.** The
+ * footer is where you are — muted, holding the floor, in the room — so its
+ * controls carry a word each, take an accent for the rung you are standing
+ * on, and never all mean the same kind of thing at once. This is a transport:
+ * three verbs on one object, in an order that has not changed since tape, and
+ * the shapes are the vocabulary. A word under each would be teaching what a
+ * square already says.
+ *
+ * So there are exactly two appearances, and no third. Available is the text
+ * colour; unavailable is `textFaint` and inert. There is no accent here — the
+ * state of the run is the header's job, and a lit dot down here would be a
+ * third drawing of something already drawn twice.
+ *
+ * `label` is the accessibility label and is the only place the words survive.
+ * It is written as the action, not the state: "Resume recording", not
+ * "Paused".
+ */
+function TransportAction({
+  label,
+  icon,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  icon: (color: ColorValue) => React.ReactNode;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const color = disabled ? colors.textFaint : colors.text;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={!!disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.transportAction,
+        pressed && !disabled && styles.transportActionPressed,
+      ]}
+    >
+      {icon(color)}
     </Pressable>
   );
 }
@@ -4458,6 +4527,33 @@ const styles = StyleSheet.create({
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
+  /**
+   * The recording transport: three glyphs in a row, left-aligned.
+   *
+   * Left rather than spread across the width, because they are one object
+   * rather than a bar — a transport is read as a group and reached for as a
+   * group, and stretching three shapes edge to edge would make them look like
+   * three unrelated sections. `marginBottom` is what the section label above
+   * them used to contribute to the rhythm.
+   */
+  transport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.5),
+    marginBottom: spacing(0.5),
+  },
+  /**
+   * `minHeight`/`minWidth` of 44 is the target Apple asks for; the glyph is 22,
+   * so the padding is most of it and is the reason the shapes are not crowded
+   * against each other despite a small gap.
+   */
+  transportAction: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transportActionPressed: { opacity: 0.6 },
   inviteRow: {
     flexDirection: 'row',
     alignItems: 'center',
