@@ -516,6 +516,16 @@ export function HomeView({
  * So the cards are a single group in source order: Help, then the ones about
  * the project. The order is the whole of what the two headings were saying
  * about the grouping, and it survives them.
+ *
+ * **`default`, not `ghost`, on every one of them.** Ghost is this app's word
+ * for cancel, dismiss and header chrome — the control you press to stop doing
+ * something — and each of these is the one thing its card is for. Centred in
+ * an otherwise empty card, a ghost label read as a caption somebody had made
+ * tappable rather than as the way through. The fill is `surfaceRaised` on a
+ * `surface` card, which is the ordinary weight of an ordinary control and not
+ * an escalation: no colour is spent here, and *Chip in* is no louder than
+ * *Help* standing above it. The two `ghost` buttons left on this screen are
+ * both *Not now*, which is what ghost is for.
  */
 function SupportBody({
   canSupport,
@@ -545,7 +555,7 @@ function SupportBody({
         is also what stops this tab ever being empty.
       */}
       <Card style={styles.card}>
-        <Button label="Help" variant="ghost" onPress={onOpenHelp} />
+        <Button label="Help" onPress={onOpenHelp} />
         {/* What the screen behind it actually is, which is a question box
             rather than a chat, and no promise about when — see `HelpView`,
             which refuses to make one for the same reason. */}
@@ -557,10 +567,11 @@ function SupportBody({
 
       {canSupport ? (
         <Card style={styles.card}>
-          <Button label="Chip in" variant="ghost" onPress={onOpenSupport} />
+          <Button label="Chip in" onPress={onOpenSupport} />
           {/*
             **As loud as it was**, which is the decision HOME.md was written to
-            make and which neither the tab nor this line disturbs.
+            make and which neither the tab, nor this line, nor the fill
+            behind the label disturbs — see the note above on `default`.
 
             One sentence, and it says what the money is for and stops. The
             rest of the argument — that giving unlocks nothing, that nobody is
@@ -586,11 +597,7 @@ function SupportBody({
       */}
       {onOpenLeaderboard ? (
         <Card style={styles.card}>
-          <Button
-            label="Leaderboard"
-            variant="ghost"
-            onPress={onOpenLeaderboard}
-          />
+          <Button label="Leaderboard" onPress={onOpenLeaderboard} />
           <Text style={type.muted}>
             Who has brought the most people to The Floor. It is here because it
             was turned on for your account.
@@ -606,7 +613,7 @@ function SupportBody({
       */}
       {onOpenAudioLab ? (
         <Card style={styles.card}>
-          <Button label="Audio lab" variant="ghost" onPress={onOpenAudioLab} />
+          <Button label="Audio lab" onPress={onOpenAudioLab} />
           <Text style={type.muted}>
             A bench for the iOS audio session. Run a trial outside any channel,
             or what it measures is three writers arguing.

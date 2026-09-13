@@ -4,24 +4,21 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Walk Stepping In And Nearby
+## Acceptance Notification
 
-The 2026-09-08 redesign is built and none of it has been heard.
-planning/STEPPING-IN-WALK.md is the walk, in the order the risk runs: the
-claim, the release — which is the step most likely to fail, and it says why in
-advance — then the question that gates the most, *does a self-mute move the
-route*, and then the offer. Two phones, a podcast and a Bluetooth headset. Fold
-what it finds into the decision record and delete it.
+Notify when someone accepts an invitation. If I send by email or guest link, I want to be notified when that person joins so that if I’m free, I can meet them right away. Consider it an arrival notification. Arrival to the app.
 
-Promotion is no longer part of it: it was removed before the walk was run, and
-`decisions/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
-cheap now and step 6 no longer needs a third person.
+## Remove Tab Option
 
-Two more changes landed on it before it was run, and the walk has been brought
-up to both: presence became the media connection, which is step 13, and
-presence became three rungs with the controls to match — *Be nearby* is one
-word in one place now, *Nearby* has a way out, and the footer has a fourth
-slot. Steps 12 and 14 are the interface ones and cost a minute between them.
+Remove option to move tabs to just above footer. Unoptional position is as if option were cleared.
+
+## Update minBuild
+
+Move it to 80. Tidy according to SHIMS.md
+
+## Recording Controls
+
+Recording controls should be centralized and placed in buttons.
 
 ## Record and Player Controls Access
 
@@ -29,13 +26,15 @@ slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
 ## Swiping
 
-Swiping left from channel view, returns to home view. Swiping right from home view goes 
-to channel view, if user is present in any channel.
+Swiping left from channel view, returns to home view. Swiping right from home view goes to channel view, if user is present in any channel.
+
+## Ping Text
+
+When a channel member is pinged with an accompanying text, display "pinged" in same format as in roster, but here, in profile view, also show the text sent.
 
 ## Audio Announcement
 
-When member steps in or steps out, there ought to be an audible announcement, 
-such as two inverse distinguishable subtle chimes.
+When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
 
 ## UI Restyling
 
@@ -43,16 +42,11 @@ Improve look and feel
 
 ## yt-dlp Integration
 
-Take a youtube url, determine whether an audio only download is available, and 
-make it available to media player.
+Take a youtube url, determine whether an audio only download is available, and make it available to media player.
 
 ## Call if You Must
 
-special case
-
-## Many Step Ins
-
-only one step in live room
+Special case.
 
 ## Clarify "Live" in Glossary
 
@@ -122,6 +116,25 @@ defined as taking immediate turns in both directions in a channel.
 
 Number is updated lazily when exchange occurs. In User View display radiate
 number.
+
+## Walk Stepping In And Nearby
+
+The 2026-09-08 redesign is built and none of it has been heard.
+planning/STEPPING-IN-WALK.md is the walk, in the order the risk runs: the
+claim, the release — which is the step most likely to fail, and it says why in
+advance — then the question that gates the most, *does a self-mute move the
+route*, and then the offer. Two phones, a podcast and a Bluetooth headset. Fold
+what it finds into the decision record and delete it.
+
+Promotion is no longer part of it: it was removed before the walk was run, and
+`decisions/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
+cheap now and step 6 no longer needs a third person.
+
+Two more changes landed on it before it was run, and the walk has been brought
+up to both: presence became the media connection, which is step 13, and
+presence became three rungs with the controls to match — *Be nearby* is one
+word in one place now, *Nearby* has a way out, and the footer has a fourth
+slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
 ## Build for Android
 
