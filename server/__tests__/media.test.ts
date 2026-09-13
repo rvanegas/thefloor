@@ -1,6 +1,11 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
-import { AudioTrack, MemoryMediaServer } from '../src/media';
+import { ServerError } from 'livekit-server-sdk';
+import {
+  AudioTrack,
+  LiveKitMediaServer,
+  MemoryMediaServer,
+} from '../src/media';
 
 /**
  * The floor is specified as a hard cut at the transport level. These assert
@@ -752,6 +757,28 @@ describe('when capture cannot start', () => {
     expect(media.recordings.map((r) => r.identity)).toEqual([alice.account.id]);
   });
 
+  it('records everybody else when one participant has left the room', async () => {
+    // The 2026-09-12 failure, from the outside. `present` outlives a dropped
+    // connection by DISCONNECT_GRACE_MS, so somebody inside that grace is
+    // present to the reducer and gone from the room — and an automatic run
+    // starting in that window put them in the initial cohort, where the
+    // media plane's 404 was read as the recorder refusing and ended the whole
+    // thing after one second. They are simply somebody with nothing to
+    // capture, like the case above.
+    const { alice, bob, channelId } = await sessionOfTwo();
+    media.joinRoom(channelId, alice.account.id);
+    media.joinRoom(channelId, bob.account.id);
+    media.leaveRoom(channelId, bob.account.id);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+
+    const recording = app.channels.get(channelId)!.recording;
+    expect(recording.status).toBe('recording');
+    expect(recording.failure).toBeNull();
+    expect(media.recordings.map((r) => r.identity)).toEqual([alice.account.id]);
+  });
+
   /**
    * The failure that hid for an evening. Alone in a channel the microphone is
    * closed on purpose, and starting a recording is what reopens it — which the
@@ -1288,5 +1315,61 @@ describe('naming a recording', () => {
     // honest answer: Alice sees who else was there.
     const [recording] = await homeRecordings(alice.token);
     expect(recording.name).toBe('Bob');
+  });
+});
+
+
+/**
+ * The one place the real client is exercised rather than the fake, because
+ * this is where the distinction lives: everything above asks whether the
+ * server does the right thing with a null, and the 2026-09-12 failure was
+ * that a participant who had left never produced one.
+ */
+describe('the media plane answering that somebody is not there', () => {
+  const livekit = (getParticipant: () => Promise<unknown>) => {
+    const server = new LiveKitMediaServer({
+      url: 'wss://example.livekit.cloud',
+      apiKey: 'key',
+      apiSecret: 'secret',
+      storage: {
+        bucket: 'recordings',
+        region: 'us-west-2',
+        accessKey: 'access',
+        secret: 'secret',
+      },
+    });
+    // The RPC client is the boundary being stubbed; there is no room to ask.
+    (server as unknown as { rooms: unknown }).rooms = { getParticipant };
+    return server;
+  };
+
+  const start = (server: LiveKitMediaServer) =>
+    server.startRecording({
+      room: 'chan_1',
+      identity: 'acct_1',
+      key: 'chan_1/rec_1/acct_1-001.ogg',
+    });
+
+  it('is a null, the same as a participant with no track', async () => {
+    const server = livekit(async () => {
+      throw new ServerError(
+        'Not Found',
+        'twirp error unknown: participant does not exist',
+        404,
+        'not_found'
+      );
+    });
+
+    await expect(start(server)).resolves.toBeNull();
+  });
+
+  it('still throws when the recorder itself fails', async () => {
+    // The distinction is the whole point: a broken media plane must end the
+    // run, or a recording nobody can hear looks like one that worked.
+    const server = livekit(async () => {
+      throw new ServerError('Internal', 'twirp error internal', 500, 'internal');
+    });
+
+    await expect(start(server)).rejects.toThrow('twirp error internal');
   });
 });

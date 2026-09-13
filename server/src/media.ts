@@ -13,7 +13,12 @@ import {
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
-import { AccessToken, EgressClient, RoomServiceClient } from 'livekit-server-sdk';
+import {
+  AccessToken,
+  EgressClient,
+  RoomServiceClient,
+  ServerError,
+} from 'livekit-server-sdk';
 import {
   CHANNELS,
   FfmpegDecoder,
@@ -22,6 +27,21 @@ import {
   SAMPLE_RATE,
   type FrameSink,
 } from './playback';
+
+/**
+ * Whether the media plane's answer was *no such thing*, rather than a failure.
+ *
+ * LiveKit returns 404 for a participant who is not in the room, which arrives
+ * here as a thrown `ServerError` reading `twirp error unknown: participant
+ * does not exist` — a message that names neither the room nor the cause, and
+ * is indistinguishable at a glance from the apparatus being broken. It is not:
+ * it is an ordinary fact about somebody who has left, and callers that have
+ * something sensible to do with an absence check for it rather than treating
+ * every error alike.
+ */
+function isNotFound(error: unknown): boolean {
+  return error instanceof ServerError && error.status === 404;
+}
 
 /**
  * One audio track a participant has published, as the room reports it.
@@ -162,6 +182,16 @@ export interface MediaServer {
    * silent participant. The caller retries, so a microphone that opens ten
    * seconds in yields a stem from ten seconds in, exactly as somebody who
    * walked in at that moment does.
+   *
+   * **Not being in the room at all is the same answer**, since 2026-09-12.
+   * It is the same fact one step further out — there is nothing to point an
+   * egress at — and it is a state this application creates on purpose too:
+   * `present` survives a dropped connection for DISCONNECT_GRACE_MS, so
+   * anybody inside that grace is present to the reducer and gone from the
+   * room. An automatic run starting in that window put such a person in the
+   * initial cohort, where a throw is fatal, and ended the whole recording
+   * after one second. See
+   * planning/decisions/2026-09-12-a-missing-participant-is-not-a-failure.md.
    */
   startRecording(params: {
     room: string;
@@ -277,7 +307,18 @@ export class LiveKitMediaServer implements MediaServer {
     // no codec that satisfies both. This app has no video, so the right
     // primitive is the single track: it writes the Opus already being
     // published, with no transcode.
-    const participant = await this.rooms.getParticipant(room, identity);
+    // Absent from the room reads as a 404 here rather than as an empty
+    // answer, so it has to be caught to mean what the interface says it
+    // means. Only that status: anything else is a genuine failure of the
+    // recording apparatus and must stay fatal, which is the whole point of
+    // the distinction.
+    let participant;
+    try {
+      participant = await this.rooms.getParticipant(room, identity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
     const audio = participant.tracks.find(
       (track) => track.type === TrackType.AUDIO
     );
@@ -652,6 +693,18 @@ export class MemoryMediaServer implements MediaServer {
    * empty the room.
    */
   private known = new Set<string>();
+  /**
+   * Who this fake has been *told has gone* from a room, which is not the same
+   * as everybody outside `known`.
+   *
+   * An empty `known` means nobody has mentioned a room, not that it is empty:
+   * most tests here dispatch `ENTER` and never ask for a media token, so the
+   * fake hears about the channel and not about the connection. Absence
+   * therefore has to be stated rather than inferred, or every such test would
+   * record nothing. Stated by `leaveRoom` and `removeParticipant`, withdrawn
+   * by anything that puts somebody back.
+   */
+  private absent = new Set<string>();
 
   async issueToken({
     room,
@@ -664,6 +717,7 @@ export class MemoryMediaServer implements MediaServer {
   }) {
     this.issued.push({ room, identity, canPublish });
     this.known.add(`${room}/${identity}`);
+    this.absent.delete(`${room}/${identity}`);
     // A participant who may not publish has nothing published, which is what
     // the rest of this class already models — and it is what makes a guest's
     // silence testable end to end rather than asserted about a token string.
@@ -683,6 +737,7 @@ export class MemoryMediaServer implements MediaServer {
   }) {
     this.publishGrants.push({ room, identity, allowed });
     this.known.add(`${room}/${identity}`);
+    this.absent.delete(`${room}/${identity}`);
     if (allowed) this.unpublished.delete(`${room}/${identity}`);
     else this.unpublished.add(`${room}/${identity}`);
   }
@@ -696,6 +751,7 @@ export class MemoryMediaServer implements MediaServer {
   }) {
     this.removed.push({ room, identity });
     this.known.delete(`${room}/${identity}`);
+    this.absent.add(`${room}/${identity}`);
     this.unpublished.delete(`${room}/${identity}`);
   }
 
@@ -712,6 +768,8 @@ export class MemoryMediaServer implements MediaServer {
   }) {
     this.known.add(`${room}/${speaker}`);
     this.known.add(`${room}/${listener}`);
+    this.absent.delete(`${room}/${speaker}`);
+    this.absent.delete(`${room}/${listener}`);
     // Subscriptions are changed on the listener, so a listener who is not in
     // the room is the failure the real thing answers with `participant does
     // not exist` — the loudest line in the log for as long as it was retried.
@@ -776,6 +834,7 @@ export class MemoryMediaServer implements MediaServer {
   leaveRoom(room: string, identity: string): void {
     const key = `${room}/${identity}`;
     this.known.delete(key);
+    this.absent.add(key);
     this.unpublished.delete(key);
     this.held.delete(key);
     this.trackIds.delete(key);
@@ -784,6 +843,7 @@ export class MemoryMediaServer implements MediaServer {
   /** The other half: arriving in the room, having got a token some time ago. */
   joinRoom(room: string, identity: string): void {
     this.known.add(`${room}/${identity}`);
+    this.absent.delete(`${room}/${identity}`);
   }
 
   private trackId(room: string, identity: string): string {
@@ -810,6 +870,9 @@ export class MemoryMediaServer implements MediaServer {
   }) {
     // Somebody with no track behaves as the real one does: there is nothing to
     // point an egress at, and that is a fact about them rather than a fault.
+    // Somebody who has gone from the room is the same answer one step further
+    // out, where the real one is told 404.
+    if (this.absent.has(`${room}/${identity}`)) return null;
     if (this.unpublished.has(`${room}/${identity}`)) return null;
     if (
       this.failStart &&
@@ -841,6 +904,7 @@ export class MemoryMediaServer implements MediaServer {
     // a playback nobody was standing next to, and `participant` spans could
     // not be tested against the case they exist for.
     this.known.add(`${room}/${identity}`);
+    this.absent.delete(`${room}/${identity}`);
     const channel = new MemoryPlaybackSession(room, identity, file, () => {
       this.known.delete(`${room}/${identity}`);
     });
