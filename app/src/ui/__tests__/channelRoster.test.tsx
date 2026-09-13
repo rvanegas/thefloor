@@ -444,7 +444,9 @@ describe('who is in the channel, and who is talking', () => {
       />
     );
     // One step, being the one person present who spoke longer ago than you.
-    expect(labelOf(cardFor(tree, 'Me, you').node!)).toContain('10s');
+    // Prefixed, since a bare number beside your own name is the shape a claim
+    // takes and this is the opposite of one.
+    expect(labelOf(cardFor(tree, 'Me, you').node!)).toContain('wait 10s');
     expect(labelOf(cardFor(tree, 'Dana Chu').node!)).not.toContain('10s');
     // Nobody holds it, so no card is tinted and the floor's card says so.
     expect(cardFor(tree, 'Me, you').style.backgroundColor).not.toBe(

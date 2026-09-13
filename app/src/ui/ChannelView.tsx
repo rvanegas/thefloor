@@ -3896,12 +3896,17 @@ function ParticipantCard({
         is full weight on a tinted card and the cooldown's is muted on a plain
         one, which is the difference between a minute somebody has and a wait
         you are serving.
+
+        The cooldown's says "wait" in front of the number, since weight and
+        colour are the only other thing distinguishing the two and a card seen
+        on its own carries neither comparison. A bare "10s" beside your own
+        name reads as time you have; "wait 10s" reads as time you owe.
       */}
       {floorRemaining !== null ? (
         <Text style={styles.cardClock}>{formatSeconds(floorRemaining)}</Text>
       ) : cooldown !== null ? (
         <Text style={[styles.cardClock, styles.cardClockMuted]}>
-          {formatSeconds(cooldown)}
+          {`wait ${formatSeconds(cooldown)}`}
         </Text>
       ) : null}
       {/*
