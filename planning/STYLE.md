@@ -206,9 +206,20 @@ These are the sizes that are not in the table, each because of where it sits:
 
 ### Two typographic rules with meaning
 
-- **Italic means *not a name*.** A channel nobody has named is described
-  rather than titled, and it is italic — *alone*. Dimming it as well said
-  "less important" on top of "not a name", and most channels have no name.
+- **Italic means nothing, and a derived title is drawn as a name.** A channel
+  nobody has named is listed and headed by a description of its roster, in the
+  same upright body as a name — no italic, no dimming. Until 2026-09-13 the
+  italic meant *not a name*, on the argument in `core/naming.ts` that the
+  description is written from one viewer's side and is not the string the
+  others see. That argument is sound and a slant cannot make it: it reads as
+  emphasis to anybody not taught the rule, and since most channels have no
+  name it was emphasising the majority of every list. **Where the difference
+  is actionable it is said in words instead** — the name field in Channel
+  Settings carries the derived title as its `placeholder`, so what is yours to
+  type and what is standing in for it are told apart by which one is editable.
+  The general rule it leaves behind: **a distinction that changes what
+  somebody would do belongs in the one place they would act on it, not spread
+  across every screen that mentions the thing.**
 - **Anything that counts gets `fontVariant: ['tabular-nums']`.** Clocks,
   durations, character counts, a button's sublabel. Without it the row
   reflows as the digits change.
