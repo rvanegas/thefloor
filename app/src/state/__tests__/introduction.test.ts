@@ -1,3 +1,4 @@
+import { NOT_OFFERED, type Install } from '../install';
 import { arrivalOf, introduction, type Step } from '../introduction';
 
 /**
@@ -22,6 +23,15 @@ const alone = {
   arrival: 'alone' as const,
   doneAt: null,
   conversing: false,
+  // A phone, where there is nothing to install. The browser cases say so.
+  install: NOT_OFFERED as Install,
+};
+
+/** A browser with somewhere to put this and no button of its own to do it. */
+const installable: Install = {
+  offer: true,
+  how: 'Tap Share in Safari, then Add to Home Screen.',
+  prompt: false,
 };
 
 const stepsOf = (result: ReturnType<typeof introduction>): Step[] =>
@@ -134,6 +144,61 @@ describe('the alone arrival', () => {
 
   it('leaves the last rung unticked, which is the whole mechanism', () => {
     expect(done(introduction(alone), 'stepIn')).toBe(false);
+  });
+});
+
+describe('the install rung', () => {
+  it('is absent where there is nothing to install — every phone, and most browsers', () => {
+    expect(stepsOf(introduction(alone)).map((step) => step.id)).not.toContain(
+      'install'
+    );
+  });
+
+  it('sits between getting somebody here and stepping in', () => {
+    // Not first: nobody installs an app they have not decided to keep. Not
+    // last: stepping in is what the ladder retires on and nothing may sit
+    // below it.
+    expect(
+      stepsOf(introduction({ ...alone, install: installable })).map(
+        (step) => step.id
+      )
+    ).toEqual(['somebody', 'install', 'stepIn']);
+  });
+
+  it('says what to do in this browser rather than in general', () => {
+    const step = stepsOf(introduction({ ...alone, install: installable })).find(
+      (candidate) => candidate.id === 'install'
+    );
+    expect(step?.instruction).toBe(installable.how);
+  });
+
+  it('is never ticked, because its absence is the tick', () => {
+    // An installed browser answers `NOT_OFFERED`, so there is no state to
+    // remember and no row congratulating anybody.
+    expect(done(introduction({ ...alone, install: installable }), 'install')).toBe(
+      false
+    );
+  });
+
+  it('joins the invited card, which is otherwise a card and not a list', () => {
+    const invited = {
+      ...alone,
+      arrival: 'invited' as const,
+      home: { contacts: [], rejoinable: [], invites: [invite] },
+    };
+    const without = introduction(invited);
+    if (without.show !== 'invited') throw new Error('expected the card');
+    expect(without.install).toBeNull();
+
+    const withOffer = introduction({ ...invited, install: installable });
+    if (withOffer.show !== 'invited') throw new Error('expected the card');
+    expect(withOffer.install?.id).toBe('install');
+  });
+
+  it('goes with the rest of it once somebody has had a conversation', () => {
+    expect(
+      introduction({ ...alone, install: installable, conversing: true }).show
+    ).toBe('none');
   });
 });
 

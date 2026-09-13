@@ -41,12 +41,12 @@ export function Introduction({
    */
   onList: (list: List) => void;
 }) {
-  const { introduction } = useApp();
+  const { introduction, installPrompt } = useApp();
 
   if (introduction.show === 'none') return null;
 
   if (introduction.show === 'invited') {
-    const { from, channelId } = introduction;
+    const { from, channelId, install } = introduction;
     return (
       <Card style={styles.card}>
         <View style={styles.main}>
@@ -74,6 +74,16 @@ export function Introduction({
             />
           </View>
         ) : null}
+        {/*
+          The one row that may join this card — see `Introduction` in
+          `state/introduction.ts` for why it is not theatre the way a list of
+          born-ticked rows would be. Below the button rather than above it: the
+          conversation waiting for them is still the point, and this is the
+          thing to do on the way back.
+        */}
+        {install ? (
+          <Row step={install} action={actionFor(install, onList, installPrompt)} />
+        ) : null}
       </Card>
     );
   }
@@ -84,7 +94,11 @@ export function Introduction({
     <Card style={styles.card}>
       <Text style={type.body}>Getting started</Text>
       {steps.map((step) => (
-        <Row key={step.id} step={step} action={actionFor(step, onList)} />
+        <Row
+          key={step.id}
+          step={step}
+          action={actionFor(step, onList, installPrompt)}
+        />
       ))}
     </Card>
   );
@@ -110,13 +124,24 @@ export function Introduction({
  */
 function actionFor(
   step: Step,
-  onList: (list: List) => void
-): { label: string; onPress: () => void } {
+  onList: (list: List) => void,
+  installPrompt: (() => void) | null
+): { label: string; onPress: () => void } | null {
   switch (step.id) {
     case 'somebody':
       return { label: 'Open Contacts', onPress: () => onList('contacts') };
     case 'stepIn':
       return { label: 'Open Channels', onPress: () => onList('channels') };
+    // **The one rung that may have no button, and usually has none.** Most
+    // browsers keep installing in their own chrome and will not let a page
+    // raise it; there the instruction is the whole row, and a button that
+    // opened something else would be worse than the sentence alone. Where one
+    // was volunteered — `state/useInstall.web.ts` — it does the deed here,
+    // which is the only control in this card that does rather than navigates.
+    case 'install':
+      return installPrompt
+        ? { label: 'Install', onPress: installPrompt }
+        : null;
   }
 }
 
@@ -133,7 +158,7 @@ function Row({
   action,
 }: {
   step: Step;
-  action: { label: string; onPress: () => void };
+  action: { label: string; onPress: () => void } | null;
 }) {
   return (
     <View
@@ -157,13 +182,15 @@ function Row({
         */}
         <Text style={type.muted}>{step.instruction}</Text>
         <Text style={type.muted}>{step.note}</Text>
-        <View style={styles.actions}>
-          <Button
-            label={action.label}
-            variant="ghost"
-            onPress={action.onPress}
-          />
-        </View>
+        {action ? (
+          <View style={styles.actions}>
+            <Button
+              label={action.label}
+              variant="ghost"
+              onPress={action.onPress}
+            />
+          </View>
+        ) : null}
       </View>
     </View>
   );

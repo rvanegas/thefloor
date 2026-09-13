@@ -183,4 +183,15 @@ if [ "$CODE" != "200" ]; then
   echo "✗ $URL answered $CODE" >&2
   exit 1
 fi
+
+# The manifest, which is what makes this installable and is the one file here
+# that arrives by being *copied* rather than bundled — `app/public/` is passed
+# through untouched by the export. A path that stops being copied would fail
+# silently and invisibly: the app runs, and installing it quietly stops being
+# offered. The shell's own 404 handler answers this path with HTML, so the
+# check is what came back rather than the status.
+if ! curl -s --max-time 10 "$URL/manifest.json" | grep -q '"display"'; then
+  echo "✗ $URL/manifest.json is not the manifest — app/public/ did not ship" >&2
+  exit 1
+fi
 echo "✓ $URL is serving $train, build $BUILD, from $SHA"

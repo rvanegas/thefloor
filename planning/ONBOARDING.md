@@ -16,6 +16,16 @@ code reference below was checked against the tree at `f3459cf`.
 below is a separate feature and was not written; neither were the three
 campaign gaps, one of which is more urgent than any of this.
 
+**A third rung exists in a browser since 2026-09-13** — *put The Floor on your
+home screen* — and it is the only one that is about the client rather than the
+account. It appears on the ladder between the other two and under the text on
+the invited card, it is never ticked because an installed browser reports
+itself and the rung is then not drawn at all, and it required making the web
+app installable in the first place. That half — the manifest, the icons, and
+the Apple tags the server injects per train — is
+`decisions/2026-09-13-the-web-app-can-be-installed.md`, and this file does not
+describe it.
+
 **The ladder is two rungs since 2026-09-13, and this file still describes
 four.** *Say who you are* and *choose a username* went when both became
 derived at signup, and every rung carries a control now rather than the next
@@ -200,6 +210,12 @@ you stay in it. A campaign arrival cannot infer which one fits their situation.
   stops being an activation ladder.
 - **Microphone permission.** Demanded naturally at step-in. Listing it asks for
   a permission before the reason for it exists — the notifications error again.
+
+**Installing the web app was added on 2026-09-13 and is not a counter-example
+to the first of these.** The rung is drawn only in a browser, it asks for no
+permission, and what it offers is a place to put the app rather than a promise
+about being reached — the thing a browser cannot do is still not claimed, by
+this or by anything else on the screen. See the decision above.
 
 ## Retirement
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import { NOT_OFFERED } from '../install';
 import { useIntroduction } from '../useIntroduction';
 import type { Introduction } from '../introduction';
 
@@ -36,6 +37,8 @@ function Probe({
     token: 'auth',
     home: homeView,
     conversing,
+    // A phone, which has nothing to install: this is about the two keys.
+    install: NOT_OFFERED,
   });
   report(introduction);
   return <Text>{introduction.show}</Text>;

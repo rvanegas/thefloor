@@ -69,6 +69,7 @@ import {
   deployed,
   MIN_SUPPORTED_BUILD,
 } from './release';
+import { withInstallTags } from './shell';
 import { supportPage } from './support';
 import { Help, MAX_OUTSTANDING, MAX_QUESTION_LENGTH } from './help';
 import { watchPage } from './watch-page';
@@ -1309,7 +1310,9 @@ export function buildApp(options: BuildOptions = {}): App {
         );
         reply.type('text/html; charset=utf-8');
         reply.header('cache-control', 'no-store');
-        return html;
+        // The manifest and the Apple tags, with this train's prefix in them.
+        // See shell.ts for why the export cannot write them itself.
+        return withInstallTags(html, train.prefix);
       } catch {
         // Built rather than committed, so a checkout that has not run
         // `bin/deploy-web` has no app. Said plainly, for the same reason the

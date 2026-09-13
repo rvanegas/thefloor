@@ -41,6 +41,7 @@ import {
   useNotificationAsk,
   type NotificationAsk,
 } from './useNotificationAsk';
+import { useInstall } from './useInstall';
 import { useIntroduction } from './useIntroduction';
 import type { Introduction } from './introduction';
 import {
@@ -652,6 +653,16 @@ interface AppValue extends AppState {
    * `state/useIntroduction.ts` for what it does and what it cannot undo.
    */
   forgetIntroduction: () => Promise<void>;
+  /**
+   * Installs the web app from inside it, where the browser volunteered a way.
+   *
+   * Null on every phone, in every browser that has already installed this, and
+   * in the several that have an install command of their own and no way to
+   * raise it from a page — which is most of them, so the rung says where the
+   * menu is and this is the shortcut when there is one. See
+   * `state/useInstall.web.ts`, which holds the event this replays.
+   */
+  installPrompt: (() => void) | null;
 }
 
 const AppContext = createContext<AppValue | null>(null);
@@ -1196,10 +1207,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, []),
   });
 
+  // Read here rather than in the card, because the checklist's shape depends
+  // on it and the checklist is computed here.
+  const { install, promptInstall } = useInstall();
+
   const { introduction, forget: forgetIntroduction } = useIntroduction({
     token: state.token,
     home: state.home,
     conversing,
+    install,
   });
 
   /**
@@ -1468,6 +1484,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifications,
       introduction,
       forgetIntroduction,
+      installPrompt: promptInstall,
 
       appearance,
       /*
@@ -1996,6 +2013,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifications,
       introduction,
       forgetIntroduction,
+      promptInstall,
       appearance,
       tapToLook,
       hideControlCards,

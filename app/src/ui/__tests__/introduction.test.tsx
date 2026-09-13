@@ -50,6 +50,14 @@ const ladder = {
   ],
 };
 
+const installRung = {
+  id: 'install' as const,
+  label: 'Put The Floor on your home screen',
+  instruction: 'Tap Share in Safari, then Add to Home Screen.',
+  note: 'why',
+  done: false,
+};
+
 describe('the introduction on Home', () => {
   it('draws nothing at all for an account that has finished with it', () => {
     mockApp.home = empty;
@@ -121,6 +129,7 @@ describe('the introduction on Home', () => {
       show: 'invited',
       from: 'Dana Chu',
       channelId: 'sess_a',
+      install: null,
     };
     const entered: string[] = [];
     const tree = render(
@@ -140,11 +149,67 @@ describe('the introduction on Home', () => {
 
   it('says the one thing left when the invitation is already taken up', () => {
     mockApp.home = empty;
-    mockApp.introduction = { show: 'invited', from: null, channelId: null };
+    mockApp.introduction = {
+      show: 'invited',
+      from: null,
+      channelId: null,
+      install: null,
+    };
     const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).toContain('You have not stepped in yet');
     // Nowhere to send them from here, so nothing pretends there is.
     expect(findButton(tree, 'Step in')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+});
+
+describe('the install rung', () => {
+  it('says where the command is, and offers no button when there is none', () => {
+    // Most browsers keep installing in their own chrome and will not let a
+    // page raise it. The instruction is then the whole row, and a button that
+    // opened something else would be worse than the sentence alone.
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'alone',
+      steps: [ladder.steps[0], installRung, ladder.steps[1]],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    expect(textOf(tree)).toContain('Tap Share in Safari');
+    expect(findButton(tree, 'Install')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('does the deed itself where the browser volunteered a way', () => {
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'alone',
+      steps: [ladder.steps[0], installRung, ladder.steps[1]],
+    };
+    const prompted = jest.fn();
+    mockApp.installPrompt = prompted;
+    const tree = render(<HomeView {...homeNav} />);
+    const install = findButton(tree, 'Install');
+    expect(install).toBeDefined();
+    act(() => install?.props.onPress());
+    expect(prompted).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('joins the invited card without turning it into a list', () => {
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'invited',
+      from: 'Dana Chu',
+      channelId: 'sess_a',
+      install: installRung,
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu invited you');
+    expect(text).toContain('Put The Floor on your home screen');
+    // Still the card: no heading, and the way in is still the point.
+    expect(text).not.toContain('Getting started');
+    expect(findButton(tree, 'Step in')).toBeDefined();
     act(() => tree.unmount());
   });
 });

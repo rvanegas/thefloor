@@ -98,7 +98,8 @@ caused; the list carries the meaning.
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
-- **Introduction** — What a new account is shown above both lists until it has had a conversation: the two-rung ladder for an *alone* arrival, one card for an *invited* one
+- **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
+- **Introduction** — What a new account is shown above both lists until it has had a conversation: the ladder for an *alone* arrival, one card for an *invited* one, and an install rung on both in a browser that can
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1366,6 +1367,16 @@ recorded as it is done, and each carrying an instruction naming the list it is
 done on and a button that goes there. An `invited` one gets a single card,
 because the first rung is true before they arrive and a list congratulating
 somebody on what was done for them is theatre.
+
+**A third rung exists in a browser, since 2026-09-13, and only there**: *put
+The Floor on your home screen*, between the two on the ladder and below the
+text on the invited card — the one rung that is about the client rather than
+about the account. It is never ticked; a browser running the installed app
+reports it and the rung is simply not drawn, so its absence is the tick. What
+each browser is told to do is `state/install.ts`, and where a browser
+volunteers a `beforeinstallprompt` the row installs it directly. See
+*installed (web app)*, and
+`decisions/2026-09-13-the-web-app-can-be-installed.md`.
 
 **It was four rungs until 2026-09-13**: *say who you are* and *choose a
 username* went when both became derived at signup, and with them the profile

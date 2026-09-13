@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HomeView } from '../../../core/protocol';
 import { recordEvent } from '../audio/diagnostics';
+import type { Install } from './install';
 import { storage } from './storage';
 import {
   arrivalOf,
@@ -83,8 +84,19 @@ export function useIntroduction(state: {
   home: HomeView | null;
   /** In a channel with somebody else — the event all of this retires on. */
   conversing: boolean;
+  /**
+   * What this client can be installed as — `useInstall`, read in
+   * `AppProvider` for the same reason `conversing` is computed there.
+   *
+   * **Nothing here remembers it**, unlike the two keys above. Whether this
+   * browser is running an installed copy is a fact it answers by looking, and
+   * one that is about the browser rather than about the account — so there is
+   * nothing to write down, nothing to clear on sign-out, and nothing to get
+   * wrong when the same person opens a tab on a second machine.
+   */
+  install: Install;
 }): IntroductionState {
-  const { token, home, conversing } = state;
+  const { token, home, conversing, install } = state;
 
   const [loaded, setLoaded] = useState(false);
   const [arrival, setArrival] = useState<Arrival | null>(null);
@@ -183,7 +195,14 @@ export function useIntroduction(state: {
   }, []);
 
   return {
-    introduction: introduction({ loaded, home, arrival, doneAt, conversing }),
+    introduction: introduction({
+      loaded,
+      home,
+      arrival,
+      doneAt,
+      conversing,
+      install,
+    }),
     forget,
   };
 }

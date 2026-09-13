@@ -14,6 +14,8 @@
  * looks like, and the component around it is not reachable by any test here.
  */
 
+import type { Install } from './install';
+
 /**
  * How this account got here, decided once and then remembered.
  *
@@ -42,8 +44,15 @@ export type Arrival = 'invited' | 'alone';
  * types one, so both rows were born ticked for every account that can still
  * see this list, and a ladder whose first half congratulates you on things you
  * did not do is the theatre the invited card exists to avoid.
+ *
+ * **`install` is the third and is not always there**, added 2026-09-13. It is
+ * the one rung that is about the client rather than about the account: a
+ * browser can put this page on a home screen, and on a phone there is nothing
+ * to install because the thing being run *is* the installation. `install.ts`
+ * decides whether there is an offer at all and what to say, and there is no
+ * rung when there is not.
  */
-export type StepId = 'somebody' | 'stepIn';
+export type StepId = 'somebody' | 'stepIn' | 'install';
 
 export interface Step {
   id: StepId;
@@ -84,6 +93,17 @@ export type Introduction =
       from: string | null;
       /** Where the card goes. Null only if the snapshot has neither. */
       channelId: string | null;
+      /**
+       * The install rung, under the card, when a browser has one to offer.
+       *
+       * **The one thing that may join this card**, and it joins it rather than
+       * turning it back into a list because it is not born ticked: the whole
+       * argument against a list here is that it would congratulate this cohort
+       * on two things somebody else did for them, and this is neither of them.
+       * Null on a phone and in any browser that cannot install — which is most
+       * of the time, and is why the card's shape is unchanged by default.
+       */
+      install: Step | null;
     }
   | { show: 'alone'; steps: Step[] };
 
@@ -112,6 +132,11 @@ export function arrivalOf(home: {
 export function introduction(state: {
   /** False until the keychain has been read; nothing may be shown before it. */
   loaded: boolean;
+  /**
+   * What this client can be installed as, if anything — `state/install.ts`.
+   * `NOT_OFFERED` on every phone, and in a browser that already has it.
+   */
+  install: Install;
   /** The Home snapshot, null before the first one arrives. */
   home: {
     contacts: unknown[];
@@ -125,7 +150,7 @@ export function introduction(state: {
   /** In a channel with somebody else, now — see `AppProvider`. */
   conversing: boolean;
 }): Introduction {
-  const { loaded, home, arrival, doneAt, conversing } = state;
+  const { loaded, home, arrival, doneAt, conversing, install } = state;
 
   if (!loaded || !home || !arrival) return { show: 'none' };
   // Retired for good, and retired the instant it happens rather than at the
@@ -134,12 +159,15 @@ export function introduction(state: {
   // moment it would be actively silly.
   if (doneAt !== null || conversing) return { show: 'none' };
 
+  const installing = installStep(install);
+
   if (arrival === 'invited') {
     const invite = home.invites[0];
     return {
       show: 'invited',
       from: invite ? invite.from.displayName : null,
       channelId: invite ? invite.channelId : null,
+      install: installing,
     };
   }
 
@@ -158,6 +186,11 @@ export function introduction(state: {
         // unticked for a day after the only action available had been taken.
         done: home.contacts.length > 0,
       },
+      // Between the two, which is where it belongs on both readings: it is
+      // not the first thing to do — nobody installs an app they have not
+      // decided to keep — and it is not the last, because stepping in is what
+      // the ladder retires on and nothing may sit below it.
+      ...(installing ? [installing] : []),
       {
         id: 'stepIn',
         label: 'Step in',
@@ -171,5 +204,35 @@ export function introduction(state: {
         done: false,
       },
     ],
+  };
+}
+
+/**
+ * The install rung, or nothing at all.
+ *
+ * **Never ticked, and it disappears instead** — which is `stepIn`'s trick for
+ * a different reason. There is no state here worth remembering: a browser that
+ * is running the installed app says so, so the rung's absence *is* the tick,
+ * and nothing has to be written down or cleared when somebody installs on one
+ * machine and opens a tab on another. It is also what keeps this honest for
+ * the cohort that will never install: the row is simply not there.
+ *
+ * The wording of `instruction` is the browser's own — see `install.ts`, which
+ * is where the *how* differs and the only place it does.
+ */
+function installStep(install: Install): Step | null {
+  if (!install.offer) return null;
+  return {
+    id: 'install',
+    label: 'Put The Floor on your home screen',
+    instruction: install.how,
+    // **It does not promise notifications, and must not.** This app has no
+    // service worker and no web push, so an installed browser app is exactly
+    // as unreachable as the tab it came from. The notice that may talk about
+    // being reached is `ui/installNotice.ts`, and it is about the App Store
+    // app — the two sit in the same tier and saying the same thing in both
+    // would make one of them a lie.
+    note: 'It gets an icon of its own and opens without a browser around it, which is how you find your way back here.',
+    done: false,
   };
 }

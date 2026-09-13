@@ -159,6 +159,12 @@ export const mockApp = {
    */
   introduction: { show: 'none' } as Introduction,
   forgetIntroduction: jest.fn(async () => undefined),
+  /**
+   * The shortcut a browser volunteered for installing this, which is null on
+   * the phone every one of these tests pretends to be. A test about the
+   * install rung's button sets it. See `state/useInstall.web.ts`.
+   */
+  installPrompt: null as (() => void) | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
   lastError: null,
   serverNow: () => NOW,
