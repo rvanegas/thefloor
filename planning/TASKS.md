@@ -38,14 +38,6 @@ Suppose one is using HFP to AirPods and then route the bluetooth to
 a Volkswagen 2015. This creates an echo for other users which can be 
 corrected by stepping out and back in.
 
-## Deploy All
-
-Create bin/script to run this:
-
-bin/deploy ; bin/upload-ios ; bin/deploy-web --beta ; bin/android --apk
-
-Add appropriate guards and such as with other bash scripts in bin.
-
 ## Speaking Indicator During Claim
 
 The purple outline indicator of who is speaking is stuck in whichever state it 
