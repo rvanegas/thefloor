@@ -1264,15 +1264,19 @@ export function ChannelView({
         </View>
         <View style={styles.headerActions}>
           {/*
-            **The circle, and nothing else.** That a recording is running is
-            the one fact on this screen somebody needs at every moment, so it
-            is pinned — but it was pinned as a second row of the header, a
-            pill carrying the word and the clock, and a whole row of every
-            screenful is a great deal to spend on a fact that a dot states.
-            The dot stays up here where it cannot scroll away; the word and
-            the elapsed time went down to the Recording card on the
-            Recordings tab, which is where the transport is and where somebody
-            who wants the number is already going.
+            **The whole indicator, and only here.** That a recording is
+            running is the one fact on this screen somebody needs at every
+            moment, so it is pinned — and it is pinned as the object it is:
+            the disc, the word and the clock inside a hairline. The split
+            that put the disc here and the pill on the Recording card was
+            drawing one state two ways in two places, which is a state
+            somebody has to learn twice; there is one of it again, and it is
+            in the place that cannot scroll away.
+
+            **What it costs is the name's width, which is the right thing to
+            spend.** The pill takes what it needs and the name takes the rest
+            and truncates — a truncated name still identifies the channel,
+            and the full one is behind the button immediately beside it.
 
             Not a button. It sits in the row of buttons because that is where
             the space at the end of the name is, and it is the only thing in
@@ -1282,7 +1286,7 @@ export function ChannelView({
           */}
           {recordingLive ? (
             <View
-              style={styles.headerRecording}
+              style={[styles.recordingStatus, styles.headerRecording]}
               accessible
               accessibilityRole="image"
               accessibilityLabel={
@@ -1298,6 +1302,12 @@ export function ChannelView({
                     styles.recordingDotPaused,
                 ]}
               />
+              <Text style={styles.recordingLabel}>
+                {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
+              </Text>
+              <Text style={styles.recordingTime}>
+                {formatDuration(recordedMs(channel.recording, now))}
+              </Text>
             </View>
           ) : null}
           <IconButton
@@ -2524,51 +2534,16 @@ export function ChannelView({
         <SectionLabel>Recording</SectionLabel>
         <Card style={styles.stack}>
           {/*
-            The other half of the pinned indicator: the header keeps the
-            circle, and the word and the clock are here, above the transport
-            that acts on them. A running recording is a fact you need
-            everywhere and a duration you want in one place — the place you
-            came to in order to pause or stop it — and carrying both in the
-            header cost a row of every screenful of every tab.
+            **No indicator here.** The card carried the pill — the disc, the
+            word and the clock — while the header carried a bare disc, and
+            two drawings of one state in two places is one too many. The pill
+            went up to the header, which is the copy that cannot scroll away
+            and is on every tab; a reader who came here to press Pause or
+            Stop is looking at it while they do.
 
-            **The pill, restored in full.** This was a bare row of two words
-            when the split was made, on the reasoning that a card is already
-            a surface and a bordered pill on top of one is a box in a box.
-            It is the whole indicator again — the disc, the word, the clock,
-            inside the hairline — because those three read as one object and
-            two of them read as a caption. The disc is not redundant with the
-            header's: this is the thing that says *what is running*, and a
-            state that is drawn one way at the top of the screen and another
-            way where it is acted on is a state somebody has to learn twice.
-
-            `alignSelf` is the one thing not reproduced. It was `flex-end` in
-            the header, where the pill was the only thing on its row and the
-            row belonged to the buttons at the trailing edge; here everything
-            in the card starts at the leading edge, so it does too. The
-            property is still needed — without it the pill stretches to the
-            card's width and stops being a pill.
-
-            Above the failure line rather than below it, so the order reads
-            downwards in time: what is running, what went wrong, what to do
-            about it.
+            What the card keeps is what only it can say: what went wrong, and
+            the transport.
           */}
-          {recordingLive ? (
-            <View style={styles.recordingStatus}>
-              <View
-                style={[
-                  styles.recordingDot,
-                  channel.recording.status === 'paused' &&
-                    styles.recordingDotPaused,
-                ]}
-              />
-              <Text style={styles.recordingLabel}>
-                {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
-              </Text>
-              <Text style={styles.recordingTime}>
-                {formatDuration(recordedMs(channel.recording, now))}
-              </Text>
-            </View>
-          ) : null}
           {channel.recording.failure ? (
             // Capture stopping for a reason nobody asked for must not read like
             // a recording somebody chose to end. Whoever was speaking on the
@@ -4215,7 +4190,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing(1),
   },
-  /** The kind and the name, taking whatever the two controls leave. */
+  /**
+   * The kind and the name, taking whatever the controls leave — which since
+   * the recording pill came up here is less, and varies with whether one is
+   * running at all. That is the arrangement rather than a defect in it: the
+   * name is the one thing on the row that degrades gracefully, so it is the
+   * one that gives, and what will not fit ends in an ellipsis. `flex: 1`
+   * takes the slack; the `numberOfLines={1}` at the two sites does the rest.
+   */
   headerMain: { flex: 1, gap: spacing(0.5) },
   headerKind: { ...type.label },
   /**
@@ -4227,6 +4209,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: -spacing(1),
+    // Explicit, though it is React Native's default: this row must not be
+    // the thing that shrinks. Everything in it is either a touch target at
+    // its minimum size or a pill whose text says a duration, and the name
+    // beside it is what truncates instead.
+    flexShrink: 0,
   },
   /**
    * The pinned footer.
@@ -4348,38 +4335,24 @@ const styles = StyleSheet.create({
     marginTop: spacing(0.75),
   },
   /**
-   * The dot's place in the header's row of buttons.
+   * The indicator itself: the disc, the word and the clock inside a hairline
+   * pill. It lived on the Recording card until the header took it back, and
+   * the surface, the border and the padding are that card's verbatim.
    *
-   * Sized like an `IconButton` rather than to the 8pt disc inside it, so the
-   * circle sits on the same centre line as the two glyphs beside it and the
-   * gap between it and Settings is the gap between Settings and Close. It is
-   * not pressable and deliberately looks it: a target-sized box with a dot in
-   * the middle of it reads as a light, where the same dot crowded against the
-   * gear would read as a badge on the gear.
-   */
-  headerRecording: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /**
-   * The indicator itself, on the Recording card: the disc, the word and the
-   * clock inside a hairline pill. Reproduced from the second header row it
-   * used to be, down to the surface, the border and the padding — see the
-   * comment at the site for what `alignSelf` changed and why.
+   * `surface` rather than `surfaceRaised` — the token that would lift it off
+   * a card is the default `Button` fill, and a pill wearing it reads as a
+   * control that does nothing when pressed. An outline that is plainly not a
+   * button is the better of the two, in the header as it was on the card.
    *
-   * `surface` is kept even though the card behind it is `surface` too, so the
-   * fill does no work here and the hairline draws the whole pill. The token
-   * that would lift it off the card is `surfaceRaised`, and that is the
-   * default Button fill — a pill wearing it, directly above Pause and Stop,
-   * would read as a third button that does nothing when pressed. An outline
-   * that is plainly not a control is the better of the two.
+   * `alignSelf: 'center'` rather than the `flex-start` the card wanted: this
+   * now sits in a row beside two 44pt glyph buttons, and the pill is shorter
+   * than they are, so it wants the row's centre line. Without an `alignSelf`
+   * at all it stretches to the row's height and stops being a pill.
    */
   recordingStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     gap: spacing(0.75),
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -4388,6 +4361,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing(1.25),
     paddingVertical: spacing(0.5),
   },
+  /**
+   * What the pill adds for its place in the header's row of buttons.
+   *
+   * A gap of its own, since the two neighbours are 44pt boxes whose padding
+   * is their spacing and the pill has none to give. `flexShrink: 0` so the
+   * name's `flex: 1` takes every remaining point and the pill keeps its
+   * width — the whole arrangement rests on the name being the thing that
+   * gives, and a pill squeezed to half a clock states nothing.
+   */
+  headerRecording: { marginRight: spacing(0.5), flexShrink: 0 },
   recordingDot: {
     width: 8,
     height: 8,

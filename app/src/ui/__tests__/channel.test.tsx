@@ -1578,11 +1578,11 @@ describe('Channel', () => {
     moment — that they are being captured — was the first thing to leave the
     viewport.
 
-    **By accessible name, not by text**, since the header carries only the
-    circle now: the word and the elapsed time went to the Recording card,
-    which the test below this one holds. A search for the string would find
-    the *Recordings* tab in the pinned switch either way, which is how the
-    split was noticed.
+    **By accessible name, not by text.** The header carries the whole pill
+    again — the disc, the word and the clock — and a search for the word
+    would find the *Recordings* tab in the pinned switch beside it either
+    way, which is how the earlier split was noticed. The name is on the pill
+    and on nothing else.
   */
   const recordingDots = (tree: ReactTestRenderer) =>
     tree.root.findAll(
@@ -1613,30 +1613,61 @@ describe('Channel', () => {
     const [liveScreen] = live.root.findAll((node) => node.type === Screen);
     const liveHeader = render(liveScreen.props.header);
     expect(recordingDots(liveHeader).length).toBeGreaterThan(0);
-    // And the header says no more than that: what is said in words is on the
-    // Recording card, one tap away, rather than in a row of every screenful.
-    expect(textOf(liveHeader)).not.toContain('Paused');
+    // And it says the whole of it: the word and the clock are up here now,
+    // not on a card behind a tab.
+    expect(textOf(liveHeader)).toContain('Recording');
+    expect(textOf(liveHeader)).toContain('0:00');
     act(() => liveHeader.unmount());
     act(() => live.unmount());
   });
 
   /*
-    The other half of that split. The card on the Recordings tab is where the
-    transport is, so it is where the word and the clock belong — somebody who
-    wants the number is already on their way here.
+    The name gives way to it, which is the price of the pill being pinned.
+    Asserted as the property that makes the truncation work rather than as a
+    rendered width, which a test renderer does not have: the name's column
+    takes the slack and the row of controls does not shrink, so whatever the
+    pill needs comes out of the name and the name ends in an ellipsis.
+  */
+  it('truncates the channel name rather than the controls beside it', () => {
+    showChannel(
+      channelOf((c) => ({
+        ...c,
+        name: 'A channel with a name far longer than any header is wide',
+      }))
+    );
+    const { tree, header } = headerOf(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const [name] = header.root.findAll(
+      (node) =>
+        node.type === Text &&
+        typeof node.props.children === 'string' &&
+        node.props.children.startsWith('A channel with a name')
+    );
+    expect(name.props.numberOfLines).toBe(1);
+    const column = header.root.findAll(
+      (node) =>
+        node.type === View && StyleSheet.flatten(node.props.style)?.flex === 1
+    );
+    expect(column.length).toBeGreaterThan(0);
+    act(() => header.unmount());
+    act(() => tree.unmount());
+  });
 
-    It carries the disc as well, the indicator having been restored to the
-    pill it was in the header: by colour rather than by shape, for the reason
-    `dangerLines` gives, and because a disc is a `View` with no text in it and
-    there is nothing else to find it by.
-
-    Inside the pill rather than anywhere in the tree, since the header draws
-    the same disc in the same two colours and the header is part of this tree
-    — a bare search for the colour passes on the header's alone, which is the
-    half that never changed. The pill is what is new, so the pill is what is
-    searched: the radius is the only thing on this screen shaped like one.
-    The paused case is asserted rather than assumed, being a second style laid
-    over the first and so the one that can silently stop being applied.
+  /*
+    The disc's two colours, found by colour rather than by shape, for the
+    reason `dangerLines` gives and because a disc is a `View` with no text in
+    it and there is nothing else to find it by. Inside the pill rather than
+    anywhere in the tree: the radius is the only thing on this screen shaped
+    like one, and scoping to it says the disc is part of the indicator rather
+    than loose somewhere. The paused case is asserted rather than assumed,
+    being a second style laid over the first and so the one that can silently
+    stop being applied.
   */
   const recordingDiscs = (tree: ReactTestRenderer, color: ColorValue) =>
     tree.root
@@ -1653,22 +1684,24 @@ describe('Channel', () => {
         )
       );
 
-  it('carries the word and the elapsed time on the Recording card', () => {
+  it('says Recording running and Paused paused, in the one pill', () => {
     showChannel(
       channelOf((c) =>
         reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
       )
     );
-    const tree = render(
+    const running = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecordings(tree);
+    const [runningScreen] = running.root.findAll((node) => node.type === Screen);
+    const tree = render(runningScreen.props.header);
     const text = textOf(tree);
     expect(text).toContain('Recording');
     expect(text).toContain('0:00');
     expect(recordingDiscs(tree, colors.recording)).not.toHaveLength(0);
     expect(recordingDiscs(tree, colors.textFaint)).toHaveLength(0);
     act(() => tree.unmount());
+    act(() => running.unmount());
 
     showChannel(
       channelOf((c) => {
@@ -1680,14 +1713,16 @@ describe('Channel', () => {
         return reduce(started, { type: 'PAUSE_RECORDING', userId: ME }, NOW);
       })
     );
-    const paused = render(
+    const pausedTree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecordings(paused);
+    const [pausedScreen] = pausedTree.root.findAll((node) => node.type === Screen);
+    const paused = render(pausedScreen.props.header);
     expect(textOf(paused)).toContain('Paused');
     expect(recordingDiscs(paused, colors.textFaint)).not.toHaveLength(0);
     expect(recordingDiscs(paused, colors.recording)).toHaveLength(0);
     act(() => paused.unmount());
+    act(() => pausedTree.unmount());
   });
 
   /*
