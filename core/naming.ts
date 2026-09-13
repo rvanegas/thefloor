@@ -4,9 +4,12 @@
  * The answer is a **description, not a name**, and the difference is the whole
  * point. A name is one string every member reads; this is written from one
  * viewer's side and says who else is in there, so you and the person you are
- * talking to see different words for the same channel. The interface has to
- * admit that rather than dress it as a name — see the muted italic in
- * HomeView and ChannelView, and planning/decisions/DECISIONS*.md.
+ * talking to see different words for the same channel.
+ *
+ * **The screens draw it as a name anyway, and deliberately, since
+ * 2026-09-13.** The muted italic that used to mark it is gone; where the
+ * difference matters it is stated rather than styled, the settings field
+ * carrying this string as its placeholder. See `name` in core/types.ts.
  *
  * Shared by both screens and by the push title so that a channel does not
  * answer to one thing on the lock screen and another once you have tapped it.

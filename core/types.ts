@@ -364,11 +364,19 @@ export interface ChannelState {
    * it. A name is never required: display falls back to `describeChannel`
    * over the roster.
    *
-   * The two are not the same kind of thing, though, and the interface says so.
-   * A name is one string every member reads and can therefore say to another
-   * member. The fallback is a *description*, written from one viewer's side —
-   * you see "Dana Chu", she sees your name — so it is rendered in muted italic
-   * rather than dressed as a name that everybody shares.
+   * The two are not the same kind of thing, though. A name is one string
+   * every member reads and can therefore say to another member. The fallback
+   * is a *description*, written from one viewer's side — you see "Dana Chu",
+   * she sees your name.
+   *
+   * **The interface stopped drawing that difference on 2026-09-13.** Lists
+   * and headers set a description in the same upright body as a name: the
+   * muted italic that used to mark one was emphasis landing on the channels
+   * with least to say for themselves, and a slant cannot say *this string is
+   * not the one the others see* to anybody who has not been told. Where the
+   * difference is actionable it is stated instead — the settings field shows
+   * the description as its placeholder, so what you could type and what is
+   * merely standing in for it are told apart by which one is yours.
    */
   name: string | null;
   /**

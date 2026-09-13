@@ -1504,9 +1504,10 @@ describe('showing your email to a contact', () => {
  * What each of these two screens says it *is*, above what it is called.
  *
  * They were the only screens headed by their contents rather than by their
- * kind, which reads worst on an unnamed channel: its header is a muted italic
- * list of who is in it, and so is very nearly what a contact's header looks
- * like. What is asserted here is the word and its position — above the name,
+ * kind, which reads worst on an unnamed channel: its header is a list of who
+ * is in it, and so is very nearly what a contact's header looks like — more
+ * nearly since the italic went, which is what leaves the word doing the work
+ * alone. What is asserted here is the word and its position — above the name,
  * not beside it — and, on the contact screen, that the word tells the truth
  * about a relationship rather than about a route.
  */

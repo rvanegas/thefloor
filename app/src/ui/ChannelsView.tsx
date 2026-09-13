@@ -392,8 +392,6 @@ type Card = {
    */
   kind: 'invite' | 'member' | 'seat';
   title: string;
-  /** Whether the title is a name somebody wrote or a description of a roster. */
-  named: boolean;
   /**
    * How many people are in it. `undefined` from a server that predates the
    * field on an invitation, and read as occupied — the old text asserted
@@ -452,7 +450,6 @@ function inviteCard(invite: InviteView): Card {
     channelId: invite.channelId,
     kind: 'invite',
     title: invite.name ?? described ?? invite.from.displayName,
-    named: invite.name != null,
     presentCount: invite.presentCount,
     lastPresenceAt: invite.lastPresenceAt,
     // Neither, and neither is an omission. An invitation is a channel the
@@ -486,7 +483,6 @@ function memberCard(channel: RejoinableView): Card {
       channelId: channel.channelId,
       kind: 'seat',
       title: channel.name ?? 'A channel',
-      named: true,
       presentCount: channel.presentCount,
       lastPresenceAt: undefined,
       lastPresenceByOthers: undefined,
@@ -504,7 +500,6 @@ function memberCard(channel: RejoinableView): Card {
     title:
       channel.name ??
       describeChannel(channel.others.map((other) => other.displayName)),
-    named: channel.name != null,
     presentCount: channel.presentCount,
     // `lastActiveAt` is the fallback for a server that predates the better
     // stamp, and is the same answer for every channel nobody is in — which are
@@ -800,13 +795,19 @@ function ChannelCard({
       >
         <View style={styles.rowMain}>
           {/*
-            A named channel is asserted; an unnamed one is only described, and
-            the muted italic says so. Without it the two sit in one list looking
-            alike, and a description written from your side alone reads as a
-            name every member would recognise — which it is not. See
-            core/naming.ts.
+            One style, named or not. The italic that used to mark a derived
+            title is gone since 2026-09-13: it was carrying an argument about
+            provenance — that a description written from your side is not a
+            name every member would recognise, see core/naming.ts — that a
+            slant cannot actually make, and in a list of rows it read as
+            emphasis on exactly the channels that had least to say for
+            themselves. The distinction survives where it is stated in words
+            rather than drawn: the settings field, whose placeholder is the
+            derived title in placeholder grey, so what is yours to type and
+            what is merely standing in for it are told apart by which one is
+            editable.
           */}
-          <Text style={card.named ? type.body : styles.described} numberOfLines={1}>
+          <Text style={type.body} numberOfLines={1}>
             {card.title}
           </Text>
           {line ? <Text style={type.muted}>{line}</Text> : null}
@@ -899,14 +900,6 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   /** Feedback on a row whose whole surface is the target. */
   rowPressed: { opacity: 0.7 },
-  /**
-   * A channel nobody has named: described rather than called something.
-   *
-   * Italic alone. Dimming it as well said "less important" on top of "not a
-   * name", and these are not less important — most channels have no name, and
-   * they were the greyest thing on the screen.
-   */
-  described: { ...type.body, fontStyle: 'italic' },
   /**
    * Not `row`, which spreads its children apart to put a control on the end.
    * Here the mark and the label are one phrase and belong together on the

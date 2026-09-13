@@ -560,6 +560,12 @@ export function ChannelView({
   // Every participant, self included; the name directory for every id the
   // channel state carries.
   const others = view.participants.filter((p) => p.id !== me);
+  /**
+   * What to call this channel when nobody has named it. Computed once because
+   * two screens draw it: the header below, and the settings field, whose
+   * placeholder it is.
+   */
+  const derivedTitle = describeChannel(others.map((other) => other.displayName));
   const nameOf = (id: string | null) =>
     view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
   const now = app.serverNow();
@@ -677,6 +683,7 @@ export function ChannelView({
     return (
       <ChannelSettingsView
         channel={channel}
+        derivedTitle={derivedTitle}
         onBack={() => setSettingsOpen(false)}
         onLeft={() => {
           app.leaveChannelView(channelId);
@@ -1272,22 +1279,18 @@ export function ChannelView({
             What this screen is, above what it is called. It costs a line in a
             header that is pinned and argued above to be short, and it is worth
             it for the unnamed case directly below: a channel nobody has named
-            is headed by a muted italic list of who is in it, which is very
-            nearly what the contact screen's header looks like. The word
-            separates the two exactly where nothing else does. Its counterpart
-            there says *Contact*; see ProfileView, which carries the reasoning
-            for both.
+            is headed by a list of who is in it, which is very nearly what the
+            contact screen's header looks like. The word separates the two
+            exactly where nothing else does — and since 2026-09-13 it is the
+            only thing that does, the italic that used to mark the derived
+            title having gone. Its counterpart there says *Contact*; see
+            ProfileView, which carries the reasoning for both.
           */}
           <Text style={styles.headerKind}>Channel</Text>
-          {/* Muted italic when nobody has named it, for the reason set out in
-              core/naming.ts: this is a description written from your side, not
-              a name the others would recognise. */}
-          <Text
-            style={channel.name ? styles.otherName : styles.describedName}
-            numberOfLines={1}
-          >
-            {channel.name ??
-              describeChannel(others.map((other) => other.displayName))}
+          {/* One style, named or not. The italic that marked a derived title
+              is gone; see the note on Home's channel rows for why. */}
+          <Text style={styles.otherName} numberOfLines={1}>
+            {channel.name ?? derivedTitle}
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -4028,17 +4031,10 @@ const styles = StyleSheet.create({
    * so its height is paid for on all of them, and a large title is a thing a
    * scroll is entitled to at its top and a pinned bar is not.
    */
-  // No `flex: 1` on either: they sit in `headerMain`, which is a column, and
-  // there it would stretch them down the header rather than along it. The
-  // width they truncate against is that column's, which the row constrains.
+  // No `flex: 1`: it sits in `headerMain`, which is a column, and there it
+  // would stretch down the header rather than along it. The width it
+  // truncates against is that column's, which the row constrains.
   otherName: { fontSize: 20, fontWeight: '700', color: colors.text },
-  /** Italic alone; see the note on Home's `described`. */
-  describedName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    fontStyle: 'italic',
-  },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
   centered: {
     flex: 1,

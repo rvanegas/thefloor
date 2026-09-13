@@ -102,12 +102,16 @@ describe('named channels and described ones do not look alike', () => {
     );
   };
 
-  it('sets a described channel in italic on Home', () => {
-    // Italic and nothing else. Dimming it too said "less important" on top of
-    // "not a name", and most channels have no name.
+  it('draws a described channel on Home exactly like a named one', () => {
+    // Upright and full strength, the same as the row below it. The italic
+    // that used to mark a derived title is gone: it read as emphasis on the
+    // channels with least to say for themselves, and the fact it was trying
+    // to carry — that this description is written from your side, not a name
+    // every member would recognise — is now said in the settings field, where
+    // the derived title stands as the placeholder.
     const tree = homeWith(null);
     const style = titleStyleOf(tree, 'Miro Okafor');
-    expect(style.fontStyle).toBe('italic');
+    expect(style.fontStyle).toBeUndefined();
     expect(style.color).toBe(colors.text);
     act(() => tree.unmount());
   });
@@ -120,7 +124,7 @@ describe('named channels and described ones do not look alike', () => {
     act(() => tree.unmount());
   });
 
-  it('marks the channel header the same way', () => {
+  it('leaves the channel header upright too', () => {
     showChannel(channelOf());
     const tree = render(
       <ChannelView
@@ -143,7 +147,7 @@ describe('named channels and described ones do not look alike', () => {
       fontStyle?: string;
       color?: string;
     };
-    expect(style.fontStyle).toBe('italic');
+    expect(style.fontStyle).toBeUndefined();
     expect(style.color).toBe(colors.text);
     act(() => tree.unmount());
   });

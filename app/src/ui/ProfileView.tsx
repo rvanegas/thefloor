@@ -384,8 +384,8 @@ export function ProfileView({
    * reader knows this screen by, rather than *profile*, which is the word the
    * code knows it by. Added 2026-09-02 with the channel header's *Channel*:
    * these two were the only screens headed by their contents rather than by
-   * their kind, and an unnamed channel's header — a muted italic roster
-   * description — is very nearly what a contact's header looks like.
+   * their kind, and an unnamed channel's header — a roster description — is
+   * very nearly what a contact's header looks like.
    *
    * **Four words rather than one, because this screen has four audiences.**
    * *Contact* asserts something GLOSSARY defines as mutual, so it may only be
@@ -1336,10 +1336,7 @@ export function ProfileView({
                         ]}
                       />
                     ) : null}
-                    <Text
-                      style={channel.name ? type.body : styles.channelDescribed}
-                      numberOfLines={1}
-                    >
+                    <Text style={type.body} numberOfLines={1}>
                       {title}
                     </Text>
                   </View>
@@ -1944,8 +1941,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.textFaint,
   },
-  /** Italic when nobody has named it; see core/naming.ts. */
-  channelDescribed: { ...type.body, fontStyle: 'italic' },
   /**
    * Between the two halves of the email card: theirs above, yours below.
    *

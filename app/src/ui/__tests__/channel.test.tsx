@@ -2932,9 +2932,15 @@ describe('Channel', () => {
     act(() => settings!.props.onPress());
     expect(textOf(tree)).toContain('Channel settings');
 
+    // The placeholder is what the channel is called while nobody has named
+    // it — the same roster description the header draws — rather than a
+    // prompt asking what the channel is about. An empty field is not an
+    // unnamed channel; it is a channel named after who is in it, and this is
+    // the one place that says so.
     const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'What is this channel about?'
+      (n) => n.props?.placeholder === 'Dana Chu'
     )[0];
+    expect(field).toBeDefined();
     act(() => field.props.onChangeText('Book club'));
     // No Save button: leaving the field is what keeps it.
     expect(findButton(tree, 'Save name')).toBeUndefined();

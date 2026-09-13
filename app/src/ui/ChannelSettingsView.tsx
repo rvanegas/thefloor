@@ -42,10 +42,20 @@ import { colors, spacing, type } from './theme';
  */
 export function ChannelSettingsView({
   channel,
+  derivedTitle,
   onBack,
   onLeft,
 }: {
   channel: ChannelState;
+  /**
+   * What this channel is called when nobody has named it, passed in rather
+   * than computed: the roster's display names live on the `ChannelView`
+   * snapshot and not on `ChannelState`, and the channel screen has already
+   * resolved them for its own header. Deriving it twice from two sources is
+   * how the field and the header would come to disagree about the same
+   * channel. It is the field's placeholder; see the note there.
+   */
+  derivedTitle: string;
   onBack: () => void;
   /** Called once membership is given up, to get off this channel's screens. */
   onLeft: () => void;
@@ -227,10 +237,26 @@ export function ChannelSettingsView({
 
       <SectionLabel>Channel name</SectionLabel>
       <Card style={styles.stack}>
+        {/*
+          **The placeholder is the derived title, not a prompt.** It used to
+          ask "What is this channel about?", which is a fair question and
+          answers a different one: an empty field is not empty of consequence
+          here — the channel is already called something, everywhere it is
+          listed, and the field was the one place that would not say what.
+          Showing the description in placeholder grey states the two facts
+          together: this is what it is called now, and nobody typed it. Which
+          is also the distinction the italic in the lists used to carry and no
+          longer does; here it is carried by the thing that actually means it,
+          text you did not write being drawn the way unwritten text is drawn.
+
+          It tracks the roster, so clearing the field does not leave a stale
+          prompt behind: the sentence under the field says an empty name goes
+          back to listing who is here, and the placeholder is then that list.
+        */}
         <Field
           value={name}
           onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
-          placeholder="What is this channel about?"
+          placeholder={derivedTitle}
           autoCapitalize="words"
           editable={mayEdit}
           onSubmit={persist}
