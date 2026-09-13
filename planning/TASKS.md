@@ -23,6 +23,35 @@ presence became three rungs with the controls to match — *Be nearby* is one
 word in one place now, *Nearby* has a way out, and the footer has a fourth
 slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
+## Deploy All
+
+Create bin/script to run this:
+
+bin/deploy ; bin/upload-ios ; bin/deploy-web --beta ; bin/android --apk
+
+Add appropriate guards and such as with other bash scripts in bin.
+
+## Speaking Indicator During Claim
+
+The purple outline indicator of who is speaking is stuck in whichever state it 
+is in at the time the floor is claimed. Instead, it should continue to reflect
+who is speaking, including those who are currently muted by the claim.
+
+## Record and Player Controls Access
+
+## Notepad
+
+Look in past session indicated in recent commit concerning Notepad. I remember directing Claude to move the editable description field from Channel Settings to the Notes Tab. Why wasn't it done?
+
+## Swiping
+
+Swiping left from channel view, returns to home view. Swiping right from home view goes 
+to channel view, if user is present in any channel.
+
+## Home Icon
+
+In Chanmel View, replace "Close" icon with "Home" icon.
+
 ## Support Tab
 
 Remove card labels. Add explanatory text within each card.
