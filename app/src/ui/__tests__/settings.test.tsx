@@ -1,15 +1,15 @@
-import React from 'react';
+import React from "react";
 import renderer, {
   act,
   type ReactTestInstance,
   type ReactTestRenderer,
-} from 'react-test-renderer';
-import { HomeView } from '../HomeView';
-import { HomeSettingsView } from '../HomeSettingsView';
-import { SupportView } from '../SupportView';
-import { LeaderboardView } from '../LeaderboardView';
-import { SectionLabel } from '../components';
-import { Alert, StyleSheet } from 'react-native';
+} from "react-test-renderer";
+import { HomeView } from "../HomeView";
+import { HomeSettingsView } from "../HomeSettingsView";
+import { SupportView } from "../SupportView";
+import { LeaderboardView } from "../LeaderboardView";
+import { SectionLabel } from "../components";
+import { Alert, StyleSheet } from "react-native";
 import {
   NOW,
   findButton,
@@ -19,7 +19,7 @@ import {
   render,
   resetHarness,
   textOf,
-} from '../testing/harness';
+} from "../testing/harness";
 
 /**
  * The three module mocks. They live in each test file rather than in the
@@ -27,12 +27,12 @@ import {
  * of no other — `testing/harness` holds the factories, and the single copy of
  * the state they close over.
  */
-jest.mock('../../api/download', () =>
-  require('../testing/harness').downloadMock()
+jest.mock("../../api/download", () =>
+  require("../testing/harness").downloadMock(),
 );
-jest.mock('../../api/upload', () => require('../testing/harness').uploadMock());
-jest.mock('../../state/AppProvider', () =>
-  require('../testing/harness').appProviderMock()
+jest.mock("../../api/upload", () => require("../testing/harness").uploadMock());
+jest.mock("../../state/AppProvider", () =>
+  require("../testing/harness").appProviderMock(),
 );
 
 /**
@@ -52,12 +52,12 @@ jest.mock('../../state/AppProvider', () =>
  */
 const styleOf = (tree: ReactTestRenderer, label: string) =>
   StyleSheet.flatten(
-    findButton(tree, label)!.props.style({ pressed: false })
+    findButton(tree, label)!.props.style({ pressed: false }),
   ) as { backgroundColor?: unknown };
 
 beforeEach(resetHarness);
 
-describe('Home settings', () => {
+describe("Home settings", () => {
   /** The view fetches on mount, so every case has to let that settle. */
   async function openSettings() {
     let tree!: ReactTestRenderer;
@@ -75,31 +75,31 @@ describe('Home settings', () => {
    * that there is a way to it, and that it points at the server actually
    * holding the data rather than at a URL somebody typed into the app.
    */
-  describe('the privacy policy link', () => {
-    it('is offered on the settings screen', async () => {
+  describe("the privacy policy link", () => {
+    it("is offered on the settings screen", async () => {
       // That it points at *this* app's server is asserted in
       // privacyLink.test.tsx, which needs the address configured at import time
       // and so cannot share this file's module registry.
       const tree = await openSettings();
-      expect(findButton(tree, 'Privacy policy')).toBeDefined();
+      expect(findButton(tree, "Privacy policy")).toBeDefined();
       act(() => tree.unmount());
     });
 
-    it('says so rather than opening nothing when there is no server', async () => {
+    it("says so rather than opening nothing when there is no server", async () => {
       // Which is the case here: these tests run with no EXPO_PUBLIC_API_URL,
       // the same state a development build with no `app/.env` is in.
-      const { Linking } = require('react-native');
+      const { Linking } = require("react-native");
       const opened = jest
-        .spyOn(Linking, 'openURL')
+        .spyOn(Linking, "openURL")
         .mockResolvedValue(undefined as never);
 
       const tree = await openSettings();
       await act(async () =>
-        findButton(tree, 'Privacy policy')!.props.onPress()
+        findButton(tree, "Privacy policy")!.props.onPress(),
       );
 
       expect(opened).not.toHaveBeenCalled();
-      expect(textOf(tree)).toContain('No server configured');
+      expect(textOf(tree)).toContain("No server configured");
 
       opened.mockRestore();
       act(() => tree.unmount());
@@ -114,48 +114,48 @@ describe('Home settings', () => {
    * screen, asked about before it happens, and honest about what it takes — not
    * what the server does with it, which is the server's own test.
    */
-  describe('deleting the account', () => {
+  describe("deleting the account", () => {
     const alertSpy = () => {
-      const { Alert } = require('react-native');
-      return jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const { Alert } = require("react-native");
+      return jest.spyOn(Alert, "alert").mockImplementation(() => {});
     };
 
-    it('is offered on the same screen as signing out', async () => {
+    it("is offered on the same screen as signing out", async () => {
       const tree = await openSettings();
-      expect(findButton(tree, 'Delete account')).toBeDefined();
-      expect(findButton(tree, 'Sign out')).toBeDefined();
+      expect(findButton(tree, "Delete account")).toBeDefined();
+      expect(findButton(tree, "Sign out")).toBeDefined();
       act(() => tree.unmount());
     });
 
-    it('asks first, and says what it does not take', async () => {
+    it("asks first, and says what it does not take", async () => {
       const asked = alertSpy();
       const tree = await openSettings();
 
-      act(() => findButton(tree, 'Delete account')!.props.onPress());
+      act(() => findButton(tree, "Delete account")!.props.onPress());
       expect(asked).toHaveBeenCalled();
       expect(mockApp.deleteAccount).not.toHaveBeenCalled();
 
       // The part nobody would guess: a channel is not yours to take with you.
       // "This cannot be undone" alone would be true and useless.
       const body = asked.mock.calls[0][1] as string;
-      expect(body).toContain('carry on without you');
-      expect(body).toContain('cannot be undone');
+      expect(body).toContain("carry on without you");
+      expect(body).toContain("cannot be undone");
 
       asked.mockRestore();
       act(() => tree.unmount());
     });
 
-    it('does it when the destructive choice is taken', async () => {
+    it("does it when the destructive choice is taken", async () => {
       const asked = alertSpy();
       const tree = await openSettings();
-      act(() => findButton(tree, 'Delete account')!.props.onPress());
+      act(() => findButton(tree, "Delete account")!.props.onPress());
 
       const actions = asked.mock.calls[0][2] as Array<{
         style?: string;
         onPress?: () => void;
       }>;
       await act(async () =>
-        actions.find((a) => a.style === 'destructive')!.onPress!()
+        actions.find((a) => a.style === "destructive")!.onPress!(),
       );
       expect(mockApp.deleteAccount).toHaveBeenCalled();
 
@@ -163,45 +163,42 @@ describe('Home settings', () => {
       act(() => tree.unmount());
     });
 
-    it('stays put and says so when the server refused', async () => {
+    it("stays put and says so when the server refused", async () => {
       // The failure that matters: a screen claiming the account is gone while
       // the server still has one would leave nobody able to try again.
       const asked = alertSpy();
       mockApp.deleteAccount.mockRejectedValueOnce(
-        new Error('server said no') as never
+        new Error("server said no") as never,
       );
       const tree = await openSettings();
-      act(() => findButton(tree, 'Delete account')!.props.onPress());
+      act(() => findButton(tree, "Delete account")!.props.onPress());
 
       const actions = asked.mock.calls[0][2] as Array<{
         style?: string;
         onPress?: () => void;
       }>;
       await act(async () =>
-        actions.find((a) => a.style === 'destructive')!.onPress!()
+        actions.find((a) => a.style === "destructive")!.onPress!(),
       );
-      expect(textOf(tree)).toContain('server said no');
-      expect(findButton(tree, 'Delete account')).toBeDefined();
+      expect(textOf(tree)).toContain("server said no");
+      expect(findButton(tree, "Delete account")).toBeDefined();
 
       asked.mockRestore();
       act(() => tree.unmount());
     });
   });
 
-
-  it('holds signing out, which is no longer on Home', () => {
+  it("holds signing out, which is no longer on Home", () => {
     // It sat in the header beside a dozen harmless taps. Here it is among the
     // other things that are about the account rather than about a channel.
-    const tree = render(
-      <HomeView {...homeNav} />
-    );
-    expect(findButton(tree, 'Sign out')).toBeUndefined();
+    const tree = render(<HomeView {...homeNav} />);
+    expect(findButton(tree, "Sign out")).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('signs out behind a confirmation', async () => {
+  it("signs out behind a confirmation", async () => {
     const tree = await openSettings();
-    const signOut = findButton(tree, 'Sign out');
+    const signOut = findButton(tree, "Sign out");
     expect(signOut).toBeDefined();
     act(() => signOut!.props.onPress());
     // The alert carries it; the tap alone must not.
@@ -209,7 +206,7 @@ describe('Home settings', () => {
     act(() => tree.unmount());
   });
 
-  it('opens from Home', () => {
+  it("opens from Home", () => {
     const onOpenSettings = jest.fn();
     mockApp.home = {
       invites: [],
@@ -218,15 +215,15 @@ describe('Home settings', () => {
       recordings: [],
     };
     const tree = render(
-      <HomeView {...homeNav} onOpenSettings={onOpenSettings} />
+      <HomeView {...homeNav} onOpenSettings={onOpenSettings} />,
     );
-    act(() => findButton(tree, 'Settings')!.props.onPress());
+    act(() => findButton(tree, "Settings")!.props.onPress());
     expect(onOpenSettings).toHaveBeenCalled();
     act(() => tree.unmount());
   });
 });
 
-describe('the control-cards setting', () => {
+describe("the control-cards setting", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -249,39 +246,39 @@ describe('the control-cards setting', () => {
     tree.root
       .findAll(
         (n) =>
-          n.props?.accessibilityRole === 'button' &&
-          typeof n.props.onPress === 'function'
+          n.props?.accessibilityRole === "button" &&
+          typeof n.props.onPress === "function",
       )
       .filter((n) => labelOf(n).includes(label))[1];
 
-  it('offers both answers and names what goes with the cards', async () => {
+  it("offers both answers and names what goes with the cards", async () => {
     const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain('Hide the repeated channel controls');
+    expect(text).toContain("Hide the repeated channel controls");
     // What the second paragraph promises, and what the channel screen keeps.
-    expect(text).toContain('its card stays either way');
+    expect(text).toContain("its card stays either way");
     // The promise the channel screen keeps by moving two sentences upward.
-    expect(text).toContain('still being recorded');
+    expect(text).toContain("still being recorded");
     act(() => tree.unmount());
   });
 
-  it('reports a change rather than keeping it', async () => {
+  it("reports a change rather than keeping it", async () => {
     const tree = await openSettings();
-    act(() => cardsButton(tree, 'Off').props.onPress());
+    act(() => cardsButton(tree, "Off").props.onPress());
     expect(mockApp.setHideControlCards).toHaveBeenCalledWith(false);
     expect(mockApp.setTapToLook).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
-  it('marks which one is in force', async () => {
+  it("marks which one is in force", async () => {
     mockApp.hideControlCards = true;
     const tree = await openSettings();
     const cardStyleOf = (label: string) =>
       StyleSheet.flatten(
-        cardsButton(tree, label).props.style({ pressed: false })
+        cardsButton(tree, label).props.style({ pressed: false }),
       ) as { backgroundColor?: unknown };
-    expect(cardStyleOf('Off').backgroundColor).not.toBe(
-      cardStyleOf('On').backgroundColor
+    expect(cardStyleOf("Off").backgroundColor).not.toBe(
+      cardStyleOf("On").backgroundColor,
     );
     act(() => tree.unmount());
   });
@@ -297,7 +294,7 @@ describe('the control-cards setting', () => {
  * afterwards. What it *does* is asserted on the channel screen, which is where
  * the two features live.
  */
-describe('the Labs setting', () => {
+describe("the Labs setting", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -316,8 +313,8 @@ describe('the Labs setting', () => {
     tree.root
       .findAll(
         (n) =>
-          n.props?.accessibilityRole === 'button' &&
-          typeof n.props.onPress === 'function'
+          n.props?.accessibilityRole === "button" &&
+          typeof n.props.onPress === "function",
       )
       .filter((n) => labelOf(n).includes(label))[3];
 
@@ -326,9 +323,9 @@ describe('the Labs setting', () => {
    * A channel has one too, reached by an identical gear from an identical
    * header, and both said *Settings* until 2026-09-12.
    */
-  it('says whose settings these are', async () => {
+  it("says whose settings these are", async () => {
     const tree = await openSettings();
-    expect(textOf(tree)).toContain('Floor Settings');
+    expect(textOf(tree)).toContain("Floor Settings");
     act(() => tree.unmount());
   });
 
@@ -337,42 +334,42 @@ describe('the Labs setting', () => {
    * promising — that moving them is all it does — so that is what is read
    * back, along with the setter being the only one the press reaches.
    */
-  it('offers the tabs a place above the footer, and moves nothing else', async () => {
+  it("offers the tabs a place above the footer, and moves nothing else", async () => {
     const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain('Put the channel tabs above the footer');
-    expect(text).toContain('the same tabs, in the same');
+    expect(text).toContain("Put the channel tabs above the footer");
+    expect(text).toContain("the same tabs, in the same");
     // The third On/Off pair on this screen: the tap, the cards, then this.
     const tabsButton = (label: string) =>
       tree.root
         .findAll(
           (n) =>
-            n.props?.accessibilityRole === 'button' &&
-            typeof n.props.onPress === 'function'
+            n.props?.accessibilityRole === "button" &&
+            typeof n.props.onPress === "function",
         )
         .filter((n) => labelOf(n).includes(label))[2]!;
-    act(() => tabsButton('On').props.onPress());
+    act(() => tabsButton("On").props.onPress());
     expect(mockApp.setTabsAtFoot).toHaveBeenCalledWith(true);
     expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
     expect(mockApp.setLabs).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
-  it('names the two things it turns on', async () => {
+  it("names the two things it turns on", async () => {
     const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain('Show experimental features');
-    expect(text).toContain('transcripts');
-    expect(text).toContain('watching a video together');
+    expect(text).toContain("Show experimental features");
+    expect(text).toContain("transcripts");
+    expect(text).toContain("watching a video together");
     // And that it is nobody else's business, which is the question anybody
     // sharing a channel asks next.
-    expect(text).toContain('not to anybody else');
+    expect(text).toContain("not to anybody else");
     act(() => tree.unmount());
   });
 
-  it('reports a change rather than keeping it', async () => {
+  it("reports a change rather than keeping it", async () => {
     const tree = await openSettings();
-    act(() => labsButton(tree, 'On').props.onPress());
+    act(() => labsButton(tree, "On").props.onPress());
     expect(mockApp.setLabs).toHaveBeenCalledWith(true);
     expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
     expect(mockApp.setTapToLook).not.toHaveBeenCalled();
@@ -388,17 +385,17 @@ describe('the Labs setting', () => {
    * what an untouched account gets, so Off is in force on all three and they
    * carry the same mark.
    */
-  it('marks Off in force for somebody who has never asked', async () => {
+  it("marks Off in force for somebody who has never asked", async () => {
     const tree = await openSettings();
     const styleFor = (node: ReactTestInstance) =>
       StyleSheet.flatten(node.props.style({ pressed: false })) as {
         backgroundColor?: unknown;
       };
-    expect(styleFor(labsButton(tree, 'Off')).backgroundColor).not.toBe(
-      styleFor(labsButton(tree, 'On')).backgroundColor
+    expect(styleFor(labsButton(tree, "Off")).backgroundColor).not.toBe(
+      styleFor(labsButton(tree, "On")).backgroundColor,
     );
-    expect(styleFor(labsButton(tree, 'Off')).backgroundColor).toBe(
-      styleFor(findButton(tree, 'Off')!).backgroundColor
+    expect(styleFor(labsButton(tree, "Off")).backgroundColor).toBe(
+      styleFor(findButton(tree, "Off")!).backgroundColor,
     );
     act(() => tree.unmount());
   });
@@ -416,7 +413,7 @@ describe('the Labs setting', () => {
  * is an instrument, useless to somebody using the app, and *forget everything*
  * does not belong one tap from a switch people are invited to flip.
  */
-describe('forgetting this phone', () => {
+describe("forgetting this phone", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -425,21 +422,22 @@ describe('forgetting this phone', () => {
     return tree;
   };
 
-  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const alertSpy = () =>
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
-  it('is not offered to an account without diagnostics', async () => {
+  it("is not offered to an account without diagnostics", async () => {
     mockApp.debug = false;
     const tree = await openSettings();
-    expect(findButton(tree, 'Forget this phone')).toBeUndefined();
+    expect(findButton(tree, "Forget this phone")).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('asks first, and says what it cannot do', async () => {
+  it("asks first, and says what it cannot do", async () => {
     mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
 
-    act(() => findButton(tree, 'Forget this phone')!.props.onPress());
+    act(() => findButton(tree, "Forget this phone")!.props.onPress());
     expect(asked).toHaveBeenCalled();
     expect(mockApp.signOut).not.toHaveBeenCalled();
 
@@ -448,7 +446,7 @@ describe('forgetting this phone', () => {
     // clears it. Somebody who does this and then expects a fresh prompt
     // without reinstalling has wasted an afternoon.
     const body = asked.mock.calls[0][1] as string;
-    expect(body).toContain('Delete the app afterwards');
+    expect(body).toContain("Delete the app afterwards");
 
     asked.mockRestore();
     act(() => tree.unmount());
@@ -459,18 +457,18 @@ describe('forgetting this phone', () => {
    * this phone's push address so the server drops the row, and it needs the
    * token the next line deletes.
    */
-  it('signs out before it forgets the token', async () => {
+  it("signs out before it forgets the token", async () => {
     mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
-    act(() => findButton(tree, 'Forget this phone')!.props.onPress());
+    act(() => findButton(tree, "Forget this phone")!.props.onPress());
 
     const actions = asked.mock.calls[0][2] as Array<{
       style?: string;
       onPress?: () => void;
     }>;
     await act(async () =>
-      actions.find((a) => a.style === 'destructive')!.onPress!()
+      actions.find((a) => a.style === "destructive")!.onPress!(),
     );
     expect(mockApp.signOut).toHaveBeenCalled();
 
@@ -489,7 +487,7 @@ describe('forgetting this phone', () => {
  * checklist cost a code by email to look at, which is the whole reason it
  * exists.
  */
-describe('showing the checklist again', () => {
+describe("showing the checklist again", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -498,21 +496,22 @@ describe('showing the checklist again', () => {
     return tree;
   };
 
-  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const alertSpy = () =>
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
-  it('is not offered to an account without diagnostics', async () => {
+  it("is not offered to an account without diagnostics", async () => {
     mockApp.debug = false;
     const tree = await openSettings();
-    expect(findButton(tree, 'Show the checklist again')).toBeUndefined();
+    expect(findButton(tree, "Show the checklist again")).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('asks first, and says to step out of the channel', async () => {
+  it("asks first, and says to step out of the channel", async () => {
     mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
 
-    act(() => findButton(tree, 'Show the checklist again')!.props.onPress());
+    act(() => findButton(tree, "Show the checklist again")!.props.onPress());
     expect(asked).toHaveBeenCalled();
     expect(mockApp.forgetIntroduction).not.toHaveBeenCalled();
 
@@ -520,24 +519,24 @@ describe('showing the checklist again', () => {
     // written off `conversing`, so doing this from inside a channel with
     // somebody retires the checklist again before it can be looked at.
     const body = asked.mock.calls[0][1] as string;
-    expect(body).toContain('Step out of any channel first');
+    expect(body).toContain("Step out of any channel first");
 
     asked.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('forgets the introduction and nothing else', async () => {
+  it("forgets the introduction and nothing else", async () => {
     mockApp.debug = true;
     const asked = alertSpy();
     const tree = await openSettings();
-    act(() => findButton(tree, 'Show the checklist again')!.props.onPress());
+    act(() => findButton(tree, "Show the checklist again")!.props.onPress());
 
     const actions = asked.mock.calls[0][2] as Array<{
       style?: string;
       onPress?: () => void;
     }>;
     await act(async () =>
-      actions.find((a) => a.style !== 'cancel')!.onPress!()
+      actions.find((a) => a.style !== "cancel")!.onPress!(),
     );
     expect(mockApp.forgetIntroduction).toHaveBeenCalled();
     expect(mockApp.signOut).not.toHaveBeenCalled();
@@ -556,7 +555,7 @@ describe('showing the checklist again', () => {
  * channel, which are the two screens it changes.
  */
 
-describe('the stepping-in setting', () => {
+describe("the stepping-in setting", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -565,28 +564,28 @@ describe('the stepping-in setting', () => {
     return tree;
   };
 
-  it('offers both answers and says what each means', async () => {
+  it("offers both answers and says what each means", async () => {
     const tree = await openSettings();
-    expect(textOf(tree)).toContain('Tap a channel to look, not step in');
-    expect(findButton(tree, 'On')).toBeDefined();
-    expect(findButton(tree, 'Off')).toBeDefined();
-    expect(textOf(tree)).toContain('everyone there can hear you');
+    expect(textOf(tree)).toContain("Tap a channel to look, not step in");
+    expect(findButton(tree, "On")).toBeDefined();
+    expect(findButton(tree, "Off")).toBeDefined();
+    expect(textOf(tree)).toContain("everyone there can hear you");
     act(() => tree.unmount());
   });
 
-  it('reports a change rather than keeping it', async () => {
+  it("reports a change rather than keeping it", async () => {
     const tree = await openSettings();
-    act(() => findButton(tree, 'Off')!.props.onPress());
+    act(() => findButton(tree, "Off")!.props.onPress());
     expect(mockApp.setTapToLook).toHaveBeenCalledWith(false);
     act(() => tree.unmount());
   });
 
-  it('marks which one is in force', async () => {
+  it("marks which one is in force", async () => {
     mockApp.tapToLook = true;
     const tree = await openSettings();
     // Button's style is a function of press state, not an array.
-    expect(styleOf(tree, 'Off').backgroundColor).not.toBe(
-      styleOf(tree, 'On').backgroundColor
+    expect(styleOf(tree, "Off").backgroundColor).not.toBe(
+      styleOf(tree, "On").backgroundColor,
     );
     act(() => tree.unmount());
   });
@@ -601,7 +600,7 @@ describe('the stepping-in setting', () => {
  * change upward rather than keeping it to itself.
  */
 
-describe('the appearance setting', () => {
+describe("the appearance setting", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -610,32 +609,32 @@ describe('the appearance setting', () => {
     return tree;
   };
 
-  it('offers light, dark and following the phone', async () => {
+  it("offers light, dark and following the phone", async () => {
     const tree = await openSettings();
-    expect(findButton(tree, 'Light')).toBeDefined();
-    expect(findButton(tree, 'Dark')).toBeDefined();
-    expect(findButton(tree, 'System')).toBeDefined();
+    expect(findButton(tree, "Light")).toBeDefined();
+    expect(findButton(tree, "Dark")).toBeDefined();
+    expect(findButton(tree, "System")).toBeDefined();
     act(() => tree.unmount());
   });
 
-  it('reports a choice rather than keeping it', async () => {
+  it("reports a choice rather than keeping it", async () => {
     const tree = await openSettings();
-    act(() => findButton(tree, 'Light')!.props.onPress());
-    expect(mockApp.setAppearance).toHaveBeenCalledWith('light');
+    act(() => findButton(tree, "Light")!.props.onPress());
+    expect(mockApp.setAppearance).toHaveBeenCalledWith("light");
     act(() => tree.unmount());
   });
 
-  it('marks which one is in force', async () => {
+  it("marks which one is in force", async () => {
     // Three buttons that all look alike would leave the current scheme
     // guessable only by looking at the screen it is describing.
-    mockApp.appearance = 'dark';
+    mockApp.appearance = "dark";
     const tree = await openSettings();
     // Button's style is a function of press state, not an array.
-    expect(styleOf(tree, 'Dark').backgroundColor).not.toBe(
-      styleOf(tree, 'Light').backgroundColor
+    expect(styleOf(tree, "Dark").backgroundColor).not.toBe(
+      styleOf(tree, "Light").backgroundColor,
     );
-    expect(styleOf(tree, 'Light').backgroundColor).toBe(
-      styleOf(tree, 'System').backgroundColor
+    expect(styleOf(tree, "Light").backgroundColor).toBe(
+      styleOf(tree, "System").backgroundColor,
     );
     act(() => tree.unmount());
   });
@@ -650,7 +649,7 @@ describe('the appearance setting', () => {
  * alone, which is exactly the audience that could see it before.
  */
 
-describe('Support', () => {
+describe("Support", () => {
   /** Both screens fetch on mount, so every case has to let that settle. */
   async function open(element: React.ReactElement) {
     let tree!: ReactTestRenderer;
@@ -674,99 +673,123 @@ describe('Support', () => {
    */
   const home = () => open(<HomeView {...homeNav} list="support" />);
 
-  it('offers a way in from Home, and nothing more than that', async () => {
+  it("offers a way in from Home, and nothing more than that", async () => {
     const tree = await home();
-    expect(findButton(tree, 'Chip in')).toBeTruthy();
-    // The argument for giving belongs on the screen behind this, not on the
-    // one somebody opened to reach a conversation.
-    expect(textOf(tree)).not.toContain('unlocks nothing');
+    expect(findButton(tree, "Chip in")).toBeTruthy();
+    // The card says what the money is for, since a button with no sentence
+    // under it is the thing the section labels were removed in favour of.
+    expect(textOf(tree)).toContain("cost money every month");
+    // The *case* for giving still belongs on the screen behind this, not on
+    // the tab somebody is passing through.
+    expect(textOf(tree)).not.toContain("unlocks nothing");
     act(() => tree.unmount());
   });
 
-  it('opens the screen rather than the browser', async () => {
-    const opened = jest.fn();
+  /**
+   * What replaced the two headings. *Support* as a heading inside a tab
+   * called Support labelled the screen with its own name, and neither
+   * heading could say what the button under it did — so both went, and every
+   * card carries a line instead.
+   */
+  it("heads nothing, and explains every card it draws", async () => {
     const tree = await open(
       <HomeView
         {...homeNav}
         list="support"
-        onOpenSupport={opened}
-      />
+        onOpenLeaderboard={() => {}}
+        onOpenAudioLab={() => {}}
+      />,
     );
-    act(() => findButton(tree, 'Chip in')!.props.onPress());
+    expect(sectionLabels(tree)).toEqual([]);
+    const text = textOf(tree);
+    expect(text).toContain("A person reads it and writes back");
+    expect(text).toContain("cost money every month");
+    expect(text).toContain("brought the most people");
+    expect(text).toContain("bench for the iOS audio session");
+    act(() => tree.unmount());
+  });
+
+  it("opens the screen rather than the browser", async () => {
+    const opened = jest.fn();
+    const tree = await open(
+      <HomeView {...homeNav} list="support" onOpenSupport={opened} />,
+    );
+    act(() => findButton(tree, "Chip in")!.props.onPress());
     expect(opened).toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
-  it('says nothing on Home when there is nowhere to give', async () => {
+  it("says nothing on Home when there is nowhere to give", async () => {
     mockApp.loadSupport.mockResolvedValueOnce({
       url: null as unknown as string,
-      identifier: 'me@example.com',
+      identifier: "me@example.com",
       mine: null,
     });
     const tree = await home();
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    // The section, not the word: the tab is labelled *Support* and is drawn
-    // whatever the server says, so the text is no longer the thing to ask.
-    // What must not appear is a heading over nothing.
-    expect(sectionLabels(tree)).not.toContain('Support');
+    expect(findButton(tree, "Chip in")).toBeUndefined();
+    // Nor the line that explains it, which is the thing a heading over
+    // nothing used to be. The tab drew *Support* over an empty group once;
+    // there are no headings on it at all now, and the guard is that the card
+    // and its sentence leave together.
+    expect(textOf(tree)).not.toContain("cost money every month");
     act(() => tree.unmount());
   });
 
-  it('leaves Home alone when support cannot be read at all', async () => {
+  it("leaves Home alone when support cannot be read at all", async () => {
     // An older server, or one that fails. Home is what somebody opened the app
     // for and must not wait on, or break with, an extra fetch — so the tier
     // still draws, on the tab that fetch is for as well as on the lists.
-    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
+    mockApp.loadSupport.mockRejectedValueOnce(new Error("nope"));
     const tree = await home();
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(findButton(tree, 'Help')).toBeTruthy();
+    expect(findButton(tree, "Chip in")).toBeUndefined();
+    expect(findButton(tree, "Help")).toBeTruthy();
     act(() => tree.unmount());
 
-    mockApp.loadSupport.mockRejectedValueOnce(new Error('nope'));
+    mockApp.loadSupport.mockRejectedValueOnce(new Error("nope"));
     const channels = await open(<HomeView {...homeNav} />);
-    expect(textOf(channels)).toContain('Start a channel');
+    expect(textOf(channels)).toContain("Start a channel");
     act(() => channels.unmount());
   });
 
-  it('makes the case on its own screen, and names the address', async () => {
+  it("makes the case on its own screen, and names the address", async () => {
     const tree = await open(<SupportView onBack={() => {}} />);
     const text = textOf(tree);
-    expect(text).toContain('costs money every month');
-    expect(text).toContain('unlocks nothing');
+    expect(text).toContain("costs money every month");
+    expect(text).toContain("unlocks nothing");
     // The address is the whole of how a donation finds its way back to an
     // account, so the screen has to name it.
-    expect(text).toContain('me@example.com');
-    expect(findButton(tree, 'Chip in')).toBeTruthy();
+    expect(text).toContain("me@example.com");
+    expect(findButton(tree, "Chip in")).toBeTruthy();
     act(() => tree.unmount());
   });
 
-  it('thanks somebody who has already given, in their own currencies', async () => {
+  it("thanks somebody who has already given, in their own currencies", async () => {
     mockApp.loadSupport.mockResolvedValueOnce({
-      url: 'https://ko-fi.com/thefloor',
-      identifier: 'me@example.com',
+      url: "https://ko-fi.com/thefloor",
+      identifier: "me@example.com",
       mine: {
         count: 2,
         since: NOW,
         totals: [
-          { currency: 'EUR', cents: 1000 },
-          { currency: 'USD', cents: 300 },
+          { currency: "EUR", cents: 1000 },
+          { currency: "USD", cents: 300 },
         ],
       },
     });
     const tree = await open(<SupportView onBack={() => {}} />);
-    expect(textOf(tree)).toContain('€10.00 and $3.00');
+    expect(textOf(tree)).toContain("€10.00 and $3.00");
     act(() => tree.unmount());
   });
 
-  it('says so plainly when there is nowhere to give', async () => {
+  it("says so plainly when there is nowhere to give", async () => {
     mockApp.loadSupport.mockResolvedValueOnce({
       url: null as unknown as string,
-      identifier: 'me@example.com',
+      identifier: "me@example.com",
       mine: null,
     });
     const tree = await open(<SupportView onBack={() => {}} />);
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(textOf(tree)).toContain('no way to give');
+    expect(findButton(tree, "Chip in")).toBeUndefined();
+    expect(textOf(tree)).toContain("no way to give");
     act(() => tree.unmount());
   });
 
@@ -775,16 +798,16 @@ describe('Support', () => {
    * Absent unless the account has been granted them, and nothing anywhere
    * says so.
    */
-  it('offers the Leaderboard from Home only when there is a way in', async () => {
+  it("offers the Leaderboard from Home only when there is a way in", async () => {
     const tree = await home();
-    expect(findButton(tree, 'Leaderboard')).toBeUndefined();
+    expect(findButton(tree, "Leaderboard")).toBeUndefined();
     act(() => tree.unmount());
 
     const opened = jest.fn();
     const granted = await open(
-      <HomeView {...homeNav} list="support" onOpenLeaderboard={opened} />
+      <HomeView {...homeNav} list="support" onOpenLeaderboard={opened} />,
     );
-    const button = findButton(granted, 'Leaderboard');
+    const button = findButton(granted, "Leaderboard");
     expect(button).toBeTruthy();
     act(() => button!.props.onPress());
     expect(opened).toHaveBeenCalled();
@@ -796,24 +819,24 @@ describe('Support', () => {
    * standings to an account granted them, and the section label survives for
    * it alone.
    */
-  it('keeps the Leaderboard when there is nowhere to give', async () => {
+  it("keeps the Leaderboard when there is nowhere to give", async () => {
     mockApp.loadSupport.mockResolvedValueOnce({
       url: null as unknown as string,
-      identifier: 'me@example.com',
+      identifier: "me@example.com",
       mine: null,
     });
     const tree = await open(
-      <HomeView {...homeNav} list="support" onOpenLeaderboard={() => {}} />
+      <HomeView {...homeNav} list="support" onOpenLeaderboard={() => {}} />,
     );
-    expect(findButton(tree, 'Chip in')).toBeUndefined();
-    expect(findButton(tree, 'Leaderboard')).toBeTruthy();
+    expect(findButton(tree, "Chip in")).toBeUndefined();
+    expect(findButton(tree, "Leaderboard")).toBeTruthy();
     act(() => tree.unmount());
   });
 
-  it('says nothing about the standings on the Support screen', async () => {
+  it("says nothing about the standings on the Support screen", async () => {
     const tree = await open(<SupportView onBack={() => {}} />);
-    expect(findButton(tree, 'Leaderboard')).toBeUndefined();
-    expect(findButton(tree, 'Invitations')).toBeUndefined();
+    expect(findButton(tree, "Leaderboard")).toBeUndefined();
+    expect(findButton(tree, "Invitations")).toBeUndefined();
     act(() => tree.unmount());
   });
 });
@@ -824,7 +847,7 @@ describe('Support', () => {
  * is that it renders what it is given and says what the number means.
  */
 
-describe('the invitation standings', () => {
+describe("the invitation standings", () => {
   /** Renders and waits for the fetch, which lands in a microtask. */
   async function open(element: React.ReactElement) {
     let tree!: ReactTestRenderer;
@@ -834,31 +857,31 @@ describe('the invitation standings', () => {
     return tree;
   }
 
-  it('lists people in order, with what the number counts', async () => {
+  it("lists people in order, with what the number counts", async () => {
     const tree = await open(<LeaderboardView onBack={() => {}} />);
 
     const text = textOf(tree);
-    expect(text).toContain('Ada');
-    expect(text).toContain('Grace');
-    expect(text.indexOf('Ada')).toBeLessThan(text.indexOf('Grace'));
+    expect(text).toContain("Ada");
+    expect(text).toContain("Grace");
+    expect(text.indexOf("Ada")).toBeLessThan(text.indexOf("Grace"));
     // Said once, because a reader will otherwise take it for invitations sent.
-    expect(text).toContain('all the way down');
+    expect(text).toContain("all the way down");
     act(() => tree.unmount());
   });
 
-  it('says so plainly when nobody has invited anybody', async () => {
+  it("says so plainly when nobody has invited anybody", async () => {
     mockApp.loadLeaderboard.mockResolvedValueOnce([]);
     const tree = await open(<LeaderboardView onBack={() => {}} />);
-    expect(textOf(tree)).toContain('Nobody has brought anybody here yet');
+    expect(textOf(tree)).toContain("Nobody has brought anybody here yet");
     act(() => tree.unmount());
   });
 
-  it('shows the refusal rather than an empty board', async () => {
+  it("shows the refusal rather than an empty board", async () => {
     // A client that asked without the grant, or an older server. Either way
     // an empty list would be a claim, and this is not one.
-    mockApp.loadLeaderboard.mockRejectedValueOnce(new Error('Not found.'));
+    mockApp.loadLeaderboard.mockRejectedValueOnce(new Error("Not found."));
     const tree = await open(<LeaderboardView onBack={() => {}} />);
-    expect(textOf(tree)).toContain('Not found.');
+    expect(textOf(tree)).toContain("Not found.");
     act(() => tree.unmount());
   });
 });

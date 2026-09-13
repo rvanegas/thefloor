@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Linking,
   Platform,
@@ -6,24 +6,17 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { useApp } from '../state/AppProvider';
-import {
-  Button,
-  Card,
-  IconButton,
-  Screen,
-  SectionLabel,
-  Segmented,
-} from './components';
-import { SettingsIcon } from './icons';
-import { ChannelsView, nearbyChannels } from './ChannelsView';
-import { ContactsView } from './ContactsView';
-import { Introduction } from './Introduction';
-import { ProfileView } from './ProfileView';
-import type { List } from './detail';
-import { dismissInstallNotice, installNoticeDismissed } from './installNotice';
-import { colors, measure, radius, spacing, type } from './theme';
+} from "react-native";
+import { useApp } from "../state/AppProvider";
+import { Button, Card, IconButton, Screen, Segmented } from "./components";
+import { SettingsIcon } from "./icons";
+import { ChannelsView, nearbyChannels } from "./ChannelsView";
+import { ContactsView } from "./ContactsView";
+import { Introduction } from "./Introduction";
+import { ProfileView } from "./ProfileView";
+import type { List } from "./detail";
+import { dismissInstallNotice, installNoticeDismissed } from "./installNotice";
+import { colors, measure, radius, spacing, type } from "./theme";
 
 /**
  * What the app opens on: a frame with a pinned top, and inside it one of the
@@ -184,7 +177,7 @@ export function HomeView({
    * place.
    */
   const nearby = nearbyChannels(app.home).filter(
-    (channel) => channel.channelId !== liveChannel?.channelId
+    (channel) => channel.channelId !== liveChannel?.channelId,
   );
 
   /**
@@ -310,7 +303,7 @@ export function HomeView({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${liveChannel.title}, ${
-              liveChannel.muted ? 'your microphone is muted' : 'you are here'
+              liveChannel.muted ? "your microphone is muted" : "you are here"
             }. Tap to return.`}
             onPress={() => onReturnToChannel(liveChannel.channelId)}
             style={styles.liveBar}
@@ -345,8 +338,8 @@ export function HomeView({
               </View>
               <Text style={styles.liveSub}>
                 {liveChannel.present === 1
-                  ? 'Nobody else is here yet'
-                  : `${liveChannel.present} present`}{' '}
+                  ? "Nobody else is here yet"
+                  : `${liveChannel.present} present`}{" "}
                 · tap to go back
               </Text>
             </View>
@@ -383,7 +376,7 @@ export function HomeView({
             // whole of the distinction on screen, and a dot reads as nothing.
             accessibilityLabel={`${channel.title}, you are nearby. ${
               channel.presentCount === 0
-                ? 'Nobody is there.'
+                ? "Nobody is there."
                 : `${channel.presentCount} present.`
             } Tap to open.`}
             // `onEnterChannel` rather than `onReturnToChannel`, which is the
@@ -419,7 +412,7 @@ export function HomeView({
               */}
               <Text style={styles.nearbySub}>
                 {channel.presentCount === 0
-                  ? 'Nearby · nobody there'
+                  ? "Nearby · nobody there"
                   : `Nearby · ${channel.presentCount} present`}
               </Text>
             </View>
@@ -437,7 +430,7 @@ export function HomeView({
 
   return (
     <Screen header={header} contentStyle={styles.container}>
-      {list === 'support' ? (
+      {list === "support" ? (
         <SupportBody
           canSupport={canSupport}
           onOpenHelp={onOpenHelp}
@@ -477,7 +470,7 @@ export function HomeView({
             onList={onList}
           />
 
-          {list === 'channels' ? (
+          {list === "channels" ? (
             <ChannelsView
               onEnterChannel={onEnterChannel}
               // The bar above and a row down here are two renderings of one
@@ -490,7 +483,10 @@ export function HomeView({
               nearbyChannelIds={nearby.map((channel) => channel.channelId)}
             />
           ) : (
-            <ContactsView onEnterChannel={onEnterChannel} onOpenProfile={openProfile} />
+            <ContactsView
+              onEnterChannel={onEnterChannel}
+              onOpenProfile={openProfile}
+            />
           )}
         </>
       )}
@@ -509,10 +505,21 @@ export function HomeView({
  * still one tap, and it is one that never pushes a list down or waits at the
  * end of a hundred channels.
  *
- * **Two groups, and the split is the one the label forces.** *Support* here
- * means support this project — money — and *Help* means get support. One
- * section holding both senses of the word is how somebody taps Chip in
- * looking for an answer, and putting them on one tab does not merge them.
+ * **One list of cards, and each card says what it is for.** There were two
+ * section labels here, *Help* and *Support*, on the reasoning that *support*
+ * on this tab means support the project — money — while *help* means get
+ * support, and that one heading over both senses of the word is how somebody
+ * taps Chip in looking for an answer. That reasoning was right about the
+ * hazard and wrong about the remedy: the tab is already called Support, so a
+ * *Support* heading inside it labels the screen with its own name, and a
+ * heading is a word where what was needed was a sentence. A line under each
+ * button says what that button does, which is what a heading was standing in
+ * for and could not manage — *Chip in* under a sentence about what the server
+ * costs is not mistakable for the way to ask a question.
+ *
+ * So the cards are a single group in source order: Help, then the ones about
+ * the project. The order is the whole of what the two headings were saying
+ * about the grouping, and it survives them.
  */
 function SupportBody({
   canSupport,
@@ -529,89 +536,88 @@ function SupportBody({
   onOpenAudioLab?: () => void;
 }) {
   return (
-    <>
+    /* The gap between cards, as every other group of them here gets it. Two
+       cards flush against each other read as one card with a line through
+       it. */
+    <View style={styles.list}>
       {/*
-        Help first, and above the section about the project.
+        Help first, and above the cards about the project.
 
-        Unconditional, where every other row here is granted or configured:
+        Unconditional, where every other card here is granted or configured:
         anybody can have a question. There is no state in which offering to
-        take one is wrong — and since it is the one row that always draws, it
+        take one is wrong — and since it is the one card that always draws, it
         is also what stops this tab ever being empty.
       */}
-      <SectionLabel>Help</SectionLabel>
-      <View style={styles.list}>
-        <Card>
-          <Button label="Help" variant="ghost" onPress={onOpenHelp} />
-        </Card>
-      </View>
+      <Card style={styles.card}>
+        <Button label="Help" variant="ghost" onPress={onOpenHelp} />
+        {/* What the screen behind it actually is, which is a question box
+            rather than a chat, and no promise about when — see `HelpView`,
+            which refuses to make one for the same reason. */}
+        <Text style={type.muted}>
+          Ask us something, or say what is broken. A person reads it and writes
+          back, and the answer waits here under your question.
+        </Text>
+      </Card>
 
-      {canSupport || onOpenLeaderboard || onOpenAudioLab ? (
-        <>
+      {canSupport ? (
+        <Card style={styles.card}>
+          <Button label="Chip in" variant="ghost" onPress={onOpenSupport} />
           {/*
-            Below Help, and one line rather than three.
-
             **As loud as it was**, which is the decision HOME.md was written to
-            make and which the tab does not disturb. Being about the
-            application rather than about either list is a claim about what it
-            belongs to, not about how loudly it should ask.
+            make and which neither the tab nor this line disturbs.
 
-            The argument for it — what the server costs, that it unlocks
-            nothing, which address to pay with — is longer than belongs on a
-            screen somebody is passing through. That lives one tap away, where
-            it has been chosen rather than imposed.
+            One sentence, and it says what the money is for and stops. The
+            rest of the argument — that giving unlocks nothing, that nobody is
+            told who has, which address to pay with — is the case for giving
+            rather than a description of the button, and it is longer than
+            belongs on a screen somebody is passing through. It lives one tap
+            away in `SupportView`, where it has been chosen rather than
+            imposed, and a test holds it there.
           */}
-          <SectionLabel>Support</SectionLabel>
-          {/* The gap between cards, as every other group of them here gets
-              it. Two cards flush against each other read as one card with a
-              line through it. */}
-          <View style={styles.list}>
-            {canSupport ? (
-              <Card>
-                <Button
-                  label="Chip in"
-                  variant="ghost"
-                  onPress={onOpenSupport}
-                />
-              </Card>
-            ) : null}
-            {/*
-              Directly under it, and its own card rather than a second button
-              in the same one: the two go to unrelated screens, and a card is
-              the unit this screen uses for one place to go. It appears for the
-              few accounts granted the standings and for nobody else, which is
-              why the section survives a server with nowhere to give — the
-              label reads as the part of the app that is about the project
-              rather than about a conversation, and the standings belong there
-              too.
-            */}
-            {onOpenLeaderboard ? (
-              <Card>
-                <Button
-                  label="Leaderboard"
-                  variant="ghost"
-                  onPress={onOpenLeaderboard}
-                />
-              </Card>
-            ) : null}
-            {/*
-              Alongside the standings because it is the same kind of thing —
-              granted by hand, invisible to everybody else. It is not really a
-              peer of these two: it is a bench, it writes the audio session
-              directly, and it is meant to be deleted with its answer.
-            */}
-            {onOpenAudioLab ? (
-              <Card>
-                <Button
-                  label="Audio lab"
-                  variant="ghost"
-                  onPress={onOpenAudioLab}
-                />
-              </Card>
-            ) : null}
-          </View>
-        </>
+          <Text style={type.muted}>
+            The box this runs on, the audio that carries a conversation and the
+            storage your recordings sit in all cost money every month.
+          </Text>
+        </Card>
       ) : null}
-    </>
+
+      {/*
+        Its own card rather than a second button beside Chip in: the two go to
+        unrelated screens, and a card is the unit this screen uses for one
+        place to go. It appears for the few accounts granted the standings and
+        for nobody else, which is why this part of the tab survives a server
+        with nowhere to give.
+      */}
+      {onOpenLeaderboard ? (
+        <Card style={styles.card}>
+          <Button
+            label="Leaderboard"
+            variant="ghost"
+            onPress={onOpenLeaderboard}
+          />
+          <Text style={type.muted}>
+            Who has brought the most people to The Floor. It is here because it
+            was turned on for your account.
+          </Text>
+        </Card>
+      ) : null}
+
+      {/*
+        Alongside the standings because it is the same kind of thing — granted
+        by hand, invisible to everybody else. It is not really a peer of these
+        two: it is a bench, it writes the audio session directly, and it is
+        meant to be deleted with its answer.
+      */}
+      {onOpenAudioLab ? (
+        <Card style={styles.card}>
+          <Button label="Audio lab" variant="ghost" onPress={onOpenAudioLab} />
+          <Text style={type.muted}>
+            A bench for the iOS audio session. Run a trial outside any channel,
+            or what it measures is three writers arguing.
+          </Text>
+        </Card>
+      ) : null}
+    </View>
   );
 }
 
@@ -662,7 +668,7 @@ function InstallNotice() {
   // it, and the only writer is the button below.
   const [dismissed, setDismissed] = useState(() => installNoticeDismissed());
 
-  if (Platform.OS !== 'web' || !updateUrl || dismissed) return null;
+  if (Platform.OS !== "web" || !updateUrl || dismissed) return null;
 
   return (
     <Card style={styles.install}>
@@ -734,7 +740,7 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
   // See `askDue`: a banner that came back until it was formally dismissed
   // would be one that punished ignoring it.
   useEffect(() => {
-    if (ask !== 'nudge' || raised) return;
+    if (ask !== "nudge" || raised) return;
     setRaised(true);
     noteShown();
   }, [ask, raised, noteShown]);
@@ -780,8 +786,8 @@ function ListSwitch({
   return (
     <Segmented
       options={[
-        { value: 'contacts', label: 'Contacts' },
-        { value: 'channels', label: 'Channels' },
+        { value: "contacts", label: "Contacts" },
+        { value: "channels", label: "Channels" },
         /*
           Third and last, which is the whole of the claim being made about it.
           Contacts and Channels are the two indexes onto the people you can
@@ -790,7 +796,7 @@ function ListSwitch({
           the same reason its contents sat at the foot of the scroll before —
           reachable in one tap, and never in front of anything.
         */
-        { value: 'support', label: 'Support' },
+        { value: "support", label: "Support" },
       ]}
       value={list}
       onChange={onList}
@@ -815,9 +821,9 @@ const styles = StyleSheet.create({
   headerInner: { ...measure, paddingHorizontal: spacing(2.5), gap: spacing(1) },
   /** The title and the one button that is about the application. */
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   /**
    * Negative trailing margin, so `Button`'s card-sized horizontal padding
@@ -825,13 +831,13 @@ const styles = StyleSheet.create({
    * one.
    */
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginRight: -spacing(1),
   },
   liveBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing(1.5),
     backgroundColor: colors.floorDim,
     borderColor: colors.floor,
@@ -840,14 +846,14 @@ const styles = StyleSheet.create({
     padding: spacing(1.75),
   },
   liveTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing(1),
   },
   liveTitle: {
     flexShrink: 1,
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   liveSub: { fontSize: 13, color: colors.textMuted },
@@ -870,8 +876,8 @@ const styles = StyleSheet.create({
    * apart while everything else on the screen stood 8.
    */
   nearbyBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing(1.5),
     backgroundColor: colors.nearbyDim,
     borderColor: colors.nearby,
@@ -888,7 +894,7 @@ const styles = StyleSheet.create({
   nearbyTitle: {
     flexShrink: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   nearbySub: { fontSize: 13, color: colors.textMuted },
@@ -897,7 +903,7 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 5,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: colors.nearby,
   },
@@ -913,7 +919,7 @@ const styles = StyleSheet.create({
    * — so it reads as absence of transmission rather than as a warning.
    */
   liveDotMuted: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: colors.textFaint,
   },
@@ -938,9 +944,11 @@ const styles = StyleSheet.create({
    */
   install: { gap: spacing(1), marginBottom: spacing(1.5) },
   installActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: spacing(0.5),
   },
   list: { gap: spacing(1) },
+  /** A card holding a button and the line explaining it. See `SupportBody`. */
+  card: { gap: spacing(1) },
 });

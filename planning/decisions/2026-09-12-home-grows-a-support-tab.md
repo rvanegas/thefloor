@@ -33,6 +33,11 @@ after the two indexes onto the people you can reach.
 
 ## Both senses of the word, still two sections
 
+**Superseded the same day** by
+2026-09-12-the-support-tab-loses-its-headings.md: both headings were removed
+and each card carries a line of prose instead. The hazard this section names
+is still real; the remedy it chose was not one a heading could deliver.
+
 The tab is labelled *Support*, which on it means support this project. *Help*
 means get support. They stay two sections with Help above, on the reasoning
 that put them in separate groups at the foot: one heading over both senses is

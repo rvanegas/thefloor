@@ -52,10 +52,6 @@ to channel view, if user is present in any channel.
 
 In Channel View, replace "Close" icon with "Home" icon.
 
-## Support Tab
-
-Remove card labels. Add explanatory text within each card.
-
 ## Invite Links
 
 Rename "Invite Links" tab to "Invite"
