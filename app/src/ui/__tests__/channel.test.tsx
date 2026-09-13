@@ -1256,7 +1256,7 @@ describe('Channel', () => {
     ).toEqual([
       'Roster',
       'Notepad',
-      'Invite links',
+      'Invite',
       'Player',
       'Recordings',
       'Watch',
@@ -1303,7 +1303,7 @@ describe('Channel', () => {
       first, then a link for somebody who has not.
     */
     showInvites(tree);
-    expect(sections()).toEqual(['Invite', 'Guest link']);
+    expect(sections()).toEqual(['Contacts', 'Guest link']);
     act(() => tree.unmount());
   });
 

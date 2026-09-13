@@ -48,10 +48,6 @@ Look in past session indicated in recent commit concerning Notepad. I remember d
 Swiping left from channel view, returns to home view. Swiping right from home view goes 
 to channel view, if user is present in any channel.
 
-## Invite Links
-
-Rename "Invite Links" tab to "Invite"
-
 ## Getting Started Checklist
 
 Remove "choose display name" and "choose username" since both are now derived 

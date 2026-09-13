@@ -18,6 +18,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findTab,
   homeNav,
   mockApp,
   render,
@@ -117,8 +118,8 @@ describe('Contacts', () => {
 
     // Both halves are up there, and the one you are on says so to a screen
     // reader rather than in a word nobody else's label carries.
-    const contacts = findButton(header, 'Contacts');
-    const channels = findButton(header, 'Channels');
+    const contacts = findTab(header, 'Contacts');
+    const channels = findTab(header, 'Channels');
     expect(contacts!.props.accessibilityState).toEqual({ selected: true });
     expect(channels!.props.accessibilityState).toEqual({ selected: false });
     // The way back is that switch and nothing else.
@@ -146,7 +147,7 @@ describe('Contacts', () => {
     });
     const [screen] = tree.root.findAll((node) => node.type === Screen);
     const header = render(screen.props.header);
-    act(() => findButton(header, 'Channels')!.props.onPress());
+    act(() => findTab(header, 'Channels')!.props.onPress());
     expect(onList).toHaveBeenCalledWith('channels');
     act(() => header.unmount());
     act(() => tree.unmount());

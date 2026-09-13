@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite links, Player, Recordings, Watch
+- **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite, Player, Recordings, Watch
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -198,7 +198,7 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *Roster*, *Notepad*, *Invite links*, *Player*, *Recordings*, *Watch*.
+draws: *Roster*, *Notepad*, *Invite*, *Player*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -214,8 +214,17 @@ named after them.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
 
+**The third is *Invite*, and was *Invite links* until 2026-09-13.** The old
+name was the plural of a term this glossary already spends on something else —
+an *invite link* makes whoever opens it a *contact*, and is sent from
+*Contacts* on Home, not from here. What this tab holds is the two ways into a
+channel: a contact who has an account, and a *guest link* for somebody who has
+not. Neither of them is an invite link, so the tab now says what it does rather
+than naming the wrong object.
+
 **The order ran differently until 2026-09-12**, with the four carried things
-together and *Invite links* at the end as the rarest thing anybody does here.
+together and the invitations tab at the end as the rarest thing anybody does
+here.
 Rarity is a reason not to make a tab the one you land on; it is not a reason to
 file it away from the subject it belongs to.
 

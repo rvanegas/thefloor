@@ -914,7 +914,7 @@ export function ChannelView({
     },
     {
       value: 'invites',
-      label: 'Invite links',
+      label: 'Invite',
       icon: (color) => <InviteIcon color={color} />,
     },
     {
@@ -2867,8 +2867,14 @@ export function ChannelView({
               The *Who gets in* heading that used to stand over the pair is
               gone — the tab above says it, and said twice it reads as two
               different claims.
+
+              The first of the pair is headed *Contacts* rather than *Invite*
+              as of 2026-09-12, when the tab itself became *Invite*: a heading
+              repeating the tab immediately above it names nothing, where the
+              pair *Contacts* and *Guest link* says which of the two ways in
+              each card is.
             */}
-        <SectionLabel>Invite</SectionLabel>
+        <SectionLabel>Contacts</SectionLabel>
         <Card style={styles.stack}>
           <InviteList
             channel={channel}

@@ -23,6 +23,7 @@ import {
   audioWith,
   channelOf,
   findButton,
+  findTab,
   knowing,
   labelOf,
   mockApp,
@@ -1453,8 +1454,8 @@ describe('a channel screen without the repeated cards', () => {
     expect(textOf(tree)).toContain('Recording');
     // And the tabs themselves are all still offered. A preference about
     // repetition that quietly removed a tab would be removing abilities.
-    expect(findButton(tree, 'Recordings')).toBeDefined();
-    expect(findButton(tree, 'Invite links')).toBeDefined();
+    expect(findTab(tree, 'Recordings')).toBeDefined();
+    expect(findTab(tree, 'Invite')).toBeDefined();
     act(() => tree.unmount());
   });
 

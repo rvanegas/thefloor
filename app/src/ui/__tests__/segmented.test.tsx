@@ -94,6 +94,23 @@ describe('Segmented', () => {
   });
 
   /**
+   * The set announces itself as one switch — and that role is what tells a
+   * tab from a control on the pane below it, which since 2026-09-13 can carry
+   * the same word: the channel screen's *Invite* tab and the *Invite* button
+   * on it. The view harness's `findButton` and `findTab` are built on this
+   * prop, so losing it would not fail here alone.
+   */
+  it('announces itself as a tablist', () => {
+    const tree = render(
+      <Segmented options={OPTIONS} value="roster" onChange={() => {}} />
+    );
+    expect(
+      tree.root.findAll((n) => n.props?.accessibilityRole === 'tablist')
+    ).not.toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /**
    * The selection is announced by `accessibilityState` rather than by a word
    * in the label, and exactly one segment carries it — including when the
    * selected one is in the second row, which is the case wrapping introduced.

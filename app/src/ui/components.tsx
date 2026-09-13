@@ -523,7 +523,12 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <View style={styles.segmented}>
+    // `tablist`, so a screen reader announces the set as one switch rather
+    // than as loose buttons — and so a test can tell a tab from a control on
+    // the pane below it, which since 2026-09-12 can carry the same word: the
+    // channel screen's *Invite* tab and the *Invite* button on it. See
+    // `tabInstances` in the view harness.
+    <View accessibilityRole="tablist" style={styles.segmented}>
       {segmentRows(options).map((row) => (
         // Keyed by the row's own first option rather than by its index, so a
         // set that gains or loses one — the watch tab, which is behind Labs —

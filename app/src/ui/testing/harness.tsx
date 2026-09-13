@@ -374,22 +374,51 @@ export function labelOf(instance: ReactTestInstance): string {
 }
 
 /**
+ * The tabs of whatever `Segmented` switches this tree draws, as a set.
+ *
+ * A tab is a different kind of control from a button on the pane below it,
+ * and since 2026-09-12 the two can carry the same word: the channel screen's
+ * *Invite* tab and the *Invite* button on the contact it shows. Searching by
+ * label alone cannot tell them apart, and the pass that used to — exact text
+ * before substring — stopped working the moment the tab's label became
+ * exactly the button's. So the seam is the control's kind rather than its
+ * wording: `findButton` looks outside this set and `findTab` looks inside it.
+ *
+ * Found by the `tablist` role `Segmented` puts on itself rather than by
+ * importing the component: this module is loaded from inside `jest.mock`
+ * factories, which are hoisted above the imports of the file doing the
+ * mocking, so a value import of anything that reaches `AppProvider` breaks
+ * every file that mocks it.
+ */
+function tabInstances(tree: ReactTestRenderer): Set<ReactTestInstance> {
+  const tabs = new Set<ReactTestInstance>();
+  for (const switcher of tree.root.findAll(
+    (n) => n.props?.accessibilityRole === 'tablist'
+  ))
+    for (const tab of switcher.findAll(
+      (n) => n.props?.accessibilityRole === 'button'
+    ))
+      tabs.add(tab);
+  return tabs;
+}
+
+/**
  * A control by its label — **the one whose text is exactly this, if there is
- * one, and otherwise the first that contains it.**
+ * one, and otherwise the first that contains it.** Never a tab: see
+ * `tabInstances`, and `findTab` for the other half.
  *
  * The substring match is what almost every caller wants: most controls here
  * are named by a phrase out of a longer sentence. The exact pass in front of
- * it is for the one case where the substring has two answers — the channel
- * screen's *Invite links* tab and the *Invite* button on it. Without it, a
- * test that pressed "Invite" switched tabs and invited nobody, which is a
- * green test asserting the wrong thing.
+ * it is for the case where the substring has two answers among the controls
+ * that are left.
  */
 export function findButton(
   tree: ReactTestRenderer,
   label: string
 ): ReactTestInstance | undefined {
+  const tabs = tabInstances(tree);
   const buttons = tree.root.findAll(
-    (n) => n.props?.accessibilityRole === 'button'
+    (n) => n.props?.accessibilityRole === 'button' && !tabs.has(n)
   );
   return (
     buttons.find((n) => labelOf(n).trim() === label) ??
@@ -398,7 +427,23 @@ export function findButton(
 }
 
 /**
- * Press the channel screen's *Invite links* tab, so the invitation controls
+ * A tab by its label, and nothing but a tab — the mirror of `findButton`.
+ * Undefined when this screen is not offering one by that name, which is what
+ * a test asserting the whole bar is still there wants to ask.
+ */
+export function findTab(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  const tabs = [...tabInstances(tree)];
+  return (
+    tabs.find((n) => labelOf(n).trim() === label) ??
+    tabs.find((n) => labelOf(n).includes(label))
+  );
+}
+
+/**
+ * Press the channel screen's *Invite* tab, so the invitation controls
  * are rendered.
  *
  * The two ways into a channel used to sit at the foot of the same scroll as
@@ -408,7 +453,7 @@ export function findButton(
  * wrong reason the day a control moved back.
  */
 export function showInvites(tree: ReactTestRenderer): void {
-  showTab(tree, 'Invite links');
+  showTab(tree, 'Invite');
 }
 
 /** The tab you land on, for a test that has to look at two in one render. */
@@ -444,7 +489,7 @@ export function showWatch(tree: ReactTestRenderer): void {
 }
 
 export function showTab(tree: ReactTestRenderer, label: string): void {
-  const tab = findButton(tree, label);
+  const tab = findTab(tree, label);
   if (!tab) throw new Error(`No ${label} tab on this screen.`);
   act(() => tab.props.onPress());
 }

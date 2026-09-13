@@ -13,6 +13,7 @@ import {
   NOW,
   THEM,
   findButton,
+  findTab,
   findExactButton,
   homeNav,
   mockApp,
@@ -625,8 +626,8 @@ describe('Home while still in a channel', () => {
     expect(text).toContain('Book club');
     // The switch is pinned with it, being the other thing that is about the
     // frame rather than about the list inside it.
-    expect(findButton(header, 'Channels')).toBeDefined();
-    expect(findButton(header, 'Contacts')).toBeDefined();
+    expect(findTab(header, 'Channels')).toBeDefined();
+    expect(findTab(header, 'Contacts')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
     act(() => header.unmount());
     act(() => tree.unmount());
