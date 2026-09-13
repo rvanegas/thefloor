@@ -650,7 +650,7 @@ describe('reading somebody else’s profile', () => {
     expect(mockApp.act).not.toHaveBeenCalled();
 
     await act(async () => findButton(tree, 'Close')!.props.onPress());
-    expect(textOf(tree)).toContain('The floor');
+    expect(textOf(tree)).toContain('Your microphone');
     act(() => tree.unmount());
   });
 

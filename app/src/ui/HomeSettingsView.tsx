@@ -270,11 +270,15 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           the departure, like the tap above it and Labs below, so that Off is
           the untouched answer on every setting here — see
           DEFAULT_ACCOUNT_SETTINGS in core/settings.ts. What goes is a way
-          of doing something a second time and nothing else: the floor keeps
-          its card, minus the button, so the countdown and the sentence saying
-          why a claim is refused stay on the screen either way. A setting that
-          quietly stopped a screen explaining itself would be discovered at
-          exactly the moment the explanation was wanted.
+          of doing something a second time and nothing else, which is why the
+          two notices below it stay: a setting that quietly stopped a screen
+          explaining itself would be discovered at exactly the moment the
+          explanation was wanted.
+
+          The floor used to be the exception here — its card stayed, minus the
+          button, for the countdown and the reason a claim was refused. The
+          countdown went to the roster on 2026-09-12 and the card itself on
+          2026-09-13, so there is no longer an exception to describe.
         */}
         <Text style={type.heading}>Hide the repeated channel controls</Text>
         <View style={styles.choices}>
@@ -296,16 +300,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         <Text style={type.muted}>
           A channel keeps the floor, your microphone and the ways in and out
           under your thumb at all times. Off, which is where everybody starts,
-          each of them also has a card further down the screen. On, the bar is the
-          whole of them and the screen below is who is in the room and what the
-          room is carrying.
+          the microphone and the ways in and out also have cards further down
+          the screen. On, the bar is the whole of them and the screen below is
+          who is in the room and what the room is carrying.
         </Text>
         <Text style={type.muted}>
-          The floor is the exception: its card stays either way, with the
-          countdown and the reason a claim is refused, and only the button on
-          it goes. Two more things stay whichever way this is set — that a
-          silenced microphone is still being recorded, and that you are in this
-          channel on another device.
+          Two things stay whichever way this is set — that a silenced
+          microphone is still being recorded, and that you are in this channel
+          on another device.
         </Text>
 
         <View style={styles.divider} />

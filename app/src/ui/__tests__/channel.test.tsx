@@ -200,8 +200,12 @@ describe('Channel', () => {
       />);
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
-    expect(text).toContain('Nobody has the floor');
-    expect(text).toContain('Claim the floor');
+    // Nobody holds it, which the screen says by omission and not in words
+    // since the floor card went: no roster card is marked, and the footer's
+    // claim is live.
+    expect(text).not.toContain('has the floor');
+    const claim = findButton(tree, 'Claim')!;
+    expect(claim.props.accessibilityState.disabled).toBe(false);
     act(() => tree.unmount());
   });
 
@@ -232,11 +236,13 @@ describe('Channel', () => {
     expect(text).not.toContain('Your microphone');
     expect(findButton(tree, 'Step out')).toBeUndefined();
     expect(findButton(tree, 'Mute yourself')).toBeUndefined();
-    // The floor is somebody else's business until you are in the room, and the
-    // hint says which of the several reasons this is.
-    expect(text).toContain('Step in to claim the floor');
-    expect(findButton(tree, 'Claim the floor')!.props.accessibilityState)
-      .toEqual({ disabled: true });
+    // The floor is somebody else's business until you are in the room, so the
+    // footer's claim is refused. Which of the several reasons it is refused
+    // for is no longer said anywhere: see the note on the floor card's
+    // removal in ChannelView.
+    expect(findButton(tree, 'Claim')!.props.accessibilityState.disabled).toBe(
+      true
+    );
 
     // Stepping in stays put: you are already looking at the channel, and the
     // screen fills in around the tap rather than closing and reopening.
@@ -446,7 +452,7 @@ describe('Channel', () => {
     // in an empty room".
     showRoster(tree);
     expect(textOf(tree)).toContain('Step in');
-    expect(on('Claim the floor')).toEqual({ disabled: true });
+    expect(on('Claim').disabled).toBe(true);
 
     showRecordings(tree);
     expect(on('Record')).toEqual({ disabled: true });
@@ -654,8 +660,13 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     const text = textOf(tree);
-    expect(text).toContain('Dana Chu has the floor — your mic is cut');
-    expect(text).toContain('cannot claim the floor while you are silenced');
+    // Whose claim it is comes off the roster card; that it has cut you comes
+    // off the microphone, in words on its card and in red on the footer's.
+    expect(text).toContain('has the floor');
+    expect(text).toContain("Silenced by Dana Chu's floor claim.");
+    expect(findButton(tree, 'Claim')!.props.accessibilityState.disabled).toBe(
+      true
+    );
     act(() => tree.unmount());
   });
 
@@ -687,7 +698,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    const claim = findButton(tree, 'Claim the floor');
+    const claim = findButton(tree, 'Claim');
     expect(claim).toBeDefined();
     expect(claim!.props.accessibilityState.disabled).toBe(false);
     act(() => claim!.props.onPress());
@@ -979,7 +990,7 @@ describe('Channel', () => {
     // things — one person who has not come, one who has and is still there.
     expect(text).toContain('Invited');
     // The holder is named wherever the claim bites.
-    expect(text).toContain('Miro Okafor has the floor — your mic is cut');
+    expect(text).toContain('Miro Okafor Present  · has the floor');
     expect(text).toContain("Silenced by Miro Okafor's floor claim.");
     act(() => tree.unmount());
   });
@@ -1266,19 +1277,17 @@ describe('Channel', () => {
 
     /*
       The roster's own, which is what is true of the conversation right now.
-      The floor is first among the controls as of 2026-08-31, directly under
-      the roster itself. It was fifth — under the microphone and under the
-      departure — which put the one mechanic the application is named after
-      below a readout about yourself and at the same weight as the guest link.
-      It is about the roster above it: it decides who among those people may
-      be heard.
+      **Two, since 2026-09-13.** *The floor* was first among them and is gone
+      with its card: what it held was the state of the floor in a sentence,
+      and the roster above it says the same thing about the people it is
+      about.
 
       *Step out* is sentence case with the rest of them. It was "Step Out",
       capitalised, because one label served both departures and flipped to
       "Step In" when you were not present; splitting them left nothing for the
       capital to distinguish.
     */
-    expect(sections()).toEqual(['The floor', 'Your microphone', 'Step out']);
+    expect(sections()).toEqual(['Your microphone', 'Step out']);
 
     // What the channel has written down, at two speeds — and in that order
     // since 2026-09-13: the clipboard, which is minutes old and is what
@@ -2939,7 +2948,7 @@ describe('Channel', () => {
     // going to write a description.
     expect(textOf(tree)).toContain('Channel settings');
     act(() => findButton(tree, 'Close')!.props.onPress());
-    expect(textOf(tree)).toContain('The floor');
+    expect(textOf(tree)).toContain('Your microphone');
     act(() => tree.unmount());
   });
 

@@ -448,11 +448,12 @@ describe('who is in the channel, and who is talking', () => {
     // takes and this is the opposite of one.
     expect(labelOf(cardFor(tree, 'Me, you').node!)).toContain('wait 10s');
     expect(labelOf(cardFor(tree, 'Dana Chu').node!)).not.toContain('10s');
-    // Nobody holds it, so no card is tinted and the floor's card says so.
+    // Nobody holds it, which the roster says by having no card tinted and no
+    // card marked. There is nothing left on the screen that says it in words.
     expect(cardFor(tree, 'Me, you').style.backgroundColor).not.toBe(
       colors.floorDim
     );
-    expect(textOf(tree)).toContain('Nobody has the floor');
+    expect(textOf(tree)).not.toContain('has the floor');
     act(() => tree.unmount());
   });
 
@@ -1454,24 +1455,24 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The one card that stays, and the only one the setting reaches into rather
-   * than removing. What it holds is a readout — who has the floor, and why a
-   * claim is refused — and a footer icon has no room for either. Only the
-   * button is a second way of doing something already under the thumb.
-   *
-   * The clock used to be the first item on that list. It is the roster's since
-   * 2026-09-12, and the roster is not something this setting touches.
+   * There is no floor card to reach into any more, with the setting on or
+   * off. It was the one card that stayed, on the argument that a readout is
+   * not a repetition of the footer; the clock went to the roster on
+   * 2026-09-12 and the state of the floor followed it on 2026-09-13, leaving
+   * a card whose remaining sentences said why a claim was refused. That is
+   * gone with it, and this asserts the whole of the section's absence rather
+   * than only its button's.
    */
-  it('keeps the floor card and takes only its button', () => {
+  it('has no floor card, with the cards off or on', () => {
     const tree = showBare();
     const text = textOf(tree);
-    expect(text).toContain('The floor');
-    expect(text).toContain('Nobody has the floor');
-    expect(text).toContain('Speak uninterrupted for up to a minute.');
-    // 'Claim' alone is the footer's, which stays. The card's button is the
-    // longer label, and there is none of it.
+    expect(text).not.toContain('The floor');
+    expect(text).not.toContain('Nobody has the floor');
+    expect(text).not.toContain('Speak uninterrupted for up to a minute.');
+    // 'Claim' alone is the footer's, which stays.
     expect(text).not.toContain('Claim the floor');
     expect(text).not.toContain('Release the floor');
+    expect(textOf(footerOf(tree))).toContain('Claim');
     act(() => tree.unmount());
   });
 
@@ -1487,10 +1488,10 @@ describe('a channel screen without the repeated cards', () => {
     );
     const text = textOf(tree);
     expect(text).toContain('has the floor');
-    // The clock itself — on Dana's card — and the sentence saying why the act
-    // is refused, which is the floor's card and is not a readout of a clock.
+    // The clock itself, on Dana's card, which is the whole of what this
+    // screen now says about the claim: why yours is refused went with the
+    // floor's card.
     expect(text).toContain('60s');
-    expect(text).toContain('You cannot claim the floor while you are silenced.');
     expect(text).not.toContain('Claim the floor');
     act(() => tree.unmount());
   });

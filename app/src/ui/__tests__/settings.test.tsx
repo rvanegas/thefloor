@@ -255,8 +255,11 @@ describe("the control-cards setting", () => {
     const tree = await openSettings();
     const text = textOf(tree);
     expect(text).toContain("Hide the repeated channel controls");
-    // What the second paragraph promises, and what the channel screen keeps.
-    expect(text).toContain("its card stays either way");
+    // The floor was the exception this named until its card went on
+    // 2026-09-13; what the setting takes is now the microphone and the ways
+    // in and out, and the copy claims nothing about a card that is not there.
+    expect(text).not.toContain("its card stays either way");
+    expect(text).toContain("the microphone and the ways in and out also have");
     // The promise the channel screen keeps by moving two sentences upward.
     expect(text).toContain("still being recorded");
     act(() => tree.unmount());

@@ -280,7 +280,10 @@ optional `sublabel` is 12 with tabular figures. Disabled swaps the fill to
 
 Ghost is by far the most used, which is the shape of the app: most controls
 are exits, alternatives and chrome, and each screen has at most one `primary`.
-`floor` appears three times in the whole codebase.
+`floor` appears once in the whole codebase, on the introduction's *Claim the
+floor*. It was three until 2026-09-13, the other two being the floor card's
+Claim and Release; the card is gone and the footer draws its own icon rather
+than a `Button`.
 
 **A button inside a row of text is tightened rather than made a new
 component** — `{ paddingVertical: spacing(0.5), paddingHorizontal: spacing(1),

@@ -26,7 +26,6 @@ import {
   MAX_CLIP_LENGTH,
 } from '../../../core/constants';
 import {
-  atLeastTwoPresent,
   canClaimFloor,
   idleMs,
   isWaiting,
@@ -765,7 +764,7 @@ export function ChannelView({
   const takenByAnotherDevice = elsewhereOnAnotherDevice && app.displaced;
   /**
    * Whether the microphone and the two departures still get a card apiece
-   * further down, and whether the floor's card still carries its button.
+   * further down.
    *
    * On unless somebody has said otherwise, from Home settings — see
    * `AppValue.hideControlCards`, which is the setting and is named for the
@@ -774,13 +773,14 @@ export function ChannelView({
    * the three is in the footer at all times and the footer is not conditional
    * on anything.
    *
-   * The floor is the exception in shape, since 2026-08-31: its card stays and
-   * only the Claim/Release button goes. What that card mostly holds is a
-   * readout — the state of the floor, and the sentence saying why the act is
-   * refused — and neither is repetition of anything, a footer icon having no
-   * room to state it. See the card itself. The countdown was a third item on
-   * that list until 2026-09-12, and is now on the holder's roster card, which
-   * this setting does not reach.
+   * The floor was the exception in shape from 2026-08-31: its card stayed and
+   * only the Claim/Release button went, on the grounds that a readout — the
+   * state of the floor, the countdown, and the sentence saying why the act was
+   * refused — is not a repetition of a footer icon. The countdown moved to the
+   * holder's roster card on 2026-09-12 and the rest of the card went on
+   * 2026-09-13, the roster having become the better place to read all of it.
+   * There is no exception left: this setting now governs three cards of the
+   * same kind.
    *
    * Two sentences survive the cards that carried them, and they are marked at
    * each site. The recording warning is a notice rather than an explanation,
@@ -1438,10 +1438,12 @@ export function ChannelView({
     work — see `AppValue.hideControlCards`. That is why the rule above is about
     what a screen may show somebody who has not asked, rather than about what a
     screen may ever be: what a footer cannot state is kept rather than dropped.
-    The floor keeps its card either way and loses only its button, so even
-    then this bar is not the sole account of the floor — the reason a claim is
-    refused is still on the screen below, and the countdown is on the roster
-    card of whoever is holding it. Nothing here is conditional on the setting,
+    The floor is the one act with no card behind it either way, since
+    2026-09-13 — but it is not the bar's sole account of itself either: whose
+    minute it is and how much of it is left are on the roster card of whoever
+    is holding it, which this setting does not reach. What went with the card
+    is the sentence saying *why* a claim is refused, and the icon greys without
+    saying which of the four reasons it is. Nothing here is conditional on the setting,
     and nothing here may become so — a bar that
     changes shape with a preference is the same finger-under-the-thumb problem
     as one that changes shape with state.
@@ -1918,101 +1920,6 @@ export function ChannelView({
             </Card>
           </>
         )}
-
-        {/*
-          The floor comes first among the controls, above the microphone,
-          since 2026-08-31. It was fifth on the screen — under the microphone
-          and under the departure — at the same weight as the guest link, which
-          is a strange place for the one mechanic the application is named
-          after. It belongs directly under the roster because it is *about* the
-          roster: it decides which of the people listed above may be heard. The
-          microphone, by contrast, is about you alone and is mostly a readout.
-
-          It is also the only control here with a running clock, and a clock
-          somebody is watching should not be the thing they have to scroll to.
-        */}
-        {/*
-          The one card the setting does not take away, and the only one whose
-          button it removes on its own. What is here is mostly not a control:
-          who holds the floor, how long is left, and why it is refused are a
-          readout, and a readout of the one mechanic the application is named
-          after. The button is the repetition — claiming and releasing are both
-          in the footer — so with the cards off the button goes and the clock
-          and the sentences stay.
-
-          It is the reverse of the microphone card, which is a button with a
-          readout attached and so goes whole. Here the button was the smaller
-          half.
-        */}
-        <SectionLabel>The floor</SectionLabel>
-        {/*
-          **No clock and no colour here since 2026-09-12, both being the
-          roster's now.** What this card held was a large countdown and a
-          two-pixel accent, and both were describing a person — whose minute is
-          running, and whether yours has been cut — while the screen's picture
-          of the people sat above it saying neither. A reader watching the clock
-          was watching the wrong half of the screen: the number ticks down and
-          the question it raises is *who*, which is a card's width away.
-
-          So the indicator moved to the card of whoever the claim is about, and
-          what is left here is the part that is not about a person at all: the
-          state of the floor in a sentence, including the one state no roster
-          card can show — that nobody holds it — and why a claim is refused.
-        */}
-        <Card style={styles.floorCard}>
-          <Text style={styles.floorStatus}>
-            {iHoldFloor
-              ? 'You have the floor'
-              : theyHoldFloor
-                ? `${holderName} has the floor — your mic is cut`
-                : 'Nobody has the floor'}
-          </Text>
-
-          {/*
-            Always, now. The hint used to give way to the clock on the one card
-            that had both — yours, while you held it — and with the clock on
-            your own roster card there is nothing here to give way to.
-          */}
-          <Text style={styles.floorHint}>
-            {iHoldFloor
-              ? others.length === 1
-                ? `${others[0].displayName} is muted until you release, up to a minute.`
-                : 'Everyone else is muted until you release, up to a minute.'
-              : !iAmPresent
-                ? 'Step in to claim the floor.'
-                : theyHoldFloor
-                  ? 'You cannot claim the floor while you are silenced.'
-                  : cooldown !== null
-                    ? 'You spoke recently — you can claim again after this cooldown, or sooner as others claim and release.'
-                    : !atLeastTwoPresent(channel)
-                      ? 'The floor becomes available once at least two people are present.'
-                      : 'Speak uninterrupted for up to a minute.'}
-          </Text>
-
-          {/*
-            The half of this card that the footer already carries, and so the
-            half the setting removes. What stays is the state of the floor in a
-            sentence — including that nobody holds it, which no roster card can
-            say — and the reason a claim is refused, which a greyed icon in the
-            bar cannot say.
-          */}
-          {controlCards ? (
-            iHoldFloor ? (
-              <Button
-                label="Release the floor"
-                variant="floor"
-                onPress={() => act({ type: 'RELEASE_FLOOR' })}
-              />
-            ) : (
-              <Button
-                label="Claim the floor"
-                variant="floor"
-                disabled={!claimable}
-                onPress={() => act({ type: 'CLAIM_FLOOR' })}
-              />
-            )
-          ) : null}
-        </Card>
 
         {/*
           Nothing here is true of somebody who has not stepped in: the
@@ -3576,14 +3483,16 @@ function ParticipantCard({
   attentiveAt?: number | null;
   /**
    * Milliseconds left in this person's claim, or null when the floor is not
-   * theirs. It is `floorRemainingMs` passed down rather than computed here, so
-   * the card and the floor's own section cannot disagree about the number.
+   * theirs. It is `floorRemainingMs` passed down rather than computed here,
+   * one reading of the clock for the whole screen.
    *
    * The clock is on the card because the claim is about *this person* — it is
    * their minute, and the roster is where anybody looks to see whose it is.
-   * The floor's section below kept it until 2026-09-12, which meant the one
-   * number on the screen that changes every second was the one thing you had
-   * to look away from the room to read.
+   * The floor had a section of its own that kept the clock until 2026-09-12,
+   * which meant the one number on the screen that changes every second was
+   * the one thing you had to look away from the room to read. That section is
+   * gone entirely as of 2026-09-13, and this card is the only place the state
+   * of the floor is drawn.
    */
   floorRemaining?: number | null;
   /**
@@ -4503,18 +4412,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
-  /**
-   * A plain card, since 2026-09-12. It used to gain a two-pixel accent while
-   * the floor was somebody's and an orange one while you were cut off, which
-   * were the two states the *room* was in and are now drawn on the cards of
-   * the people they are about — `participantCardFloor`. Two places saying the
-   * same state in two different visual languages is how a reader learns
-   * neither, and the roster is the one that can say whose state it is.
-   */
-  floorCard: { gap: spacing(1), borderColor: colors.border },
-  /** Larger than `type.heading`: it is the first sentence anybody reads here. */
-  floorStatus: { fontSize: 20, fontWeight: '700', color: colors.text },
-  floorHint: { ...type.muted, lineHeight: 19 },
   progressTrack: {
     height: 6,
     borderRadius: radius.pill,
