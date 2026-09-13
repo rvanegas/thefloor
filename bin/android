@@ -9,6 +9,8 @@
 #     bin/android --apk       an APK on the Desktop, to send somebody else
 #                             (APK_DEST=DIR to put it somewhere else)
 #     bin/android --aab       build a signed App Bundle to upload to Play
+#     bin/android --check     say whether the SDK and JDK 17 are in place, and
+#                             nothing else — what bin/deploy-all asks first
 #
 # **Reach for `--prebuild` after any edit to `app.json`, and know why.**
 # `expo run:android` regenerates `android/` only when it is *missing*. An
@@ -439,6 +441,23 @@ run() {
   npm run android --prefix app
 }
 
+# Can this machine build at all, asked and answered in a second.
+#
+# Exists for `bin/deploy-all`, which runs this script last after twenty-odd
+# minutes of server deploy, iOS archive and web export. A missing JDK is a
+# thing to learn before that, not after — and the two paths that decide it are
+# stated here and must not be restated anywhere else, so the way to ask is to
+# ask this script.
+#
+# Only the environment, deliberately: no prebuild, no Gradle, no emulator.
+# Whether the build *succeeds* is not a question with a cheap answer.
+check() {
+  require_sdk
+  require_jdk17
+  say "SDK $SDK"
+  say "JDK $("$JDK17/bin/java" -version 2>&1 | head -1)"
+}
+
 # ---------------------------------------------------------------------------
 
 case "${1:-}" in
@@ -446,6 +465,7 @@ case "${1:-}" in
   --prebuild) run --prebuild ;;
   --apk)      apk ;;
   --aab)      aab ;;
+  --check)    check ;;
   "")         run ;;
-  *)          fail "usage: bin/android [--setup | --prebuild | --apk | --aab]" ;;
+  *)          fail "usage: bin/android [--setup | --prebuild | --apk | --aab | --check]" ;;
 esac

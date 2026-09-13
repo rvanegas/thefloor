@@ -1,0 +1,327 @@
+#!/bin/bash
+#
+# Everything that puts this revision somewhere, in the one order that works.
+#
+#   bin/deploy-all              the four stages below, stopping at the first
+#                               failure
+#   bin/deploy-all --dry-run    say what would run and check the machine can
+#   bin/deploy-all --from web   resume at a stage, after fixing what stopped it
+#   bin/deploy-all --keep-going run the rest even after one fails
+#   bin/deploy-all --yes        do not ask before starting
+#
+# The four, and they are `bin/deploy`, `bin/upload-ios`, `bin/deploy-web --beta`
+# and `bin/android --apk` — each run exactly as it would be by hand, with no
+# flags this script invents and nothing it does itself. Every guard those
+# scripts carry still applies; this one adds only the guards that are about
+# there being four of them.
+#
+# **It is not a fifth verb, and it is not only a deploy.** RELEASING.md § *The
+# five verbs* is unchanged: `deploy` reaches everybody in a minute and is
+# reversible, `upload` spends a build number and writes a permanent tag, and
+# neither is a synonym for the other. This spells a common afternoon in one
+# word — the afternoon where a revision goes to the box, to TestFlight, to the
+# beta web train and onto a phone by cable — and that afternoon spans two of
+# the verbs. So the name is a convenience and the confirmation prompt is where
+# the honesty is: it names the upload before anything starts, since that is the
+# half that cannot be taken back.
+#
+# **Nothing here decides to run.** Same rule as landing: somebody types this.
+# Being asked for it once does not license the next one, and it does not
+# license `bin/submit-ios`, which is deliberately not one of the four — putting
+# a build in front of App Review is a different day and a different decision.
+#
+# ── The order is a dependency, not a preference ──────────────────────────────
+#
+# `bin/deploy-web --beta` cuts the beta train from **the newest `build/<n>`
+# tag**, and `bin/upload-ios` is what creates that tag. Run the web deploy
+# first and it silently ships the *previous* build's web app — correctly, by
+# its own lights, and with nothing anywhere saying the train is a build behind
+# the TestFlight it is supposed to match. That is the whole reason these four
+# have an order rather than a list, and it is why there is no way to reorder
+# them or to run one alone.
+#
+# The server going first is a weaker claim but a real one: a wire change has to
+# reach the box before a client that speaks it reaches a phone (AGENTS.md §
+# *Never ship a wire change to a server before the client can speak it*), and
+# every one of the three client artifacts below is built after the box has it.
+#
+# Android is last because it is the only one that reaches nobody on its own —
+# an APK on the Desktop is a file somebody still has to send.
+#
+# ── What the run leaves behind ───────────────────────────────────────────────
+#
+# `bin/upload-ios` commits the build-number bump and tags it, on the branch you
+# are sitting on, and **pushes neither**. So a successful run ends with the
+# origin not having the commit or the tag — which is the normal state here, and
+# is why the summary prints the two push commands rather than running them.
+#
+# It also means the server on the box is one commit behind the build that was
+# uploaded: the deploy shipped the revision that was checked out, and the bump
+# landed after it. That difference is a build number and nothing else, and it
+# is worth knowing before comparing `bin/health` against `app.json`.
+#
+# ── Resuming, which is the guard that matters most ───────────────────────────
+#
+# Four stages and twenty-odd minutes, so a failure in the third is a failure
+# with two successes behind it. Re-running from the top would deploy a server
+# that is already deployed — harmless — and **upload a second build** — not
+# harmless: the number is spent, a second tag exists, and TestFlight holds a
+# build nobody meant to make. So a failure prints the `--from` that picks up
+# where it stopped, and that line is the one to use.
+#
+# `--from` takes a stage name and runs it and everything after it. There is no
+# way to run one stage alone, deliberately: the thing this script knows that a
+# list of four commands does not is the order, and an `--only` would be a way
+# to throw that away one stage at a time. Run the script by hand if that is
+# what you want; it is four commands and they are named at the top of this
+# file.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# Stage names, in order. The name is what `--from` takes and what the summary
+# prints; the three `stage_*` functions are the only places that know what a
+# name means, and they are kept adjacent so they cannot drift.
+STAGES=(server ios web android)
+
+stage_command() {
+  case "$1" in
+    server)  echo "bin/deploy" ;;
+    ios)     echo "bin/upload-ios" ;;
+    web)     echo "bin/deploy-web --beta" ;;
+    android) echo "bin/android --apk" ;;
+  esac
+}
+
+stage_run() {
+  case "$1" in
+    server)  bin/deploy ;;
+    ios)     bin/upload-ios ;;
+    web)     bin/deploy-web --beta ;;
+    android) bin/android --apk ;;
+  esac
+}
+
+stage_what() {
+  case "$1" in
+    server)  echo "to the box — drops every call in progress" ;;
+    ios)     echo "to TestFlight — spends a build number, tags it" ;;
+    web)     echo "the beta train, cut from the tag the upload just made" ;;
+    android) echo "an APK on the Desktop, to send to somebody by hand" ;;
+  esac
+}
+
+from=""
+dry_run=false
+keep_going=false
+assume_yes=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --from) shift; from=${1:-} ;;
+    --from=*) from=${1#--from=} ;;
+    --dry-run|-n) dry_run=true ;;
+    --keep-going) keep_going=true ;;
+    --yes|-y) assume_yes=true ;;
+    # The whole comment block, however long it grows — same as bin/deploy and
+    # bin/db, and for the same reason: a fixed line range truncates the help
+    # the moment the header gains a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+# Which stages this run is. An unknown name is refused rather than treated as
+# "start at the beginning", which is the reading that would quietly re-upload.
+plan=()
+found=false
+if [ -n "$from" ]; then
+  for s in "${STAGES[@]}"; do
+    if [ "$s" = "$from" ]; then found=true; fi
+    if $found; then plan+=("$s"); fi
+  done
+  if ! $found; then
+    echo "✗ no stage called '$from' — one of: ${STAGES[*]}" >&2
+    exit 2
+  fi
+else
+  plan=("${STAGES[@]}")
+fi
+
+in_plan() {
+  local s
+  for s in "${plan[@]}"; do [ "$s" = "$1" ] && return 0; done
+  return 1
+}
+
+# ── Preflight ────────────────────────────────────────────────────────────────
+#
+# Everything here is a thing one of the four would check for itself, checked
+# before the first one starts instead. That is the whole value: `bin/android`
+# refusing for want of a JDK is correct and costs nothing on its own, and costs
+# half an hour when it happens after an archive and a web export. Nothing below
+# is a *new* rule — a stage that would refuse still refuses — so this cannot be
+# the thing that lets a bad run through.
+#
+# Scoped to the stages that are actually going to run, so `--from web` is not
+# blocked by a machine that cannot build for Android.
+
+problems=()
+warnings=()
+
+# Clean, and not negotiable, because `bin/upload-ios` refuses a dirty tree —
+# it tags, and a tag naming a commit the build did not come from is worth
+# nothing. `bin/deploy` would take `--dirty`, but there is no way to ask for
+# that here: a run that shipped the working tree to the box and then stopped
+# dead at the upload is the worst of both, and between the two stages the
+# stricter rule is the one that governs.
+if [ -n "$(git status --porcelain)" ]; then
+  problems+=("the tree is dirty — bin/upload-ios refuses to tag one; commit or stash")
+fi
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" != "master" ]; then
+  warnings+=("on $BRANCH, not master — the bump commit and the build tag land there")
+fi
+
+# The two that talk to the box read the same key, and `BatchMode=yes` means a
+# missing one fails as a refused connection rather than as a prompt.
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+if in_plan server || in_plan web; then
+  if [ ! -r "${KEY/#\~/$HOME}" ]; then
+    problems+=("no ssh key at $KEY — bin/deploy and bin/deploy-web cannot reach the box")
+  fi
+fi
+
+if in_plan ios; then
+  command -v xcodebuild >/dev/null \
+    || problems+=("no xcodebuild — install Xcode and its command line tools")
+  # A warning rather than a problem, matching bin/upload-ios exactly: it falls
+  # back to Xcode's signed-in account, which works right up until the account
+  # list empties overnight. Worth naming here because that failure lands after
+  # the archive, which is the expensive half.
+  ASC_DIR=${THEFLOOR_ASC_DIR:-$HOME/.config/thefloor/asc}
+  if ! ls "$ASC_DIR"/AuthKey_*.p8 >/dev/null 2>&1; then
+    warnings+=("no App Store Connect key in $ASC_DIR — the upload will depend on Xcode's signed-in account")
+  fi
+fi
+
+# Asked of `bin/android` rather than restated here: the SDK and JDK 17 paths
+# are stated in that script, and a second copy of them here is a second thing
+# to be wrong on the day one of them moves.
+if in_plan android; then
+  if ! android_check=$(bin/android --check 2>&1); then
+    problems+=("bin/android --check said: $(echo "$android_check" | grep -v '^$' | tail -2 | tr '\n' ' ')")
+  fi
+  dest=${APK_DEST:-$HOME/Desktop}
+  [ -d "$dest" ] || problems+=("no directory at $dest for the apk to land in — set APK_DEST")
+fi
+
+for w in ${warnings+"${warnings[@]}"}; do
+  echo "⚠ $w" >&2
+done
+
+if [ ${#problems[@]} -gt 0 ]; then
+  echo "✗ not starting:" >&2
+  for p in "${problems[@]}"; do echo "    $p" >&2; done
+  exit 1
+fi
+
+# ── The plan, said out loud ──────────────────────────────────────────────────
+
+SHA=$(git rev-parse --short HEAD)
+echo
+echo "  $SHA on $BRANCH, in order:"
+echo
+n=0
+for s in "${plan[@]}"; do
+  n=$((n + 1))
+  printf '    %d. %-22s %s\n' "$n" "$(stage_command "$s")" "$(stage_what "$s")"
+done
+echo
+
+if $dry_run; then
+  echo "✓ dry run — the machine can do all of that, and none of it was done"
+  exit 0
+fi
+
+# The prompt is about the upload and nothing else. A deploy is a minute and
+# reversible, an APK is a file, and a web train is files. The build number is
+# the one thing this run spends that cannot be got back, so that is what the
+# question asks about — and when the ios stage is not in the plan there is
+# nothing irreversible left to ask about, so it does not ask.
+if ! $assume_yes && in_plan ios; then
+  if [ -t 0 ]; then
+    read -r -p "  This uploads to App Store Connect. Go? [y/N] " reply
+    case "$reply" in
+      y|Y|yes|YES) ;;
+      *) echo "  stopped"; exit 1 ;;
+    esac
+    echo
+  else
+    echo "✗ not a terminal, and --yes was not passed; refusing to upload unasked" >&2
+    exit 1
+  fi
+fi
+
+# ── Running ──────────────────────────────────────────────────────────────────
+
+results=()
+failed=""
+
+for s in "${plan[@]}"; do
+  echo "━━ $s: $(stage_command "$s")"
+  echo
+  started=$SECONDS
+  if stage_run "$s"; then
+    mark="✓"
+  else
+    mark="✗"
+    [ -n "$failed" ] || failed="$s"
+  fi
+  took=$((SECONDS - started))
+  results+=("$mark $s ($((took / 60))m$((took % 60))s)")
+  echo
+  if [ "$mark" = "✗" ] && ! $keep_going; then break; fi
+done
+
+# ── What happened ────────────────────────────────────────────────────────────
+
+echo
+echo "  $((SECONDS / 60))m$((SECONDS % 60))s in total"
+for r in "${results[@]}"; do echo "  $r"; done
+# Stages the run never reached, named rather than left to be inferred from a
+# list that is shorter than the plan was.
+for s in "${plan[@]}"; do
+  case " ${results[*]} " in
+    *"✓ $s ("*|*"✗ $s ("*) ;;
+    *) echo "  · $s (not run)" ;;
+  esac
+done
+echo
+
+if [ -n "$failed" ]; then
+  echo "✗ $failed failed — fix it, then pick up where this stopped:" >&2
+  echo >&2
+  echo "      bin/deploy-all --from $failed" >&2
+  echo >&2
+  echo "  Not from the top, if the ios stage already succeeded: that would" >&2
+  echo "  spend a second build number and leave a second tag." >&2
+  exit 1
+fi
+
+# Pushing is a separate decision — AGENTS.md is explicit that landing is asked
+# for each time — so these are printed and not run. The tag is the one that
+# gets forgotten, being made by a script rather than typed.
+echo "✓ all of it"
+if in_plan ios; then
+  BUILD=$(node -e "process.stdout.write(String(require('./app/app.json').expo.ios.buildNumber))")
+  echo
+  echo "  Nobody else has the commit or the tag until these are run:"
+  echo "      git push origin $BRANCH"
+  echo "      git push origin build/$BUILD"
+fi
