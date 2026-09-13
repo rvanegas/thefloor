@@ -2504,12 +2504,36 @@ export function ChannelView({
             came to in order to pause or stop it — and carrying both in the
             header cost a row of every screenful of every tab.
 
+            **The pill, restored in full.** This was a bare row of two words
+            when the split was made, on the reasoning that a card is already
+            a surface and a bordered pill on top of one is a box in a box.
+            It is the whole indicator again — the disc, the word, the clock,
+            inside the hairline — because those three read as one object and
+            two of them read as a caption. The disc is not redundant with the
+            header's: this is the thing that says *what is running*, and a
+            state that is drawn one way at the top of the screen and another
+            way where it is acted on is a state somebody has to learn twice.
+
+            `alignSelf` is the one thing not reproduced. It was `flex-end` in
+            the header, where the pill was the only thing on its row and the
+            row belonged to the buttons at the trailing edge; here everything
+            in the card starts at the leading edge, so it does too. The
+            property is still needed — without it the pill stretches to the
+            card's width and stops being a pill.
+
             Above the failure line rather than below it, so the order reads
             downwards in time: what is running, what went wrong, what to do
             about it.
           */}
           {recordingLive ? (
             <View style={styles.recordingStatus}>
+              <View
+                style={[
+                  styles.recordingDot,
+                  channel.recording.status === 'paused' &&
+                    styles.recordingDotPaused,
+                ]}
+              />
               <Text style={styles.recordingLabel}>
                 {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
               </Text>
@@ -4305,11 +4329,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** The word and the clock, on the Recording card. */
+  /**
+   * The indicator itself, on the Recording card: the disc, the word and the
+   * clock inside a hairline pill. Reproduced from the second header row it
+   * used to be, down to the surface, the border and the padding — see the
+   * comment at the site for what `alignSelf` changed and why.
+   *
+   * `surface` is kept even though the card behind it is `surface` too, so the
+   * fill does no work here and the hairline draws the whole pill. The token
+   * that would lift it off the card is `surfaceRaised`, and that is the
+   * default Button fill — a pill wearing it, directly above Pause and Stop,
+   * would read as a third button that does nothing when pressed. An outline
+   * that is plainly not a control is the better of the two.
+   */
   recordingStatus: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: spacing(0.75),
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing(1.25),
+    paddingVertical: spacing(0.5),
   },
   recordingDot: {
     width: 8,

@@ -13,8 +13,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
+  type ColorValue,
 } from 'react-native';
-import { colors } from '../theme';
+import { colors, radius } from '../theme';
 import { PaneContext } from '../layout';
 import {
   AUDIO,
@@ -1622,7 +1624,35 @@ describe('Channel', () => {
     The other half of that split. The card on the Recordings tab is where the
     transport is, so it is where the word and the clock belong — somebody who
     wants the number is already on their way here.
+
+    It carries the disc as well, the indicator having been restored to the
+    pill it was in the header: by colour rather than by shape, for the reason
+    `dangerLines` gives, and because a disc is a `View` with no text in it and
+    there is nothing else to find it by.
+
+    Inside the pill rather than anywhere in the tree, since the header draws
+    the same disc in the same two colours and the header is part of this tree
+    — a bare search for the colour passes on the header's alone, which is the
+    half that never changed. The pill is what is new, so the pill is what is
+    searched: the radius is the only thing on this screen shaped like one.
+    The paused case is asserted rather than assumed, being a second style laid
+    over the first and so the one that can silently stop being applied.
   */
+  const recordingDiscs = (tree: ReactTestRenderer, color: ColorValue) =>
+    tree.root
+      .findAll(
+        (node) =>
+          node.type === View &&
+          StyleSheet.flatten(node.props.style)?.borderRadius === radius.pill
+      )
+      .flatMap((pill) =>
+        pill.findAll(
+          (node) =>
+            node.type === View &&
+            StyleSheet.flatten(node.props.style)?.backgroundColor === color
+        )
+      );
+
   it('carries the word and the elapsed time on the Recording card', () => {
     showChannel(
       channelOf((c) =>
@@ -1636,7 +1666,28 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Recording');
     expect(text).toContain('0:00');
+    expect(recordingDiscs(tree, colors.recording)).not.toHaveLength(0);
+    expect(recordingDiscs(tree, colors.textFaint)).toHaveLength(0);
     act(() => tree.unmount());
+
+    showChannel(
+      channelOf((c) => {
+        const started = reduce(
+          c,
+          { type: 'START_RECORDING', userId: ME, runId: 'rec_1' },
+          NOW
+        );
+        return reduce(started, { type: 'PAUSE_RECORDING', userId: ME }, NOW);
+      })
+    );
+    const paused = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecordings(paused);
+    expect(textOf(paused)).toContain('Paused');
+    expect(recordingDiscs(paused, colors.textFaint)).not.toHaveLength(0);
+    expect(recordingDiscs(paused, colors.recording)).toHaveLength(0);
+    act(() => paused.unmount());
   });
 
   /*
