@@ -69,8 +69,8 @@ import { ProfileView } from './ProfileView';
 import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
 import {
   BellIcon,
-  CloseIcon,
   FloorIcon,
+  HomeIcon,
   InviteIcon,
   MicIcon,
   NotepadIcon,
@@ -175,9 +175,16 @@ export function ChannelView({
    * contact list that could not show a live room would have left somebody in a
    * call with nothing on screen saying so. Both of those went with the tier:
    * the list this closes into now carries the live bar above it whichever list
-   * it is showing, so there is nothing to withhold, and *Close* is honest
+   * it is showing, so there is nothing to withhold, and one control is honest
    * about both — it reveals the tier on a phone and empties the pane in a
-   * split. See GLOSSARY.md § *Close*.
+   * split.
+   *
+   * **And since 2026-09-12 it says which one**: a house rather than the cross
+   * every other header draws, labelled *Home*. What the two layouts have in
+   * common is not that the pane empties, it is that Home is what you are
+   * looking at afterwards — so the destination is the honest thing to name
+   * here, and it is nameable only because the tier made it one thing. See
+   * GLOSSARY.md § *Close*.
    */
   onClose: () => void;
   /** Off this screen having given up presence or membership. */
@@ -702,7 +709,7 @@ export function ChannelView({
    * has said that this screen and that room are two things, and having said it
    * once should not have to say it again at the other door.
    *
-   * The way off the screen is then the header's *Close*, which is where it
+   * The way off the screen is then the header's *Home*, which is where it
    * already was for anybody who arrived here without stepping in — the same
    * tap doing the same thing, whether or not you were in the room a moment
    * ago. Note that `onClose` is not `onExit` and does not unwatch: closing is
@@ -1198,21 +1205,23 @@ export function ChannelView({
             Off this screen without hanging up. The audio connection lives
             above this screen, so this is navigation and nothing else — and it
             means the same thing in both panes, which is what the tier made
-            true. A cross since 2026-09-02, the word surviving as its
-            accessible name; the reasoning for *Close* over *Back* is in
-            HomeSettingsView. See `onClose`.
+            true. A glyph since 2026-09-02 and a house since 2026-09-12 —
+            *Home* rather than the *Close* the other headers say, because
+            here the destination is one thing and worth naming; the reasoning
+            for naming the act instead everywhere else is in HomeSettingsView.
+            See `onClose`.
 
             **Last in the row, since the pair became glyphs.** It is the way
             out, and every other screen in the app puts the way out at the
             trailing edge with nothing beyond it — as words the two read in
             order and Close came first, but as two shapes side by side what
-            tells them apart is position as much as geometry, and a cross that
-            sits where the cross always sits is the one you can hit without
-            reading. Settings takes the place it vacated.
+            tells them apart is position as much as geometry, and the way out
+            sitting where the way out always sits is the one you can hit
+            without reading. Settings takes the place it vacated.
           */}
           <IconButton
-            label="Close"
-            icon={(color) => <CloseIcon color={color} />}
+            label="Home"
+            icon={(color) => <HomeIcon color={color} />}
             onPress={onClose}
           />
         </View>

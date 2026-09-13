@@ -1025,9 +1025,9 @@ describe('Channel', () => {
       />
     );
 
-    const close = findButton(tree, 'Close');
-    expect(close).toBeDefined();
-    act(() => close!.props.onPress());
+    const home = findButton(tree, 'Home');
+    expect(home).toBeDefined();
+    act(() => home!.props.onPress());
 
     expect(onClose).toHaveBeenCalled();
     expect(mockApp.act).not.toHaveBeenCalled();
@@ -1488,7 +1488,7 @@ describe('Channel', () => {
     // the longest screen in the application, the way off it used to be a flick
     // away from wherever anybody actually was.
     expect(textOf(header)).toContain('Dana Chu');
-    expect(findButton(header, 'Close')).toBeDefined();
+    expect(findButton(header, 'Home')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
 
     // And the description stayed behind, in the scroll — on *Notepad* since the
@@ -1514,6 +1514,12 @@ describe('Channel', () => {
    * this closes into carries the live bar whichever list it is showing. So
    * there is one prop, one word, and no case where the screen cannot be
    * dismissed.
+   *
+   * **The surviving word is *Home* again since 2026-09-12**, with the house
+   * to match — one control that names where it goes, rather than one of two
+   * chosen by layout. These assert the absence of *Close* for the reason they
+   * used to assert the absence of *Home*: two ways out of this header, by
+   * whatever names, is the bug.
    */
   const headerOf = (element: React.ReactElement) => {
     const tree = render(element);
@@ -1521,7 +1527,7 @@ describe('Channel', () => {
     return { tree, header: render(screen!.props.header) };
   };
 
-  it('offers Close on a phone', () => {
+  it('offers Home on a phone', () => {
     showChannel(channelOf());
     const closed = jest.fn();
     const { tree, header } = headerOf(
@@ -1532,14 +1538,14 @@ describe('Channel', () => {
         onExit={() => {}}
       />
     );
-    expect(findButton(header, 'Home')).toBeUndefined();
-    act(() => findButton(header, 'Close')!.props.onPress());
+    expect(findButton(header, 'Close')).toBeUndefined();
+    act(() => findButton(header, 'Home')!.props.onPress());
     expect(closed).toHaveBeenCalled();
     act(() => header.unmount());
     act(() => tree.unmount());
   });
 
-  it('offers the same Close in the detail pane', () => {
+  it('offers the same Home in the detail pane', () => {
     showChannel(channelOf());
     const closed = jest.fn();
     const { tree, header } = headerOf(
@@ -1552,8 +1558,8 @@ describe('Channel', () => {
         />
       </PaneContext.Provider>
     );
-    expect(findButton(header, 'Home')).toBeUndefined();
-    act(() => findButton(header, 'Close')!.props.onPress());
+    expect(findButton(header, 'Close')).toBeUndefined();
+    act(() => findButton(header, 'Home')!.props.onPress());
     expect(closed).toHaveBeenCalled();
     // And Settings is still there, so the header did not simply fail to draw.
     expect(findButton(header, 'Settings')).toBeDefined();

@@ -7,8 +7,9 @@ import type { ColorValue } from 'react-native';
  *
  * Four of them are the channel footer's, and were the reason the file
  * exists; the two after them are the header's *Close* and *Settings*, which
- * were words until 2026-09-02; the six at the end are that same screen's tabs,
- * which were words until 2026-09-12.
+ * were words until 2026-09-02, with the house the channel screen's header
+ * draws instead of the cross between them; the six at the end are that same
+ * screen's tabs, which were words until 2026-09-12.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
@@ -237,6 +238,38 @@ export function CloseIcon({
     <Glyph color={color} size={size}>
       <Path d="M18 6 6 18" />
       <Path d="m6 6 12 12" />
+    </Glyph>
+  );
+}
+
+/**
+ * Home, from a channel. `lucide/house`.
+ *
+ * **The one header whose way out names where it goes**, since 2026-09-12.
+ * Every other screen's is the cross above, because in a *detail* pane there
+ * is nothing underneath and all the control can do is empty it. The channel
+ * screen is the exception in fact rather than by preference: Home is the
+ * frame the whole application sits in, so leaving a channel — in either
+ * layout, present or not — puts you on it, and a house says that where a
+ * cross only says *not this*. The accessible name is *Home* to match.
+ *
+ * The word *Home* was retired from this header on 2026-09-01 for a reason
+ * that has not changed and does not apply here: it used to be one of three
+ * cases, competing with *Close* by layout and withheld altogether while you
+ * were present. There is one control now, in one shape, and it behaves the
+ * same way in all three of those situations. See GLOSSARY.md § *Close*.
+ */
+export function HomeIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+      <Path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </Glyph>
   );
 }

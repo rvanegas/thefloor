@@ -41,7 +41,7 @@ caused; the list carries the meaning.
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
-- **Close** — The way off any screen you opened, and the word every one of them uses
+- **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
@@ -296,13 +296,23 @@ decisions/ § *An address names a place and never an id*.
 
 **The channel screen's own way off used to be two words and three cases** —
 *Home* on a phone, *Close* in the *detail* pane, and neither while you were
-present in the channel. All three collapsed into this one on 2026-09-01, when
+present in the channel. All three collapsed into one on 2026-09-01, when
 *Home* became the frame that carries the live bar over whichever list is
 showing: closing a channel can no longer hide a conversation somebody is in, so
 there is nothing to withhold and nothing to navigate to.
 
-Distinct from *Home*, which is a place rather than an action, and from *Step
-out*, which gives up presence rather than closing anything.
+**That one is called *Home* again, and draws a house, since 2026-09-12** — the
+single exception to the word above, and the change is in what the control is
+named after rather than in what it does. What collapsing the three cases
+established is that leaving a channel lands you on *Home* in every layout and
+whether or not you are present, so here the destination is a fact and can be
+named; the old *Home* was rejected for being one of two labels picked by
+layout, which this is not. Every other screen keeps the cross and the word,
+because a *detail* pane empties into whichever list was already beside it and
+the act is the only thing true of both.
+
+Distinct from *Home*, which is the place this one names, and from *Step out*,
+which gives up presence rather than closing anything.
 
 ## Contact
 
@@ -447,6 +457,10 @@ nothing left for a further address to name: whenever nothing is open, one of
 the three is what is showing. The `Screen` type called the pair `home` and `contacts` until then,
 which was the root-and-child asymmetry surviving one layer up from the boolean
 it had already been renamed out of.
+
+**A channel's header names it**, since 2026-09-12: the way off that screen is
+a house labelled *Home* rather than the cross every other header draws. See
+*Close*.
 
 **It named the channel list until 2026-09-01**, when the two lists became peers
 inside it; passages elsewhere that say "Home" for a list of channels are from
