@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
-  MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
 import { canEditChannel, hasTheRoom } from '../../../core/channel';
@@ -25,14 +24,20 @@ import {
   SectionLabel,
 } from './components';
 import { CloseIcon } from './icons';
-import { InlineMarkdown } from './markdown';
 import { colors, spacing, type } from './theme';
 
 /**
  * Channel settings, reached from the Channel view. Holds what is about the
  * channel rather than about the conversation: its name, which replaces the
- * roster-derived header ("3 people"), and its description, which sits under
- * that header.
+ * roster-derived header ("3 people"), how it records itself, and the ways a
+ * membership ends.
+ *
+ * **The notepad is not here, since 2026-09-12.** It was the section under the
+ * name, on the reasoning that writing what a channel is for is a settings act;
+ * the tab it is rendered on is called Notepad, and a notepad somebody has to
+ * leave the page to write on is not one. It is on that tab now, field and
+ * preview and counter whole, and there is deliberately no second copy here —
+ * see ChannelView's Notepad tab.
  */
 export function ChannelSettingsView({
   channel,
@@ -49,11 +54,12 @@ export function ChannelSettingsView({
   // from it. Nothing else on screen would say so.
   const lastMember = channel.participants.length === 1;
   /**
-   * Whether the name and description are yours to change — `hasTheRoom`, so
-   * either you are in the channel or nobody is. What it protects against is a
-   * member who is somewhere else renaming the place mid-conversation.
+   * Whether the name is yours to change — `hasTheRoom`, so either you are in
+   * the channel or nobody is. What it protects against is a member who is
+   * somewhere else renaming the place mid-conversation. The *notepad* keeps
+   * the same gate on its own tab, the two being one question asked twice.
    *
-   * The fields are disabled rather than hidden, and `persist` is guarded too:
+   * The field is disabled rather than hidden, and `persist` is guarded too:
    * a field that cannot be typed into cannot produce a change to write, but
    * the two facts are a screen apart and the reducer refuses this silently, so
    * the belt is cheap and the braces are what stops a stale `saved` ref
@@ -76,18 +82,15 @@ export function ChannelSettingsView({
    */
   const autoRecord = channel.autoRecord ?? false;
   const [name, setName] = useState(channel.name ?? '');
-  const [description, setDescription] = useState(channel.description ?? '');
 
   /**
-   * What the channel already has, so leaving a field alone dispatches nothing.
+   * What the channel already has, so leaving the field alone dispatches
+   * nothing.
    */
-  const saved = useRef({
-    name: channel.name ?? '',
-    description: channel.description ?? '',
-  });
+  const saved = useRef({ name: channel.name ?? '' });
 
   /**
-   * Writes whichever of the two has actually changed.
+   * Writes the name, if it has actually changed.
    *
    * There were two Save buttons here and each of them closed the screen, so
    * naming a channel took you out of the settings you were halfway through —
@@ -104,10 +107,6 @@ export function ChannelSettingsView({
     if (name !== saved.current.name) {
       app.act(channel.id, { type: 'SET_NAME', name });
       saved.current.name = name;
-    }
-    if (description !== saved.current.description) {
-      app.act(channel.id, { type: 'SET_DESCRIPTION', description });
-      saved.current.description = description;
     }
   };
 
@@ -243,53 +242,14 @@ export function ChannelSettingsView({
         </Text>
       </Card>
 
-      <SectionLabel>Description</SectionLabel>
-      <Card style={styles.stack}>
-        <Field
-          value={description}
-          onChangeText={(v) =>
-            setDescription(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
-          }
-          placeholder="Links, a reading list, what this is for…"
-          autoCapitalize="sentences"
-          multiline
-          editable={mayEdit}
-          onBlur={persist}
-        />
-
-        {/*
-          A preview, because the input shows markup and the header will not.
-          Without it the only way to find out what `[a](b)` becomes is to go
-          back and look, and the only way to fix a typo is to do that twice.
-        */}
-        {description.trim() ? (
-          <View style={styles.preview}>
-            <Text style={type.label}>Preview</Text>
-            <InlineMarkdown text={description} style={styles.previewText} />
-          </View>
-        ) : null}
-
-        <Text style={type.muted}>
-          Shown under the channel name to everyone in it. **Bold**, *italic*,
-          `code`, ~~strikethrough~~ and [links](https://example.com) work.
-          Links open in your browser.
-        </Text>
-        {mayEdit ? null : (
-          <Text style={type.muted}>Step in to change this.</Text>
-        )}
-        <Text style={styles.count}>
-          {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
-        </Text>
-      </Card>
-
       {/*
         Whether the channel records itself, which is about the channel rather
         than about the conversation — the same reasoning that puts the name and
-        the description here, and the reason it is not a fourth button on the
+        here, and the reason it is not a fourth button on the
         Recording card of the channel screen. That card is where a run is
         driven; this is where a channel is set up.
 
-        On the same terms as the name and the description, `mayEdit` included:
+        On the same terms as the name, `mayEdit` included:
         a member somewhere else must not arrange for a conversation they are
         not in to be kept.
       */}
@@ -445,20 +405,6 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   linkText: { flex: 1, gap: spacing(0.25) },
-  preview: {
-    gap: spacing(0.5),
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-    paddingLeft: spacing(1.25),
-  },
-  previewText: { ...type.muted, lineHeight: 20 },
-  count: {
-    ...type.muted,
-    color: colors.textFaint,
-    fontSize: 12,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
 });
 
 /** "a recording" / "3 recordings" — the count read as a phrase. */

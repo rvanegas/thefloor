@@ -39,10 +39,6 @@ who is speaking, including those who are currently muted by the claim.
 
 ## Record and Player Controls Access
 
-## Notepad
-
-Look in past session indicated in recent commit concerning Notepad. I remember directing Claude to move the editable description field from Channel Settings to the Notes Tab. Why wasn't it done?
-
 ## Swiping
 
 Swiping left from channel view, returns to home view. Swiping right from home view goes 

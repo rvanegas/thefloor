@@ -461,7 +461,7 @@ export function showRoster(tree: ReactTestRenderer): void {
   showTab(tree, 'Roster');
 }
 
-/** The description and the channel clipboard. */
+/** The notepad and the channel clipboard. */
 export function showNotepad(tree: ReactTestRenderer): void {
   showTab(tree, 'Notepad');
 }

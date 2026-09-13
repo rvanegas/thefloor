@@ -112,8 +112,8 @@ the way English suggests is how somebody builds the adjacent thing, twice so
 far.
 
 **This one is worth reading routinely, and since 2026-09-07 it is cheap to.**
-Its § *Every term, in one line each* is the whole vocabulary, eighty-six
-terms at a clause apiece, front-loaded so that section alone is enough for
+Its § *Every term, in one line each* is the whole vocabulary, ninety terms
+at a clause apiece, front-loaded so that section alone is enough for
 ordinary work — seven kilobytes rather than forty-two. Read the list; go down
 to an entry only when the one-liner will not settle the question, or when you
 are about to argue with it. These are the terms of communication, so a session that

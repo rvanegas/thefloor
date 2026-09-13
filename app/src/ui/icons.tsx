@@ -337,9 +337,10 @@ export function RosterIcon({
  * What the channel has written down. `lucide/clipboard-list`.
  *
  * A clipboard because the tab's larger half *is* the shared clipboard, and the
- * description above it is the same kind of thing — text this channel keeps.
- * A pencil would have said "write", which is an act and only half of what the
- * tab is for; most visits to it are reading.
+ * notepad above it is the same kind of thing — text this channel keeps.
+ * A pencil would have said "write", which is an act and only part of what the
+ * tab is for; most visits to it are reading, even now that the notepad is
+ * written on in place rather than in Settings.
  */
 export function NotepadIcon({
   color,

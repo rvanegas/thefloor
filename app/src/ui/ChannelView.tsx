@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -21,6 +21,7 @@ import {
 } from '../../../core/watch';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
+  MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
 } from '../../../core/constants';
@@ -49,6 +50,7 @@ import {
   canClearClip,
   canInviteGuest,
   canManageGuest,
+  canEditChannel,
   hasTheRoom,
   isPresent,
   canPing,
@@ -288,6 +290,37 @@ export function ChannelView({
   const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
 
   /**
+   * **The notepad's draft**, which is the one editable thing on this screen
+   * that is not a control on the room.
+   *
+   * It is local state rather than `channel.description` read straight, because
+   * a `Field` bound to the snapshot loses a keystroke every time one arrives —
+   * and on a tab, unlike on the settings screen this moved off, snapshots
+   * arrive continuously while somebody is typing.
+   *
+   * `saved` is what the channel is known to hold, so leaving the field alone
+   * dispatches nothing and a remote edit can be told from an unsaved local
+   * one. Declared with the other state and above every early return, for the
+   * reason `act` gives below.
+   */
+  const [notepad, setNotepad] = useState(channel?.description ?? '');
+  const notepadSaved = useRef(channel?.description ?? '');
+  const notepadHeld = channel?.description ?? '';
+  /**
+   * Adopts what the channel now says — somebody else wrote on it, or the first
+   * snapshot has only just landed — **unless there is an unsaved edit in the
+   * field**, in which case the person typing keeps what they typed and writes
+   * it on blur. `saved` moves either way: it records what the channel holds,
+   * which is what makes the next comparison honest.
+   */
+  useEffect(() => {
+    setNotepad((draft) =>
+      draft === notepadSaved.current ? notepadHeld : draft
+    );
+    notepadSaved.current = notepadHeld;
+  }, [notepadHeld]);
+
+  /**
    * Sends an action to this channel.
    *
    * **Declared above every early return, deliberately.** This screen returns
@@ -300,6 +333,24 @@ export function ChannelView({
    */
   const act = (action: Parameters<typeof app.act>[1]) =>
     app.act(channelId, action);
+  /**
+   * Whether the notepad is yours to write on — `canEditChannel`, the same
+   * question the channel's name asks, so either you are in the channel or
+   * nobody is. What it protects against is a member who is somewhere else
+   * rewriting what a conversation in progress says it is for.
+   */
+  const mayWriteNotepad = !!channel && canEditChannel(channel, me);
+  /**
+   * Writes the notepad, if it has actually changed. Guarded as well as
+   * disabled: the reducer refuses this silently, so a stale `saved` ref must
+   * not record an edit that never landed.
+   */
+  const persistNotepad = () => {
+    if (!mayWriteNotepad) return;
+    if (notepad === notepadSaved.current) return;
+    notepadSaved.current = notepad;
+    act({ type: 'SET_DESCRIPTION', description: notepad });
+  };
   /**
    * Which of the tabs at the top of this screen is showing.
    *
@@ -1236,12 +1287,12 @@ export function ChannelView({
         what is being watched. The last carries the two ways somebody who is not here gets
         in.
 
-        The description used to sit above the switch, outside it, on the
-        reasoning that it is what the channel *is* and so is as true of who
-        gets in as of who is here. It is on *Notepad* now with the clipboard,
-        which is the tab of things the channel has written down — and the line
-        it cost was a line every screenful of every tab paid for, on the screen
-        that has least room to spare.
+        The notepad used to sit above the switch, outside it and called the
+        *description*, on the reasoning that it is what the channel *is* and so
+        is as true of who gets in as of who is here. It is on *Notepad* now
+        with the clipboard, which is the tab of things the channel has written
+        down — and the line it cost was a line every screenful of every tab
+        paid for, on the screen that has least room to spare.
 
         A switch rather than a tab bar at the foot, for the same reason Home's
         is one — the foot of this screen is already spent, on the controls that
@@ -2054,10 +2105,10 @@ export function ChannelView({
           <>
         {/*
           **What the channel has written down**, which is two things and was
-          two sections in two different places: the description, which was
-          above the tabs and is what the channel is *for*, and the clipboard,
-          which was the first section below the seam and is what somebody in it
-          has just handed everybody else.
+          two sections in two different places: the notepad, which was above
+          the tabs as a *description* and is what the channel is *for*, and the
+          clipboard, which was the first section below the seam and is what
+          somebody in it has just handed everybody else.
 
           They belong together because they are the same kind of thing at two
           speeds. Both are text the channel holds rather than a control on the
@@ -2071,13 +2122,22 @@ export function ChannelView({
           top and the last thing anybody handed round below. A notepad is a
           single sheet that gets written over, which is both halves exactly.
 
-          **The description is read-only here**, deliberately. Changing it is a
-          settings act — it is the channel's name and purpose, which everybody
-          in the channel lives with — and Settings is a tap away in the header.
-          The clipboard is the opposite: anybody present replaces it, which is
-          why it is the one on this tab with buttons.
+          **And it is written on here**, since 2026-09-12 — the section carries
+          the same name as the tab because it is the thing the tab is named
+          after. It arrived read-only, on the reasoning that changing it is a
+          settings act and Settings is a tap away in the header; what killed
+          that is the word. A notepad you can read but must go to another
+          screen to write on is not one, and it sat directly above a clipboard
+          anybody present replaces in place. The field is the one that was on
+          the settings screen, moved whole — preview, counter and cap — and
+          Settings no longer has a copy, so the two cannot disagree.
+
+          `mayWriteNotepad` is `canEditChannel`, the same gate the name keeps.
+          Somebody who cannot write on it reads it rendered rather than as
+          markup in a disabled box, which is what the settings screen showed
+          them and what a sheet of paper does.
         */}
-        <SectionLabel>Description</SectionLabel>
+        <SectionLabel>Notepad</SectionLabel>
         {/*
           In a card, which it was not when it sat above the tabs. There it was
           the first prose on the screen, under the header's rule, and a card
@@ -2085,18 +2145,59 @@ export function ChannelView({
           it has a section label over it and a card under it, and bare prose
           between the two reads as text that has come loose from something.
         */}
-        <Card>
-          {channel.description ? (
-            <InlineMarkdown
-              text={channel.description}
-              style={styles.description}
-            />
+        <Card style={styles.stack}>
+          {mayWriteNotepad ? (
+            <>
+              <Field
+                value={notepad}
+                onChangeText={(v) =>
+                  setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
+                }
+                placeholder="Links, a reading list, what this is for…"
+                autoCapitalize="sentences"
+                multiline
+                onBlur={persistNotepad}
+              />
+
+              {/*
+                A preview, because the input shows markup and the header will
+                not. Without it the only way to find out what `[a](b)` becomes
+                is to go back and look, and the only way to fix a typo is to do
+                that twice.
+              */}
+              {notepad.trim() ? (
+                <View style={styles.preview}>
+                  <Text style={type.label}>Preview</Text>
+                  <InlineMarkdown text={notepad} style={styles.previewText} />
+                </View>
+              ) : null}
+
+              <Text style={type.muted}>
+                Shown under the channel name to everyone in it. **Bold**,
+                *italic*, `code`, ~~strikethrough~~ and
+                [links](https://example.com) work. Links open in your browser.
+              </Text>
+              <Text style={styles.count}>
+                {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
+              </Text>
+            </>
+          ) : channel.description ? (
+            <>
+              <InlineMarkdown
+                text={channel.description}
+                style={styles.description}
+              />
+              <Text style={type.muted}>
+                Step in to write on this. It is what the channel is for, and
+                that is for whoever is in it to say.
+              </Text>
+            </>
           ) : (
-            // Said rather than left blank, and it says where to change it: a
+            // Said rather than left blank, and it says what would change it: a
             // tab with a heading and nothing under it reads as something that
-            // failed to load. Settings is in the header, on every tab.
+            // failed to load.
             <Text style={type.muted}>
-              Nobody has described this channel. Settings is where to.
+              Nothing on the notepad. Step in to write on it.
             </Text>
           )}
         </Card>
@@ -3831,8 +3932,8 @@ const styles = StyleSheet.create({
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
   /**
-   * The switch between the two tabs. Its own margin rather than the
-   * description's, since the description is often absent and the gap above
+   * The switch between the tabs. Its own margin rather than the notepad's,
+   * back when that sat above it: the notepad is often empty and the gap above
    * the roster is not.
    */
   tabs: { marginTop: spacing(0.5), marginBottom: spacing(0.5) },
@@ -3956,6 +4057,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: spacing(0.5),
     marginBottom: spacing(0.5),
+  },
+  /**
+   * The notepad's preview, and the character count under it. Both moved here
+   * with the field from ChannelSettingsView and are the same values, the two
+   * screens having shown the same thing.
+   */
+  preview: {
+    gap: spacing(0.5),
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    paddingLeft: spacing(1.25),
+  },
+  previewText: { ...type.muted, lineHeight: 20 },
+  count: {
+    ...type.muted,
+    color: colors.textFaint,
+    fontSize: 12,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   /**
    * The pinned header, which carries the same horizontal padding as

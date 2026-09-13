@@ -60,6 +60,7 @@ caused; the list carries the meaning.
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
+- **Notepad** — One sheet of text a channel keeps, saying what it is for; written and read on the tab of the same name by anybody with the room, and shown under the channel name everywhere else. `description` in the code
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -204,7 +205,8 @@ another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
 
 **Who, then what.** The first three are the people — who is here, what they
-have written down, and how somebody who is not here gets in. The last three are
+have written down (the *notepad* and the *clipboard*, both written in place),
+and how somebody who is not here gets in. The last three are
 what the channel is carrying, which outlives the moment: what is playing, what
 is being recorded and what was recorded before, what is being watched. The
 recording transport is on *Recordings* since 2026-09-12; it was a second card
@@ -753,6 +755,37 @@ above, so a person retired **for** inattention arriving there would restart the
 claim that expiring was meant to end. Nobody is told to ping somebody the room
 has just given up on.
 
+## Notepad
+
+**One sheet of text a channel keeps**, saying what the channel is for: a
+reading list, a few links, the standing question everybody in it is circling.
+Markdown, to the five marks `InlineMarkdown` accepts — bold, italic, code,
+strikethrough and links — and capped at `MAX_CHANNEL_DESCRIPTION_LENGTH`.
+
+**Anybody with the room may write on it**, which is `canEditChannel`: either
+you are present in the channel or nobody is. The same gate the channel's
+*name* keeps, and for the same reason — what a conversation says it is for is
+not for somebody who is somewhere else to rewrite under the people having it.
+Somebody without the room reads it rendered, with a line saying to step in.
+
+**It is `description` in the code and on the wire**, and this is one of the
+places the two vocabularies differ on purpose. It was *Description* to the user
+too until 2026-09-12: a section on the channel settings screen, with what it
+said drawn above the channel tabs. Three changes in a day made the word wrong.
+The rendering moved onto a tab of its own beside the *clipboard*, the two being
+text the channel holds at two speeds; the tab was named *Notepad*, a notepad
+being a single sheet that gets written over, which is both halves; and then the
+field followed the rendering, since a notepad you must leave the page to write
+on is not one. Renaming the field would be a wire change for a word — see
+AGENTS.md on never shipping one to a server before the client can speak it —
+and there is nothing to gain by it, `description` being exactly what it holds.
+
+**Not a list, and not a message.** *Notes* was considered and rejected for
+saying the opposite: one entry per thing somebody wanted to say, kept in order,
+each surviving the next. This is one surface, overwritten, with no history and
+nobody's name on it. If what you want is to say something to the people in a
+channel and have it stay said, that is not this and does not exist yet.
+
 ## Ping
 
 A notification sent to one person in a channel who is not there, or whose
@@ -831,7 +864,7 @@ to idle, and a rule written as "record when you can" would start another at
 once.
 
 It belongs to the channel rather than to the person, like the name and the
-description, and any *member* with the room may change it. The latch that
+*notepad*, and any *member* with the room may change it. The latch that
 spends the room's turn belongs to the server and to this process: a restart
 empties every room, so the setting survives one and the turn comes back with
 it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
