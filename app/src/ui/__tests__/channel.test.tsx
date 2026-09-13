@@ -2540,6 +2540,56 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('writes a pending edit when the field goes away without a blur', () => {
+    /*
+      The settings screen got this for free: *Close* persisted on the way out.
+      A tab has no Close, so leaving the notepad with something typed in it —
+      by changing tab, or by shutting the screen — has to write too. Only the
+      second could actually lose it, the draft living on ChannelView rather
+      than in the TextInput, but a notepad nobody else can see until its
+      author taps the box again reads as one that did not save.
+    */
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showNotepad(tree);
+    const field = () =>
+      tree.root.findAll(
+        (n) =>
+          n.props?.placeholder === 'Links, a reading list, what this is for…'
+      )[0]!;
+
+    act(() => field().props.onChangeText('typed, then away'));
+    showRoster(tree);
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_DESCRIPTION',
+      description: 'typed, then away',
+    });
+
+    // And once written, leaving again says nothing: `saved` has moved, so
+    // there is no change to report.
+    mockApp.act.mockClear();
+    showNotepad(tree);
+    showRoster(tree);
+    expect(mockApp.act).not.toHaveBeenCalledWith(
+      'sess_1',
+      expect.objectContaining({ type: 'SET_DESCRIPTION' })
+    );
+
+    // The screen going is the one that would otherwise drop it.
+    showNotepad(tree);
+    act(() => field().props.onChangeText('typed, then gone'));
+    act(() => tree.unmount());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_DESCRIPTION',
+      description: 'typed, then gone',
+    });
+  });
+
   it('leaves the field alone while it holds an unsaved edit', () => {
     /*
       The tab, unlike the settings screen this moved off, is somewhere a

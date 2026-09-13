@@ -379,6 +379,32 @@ export function ChannelView({
    * else is deliberate and worth one tap.
    */
   const [tab, setTab] = useState<Tab>('roster');
+
+  /**
+   * **The notepad is written when the field goes away, not only when it is
+   * blurred**, which is the half the settings screen got for free: *Close*
+   * called `persist` on the way out, and there is no Close on a tab.
+   *
+   * Three ways the field can leave with an edit still in it — the tab
+   * changes, Settings opens over it, or the whole screen goes — and only the
+   * third actually loses anything, the draft living on this component rather
+   * than in the `TextInput`. The first two are about promptness: a notepad
+   * nobody else can see until the author happens to tap the box again is one
+   * that reads as not having saved.
+   *
+   * A ref because `persistNotepad` is rebuilt every render, and an effect
+   * depending on it directly would run on every one of them.
+   */
+  const persistNotepadRef = useRef(persistNotepad);
+  persistNotepadRef.current = persistNotepad;
+  useEffect(() => {
+    if (tab !== 'notepad' || settingsOpen) persistNotepadRef.current();
+  }, [tab, settingsOpen]);
+  // Unmount, which is the one that would otherwise drop the edit: closing the
+  // channel, the channel ending, or the app tearing the screen down. Fire and
+  // forget, like every other act — there is nothing to await and nobody left
+  // to tell if there were.
+  useEffect(() => () => persistNotepadRef.current(), []);
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);

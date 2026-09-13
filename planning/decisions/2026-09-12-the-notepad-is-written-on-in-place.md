@@ -68,13 +68,44 @@ same edit landing after a blur does update it.
 
 **Saving is on blur**, as it was in Settings — where tapping *Close* straight
 out of the field persisted it, which is the trap the old pair of Save buttons
-set. There is no Close here, so blur is the whole of it.
+set. There is no Close on a tab, so blur is joined by two more: the tab
+changing or Settings opening over the field, and the screen unmounting. Only
+the last could actually lose an edit, the draft living on `ChannelView` rather
+than in the `TextInput`; the others are about promptness, a notepad nobody
+else can see until its author taps the box again reading as one that did not
+save.
 
 **Somebody without the room reads it rendered**, rather than as markup in a
 greyed box. That is a small improvement on what Settings showed them and is
 what a sheet of paper does; the sentence under it says to step in. The empty
 case says *Nothing on the notepad* rather than *Nobody has described this
 channel*, a heading with nothing under it reading as a failure to load.
+
+## Two people editing at once still clobber, and always did
+
+Worth saying plainly, since moving the field somewhere people sit makes it
+easier to meet. `SET_DESCRIPTION` replaces the whole string — no version, no
+merge, no conflict — so of two people editing at once the later write wins
+entirely and the earlier one's text is gone. That is the reducer's behaviour
+and is unchanged by this move: the settings screen sent exactly the same
+action, and the *name* beside it has the same property.
+
+What this move changes is only the size of the window, in both directions. It
+is wider in that the field now sits on a tab somebody can leave open rather
+than in a modal they open and close. It is narrower in that the local draft is
+adopted from the snapshot whenever there is nothing unsaved to lose, so a
+person who is *not* mid-edit sees the other's text arrive rather than sitting
+on a stale copy they might later re-send — which the settings screen, seeded
+once at mount and never resynced, would have done.
+
+**Not fixed here, deliberately.** The honest fixes are a merge or a refusal,
+and both need something the wire does not carry: the reducer would have to
+take the description the writer believed they were editing and reject a write
+made against a stale one, which is a protocol change and a screen to explain
+it. The case it guards is two people with the room typing into the same
+notepad within seconds of each other, in a channel where they can hear each
+other talking. If it turns out to matter, the fix is a version on the field
+rather than anything about which screen the box is on.
 
 ## The wrinkle that was left alone
 
