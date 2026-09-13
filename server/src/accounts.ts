@@ -19,6 +19,11 @@ import {
 } from '../../core/im';
 import { foldUsername, normaliseUsername } from '../../core/username';
 import {
+  displayNameFromIdentifier,
+  usernameAttempts,
+  usernameStem,
+} from '../../core/derivedNames';
+import {
   hashesEqual,
   insertWithUniqueKey,
   isUniqueViolation,
@@ -55,6 +60,16 @@ export class UsernameTakenError extends Error {
  * statement should be a value that was chosen here rather than one that merely
  * arrived here.
  */
+/**
+ * How many derived usernames are tried before an account is left without one.
+ *
+ * Ten, which is a number about how common a name is rather than about the
+ * database: the eleventh Alice gets nothing suggested and chooses for herself,
+ * which is the state every account was in until this existed. Higher would
+ * hand out `alice47`, a handle whose owner's first act is to replace it.
+ */
+const DERIVED_USERNAME_TRIES = 10;
+
 const IM_COLUMNS = {
   whatsapp: 'im_whatsapp',
   telegram: 'im_telegram',
@@ -1122,6 +1137,18 @@ export class Accounts {
    * new one. Signing out and back in is therefore how someone corrects it;
    * without that, a typo made once at signup would be permanent. Omitting the
    * name keeps whatever is already there.
+   *
+   * **A new account leaves here named and with a username, whether or not one
+   * was typed**, since 2026-09-12 — `core/derivedNames.ts` owns both strings
+   * and says why the address is not one of them. Both are suggestions: the
+   * display name is replaced by typing one, and the username is editable on
+   * the Contact screen.
+   *
+   * **Only on the account's first sight, and that is deliberate.** Renaming
+   * yourself later does not re-derive a username, because by then somebody may
+   * have the old one written down — an invite link is `/i/<username>/<pin>` —
+   * and a handle that moves under its owner is worse than one that no longer
+   * matches the name above it.
    */
   establish(
     identifier: string,
@@ -1133,6 +1160,7 @@ export class Accounts {
     let account = this.byIdentifier(id);
 
     if (!account) {
+      const chosen = name || displayNameFromIdentifier(id);
       // A second signup on one address collides on `identifier`, not on the
       // primary key, so it still fails here rather than looping — which is
       // right, since another account id would not make the address free.
@@ -1143,8 +1171,9 @@ export class Accounts {
             .prepare(
               'INSERT INTO accounts (id, identifier, display_name, created_at) VALUES (?, ?, ?, ?)'
             )
-            .run(candidate, id, name || id, now)
+            .run(candidate, id, chosen, now)
       );
+      this.deriveUsername(accountId, chosen, id);
       account = this.byId(accountId)!;
       this.resolveInvitesFor(account);
     } else if (name && name !== account.display_name) {
@@ -1155,6 +1184,46 @@ export class Accounts {
     }
 
     return { account, token: this.issueToken(account.id, now) };
+  }
+
+  /**
+   * Gives a brand-new account the best free username its name suggests.
+   *
+   * The candidates come from `core/derivedNames.ts` and the unique index is
+   * what chooses between them: each is written, and a collision moves on to
+   * the next rather than being predicted by a read, since between a `SELECT`
+   * and an `UPDATE` another signup can take the name. `isUniqueViolation` is
+   * the only error swallowed; anything else is a fault and travels.
+   *
+   * **Silence is the failure, on purpose.** Nothing about a name typed at
+   * signup entitles anybody to a handle, and an account with none is the
+   * ordinary case everywhere else in this application — so a name that reduces
+   * to nothing a username may be made of, or one whose every variant is taken,
+   * leaves the account as accounts have always been: named, and with a
+   * username to choose on the Contact screen. It must never cost a signup.
+   */
+  private deriveUsername(
+    accountId: string,
+    displayName: string,
+    identifier: string
+  ): void {
+    // The address is the fallback because it is ASCII by construction, where a
+    // display name is anything somebody can type: 芽衣 offers no stem at all.
+    const stem =
+      usernameStem(displayName) ??
+      usernameStem(displayNameFromIdentifier(identifier));
+    if (!stem) return;
+
+    for (const candidate of usernameAttempts(stem, DERIVED_USERNAME_TRIES)) {
+      try {
+        this.db
+          .prepare('UPDATE accounts SET username = ? WHERE id = ?')
+          .run(candidate, accountId);
+        return;
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+      }
+    }
   }
 
   /**

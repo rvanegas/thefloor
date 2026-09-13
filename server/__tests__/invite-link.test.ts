@@ -102,6 +102,14 @@ const contacts = (user: User) => app.accounts.contactsFor(user.account.id);
 describe('minting', () => {
   it('has no link for an account with no username', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
+    // Signing up derives one, so having none is now something somebody has
+    // done on purpose: a blank is how a username is given up.
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me',
+      headers: auth(alice.token),
+      payload: { username: '' },
+    });
     const response = await mint(alice);
     // Not an error: "you have no link" is the answer to the question, and the
     // screen asking draws a way to choose a username from exactly this.

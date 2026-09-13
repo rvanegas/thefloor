@@ -78,6 +78,9 @@ describe('writing your own profile', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
+      // Derived at signup out of the name she gave then, and untouched by a
+      // rename — see `Accounts.establish`.
+      username: 'alice',
       invited: 0,
     });
   });
@@ -93,6 +96,7 @@ describe('writing your own profile', () => {
     const profile = (await read(alice, alice.account.id)).json();
     expect(profile).toEqual({
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
+      username: 'alice',
       invited: 0,
       im: { telegram: 'alice' },
       // Your own address, always: on your own profile this is what you sign
@@ -118,6 +122,7 @@ describe('writing your own profile', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       account: { id: alice.account.id, displayName: 'Alice Nkemdirim' },
+      username: 'alice',
       invited: 0,
     });
   });
@@ -1012,9 +1017,12 @@ describe('usernames', () => {
     // 409 rather than 400: what he typed is a perfectly good username and is
     // simply hers.
     expect(response.statusCode).toBe(409);
-    expect((await read(bob, bob.account.id)).json()).not.toHaveProperty(
-      'username'
-    );
+    // The one he was given at signup — `bob` is a character short of the floor,
+    // so the derivation numbered it — and a refused save leaves it alone: the
+    // write is abandoned where it stands having changed nothing.
+    expect((await read(bob, bob.account.id)).json()).toMatchObject({
+      username: 'bob1',
+    });
   });
 
   it('lets somebody re-save their own, and change only its case', async () => {

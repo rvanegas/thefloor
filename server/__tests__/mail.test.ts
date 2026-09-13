@@ -190,6 +190,14 @@ describe('inviting an address with no account', () => {
    */
   it('carries the sender’s invite link, or the web app when they have no username', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
+    // Giving up the one signup derived for her, which is the only way to be an
+    // account with no username now.
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { username: '' },
+    });
 
     await request(alice.token, 'stranger@example.com');
     expect(mailer.invited[0].link).toMatch(/\/open$/);

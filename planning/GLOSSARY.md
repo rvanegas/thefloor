@@ -44,6 +44,7 @@ caused; the list carries the meaning.
 - **Close** — The way off any screen you opened, and the word every one of them uses
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
+- **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
@@ -69,7 +70,7 @@ caused; the list carries the meaning.
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Support tab** — Home's third tab, after the two lists: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
-- **Username** — A name somebody chooses for themselves, unique across everybody, written with an `@`. Optional, and most people have none
+- **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
 
@@ -339,6 +340,24 @@ people: asking and being asked are one subject, and a request is not a
 channel. A request row is the one row on this list that opens nobody — an
 outgoing one is an address rather than a person — so it carries Accept,
 Decline or Withdraw on itself.
+
+## Display name
+
+**What somebody is called, everywhere anybody sees them**: rosters,
+invitations, recordings, the Contact screen. It need not be unique, it holds
+anything a keyboard produces, and it is not how anything identifies anybody —
+see *username* for the other name, which is the opposite on all three counts.
+
+**Nobody is nameless, and nobody is named after their address.** Signing up
+offers the field and does not require it, so from 2026-09-12 a blank one is
+derived from the local part of the address instead — `anna.k@example.com`
+becomes *Anna K*, separators read as spaces, each word capitalised, the domain
+and any `+tag` dropped. `core/derivedNames.ts` owns that and says why the whole
+address, which is what was stored until then, is the one string here that is
+nobody's name: it is the private half of an identity, drawn to strangers.
+
+Typing one at signup replaces it, on an existing account as much as a new one,
+and so does the Contact screen.
 
 ## Floor, the
 
@@ -973,9 +992,19 @@ a tap rather than a second paid run.
 
 ## Username
 
-**A name somebody chooses for themselves, unique across everybody, written with
-an `@`.** Optional, and most people have none. Letters, digits and underscores
-only, five to thirty of them; `core/username.ts` is the rule.
+**A name for somebody, unique across everybody, written with an `@`.** Letters,
+digits and underscores only, four to thirty of them; `core/username.ts` is the
+rule.
+
+**Chosen, or derived from the display name at signup** — the second since
+2026-09-12, so a new account has one without asking: *Anna Kowalski* gives
+`@anna_kowalski`, lowercase where the name above it is capitalised, numbered
+when somebody already holds it. It is a suggestion and nothing more, editable on
+the Contact screen and given up by clearing the field, and only a new account
+gets one: renaming yourself later leaves the handle alone, since by then
+somebody may be holding the *invite link* built out of it. Accounts predating
+this, and anybody who has cleared the field, have none — so nothing may assume
+a username exists. `core/derivedNames.ts` is the derivation.
 
 **It is not the name anybody is called by.** That is the *display name*, which
 is what appears in every roster, invitation and recording, need not be unique,

@@ -11,7 +11,10 @@ import { colors, spacing, type } from './theme';
  * Signed-out state. Identity is an email address plus a one-time code — no
  * password. A display name is offered alongside the code: it names a new
  * account, and renames an existing one, so signing out and back in is how a
- * name gets corrected. Left blank, the current name stands.
+ * name gets corrected. Left blank, the current name stands — and a new account
+ * is named out of its address rather than after it, along with a username
+ * derived from that name. See `core/derivedNames.ts`; both are suggestions,
+ * replaced by typing here or on the Contact screen.
  */
 export function AuthView() {
   const { requestCode, verify, lastError, clearError } = useApp();
