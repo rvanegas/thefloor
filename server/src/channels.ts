@@ -508,6 +508,21 @@ export class ChannelRegistry {
     return `${channelId}:${userId}`;
   }
   /**
+   * Who is talking while nobody can hear them, keyed `channelId:userId`.
+   *
+   * **Held here because it cannot be observed anywhere.** Withholding is done
+   * by unsubscribing listeners, and the SFU tells a listener nothing about a
+   * speaker they are not subscribed to — so the only device in the room that
+   * knows a withheld person is talking is their own, and this is what it has
+   * said. See `ClientMessage.channel.speaking`.
+   *
+   * **Volatile, like `attentiveAt`, and for a stronger reason.** It is a claim
+   * about this second rather than a stamp, so a restart that has heard from
+   * nobody should show nobody; the reports that follow within a couple of
+   * seconds rebuild whatever is still true.
+   */
+  private speakingWhileWithheld = new Set<string>();
+  /**
    * One recording run's live capture. `requested` is who an egress has been
    * asked for this run — filled before the call returns, so a second
    * transition or tick cannot ask twice. `retryAt` throttles the retries for
@@ -1735,6 +1750,64 @@ export class ChannelRegistry {
       echo.push(channelId);
     }
     if (echo.length > 0) this.emit(echo);
+  }
+
+  /**
+   * Somebody is talking into a room that is withholding them, or has stopped.
+   *
+   * **Refused unless they really are withheld**, which is the whole of the
+   * check this can make. The report is about a person's own microphone and no
+   * server can corroborate it — what it can say is that there is no such thing
+   * as speaking-while-withheld when nothing is withholding you, and that a
+   * client may only speak for itself about rooms it is in. Everything past
+   * that is taken on trust, and costs a dot on the reporter's own card.
+   *
+   * Pushed immediately rather than at the next tick, and unechoed, unlike
+   * `attentive`: two messages per speaker per claim is the whole traffic, the
+   * sender having smoothed the signal before sending it.
+   */
+  speaking(userId: string, channelId: string, speaking: boolean): void {
+    const channel = this.channels.get(channelId);
+    const key = this.attentionKey(channelId, userId);
+    // A stop is honoured whatever the room now says, so that a report which
+    // crosses a release — or an account that has since stepped out — cannot
+    // leave the flag set. Only the assertion is gated.
+    if (speaking) {
+      if (!channel || channel.status !== 'active') return;
+      if (!inRoom(channel, userId)) return;
+      if (!isWithheld(channel, userId)) return;
+      if (!this.speakingWhileWithheld.add(key)) return;
+    } else if (!this.speakingWhileWithheld.delete(key)) {
+      return;
+    }
+    this.emit([channelId]);
+  }
+
+  /**
+   * Who this channel's snapshot should report as talking while withheld.
+   *
+   * **Pruned on read against the state as it is now**, which is what makes
+   * every ending except a dropped socket need no message: releasing the floor,
+   * ending a party mute, stepping out and being retired all make this empty
+   * without anybody having said anything. The set is the claim; this is the
+   * claim intersected with the room.
+   */
+  speakingWithheldIn(channelId: string): string[] {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') return [];
+    const speaking: string[] = [];
+    for (const key of this.speakingWhileWithheld) {
+      if (!key.startsWith(`${channelId}:`)) continue;
+      const userId = key.slice(channelId.length + 1);
+      if (!inRoom(channel, userId) || !isWithheld(channel, userId)) {
+        // Dropped rather than merely skipped: the condition that made it true
+        // is gone, and a claim nobody can act on is one nothing should keep.
+        this.speakingWhileWithheld.delete(key);
+        continue;
+      }
+      speaking.push(userId);
+    }
+    return speaking;
   }
 
   /**

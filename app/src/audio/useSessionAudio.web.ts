@@ -209,10 +209,32 @@ export function useSessionAudio(
       if (!cancelled) patch({ othersAudible: countAudible(room) });
     });
 
-    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-      for (const element of track.detach()) element.remove();
-      if (!cancelled) patch({ othersAudible: countAudible(room) });
-    });
+    room.on(
+      RoomEvent.TrackUnsubscribed,
+      (track: RemoteTrack, _pub: unknown, participant: Participant) => {
+        for (const element of track.detach()) element.remove();
+        if (cancelled) return;
+        patch({ othersAudible: countAudible(room) });
+        if (track.kind !== Track.Kind.Audio) return;
+        // **And they stop being somebody this tab knows anything about.** The
+        // SFU scopes its speaker updates to what a listener is subscribed to,
+        // so the reports stop with the subscription and nothing further can
+        // ever take them out of the set. Every floor claim does exactly this,
+        // withholding being unsubscription. See the phone's copy of this hook,
+        // and `ChannelView.speakingWhileWithheld` for what says who is talking
+        // once nobody can hear them.
+        setState((previous) =>
+          previous.speaking.includes(participant.identity)
+            ? {
+                ...previous,
+                speaking: previous.speaking.filter(
+                  (id) => id !== participant.identity
+                ),
+              }
+            : previous
+        );
+      }
+    );
 
     room.on(RoomEvent.ActiveSpeakersChanged, readSpeakers);
 

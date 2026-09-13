@@ -478,6 +478,57 @@ describe('who is in the channel, and who is talking', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The claim, which is where this indicator used to stop being true.
+   *
+   * A claim withholds everybody else by unsubscribing the listeners, and the
+   * SFU tells a listener nothing further about somebody they are not
+   * subscribed to — so `audio.speaking` freezes at whatever was true when the
+   * floor was taken and can never change again for the length of it. The
+   * snapshot carries the withheld speakers' own account of themselves, and
+   * these two are its ends: it lights somebody the media connection cannot
+   * hear, and it lights nobody once the floor is free.
+   */
+  it('lights a withheld speaker the room cannot hear', () => {
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: ME }, NOW))
+    );
+    mockApp.channelViews.sess_1.speakingWhileWithheld = [THEM];
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        // Deliberately empty: the room is saying nothing about them, which is
+        // the whole condition being tested.
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    expect(them.style.borderColor).toBe(colors.floor);
+    expect(String(them.node!.props.accessibilityLabel)).toContain('Speaking');
+    act(() => tree.unmount());
+  });
+
+  it('drops a withheld speaker the moment the floor is free', () => {
+    // The report outlives the claim by a message, and nothing lights from it:
+    // a person nobody is withholding is one the media connection is speaking
+    // for again, and two sources for one fact is how a dot gets stuck.
+    showChannel(channelOf());
+    mockApp.channelViews.sess_1.speakingWhileWithheld = [THEM];
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const them = cardFor(tree, 'Dana Chu');
+    expect(them.style.borderColor).not.toBe(colors.floor);
+    act(() => tree.unmount());
+  });
+
   it('lights nobody on a channel whose audio is somewhere else', () => {
     // You are standing in one channel and looking at another. The connection
     // belongs to where you are standing, so nothing it hears is evidence

@@ -542,11 +542,26 @@ somebody for the length of a breath, and following that makes the indicator
 flicker through every pause in a sentence. A hold running out is the one
 transition the room does not announce, so a timer publishes it.
 
-**Where the sources disagree.** Never derived from `ChannelState` at all — this
-is the one state with a single source. Empty while disconnected, which is
-honest: a stale name pulsing on a screen whose audio has dropped would be the
-one reading that matters. `ParticipantDisconnected` is handled because the
-speaker event does not report a departure.
+**The second source, since 2026-09-13, and why there has to be one.**
+Withholding is done by unsubscribing the listeners, and LiveKit scopes its
+speaker updates to what a listener is subscribed to (`SendSpeakerUpdate`,
+`force: false`, in `pkg/rtc/participant_signal.go`) — so from the moment a
+claim lands, no device in the room is told anything further about the people it
+has stopped hearing. The SFU still reports a participant to *themselves*, which
+is also why the silenced nudge works. So a withheld speaker's own device says
+so over the socket, and the server carries it on the snapshot as
+`ChannelView.speakingWhileWithheld`; the screen unions the two. An
+unsubscription is treated as audio going away (`onAudioGone`), so the two
+sources cover disjoint people and neither can hold somebody the other is
+speaking for.
+
+**Where the sources disagree.** `SessionAudio.speaking` is never derived from
+`ChannelState`, and the second source is read only through `isWithheld` — so
+the reducer decides *which* source may speak about somebody, and never what it
+says. Empty while disconnected, which is honest: a stale name pulsing on a
+screen whose audio has dropped would be the one reading that matters.
+`ParticipantDisconnected` is handled because the speaker event does not report
+a departure.
 
 ---
 

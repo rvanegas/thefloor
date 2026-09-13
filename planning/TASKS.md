@@ -23,28 +23,9 @@ presence became three rungs with the controls to match — *Be nearby* is one
 word in one place now, *Nearby* has a way out, and the footer has a fourth
 slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
-## Invited Contact from Link
-
-Didn't create implicit contact, or credit invite. I'm speaking of tangentman@gmail.com .
-
-## Recording Indicator
-
-I liked the previous styling of the recording indicator. Reproduce it in full in the 
-scrollable content of the Recording tab.
-
-## Volkswagen 2015
-
-Suppose one is using HFP to AirPods and then route the bluetooth to 
-a Volkswagen 2015. This creates an echo for other users which can be 
-corrected by stepping out and back in.
-
-## Speaking Indicator During Claim
-
-The purple outline indicator of who is speaking is stuck in whichever state it 
-is in at the time the floor is claimed. Instead, it should continue to reflect
-who is speaking, including those who are currently muted by the claim.
-
 ## Record and Player Controls Access
+
+## Better Controls for Playback
 
 ## Swiping
 

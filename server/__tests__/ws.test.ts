@@ -551,6 +551,157 @@ describe('websocket', () => {
     b.close();
   });
 
+  /**
+   * The report a withheld speaker makes about themselves, which is the only
+   * account of them anybody can have.
+   *
+   * Withholding is done by unsubscribing the listeners, and LiveKit scopes its
+   * speaker updates to what a listener is subscribed to — so from the moment a
+   * claim lands, every other device in the room stops being told anything
+   * about the people it has stopped hearing. The SFU still reports a
+   * participant to *themselves*, so the withheld device is the one witness,
+   * and this is the road its evidence takes. See
+   * `ClientMessage.channel.speaking`.
+   */
+  describe('speaking while withheld', () => {
+    /** How many channel snapshots this client has been sent so far. */
+    const seenViews = (client: Client): number =>
+      client.received.filter((m) => m.type === 'channel').length;
+
+    /**
+     * The next snapshot *after* this point that matches, given how many had
+     * arrived before — `homeAfter`'s reasoning, for the same trap.
+     *
+     * Every assertion below about a flag being *gone* is satisfied by some
+     * snapshot from before it was ever set: the claim itself pushes one with
+     * nobody speaking in it. Counting first is what makes the wait mean a new
+     * message rather than an old one.
+     */
+    async function viewAfter(
+      client: Client,
+      seen: number,
+      predicate: (m: Extract<ServerMessage, { type: 'channel' }>) => boolean,
+      timeoutMs = 3000
+    ): Promise<Extract<ServerMessage, { type: 'channel' }>> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const found = client.received
+          .filter(
+            (m): m is Extract<ServerMessage, { type: 'channel' }> =>
+              m.type === 'channel'
+          )
+          .slice(seen)
+          .find(predicate);
+        if (found) return found;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      throw new Error(`no matching snapshot after the ${seen} already seen`);
+    }
+
+    /** Both present, Alice holding the floor, which withholds Bob. */
+    async function underClaim() {
+      const { alice, bob, channelId } = await pairInSession();
+      const a = new Client(alice.token, baseUrl);
+      const b = new Client(bob.token, baseUrl);
+      await Promise.all([a.open(), b.open()]);
+      a.send({ type: 'watch.channel', channelId });
+      a.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+      b.send({ type: 'watch.channel', channelId });
+      b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+      await a.next('channel', (m) => m.view.channel.present.length === 2);
+      a.send({ type: 'channel.action', channelId, action: { type: 'CLAIM_FLOOR' } });
+      await a.next(
+        'channel',
+        (m) => m.view.channel.floor.holder === alice.account.id
+      );
+      return { alice, bob, channelId, a, b };
+    }
+
+    it('carries it to the room, and takes it back', async () => {
+      const { bob, channelId, a, b } = await underClaim();
+      b.send({ type: 'channel.speaking', channelId, speaking: true });
+      await a.next('channel', (m) =>
+        (m.view.speakingWhileWithheld ?? []).includes(bob.account.id)
+      );
+
+      const seen = seenViews(a);
+      b.send({ type: 'channel.speaking', channelId, speaking: false });
+      await viewAfter(
+        a,
+        seen,
+        (m) => (m.view.speakingWhileWithheld ?? []).length === 0
+      );
+      a.close();
+      b.close();
+    });
+
+    it('refuses one from somebody nothing is withholding', async () => {
+      // The floor-holder is heard by everybody, so the media plane is already
+      // reporting them and this would be a second, unfalsifiable source for
+      // the same dot. Ordered against Bob's report rather than asserted into
+      // the void: the snapshot that proves the server was listening is the one
+      // that has to lack Alice.
+      const { alice, bob, channelId, a, b } = await underClaim();
+      a.send({ type: 'channel.speaking', channelId, speaking: true });
+      b.send({ type: 'channel.speaking', channelId, speaking: true });
+      const view = await a.next('channel', (m) =>
+        (m.view.speakingWhileWithheld ?? []).includes(bob.account.id)
+      );
+      expect(view.view.speakingWhileWithheld).not.toContain(alice.account.id);
+      a.close();
+      b.close();
+    });
+
+    it('drops it when the floor is released, without being told', async () => {
+      // Nothing withholds them any more, so there is nothing for the report to
+      // be about. The client sends no stop here — the release is the stop —
+      // and a server that kept the flag would light a dot that the media plane
+      // had already taken responsibility for.
+      const { bob, channelId, a, b } = await underClaim();
+      b.send({ type: 'channel.speaking', channelId, speaking: true });
+      await a.next('channel', (m) =>
+        (m.view.speakingWhileWithheld ?? []).includes(bob.account.id)
+      );
+      const seen = seenViews(a);
+      a.send({
+        type: 'channel.action',
+        channelId,
+        action: { type: 'RELEASE_FLOOR' },
+      });
+      const view = await viewAfter(
+        a,
+        seen,
+        (m) => m.view.channel.floor.holder === null
+      );
+      expect(view.view.speakingWhileWithheld ?? []).toEqual([]);
+      a.close();
+      b.close();
+    });
+
+    it('drops it when the reporting socket goes', async () => {
+      // The one ending the report cannot announce for itself: a process that
+      // dies mid-word sends no stop, and everything else about the room is
+      // still true — the claim stands, and Bob is still in it for the length
+      // of the grace period.
+      const { bob, channelId, a, b } = await underClaim();
+      b.send({ type: 'channel.speaking', channelId, speaking: true });
+      await a.next('channel', (m) =>
+        (m.view.speakingWhileWithheld ?? []).includes(bob.account.id)
+      );
+      const seen = seenViews(a);
+      b.close();
+      const view = await viewAfter(
+        a,
+        seen,
+        (m) => !(m.view.speakingWhileWithheld ?? []).includes(bob.account.id)
+      );
+      // The claim is still standing, which is what makes this the socket's
+      // doing rather than the floor's.
+      expect(view.view.channel.floor.holder).not.toBeNull();
+      a.close();
+    });
+  });
+
   it('pushes a floor claim to the silenced party', async () => {
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);

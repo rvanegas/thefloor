@@ -638,6 +638,23 @@ export class Realtime {
     return true;
   }
 
+  /**
+   * Says this device is speaking into a channel that is withholding it, or
+   * has stopped — see `ClientMessage.channel.speaking`.
+   *
+   * **Dropped rather than queued when there is no socket**, on `attentive`'s
+   * reasoning and with a second one of its own: the server clears every one of
+   * these when a connection closes, so a `false` that could not be sent has
+   * already been applied by the time it could have arrived. A `true` that
+   * could not be sent is a moment that has passed, and the next edge is two
+   * seconds away.
+   */
+  speaking(channelId: string, speaking: boolean): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.send({ type: 'channel.speaking', channelId, speaking });
+    return true;
+  }
+
   disconnect(): void {
     this.closedByUs = true;
     if (this.reconnectTimer) {

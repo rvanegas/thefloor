@@ -100,6 +100,11 @@ export const mockApp = {
       // it, and until 2026-09-09 none did — which is how a change to what the
       // roster counts got past a suite that asserts on those very lines.
       attentiveAt?: Record<string, number>;
+      // Absent on all but the tests about it, as it is on the wire: nobody is
+      // talking into a claim. See `ChannelView.speakingWhileWithheld` — this
+      // is the only thing on a snapshot that says who is *speaking*, every
+      // other such fact arriving through the media connection.
+      speakingWhileWithheld?: string[];
       serverNow: number;
     }
   >,

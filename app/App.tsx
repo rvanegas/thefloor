@@ -6,6 +6,7 @@ import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
+import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
@@ -208,6 +209,16 @@ function Root() {
    * at the channel screen. See `useSilencedNudge`.
    */
   useSilencedNudge(live, me, audio.speaking);
+
+  /**
+   * Telling the *room* the same thing the buzz above tells you.
+   *
+   * The two read one signal for two audiences, which is why they sit together:
+   * a withheld speaker is invisible to every other device in the room, so the
+   * fact that reaches your wrist has to reach their screens by a different
+   * road. See `useSpeakingReport`.
+   */
+  useSpeakingReport(live, me, audio.speaking, app.reportSpeaking);
 
   /**
    * Told that somebody is at the door, which is a question waiting on an

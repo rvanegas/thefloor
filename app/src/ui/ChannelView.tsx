@@ -44,6 +44,7 @@ import {
   canControlWatch,
   canOpenWatchScreen,
   isPartyMuted,
+  isWithheld,
   partyMuteRequested,
   canStopRecording,
   canPasteClip,
@@ -835,8 +836,34 @@ export function ChannelView({
   const audioIsThisChannel =
     app.standingIn === channelId &&
     liveChannelView(app.channelViews, me)?.channel.id === channelId;
+  /**
+   * Who the server says is talking while the room is withholding them.
+   *
+   * **The half of the indicator the media plane cannot supply**, and the
+   * reason it exists at all: a claim withholds people by unsubscribing every
+   * listener from them, and the SFU tells a listener nothing further about
+   * somebody they are not subscribed to — so without this, the outline would
+   * say only what happened to be true at the moment the floor was taken. See
+   * `ChannelView.speakingWhileWithheld` and `useSpeakingReport`.
+   *
+   * `?? []` for the reason `recordings` above carries: a server that predates
+   * the field sends a snapshot without it, and this build meets exactly that
+   * between its release and the deploy that follows.
+   *
+   * **Not gated on `audioIsThisChannel`.** The other half is a reading taken
+   * by this device's own media connection and is about one room; this is the
+   * server's account of the channel on screen, and is as true from a room you
+   * are standing in elsewhere as from this one. It is still checked against
+   * `isWithheld` here as well as on the server, so a released floor puts the
+   * outline out on the snapshot that reports the release rather than on a
+   * message that has to follow it.
+   */
+  const announcedSpeaking = view?.speakingWhileWithheld ?? [];
   const speakingHere = (id: string) =>
-    audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id);
+    (audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id)) ||
+    (inRoom(channel, id) &&
+      isWithheld(channel, id) &&
+      announcedSpeaking.includes(id));
   /**
    * Whether the room has stopped hearing from somebody, as the media plane
    * sees it. See `SessionAudio.failing`.
@@ -3402,6 +3429,12 @@ function GuestCard({
  * connection knows who is actually making noise, and the two are different
  * questions — a silent floor-holder and a self-muted person mouthing at a dead
  * microphone both look wrong if the badge is inferred from state.
+ *
+ * **The exception proves it rather than softening it.** Somebody the room is
+ * withholding is heard by no media connection at all, so the only account of
+ * them is their own device's, carried on the snapshot — see `speakingHere`.
+ * It is still a report of noise being made rather than an inference from who
+ * is permitted, which is the distinction this paragraph is about.
  */
 function ParticipantCard({
   channel,
@@ -4065,7 +4098,8 @@ const styles = StyleSheet.create({
    * Whoever holds the floor, tinted rather than outlined — because the outline
    * is taken, and by the one thing it must not be confused with.
    *
-   * `participantCardLive` means *audible*, driven by the room; this means
+   * `participantCardLive` means *speaking*, driven by the room — and, for
+   * somebody the room is withholding, by their own device saying so; this means
    * *permitted*, driven by the reducer. They are different questions and
    * routinely disagree — a holder sitting silent, a self-muted person whose
    * claim is running — so they cannot share an edge. The fill says whose

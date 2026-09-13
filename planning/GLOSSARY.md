@@ -117,6 +117,7 @@ caused; the list carries the meaning.
 - **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
+- **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
 - **Stem** — One participant's isolated audio from a recording, uploaded by its own *egress* job
 - **Train** — A deployed build of the web app: `/app` (stable) and `/beta` (TestFlight)
 - **Withheld** — `isWithheld` — the single answer to whether this person may be heard
@@ -1634,6 +1635,23 @@ confers control; the party mute withholds everybody and confers nothing.
 One `ChannelView` or `HomeView` pushed over the socket. It carries `serverNow`
 so countdowns are computed against the server's clock rather than the device's,
 which drifts and can be set by the user.
+
+## Speaking report
+
+`ClientMessage.channel.speaking` — a *withheld* speaker's own device telling the
+server it is talking, carried back to the room on the snapshot as
+`ChannelView.speakingWhileWithheld`.
+
+**It exists because nothing else can see it.** Withholding is done by
+unsubscribing every listener, and LiveKit tells a listener nothing about
+somebody they are not subscribed to — so a *claim* freezes every other device's
+speaking indicator for the people it silences. The only participant the SFU
+still reports a withheld speaker to is that speaker, which makes their own
+device the sole witness. Self-asserted and uncorroborated: the worst it can buy
+is a dot on your own card during a claim you are silent in.
+
+Sent only while withheld, on the edges of the *smoothed* signal, so a claim
+somebody talks through costs two messages.
 
 ## Stem
 

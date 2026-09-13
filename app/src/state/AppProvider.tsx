@@ -512,6 +512,16 @@ interface AppValue extends AppState {
    * `act` for what it is needed for.
    */
   reportMicPublished: (published: boolean) => void;
+  /**
+   * Says this device is speaking into a channel that is withholding it, or
+   * has stopped.
+   *
+   * Here for `reportMicPublished`'s reason inverted: the fact is known only to
+   * the audio hook mounted above the screens, and the socket is known only to
+   * this provider. See `ClientMessage.channel.speaking` for why the media
+   * plane cannot carry it.
+   */
+  reportSpeaking: (channelId: string, speaking: boolean) => void;
   clearError: () => void;
   /**
    * A channel a notification asked to be opened, waiting to be navigated to.
@@ -1966,6 +1976,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(pending.timer);
         pendingRecord.current = null;
         realtime.act(pending.channelId, { type: 'START_RECORDING' });
+      },
+
+      reportSpeaking: (channelId, speaking) => {
+        realtime.speaking(channelId, speaking);
       },
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),

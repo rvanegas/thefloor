@@ -534,6 +534,11 @@ export function registerWebsocket(deps: {
         // because a snapshot is already per connection — the same fact that
         // makes `recordings` and `pingableAt` viewer-relative here.
         notificationLevel: preferences.levelFor(connection.userId, channelId),
+        // Who is talking while the room is withholding them — the one thing
+        // about audio that no listener's media plane can see, and so the one
+        // thing that has to travel this way. See
+        // `ChannelView.speakingWhileWithheld`.
+        speakingWhileWithheld: channels.speakingWithheldIn(channelId),
         serverNow: now(),
       },
     });
@@ -1072,6 +1077,26 @@ export function registerWebsocket(deps: {
           return;
         }
 
+        /**
+         * Somebody is talking into a room that is withholding them.
+         *
+         * **Session sockets only**, settled by the `watch` guard above for the
+         * same reason `attentive` is: a follower page has no microphone in the
+         * room and nothing to report about one.
+         *
+         * The registry refuses anything that is not true of the room — not a
+         * member, not withheld, not a channel — so nothing is checked here but
+         * the shape.
+         */
+        case 'channel.speaking':
+          if (typeof message.channelId !== 'string') return;
+          channels.speaking(
+            connection.userId,
+            message.channelId,
+            message.speaking === true
+          );
+          return;
+
         case 'ping':
           send(connection, { type: 'pong', serverNow: now() });
           return;
@@ -1266,6 +1291,16 @@ export function registerWebsocket(deps: {
       // replacement has connected reports nothing at all, which is what stops
       // a dead connection evicting a user who is demonstrably back.
       for (const channelId of connection.watchingChannels) {
+        // **The one ending a speaking report cannot announce for itself.**
+        // Every other way of ceasing to be a withheld speaker — the floor
+        // released, the party unmuted, stepping out — is read off the channel
+        // and needs no message. A process that dies mid-word sends nothing,
+        // and this is the socket saying so on its behalf. Unconditional,
+        // unlike the presence report below: another device of this account is
+        // not this microphone, and leaving the dot lit because somebody's
+        // laptop is also connected would be a claim about a phone that has
+        // gone.
+        channels.speaking(connection.userId, channelId, false);
         if (!hasConnection(connection.userId)) {
           // Stamped from the last thing actually heard rather than from now,
           // which is the same correction `heard` above makes and for the same

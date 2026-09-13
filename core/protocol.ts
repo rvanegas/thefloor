@@ -858,6 +858,34 @@ export interface ChannelView {
    * case agree.
    */
   notificationLevel?: NotificationLevel;
+  /**
+   * Who is talking while *withheld* — see `ClientMessage.channel.speaking` for
+   * why this cannot be observed and has to be reported.
+   *
+   * **The one fact about audio that does not come from the media plane.** A
+   * withheld speaker is withheld by unsubscribing every listener from them,
+   * and LiveKit scopes its speaker updates to what a listener is subscribed to
+   * (`SendSpeakerUpdate`, `force: false`) — so the moment a claim lands, the
+   * room stops being told anything at all about the people it has stopped
+   * hearing. Their own device is the only one left that knows, the SFU always
+   * reporting a participant to themselves, so it says.
+   *
+   * Self-asserted, and the server cannot check it: somebody could claim to be
+   * speaking while silent. The worst of that is a dot on their own card during
+   * a claim they are not speaking in, which is why it is carried rather than
+   * corroborated.
+   *
+   * **Read together with `isWithheld`, never alone.** The server prunes this
+   * to people who are still withheld and still in the room, and the app asks
+   * the same question of its own snapshot before drawing anything — so a
+   * released floor puts every one of these out without a message having to
+   * arrive.
+   *
+   * Optional, so a client older than the field ignores it and a server older
+   * than it simply sends nothing; the indicator then behaves as it did before
+   * this existed, which is to say it goes dark for the length of a claim.
+   */
+  speakingWhileWithheld?: UserId[];
   serverNow: number;
 }
 
@@ -1221,7 +1249,32 @@ export type ClientMessage =
    * Rate-limited by the sender to `ATTENTION_REPORT_MS`. A scroll would
    * otherwise send one of these per frame.
    */
-  | { type: 'attentive'; channelIds: string[] };
+  | { type: 'attentive'; channelIds: string[] }
+  /**
+   * This device is speaking into a channel that is withholding it, or has
+   * stopped.
+   *
+   * **Sent only while withheld, because that is the only time anybody needs
+   * telling.** While a person may be heard, the media plane says all of this
+   * on its own and says it better; the moment they are withheld it stops,
+   * because withholding is done by unsubscribing the listeners and LiveKit
+   * scopes speaker updates to subscriptions. The one participant still told
+   * about a withheld speaker is that speaker, so this is the report of a fact
+   * only one device in the room is in a position to know.
+   *
+   * **Edges, not a heartbeat**, and the smoothed signal rather than the raw
+   * one: what is sent is the same held value the sender's own indicator draws
+   * — see `app/src/audio/speaking.ts` — so a sentence's pauses cost no
+   * messages and the far end needs no smoothing of its own. A claim therefore
+   * costs two of these per speaker who talks through it.
+   *
+   * **A dropped `false` is answered by the socket closing**, which is the only
+   * way one can be dropped: the sender does not queue these, and the server
+   * clears the flag for every channel a closing connection was watching. The
+   * remaining case — released floor, ended visit — needs no message at all,
+   * the reader pruning against `isWithheld` and the roster.
+   */
+  | { type: 'channel.speaking'; channelId: string; speaking: boolean };
 
 export type ServerMessage =
   | {

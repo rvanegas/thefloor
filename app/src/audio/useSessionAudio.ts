@@ -1072,6 +1072,19 @@ export function useSessionAudio(
       // hear.
       recordEvent(`sub - ${participant.identity} (${audible.size})`);
       update({ othersAudible: audible.size });
+      // **And they stop being somebody we know anything about.** A listener is
+      // told about a speaker's audio levels only while subscribed to them —
+      // LiveKit scopes its speaker updates that way — so a subscription that
+      // goes away takes the reports with it, and whoever was in the set at
+      // that moment would stay there. That is not a corner case here: it is
+      // what every floor claim does, withholding being unsubscription. The
+      // SFU does send a forced "not speaking" as it drops the subscription,
+      // which is the same correction arriving by courtesy; this makes it a
+      // rule of ours rather than a property of whichever version is running.
+      //
+      // What replaces the reports is `speakingWhileWithheld` on the snapshot
+      // — the withheld speaker's own device saying what nobody else can see.
+      onQuiet(participant);
     };
 
     // Held on the trailing edge rather than rendered raw — see ./speaking.ts.
