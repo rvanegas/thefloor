@@ -1186,21 +1186,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, []),
   });
 
-  const myId = state.me?.id ?? null;
   const { introduction, forget: forgetIntroduction } = useIntroduction({
     token: state.token,
     home: state.home,
-    displayName: state.me?.displayName ?? '',
     conversing,
-    // Keyed on the id rather than on `me`, which is a fresh object at every
-    // `hello`: the request this authorises is about one account, and a
-    // callback whose identity changed on reconnection would ask again for an
-    // answer that cannot have changed.
-    loadUsername: useCallback(async () => {
-      if (!state.token || !myId) return null;
-      const profile = await api.profile(state.token, myId);
-      return profile.username ?? null;
-    }, [state.token, myId]),
   });
 
   /**

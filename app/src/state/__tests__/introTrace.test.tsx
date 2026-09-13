@@ -35,9 +35,7 @@ function Probe({
   const { introduction } = useIntroduction({
     token: 'auth',
     home: homeView,
-    displayName: 'Rodrigo',
     conversing,
-    loadUsername: async () => 'rod',
   });
   report(introduction);
   return <Text>{introduction.show}</Text>;

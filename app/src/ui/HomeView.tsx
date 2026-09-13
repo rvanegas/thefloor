@@ -460,15 +460,11 @@ export function HomeView({
             The trade, said out loud: it pushes `StartChannelRow` down, and that
             row went to the top of the scroll on 2026-09-02 so it would sit where
             *Add contact* sits on the other tab. It is bounded — this is gone the
-            moment somebody has had a conversation, and the rungs point at that row
-            rather than competing with it — but it does contradict a dated
-            decision. See planning/ONBOARDING.md.
+            moment somebody has had a conversation, and the two rungs point at
+            those two rows rather than competing with them — but it does
+            contradict a dated decision. See planning/ONBOARDING.md.
           */}
-          <Introduction
-            onEnterChannel={onEnterChannel}
-            onOpenProfile={openProfile}
-            onList={onList}
-          />
+          <Introduction onEnterChannel={onEnterChannel} onList={onList} />
 
           {list === "channels" ? (
             <ChannelsView

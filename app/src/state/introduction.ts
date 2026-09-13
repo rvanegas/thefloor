@@ -33,13 +33,32 @@
  */
 export type Arrival = 'invited' | 'alone';
 
-/** The rungs, in the order they are climbed. */
-export type StepId = 'name' | 'username' | 'somebody' | 'stepIn';
+/**
+ * The rungs, in the order they are climbed.
+ *
+ * **Two, since 2026-09-13, and it was four.** *Say who you are* and *choose a
+ * username* went when both became derived at signup — see
+ * `core/derivedNames.ts`: an account is named and has a handle before anybody
+ * types one, so both rows were born ticked for every account that can still
+ * see this list, and a ladder whose first half congratulates you on things you
+ * did not do is the theatre the invited card exists to avoid.
+ */
+export type StepId = 'somebody' | 'stepIn';
 
 export interface Step {
   id: StepId;
   /** The imperative, in the vocabulary GLOSSARY.md owns. */
   label: string;
+  /**
+   * What to actually do, naming the place it is done.
+   *
+   * Added 2026-09-13 with the cut to two rungs. It is the half the labels
+   * never carried: *get somebody here* is the goal, and somebody who has
+   * never seen this app does not know that an invite link is a thing, still
+   * less which of the two lists keeps one. The button beside it goes to that
+   * list; this says what is waiting there.
+   */
+  instruction: string;
   /** One line under it: why this one, not what to tap. */
   note: string;
   done: boolean;
@@ -52,9 +71,9 @@ export interface Step {
  * are alternatives, and separate flags would let two of them be true at once.
  *
  * - `'none'` — the ordinary case, and every account that has ever stepped in.
- * - `'invited'` — a single card, because for this cohort three of the four
- *   items are born ticked and a list of things somebody else did for you is
- *   theatre. It says the one thing that is actually left.
+ * - `'invited'` — a single card, because for this cohort both items are born
+ *   ticked and a list of things somebody else did for you is theatre. It says
+ *   the one thing that is actually left.
  * - `'alone'` — the ladder, for the cohort it was designed for.
  */
 export type Introduction =
@@ -103,23 +122,10 @@ export function introduction(state: {
   arrival: Arrival | null;
   /** When this account first stepped in. Non-null retires all of this. */
   doneAt: number | null;
-  /** Their own name, which `AuthView` offers at signup and does not require. */
-  displayName: string;
-  /**
-   * Their username, or null when they have none.
-   *
-   * **`undefined` means nobody has asked yet, and it withholds the ladder.**
-   * It is not on the Home snapshot and not on `PublicAccount` — `ProfileView`
-   * says why, and that division is deliberate — so it costs a request, and a
-   * row that appeared a beat late telling somebody to choose the username they
-   * already have is worse than a row that never appeared.
-   */
-  username: string | null | undefined;
   /** In a channel with somebody else, now — see `AppProvider`. */
   conversing: boolean;
 }): Introduction {
-  const { loaded, home, arrival, doneAt, displayName, username, conversing } =
-    state;
+  const { loaded, home, arrival, doneAt, conversing } = state;
 
   if (!loaded || !home || !arrival) return { show: 'none' };
   // Retired for good, and retired the instant it happens rather than at the
@@ -137,44 +143,26 @@ export function introduction(state: {
     };
   }
 
-  // The ladder is withheld entire while the username is unknown rather than
-  // drawn with a row missing, so it does not gain a rung a second after
-  // appearing.
-  if (username === undefined) return { show: 'none' };
-
   return {
     show: 'alone',
     steps: [
       {
-        id: 'name',
-        label: 'Say who you are',
-        note: 'A request from a nameless address is one people decline.',
-        done: displayName.trim() !== '',
-      },
-      {
-        id: 'username',
-        label: 'Choose a username',
-        // Optional everywhere else in the app, and the glossary says most
-        // people have none — but an invite link is `/i/<username>/<pin>` and
-        // there is no link without the first half. For somebody with nobody
-        // here, that link is the only way of reaching out that goes on working
-        // while they are asleep.
-        note: 'An invite link is built out of it, and that is the way in that works while you sleep.',
-        done: username !== null,
-      },
-      {
         id: 'somebody',
         label: 'Get somebody here',
+        instruction:
+          'On Contacts, send an invite link — or add somebody by the address they sign in with.',
+        note: 'A link works while you are asleep, and nobody can reach you until one of you does this.',
         // Counts a request that has been sent, not one that has been answered:
         // the app's own words for an outgoing request are "an address rather
         // than a person", and waiting on somebody else's tap would leave this
         // unticked for a day after the only action available had been taken.
-        note: 'Send an invite link, or start a channel and share a guest link while you wait in it.',
         done: home.contacts.length > 0,
       },
       {
         id: 'stepIn',
         label: 'Step in',
+        instruction:
+          'On Channels, start one and step in. Anybody you invite arrives there, and a guest link works while you wait in it.',
         note: 'That is the moment people can hear you, and it is what all of this is for.',
         // Never true here — `conversing` returns `'none'` above, and this is
         // the rung the whole ladder retires on. It is drawn unticked, on

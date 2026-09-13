@@ -29,21 +29,21 @@ import { colors, spacing, type } from './theme';
  */
 export function Introduction({
   onEnterChannel,
-  onOpenProfile,
   onList,
 }: {
   onEnterChannel: (channelId: string) => void;
-  /** Their own profile, already editing — the way to a name and a username. */
-  onOpenProfile: (contact: { id: string; name: string; edit?: boolean }) => void;
-  /** Switches the list below, which is where getting somebody here happens. */
+  /**
+   * Switches the list below, which is where both rungs are climbed.
+   *
+   * The only handler the ladder needs since 2026-09-13: the two rows that
+   * went to a profile went with the rungs that asked for a name and a
+   * username.
+   */
   onList: (list: List) => void;
 }) {
-  const { introduction, me } = useApp();
+  const { introduction } = useApp();
 
   if (introduction.show === 'none') return null;
-
-  const editMe = () =>
-    me && onOpenProfile({ id: me.id, name: me.displayName, edit: true });
 
   if (introduction.show === 'invited') {
     const { from, channelId } = introduction;
@@ -51,11 +51,11 @@ export function Introduction({
       <Card style={styles.card}>
         <View style={styles.main}>
           {/*
-            One card and not four rows with three ticks. Somebody who was
-            invited arrives with a contact and a channel already — the ladder's
-            first two rungs were climbed for them before they got here, and a
-            list that opened by congratulating them on it would be theatre. The
-            single thing left is the single thing said.
+            One card and not two rows with one tick. Somebody who was invited
+            arrives with a contact and a channel already — the ladder's first
+            rung was climbed for them before they got here, and a list that
+            opened by congratulating them on it would be theatre. The single
+            thing left is the single thing said.
           */}
           <Text style={type.body}>
             {from ? `${from} invited you` : 'You have not stepped in yet'}
@@ -79,58 +79,44 @@ export function Introduction({
   }
 
   const { steps } = introduction;
-  /**
-   * The next rung, and the only one that carries a control.
-   *
-   * A button on every unfinished row would be four calls to action stacked
-   * above a list somebody opened the app to read. A ladder has an order, and
-   * saying which rung is next is most of what it is for.
-   */
-  const next = steps.find((step) => !step.done);
 
   return (
     <Card style={styles.card}>
       <Text style={type.body}>Getting started</Text>
       {steps.map((step) => (
-        <Row
-          key={step.id}
-          step={step}
-          action={
-            step.id === next?.id ? actionFor(step, { editMe, onList }) : null
-          }
-        />
+        <Row key={step.id} step={step} action={actionFor(step, onList)} />
       ))}
     </Card>
   );
 }
 
 /**
- * Where a rung sends somebody, or null when it sends them nowhere.
+ * Where a rung sends somebody.
  *
- * *Step in* is the null, deliberately: there is no channel to step into from
- * here, and the row directly below this card is the one that starts one. A
- * button that scrolled somebody four points down the screen they are already
- * looking at would be furniture pretending to be help.
+ * **Every rung carries one, since 2026-09-13**, which reverses what the four-
+ * rung ladder did: that one gave a control to the next unfinished rung alone,
+ * on the grounds that four calls to action stacked above a list is a wall
+ * rather than a ladder. With two rungs there is no wall to build, and the
+ * argument the other way is stronger — both of these are done somewhere else
+ * in the app, and a row that names a place without going there makes somebody
+ * hunt for a tab they have not learned the names of yet.
+ *
+ * Both go to a list rather than into anything. That is as far as this card is
+ * allowed to reach: starting a channel or sending an invite is a decision with
+ * a screen of its own, and the button's job is to put that screen in front of
+ * somebody, not to press it for them. A tap while that list is already showing
+ * is a no-op, which is the honest cost of the rule and cheaper than a control
+ * that appears and disappears as somebody flips between the two.
  */
 function actionFor(
   step: Step,
-  handlers: { editMe: () => void; onList: (list: List) => void }
-): { label: string; onPress: () => void } | null {
+  onList: (list: List) => void
+): { label: string; onPress: () => void } {
   switch (step.id) {
-    case 'name':
-      return { label: 'Add your name', onPress: handlers.editMe };
-    // The same words the card in `ContactsView` uses for the same journey,
-    // which is the one place a username can be chosen. Two labels for one
-    // destination is how somebody comes to believe there are two.
-    case 'username':
-      return { label: 'Choose a Username', onPress: handlers.editMe };
     case 'somebody':
-      return {
-        label: 'Invite somebody',
-        onPress: () => handlers.onList('contacts'),
-      };
+      return { label: 'Open Contacts', onPress: () => onList('contacts') };
     case 'stepIn':
-      return null;
+      return { label: 'Open Channels', onPress: () => onList('channels') };
   }
 }
 
@@ -147,14 +133,14 @@ function Row({
   action,
 }: {
   step: Step;
-  action: { label: string; onPress: () => void } | null;
+  action: { label: string; onPress: () => void };
 }) {
   return (
     <View
       accessible
       accessibilityLabel={`${step.done ? 'Done' : 'Not done'}: ${step.label}. ${
-        step.note
-      }`}
+        step.instruction
+      } ${step.note}`}
       style={styles.row}
     >
       <View style={[styles.disc, !step.done && styles.discOpen]} />
@@ -162,16 +148,22 @@ function Row({
         <Text style={[type.body, step.done && styles.labelDone]}>
           {step.label}
         </Text>
+        {/*
+          The instruction above the note, and both above the button: what to
+          do, then why it is worth doing, then the way there. A done rung keeps
+          all three — it is two rows, the second is the one that matters, and
+          hiding half of the first would make the card change shape under
+          somebody who had just finished it.
+        */}
+        <Text style={type.muted}>{step.instruction}</Text>
         <Text style={type.muted}>{step.note}</Text>
-        {action ? (
-          <View style={styles.actions}>
-            <Button
-              label={action.label}
-              variant="ghost"
-              onPress={action.onPress}
-            />
-          </View>
-        ) : null}
+        <View style={styles.actions}>
+          <Button
+            label={action.label}
+            variant="ghost"
+            onPress={action.onPress}
+          />
+        </View>
       </View>
     </View>
   );

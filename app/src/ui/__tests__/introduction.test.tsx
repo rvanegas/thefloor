@@ -33,20 +33,20 @@ const empty = { invites: [], rejoinable: [], contacts: [], recordings: [] };
 const ladder = {
   show: 'alone' as const,
   steps: [
-    { id: 'name' as const, label: 'Say who you are', note: 'why', done: true },
-    {
-      id: 'username' as const,
-      label: 'Choose a username',
-      note: 'why',
-      done: false,
-    },
     {
       id: 'somebody' as const,
       label: 'Get somebody here',
+      instruction: 'On Contacts, send an invite link.',
       note: 'why',
       done: false,
     },
-    { id: 'stepIn' as const, label: 'Step in', note: 'why', done: false },
+    {
+      id: 'stepIn' as const,
+      label: 'Step in',
+      instruction: 'On Channels, start one and step in.',
+      note: 'why',
+      done: false,
+    },
   ],
 };
 
@@ -58,41 +58,50 @@ describe('the introduction on Home', () => {
     act(() => tree.unmount());
   });
 
-  it('draws the ladder, every rung of it, for an alone arrival', () => {
+  it('draws the ladder, every rung of it, with what to do on each', () => {
     mockApp.home = empty;
     mockApp.introduction = ladder;
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('Getting started');
-    expect(text).toContain('Say who you are');
-    expect(text).toContain('Choose a username');
     expect(text).toContain('Get somebody here');
+    expect(text).toContain('On Contacts, send an invite link.');
     expect(text).toContain('Step in');
+    expect(text).toContain('On Channels, start one and step in.');
     act(() => tree.unmount());
   });
 
-  it('offers a control on the next rung and on no other', () => {
+  it('offers a control on every rung, both of them going to a list', () => {
     mockApp.home = empty;
     mockApp.introduction = ladder;
-    const tree = render(<HomeView {...homeNav} />);
-    // The first undone rung is the username, so that is the one with a way in.
-    expect(findButton(tree, 'Choose a Username')).toBeDefined();
-    // The rung below it is undone too, and deliberately silent: four calls to
-    // action stacked above a list is not a ladder, it is a wall.
-    expect(findButton(tree, 'Invite somebody')).toBeUndefined();
+    const lists: string[] = [];
+    const tree = render(
+      <HomeView {...homeNav} onList={(list) => lists.push(list)} />
+    );
+
+    const contacts = findButton(tree, 'Open Contacts');
+    expect(contacts).toBeDefined();
+    act(() => contacts?.props.onPress());
+
+    const channels = findButton(tree, 'Open Channels');
+    expect(channels).toBeDefined();
+    act(() => channels?.props.onPress());
+
+    expect(lists).toEqual(['contacts', 'channels']);
     act(() => tree.unmount());
   });
 
-  it('sends the last rung nowhere, there being nowhere to send it', () => {
+  it('keeps the control on a rung that is already done', () => {
+    // Two rows, and the second is the one that matters: hiding the first
+    // row's button would change the card's shape under somebody who had just
+    // finished with it.
     mockApp.home = empty;
     mockApp.introduction = {
       show: 'alone',
-      steps: [
-        { id: 'stepIn', label: 'Step in', note: 'why', done: false },
-      ],
+      steps: [{ ...ladder.steps[0], done: true }, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
-    expect(textOf(tree)).toContain('Step in');
+    expect(findButton(tree, 'Open Contacts')).toBeDefined();
     act(() => tree.unmount());
   });
 

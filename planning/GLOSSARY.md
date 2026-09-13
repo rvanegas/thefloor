@@ -98,7 +98,7 @@ caused; the list carries the meaning.
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
-- **Introduction** — What a new account is shown above both lists until it has had a conversation: the four-rung ladder for an *alone* arrival, one card for an *invited* one
+- **Introduction** — What a new account is shown above both lists until it has had a conversation: the two-rung ladder for an *alone* arrival, one card for an *invited* one
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1346,16 +1346,21 @@ What a new account is shown above both of Home's lists, until it has had a
 conversation. `state/introduction.ts` decides it and `ui/Introduction.tsx`
 draws it; planning/ONBOARDING.md is the design.
 
-Two shapes, one per *arrival*. An `alone` arrival gets the four-rung ladder —
-say who you are, choose a username, get somebody here, step in — every rung
-derived from the Home snapshot rather than recorded as it is done. An
-`invited` one gets a single card, because three of those four are true before
-they arrive and a list congratulating somebody on what was done for them is
-theatre.
+Two shapes, one per *arrival*. An `alone` arrival gets a two-rung ladder — get
+somebody here, step in — each rung derived from the Home snapshot rather than
+recorded as it is done, and each carrying an instruction naming the list it is
+done on and a button that goes there. An `invited` one gets a single card,
+because the first rung is true before they arrive and a list congratulating
+somebody on what was done for them is theatre.
+
+**It was four rungs until 2026-09-13**: *say who you are* and *choose a
+username* went when both became derived at signup, and with them the profile
+request the username rung needed. See
+`decisions/2026-09-13-the-checklist-is-two-rungs.md`.
 
 **It retires on stepping in, not on every rung being ticked.** Once somebody
 has been in a channel with another person this has done its job, and a
-leftover unticked *say who you are* is not a reason to go on asking. That is
+leftover unticked *get somebody here* is not a reason to go on asking. That is
 also why the only thing stored is `thefloor.intro.doneAt` — every rung is
 derived, so there is nothing else worth keeping.
 

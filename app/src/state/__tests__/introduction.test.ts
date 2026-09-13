@@ -21,8 +21,6 @@ const alone = {
   home: { contacts: [], rejoinable: [], invites: [] },
   arrival: 'alone' as const,
   doneAt: null,
-  displayName: '',
-  username: null,
   conversing: false,
 };
 
@@ -99,38 +97,20 @@ describe('the invited arrival', () => {
 });
 
 describe('the alone arrival', () => {
-  it('is the four-rung ladder', () => {
+  it('is the two-rung ladder, the name and the username being derived now', () => {
     expect(stepsOf(introduction(alone)).map((step) => step.id)).toEqual([
-      'name',
-      'username',
       'somebody',
       'stepIn',
     ]);
   });
 
-  it('ticks the name once there is one', () => {
-    expect(done(introduction(alone), 'name')).toBe(false);
-    expect(done(introduction({ ...alone, displayName: 'Ada' }), 'name')).toBe(
-      true
-    );
-  });
-
-  it('does not count a name of nothing but spaces', () => {
-    expect(done(introduction({ ...alone, displayName: '   ' }), 'name')).toBe(
-      false
-    );
-  });
-
-  it('ticks the username once one is chosen', () => {
-    expect(done(introduction(alone), 'username')).toBe(false);
-    expect(
-      done(introduction({ ...alone, username: 'ada' }), 'username')
-    ).toBe(true);
-  });
-
-  it('withholds the whole ladder while the username is unknown', () => {
-    // Rather than drawing three rungs and growing a fourth a beat later.
-    expect(introduction({ ...alone, username: undefined }).show).toBe('none');
+  it('tells every rung where it is done and why it is worth doing', () => {
+    // The half the labels never carried: *get somebody here* is the goal, and
+    // it says nothing about which of the two lists keeps an invite link.
+    for (const step of stepsOf(introduction(alone))) {
+      expect(step.instruction).not.toBe('');
+      expect(step.note).not.toBe('');
+    }
   });
 
   it('ticks somebody on a request sent, not on one answered', () => {
@@ -162,10 +142,10 @@ describe('retirement', () => {
     expect(introduction({ ...alone, conversing: true }).show).toBe('none');
   });
 
-  it('stays retired afterwards, with three rungs still unticked', () => {
+  it('stays retired afterwards, with both rungs still unticked', () => {
     // Retiring on the last rung rather than on all of them: a leftover
-    // unticked *say who you are* is not a reason to go on asking somebody who
-    // has already had the conversation this was for.
+    // unticked *get somebody here* is not a reason to go on asking somebody
+    // who has already had the conversation this was for.
     expect(introduction({ ...alone, doneAt: 1_700_000_000_000 }).show).toBe(
       'none'
     );

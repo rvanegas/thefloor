@@ -84,6 +84,9 @@ somebody fixes in a second.
   itself worth knowing: that state is reachable only on purpose.
 - The `username` rung of the *introduction* ladder is born ticked for new
   accounts. It stays, because accounts predating this still need it, and a
-  ticked rung is honest.
+  ticked rung is honest. **Reversed the following day**: the cohort that
+  predates this and can still see the ladder is empty in practice and closed
+  for good, so the rung — and the *say who you are* rung above it — went. See
+  `2026-09-13-the-checklist-is-two-rungs.md`.
 - No wire change and no migration. The column, its unique index and every route
   are as they were; what changed is what is written into a new row.

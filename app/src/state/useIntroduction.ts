@@ -81,29 +81,14 @@ export function useIntroduction(state: {
   /** Null when signed out, and then this forgets everything it knew. */
   token: string | null;
   home: HomeView | null;
-  /** Their own name, from `me`; empty until the first `hello`. */
-  displayName: string;
   /** In a channel with somebody else — the event all of this retires on. */
   conversing: boolean;
-  /**
-   * Their own username, or null when they have none.
-   *
-   * A callback rather than a value because it costs a request: a username is
-   * on `ProfileView` and on nothing else, on the grounds that nothing outside
-   * that screen reads one. This is now the second thing that does, and it
-   * asks once, for one cohort, rather than putting a field on every snapshot
-   * pushed to every client.
-   */
-  loadUsername: () => Promise<string | null>;
 }): IntroductionState {
-  const { token, home, displayName, conversing, loadUsername } = state;
+  const { token, home, conversing } = state;
 
   const [loaded, setLoaded] = useState(false);
   const [arrival, setArrival] = useState<Arrival | null>(null);
   const [doneAt, setDoneAt] = useState<number | null>(null);
-  const [username, setUsername] = useState<string | null | undefined>(
-    undefined
-  );
 
   // Read once per signed-in session. Signing out clears both keys and puts
   // this back where it started, so the next account reads nothing rather than
@@ -114,7 +99,6 @@ export function useIntroduction(state: {
       setLoaded(false);
       setArrival(null);
       setDoneAt(null);
-      setUsername(undefined);
       // TEMPORARY — see `introTrace` in `AppProvider`. This is the one path
       // that un-writes the flag, and it should appear only on a sign-out.
       recordEvent('intro cleared (no token)');
@@ -181,34 +165,17 @@ export function useIntroduction(state: {
   }, [conversing, doneAt]);
 
   /**
-   * The one request this feature makes, and only for the cohort that needs it:
-   * an alone arrival that has not finished. An invited one never asks, because
-   * its card has no username in it.
-   *
-   * **Failure is silence**, exactly as `loadSupport` in `HomeView` is: an
-   * unanswerable request leaves this `undefined`, the ladder stays hidden, and
-   * nobody is told about a fetch they did not ask for. The alternative —
-   * treating a failure as *no username* — would put a row in front of somebody
-   * telling them to choose the name they already have.
+   * **This feature makes no request of its own, since 2026-09-13.** It used to
+   * fetch the account's username for one cohort, because the *choose a
+   * username* rung was the only reader of one outside `ProfileView`. That rung
+   * went when usernames became derived at signup, and the fetch went with it —
+   * along with the beat of silence it cost, during which the whole ladder was
+   * withheld rather than drawn a rung short.
    */
-  useEffect(() => {
-    if (!token || !loaded || arrival !== 'alone' || doneAt !== null) return;
-    if (username !== undefined) return;
-    let cancelled = false;
-    void loadUsername()
-      .then((value) => {
-        if (!cancelled) setUsername(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [token, loaded, arrival, doneAt, username, loadUsername]);
 
   const forget = useCallback(async () => {
     setArrival(null);
     setDoneAt(null);
-    setUsername(undefined);
     await Promise.all([
       storage.remove(ARRIVAL_KEY),
       storage.remove(DONE_AT_KEY),
@@ -216,15 +183,7 @@ export function useIntroduction(state: {
   }, []);
 
   return {
-    introduction: introduction({
-      loaded,
-      home,
-      arrival,
-      doneAt,
-      displayName,
-      username,
-      conversing,
-    }),
+    introduction: introduction({ loaded, home, arrival, doneAt, conversing }),
     forget,
   };
 }

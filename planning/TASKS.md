@@ -59,12 +59,6 @@ who is speaking, including those who are currently muted by the claim.
 Swiping left from channel view, returns to home view. Swiping right from home view goes 
 to channel view, if user is present in any channel.
 
-## Getting Started Checklist
-
-Remove "choose display name" and "choose username" since both are now derived 
-if unchosen. For each of remaining items, include instruction and action to 
-relevant view in app.
-
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, 

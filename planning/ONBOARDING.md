@@ -16,6 +16,14 @@ code reference below was checked against the tree at `f3459cf`.
 below is a separate feature and was not written; neither were the three
 campaign gaps, one of which is more urgent than any of this.
 
+**The ladder is two rungs since 2026-09-13, and this file still describes
+four.** *Say who you are* and *choose a username* went when both became
+derived at signup, and every rung carries a control now rather than the next
+one alone. The tables and the last section of this file are corrected where
+they would mislead, but
+`decisions/2026-09-13-the-checklist-is-two-rungs.md` is the account of that
+change and this one is not.
+
 ## What the convention is
 
 An **onboarding checklist**, also *getting-started checklist*; the umbrella is
@@ -129,7 +137,7 @@ instruction and noise.
 
 | # | Item | Done when |
 |---|---|---|
-| 0 | **Say who you are** | `displayName` non-empty. Conditional; `AuthView` offers it at signup, so it appears only for accounts that left it blank |
+| 0 | ~~**Say who you are**~~ | Gone 2026-09-13 — derived at signup |
 | 1 | **Get somebody here** | `home.contacts.length > 0 \|\| home.invites.length > 0` — born ticked here |
 | 2 | **Open a channel** | `home.rejoinable.length > 0` — usually born ticked, and reads as the invitation itself |
 | 3 | **Step in** | `conversing` (`AppProvider.tsx:1060`) |
@@ -161,16 +169,18 @@ That ordering is right for the invited cohort and backwards for this one.
 
 | # | Item | Done when |
 |---|---|---|
-| 0 | **Say who you are** | `displayName` non-empty — conditional, and it matters more here, since a guest meets your name in a browser with no other context |
-| 1 | **Choose a username** | `me.username` set |
+| 0 | ~~**Say who you are**~~ | Gone 2026-09-13 — derived from the sign-in address at signup |
+| 1 | ~~**Choose a username**~~ | Gone 2026-09-13 — derived from that name at signup |
 | 2 | **Get somebody here** | `home.contacts.length > 0`, which includes outgoing requests |
 | 3 | **Step in** | `conversing` |
 
-**Username is an item here and not there**, which reverses the first answer
+**Username was an item here and not there**, which reversed the first answer
 given. The glossary calls it *optional, and most people have none*, and for the
-invited majority that is right — promoting it would tell most users to do
-something the app deliberately does not require. For the alone cohort it is the
-gate on the only asynchronous route out, so it earns a row.
+invited majority that was right — promoting it would tell most users to do
+something the app deliberately does not require. For the alone cohort it was
+the gate on the only asynchronous route out, so it earned a row — until
+`core/derivedNames.ts` closed that gate by handing every new account a handle
+before it can ask for one.
 
 Item 2's card carries both routes explicitly — *invite someone*, they install
 later, and *talk to someone now*, start a channel and share a guest link while
@@ -257,6 +267,12 @@ ladder that does not say which rung is next is not doing the one thing a
 ladder does. *Step in* carries none at all — there is nowhere to send somebody
 from here, and the row that starts a channel is immediately below the card.
 
+**Reversed on 2026-09-13, when the ladder became two rungs.** Both arguments
+above were about there being four; with two there is no wall to build, and
+*step in*'s *nowhere to send somebody* is false from the Contacts list, where
+the row that starts a channel is not on screen at all. Every rung carries a
+button now, and each goes to the list it names.
+
 ## Growth is a different thing, and is not this
 
 Asked to prioritise growth to more contacts for virality, the answer is a
@@ -339,8 +355,10 @@ the majority.
 Three things the design was wrong about or silent on. These are what the
 decision record needs; everything else above is description of code.
 
-**A username is not on the wire, and deliberately.** The design had *Choose a
-username* completing on `me.username`. There is no such field: `PublicAccount`
+**A username is not on the wire, and deliberately.** (This whole paragraph is
+history as of 2026-09-13: the rung went, and the fetch it describes went with
+it.) The design had *Choose a username* completing on `me.username`. There is
+no such field: `PublicAccount`
 carries an id and a display name, and `ProfileView` states the division —
 *nothing outside this screen reads a username today, so nothing outside this
 screen is made to carry one.* Rather than contradict that for one row, the hook
