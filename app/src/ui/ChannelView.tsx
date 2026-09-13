@@ -1481,6 +1481,13 @@ export function ChannelView({
         **The rung you are on is inert**, and accented rather than greyed. Grey
         is this bar's word for *refused*, and being somewhere is not a refusal.
 
+        **Except *Nearby*, which stays live while it is lit.** That rung is a
+        claim with a clock on it rather than a place, and tapping it again
+        restarts the clock — the renewal this screen had no way to offer, since
+        the only way to reach the fifteenth minute was to step off the rung and
+        back on. It looks no different from the other two while lit, which is
+        deliberate: see `repeatable` on `FooterAction`.
+
         **Short forms, deliberately.** The cards below still say "Step in",
         "Be nearby" and "Step out", which are acts and belong on a control with
         a sentence under it; a roster card still says *Present* and *Stepped
@@ -1502,7 +1509,7 @@ export function ChannelView({
         label="Nearby"
         hint={
           iAmNearby
-            ? 'You are nearby'
+            ? 'You are nearby. Tap to restart the wait'
             : 'Be reachable without joining the conversation'
         }
         // The bell draws this rung and nothing else, which is the whole of why
@@ -1510,6 +1517,9 @@ export function ChannelView({
         // one thing more. See `BellIcon`.
         icon={(color) => <BellIcon color={color} />}
         selected={iAmNearby}
+        // The one rung that stays live while it is lit: the tap restarts the
+        // fifteen minutes rather than moving you anywhere. See `repeatable`.
+        repeatable
         onPress={() => act({ type: 'DECLARE_NEARBY' })}
       />
       <FooterAction
@@ -3097,6 +3107,7 @@ function FooterAction({
   icon,
   disabled,
   selected,
+  repeatable,
   tone = 'idle',
   onPress,
 }: {
@@ -3120,6 +3131,25 @@ function FooterAction({
    * strongest statement any of them make. No caller passes it with either.
    */
   selected?: boolean;
+  /**
+   * This control names a state you are already in **and a tap still does
+   * something** — the one combination the paragraph above does not cover.
+   *
+   * Only *Nearby* is like this, and it is because of what the rung is: the
+   * other two are places you either are or are not, and being nearby is a
+   * claim with a clock on it. Tapping the lit rung restarts that clock, which
+   * is the renewal somebody asks for from the screen it is drawn on — nearby,
+   * card reading "Nearby 14m", and no way to reach the fifteenth minute
+   * except leaving the rung and coming back. See `DECLARE_NEARBY` in
+   * core/channel.ts.
+   *
+   * **Accented and live**, so the bar still says where you are standing while
+   * the control goes on being one. Nothing visible distinguishes it from an
+   * inert rung, deliberately: what a tap here does is invisible until the
+   * number under it moves, and a fourth appearance for one slot would be
+   * teaching the bar a word for something nobody is looking for.
+   */
+  repeatable?: boolean;
   tone?: 'idle' | 'active' | 'silenced';
   onPress: () => void;
 }) {
@@ -3132,7 +3162,7 @@ function FooterAction({
         : tone === 'active'
           ? colors.floor
           : colors.text;
-  const inert = !!disabled || !!selected;
+  const inert = !!disabled || (!!selected && !repeatable);
   /**
    * The disc behind the control, which says the same thing the colour does and
    * is drawn wherever the colour is not `text`: the rung you are standing on,
@@ -3147,7 +3177,10 @@ function FooterAction({
    * thing the disc is selecting is the pair, and a disc that stopped above the
    * word drew a boundary through the middle of one control.
    */
-  const accented = !inert ? tone !== 'idle' : !!selected;
+  // `selected` first, since a lit rung is accented whether or not a tap still
+  // does anything on it — see `repeatable`, which takes it out of `inert`
+  // without taking it off the bar.
+  const accented = !!selected || (!inert && tone !== 'idle');
 
   return (
     <Pressable

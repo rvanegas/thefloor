@@ -59,7 +59,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent and dates *stepped out* from the tap — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of text a channel keeps, saying what it is for; written and read on the tab of the same name by anybody with the room, and shown under the channel name everywhere else. `description` in the code
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
@@ -711,6 +711,18 @@ still what leaves `lastPresentAt` alone for the two kinds a clock produces —
 since 2026-09-12 a tap and a declaration both stamp it, and a lost connection
 and an expired attention window still do not. That stamp is what *stepped out*
 counts, and it is a different question from this one.
+
+**And tapping the lit rung restarts that clock, since 2026-09-13.** *Nearby*
+is the one control on the footer that does anything while it is the rung you
+are standing on — the other two are places, and this is a claim with a clock
+on it. It was an early return in `DECLARE_NEARBY` that handed the same state
+back, which refused the renewal somebody asks for from the screen that draws
+the number: nearby, card reading *Nearby 14m*, and no way to the fifteenth
+minute except stepping off the rung and back on, which restarted it anyway.
+The tap is the evidence the window is looking for, so it restamps both clocks
+— the card's `declaredNearbyAt` and the server's attention stamp — and
+converts a wait that began by running out of grace into a declared one. See
+`decisions/2026-09-13-tapping-nearby-restarts-the-wait.md`.
 
 **Home hoists it, since 2026-09-12.** The tier pins a bar for each channel you
 are nearby in, under where it pins the channel you are present in and never

@@ -564,6 +564,12 @@ export interface ChannelState {
    * writes it from outside. Cleared by entering and by every departure that
    * clears `waiting`.
    *
+   * **Restamped in place, since 2026-09-13**, when somebody taps the lit
+   * *Nearby* rung: the renewal that used to cost two taps. Which means it also
+   * arrives on a wait that began without it — a lapsed connection tapped from
+   * the rung becomes a declaration, because by then it is one. See
+   * `DECLARE_NEARBY` in core/channel.ts.
+   *
    * Volatile, exactly as `waiting` is, and for the same reason: it describes
    * a process, and a restart that dropped everybody's socket is not evidence
    * about anybody's intentions. Absent on a snapshot from a server that

@@ -1379,6 +1379,16 @@ export class ChannelRegistry {
     // decides whether anything must go is the state the tap produced, and a
     // re-declaration in a channel already held changes no count at all.
     if (action.type === 'DECLARE_NEARBY') {
+      // **The tap is attention, and is stamped as such**, added 2026-09-13
+      // with the renewal in the reducer. What actually retires a wait is this
+      // clock rather than the one on the card — `expireInattentive` reads it
+      // every tick — so restarting the visible number without it would leave
+      // a declaration one second old retired by a stamp from before the tap.
+      // A phone with this screen open is reporting anyway, twice a minute;
+      // this closes the window between coming forward and the next report,
+      // and costs nothing when there is none, `attentive` echoing at its own
+      // rate. Before the apply, so the snapshot it emits carries the stamp.
+      this.attentive(userId, [channelId]);
       const declared = this.apply(channelId, userId, action);
       this.capNearby(userId, channelId);
       return declared;
@@ -2790,6 +2800,13 @@ export class ChannelRegistry {
      * re-stamps `declaredNearbyAt` on every heartbeat from a nearby phone, so
      * a test on the stamp alone would announce every few seconds — and
      * `consume` below would clear the suppression window each time it did.
+     *
+     * **Since 2026-09-13 it is what keeps a renewal quiet as well.** Tapping
+     * the lit *Nearby* rung restamps the declaration in place, which is a new
+     * stamp on somebody already in `waiting`: the edge is false, so nothing
+     * rings. It is the right answer rather than a lucky one — the room was
+     * told when they arrived on the rung, and they have not left it. See
+     * decisions/2026-09-13-tapping-nearby-restarts-the-wait.md.
      */
     const declaredNearby = Object.keys(after.declaredNearbyAt).filter(
       (id) =>

@@ -480,6 +480,37 @@ describe('the attention clock', () => {
     expect(channel(channelId).waiting).toContain(bob.id);
   });
 
+  it('restarts the clock when the lit nearby rung is tapped again', async () => {
+    // The renewal of 2026-09-13, from the server's side. Tapping *Nearby*
+    // while already nearby restamps the card's clock in the reducer, and the
+    // clock that actually retires the wait is this one — so the declaration
+    // stamps it too. Without that, a tap could restart the visible number and
+    // the very next tick could retire the wait it belonged to.
+    const { bob, channelId } = await roomOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+    const first = channel(channelId).declaredNearbyAt[bob.id];
+
+    // Right up to the edge with nothing attending, then the tap.
+    clock += ATTENTION_WINDOW_MS - 1;
+    app.channels.tick();
+    expect(channel(channelId).waiting).toContain(bob.id);
+
+    app.channels.dispatch(channelId, bob.id, { type: 'DECLARE_NEARBY' });
+    expect(channel(channelId).declaredNearbyAt[bob.id]).toBe(clock);
+    expect(channel(channelId).declaredNearbyAt[bob.id]).not.toBe(first);
+
+    // A whole window short of the next one, from the tap rather than from the
+    // declaration a quarter of an hour ago.
+    clock += ATTENTION_WINDOW_MS - 1;
+    app.channels.tick();
+    expect(channel(channelId).waiting).toContain(bob.id);
+
+    // And it is a renewal rather than an exemption: silence after it still
+    // ends the wait.
+    lapse();
+    expect(channel(channelId).waiting).not.toContain(bob.id);
+  });
+
   it('does not keep one alive from a different channel', async () => {
     // **The clock is per room, decided 2026-09-09 after being taken the other
     // way for an hour.** A person can be freshly attending one channel and

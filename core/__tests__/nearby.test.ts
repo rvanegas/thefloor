@@ -92,9 +92,14 @@ describe('stepping in nearby, from outside', () => {
     expect(s.waiting).toContain(B);
   });
 
-  it('is idempotent, a second declaration changing nothing', () => {
+  it('adds nobody twice when the declaration is repeated', () => {
+    // It is not idempotent — since 2026-09-13 the second tap restarts the
+    // clock, which is the point of it — but the rung is a rung and a second
+    // tap has to leave it one. The clock's half is below.
     const once = declare(alone(), B);
-    expect(declare(once, B, T0 + 3_000)).toBe(once);
+    const twice = declare(once, B, T0 + 3_000);
+    expect(twice.waiting).toEqual(once.waiting);
+    expect(twice.present).toEqual(once.present);
   });
 
   it('leaves `lastActiveAt` alone, whatever it does to `lastPresentAt`', () => {
@@ -322,15 +327,36 @@ describe('how long a wait has been going on', () => {
     expect(gone.declaredNearbyAt[B]).toBeUndefined();
   });
 
-  it('leaves the clock alone when a declaration is repeated in place', () => {
-    // The same object back, which is what the watchers need, and the same
-    // stamp. **Not a rule against renewal**, which is what this test said for
-    // a day: stepping out and declaring again restarts the window, and the
-    // case below is that two taps in the footer do exactly that.
+  it('restarts the clock when a declaration is repeated in place', () => {
+    // The renewal the footer's lit rung now sends, and the whole of what
+    // tapping *Nearby* while already nearby does. It handed the same object
+    // back until 2026-09-13, which refused the one renewal somebody asks for
+    // out loud while two taps — step out, declare again — restarted it
+    // anyway.
     const first = declare(together(), B, T0 + 2_000);
     const again = declare(first, B, T0 + 10 * 60_000);
-    expect(again).toBe(first);
-    expect(again.declaredNearbyAt[B]).toBe(T0 + 2_000);
+    expect(again).not.toBe(first);
+    expect(again.declaredNearbyAt[B]).toBe(T0 + 10 * 60_000);
+    expect(nearbyMs(again, B, T0 + 10 * 60_000)).toBe(0);
+    // Still one wait rather than two, and still not present: a renewal moves
+    // the clock and nothing else.
+    expect(again.waiting.filter((id) => id === B)).toHaveLength(1);
+    expect(again.present).not.toContain(B);
+  });
+
+  it('converts a lapsed connection into a declaration when it is tapped', () => {
+    // A wait that began by running out of grace has no stamp and is timed
+    // from the last thing anybody heard. The tap is a sign of life, so from
+    // here it is timed from itself like any other declaration.
+    const dropped = reduce(
+      together(),
+      { type: 'DISCONNECT_EXPIRED', userId: B },
+      T0 + 60_000
+    );
+    expect(dropped.declaredNearbyAt[B]).toBeUndefined();
+    const tapped = declare(dropped, B, T0 + 9 * 60_000);
+    expect(tapped.declaredNearbyAt[B]).toBe(T0 + 9 * 60_000);
+    expect(nearbyMs(tapped, B, T0 + 9 * 60_000)).toBe(0);
   });
 
   /**

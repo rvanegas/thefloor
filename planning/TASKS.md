@@ -23,6 +23,21 @@ presence became three rungs with the controls to match — *Be nearby* is one
 word in one place now, *Nearby* has a way out, and the footer has a fourth
 slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
+## Invited Contact from Link
+
+Didn't create implicit contact, or credit invite. I'm speaking of tangentman@gmail.com .
+
+## Recording Indicator
+
+I liked the previous styling of the recording indicator. Reproduce it in full in the 
+scrollable content of the Recording tab.
+
+## Volkswagen 2015
+
+Suppose one is using HFP to AirPods and then route the bluetooth to 
+a Volkswagen 2015. This creates an echo for other users which can be 
+corrected by stepping out and back in.
+
 ## Deploy All
 
 Create bin/script to run this:
@@ -50,10 +65,6 @@ Remove "choose display name" and "choose username" since both are now derived
 if unchosen. For each of remaining items, include instruction and action to 
 relevant view in app.
 
-## Tapping Nearby
-
-Tapping "Nearby", even if already in nearby state, resets its clock.
-
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, 
@@ -65,7 +76,8 @@ Improve look and feel
 
 ## yt-dlp Integration
 
-Take a youtube url, determine whether an audio only download is available, and make it available to media player.
+Take a youtube url, determine whether an audio only download is available, and 
+make it available to media player.
 
 ## Call if You Must
 

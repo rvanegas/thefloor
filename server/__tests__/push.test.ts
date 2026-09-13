@@ -808,6 +808,32 @@ describe('a channel becoming active', () => {
       expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
     });
 
+    it('announces nothing when the rung is tapped again to renew it', async () => {
+      // Since 2026-09-13 tapping the lit *Nearby* rung restamps the
+      // declaration rather than doing nothing, which is a fresh
+      // `declaredNearbyAt` on somebody already in `waiting`. The room was told
+      // when they arrived on the rung and they have not left it, so the
+      // `waiting` edge in `commit` is what keeps the renewal quiet. The
+      // window is stepped past so that it is this rule under test and not the
+      // suppression.
+      const { alice, bob, channelId } = await emptyChannel();
+      await registerDevice(bob.token, 'bob-phone');
+
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+      expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+
+      clock += ANNOUNCE_INTERVAL_MS;
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'DECLARE_NEARBY',
+      });
+      await settle();
+
+      expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+    });
+
     it('announces nothing when entering another channel made it', async () => {
       // The same rule as the one above, reached by the other route: since
       // 2026-09-12 stepping into a second channel leaves you *nearby* in the

@@ -1694,8 +1694,10 @@ describe('Channel', () => {
         expect(slot).toBeDefined();
         return {
           word,
-          // Lit, and inert because it is lit: there is nothing for a tap to do
-          // on the rung you are standing on.
+          // Lit, which on two of the three also means inert — there is
+          // nothing for a tap to do on a rung you are standing on. *Nearby*
+          // is the exception and has its own case below; what is asserted
+          // here is only which slot is lit.
           on: slot.props.accessibilityState.selected === true,
           // Never greyed. Grey is this bar's word for refused, and no move
           // along this ladder is ever refused.
@@ -1791,6 +1793,76 @@ describe('Channel', () => {
     expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
     act(() => footer.unmount());
     act(() => tree.unmount());
+  });
+
+  /**
+   * The lit *Nearby* rung is the one control on this bar that a tap still does
+   * something to, and what it does is restart the wait.
+   *
+   * Every other rung is a place: you are in the room or you are not, and there
+   * is nothing for a tap to do on the one you are standing on. Nearby is a
+   * claim with a clock on it, and the renewal used to be unreachable from the
+   * screen that draws the number — "Nearby 14m", lit rung, no way to the
+   * fifteenth minute except stepping off and back on. See `repeatable` on
+   * `FooterAction` and `DECLARE_NEARBY` in core/channel.ts.
+   */
+  it('keeps the nearby rung live while it is lit, and lit while it is live', () => {
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+    );
+    const onExit = jest.fn();
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={onExit} />
+    );
+    const footer = footerOf(tree);
+    const nearby = findButton(footer, 'Nearby')!;
+
+    // Still the rung you are standing on, and still says so. Nothing about
+    // being tappable takes it off the bar.
+    expect(nearby.props.accessibilityState.selected).toBe(true);
+    expect(nearby.props.accessibilityState.disabled).toBe(false);
+    // And unlike the other two, it is not inert: `In` while present and `Out`
+    // while out are, which is what makes this one the exception rather than
+    // the rule.
+    expect(nearby.props.disabled).toBe(false);
+    expect(findButton(footer, 'Out')!.props.disabled).toBe(false);
+
+    act(() => nearby.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'DECLARE_NEARBY' });
+    // A renewal is not a departure and not an arrival: the screen stays where
+    // it is, since staying is where the offer is drawn.
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
+    act(() => footer.unmount());
+    act(() => tree.unmount());
+  });
+
+  it('leaves the rung you are standing on inert, for the other two', () => {
+    // The rule this bar keeps everywhere else, stated once so that making
+    // Nearby the exception cannot quietly become making all three one.
+    const inertWhenLit = (
+      word: string,
+      channel: Parameters<typeof showChannel>[0]
+    ) => {
+      showChannel(channel);
+      const tree = render(
+        <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+      );
+      const footer = footerOf(tree);
+      const slot = findButton(footer, word)!;
+      const state = {
+        lit: slot.props.accessibilityState.selected === true,
+        inert: slot.props.disabled === true,
+      };
+      act(() => footer.unmount());
+      act(() => tree.unmount());
+      return state;
+    };
+
+    expect(inertWhenLit('In', channelOf())).toEqual({ lit: true, inert: true });
+    expect(
+      inertWhenLit('Out', channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)))
+    ).toEqual({ lit: true, inert: true });
   });
 
   it('declares nearby from the footer without leaving the screen', () => {

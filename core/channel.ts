@@ -1511,25 +1511,33 @@ export function reduce(
       if (isPresent(state, action.userId)) {
         return stepOut(state, action.userId, now, { exit: 'nearby' });
       }
-      // **Re-declaring in place changes nothing, which is not a policy about
-      // renewal.** This read as one for a day — that the window was a claim
-      // the person being waited for could not extend about themselves — and
-      // that was simply false: *Step out* clears the stamp and *Be nearby*
-      // writes a fresh one, so the two taps the ladder puts side by side in
-      // the footer restart the fifteen minutes, and go on restarting them.
-      // The rule was never enforced anywhere; it described a control that
-      // happens not to exist, the nearby slot being inert while you are on
-      // that rung.
+      // **Re-declaring in place restarts the wait, since 2026-09-13.** It was
+      // an early return that handed the same object back, on the reasoning
+      // that a tap changing nothing is the cheapest thing a reducer can do.
+      // What it actually did was refuse the one renewal somebody asks for out
+      // loud: nearby, card reading "Nearby 14m", tap the lit rung and watch
+      // the number go on climbing. The way to reach the fifteenth minute was
+      // to step out and declare again — two taps that already restarted it,
+      // which is why this was never a policy about renewal in the first place
+      // and said so at length.
       //
-      // **And the behaviour is right, so it stays.** The window is there to
-      // stop a *stale* claim outliving somebody who wandered off, and a person
-      // tapping their phone is the one person that cannot be true of — the tap
-      // is the same evidence of attention that made the declaration worth
-      // timing from itself in the first place. Blocking the toggle would take
-      // a cooldown, which is machinery to stop somebody asserting something
-      // true. What this early return actually buys is a stable object for the
-      // watchers, and nothing else.
-      if (state.waiting.includes(action.userId)) return state;
+      // **The tap is the evidence the clock is timing.** The window exists to
+      // stop a stale claim outliving somebody who wandered off, and a person
+      // touching their phone is the one person that cannot be true of — the
+      // same reason a declaration is timed from itself rather than from
+      // whenever they were last in the room. So the fresher tap wins, and
+      // there is nothing here to guard: a cooldown would be machinery to stop
+      // somebody asserting something true.
+      //
+      // **And it converts as well as renews.** A wait that began by running
+      // out of grace has no stamp and is timed from the last thing anybody
+      // heard; a tap from that rung makes it a declaration, which is what it
+      // now is. See `nearbyMs` for why the two are timed differently.
+      //
+      // The footer's *Nearby* rung is the tap this is for, and it is the one
+      // rung of the three that stays live while you are standing on it — see
+      // `FooterAction` in app/src/ui/ChannelView.tsx.
+      //
       // **`lastActiveAt` is deliberately not stamped.** It orders Home by when
       // a room was last a room, and somebody declaring themselves reachable
       // has not been in it. A new object is what the watchers need, and this
@@ -1544,7 +1552,9 @@ export function reduce(
       // looking idle by way of this one rather than by way of `lastActiveAt`.
       return {
         ...state,
-        waiting: [...state.waiting, action.userId],
+        waiting: state.waiting.includes(action.userId)
+          ? state.waiting
+          : [...state.waiting, action.userId],
         declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
         lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
       };
