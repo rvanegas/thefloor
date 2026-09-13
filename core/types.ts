@@ -372,13 +372,16 @@ export interface ChannelState {
    */
   name: string | null;
   /**
-   * A description of what the channel is for, as Markdown, or null when nobody
-   * has written one.
+   * A description of what the channel is for, or null when nobody has written
+   * one. The *notepad*, to a user; see GLOSSARY.md on why the two words
+   * differ, which is that renaming this one would be a wire change.
    *
-   * Stored as its source rather than as anything parsed: the markup is what a
-   * person typed and what they will see when they edit it again, and rendering
-   * is the client's business. Only inline formatting is meaningful — this sits
-   * in a header, not in a document.
+   * **Plain text since 2026-09-13**, held and shown as the characters
+   * somebody typed. It was Markdown source until then, rendered by the app to
+   * five inline marks; the parser is gone and the marks are characters, so
+   * there is no longer any difference between what is stored and what is
+   * read. Old builds still render what they receive as Markdown, which is
+   * cosmetic and needs no shim.
    */
   description: string | null;
   /** The user who created the channel. */

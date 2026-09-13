@@ -69,7 +69,7 @@ import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
-import { InlineMarkdown, isSafeUrl, openUrl } from './markdown';
+import { isSafeUrl, openUrl } from './links';
 import {
   BellIcon,
   FloorIcon,
@@ -320,6 +320,18 @@ export function ChannelView({
     );
     notepadSaved.current = notepadHeld;
   }, [notepadHeld]);
+  /**
+   * **Whether the notepad is open to write on**, which since 2026-09-13 it is
+   * not by default. The field used to be the notepad: whoever had the room saw
+   * a box of text where everybody else saw the words. A sheet of paper is read
+   * more often than it is written on, so the card shows the text and a small
+   * *Edit* beside it, and the box appears where the text was when that is
+   * pressed.
+   *
+   * Local and unremembered, like `tab`: arriving at the notepad is arriving to
+   * read it.
+   */
+  const [notepadEditing, setNotepadEditing] = useState(false);
 
   /**
    * Sends an action to this channel.
@@ -346,6 +358,15 @@ export function ChannelView({
    * disabled: the reducer refuses this silently, so a stale `saved` ref must
    * not record an edit that never landed.
    */
+  /**
+   * The words on the sheet, which is the draft when it is yours to write on
+   * and what the channel holds when it is not. The two are the same thing
+   * almost always — the draft is adopted from every snapshot there is nothing
+   * unsaved to lose to — but somebody who steps out mid-sentence keeps a draft
+   * that can no longer be written, and showing them that as the channel's
+   * notepad would be showing them text nobody else has.
+   */
+  const notepadShown = mayWriteNotepad ? notepad : (channel?.description ?? '');
   const persistNotepad = () => {
     if (!mayWriteNotepad) return;
     if (notepad === notepadSaved.current) return;
@@ -399,7 +420,12 @@ export function ChannelView({
   const persistNotepadRef = useRef(persistNotepad);
   persistNotepadRef.current = persistNotepad;
   useEffect(() => {
-    if (tab !== 'notepad' || settingsOpen) persistNotepadRef.current();
+    if (tab !== 'notepad' || settingsOpen) {
+      persistNotepadRef.current();
+      // And the card goes back to being a sheet, so returning to the tab is
+      // arriving to read rather than landing in a box with a keyboard up.
+      setNotepadEditing(false);
+    }
   }, [tab, settingsOpen]);
   // Unmount, which is the one that would otherwise drop the edit: closing the
   // channel, the channel ending, or the app tearing the screen down. Fire and
@@ -2177,104 +2203,38 @@ export function ChannelView({
         {shown === 'notepad' ? (
           <>
         {/*
-          **What the channel has written down**, which is two things and was
-          two sections in two different places: the notepad, which was above
-          the tabs as a *description* and is what the channel is *for*, and the
-          clipboard, which was the first section below the seam and is what
-          somebody in it has just handed everybody else.
+          **What the channel has written down**, which is two things: the
+          clipboard, which is the last thing somebody in it handed everybody
+          else, and the notepad, which is what the channel is *for*.
 
           They belong together because they are the same kind of thing at two
           speeds. Both are text the channel holds rather than a control on the
-          room; one is written once and rarely changed, the other is replaced
-          whenever anybody pastes. Nothing here claims audio, nothing here is
+          room; one is replaced whenever anybody pastes, the other is written
+          once and rarely changed. Nothing here claims audio, nothing here is
           refused by the floor, and neither is worth a line on every other tab.
+
+          **The clipboard is first, since 2026-09-13.** The order was the other
+          way when the notepad arrived here, on the reading that what a channel
+          is for comes before what somebody just pasted. What a person opens
+          this tab for is the paste: it is minutes old, it is the reason they
+          were told to look, and the notepad is a standing sheet that changes
+          about as often as the channel's name. The fast half goes at the top.
 
           **Named *Notepad* rather than *Notes*.** *Notes* reads as a list of
           them, one per thing somebody wanted to say, which is what this tab is
-          not: it is one surface the channel keeps, with what it is for at the
-          top and the last thing anybody handed round below. A notepad is a
-          single sheet that gets written over, which is both halves exactly.
+          not: it is one surface the channel keeps, written over. A notepad is
+          a single sheet, which is exactly that.
 
           **And it is written on here**, since 2026-09-12 — the section carries
           the same name as the tab because it is the thing the tab is named
           after. It arrived read-only, on the reasoning that changing it is a
           settings act and Settings is a tap away in the header; what killed
           that is the word. A notepad you can read but must go to another
-          screen to write on is not one, and it sat directly above a clipboard
-          anybody present replaces in place. The field is the one that was on
-          the settings screen, moved whole — preview, counter and cap — and
-          Settings no longer has a copy, so the two cannot disagree.
+          screen to write on is not one, and it sits directly under a clipboard
+          anybody present replaces in place.
 
           `mayWriteNotepad` is `canEditChannel`, the same gate the name keeps.
-          Somebody who cannot write on it reads it rendered rather than as
-          markup in a disabled box, which is what the settings screen showed
-          them and what a sheet of paper does.
         */}
-        <SectionLabel>Notepad</SectionLabel>
-        {/*
-          In a card, which it was not when it sat above the tabs. There it was
-          the first prose on the screen, under the header's rule, and a card
-          around it would have been a box around the only thing there was. Here
-          it has a section label over it and a card under it, and bare prose
-          between the two reads as text that has come loose from something.
-        */}
-        <Card style={styles.stack}>
-          {mayWriteNotepad ? (
-            <>
-              <Field
-                value={notepad}
-                onChangeText={(v) =>
-                  setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
-                }
-                placeholder="Links, a reading list, what this is for…"
-                autoCapitalize="sentences"
-                multiline
-                onBlur={persistNotepad}
-              />
-
-              {/*
-                A preview, because the input shows markup and the header will
-                not. Without it the only way to find out what `[a](b)` becomes
-                is to go back and look, and the only way to fix a typo is to do
-                that twice.
-              */}
-              {notepad.trim() ? (
-                <View style={styles.preview}>
-                  <Text style={type.label}>Preview</Text>
-                  <InlineMarkdown text={notepad} style={styles.previewText} />
-                </View>
-              ) : null}
-
-              <Text style={type.muted}>
-                Shown under the channel name to everyone in it. **Bold**,
-                *italic*, `code`, ~~strikethrough~~ and
-                [links](https://example.com) work. Links open in your browser.
-              </Text>
-              <Text style={styles.count}>
-                {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
-              </Text>
-            </>
-          ) : channel.description ? (
-            <>
-              <InlineMarkdown
-                text={channel.description}
-                style={styles.description}
-              />
-              <Text style={type.muted}>
-                Step in to write on this. It is what the channel is for, and
-                that is for whoever is in it to say.
-              </Text>
-            </>
-          ) : (
-            // Said rather than left blank, and it says what would change it: a
-            // tab with a heading and nothing under it reads as something that
-            // failed to load.
-            <Text style={type.muted}>
-              Nothing on the notepad. Step in to write on it.
-            </Text>
-          )}
-        </Card>
-
         <SectionLabel>Shared clipboard</SectionLabel>
         <Card style={styles.stack}>
           {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
@@ -2337,6 +2297,90 @@ export function ChannelView({
               ? 'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.'
               : 'Step in to put something on the channel clipboard.'}
           </Text>
+        </Card>
+
+        {/*
+          **Plain text, and a small *Edit*, since 2026-09-13.** The field that
+          moved here from Settings brought a markdown parser, a live preview
+          and two lines explaining which five marks worked; a notepad is a
+          sheet somebody writes a reading list on, and none of that is what a
+          sheet of paper does. What the card shows now is the words — the same
+          words, to the person who may write them and to the person who may
+          not — with the box appearing in their place only when *Edit* is
+          pressed. The character cap is the one thing kept, that being the
+          server's rule rather than a flourish.
+        */}
+        <SectionLabel>Notepad</SectionLabel>
+        {/*
+          In a card, which it was not when it sat above the tabs. There it was
+          the first prose on the screen, under the header's rule, and a card
+          around it would have been a box around the only thing there was. Here
+          it has a section label over it and a card under it, and bare prose
+          between the two reads as text that has come loose from something.
+        */}
+        <Card style={styles.stack}>
+          {notepadEditing ? (
+            <>
+              <Field
+                value={notepad}
+                onChangeText={(v) =>
+                  setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
+                }
+                placeholder="Links, a reading list, what this is for…"
+                autoCapitalize="sentences"
+                autoFocus
+                multiline
+                onBlur={persistNotepad}
+              />
+              <Text style={styles.count}>
+                {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
+              </Text>
+              {/*
+                *Done* writes and puts the sheet back. Blur writes too — the
+                keyboard going down, or a tap somewhere else on the tab — so
+                nothing here depends on this button being found; it is the way
+                out of the box for somebody who has stopped typing, a
+                multiline field having no return key that means finished.
+              */}
+              <Button
+                label="Done"
+                variant="primary"
+                onPress={() => {
+                  persistNotepad();
+                  setNotepadEditing(false);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {notepadShown.trim() ? (
+                <Text style={styles.description}>{notepadShown}</Text>
+              ) : (
+                // Said rather than left blank, and it says what would change
+                // it: a card with a heading and nothing under it reads as
+                // something that failed to load.
+                <Text style={type.muted}>
+                  {mayWriteNotepad
+                    ? 'Nothing on the notepad. Write on it.'
+                    : 'Nothing on the notepad. Step in to write on it.'}
+                </Text>
+              )}
+
+              {mayWriteNotepad ? (
+                <Button
+                  label="Edit"
+                  variant="ghost"
+                  style={styles.notepadEdit}
+                  onPress={() => setNotepadEditing(true)}
+                />
+              ) : notepadShown.trim() ? (
+                <Text style={type.muted}>
+                  Step in to write on this. It is what the channel is for, and
+                  that is for whoever is in it to say.
+                </Text>
+              ) : null}
+            </>
+          )}
         </Card>
 
           </>
@@ -4144,24 +4188,25 @@ const styles = StyleSheet.create({
     borderColor: colors.floor,
     backgroundColor: colors.floor,
   },
+  /**
+   * The notepad's words. Body rather than the muted grey it was in: it was a
+   * line under a header when that style was written, and it is the content of
+   * its own card now, with the muted tone left to the sentences *about* it.
+   */
   description: {
-    ...type.muted,
+    ...type.body,
     lineHeight: 20,
     marginTop: spacing(0.5),
     marginBottom: spacing(0.5),
   },
   /**
-   * The notepad's preview, and the character count under it. Both moved here
-   * with the field from ChannelSettingsView and are the same values, the two
-   * screens having shown the same thing.
+   * The notepad's *Edit*, which is small on purpose: `flex-start` so it is the
+   * width of the word rather than of the card, the sheet being the thing on
+   * this card and this being the way to change it. A ghost tone for the same
+   * reason — the text is what is read here, not the control beside it.
    */
-  preview: {
-    gap: spacing(0.5),
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-    paddingLeft: spacing(1.25),
-  },
-  previewText: { ...type.muted, lineHeight: 20 },
+  notepadEdit: { alignSelf: 'flex-start', paddingHorizontal: spacing(1) },
+  /** The notepad's character count, under the field while it is open. */
   count: {
     ...type.muted,
     color: colors.textFaint,

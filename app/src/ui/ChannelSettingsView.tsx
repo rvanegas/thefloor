@@ -35,9 +35,10 @@ import { colors, spacing, type } from './theme';
  * **The notepad is not here, since 2026-09-12.** It was the section under the
  * name, on the reasoning that writing what a channel is for is a settings act;
  * the tab it is rendered on is called Notepad, and a notepad somebody has to
- * leave the page to write on is not one. It is on that tab now, field and
- * preview and counter whole, and there is deliberately no second copy here —
- * see ChannelView's Notepad tab.
+ * leave the page to write on is not one. It is on that tab now — plain text
+ * behind a small *Edit* since 2026-09-13, the field and preview this screen
+ * had having been more apparatus than a sheet of paper needs — and there is
+ * deliberately no second copy here; see ChannelView's Notepad tab.
  */
 export function ChannelSettingsView({
   channel,

@@ -67,9 +67,11 @@ describe('SET_DESCRIPTION', () => {
     expect(described.description).toBe('Notes and **links**');
   });
 
-  it('keeps the markup exactly as it was typed', () => {
-    // The source is what is stored: it is what the writer will edit next time,
-    // and rendering it is the client's business, not the reducer's.
+  it('keeps the text exactly as it was typed', () => {
+    // What is stored is what was typed: it is what the writer will edit next
+    // time, and since 2026-09-13 it is also exactly what every reader sees,
+    // the app having stopped parsing it as Markdown. Characters that used to
+    // be marks are characters.
     const markup = '# not a heading\n\n[a](https://example.com) *and* `code`';
     const s = reduce(
       pair(),
@@ -80,8 +82,9 @@ describe('SET_DESCRIPTION', () => {
   });
 
   it('trims the ends but never the interior', () => {
-    // Interior whitespace is Markdown: a blank line separates paragraphs and
-    // two trailing spaces force a break. Collapsing it would rewrite prose.
+    // The interior is the sheet: a blank line separates one thing from the
+    // next and the indentation of a list is the list. Collapsing it would
+    // rewrite what somebody wrote.
     const s = reduce(
       pair(),
       { type: 'SET_DESCRIPTION', userId: A, description: '  one\n\n  two  ' },

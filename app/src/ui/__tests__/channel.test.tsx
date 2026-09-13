@@ -27,7 +27,6 @@ import {
   findButton,
   findExactButton,
   labelOf,
-  linksIn,
   mockApp,
   render,
   resetHarness,
@@ -1281,12 +1280,14 @@ describe('Channel', () => {
     */
     expect(sections()).toEqual(['The floor', 'Your microphone', 'Step out']);
 
-    // What the channel has written down, at two speeds: the notepad, which
-    // was above the tabs as a *description* until this tab existed, and the
-    // clipboard. The first section carries the tab's own name, it being the
-    // thing the tab is named after.
+    // What the channel has written down, at two speeds — and in that order
+    // since 2026-09-13: the clipboard, which is minutes old and is what
+    // somebody opened this tab to find, above the notepad, which is a standing
+    // sheet that changes about as often as the channel's name. The tab is
+    // named after the slower half even so; what it is called is not an
+    // argument about which half is looked at first.
     showNotepad(tree);
-    expect(sections()).toEqual(['Notepad', 'Shared clipboard']);
+    expect(sections()).toEqual(['Shared clipboard', 'Notepad']);
 
     // What is playing, and nothing else: the recording transport moved to
     // *Recordings* on 2026-09-12, the tab being named after what it makes.
@@ -1834,7 +1835,7 @@ describe('Channel', () => {
         // by position, so a reordering of the bar cannot quietly pass this.
         // Host nodes only: `findAll` matches the composite and the element it
         // renders, so an unfiltered search counts one slot three times. The
-        // same filter `linksIn` uses in the harness.
+        // Host nodes only, for the reason `findAll` always needs it.
         bell: footer.root
           .findAll(
             (node) =>
@@ -2587,8 +2588,7 @@ describe('Channel', () => {
 
   it('renders the notepad for somebody who cannot write on it', () => {
     // Stepped out, so `canEditChannel` is false and the notepad is a sheet to
-    // read rather than one to write on — which is what the settings screen
-    // used to show this person as a greyed field full of markup.
+    // read rather than one to write on — no field, and no *Edit* beside it.
     showChannel(
       channelOf((c) => {
         const out = reduce(c, { type: 'STEP_OUT', userId: ME }, NOW);
@@ -2597,7 +2597,7 @@ describe('Channel', () => {
           {
             type: 'SET_DESCRIPTION',
             userId: THEM,
-            description: 'Reading **Dune**, see [notes](https://example.com).',
+            description: 'Reading Dune, notes at https://example.com.',
           },
           NOW
         );
@@ -2615,23 +2615,19 @@ describe('Channel', () => {
     // other section. Asserted from both sides, a tab being worth nothing if
     // the thing it holds is drawn on the one beside it too.
     expect(textOf(tree)).not.toContain('Dune');
-    expect(linksIn(tree)).toEqual([]);
 
     showNotepad(tree);
     const text = textOf(tree);
-    // The markup is gone and the words remain.
-    expect(text).toContain('Reading');
-    expect(text).toContain('Dune');
-    expect(text).toContain('notes');
-    expect(text).not.toContain('**Dune**');
+    // Verbatim, since 2026-09-13: what is on the sheet is the characters
+    // somebody typed, with nothing parsed out of them and nothing rendered
+    // from them.
+    expect(text).toContain('Reading Dune, notes at https://example.com.');
 
-    // The link is a link. Host nodes only: findAll matches the composite and
-    // the host element for one <Text>.
-    expect(linksIn(tree)).toEqual(['notes']);
-
-    // No field, and a sentence saying why rather than a disabled box: the
-    // rule on this tab is the one the name keeps on the settings screen.
+    // No field and no way to open one, and a sentence saying why rather than
+    // a disabled box: the rule on this tab is the one the name keeps on the
+    // settings screen.
     expect(tree.root.findAll((n) => n.type === TextInput)).toEqual([]);
+    expect(findExactButton(tree, 'Edit')).toBeUndefined();
     expect(text).toContain('Step in to write on this');
     act(() => tree.unmount());
   });
@@ -2647,7 +2643,6 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showNotepad(tree);
-    expect(linksIn(tree)).toEqual([]);
     // A heading with nothing under it reads as something that failed to load,
     // which the tab made possible: nothing was drawn where the description
     // went when it sat above the switch, and nothing was the right answer
@@ -2657,7 +2652,7 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('edits the notepad on its own tab, with a preview', () => {
+  it('opens the notepad for writing behind Edit, and closes on Done', () => {
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -2669,32 +2664,66 @@ describe('Channel', () => {
     // somebody has to leave the page to write on not being one.
     showNotepad(tree);
 
-    const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Links, a reading list, what this is for…'
-    )[0];
-    act(() => field.props.onChangeText('See [notes](https://notes.example)'));
+    const field = () =>
+      tree.root.findAll(
+        (n) =>
+          n.props?.placeholder === 'Links, a reading list, what this is for…'
+      )[0];
 
-    // The preview renders it, so nobody has to save to find out what it
-    // becomes. A URL of its own, because the card's help text quotes
-    // example.com as an illustration and would match either way.
-    expect(textOf(tree)).toContain('Preview');
-    expect(textOf(tree)).not.toContain('](https://notes.example)');
-    expect(linksIn(tree)).toContain('notes');
+    // A sheet first, since 2026-09-13. Arriving at the notepad is arriving to
+    // read it, so the box is behind *Edit* rather than being the notepad.
+    expect(field()).toBeUndefined();
+    act(() => findExactButton(tree, 'Edit')!.props.onPress());
+    expect(field()).toBeDefined();
+
+    act(() => field().props.onChangeText('Dune, Thursdays'));
 
     // Nothing is written while the field has focus, this tab being a place
     // somebody stays rather than a screen they close.
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
-      description: 'See [notes](https://notes.example)',
+      description: 'Dune, Thursdays',
     });
 
     // Leaving the field is the save, which is what the settings screen did
     // when you tapped the way back straight out of it.
-    act(() => field.props.onBlur());
+    act(() => field().props.onBlur());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
-      description: 'See [notes](https://notes.example)',
+      description: 'Dune, Thursdays',
     });
+
+    // And *Done* puts the sheet back, a multiline field having no return key
+    // that means finished.
+    act(() => findExactButton(tree, 'Done')!.props.onPress());
+    expect(field()).toBeUndefined();
+    expect(textOf(tree)).toContain('Dune, Thursdays');
+    act(() => tree.unmount());
+  });
+
+  it('keeps the notepad as typed, markup and all', () => {
+    // The five marks the field used to accept are five characters now. What
+    // killed the parser is the word: a notepad is a sheet somebody writes a
+    // reading list on, not a document format.
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showNotepad(tree);
+    act(() => findExactButton(tree, 'Edit')!.props.onPress());
+    const field = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Links, a reading list, what this is for…'
+    )[0];
+    act(() => field.props.onChangeText('See [notes](https://notes.example)'));
+    act(() => findExactButton(tree, 'Done')!.props.onPress());
+
+    // No preview, and no rendering: the asterisks and brackets are on the
+    // sheet because that is what was written on it.
+    expect(textOf(tree)).not.toContain('Preview');
+    expect(textOf(tree)).toContain('See [notes](https://notes.example)');
     act(() => tree.unmount());
   });
 
@@ -2720,7 +2749,10 @@ describe('Channel', () => {
         (n) =>
           n.props?.placeholder === 'Links, a reading list, what this is for…'
       )[0]!;
+    /** Opens the box, the notepad being a sheet until somebody says to write. */
+    const edit = () => act(() => findExactButton(tree, 'Edit')!.props.onPress());
 
+    edit();
     act(() => field().props.onChangeText('typed, then away'));
     showRoster(tree);
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -2732,6 +2764,7 @@ describe('Channel', () => {
     // there is no change to report.
     mockApp.act.mockClear();
     showNotepad(tree);
+    edit();
     showRoster(tree);
     expect(mockApp.act).not.toHaveBeenCalledWith(
       'sess_1',
@@ -2740,6 +2773,7 @@ describe('Channel', () => {
 
     // The screen going is the one that would otherwise drop it.
     showNotepad(tree);
+    edit();
     act(() => field().props.onChangeText('typed, then gone'));
     act(() => tree.unmount());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -2778,6 +2812,7 @@ describe('Channel', () => {
     showChannel(channelOf());
     const tree = render(screen());
     showNotepad(tree);
+    act(() => findExactButton(tree, 'Edit')!.props.onPress());
     const field = () =>
       tree.root.findAll(
         (n) =>

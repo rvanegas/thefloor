@@ -683,8 +683,9 @@ CREATE TABLE IF NOT EXISTS channels (
   participants TEXT,
   -- What the participants called it, if they named it. Null means unnamed.
   name TEXT,
-  -- The channel's description, as the Markdown source somebody typed. Null
-  -- means nobody has written one.
+  -- The channel's description, as the plain text somebody typed — Markdown
+  -- source until 2026-09-13, when the app stopped parsing it. Null means
+  -- nobody has written one.
   description TEXT,
   -- The durable projection of the live ChannelState, as JSON, rewritten on
   -- every transition that changes it. One blob rather than a column per field,

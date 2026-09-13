@@ -517,19 +517,6 @@ export function findExactButton(
     .find((n) => labelOf(n) === label);
 }
 
-/**
- * The text of every rendered link. Host nodes only — `findAll` matches both the
- * composite component and its host element, so an unfiltered search counts one
- * link twice.
- */
-export function linksIn(tree: ReactTestRenderer): string[] {
-  return tree.root
-    .findAll(
-      (n) => typeof n.type === 'string' && n.props?.accessibilityRole === 'link'
-    )
-    .map(labelOf);
-}
-
 export function render(element: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
   act(() => {

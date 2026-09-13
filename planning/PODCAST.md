@@ -48,11 +48,11 @@ The rest of the metadata is already there too:
 | `<podcast:transcript>` | the existing VTT export, `formatTranscript` |
 | `<itunes:image>` | **nothing. See § *Artwork*.** |
 
-`channels.description` is Markdown source, and a feed `<description>` wants
-either plain text or escaped HTML. Rendering it is not new work — the public
-page has to render it anyway — but the feed and the page must render the same
-source through the same function, for the reason every other pair in this
-repository does.
+`channels.description` was Markdown source until 2026-09-13 and is plain text
+now, which is what a feed `<description>` wants: escape it for XML and it is
+done, with no rendering step for the feed and the public page to disagree
+about. (This paragraph used to say the opposite, and required them to render
+the same source through the same function.)
 
 ---
 

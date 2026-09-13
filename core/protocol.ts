@@ -1109,7 +1109,7 @@ export type ClientAction =
   | { type: 'INVITE'; contactId: string }
   /** Names or renames the channel; an empty string clears the name. */
   | { type: 'SET_NAME'; name: string }
-  /** Writes the channel's Markdown description; an empty string clears it. */
+  /** Writes the channel's description; an empty string clears it. */
   | { type: 'SET_DESCRIPTION'; description: string }
   /**
    * Turns automatic recording on or off for the channel.

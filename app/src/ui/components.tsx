@@ -169,8 +169,8 @@ export function Field({
   submitLabel?: 'done' | 'go' | 'send' | 'next';
   /**
    * Grows to several lines, and the return key inserts a newline rather than
-   * submitting — which is why `onSubmit` is ignored here: in prose, and
-   * especially in Markdown, a line break is content.
+   * submitting — which is why `onSubmit` is ignored here: in prose a line
+   * break is content.
    */
   multiline?: boolean;
   /**

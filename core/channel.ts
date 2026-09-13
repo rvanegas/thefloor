@@ -1765,9 +1765,9 @@ export function reduce(
 
     case 'SET_DESCRIPTION': {
       if (!canEditChannel(state, action.userId)) return state;
-      // Trimmed at the ends but not within: the interior of a description is
-      // Markdown, where a blank line separates paragraphs and two trailing
-      // spaces force a break. Collapsing that would rewrite what somebody
+      // Trimmed at the ends but not within: the interior is the sheet, where
+      // a blank line separates one thing from the next and the indentation of
+      // a list is the list. Collapsing that would rewrite what somebody
       // wrote.
       const trimmed = action.description
         .trim()

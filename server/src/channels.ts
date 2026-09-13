@@ -1364,9 +1364,8 @@ export class ChannelRegistry {
     }
 
     // The reducer trims, caps and treats blank as absent; this only checks the
-    // payload carries a string at all. Note it is *not* validated as Markdown:
-    // there is no such thing as invalid Markdown, and anything the renderer
-    // does not recognise it shows as the characters somebody typed.
+    // payload carries a string at all. There is nothing else to validate: it
+    // is plain text, and was not validated when it was Markdown either.
     if (action.type === 'SET_DESCRIPTION') {
       if (typeof (action as { description?: unknown }).description !== 'string') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };

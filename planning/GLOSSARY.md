@@ -60,7 +60,7 @@ caused; the list carries the meaning.
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
-- **Notepad** — One sheet of text a channel keeps, saying what it is for; written and read on the tab of the same name by anybody with the room, and shown under the channel name everywhere else. `description` in the code
+- **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -772,14 +772,27 @@ has just given up on.
 
 **One sheet of text a channel keeps**, saying what the channel is for: a
 reading list, a few links, the standing question everybody in it is circling.
-Markdown, to the five marks `InlineMarkdown` accepts — bold, italic, code,
-strikethrough and links — and capped at `MAX_CHANNEL_DESCRIPTION_LENGTH`.
+**Plain text since 2026-09-13**, capped at `MAX_CHANNEL_DESCRIPTION_LENGTH`
+and shown exactly as it was typed. It accepted five marks of Markdown until
+then — bold, italic, code, strikethrough and links, parsed by an
+`InlineMarkdown` that no longer exists — with a live preview under the field
+saying what they would become. A sheet of paper does none of that, and the
+parser, the preview and the two lines explaining which marks worked were
+more apparatus than the thing they served.
 
 **Anybody with the room may write on it**, which is `canEditChannel`: either
 you are present in the channel or nobody is. The same gate the channel's
 *name* keeps, and for the same reason — what a conversation says it is for is
 not for somebody who is somewhere else to rewrite under the people having it.
-Somebody without the room reads it rendered, with a line saying to step in.
+Somebody without the room reads the same words, with a line saying to step in
+and no *Edit* beside them.
+
+**It is read before it is written on**, which is what the *Edit* is for. The
+card shows the words; pressing *Edit* puts a field where they were, and *Done*
+— or leaving the field, the tab or the screen — writes and puts the sheet
+back. The field was the notepad until 2026-09-13: whoever had the room saw a
+box of text where everybody else saw the sheet, which is the wrong way round
+for a thing read far more often than it is changed.
 
 **It is `description` in the code and on the wire**, and this is one of the
 places the two vocabularies differ on purpose. It was *Description* to the user
