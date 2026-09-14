@@ -55,6 +55,21 @@
  * planning/MARKETING.md § *The funnel is upside down* says why this page is the
  * middle of the funnel rather than the top.
  *
+ * **The claim is non-intrusion and never silence, and the caption under the
+ * lock screen said silence for a day.** It read *nothing here made a sound*,
+ * which is false twice over: a notification makes a notification sound, and
+ * `push.ts` is explicit that at the default level the automatic ones arrive
+ * without one while **a ping is the one that makes a noise**. So the very
+ * notification the picture is about is the audible one.
+ *
+ * **The slide is easy and will happen again**, because *nothing rings* sounds
+ * like *nothing sounds*. It is not: what is refused is the alarm — the
+ * escalation that pierces a Focus mode or the silent switch, and the
+ * expectation of an answer in the next four seconds. An ordinary sound that
+ * the recipient chose, and can turn off per channel and per kind, is the
+ * opposite of that rather than a weaker version of it. Check any sentence here
+ * about sound against `push.ts` before shipping it.
+ *
  * **The lock screen under the first claim is the one image here that carries
  * a non-event.** A phone that does not ring cannot be photographed, so it is
  * photographed by comparison instead: The Floor's notification is the same
@@ -193,9 +208,9 @@ alt="A phone's lock screen. One notification reads &quot;Morning Standup
 among the older notifications, an earlier one reads &quot;Beth Frankish stepped
 in&quot; six minutes ago, and beneath that an activity reminder from another
 app.">
-<figcaption>Beth stepped in six minutes ago and has just asked for you. It
-is the same shape as every other notification on the screen, and nothing here
-made a sound.</figcaption>
+<figcaption>Beth stepped in six minutes ago without a sound. Asking for you
+makes one &mdash; the ordinary notification sound, the same as anything else on
+this screen. It is not a ring, and it waits.</figcaption>
 </figure>
 
 <h2 class="claim">A channel is a place, not a call</h2>
