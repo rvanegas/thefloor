@@ -37,15 +37,23 @@ up where it stopped, and says in as many words not to run it from the top.
 not the default, because the default should be the one that does not compound a
 failure.
 
-## It is not a fifth verb, and the prompt is where that is admitted
+## It is not a fifth verb, and the plan is where that is admitted
 
 RELEASING.md § *The five verbs* is untouched. This spans two of them —
 `deploy`, which is reversible in a minute, and `upload`, which spends a build
 number and writes a permanent tag — and a name cannot make that one thing. The
-honesty is in the confirmation: the run names the upload before anything
-starts, and asks. `--yes` skips the question; a non-terminal with no `--yes` is
-refused outright rather than assumed, since an unattended upload is exactly the
-thing nobody asked for.
+honesty is in the plan the run prints before anything starts: it names the
+upload, and what the upload costs, in the line above the first stage.
+
+It does not then ask. The first cut had a y/n on the upload, with `--yes` to
+skip it and a refusal when there was no terminal; that was removed the same
+day. Typing `bin/deploy-all` *is* the asking — the rule one section down is
+that nothing here decides to run, so a run only ever exists because somebody
+typed it — and a prompt on top of that is a second answer to a question already
+answered. What the prompt was actually protecting against is a mistyped
+command, and a y/n is a poor guard against that: the reflex answer to a
+question you expected is *y*. The guards that catch a wrong run are the
+preflight and the printed plan, and both survive.
 
 **`bin/submit-ios` is deliberately not one of the four.** Putting a build in
 front of App Review is a different day and a different decision, and the one

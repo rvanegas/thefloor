@@ -7,7 +7,6 @@
 #   bin/deploy-all --dry-run    say what would run and check the machine can
 #   bin/deploy-all --from web   resume at a stage, after fixing what stopped it
 #   bin/deploy-all --keep-going run the rest even after one fails
-#   bin/deploy-all --yes        do not ask before starting
 #
 # The four, and they are `bin/deploy`, `bin/upload-ios`, `bin/deploy-web --beta`
 # and `bin/android --apk` — each run exactly as it would be by hand, with no
@@ -21,9 +20,11 @@
 # neither is a synonym for the other. This spells a common afternoon in one
 # word — the afternoon where a revision goes to the box, to TestFlight, to the
 # beta web train and onto a phone by cable — and that afternoon spans two of
-# the verbs. So the name is a convenience and the confirmation prompt is where
-# the honesty is: it names the upload before anything starts, since that is the
-# half that cannot be taken back.
+# the verbs. So the name is a convenience, and the honesty is in the plan it
+# prints before anything starts: it names the upload, since that is the half
+# that cannot be taken back. It does not then ask. Typing this is the asking —
+# the same rule as landing, one line below — and a y/n on top of a typed
+# command is a second answer to a question already answered.
 #
 # **Nothing here decides to run.** Same rule as landing: somebody types this.
 # Being asked for it once does not license the next one, and it does not
@@ -114,7 +115,6 @@ stage_what() {
 from=""
 dry_run=false
 keep_going=false
-assume_yes=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -122,7 +122,6 @@ while [ $# -gt 0 ]; do
     --from=*) from=${1#--from=} ;;
     --dry-run|-n) dry_run=true ;;
     --keep-going) keep_going=true ;;
-    --yes|-y) assume_yes=true ;;
     # The whole comment block, however long it grows — same as bin/deploy and
     # bin/db, and for the same reason: a fixed line range truncates the help
     # the moment the header gains a line.
@@ -247,25 +246,6 @@ echo
 if $dry_run; then
   echo "✓ dry run — the machine can do all of that, and none of it was done"
   exit 0
-fi
-
-# The prompt is about the upload and nothing else. A deploy is a minute and
-# reversible, an APK is a file, and a web train is files. The build number is
-# the one thing this run spends that cannot be got back, so that is what the
-# question asks about — and when the ios stage is not in the plan there is
-# nothing irreversible left to ask about, so it does not ask.
-if ! $assume_yes && in_plan ios; then
-  if [ -t 0 ]; then
-    read -r -p "  This uploads to App Store Connect. Go? [y/N] " reply
-    case "$reply" in
-      y|Y|yes|YES) ;;
-      *) echo "  stopped"; exit 1 ;;
-    esac
-    echo
-  else
-    echo "✗ not a terminal, and --yes was not passed; refusing to upload unasked" >&2
-    exit 1
-  fi
 fi
 
 # ── Running ──────────────────────────────────────────────────────────────────
