@@ -101,7 +101,7 @@ export const ATTENTION_BUILD = 175;
  *
  * Additive and optional, which is the safe half of the two-step: a build that
  * predates it sends nothing and is answered exactly as before. Shipped in
- * build 37. See planning/BACKLOG.md for the shape and planning/decisions/DECISIONS.md
+ * build 37. See planning/backlog/ for the shape and planning/decisions/DECISIONS.md
  * for why the floor above needed a source other than judgement.
  */
 export const BUILD_HEADER = 'x-thefloor-build';

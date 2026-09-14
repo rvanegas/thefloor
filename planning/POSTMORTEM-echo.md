@@ -263,7 +263,7 @@ connected, and nothing in this stack can see what is connected**:
 headphones too, `enumerateDevices` returns the built-in microphone and no
 outputs, and neither package surfaces `currentRoute` or a route-change
 notification. A speaker button, or a small native module, is the way out. Both
-are in BACKLOG.md.
+are in backlog/.
 
 The lesson is the same one as the original bug, arriving a second time in one
 afternoon: a plausible sentence about iOS routing, shipped without a device to

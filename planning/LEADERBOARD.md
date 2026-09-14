@@ -1,6 +1,6 @@
 # The Leaderboard Of One's Contacts
 
-A design for work not yet done. TASKS.md names it in a line; this is what that
+A design for work not yet done. tasks/ names it in a line; this is what that
 line turns out to mean, and why. Nothing here is built — when it is, what was
 decided moves to decisions/ and this file goes.
 
@@ -31,7 +31,7 @@ ratio for anything that touches who may see whom.
 
 ## The three questions, answered
 
-TASKS.md raised three. Two turn out to have answers that fall out of what is
+tasks/ raised three. Two turn out to have answers that fall out of what is
 already shipped, and the third is a genuine choice.
 
 ### Who is on it: accepted contacts, and you

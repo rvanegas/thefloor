@@ -1,6 +1,6 @@
 # A channel's recordings as a podcast feed
 
-**Temporary, and undecided.** This is a design for an addition to TASKS.md
+**Temporary, and undecided.** This is a design for an addition to tasks/
 § *Publishable Recordings*, written 2026-08-27 from an exploration and not from
 a line of code. When the work ships it is deleted, and whatever survives goes to
 `decisions/`. Nothing here has been built.

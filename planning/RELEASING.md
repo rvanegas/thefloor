@@ -612,7 +612,7 @@ Interaction for Analytics alone:
   a provider acting on our behalf does not create a new type. What it *would*
   change is tracking, and does not: no third-party data, no ad measurement, no
   broker. What remains open is what the provider does with its copy after
-  `Transcripts.forget`, which is BACKLOG.md's question and not this label's.
+  `Transcripts.forget`, which is backlog/'s question and not this label's.
 
 ### The ones deliberately answered No
 

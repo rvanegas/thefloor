@@ -69,7 +69,7 @@ budget looks like it takes the whole `build`-on-connection apparatus and does
 not.
 
 **Delete the entry in the commit that deletes the shim.** This file is only
-what is outstanding, exactly as BACKLOG.md is, and an entry for something
+what is outstanding, exactly as backlog/ is, and an entry for something
 already gone is worse than no file — it sends somebody looking for code that
 is not there.
 

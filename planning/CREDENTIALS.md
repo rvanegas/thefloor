@@ -65,7 +65,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   along — the one above, which `media.ts` already stores the playback stem
   with. Anything that seems to need this credential widened is worth checking
   against that one first. The sweep's `DeleteObject` is a live question of the
-  same kind, and is in BACKLOG.md.
+  same kind, and is in backlog/.
 
   It also needs the **configuration set** in its resource list, not only the
   identity. The rvanegas.co identity has `my-first-configuration-set` attached

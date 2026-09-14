@@ -8,7 +8,7 @@ import * as Application from 'expo-application';
  * release.ts declares the oldest build still owed an answer, and until now
  * nothing could check that declaration against reality — the app sent no
  * version and the server recorded none, so every claim that build N was still
- * out there was reasoned rather than observed. See planning/BACKLOG.md.
+ * out there was reasoned rather than observed. See planning/backlog/.
  *
  * **Read from the installed binary rather than from `app.json`.**
  * `nativeBuildVersion` is `CFBundleVersion` as it was signed, which is the

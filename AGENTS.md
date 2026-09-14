@@ -7,33 +7,33 @@ Everything that is not this file lives in **`planning/`**. This one stays at the
 root because it is the one a fresh reader is pointed at; the rest are documents
 you go looking for, and a root directory that lists them all buries the code.
 
-Three of them answer a standing question each. **`planning/BACKLOG.md`** is what
+Three of them answer a standing question each. **`planning/backlog/`** is what
 is known and not done; **`planning/decisions/`** is what was built and why,
-including what was deliberately not built; **`planning/TASKS.md`** is the
-roadmap, at a paragraph each — features, but also audits, open questions, and
-things to go and find out.
+including what was deliberately not built; **`planning/tasks/`** is the roadmap
+— features, audits, open questions, things to go and find out. All three are
+one file per item, a paragraph or so each, and `ls` indexes each directory.
 
-**Any verb followed by a quoted string that matches a `##` heading in
-`planning/TASKS.md` is a reference to that entry, and is not itself a
-description of the work.** `Do task "Track Usage"`, `Implement "Track Usage"`
-and `Start on "Track Usage"` all mean the same thing. Go and read the entry
-before anything else; the paragraph under the heading is the request, and
-everything the title leaves out is in it. Taking the title at face value and
-starting to write is how you build something adjacent to what was asked for.
+**Any verb followed by a quoted string that slugifies to the name of a file in
+`planning/tasks/` or `planning/backlog/` is a reference to that file, and is not
+itself a description of the work.** `Do task "Track Usage"` and `Start on
+"track-usage"` mean the same thing — the match is on the slug, so capitals and
+punctuation do not matter. Go and read the file first; what is in it is the
+request, and everything the title leaves out is in it. Taking the title at face
+value and starting to write is how you build something adjacent to the ask.
 
 **The verb is not part of the convention** — it says what is wanted done, which
 varies, since a good half of these entries are questions rather than features.
-The match on the heading is what makes it a reference. If a quotation happens to
-coincide with a heading and the surrounding request is plainly about something
-else, it is a coincidence; read it as context tells you to, and say which way
-you read it. Items in `BACKLOG.md` are named explicitly instead, until this
-convention is extended to cover them.
+The match on the slug is what makes it a reference; a shortened quotation counts
+when it prefixes exactly one filename, and not when it could be two. If one
+happens to coincide with a filename and the surrounding request is plainly about
+something else, it is a coincidence; read it as context tells you to, and say
+which way you read it.
 
-**Decisions are one file each**, since 2026-09-07, in `planning/decisions/`,
-named `<date>-<title>.md`. Writing one means adding a file and nothing else —
-no volume to choose, no cap to check, no rollover. `planning/decisions/README.md`
-is the whole convention and why it replaced an append-only volume. The eleven
-closed volumes are frozen in `planning/decisions/archive/`.
+**A decision's filename carries its date too**, `<date>-<title>.md`, which the
+other two do not: a decision is dated history, a task is not. Writing one means
+adding a file and nothing else — no volume, no cap, no rollover. Each
+directory's `README.md` is its whole convention. The eleven closed decision
+volumes are frozen in `planning/decisions/archive/`.
 
 **It is archaeology, for the exceptional case, and is not consulted as a matter
 of course.** The collection is approaching a megabyte, and this file used to say
@@ -312,15 +312,15 @@ are the rules.
   and the error names neither the worktree nor which one. A session working
   inside a worktree has to leave it first, since the merge has to happen where
   `master` is checked out.
-- **Fold any pending edit to `planning/TASKS.md` into the landing commit.**
+- **Fold any pending edit to `planning/tasks/` into the landing commit.**
   Adopted 2026-08-24. A session that has just finished a task routinely finds
-  the entry for it already deleted or rewritten in the working tree, because
+  the file for it already deleted or rewritten in the working tree, because
   the person at the prompt reached the same conclusion from the other end.
   That edit is not unrelated work in the way a half-finished feature is — it
   is the same statement the landing is, made in the file whose whole job is
   to say what is outstanding, so it belongs in the same commit rather than
   stashed aside and handed back. **Take theirs where the two disagree**: a
-  deleted entry beats a session's note explaining why the entry was kept.
+  deleted file beats a session's note explaining why the entry was kept.
 
 - **Every commit a session writes carries two trailers**, `Co-Authored-By` and,
   since 2026-09-13, `Claude-Session: https://claude.ai/code/session_<id>` — the

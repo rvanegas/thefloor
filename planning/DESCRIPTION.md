@@ -1,7 +1,7 @@
 # The App Store description
 
 **Temporary.** A proposed revision of the App Store description for
-`App Description` in TASKS.md, written 2026-09-03. Nothing in the repo holds
+`App Description` in tasks/, written 2026-09-03. Nothing in the repo holds
 the listing copy — it lives in App Store Connect — so this file is where the
 wording gets argued about before somebody pastes it in. Delete it once the
 listing carries this text, moving whatever the argument settled into

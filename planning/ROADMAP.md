@@ -7,15 +7,15 @@ rather than description. **This is that third, lifted out and ordered** — the
 work the argument commits the app to, with what each piece would have to
 satisfy and how anybody would know it was done.
 
-**It is not TASKS.md, and it does not outrank it.** TASKS.md is the roadmap:
+**It is not tasks/, and it does not outrank it.** tasks/ is the roadmap:
 everything known and wanted, features and audits and questions alike, and it is
 where work is picked up from. This file is narrower and differently sourced —
 only what the *proposition* obliges, which is a handful of things, ordered by
 the argument rather than by cost or by when somebody thought of them. Items
-here mostly have no TASKS entry yet; **the way this file gets used is by
-opening one of these and writing the corresponding TASKS entry**, at which
-point the entry is the request and this stays as the reasoning behind it. Where
-an entry already exists it is named below.
+here mostly have no file in tasks/ yet; **the way this file gets used is by
+opening one of these and writing the corresponding tasks/ file**, at which
+point that file is the request and this stays as the reasoning behind it. Where
+one already exists it is named below.
 
 **The ordering is the proposition's, not a schedule.** First the thing without
 which the central loop does not close, then the cheapest correction to the
@@ -284,7 +284,7 @@ what it refuses.
 
 - **No alarm that a sender can choose.** Loudness is granted by recipients, to
   named people, scarcely. **This is the one that will be under pressure**, and
-  it already is — see the Time Sensitive entitlement sitting in BACKLOG.md as a
+  it already is — see the Time Sensitive entitlement sitting in backlog/ as a
   small thing left on the table. If The Floor ever gains an alarm it has to
   arrive as a permission a recipient grants a specific person, never a mode a
   caller selects, and it has to be scarce by construction rather than by
@@ -306,7 +306,7 @@ what it refuses.
 
 ## What is not here, and why
 
-**Everything in TASKS.md and BACKLOG.md that the proposition is silent about**,
+**Everything in tasks/ and backlog/ that the proposition is silent about**,
 which is most of both files and includes nearly all of the engineering:
 Android, the audio-session investigations, the recording and transcript
 surface, payments, the watch party. Silence is not disapproval. **The
