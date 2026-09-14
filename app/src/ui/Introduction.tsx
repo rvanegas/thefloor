@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../state/AppProvider';
-import type { Step } from '../state/introduction';
-import { Button, Card } from './components';
+import type { Step, StepId } from '../state/introduction';
+import { Button, Card, IconButton } from './components';
 import type { List } from './detail';
+import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -22,6 +23,15 @@ import { colors, spacing, type } from './theme';
  * what is after the next thing is worth knowing exists. Which rung is which
  * is `state/introduction.ts`' answer, not this file's — this decides only how
  * much of each is drawn.
+ *
+ * **Every row carries its own way out**, since 2026-09-13. The cross is the
+ * app's *Close* — `icons.tsx` — and it does here what it does in a header:
+ * says *not this*, about the one row it sits on. What it is for is the rung
+ * somebody has read and decided against rather than not got to yet, which is
+ * a state the ladder previously had no way to express: a browser nobody will
+ * install to, a guest link for somebody with no guests. The policy is
+ * `state/introduction.ts` as ever — this draws the control and says which
+ * rung was pressed.
  *
  * **A body, not an overlay**, which is the one decision here that was made
  * against the convention rather than with it. The pattern is usually a modal
@@ -54,7 +64,7 @@ export function Introduction({
    */
   onList: (list: List) => void;
 }) {
-  const { introduction, installPrompt } = useApp();
+  const { introduction, installPrompt, dismissStep } = useApp();
   /**
    * Whether the rungs after the next one are showing.
    *
@@ -74,21 +84,31 @@ export function Introduction({
     const { from, channelId, install } = introduction;
     return (
       <Card style={styles.card}>
-        <View style={styles.main}>
+        <View style={styles.row}>
+          <View style={styles.rowMain}>
+            {/*
+              One card and not two rows with one tick. Somebody who was
+              invited arrives with a contact and a channel already — the
+              ladder's first rung was climbed for them before they got here,
+              and a list that opened by congratulating them on it would be
+              theatre. The single thing left is the single thing said.
+            */}
+            <Text style={type.body}>
+              {from ? `${from} invited you` : 'You have not stepped in yet'}
+            </Text>
+            <Text style={type.muted}>
+              Stepping in is the moment people can hear you. Until then you are
+              here and quiet, which is a fine thing to be — but nobody knows it.
+            </Text>
+          </View>
           {/*
-            One card and not two rows with one tick. Somebody who was invited
-            arrives with a contact and a channel already — the ladder's first
-            rung was climbed for them before they got here, and a list that
-            opened by congratulating them on it would be theatre. The single
-            thing left is the single thing said.
+            **Dismissing this dismisses `stepIn`**, which is the rung the card
+            is a single-rung drawing of — see `state/introduction.ts`. It is
+            the same act as putting that row away on the ladder, and recording
+            it as anything else would let somebody dismiss the card and meet
+            the row again the day they first conversed.
           */}
-          <Text style={type.body}>
-            {from ? `${from} invited you` : 'You have not stepped in yet'}
-          </Text>
-          <Text style={type.muted}>
-            Stepping in is the moment people can hear you. Until then you are
-            here and quiet, which is a fine thing to be — but nobody knows it.
-          </Text>
+          <Dismiss step="stepIn" label="Step in" onDismiss={dismissStep} />
         </View>
         {channelId ? (
           <View style={styles.actions}>
@@ -107,7 +127,11 @@ export function Introduction({
           thing to do on the way back.
         */}
         {install ? (
-          <Row step={install} action={actionFor(install, onList, installPrompt)} />
+          <Row
+            step={install}
+            action={actionFor(install, onList, installPrompt)}
+            onDismiss={dismissStep}
+          />
         ) : null}
       </Card>
     );
@@ -143,13 +167,17 @@ export function Introduction({
         // below. They keep their own order throughout — a card that
         // reshuffled itself as things were ticked would be a different card
         // every time somebody read it.
-        if (step.done) return <Row key={step.id} step={step} brief />;
+        if (step.done)
+          return (
+            <Row key={step.id} step={step} brief onDismiss={dismissStep} />
+          );
         if (step !== next && !expanded) return null;
         return (
           <Row
             key={step.id}
             step={step}
             action={actionFor(step, onList, installPrompt)}
+            onDismiss={dismissStep}
           />
         );
       })}
@@ -243,9 +271,17 @@ function Row({
   step,
   action = null,
   brief = false,
+  onDismiss,
 }: {
   step: Step;
   action?: { label: string; onPress: () => void } | null;
+  /**
+   * Puts this rung away. Carried by every row including the done ones, which
+   * is the deliberate half: a finished rung is a line somebody may be tired of
+   * reading, and a control offered on six rows out of seven would read as an
+   * accident on the seventh.
+   */
+  onDismiss: (id: StepId) => void;
   /**
    * Draws the title alone — no instruction, no note, no button.
    *
@@ -295,14 +331,46 @@ function Row({
           </>
         )}
       </View>
+      <Dismiss step={step.id} label={step.label} onDismiss={onDismiss} />
     </View>
+  );
+}
+
+/**
+ * The way out of one row.
+ *
+ * **A cross rather than a word**, which is `CloseIcon`'s whole argument one
+ * tier down: *not this* is what it has to say, the row beside it supplies the
+ * *this*, and a second worded control next to the row's own button would make
+ * somebody read two before doing either. The screen reader gets the word back,
+ * with the rung's name in it — a card of seven rows each announcing *Dismiss*
+ * is a card nobody can navigate.
+ *
+ * Outside the `accessible` group deliberately: that group collapses the row
+ * into one announcement, and a control swallowed into it cannot be reached.
+ */
+function Dismiss({
+  step,
+  label,
+  onDismiss,
+}: {
+  step: StepId;
+  label: string;
+  onDismiss: (id: StepId) => void;
+}) {
+  return (
+    <IconButton
+      label={`Dismiss ${label}`}
+      icon={(color) => <CloseIcon color={color} size={16} />}
+      onPress={() => onDismiss(step)}
+      style={styles.dismiss}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   /** The install notice's spacing, this being its neighbour in the tier. */
   card: { gap: spacing(1), marginBottom: spacing(1.5) },
-  main: { gap: 2 },
   actions: { flexDirection: 'row', justifyContent: 'flex-start' },
   row: { flexDirection: 'row', gap: spacing(1.5) },
   rowMain: { flex: 1, gap: 2 },
@@ -324,4 +392,11 @@ const styles = StyleSheet.create({
    * having a name — is a standing fact about them rather than a task.
    */
   labelDone: { color: colors.textMuted },
+  /**
+   * Pulled up and out to the row's own top-right, and stripped of the padding
+   * `IconButton` carries for a header: this sits beside a line of text rather
+   * than in a bar, and the default box would push the disc and the label apart
+   * by more than the gap between two rungs.
+   */
+  dismiss: { padding: 0, marginTop: 2, marginLeft: spacing(1) },
 });

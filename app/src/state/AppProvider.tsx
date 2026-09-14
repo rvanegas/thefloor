@@ -43,7 +43,7 @@ import {
 } from './useNotificationAsk';
 import { useInstall } from './useInstall';
 import { useIntroduction } from './useIntroduction';
-import type { Introduction } from './introduction';
+import type { Introduction, StepId } from './introduction';
 import type { TriedId } from './tried';
 import {
   APPEARANCE_KEY,
@@ -651,6 +651,13 @@ interface AppValue extends AppState {
    */
   markTried: (id: TriedId) => void;
   /**
+   * Puts one rung of the introduction away for good, from the card itself —
+   * `useIntroduction.dismiss`. On the context for the reason the rest of this
+   * feature is: the card is drawn in the tier that holds both lists, and the
+   * state it acts on belongs to a hook held here.
+   */
+  dismissStep: (id: StepId) => void;
+  /**
    * Installs the web app from inside it, where the browser volunteered a way.
    *
    * Null on every phone, in every browser that has already installed this, and
@@ -1197,6 +1204,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const {
     introduction,
     markTried,
+    dismiss: dismissStep,
     forget: forgetIntroduction,
   } = useIntroduction({
     ready: state.ready,
@@ -1472,6 +1480,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifications,
       introduction,
       markTried,
+      dismissStep,
       forgetIntroduction,
       installPrompt: promptInstall,
 
@@ -1991,6 +2000,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifications,
       introduction,
       markTried,
+      dismissStep,
       forgetIntroduction,
       promptInstall,
       appearance,

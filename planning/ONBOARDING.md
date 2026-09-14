@@ -270,14 +270,32 @@ iterating on.
 
 So *Show the checklist again* sits under it in Diagnostics, behind the same
 per-account `debug` grant on the same reasoning: it is an instrument, useless
-to somebody using the app. It clears the two keys and the state that mirrors
-them, which re-arms the latch — and the arrival is then decided again by the
-snapshot already in hand. **An account that has since gained contacts gets the
-*invited* card rather than the ladder**, which is honest rather than a defect:
-that is what this account looks like to a first snapshot today. The alert says
-so, and says the other thing that is not guessable — *step out of the channel
+to somebody using the app.
+
+**The paragraph that stood here was wrong, and was corrected on 2026-09-13.**
+It said the reset clears the keys, re-arms the latch, and lets the snapshot in
+hand decide the arrival again — so that *an account that has since gained
+contacts gets the invited card rather than the ladder*, which it called honest
+rather than a defect. It is honest about the snapshot and dishonest about the
+tap: the reset clears five stored rungs and that card can draw none of the four
+below `stepIn`, so what somebody saw after pressing it was one line about not
+having stepped in. It now **latches `alone`** and draws the whole ladder — five
+rungs hollow, *get somebody here* ticked, that being a standing fact rather
+than a task. See
+`decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
+
+The alert still says the thing that is not guessable — *step out of the channel
 first*, since `doneAt` is written off `conversing` and being in one with
-somebody re-retires it within a frame.
+somebody re-retires that rung within a frame.
+
+**And there is a second exit now, which is the reader's rather than the debug
+panel's**: every row carries a cross that puts that rung away for good. It
+hides and never ticks, is written per install in `thefloor.intro.dismissed`
+beside the two keys above, and the last dismissal retires the card. It exists
+because a rung somebody has read and decided against — an install offer in a
+browser they will not install to, a guest link for somebody with no guests —
+previously had no way out at all, and a row that can be neither answered nor
+put away makes the whole card worth ignoring. Same decision file.
 
 ## Files
 
@@ -286,7 +304,7 @@ What was written, which is close to what the design predicted:
 | File | Change |
 |---|---|
 | `app/src/state/introduction.ts` | new, pure — the steps, which arrival it is, and when all of it stops; beside `notificationAsk.ts` for the reason that file gives |
-| `app/src/state/useIntroduction.ts` | new — the two keys, the latch, the retirement, the one profile fetch, and `forget`, which un-retires it |
+| `app/src/state/useIntroduction.ts` | new — the two keys, the latch, the retirement, the one profile fetch, and `forget`, which un-retires it. Since 2026-09-13 a third key, `thefloor.intro.dismissed`, and `dismiss`; `forget` latches `alone` rather than clearing the arrival |
 | `app/src/ui/Introduction.tsx` | new — the card and the ladder. Its own file rather than in-file beside `InstallNotice` (`HomeView.tsx:470`) and `NotificationNotice` (`:530`), a checklist being bigger than a notice |
 | `app/src/state/AppProvider.tsx` | calls the hook and puts `introduction` and `forgetIntroduction` on the context, for `conversing`'s sake |
 | `app/src/ui/HomeSettingsView.tsx` | *Show the checklist again*, under Diagnostics — see below |

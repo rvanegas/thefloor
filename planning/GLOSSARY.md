@@ -89,6 +89,7 @@ caused; the list carries the meaning.
 - **Detail (what is open)** — The `Detail` type: one value naming the single thing the detail pane is showing
 - **Detail (of a notification level)** — The sublabel under a notification option, saying what that level does
 - **Displaced** — The message telling a session it is no longer the one standing, another device having entered
+- **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
@@ -99,7 +100,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Introduction** — What a new account is shown above both lists until every rung of it is done: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
+- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1397,8 +1398,8 @@ timer.
 ## Introduction
 
 What a new account is shown above both of Home's lists, until every rung of it
-is done. `state/introduction.ts` decides it and `ui/Introduction.tsx` draws it;
-planning/ONBOARDING.md is the design.
+is done or dismissed. `state/introduction.ts` decides it and
+`ui/Introduction.tsx` draws it; planning/ONBOARDING.md is the design.
 
 Two shapes, one per *arrival*. An `alone` arrival gets a ladder — get somebody
 here, step in, and then four things to try inside a channel — each rung
@@ -1452,6 +1453,27 @@ card returns to Home afterwards carrying what is left.
 called that on disk, but it now ticks *step in* and decides which shape an
 `invited` arrival gets, rather than retiring anything by itself. See
 `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
+
+**Every row carries a cross, since 2026-09-13, and that is the second exit.**
+Until then the only way out was finishing it, which is fine for a ladder
+somebody is climbing and wrong for one rung of it they have read and decided
+against — a browser that will never be installed to, a guest link for somebody
+with no guests. Dismissing hides a rung and never ticks it: the four *try*
+stamps are facts about the account and a dismissal is a statement about the
+list, so it is written on this install, in `thefloor.intro.dismissed`, beside
+*arrival* and `doneAt` rather than on the account. The last dismissal retires
+the whole card, an empty one being a bug rather than a quiet card; on the
+invited card the cross is *step in*, that being the one thing it asks. See
+*dismiss (a rung)* and
+`decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
+
+**And *Show the checklist again* returns the whole ladder, not the
+introduction this account would get today.** It latches the arrival at `alone`
+rather than clearing it, because `arrivalOf` answers *invited* for anybody with
+a contact, a channel or an invitation — so the debug reset used to clear five
+rungs and then draw the one-line card, which cannot show four of them. Five
+rungs come back hollow — *step in* and the four in-channel ones — and *get
+somebody here* draws ticked, being a standing fact rather than a task.
 
 Called *introduction* in the code and never on screen, where it says *Getting
 started*. The convention's name is an onboarding checklist; this is the

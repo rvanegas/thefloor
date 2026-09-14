@@ -78,6 +78,32 @@ export type StepId =
   | 'guest'
   | 'player';
 
+/**
+ * Every rung there is, in the order they are drawn.
+ *
+ * Here rather than inferred from a built list, because the reader that needs
+ * it has no list in hand: `useIntroduction` reads dismissals off the keychain
+ * before the first snapshot arrives, and a string out of storage has to be
+ * checked against something. `core/tried.ts` keeps `TRIED_IDS` for the same
+ * reason at the other end.
+ */
+export const STEP_IDS: readonly StepId[] = [
+  'somebody',
+  'stepIn',
+  'install',
+  'floor',
+  'nearby',
+  'guest',
+  'player',
+];
+
+/** Whether a string off the keychain names a rung rather than anything at all. */
+export function isStepId(value: unknown): value is StepId {
+  return (
+    typeof value === 'string' && (STEP_IDS as readonly string[]).includes(value)
+  );
+}
+
 export interface Step {
   id: StepId;
   /** The imperative, in the vocabulary GLOSSARY.md owns. */
@@ -186,11 +212,38 @@ export function introduction(state: {
   conversedAt: number | null;
   /** The four *try* rungs, off the Home snapshot — `core/tried.ts`. */
   tried: Tried;
+  /**
+   * The rungs this person has put away by hand, which are drawn no more.
+   *
+   * **The second exit, and the first one that is the reader's.** Until
+   * 2026-09-13 the only way out of this card was finishing it, which is fine
+   * for a ladder somebody is climbing and wrong for one rung of it they have
+   * decided against — a browser that will never be installed to, a guest link
+   * for people who have no guests. A row that cannot be answered and cannot be
+   * put away is one that makes the whole card worth ignoring, and a card worth
+   * ignoring teaches somebody to skip the rows that would have helped.
+   *
+   * **It hides, it does not tick.** A dismissed rung is not done and is never
+   * drawn as done: `tried` is a fact about the account and this is a statement
+   * about the list, so nothing here writes to the four stamps and nothing
+   * here is claimed on anybody's behalf. Doing the thing afterwards still
+   * marks it; the row simply is not there to fill in.
+   */
+  dismissed: readonly StepId[];
   /** In a channel with somebody else, now — see `AppProvider`. */
   conversing: boolean;
 }): Introduction {
-  const { loaded, home, arrival, conversedAt, tried, conversing, install } =
-    state;
+  const {
+    loaded,
+    home,
+    arrival,
+    conversedAt,
+    tried,
+    conversing,
+    install,
+    dismissed,
+  } = state;
+  const hidden = (id: StepId) => dismissed.includes(id);
 
   if (!loaded || !home || !arrival) return { show: 'none' };
   // **Nothing at all while a conversation is happening**, which is unchanged
@@ -207,7 +260,7 @@ export function introduction(state: {
   // mean they were never drawn at all.
   if (conversedAt !== null && allTried(tried)) return { show: 'none' };
 
-  const installing = installStep(install);
+  const installing = hidden('install') ? null : installStep(install);
 
   // **The card is for the cohort that has not yet conversed, and only that.**
   // It exists because the rungs before `stepIn` are born ticked here and a
@@ -215,7 +268,7 @@ export function introduction(state: {
   // nobody but the reader, so once the one thing this card asks for has
   // happened there is an honest ladder left and the argument for the card is
   // spent.
-  if (arrival === 'invited' && conversedAt === null) {
+  if (arrival === 'invited' && conversedAt === null && !hidden('stepIn')) {
     const invite = home.invites[0];
     return {
       show: 'invited',
@@ -225,16 +278,28 @@ export function introduction(state: {
     };
   }
 
+  // **Dismissing the card dismisses the one thing it asks**, which for this
+  // cohort is the whole of it: every rung below `stepIn` is done inside a
+  // channel, and this is somebody who has not been in one. Drawing the four
+  // *try* rungs at them here would answer a dismissal by producing four rows
+  // where there was one, all of them about a screen they have not reached.
+  // The install rung is the exception it always is — it is not about a
+  // channel, and it was never part of what the card asked.
+  if (arrival === 'invited' && conversedAt === null) {
+    return installing
+      ? { show: 'alone', steps: [installing] }
+      : { show: 'none' };
+  }
+
   // **An invited account that has conversed is shown the four and no more.**
   // Drawing `somebody` and `stepIn` ticked above them would be the theatre the
   // card was built to avoid, a fortnight later and with two extra rows of it.
   if (arrival === 'invited') {
-    return { show: 'alone', steps: tryingSteps(tried) };
+    return ladder(tryingSteps(tried), dismissed);
   }
 
-  return {
-    show: 'alone',
-    steps: [
+  return ladder(
+    [
       {
         id: 'somebody',
         label: 'Get somebody here',
@@ -272,7 +337,24 @@ export function introduction(state: {
       },
       ...tryingSteps(tried),
     ],
-  };
+    dismissed
+  );
+}
+
+/**
+ * The ladder, with what has been put away taken out of it — and nothing at all
+ * when that is everything.
+ *
+ * **An empty card is not a quiet card, it is a bug**, which is why the last
+ * dismissal retires the introduction rather than leaving a heading with white
+ * space under it. It is the same conclusion `installStep` reaches about its
+ * own absence: a row that has nothing to say is not drawn, and a card whose
+ * rows are all gone is not either.
+ */
+function ladder(steps: Step[], dismissed: readonly StepId[]): Introduction {
+  const drawn = steps.filter((step) => !dismissed.includes(step.id));
+  if (drawn.length === 0) return { show: 'none' };
+  return { show: 'alone', steps: drawn };
 }
 
 /**

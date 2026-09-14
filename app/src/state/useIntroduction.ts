@@ -15,8 +15,10 @@ import {
 import {
   arrivalOf,
   introduction,
+  isStepId,
   type Arrival,
   type Introduction,
+  type StepId,
 } from './introduction';
 
 /**
@@ -46,6 +48,29 @@ const ARRIVAL_KEY = 'thefloor.intro.arrival';
  * `conversedAt`, which is what it has always meant.
  */
 const CONVERSED_AT_KEY = 'thefloor.intro.doneAt';
+/**
+ * Which rungs have been put away by hand, comma-separated, in the order they
+ * were dismissed.
+ *
+ * **A list in one key rather than a key per rung**, which is the opposite of
+ * what `thefloor.intro.tried.*` did and is right for a different reason. Those
+ * four were four independent facts, each written at a moment of its own and
+ * each read once by the hand-up; these are one preference about one card, are
+ * always written together, and there are seven of them. `storageKeys.test.ts`
+ * objects to a blob that hides keys from `INSTALL_KEYS` — this hides none: it
+ * is one key holding one list, and the list's members are not keys.
+ *
+ * **Cleared on sign-out with the other two**, and for their reason: it says
+ * what *this person* has decided against reading, and the next account signing
+ * in on the same phone has decided nothing.
+ */
+const DISMISSED_KEY = 'thefloor.intro.dismissed';
+
+/** The stored form, ignoring anything that is not a rung this build knows. */
+function parseDismissed(stored: string | null): StepId[] {
+  if (!stored) return [];
+  return stored.split(',').filter(isStepId);
+}
 
 /**
  * Nothing here is in `REINSTALL_FORGETS`' company, and that is deliberate.
@@ -72,6 +97,23 @@ export interface IntroductionState {
    */
   markTried: (id: TriedId) => void;
   /**
+   * Puts one rung away for good, from the card itself.
+   *
+   * **The only control on this card that acts on the card**, every other one
+   * being a way to the screen where the rung is actually climbed. It is the
+   * reader's exit from a row they have decided against, and it is per rung
+   * rather than per card on purpose: *I will never install this in a browser*
+   * and *I have no guests to bring* are two different sentences, and a single
+   * *hide all of this* would make somebody spend the second to say the first.
+   *
+   * Written to the keychain rather than to the account, alongside `arrival`
+   * and `conversedAt` and unlike the four *try* stamps. Those four are facts
+   * about a person that a second device has no way to derive — which is what
+   * moved them to the server — and this is a preference about a card, which a
+   * second device is entitled to ask again. Undone only by `forget` below.
+   */
+  dismiss: (id: StepId) => void;
+  /**
    * Puts this account back where it started, for a debug account only.
    *
    * **There is nothing else that does this.** The two account keys are cleared
@@ -86,11 +128,22 @@ export interface IntroductionState {
    * this is the checklist alone, on an account that stays signed in.
    *
    * The state is reset alongside the keys rather than left to a relaunch,
-   * which is what makes the ladder reappear on the tap: clearing `arrival`
-   * re-arms the latch, and the next snapshot — the one already in hand —
-   * decides the arrival again. Somebody with contacts is therefore returned
-   * to the *invited* card and not to the ladder, which is honest: that is
-   * what this account looks like to a first snapshot now.
+   * which is what makes the ladder reappear on the tap.
+   *
+   * **It latches `alone` rather than re-arming the latch**, which is the
+   * change of 2026-09-13 and the only place in this file that sets an arrival
+   * to anything but what a snapshot said. Clearing the key re-derived the
+   * arrival from the snapshot already in hand, and `arrivalOf` answers
+   * *invited* for anybody with a contact, a channel or an invitation — so an
+   * established account tapped a control called *Show the checklist again* and
+   * got the one-line card, whose five stored rungs it had just cleared and
+   * four of which that card cannot draw. The honest reading of the tap is *put
+   * the whole thing in front of me*; `alone` is the cohort that gets the whole
+   * thing, and `somebody` simply draws ticked, which it is.
+   *
+   * The dismissals go with them. A rung put away by hand is the other way this
+   * card ends, and a reset that left them standing would return somebody to a
+   * ladder with holes in it — see `dismiss`.
    *
    * **Leave the channel first.** Nothing is drawn at all while `conversing`,
    * and `conversedAt` is written off it — so doing this in a channel with
@@ -154,6 +207,8 @@ export function useIntroduction(state: {
   const [loaded, setLoaded] = useState(false);
   const [arrival, setArrival] = useState<Arrival | null>(null);
   const [conversedAt, setConversedAt] = useState<number | null>(null);
+  /** The rungs put away by hand — `dismiss`. Read once, with the two above. */
+  const [dismissed, setDismissed] = useState<readonly StepId[]>([]);
   /**
    * The four *try* rungs this session has just done, over and above whatever
    * the snapshot in hand says.
@@ -193,6 +248,7 @@ export function useIntroduction(state: {
       setLoaded(false);
       setArrival(null);
       setConversedAt(null);
+      setDismissed([]);
       setMarked([]);
       // **Forgetting in memory is right either way; forgetting on disk is
       // not.** Before the restore has resolved there is nothing to conclude
@@ -204,15 +260,21 @@ export function useIntroduction(state: {
       recordEvent('intro cleared (no token)');
       void storage.remove(ARRIVAL_KEY);
       void storage.remove(CONVERSED_AT_KEY);
+      void storage.remove(DISMISSED_KEY);
       return;
     }
     void (async () => {
-      const [storedArrival, storedConversedAt, ...storedTried] =
-        await Promise.all([
-          storage.get(ARRIVAL_KEY),
-          storage.get(CONVERSED_AT_KEY),
-          ...TRIED_IDS.map((id) => storage.get(TRIED_KEYS[id])),
-        ]);
+      const [
+        storedArrival,
+        storedConversedAt,
+        storedDismissed,
+        ...storedTried
+      ] = await Promise.all([
+        storage.get(ARRIVAL_KEY),
+        storage.get(CONVERSED_AT_KEY),
+        storage.get(DISMISSED_KEY),
+        ...TRIED_IDS.map((id) => storage.get(TRIED_KEYS[id])),
+      ]);
       if (cancelled) return;
       // **The one-time hand-up.** These four were kept on the phone until
       // 2026-09-13 and are the account's now, so an install that ticked any of
@@ -241,6 +303,7 @@ export function useIntroduction(state: {
       );
       const stamp = Number(storedConversedAt);
       setConversedAt(Number.isFinite(stamp) && stamp > 0 ? stamp : null);
+      setDismissed(parseDismissed(storedDismissed));
       setLoaded(true);
       // TEMPORARY — see `introTrace` in `AppProvider`. What the keychain had
       // when this account signed in, which is the other half of the question.
@@ -325,9 +388,29 @@ export function useIntroduction(state: {
     [token]
   );
 
+  /**
+   * One rung put away, from the card.
+   *
+   * Idempotent, and it writes through rather than waiting on the write: the
+   * row has to go on the tap, and the cost of losing the key is a row that
+   * comes back on the next launch — the same trade `markTried` makes about
+   * the opposite fact.
+   */
+  const dismiss = useCallback((id: StepId) => {
+    setDismissed((current) => {
+      if (current.includes(id)) return current;
+      const next = [...current, id];
+      void storage.set(DISMISSED_KEY, next.join(','));
+      return next;
+    });
+  }, []);
+
   const forget = useCallback(async () => {
-    setArrival(null);
+    // **Latched, not cleared** — see `forget` on `IntroductionState` for why
+    // an established account must not be handed back to the latch here.
+    setArrival('alone');
     setConversedAt(null);
+    setDismissed([]);
     setMarked([]);
     // The four stamps are the server's now, so this is the one part of
     // forgetting that has to travel. Refused for an account without `debug`,
@@ -335,8 +418,9 @@ export function useIntroduction(state: {
     // is the ordinary answer for everybody else and not something to report.
     if (token) await api.forgetTried(token).catch(() => undefined);
     await Promise.all([
-      storage.remove(ARRIVAL_KEY),
+      storage.set(ARRIVAL_KEY, 'alone'),
       storage.remove(CONVERSED_AT_KEY),
+      storage.remove(DISMISSED_KEY),
       // Only still here for the hand-up above, and only reachable at all by an
       // install that has never managed one. Cleared anyway, so that forgetting
       // means forgetting rather than forgetting until the next launch.
@@ -353,8 +437,10 @@ export function useIntroduction(state: {
       tried,
       conversing,
       install,
+      dismissed,
     }),
     markTried,
+    dismiss,
     forget,
   };
 }

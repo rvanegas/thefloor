@@ -414,7 +414,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           — nothing is signed out and nothing else is forgotten — so it asks
           for a confirmation only to have somewhere to say the two things that
           are not guessable from the button: leave the channel first, and what
-          comes back is decided by what this account looks like now.
+          comes back is the whole ladder rather than the introduction this
+          account would be shown if it arrived today. It said the opposite
+          until 2026-09-13, and meant it — see `state/useIntroduction.ts`.
         */}
         <Card style={styles.stack}>
           <Text style={type.heading}>Show the checklist again</Text>
@@ -424,7 +426,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             onPress={() =>
               Alert.alert(
                 'Show the checklist again?',
-                'This account forgets how it arrived, that it has ever stepped in, and which of the four things in a channel it has tried, so Home draws the introduction again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: nothing is drawn while a conversation is happening, and being in one with somebody marks that rung done again straight away. What comes back is whichever introduction this account would get today, so an account with contacts gets the card rather than the ladder.',
+                'This account forgets that it has ever stepped in, which of the four things in a channel it has tried, and any rung put away by hand, so Home draws the whole ladder again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: nothing is drawn while a conversation is happening, and being in one with somebody marks that rung done again straight away.\n\nWhat comes back is the full list rather than whichever introduction this account would get today — five hollow rungs, and getting somebody here already ticked if you have a contact.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Show it', onPress: () => void forgetIntroduction() },
@@ -435,9 +437,10 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           <Text style={type.muted}>
             The introduction above the lists on Home. It goes for good once
             every rung is done — the conversation, and the four things to try
-            in a channel — and this is the only way of getting it back. The
-            four belong to the account rather than to this phone, so forgetting
-            the phone no longer returns them.
+            in a channel — or once every rung has been put away with the cross
+            beside it, and this is the only way of getting it back. The four
+            belong to the account rather than to this phone, so forgetting the
+            phone no longer returns them.
           </Text>
         </Card>
         </>

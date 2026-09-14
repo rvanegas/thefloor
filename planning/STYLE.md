@@ -330,6 +330,16 @@ needs to be less than a button is a `ghost` at those numbers, not a new fill.
 the glyph replaced, and an `icon` callback handed the colour. It lives in
 headers.
 
+**One place it lives outside a header, since 2026-09-13**: the cross that puts
+away a rung of the *introduction*, one per row on the Getting started card. It
+is the same `CloseIcon` saying the same thing — *not this*, about the row it
+sits on — drawn at 16 rather than 22 and with the padding stripped, because it
+sits beside a line of text rather than in a bar and the default box would push
+the disc and the label further apart than two rungs are. Its accessible name
+carries the rung: *Dismiss Bring in a guest*, not *Dismiss*, since a card of
+seven identically named controls is one nobody can navigate. It sits outside
+the row's `accessible` group, which would otherwise swallow it.
+
 ### Field
 
 A `TextInput` on `surface` with a 1pt `border`, `radius.md`, 16pt text, 48pt

@@ -159,6 +159,8 @@ export const mockApp = {
    */
   introduction: { show: 'none' } as Introduction,
   markTried: jest.fn(),
+  /** Puts one rung of the introduction away — `state/useIntroduction.ts`. */
+  dismissStep: jest.fn(),
   forgetIntroduction: jest.fn(async () => undefined),
   /**
    * The shortcut a browser volunteered for installing this, which is null on
@@ -646,6 +648,7 @@ export function resetHarness(): void {
   mockApp.notifications.permission = 'granted';
   mockApp.notifications.canPrompt = false;
   mockApp.introduction = { show: 'none' };
+  mockApp.dismissStep.mockClear();
   mockApp.status = 'open';
   mockApp.appearance = 'system';
   mockApp.tapToLook = false;

@@ -4,6 +4,7 @@ import { HomeView } from '../HomeView';
 import {
   findButton,
   homeNav,
+  labelOf,
   mockApp,
   render,
   resetHarness,
@@ -186,7 +187,13 @@ describe('the introduction on Home', () => {
     const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).toContain('You have not stepped in yet');
     // Nowhere to send them from here, so nothing pretends there is.
-    expect(findButton(tree, 'Step in')).toBeUndefined();
+    //
+    // Asked of the exact name rather than of `findButton` alone, since
+    // 2026-09-13: every row carries a *Dismiss <rung>* control now, and that
+    // helper falls back to a substring match when nothing matches exactly —
+    // so *Dismiss Step in* answers for the button this is asserting is absent.
+    const stepIn = findButton(tree, 'Step in');
+    expect(stepIn && labelOf(stepIn).trim()).not.toBe('Step in');
     act(() => tree.unmount());
   });
 });
@@ -279,6 +286,77 @@ describe('the install rung', () => {
     // Still the card: no heading, and the way in is still the point.
     expect(text).not.toContain('Getting started');
     expect(findButton(tree, 'Step in')).toBeDefined();
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The way out of one row, added 2026-09-13 — see `ui/Introduction.tsx`.
+ *
+ * The policy is `state/introduction.ts`' and is tested there; this is that the
+ * control is drawn, is named for the rung it sits on, and reports that rung.
+ */
+describe('putting a rung away', () => {
+  it('offers a cross on the row, naming the rung to a screen reader', () => {
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'alone',
+      steps: [
+        {
+          id: 'guest',
+          label: 'Bring in a guest',
+          instruction: 'Share a guest link.',
+          note: 'They need no account.',
+          done: false,
+        },
+      ],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+
+    const dismiss = findButton(tree, 'Dismiss Bring in a guest');
+    expect(dismiss).toBeDefined();
+    act(() => dismiss?.props.onPress());
+    expect(mockApp.dismissStep).toHaveBeenCalledWith('guest');
+    act(() => tree.unmount());
+  });
+
+  it('offers one on a finished rung too', () => {
+    // Deliberate: a done rung is a line somebody may be tired of reading, and
+    // a control on six rows out of seven would read as an accident on the
+    // seventh.
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'alone',
+      steps: [
+        {
+          id: 'somebody',
+          label: 'Get somebody here',
+          instruction: 'Send an invite link.',
+          note: 'Nobody can reach you until you do.',
+          done: true,
+        },
+      ],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    act(() => findButton(tree, 'Dismiss Get somebody here')?.props.onPress());
+    expect(mockApp.dismissStep).toHaveBeenCalledWith('somebody');
+    act(() => tree.unmount());
+  });
+
+  it('closes the invited card as the rung it draws', () => {
+    // The card is a single-rung drawing of `stepIn`, so its cross reports that
+    // and not a name of its own — otherwise somebody could dismiss the card
+    // and meet the row again the day they first conversed.
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'invited',
+      from: 'Dana Chu',
+      channelId: 'sess_a',
+      install: null,
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    act(() => findButton(tree, 'Dismiss Step in')?.props.onPress());
+    expect(mockApp.dismissStep).toHaveBeenCalledWith('stepIn');
     act(() => tree.unmount());
   });
 });

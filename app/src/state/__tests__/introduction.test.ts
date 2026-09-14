@@ -24,6 +24,8 @@ const alone = {
   arrival: 'alone' as const,
   conversedAt: null,
   tried: NOTHING_TRIED,
+  /** Nothing put away by hand — the dismissal cases add their own. */
+  dismissed: [],
   conversing: false,
   // A phone, where there is nothing to install. The browser cases say so.
   install: NOT_OFFERED as Install,
@@ -316,5 +318,84 @@ describe('retirement', () => {
     };
     expect(introduction(settled).show).toBe('alone');
     expect(introduction({ ...settled, tried: ALL_TRIED }).show).toBe('none');
+  });
+});
+
+/**
+ * The second exit, added 2026-09-13: a rung somebody has read and decided
+ * against, which until then the ladder had no way to express. See
+ * `state/introduction.ts` § `dismissed`.
+ */
+describe('dismissal', () => {
+  it('takes one rung out and leaves the rest in their order', () => {
+    const result = introduction({ ...alone, dismissed: ['stepIn'] });
+    expect(stepsOf(result).map((step) => step.id)).toEqual([
+      'somebody',
+      'floor',
+      'nearby',
+      'guest',
+      'player',
+    ]);
+  });
+
+  it('hides a rung rather than ticking it', () => {
+    // The distinction the whole feature turns on: `tried` is a fact about the
+    // account and this is a statement about the list. A dismissal that read as
+    // *done* would tell a second device this person had claimed the floor.
+    const result = introduction({ ...alone, dismissed: ['floor'] });
+    expect(stepsOf(result).some((step) => step.id === 'floor')).toBe(false);
+    expect(done(result, 'somebody')).toBe(false);
+  });
+
+  it('takes the install rung away like any other', () => {
+    const offered = { ...alone, install: installable };
+    expect(
+      stepsOf(introduction(offered)).some((step) => step.id === 'install')
+    ).toBe(true);
+    expect(
+      stepsOf(introduction({ ...offered, dismissed: ['install'] })).some(
+        (step) => step.id === 'install'
+      )
+    ).toBe(false);
+  });
+
+  it('retires the whole card when the last rung is put away', () => {
+    // An empty card is not a quiet card. This is the other way the
+    // introduction ends, and it has to end rather than draw a heading over
+    // nothing.
+    expect(
+      introduction({
+        ...alone,
+        dismissed: ['somebody', 'stepIn', 'floor', 'nearby', 'guest', 'player'],
+      }).show
+    ).toBe('none');
+  });
+
+  it('closes the invited card, which is the one thing it asks', () => {
+    const invited = {
+      ...alone,
+      arrival: 'invited' as const,
+      home: { contacts: [], rejoinable: [], invites: [invite] },
+    };
+    expect(introduction(invited).show).toBe('invited');
+    // Not answered with the four rungs below `stepIn`: this is somebody who
+    // has not been in a channel, so those four are about a screen they have
+    // not reached.
+    expect(introduction({ ...invited, dismissed: ['stepIn'] }).show).toBe(
+      'none'
+    );
+  });
+
+  it('leaves the install rung standing when that card is closed', () => {
+    // The exception it always is — it is not about a channel, and it was never
+    // part of what the card asked for.
+    const result = introduction({
+      ...alone,
+      arrival: 'invited' as const,
+      home: { contacts: [], rejoinable: [], invites: [invite] },
+      install: installable,
+      dismissed: ['stepIn'],
+    });
+    expect(stepsOf(result).map((step) => step.id)).toEqual(['install']);
   });
 });
