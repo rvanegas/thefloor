@@ -12,7 +12,7 @@
  * version of this document worth having.
  */
 
-import { escapeHtml, page } from './html';
+import { escapeHtml, page, socialCard } from './html';
 
 /**
  * Changed when the substance changes, not when the wording does. It is the date
@@ -61,6 +61,8 @@ const USAGE_RETENTION_DAYS = 30;
 
 export interface PolicyOptions {
   contactEmail?: string;
+  /** Where this server is reachable, for the link preview. See socialCard. */
+  origin?: string;
   /**
    * The name of the transcription provider, when this server has one — and
    * nothing when it does not, which withdraws the whole section below.
@@ -146,6 +148,13 @@ unnoticed for far longer.</p>
   return page({
     title: 'Privacy — The Floor',
     heading: 'Privacy',
+    social: socialCard(options.origin, {
+      title: 'Privacy — The Floor',
+      description:
+        'What The Floor stores, why, and for how long. It is short because ' +
+        'the application collects little.',
+      path: '/privacy',
+    }),
     standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
     body: `
 <p>The Floor is for talking with people you already know. This

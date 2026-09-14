@@ -103,7 +103,7 @@
  * before builds 145–159.
  */
 
-import { escapeHtml, page } from './html';
+import { escapeHtml, page, socialCard } from './html';
 
 /**
  * The page's own CSS, layered on top of `page()`'s document chrome.
@@ -156,6 +156,8 @@ const MARK = `<svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org
 export function landingPage(options: {
   /** From APP_STORE_URL. Absent on a box that has not been told. */
   appStoreUrl?: string;
+  /** Where this server is reachable, for the link preview. See socialCard. */
+  origin?: string;
   /**
    * Whether *any* train has been deployed — that is, whether there is a web
    * app on this box at all.
@@ -197,6 +199,17 @@ when you are not looking at it.</p>`
     title: 'The Floor',
     heading: 'The Floor',
     standfirst: 'Group voice on your own time',
+    social: socialCard(options.origin, {
+      title: 'The Floor',
+      // The promotional text, which planning/LISTING.md writes to be
+      // *repeatable by a recommender* — exactly the job a chat preview does.
+      description:
+        'It’s a group chat, but voice. A channel is a place you drop into ' +
+        'rather than a call you answer: you arrive when it suits you, and ' +
+        'whoever is there is there.',
+      path: '/',
+      imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
+    }),
     // Light whatever the reader's setting, because the two screenshots below
     // are light and have no dark counterpart — see `colorScheme` in html.ts.
     colorScheme: 'light',

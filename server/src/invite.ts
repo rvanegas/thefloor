@@ -24,7 +24,7 @@
  * again from inside the app once they are in.
  */
 
-import { escapeHtml, page } from './html';
+import { escapeHtml, page, socialCard } from './html';
 import type { InviteRefusal } from './accounts';
 
 /**
@@ -64,9 +64,41 @@ import type { InviteRefusal } from './accounts';
  */
 const INVITE_KEY = 'thefloor.invite';
 
+/**
+ * The link preview for both bodies below, and **it deliberately names nobody.**
+ *
+ * This page is the one place in the application where a stranger is told a
+ * fact about a user, and the whole design above is about narrowing that to
+ * somebody holding a live, unspent pin. A link preview is read by a wider
+ * audience than the page is: everybody in the group thread the link was pasted
+ * into, everybody a forward reaches, and the preview caches of Telegram, Slack
+ * and the rest, several of which never re-fetch. So the disclosure stays on
+ * the page, where the person who clicked is the one reading it.
+ *
+ * **This is a tightening rather than a new rule.** The `<title>` here has
+ * always carried the display name, and a crawler with no `og:title` falls back
+ * to `<title>` — so the name has been appearing in chat previews all along.
+ * Setting an `og:title` that omits it is what stops that.
+ *
+ * One card for both bodies, refusal included: a crawler and the person who
+ * clicks can get different states — a pin spent in between, most obviously —
+ * and a preview that announced a refusal the reader will not see is worse than
+ * one that says what the address is for.
+ */
+const CARD = {
+  title: 'You’re invited to The Floor',
+  description:
+    'Somebody you know has invited you. It’s a group chat, but voice: you ' +
+    'drop into a channel rather than answer a call, and nothing rings.',
+  // No `path`: this page's address carries a live pin. See socialCard.
+  imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
+};
+
 export interface InvitePageOptions {
   /** The username in the link, as it was typed into the address. */
   username: string;
+  /** Where this server is reachable, for the link preview. See socialCard. */
+  origin?: string;
   /** The pin in the link. Never shown; carried to the app. */
   pin: string;
   /**
@@ -180,6 +212,7 @@ export function invitePage(options: InvitePageOptions): string {
       title: 'The Floor',
       heading: 'The Floor',
       standfirst: said.heading,
+      social: socialCard(options.origin, CARD),
       head: REFERRER,
       body: `<p>${said.body}</p>
 
@@ -211,6 +244,8 @@ this server has no browser version to accept in.</p>`;
     title: `${options.displayName} invited you to The Floor`,
     heading: 'The Floor',
     standfirst: `${options.displayName} invited you`,
+    // Names nobody, unlike the title above it — see CARD.
+    social: socialCard(options.origin, CARD),
     head: REFERRER,
     body: `<p>The Floor is for talking with people you already know. A
 conversation lives in a channel that stays there between calls — somewhere you

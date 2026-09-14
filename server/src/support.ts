@@ -18,7 +18,7 @@
  * page.
  */
 
-import { escapeHtml, page } from './html';
+import { escapeHtml, page, socialCard } from './html';
 
 /**
  * **Not "a small application", which it was when somebody wrote that and is
@@ -41,7 +41,7 @@ import { escapeHtml, page } from './html';
  * `/support` and sat in view-source. Reasoning for whoever reads the code goes
  * outside the template literal; nothing inside one is private.
  */
-export function supportPage(contactEmail?: string): string {
+export function supportPage(contactEmail?: string, origin?: string): string {
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
@@ -50,6 +50,13 @@ export function supportPage(contactEmail?: string): string {
     title: 'Support — The Floor',
     heading: 'Support',
     standfirst: 'The Floor · getting help, and how the app works',
+    social: socialCard(origin, {
+      title: 'Support — The Floor',
+      description:
+        'How The Floor works, and how to reach a person. Read by somebody ' +
+        'rather than by a queue.',
+      path: '/support',
+    }),
     body: `
 <p>The Floor is for talking with people you already know. A
 conversation lives in a channel that stays there between calls, and nothing

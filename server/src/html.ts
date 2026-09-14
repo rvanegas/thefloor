@@ -30,6 +30,108 @@ export function escapeHtml(value: string): string {
 }
 
 /**
+ * The one image every card points at, and the helper that addresses it.
+ *
+ * **One card for the whole site rather than one per page**, deliberately. The
+ * pages differ in their title and description, which is what a reader of a
+ * pasted link actually reads; a bespoke image each would be four more things
+ * to keep true as the app changes, for a difference nobody looking at a chat
+ * preview would notice.
+ *
+ * **The filename is not hashed and the route caches for a week**, exactly as
+ * the screenshots do — so if this image is ever redrawn, rename it. A stale
+ * card is worse here than on the page itself, because Telegram, Slack and the
+ * rest cache previews for a long time and several never re-fetch at all.
+ */
+export const OG_IMAGE = '/assets/og.png';
+
+/**
+ * Builds a page's link preview against the origin the request arrived on.
+ *
+ * **Absent rather than relative when there is no origin.** A crawler resolves
+ * nothing, so a relative `og:image` is silently ignored and a relative
+ * `og:url` is worse than absent — the same graceful-absence rule the App Store
+ * link and the browser link already follow. Tests call the page functions with
+ * no origin and get a page with no card, which is correct rather than broken.
+ */
+export function socialCard(
+  origin: string | undefined,
+  card: {
+    title: string;
+    description: string;
+    /**
+     * The canonical address, appended to the origin — and **omitted on a page
+     * whose own address carries a secret.**
+     *
+     * The invite link holds a live pin and the guest link holds a token.
+     * Naming either in `og:url` would put it into the preview caches of every
+     * service the link is pasted through, which is the same leak the invite
+     * page's `referrer` policy already exists to prevent. Naming `/` instead
+     * is worse rather than safer: `og:url` is a canonicalisation hint, and a
+     * client that honours it points the preview at the landing page — dropping
+     * the pin, and the invitation with it.
+     *
+     * Absent, clients use the address that was actually pasted, which is right.
+     */
+    path?: string;
+    imageAlt?: string;
+  }
+): { title: string; description: string; image?: string; url?: string; imageAlt?: string } {
+  if (!origin) return { title: card.title, description: card.description };
+  return {
+    title: card.title,
+    description: card.description,
+    image: `${origin}${OG_IMAGE}`,
+    ...(card.path ? { url: `${origin}${card.path}` } : {}),
+    imageAlt: card.imageAlt,
+  };
+}
+
+/**
+ * The card's tags, as a block of `<meta>`.
+ *
+ * Extracted from `page()` on 2026-09-14 because the guest page carries its own
+ * chrome and needs the same tags — and two copies of this list is precisely
+ * how one of them comes to be missing a tag the other has, which is the
+ * argument `escapeHtml` above is already shared on.
+ *
+ * **Order matters to exactly one consumer and it is cheap to satisfy.**
+ * Several crawlers stop reading at the first few kilobytes of `<head>`, so
+ * callers put this before their stylesheet rather than after it.
+ */
+export function socialTags(social: {
+  title: string;
+  description: string;
+  image?: string;
+  url?: string;
+  imageAlt?: string;
+}): string {
+  return [
+    `<meta name="description" content="${escapeHtml(social.description)}">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="The Floor">`,
+    `<meta property="og:title" content="${escapeHtml(social.title)}">`,
+    `<meta property="og:description" content="${escapeHtml(social.description)}">`,
+    ...(social.url
+      ? [`<meta property="og:url" content="${escapeHtml(social.url)}">`]
+      : []),
+    ...(social.image
+      ? [
+          `<meta property="og:image" content="${escapeHtml(social.image)}">`,
+          // Telegram and Slack both draw a *large* card only when they know the
+          // dimensions without fetching the file first. Omitting these is how a
+          // 1200x630 card renders as a thumbnail beside the text.
+          `<meta property="og:image:width" content="1200">`,
+          `<meta property="og:image:height" content="630">`,
+          `<meta property="og:image:type" content="image/png">`,
+          `<meta property="og:image:alt" content="${escapeHtml(social.imageAlt ?? social.title)}">`,
+          `<meta name="twitter:card" content="summary_large_image">`,
+        ]
+      : [`<meta name="twitter:card" content="summary">`]),
+  ].join('\n');
+}
+
+/**
  * Wraps a document body in the page both pages are.
  *
  * `color-scheme` is the whole of the dark-mode support: it tells the browser to
@@ -55,6 +157,38 @@ export function page(options: {
    * this argument is why the value is here rather than why it has to stay.
    */
   colorScheme?: 'light dark' | 'light';
+  /**
+   * The link preview: what Telegram, Slack, iMessage and the rest draw when
+   * this address is pasted into a conversation.
+   *
+   * **This is not decoration on a funnel that starts elsewhere.** The two
+   * addresses this server mints for a person to hand to another person — the
+   * invite link and the guest link — travel by being pasted into whatever
+   * thread the group already uses, and planning/MARKETING.md argues those, not
+   * the store listing, are the top of the funnel. Until 2026-09-14 every one
+   * of them unfurled as a bare grey rectangle.
+   *
+   * **`url` and `image` must be absolute**, which is the whole reason this is
+   * a parameter rather than a constant: a crawler has no page to resolve a
+   * relative path against. Routes build them from `origin(request)`, derived
+   * from the request that arrived rather than configured — see the comment on
+   * that function for why a second setting naming an address the server
+   * already knows is the one nobody remembers to set.
+   *
+   * **Omit it for a page that should not have a card at all.** `/open` is a
+   * door rather than a document; a preview of it says nothing and invites
+   * somebody to paste the wrong address.
+   */
+  social?: {
+    title: string;
+    description: string;
+    /** Absolute. Omitted rather than relative — a relative one silently fails. */
+    image?: string;
+    /** Absolute, and the address the card should point at. */
+    url?: string;
+    /** What the image shows, for a reader who cannot see it. */
+    imageAlt?: string;
+  };
   /** The line under the heading — a date, or what the page is for. */
   standfirst: string;
   body: string;
@@ -87,11 +221,14 @@ export function page(options: {
    */
   head?: string;
 }): string {
+  const social = options.social ? socialTags(options.social) : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${social}
 ${options.head ?? ''}
 <title>${escapeHtml(options.title)}</title>
 <style>

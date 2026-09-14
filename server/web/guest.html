@@ -2,9 +2,21 @@
 <!--
   The shell the guest page renders into.
 
-  Served by `GET /g/:token`, which puts the link token in `data-link` and
-  nothing else — no interpolated prose, so there is nothing here that a token
-  could break out of. The behaviour is `guest.ts`, bundled to `guest.js`.
+  Served by `GET /g/:token`, which puts the link token in `data-link`, the web
+  app's base in `data-app`, and the link preview in place of the social
+  placeholder in the head below. No interpolated prose, so there is nothing
+  here that a token could break out of. The behaviour is `guest.ts`, bundled
+  to `guest.js`.
+
+  That placeholder is replaced on every route serving this shell — with the
+  card on `/g/:token`, with nothing on `/g/seat` — since one left behind would
+  be a comment shipped to a reader.
+
+  **This comment deliberately does not spell the placeholder out.** `replace`
+  takes the first occurrence, so a mention of it up here is the one that gets
+  substituted, and the real placeholder survives into the page. That is not
+  hypothetical: it happened when this comment was written, and the test in
+  `__tests__/social-cards.test.ts` is what caught it.
 
   `color-scheme: light dark` is the whole of the dark-mode support, as it is on
   the privacy and support pages: this is read in a browser by somebody who may
@@ -14,6 +26,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--social-->
     <title>The Floor</title>
     <style>
       :root {

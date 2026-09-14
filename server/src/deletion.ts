@@ -29,7 +29,7 @@
  * to keep true — the one drift this page can afford is none. It links there.
  */
 
-import { escapeHtml, page } from './html';
+import { escapeHtml, page, socialCard } from './html';
 
 export interface DeletionOptions {
   /**
@@ -38,6 +38,8 @@ export interface DeletionOptions {
    * which is always reachable even when this server's configuration is not.
    */
   contactEmail?: string;
+  /** Where this server is reachable, for the link preview. See socialCard. */
+  origin?: string;
 }
 
 export function deletionPage(options: DeletionOptions = {}): string {
@@ -49,6 +51,13 @@ export function deletionPage(options: DeletionOptions = {}): string {
   return page({
     title: 'Deleting your account — The Floor',
     heading: 'Deleting your account',
+    social: socialCard(options.origin, {
+      title: 'Deleting your account — The Floor',
+      description:
+        'How to delete The Floor account for an address, and what it takes ' +
+        'with it.',
+      path: '/delete-account',
+    }),
     standfirst: 'How to delete The Floor account for an address, and what it takes with it.',
     body: `
 <p>You can delete your account yourself, at any time, and you do not need to

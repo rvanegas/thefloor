@@ -42,7 +42,7 @@ import { RECORDING_CONTENT_TYPE } from './export';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
-import { escapeHtml } from './html';
+import { escapeHtml, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
 import { invitePage, inviteRefusalText } from './invite';
 import { openPage } from './open';
@@ -1506,7 +1506,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * for and why it sits directly under the store button rather than at the
    * foot of the page.
    */
-  fastify.get('/', async (_request, reply) => {
+  fastify.get('/', async (request, reply) => {
     // Whether there is a web app on this box at all, asked per request because
     // `bin/deploy-web` adds a bundle without restarting anything — so a value
     // read at boot would be wrong for exactly as long as it mattered. One
@@ -1518,7 +1518,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // page's; all this needs to know is whether there is one.
     const webAppReady = (await availableTrains()).length > 0;
     reply.type('text/html; charset=utf-8');
-    return landingPage({ appStoreUrl: options.updateUrl, webAppReady });
+    return landingPage({
+      appStoreUrl: options.updateUrl,
+      webAppReady,
+      origin: origin(request),
+    });
   });
 
   /**
@@ -1555,6 +1559,7 @@ export function buildApp(options: BuildOptions = {}): App {
         refusal: 'unknown',
         appStoreUrl: options.updateUrl,
         webAppReady,
+        origin: origin(request),
       });
     }
 
@@ -1569,6 +1574,7 @@ export function buildApp(options: BuildOptions = {}): App {
         : { refusal: state.reason }),
       appStoreUrl: options.updateUrl,
       webAppReady,
+      origin: origin(request),
     });
   });
 
@@ -1680,9 +1686,41 @@ export function buildApp(options: BuildOptions = {}): App {
     return base ? shell.replace('data-app=""', `data-app="${base}"`) : shell;
   }
 
+  /**
+   * The guest shell's link preview, which **names neither the channel nor
+   * anybody in it.**
+   *
+   * The same reasoning `invite.ts` gives for its card: a preview is read by
+   * everybody in the thread the link was pasted into and cached by services
+   * that may never re-fetch, where the page is read by whoever opened it. A
+   * guest link is handed out while a conversation is happening, so a card
+   * naming the room would put that in the thread for good.
+   *
+   * **It cannot know whether the link is live in any case.** The token is
+   * checked when the socket opens, not on this route, so a dead link and a
+   * live one are served the same page — and a crawler's fetch and a person's
+   * click are different moments besides.
+   *
+   * `undefined` removes the placeholder instead, which is `/g/seat`: reached
+   * rather than addressed, so nobody pastes it anywhere.
+   */
+  function withSocial(shell: string, card?: ReturnType<typeof socialCard>): string {
+    return shell.replace('<!--social-->', card ? socialTags(card) : '');
+  }
+
   fastify.get('/g/:token', async (request, reply) => {
     const { token } = request.params as { token: string };
-    const shell = await withAppBase((await guestShell(reply)) ?? '');
+    const shell = withSocial(
+      await withAppBase((await guestShell(reply)) ?? ''),
+      socialCard(origin(request), {
+        title: 'Join a conversation on The Floor',
+        description:
+          'Somebody has opened a room and sent you the link. It opens in ' +
+          'your browser — no account, and nothing to install.',
+        // No `path`: the address carries the link token. See socialCard.
+        imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
+      })
+    );
     if (!shell) return;
     reply.type('text/html; charset=utf-8');
     // The one interpolation on the page, into an attribute, escaped — the
@@ -1713,7 +1751,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * never been a guest of.
    */
   fastify.get('/g/seat', async (_request, reply) => {
-    const shell = await withAppBase((await guestShell(reply)) ?? '');
+    const shell = withSocial(await withAppBase((await guestShell(reply)) ?? ''));
     if (!shell) return;
     reply.type('text/html; charset=utf-8');
     return shell;
@@ -1726,10 +1764,11 @@ export function buildApp(options: BuildOptions = {}): App {
    * Unauthenticated and served as HTML, because the people who need to read it
    * are a reviewer with a browser and anybody deciding whether to sign up.
    */
-  fastify.get('/privacy', async (_request, reply) => {
+  fastify.get('/privacy', async (request, reply) => {
     reply.type('text/html; charset=utf-8');
     return privacyPage({
       contactEmail: options.contactEmail,
+      origin: origin(request),
       // Named on the page only where the server can actually reach it. See
       // PolicyOptions.transcription.
       transcription: options.transcription?.name,
@@ -1748,9 +1787,9 @@ export function buildApp(options: BuildOptions = {}): App {
    * Unauthenticated, for the same reason: whoever needs it may not have an
    * account, and may be reading it because they cannot get one.
    */
-  fastify.get('/support', async (_request, reply) => {
+  fastify.get('/support', async (request, reply) => {
     reply.type('text/html; charset=utf-8');
-    return supportPage(options.contactEmail);
+    return supportPage(options.contactEmail, origin(request));
   });
 
   /**
@@ -1770,9 +1809,12 @@ export function buildApp(options: BuildOptions = {}): App {
    * app at `/app`. See server/src/deletion.ts for why a signed-out deletion
    * endpoint was deliberately not built.
    */
-  fastify.get('/delete-account', async (_request, reply) => {
+  fastify.get('/delete-account', async (request, reply) => {
     reply.type('text/html; charset=utf-8');
-    return deletionPage({ contactEmail: options.contactEmail });
+    return deletionPage({
+      contactEmail: options.contactEmail,
+      origin: origin(request),
+    });
   });
 
 
