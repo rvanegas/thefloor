@@ -38,10 +38,10 @@ Lead with the argument.
 
 Two blockers, both from MARKETING.md § *The sequence*:
 
-1. **Screenshots.** There are none in the repository; the store's live in App
-   Store Connect and nowhere else. **Product Hunt without imagery is a post
-   that was not made**, and Reddit is nearly as bad. Show HN is the exception
-   and is why it is first here.
+1. **Screenshots.** Two exist as of 2026-09-14, and they are the landing
+   page's — captures sized for a web column, not assets composed for a feed.
+   **Product Hunt without imagery is a post that was not made**, and Reddit is
+   nearly as bad. Show HN is the exception and is why it is first here.
 2. **`bin/growth`.** Post without it and the day produces a number nobody can
    interpret and no way to tell a good community from a bad one. Not a hard
    blocker; a strong preference.

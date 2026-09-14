@@ -116,9 +116,39 @@ describe('the landing page', () => {
     await withTrains(['beta'], async () => {
       const page = await app.fastify.inject({ method: 'GET', url: '/' });
       expect(page.body).toContain('href="/open"');
-      // The redirect names the door rather than a train, for the same reason.
-      expect(page.body).toContain("location.replace('/open')");
     });
+  });
+
+  /**
+   * **Changed 2026-09-14**, and the assertion is inverted rather than deleted.
+   *
+   * This page used to carry a script sending anybody holding a token to
+   * `/open` before paint, and the test above pinned it. The preference at the
+   * prompt is that somebody signed in reads the landing page like everybody
+   * else, so the script is gone — and with it `?stay`, which existed only to
+   * defeat it.
+   *
+   * Pinned the other way round because a redirect is the kind of thing that
+   * gets reintroduced by somebody reasoning from first principles about where
+   * a signed-in visitor ought to go. It is a decision, not an oversight.
+   */
+  it('does not redirect a signed-in visitor away from itself', async () => {
+    await withTrains(['beta'], async () => {
+      const page = await app.fastify.inject({ method: 'GET', url: '/' });
+      expect(page.body).not.toContain('location.replace');
+      expect(page.body).not.toContain('thefloor.token');
+      // Not the bare word: the copy says "your ringer stays yours".
+      expect(page.body).not.toContain('location.search');
+      expect(page.body).not.toContain('?stay');
+    });
+  });
+
+  it('serves the two screenshots it references', async () => {
+    for (const asset of ['/assets/home.webp', '/assets/floor.webp']) {
+      const page = await app.fastify.inject({ method: 'GET', url: asset });
+      expect(page.statusCode).toBe(200);
+      expect(page.headers['content-type']).toBe('image/webp');
+    }
   });
 });
 

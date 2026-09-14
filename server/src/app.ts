@@ -1455,11 +1455,56 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * The landing page's own images, and the only static files this server
+   * serves that are not part of a web app bundle.
+   *
+   * **Two screenshots, 52 KB the pair**, which is the whole reason this is
+   * acceptable on a page whose founding argument is that shipping 400 KB of
+   * React to show a paragraph is the wrong trade. They are WebP, resized to
+   * 750px, and committed rather than built — there is no pipeline here and a
+   * screenshot is not something a build step can produce anyway. Regenerate
+   * them with `cwebp -q 82 -resize 750 0`, from captures taken at the App
+   * Store's own sizes.
+   *
+   * Registered in its own encapsulated scope with `decorateReply: false`, for
+   * the reason the train registrations give: two registrations must not
+   * decorate the same reply twice.
+   *
+   * **Immutable, and the filenames are not hashed**, which is the one trap
+   * here. `home.webp` keeps its name across a redesign, so a year-long cache
+   * on an unhashed name means somebody who has been here before sees the old
+   * screenshot indefinitely. A week is the compromise: long enough that the
+   * page is not re-fetching decoration, short enough that a stale shot ages
+   * out on its own. **If these ever change, rename them.**
+   */
+  void fastify.register(async (scope) => {
+    void scope.register(fastifyStatic, {
+      root: join(__dirname, '..', 'public'),
+      prefix: '/assets/',
+      decorateReply: false,
+      index: false,
+      setHeaders(reply) {
+        reply.header('cache-control', 'public, max-age=604800');
+      },
+    });
+  });
+
+  /**
    * The root, for somebody who is not a user yet.
    *
-   * Unauthenticated and server-rendered. Somebody who *is* signed in is
-   * redirected to `/app` by a script on the page rather than here — this
-   * server cannot read `localStorage`, and the token is not a cookie.
+   * Unauthenticated and server-rendered.
+   *
+   * **It no longer redirects anybody**, changed 2026-09-14 at the prompt.
+   * A script on the page used to send a signed-in visitor to `/open` before
+   * paint — this server cannot read `localStorage` and the token is not a
+   * cookie, so it could never have been done here. The preference is that
+   * somebody signed in sees this page like everybody else, so the script is
+   * gone and `?stay`, which existed only to defeat it, is gone with it.
+   *
+   * **The cost is one tap for a returning visitor**, who now lands on a
+   * marketing page rather than in the app. That is what the browser link is
+   * for and why it sits directly under the store button rather than at the
+   * foot of the page.
    */
   fastify.get('/', async (_request, reply) => {
     // Whether there is a web app on this box at all, asked per request because

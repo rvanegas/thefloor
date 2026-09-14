@@ -98,12 +98,23 @@ to be worth naming as marketing assets rather than as features.
 - **The web app at `/open`**, which means "try it" does not require an install
   on a desktop.
 
-**What is missing from that inventory is imagery.** There are no screenshots
-anywhere in the repository — the store's live in App Store Connect and nowhere
-else, and every served page is text. That is defensible for a document and is
-a real limitation for a marketing page and for every social surface, all of
-which are image-first. It is the largest single gap and it is named again in
-§ *The sequence*.
+**Imagery was the gap in this inventory and is now half closed.** On
+2026-09-14 two screenshots joined the landing page — `server/public/home.webp`
+and `floor.webp`, 52 KB the pair — chosen because they are the two where the
+interface itself carries an argument: the channel list showing presence and
+recency, and a roster showing *has the floor* as a state on a person.
+
+**The half that is still open is everything image-first.** Product Hunt,
+Instagram and every paid social surface need assets that are composed rather
+than captured, and there are none. **And the App Store set is not in the
+repository at all** — the four submitted for 1.4.0 live in a folder on a
+desktop, which is not a record. Anything a submission depends on should be
+somewhere a checkout can find it.
+
+**One limit applies to every image this project will ever make.** The central
+claim is a non-event: a phone that does not ring cannot be photographed. No
+screenshot supports it, and no video will either without a comparison in the
+frame — see § *The sequence* item 6.
 
 ## The funnel is upside down
 
@@ -461,13 +472,17 @@ What to do, in order, and what each is waiting on.
    exist; the one genuine addition is the notification permission outcome,
    which is a field rather than a pipeline. **Amend `/privacy` in the same
    commit** — the page is a live public claim and the listing links to it.
-4. **Get screenshots into the repository.** Every social and paid surface is
-   image-first and this project has no images. It blocks nothing above it and
-   everything below.
+4. **Get the rest of the imagery into the repository.** Two landing-page
+   screenshots landed on 2026-09-14; the App Store set is on a desktop and
+   nothing composed exists at all. Blocks nothing above it and everything
+   below.
 5. **Apple Search Ads**, small, on the complaint keywords, once 3 can read the
    result past level 2. It is first among paid because its attribution needs
    nothing installed and its intent is already present.
 6. **The launch surfaces**, once 4 exists, because a Product Hunt post without
    imagery is a post that was not made.
 7. **Group-affinity social**, last, because it is the most expensive to do
-   well and the hardest to read.
+   well and the hardest to read. **Video belongs here rather than earlier**,
+   and the format that works is a comparison rather than a demo — two phones,
+   one ringing and one not — because that is the only way to make a non-event
+   visible. A screen recording of this app is a list of names.

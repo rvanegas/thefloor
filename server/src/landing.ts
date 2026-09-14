@@ -35,6 +35,18 @@
  * claim that separates this from every other voice app and the one a person
  * cannot discover from a screenshot. It is now the first heading here.
  *
+ * **Nothing on this page redirects**, since 2026-09-14. A script used to send
+ * anybody holding a token to `/open` before paint, with `?stay` as the escape
+ * hatch that let a signed-in person read the page at all. The preference at
+ * the prompt is that somebody signed in sees this page like everybody else, so
+ * both are gone. **The browser link is the compensation** and is why it moved
+ * to the top, above the argument rather than to the foot: a returning visitor
+ * who used to arrive in the app is now one tap away from it, and a tap they
+ * have to scroll past six claims to find is not one tap. It is deliberately
+ * quiet — small and muted — because it is furniture for the minority who are
+ * signed in, and must not be the first thing a stranger reads. `webAppReady`
+ * still gates it, for the reason it always did.
+ *
  * **The copy's source of truth is planning/LISTING.md**, not this file: the
  * headings are that document's argument in the order it makes it, and the lede
  * is its promotional text, which is written to be *repeatable by a
@@ -51,46 +63,6 @@
  */
 
 import { escapeHtml, page } from './html';
-
-/**
- * The redirect for somebody already signed in, inline in `<head>` so it runs
- * before paint and there is no flash of a page they did not want.
- *
- * Five things here are easy to get wrong and each is deliberate:
- *
- * - **`localStorage` is scoped to the origin, not the path**, so this reads the
- *   token the app wrote. That holds because this server serves both, which is
- *   the same same-origin property the whole design rests on — there is no CORS
- *   anywhere in this server.
- * - **Presence, not validity.** The token carries a ninety-day TTL and may have
- *   been revoked. Checking would mean a network round trip before paint; a
- *   stale one costs a redirect into the app, which restores, takes a 401 and
- *   lands on sign-in — where that person was going anyway.
- * - **`/open` rather than `/app`**, since 2026-08-30. This named a train, and a
- *   signed-in beta tester was therefore sent to a bundle that may not be
- *   deployed and is not the one they use. Which train is a question with one
- *   answer and one place that knows it; see open.ts.
- * - **`replace` rather than `assign`**, so no history entry is left and Back
- *   from `/app` does not bounce straight back here.
- * - **Wrapped in `try`**, because Safari with storage blocked *throws* on
- *   `localStorage` access rather than returning null, and the page must then
- *   simply render.
- * - **`?stay` defeats it**, or a signed-in person could never read this page at
- *   all — including to reach `/support` from it.
- *
- * The key is `thefloor.token`, which is `TOKEN_KEY` in the app's
- * `state/AppProvider.tsx`. It is repeated here rather than imported because
- * nothing in this server may import from `app/`, and a comment is the only
- * link the two ends can have.
- */
-const REDIRECT = `
-<script>
-try {
-  if (!location.search.includes('stay') && localStorage.getItem('thefloor.token')) {
-    location.replace('/open');
-  }
-} catch (e) {}
-</script>`;
 
 /**
  * The page's own CSS, layered on top of `page()`'s document chrome.
@@ -116,6 +88,13 @@ const STYLE = `
   }
   .cta .aside { display: block; margin-top: 0.6rem; font-size: 0.9rem; opacity: 0.75; }
   .more { margin-top: 3rem; font-size: 0.95rem; opacity: 0.85; }
+  .browser { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
+  figure { margin: 1.25rem 0 0; }
+  figure img {
+    display: block; width: 100%; max-width: 20rem; height: auto;
+    border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 0.75rem;
+  }
+  figcaption { margin-top: 0.5rem; font-size: 0.9rem; opacity: 0.75; max-width: 20rem; }
 `;
 
 /**
@@ -159,11 +138,10 @@ export function landingPage(options: {
   // than no link — the same graceful absence `supportPage` makes for a contact
   // address, and the App Store link below for an unset URL.
   const browser = options.webAppReady
-    ? `<h2 class="claim">Already have an account?</h2>
-<p><a href="/open">Open The Floor in this browser</a>. It needs a microphone and
-nothing else. It is a convenience rather than a replacement — the app on a
-phone is the one that can reach you when you are not looking at it, so use the
-browser as a second screen rather than as the only one.</p>`
+    ? `<p class="browser"><strong>Already have an account?</strong>
+<a href="/open">Open The Floor in this browser.</a> It needs a microphone and
+nothing else &mdash; though the app on a phone is the one that can reach you
+when you are not looking at it.</p>`
     : '';
 
   // Omitted rather than rendered dead, on the same reasoning: this is the
@@ -178,14 +156,15 @@ browser as a second screen rather than as the only one.</p>`
     heading: 'The Floor',
     standfirst: 'Group voice on your own time',
     style: STYLE,
-    body: `${options.webAppReady ? REDIRECT : ''}
-${MARK}
+    body: `${MARK}
 
 <p class="lede">It&rsquo;s a group chat, but voice. A channel is a place you
 drop into rather than a call you answer: you arrive when it suits you, and
 whoever is there is there.</p>
 
 <p>The Floor is for talking with people you already know. It waits for you.</p>
+
+${browser}
 
 <h2 class="claim">Nothing rings</h2>
 <p>When somebody wants you, you get a notification &mdash; the ordinary kind,
@@ -200,6 +179,16 @@ the list says which channels have somebody in them right now, and how long ago
 somebody was last in the others. A channel nobody is using empties itself after
 a quarter of an hour, so one that says somebody is there means it.</p>
 
+<figure>
+<img src="/assets/home.webp" width="750" height="1624" loading="lazy"
+alt="The Floor's channel list. A channel called Weekly Convo reads &quot;Nobody
+else is here yet&quot;, a contact called Sam Rivera reads &quot;Nearby &middot;
+1 present&quot;, and under Your Channels a second entry reads &quot;A month
+ago&quot;.">
+<figcaption>Who is there now, who is nearby, and how long ago anybody last
+was &mdash; before you say anything.</figcaption>
+</figure>
+
 <h2 class="claim">If it&rsquo;s empty, step in anyway</h2>
 <p>Ping whoever you wanted and they get a notification saying you are there.
 Then put the phone down &mdash; stepping in does not take the device over, so
@@ -211,6 +200,15 @@ you can answer, with the screen off and the phone still in your pocket.</p>
 properly they take the floor, and every other microphone stays quiet until they
 give it back. It is enforced on the audio rather than asked of people
 politely.</p>
+
+<figure>
+<img src="/assets/floor.webp" width="750" height="1624" loading="lazy"
+alt="A channel roster. The first person is marked &quot;Present &middot; has
+the floor&quot;; the second is marked only &quot;Present&quot;. The control at
+the foot of the screen reads Release.">
+<figcaption>Whoever holds it is named on the roster, and the control says
+Release rather than Mute &mdash; it is something you give back.</figcaption>
+</figure>
 
 <h2 class="claim">Nobody here is a stranger</h2>
 <p>Everything in The Floor is your people and the channels you share with them.
@@ -225,8 +223,6 @@ channel afterwards and listen together, export it, or delete it &mdash; anyone
 in the channel can, not only whoever started it.</p>
 
 ${store}
-
-${browser}
 
 <div class="more">
 <h2 class="claim">More</h2>
