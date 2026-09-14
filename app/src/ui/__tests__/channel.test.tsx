@@ -1428,6 +1428,60 @@ describe('Channel', () => {
   });
 
   /*
+    **Landing somewhere other than the roster, because a caller said so.**
+    The one caller that does is the introduction checklist on Home — a rung
+    about the guest link or the player names a tab, and landing on the roster
+    to hunt for it is the failure the rung exists to fix. See
+    `ui/Introduction.tsx` and `ui/detail.ts`.
+
+    What is asserted is that the request is honoured on arrival, that it is
+    followed when it changes under a screen already up (which is the split,
+    where the channel can be open beside the card), and that it is a request
+    rather than a setting — a tap on the tab bar stands.
+  */
+  it('lands on the tab it was asked for, and lets the bar override it', () => {
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        tab="player"
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    const shown = () =>
+      tree.root.findAll((node) => node.type === Segmented)[0]!.props.value;
+    expect(shown()).toBe('player');
+
+    // The screen stays up and is asked for another one.
+    act(() =>
+      tree.update(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          tab="invites"
+          onClose={() => {}}
+          onExit={() => {}}
+        />)
+    );
+    expect(shown()).toBe('invites');
+
+    // And the bar wins from there: nothing new is being asked for, so the
+    // rerender does not put the screen back.
+    showRoster(tree);
+    expect(shown()).toBe('roster');
+    act(() =>
+      tree.update(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          tab="invites"
+          onClose={() => {}}
+          onExit={() => {}}
+        />)
+    );
+    expect(shown()).toBe('roster');
+    act(() => tree.unmount());
+  });
+
+  /*
     The watch tab is the one that comes and goes, and what decides is Labs
     rather than anything about the room — a tab that appeared and vanished as
     people started and stopped things would be the wrong one pressed. The

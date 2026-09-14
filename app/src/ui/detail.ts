@@ -1,3 +1,5 @@
+import type { ChannelTab } from './ChannelView';
+
 /**
  * The one thing the detail pane is showing.
  *
@@ -31,7 +33,16 @@
  */
 export type Detail =
   | { kind: 'none' }
-  | { kind: 'channel'; channelId: string }
+  /**
+   * `tab` is which of the channel screen's tabs to land on, and is almost
+   * always absent — that screen picks the roster, which is what somebody
+   * opening a channel came for. It is named only by a caller that knows
+   * better: the introduction checklist, whose rungs are about the guest link
+   * and the player and which would otherwise land somebody on the roster to
+   * hunt for the tab the rung just named. It reaches no address, like the ids
+   * beside it.
+   */
+  | { kind: 'channel'; channelId: string; tab?: ChannelTab }
   /**
    * `edit` opens your own profile already editing, and is the state it was
    * opened in rather than a mode kept from out here — see ProfileView. It

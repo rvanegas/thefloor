@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../state/AppProvider';
 import type { Step, StepId } from '../state/introduction';
+import type { ChannelTab } from './ChannelView';
 import { Button, Card, IconButton } from './components';
 import type { List } from './detail';
 import { CloseIcon } from './icons';
@@ -59,15 +60,37 @@ import { colors, spacing, type } from './theme';
  */
 export function Introduction({
   onList,
+  live = null,
+  onOpenChannel = () => {},
 }: {
   /**
-   * Switches the list below, which is where both rungs are climbed.
+   * Switches the list below, which is where a rung is climbed by somebody
+   * who is not in a channel.
    *
-   * The only handler the ladder needs since 2026-09-13: the two rows that
+   * It was the only handler the ladder needed for a day: the two rows that
    * went to a profile went with the rungs that asked for a name and a
-   * username.
+   * username, and the four rungs done inside a channel all named the channel
+   * list. The pair below is what ended that — a list is the way to a channel,
+   * and somebody already in one does not need the way to it.
    */
   onList: (list: List) => void;
+  /**
+   * The channel this person is standing in right now, or null.
+   *
+   * **It is what the four *try* rungs point at when there is one.** Every one
+   * of them is done inside a channel, and with no channel to name there is
+   * nowhere to send somebody but the list — see `actionFor`. Handed down
+   * rather than read here, because Home already holds it for the live bar and
+   * two readings of presence on one screen is one too many.
+   */
+  live?: string | null;
+  /**
+   * Opens that channel's screen, on the tab the rung is about.
+   *
+   * Defaulted to nothing so this card still draws where there is nowhere to
+   * route to, the same way `ProfileView`'s `onEnterChannel` is.
+   */
+  onOpenChannel?: (channelId: string, tab: ChannelTab) => void;
 }) {
   const { introduction, installPrompt, dismissStep } = useApp();
   /**
@@ -124,7 +147,7 @@ export function Introduction({
           <Row
             key={step.id}
             step={step}
-            action={actionFor(step, onList, installPrompt)}
+            action={actionFor(step, onList, installPrompt, live, onOpenChannel)}
             onDismiss={dismissStep}
           />
         );
@@ -168,15 +191,60 @@ export function Introduction({
  * somebody, not to press it for them. A tap while that list is already showing
  * is a no-op, which is the honest cost of the rule and cheaper than a control
  * that appears and disappears as somebody flips between the two.
+ *
+ * **Except that a channel you are already in is not a place you are being
+ * taken**, which is the change of 2026-09-13 and the one exception to the
+ * paragraph above. The four *try* rungs are done inside a channel, and while
+ * somebody is standing in one the list is not the destination — it is a step
+ * on the way to the room they are already in, with the row they are already
+ * on. So when `live` names a channel those rungs open it, on the tab the rung
+ * is about: the roster for the two controls in the bar along the bottom, the
+ * Invite tab for the guest link, the Player tab for the audio.
+ *
+ * The rule it does not break is the one that matters: nothing here claims a
+ * floor, mints a link or plays anything. It opens the screen the control is
+ * on and stops, exactly as *Open Contacts* does. And it reaches a channel
+ * only when the person is in it already — the card will not step anybody into
+ * one, which is what the invited card's *Step in* did and what
+ * `state/introduction.ts` records the removal of.
  */
 function actionFor(
   step: Step,
   onList: (list: List) => void,
-  installPrompt: (() => void) | null
+  installPrompt: (() => void) | null,
+  /** The channel being stood in, or null — see the prop of the same name. */
+  live: string | null,
+  onOpenChannel: (channelId: string, tab: ChannelTab) => void
 ): { label: string; onPress: () => void } | null {
+  /**
+   * Into the room, on the tab the rung names — or the list, when there is no
+   * room to go into.
+   *
+   * The label is the destination as the app labels it, which is the pattern
+   * *Open Contacts* and *Open Channels* set: the tab bar at the top of that
+   * screen says *Invite* and *Player*, so the button says the word somebody
+   * will be looking at a moment later. The roster is not named, because the
+   * two rungs that land there are about controls in the bar along the bottom
+   * rather than about the tab.
+   */
+  const inChannel = (
+    tab: ChannelTab,
+    label: string
+  ): { label: string; onPress: () => void } =>
+    live
+      ? { label, onPress: () => onOpenChannel(live, tab) }
+      : { label: 'Open Channels', onPress: () => onList('channels') };
+
   switch (step.id) {
     case 'somebody':
       return { label: 'Open Contacts', onPress: () => onList('contacts') };
+    // **Channels even while standing in one**, deliberately, and it is the
+    // one rung where being in a channel does not change the answer. What it
+    // asks for is somebody else in the room with you; the half of it this
+    // person has not done is not in the channel screen at all, and the list
+    // is where a channel with the right person in it gets started. Sending
+    // them into the room they are already alone in would be a control that
+    // moves nothing.
     case 'stepIn':
       return { label: 'Open Channels', onPress: () => onList('channels') };
     // **The one rung that may have no button, and usually has none.** Most
@@ -189,21 +257,28 @@ function actionFor(
       return installPrompt
         ? { label: 'Install', onPress: installPrompt }
         : null;
-    // **All four go to Channels, and the repetition is the honest answer.**
-    // Every one of them is done inside a channel, so there is exactly one
-    // place to send somebody and no amount of varying the word changes where
-    // the tap lands. The row's own instruction names the tab or the slot once
-    // they are there, which is the half that differs.
+    // **All four go to Channels when there is no channel to go to**, and the
+    // repetition is the honest answer: every one of them is done inside a
+    // channel, so with nowhere in particular to send somebody no amount of
+    // varying the word changes where the tap lands. The row's own instruction
+    // names the tab or the slot once they are there.
     //
-    // This card is still not allowed to reach past a list — see above. It will
-    // not step somebody into a channel to claim a floor for them, and a rung
-    // that opened the Player tab of a channel they were not in would be
-    // promising something the app would then refuse.
+    // With a channel being stood in they go there instead — see `inChannel`
+    // above, and the note on this function about why that is not the card
+    // reaching past a list. A rung that opened the Player tab of a channel
+    // somebody was *not* in would be promising something the app would then
+    // refuse; this opens the one they are in.
+    //
+    // The two below land on the roster because that is where the bar along
+    // the bottom is, which is where Claim and Nearby live. They are not on a
+    // tab of their own and there is nothing nearer to send somebody to.
     case 'floor':
     case 'nearby':
+      return inChannel('roster', 'Open the channel');
     case 'guest':
+      return inChannel('invites', 'Open Invite');
     case 'player':
-      return { label: 'Open Channels', onPress: () => onList('channels') };
+      return inChannel('player', 'Open Player');
   }
 }
 

@@ -342,6 +342,15 @@ above were about there being four; with two there is no wall to build, and
 the row that starts a channel is not on screen at all. Every rung carries a
 button now, and each goes to the list it names.
 
+**And each goes to the *channel* it names, where there is one**, since the same
+day. The four rungs done inside a channel send somebody standing in one
+straight there, on the tab the rung is about — the Invite tab for the guest
+link, the Player tab for the audio, the roster for the two controls in the bar
+along the bottom. A list is the way to find a room; somebody in one does not
+need to find it. The card still acts on nobody's behalf, which is the rule that
+paragraph is really about. See
+`decisions/2026-09-13-a-rung-points-at-the-room-you-are-in.md`.
+
 ## Growth is a different thing, and is not this
 
 Asked to prioritise growth to more contacts for virality, the answer is a

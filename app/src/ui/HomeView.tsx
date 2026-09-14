@@ -11,6 +11,7 @@ import { useApp } from "../state/AppProvider";
 import { Button, Card, IconButton, Screen, Segmented } from "./components";
 import { SettingsIcon } from "./icons";
 import { ChannelsView, nearbyChannels } from "./ChannelsView";
+import type { ChannelTab } from "./ChannelView";
 import { ContactsView } from "./ContactsView";
 import { Introduction } from "./Introduction";
 import { ProfileView } from "./ProfileView";
@@ -138,7 +139,13 @@ export function HomeView({
     /** Muted by your own choice — not the floor, which is a different thing. */
     muted: boolean;
   } | null;
-  onReturnToChannel?: (channelId: string) => void;
+  /**
+   * Back into the channel you are standing in — and, since the checklist
+   * started pointing at it, onto a named tab of it. The tab is absent for the
+   * bar itself, which is a way back to the room rather than to anything in
+   * particular. See `ui/Introduction.tsx`.
+   */
+  onReturnToChannel?: (channelId: string, tab?: ChannelTab) => void;
 }) {
   const app = useApp();
 
@@ -464,7 +471,18 @@ export function HomeView({
             those two rows rather than competing with them — but it does
             contradict a dated decision. See planning/ONBOARDING.md.
           */}
-          <Introduction onList={onList} />
+          {/*
+            The checklist is told which channel this person is standing in,
+            because four of its rungs are done inside one and it can reach
+            there directly rather than naming a list to go and find it in.
+            Null whenever they are not present anywhere, which is when a list
+            is the only honest destination.
+          */}
+          <Introduction
+            onList={onList}
+            live={liveChannel?.channelId ?? null}
+            onOpenChannel={onReturnToChannel}
+          />
 
           {list === "channels" ? (
             <ChannelsView

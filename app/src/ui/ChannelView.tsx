@@ -131,7 +131,7 @@ const SKIP_MS = 15_000;
  * `watch` is the one that is not always there — see `tabs` below — and a set
  * that loses its final entry leaves every other tab exactly where it was.
  */
-type Tab =
+export type ChannelTab =
   | 'roster'
   | 'notepad'
   | 'invites'
@@ -160,6 +160,7 @@ export function uploadingLabel(percent: number | null): string {
 export function ChannelView({
   channelId,
   audio,
+  tab: asked,
   onClose,
   onExit,
   onEnterChannel,
@@ -212,6 +213,20 @@ export function ChannelView({
    * the same way `ProfileView`'s own is.
    */
   onEnterChannel?: (channelId: string) => void;
+  /**
+   * The tab to land on, when whoever opened this screen had one in mind.
+   *
+   * **Undefined is the ordinary case and means the roster**, which is what
+   * `tab` below says this screen is for. The one caller that names one is the
+   * introduction checklist on Home — a rung about the guest link or the
+   * player is about a tab, and sending somebody to the roster to hunt for it
+   * reproduces the failure the rung exists to fix. See `ui/Introduction.tsx`.
+   *
+   * It is a request rather than a setting: this screen owns which tab is
+   * showing from the moment it is drawn, and a tap on the bar overrides
+   * whatever was asked for and is never undone by a rerender.
+   */
+  tab?: ChannelTab;
 }) {
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
@@ -402,7 +417,21 @@ export function ChannelView({
    * about to stand in, and the roster is what that person came for. Everything
    * else is deliberate and worth one tap.
    */
-  const [tab, setTab] = useState<Tab>('roster');
+  const [tab, setTab] = useState<ChannelTab>(asked ?? 'roster');
+  /**
+   * Follows a caller that names a tab while this screen is already up.
+   *
+   * The state above is seeded once, which is the whole of it on a phone: the
+   * screen is mounted by the tap that asked for the tab. In a split it is not
+   * — the channel can already be open beside the checklist that names one —
+   * and without this the tap would move nothing at all.
+   *
+   * It runs on the value changing, so a tab chosen on the bar afterwards
+   * stands until something asks for a different one.
+   */
+  useEffect(() => {
+    if (asked) setTab(asked);
+  }, [asked]);
 
   /**
    * **The notepad is written when the field goes away, not only when it is
@@ -1050,7 +1079,7 @@ export function ChannelView({
    * a tab named *Watch* offered to somebody for whom watching does not exist.
    */
   const tabs: readonly {
-    value: Tab;
+    value: ChannelTab;
     label: string;
     icon: (color: ColorValue) => React.ReactNode;
   }[] = [
@@ -1099,7 +1128,7 @@ export function ChannelView({
    * is gone because the thing it was about is over, and the roster is what the
    * screen is for.
    */
-  const shown: Tab = tabs.some((t) => t.value === tab) ? tab : 'roster';
+  const shown: ChannelTab = tabs.some((t) => t.value === tab) ? tab : 'roster';
 
   /**
    * Mints a follower link and hands it to the share sheet.

@@ -19,7 +19,7 @@ import { ProfileView } from './src/ui/ProfileView';
 import { HelpView } from './src/ui/HelpView';
 import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
-import { ChannelView } from './src/ui/ChannelView';
+import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { NoDetailView, Panes } from './src/ui/Panes';
@@ -484,9 +484,13 @@ function Root() {
 
   /** Nothing open, which is the way out of everything the pane can hold. */
   const close = () => setDetail(NO_DETAIL);
-  /** A conversation, whatever was open before it. */
-  const enterChannel = (id: string) =>
-    setDetail({ kind: 'channel', channelId: id });
+  /**
+   * A conversation, whatever was open before it — on a named tab where the
+   * caller has one in mind, which only the introduction checklist has. See
+   * `ui/detail.ts`.
+   */
+  const enterChannel = (id: string, tab?: ChannelTab) =>
+    setDetail({ kind: 'channel', channelId: id, tab });
 
   /**
    * The screen you are looking at, or nothing.
@@ -536,6 +540,7 @@ function Root() {
           <ChannelView
             channelId={detail.channelId}
             audio={audio}
+            tab={detail.tab}
             // Off this screen without leaving the channel. Deliberately not
             // `leaveChannelView`: that unwatches, and the snapshot it drops is
             // what tells this component you are still present.

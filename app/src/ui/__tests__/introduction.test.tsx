@@ -169,6 +169,115 @@ describe('the introduction on Home', () => {
   });
 });
 
+describe('the rungs that are done inside a channel', () => {
+  /**
+   * The four *try* rungs, which is the whole of what this describes: they
+   * name a control two screens away, and where somebody is standing decides
+   * whether that is a list away or a tab away.
+   */
+  const trying = {
+    show: 'ladder' as const,
+    steps: [
+      {
+        id: 'floor' as const,
+        label: 'Claim the floor',
+        instruction: 'In a channel, tap Claim in the bar along the bottom.',
+        note: 'why',
+        done: false,
+      },
+      {
+        id: 'guest' as const,
+        label: 'Bring in a guest',
+        instruction: "On a channel's Invite tab, share a guest link.",
+        note: 'why',
+        done: false,
+      },
+      {
+        id: 'player' as const,
+        label: 'Play something together',
+        instruction: "On a channel's Player tab, add audio.",
+        note: 'why',
+        done: false,
+      },
+    ],
+  };
+
+  const live = {
+    channelId: 'sess_1',
+    title: 'Dana Chu',
+    present: 1,
+    muted: false,
+  };
+
+  it('names the channel list for somebody who is not in a channel', () => {
+    // There is nowhere in particular to send them, and the list is where a
+    // channel is found or started.
+    mockApp.home = empty;
+    mockApp.introduction = trying;
+    const lists: string[] = [];
+    const tree = render(
+      <HomeView {...homeNav} onList={(l) => lists.push(l)} />
+    );
+    act(() => findButton(tree, 'See more')?.props.onPress());
+    expect(findButton(tree, 'Open the channel')).toBeUndefined();
+    const channels = findButton(tree, 'Open Channels');
+    expect(channels).toBeDefined();
+    act(() => channels?.props.onPress());
+    expect(lists).toEqual(['channels']);
+    act(() => tree.unmount());
+  });
+
+  it('opens the channel being stood in, on the tab the rung is about', () => {
+    mockApp.home = empty;
+    mockApp.introduction = trying;
+    const opened: [string, string | undefined][] = [];
+    const tree = render(
+      <HomeView
+        {...homeNav}
+        liveChannel={live}
+        onReturnToChannel={(id, tab) => opened.push([id, tab])}
+      />
+    );
+    act(() => findButton(tree, 'See more')?.props.onPress());
+    // The list is not offered at all while there is a room to go to.
+    expect(findButton(tree, 'Open Channels')).toBeUndefined();
+
+    // The bar along the bottom is on the roster, and Claim is in it.
+    act(() => findButton(tree, 'Open the channel')?.props.onPress());
+    // The other two name their tab, in the word the tab bar uses.
+    act(() => findButton(tree, 'Open Invite')?.props.onPress());
+    act(() => findButton(tree, 'Open Player')?.props.onPress());
+
+    expect(opened).toEqual([
+      ['sess_1', 'roster'],
+      ['sess_1', 'invites'],
+      ['sess_1', 'player'],
+    ]);
+    act(() => tree.unmount());
+  });
+
+  it('still sends the stepping-in rung to the list from inside a channel', () => {
+    // The half of that rung which is not done is somebody *else* being in the
+    // room, and no tab of the channel screen is about that. Opening the room
+    // they are already alone in would be a control that moves nothing.
+    mockApp.home = empty;
+    mockApp.introduction = ladder;
+    const lists: string[] = [];
+    const tree = render(
+      <HomeView
+        {...homeNav}
+        liveChannel={live}
+        onList={(l) => lists.push(l)}
+        onReturnToChannel={() => lists.push('channel')}
+      />
+    );
+    act(() => findButton(tree, 'See more')?.props.onPress());
+    act(() => findButton(tree, 'Open Channels')?.props.onPress());
+    expect(lists).toEqual(['channels']);
+    act(() => tree.unmount());
+  });
+});
+
 describe('the install rung', () => {
   it('says where the command is, and offers no button when there is none', () => {
     // Most browsers keep installing in their own chrome and will not let a
