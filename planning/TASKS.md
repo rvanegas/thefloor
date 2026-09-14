@@ -4,9 +4,9 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Update minBuild
+## Red Badge on Contacts Tab
 
-Move it to 80. Tidy according to SHIMS.md
+If there are requests to answer.
 
 ## Record and Player Controls Access
 
