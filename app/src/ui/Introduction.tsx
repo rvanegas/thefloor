@@ -47,14 +47,19 @@ import { colors, spacing, type } from './theme';
  * so it belongs to whatever contains both lists. It is also what keeps it
  * still while somebody flips between them.
  *
- * The policy — which of the two cohorts this is, what is done, and when all of
- * it stops — is `state/introduction.ts`. Nothing here decides anything.
+ * **One shape, since 2026-09-13, and there were two.** An invited account got
+ * a single card saying the one thing left, on the argument that its other
+ * rungs were born ticked; `contactsBase` ended the born ticking and the card
+ * with it — `state/introduction.ts`. What went with the card is the only
+ * control in this feature that opened a channel rather than a list, which
+ * `actionFor` below rules out for every rung and says why.
+ *
+ * The policy — what is done, and when all of it stops — is
+ * `state/introduction.ts`. Nothing here decides anything.
  */
 export function Introduction({
-  onEnterChannel,
   onList,
 }: {
-  onEnterChannel: (channelId: string) => void;
   /**
    * Switches the list below, which is where both rungs are climbed.
    *
@@ -79,77 +84,6 @@ export function Introduction({
   const [expanded, setExpanded] = useState(false);
 
   if (introduction.show === 'none') return null;
-
-  if (introduction.show === 'invited') {
-    const { from, channelId, install } = introduction;
-    return (
-      <Card style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.rowMain}>
-            {/*
-              One card and not two rows with one tick. Somebody who was
-              invited arrives with a contact and a channel already — the
-              ladder's first rung was climbed for them before they got here,
-              and a list that opened by congratulating them on it would be
-              theatre. The single thing left is the single thing said.
-
-              **Both lines name the condition the card actually tests, which
-              is not stepping in.** It is drawn until `conversedAt` is
-              stamped, and that happens on the first frame this account is in
-              a channel with somebody else in it — `AppProvider`'s
-              `conversing`. Wording it as *you have not stepped in* promised a
-              test the code does not run: somebody who stepped in alone, found
-              an empty channel and stepped out again had done the thing the
-              card named and was told they had not.
-            */}
-            <Text style={type.body}>
-              {from ? `${from} invited you` : 'Nobody has heard you yet'}
-            </Text>
-            <Text style={type.muted}>
-              Step in while somebody else is there — that is the moment people
-              can hear you. Until then you are here and quiet, which is a fine
-              thing to be, but nobody knows it.
-            </Text>
-          </View>
-          {/*
-            **Dismissing this dismisses `stepIn`**, which is the rung the card
-            is a single-rung drawing of — see `state/introduction.ts`. It is
-            the same act as putting that row away on the ladder, and recording
-            it as anything else would let somebody dismiss the card and meet
-            the row again the day they first conversed.
-          */}
-          <Dismiss
-            step="stepIn"
-            label="Step in with somebody"
-            onDismiss={dismissStep}
-          />
-        </View>
-        {channelId ? (
-          <View style={styles.actions}>
-            <Button
-              label="Step in"
-              variant="floor"
-              onPress={() => onEnterChannel(channelId)}
-            />
-          </View>
-        ) : null}
-        {/*
-          The one row that may join this card — see `Introduction` in
-          `state/introduction.ts` for why it is not theatre the way a list of
-          born-ticked rows would be. Below the button rather than above it: the
-          conversation waiting for them is still the point, and this is the
-          thing to do on the way back.
-        */}
-        {install ? (
-          <Row
-            step={install}
-            action={actionFor(install, onList, installPrompt)}
-            onDismiss={dismissStep}
-          />
-        ) : null}
-      </Card>
-    );
-  }
 
   const { steps } = introduction;
   /**

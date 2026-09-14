@@ -45,18 +45,18 @@ jest.mock('../../api/http', () => ({
 
 beforeEach(() => {
   mockKeychain.clear();
-  // An account that has conversed, which is what leaves the four *try* rungs
-  // as the whole of the ladder — the two above them are behind this stamp and
-  // the card for an invited arrival is what it sees until it. The key's name
-  // is historical; see `useIntroduction`.
+  // An account that has conversed, so `stepIn` is ticked above the four and
+  // `somebody` is not — its one contact is the one it arrived with, which is
+  // the starting line rather than an act. The key's name is historical; see
+  // `useIntroduction`.
   mockKeychain.set('thefloor.intro.doneAt', '1700000000000');
   mockMarkTried.mockClear();
   mockMarkTried.mockImplementation(async () => ({}) as Tried);
 });
 
 /**
- * An established account that has conversed, so the ladder it is shown is the
- * four *try* rungs and nothing above them.
+ * An established account that has conversed, so of the rungs above the four
+ * only `stepIn` is ticked.
  */
 const homeWith = (tried?: Tried): HomeView =>
   ({
@@ -85,7 +85,7 @@ function Probe({
   onMark?.(mark);
   // Which rungs are ticked, in the order they are drawn, so a test can say
   // what the card says without rendering the card.
-  const steps = introduction.show === 'alone' ? introduction.steps : [];
+  const steps = introduction.show === 'ladder' ? introduction.steps : [];
   report(
     steps
       .filter((step) => step.done)
@@ -128,7 +128,7 @@ describe('the try rungs off the snapshot', () => {
     const { tree, ticked } = await draw(
       homeWith({ floor: true, nearby: false, guest: false, player: true })
     );
-    expect(ticked()).toBe('floor,player');
+    expect(ticked()).toBe('stepIn,floor,player');
     await act(async () => tree.unmount());
   });
 
@@ -136,7 +136,7 @@ describe('the try rungs off the snapshot', () => {
     // Absence is not a tick. A server that predates the field sends no key,
     // and reading that as *done* would retire the ladder for everybody.
     const { tree, ticked } = await draw(homeWith(undefined));
-    expect(ticked()).toBe('');
+    expect(ticked()).toBe('stepIn');
     await act(async () => tree.unmount());
   });
 
@@ -145,12 +145,12 @@ describe('the try rungs off the snapshot', () => {
     const { tree, ticked } = await draw(homeWith(), (m) => {
       mark = m;
     });
-    expect(ticked()).toBe('');
+    expect(ticked()).toBe('stepIn');
     await act(async () => mark('guest'));
     expect(mockMarkTried).toHaveBeenCalledWith('tok', ['guest']);
     // The snapshot in hand still says nothing — the rung is ticked from the
     // optimistic overlay, which is what keeps a walk back to Home honest.
-    expect(ticked()).toBe('guest');
+    expect(ticked()).toBe('stepIn,guest');
     await act(async () => tree.unmount());
   });
 });
@@ -164,7 +164,7 @@ describe('the one-time hand-up', () => {
     expect(mockMarkTried).toHaveBeenCalledWith('tok', ['floor', 'player']);
     // Laid over the snapshot at once, so the rungs do not go hollow for the
     // length of a request on the phone that did the things.
-    expect(ticked()).toBe('floor,player');
+    expect(ticked()).toBe('stepIn,floor,player');
     // And the keys are spent, so a second launch offers nothing.
     expect(mockKeychain.has('thefloor.intro.tried.floor')).toBe(false);
     expect(mockKeychain.has('thefloor.intro.tried.player')).toBe(false);

@@ -18,24 +18,6 @@
 import type { Install } from './install';
 import { allTried, type Tried } from './tried';
 
-/**
- * How this account got here, decided once and then remembered.
- *
- * **The two arrivals want different things and it is not close.** Being
- * invited is how most people arrive, and the invitation is the first thing
- * they have — so a list beginning *add a contact* would open by telling them
- * to do something they have already had done for them. An uninvited install
- * has nobody, and there is nothing whatsoever to do here alone, so its first
- * problem is not learning the app but getting a second person into a room.
- *
- * **Latched rather than recomputed, and that is load-bearing.** It is
- * `somebody` — see `AppProvider` — asked once, at the first snapshot this
- * install ever saw. Asked continuously it would answer *invited* the moment an
- * alone account finally got a contact, which is precisely when that account is
- * halfway up the ladder, and the ladder would vanish under them one rung from
- * the top.
- */
-export type Arrival = 'invited' | 'alone';
 
 /**
  * The rungs, in the order they are climbed.
@@ -129,49 +111,28 @@ export interface Step {
  * One value rather than a set of booleans, on the reasoning `Ask` gives: these
  * are alternatives, and separate flags would let two of them be true at once.
  *
+ * **Two, since 2026-09-13, and it was three.** There was a single card for
+ * the invited cohort, on the argument that its first rungs were born ticked
+ * and a list of things somebody else did for you is theatre. The premise went
+ * when `contactsBase` landed: an invited account arrives holding a contact,
+ * its starting line is that contact, and *Get somebody here* asks it for
+ * somebody of its own. Nothing is born ticked for anybody now, so everybody
+ * gets the same ladder and there is no cohort left to draw a card for.
+ *
+ * **What went with it is the one control that reached past a list**: the
+ * card's *Step in* opened the waiting channel outright, which `actionFor` in
+ * `ui/Introduction.tsx` rules out for every rung and spells out why. The
+ * `stepIn` rung goes to Channels like the five below it, and the channel
+ * waiting for them is the first row there.
+ *
  * - `'none'` — the ordinary case, and every account that has finished.
- * - `'invited'` — a single card, because for this cohort the rungs above
- *   `stepIn` are born ticked and a list of things somebody else did for you is
- *   theatre. It says the one thing that is actually left. **It is what this
- *   cohort sees until it has conversed, and not a moment longer**: after that
- *   the four *try* rungs are neither born ticked nor done for them by
- *   anybody, so there is a real ladder to draw and they get one.
- * - `'alone'` — the ladder, for the cohort it was designed for.
+ * - `'ladder'` — the rungs, for everybody. Called `'alone'` until the card
+ *   went, which was the name of the cohort that got a list rather than of
+ *   what a list is.
  */
 export type Introduction =
   | { show: 'none' }
-  | {
-      show: 'invited';
-      /** Who invited them, when there is still an invitation saying so. */
-      from: string | null;
-      /** Where the card goes. Null only if the snapshot has neither. */
-      channelId: string | null;
-      /**
-       * The install rung, under the card, when a browser has one to offer.
-       *
-       * **The one thing that may join this card**, and it joins it rather than
-       * turning it back into a list because it is not born ticked: the whole
-       * argument against a list here is that it would congratulate this cohort
-       * on two things somebody else did for them, and this is neither of them.
-       * Null on a phone and in any browser that cannot install — which is most
-       * of the time, and is why the card's shape is unchanged by default.
-       */
-      install: Step | null;
-    }
-  | { show: 'alone'; steps: Step[] };
-
-/** The three ways of having somebody, which is `somebody` in `AppProvider`. */
-export function arrivalOf(home: {
-  contacts: unknown[];
-  rejoinable: unknown[];
-  invites: unknown[];
-}): Arrival {
-  return home.contacts.length > 0 ||
-    home.rejoinable.length > 0 ||
-    home.invites.length > 0
-    ? 'invited'
-    : 'alone';
-}
+  | { show: 'ladder'; steps: Step[] };
 
 /**
  * What to show, from everything that decides it.
@@ -193,18 +154,14 @@ export function introduction(state: {
   /** The Home snapshot, null before the first one arrives. */
   home: {
     contacts: unknown[];
-    rejoinable: unknown[];
-    invites: Array<{ channelId: string; from: { displayName: string } }>;
   } | null;
-  /** Latched at the first snapshot; null until that has happened. */
-  arrival: Arrival | null;
   /**
    * When this account first had a conversation, or null if it never has.
    *
    * **It no longer retires anything by itself**, which is the change of
    * 2026-09-13 and the reason it is no longer called `doneAt`. It ticks the
-   * `stepIn` rung and it decides which of the two things an `invited` arrival
-   * is shown; retirement is now the whole ladder being finished. The stored
+   * `stepIn` rung, and nothing else since the invited card went; retirement
+   * is the whole ladder being finished. The stored
    * key is still `thefloor.intro.doneAt` and is written at exactly the moment
    * it always was, so no account has to be migrated — only what is concluded
    * from it changed. See `useIntroduction`.
@@ -213,20 +170,25 @@ export function introduction(state: {
   /** The four *try* rungs, off the Home snapshot — `core/tried.ts`. */
   tried: Tried;
   /**
-   * How many contacts this account had when the ladder started, latched with
-   * the arrival — `useIntroduction`.
+   * How many contacts this account had when the ladder started — latched at
+   * the first snapshot this install ever saw, and again on *Show the checklist
+   * again*. Null until that has happened, and nothing is drawn while it is.
    *
-   * **It is what turns a count into an act.** `somebody` used to read
-   * `contacts.length > 0`, which is a fact about the account rather than
-   * something anybody did while the ladder was in front of them: an invited
-   * account is born holding one, and *Show the checklist again* handed back a
-   * ladder with its first rung already ticked. Measured against the starting
-   * line, the rung asks for somebody this person brought.
+   * **It is what turns a count into an act, and it is why there is one
+   * ladder.** `somebody` used to read `contacts.length > 0`, which is a fact
+   * about the account rather than something anybody did while the ladder was
+   * in front of them: an invited account is born holding one, so its first
+   * rung was ticked before it was drawn, and *Show the checklist again* handed
+   * an established account the same free tick. That born-ticked rung was the
+   * entire argument for showing the invited cohort a card instead of a list.
+   * Measured against the starting line, nobody is born ticked and everybody
+   * gets the list.
    *
-   * Zero for every install that predates the key, which is what leaves an
-   * account already climbing exactly where it was.
+   * **It is also the latch**, which `Arrival` used to be: it is written once,
+   * where the arrival was written, and its presence is what says this install
+   * has seen a snapshot before.
    */
-  contactsBase: number;
+  contactsBase: number | null;
   /**
    * The rungs this person has put away by hand, which are drawn no more.
    *
@@ -251,7 +213,6 @@ export function introduction(state: {
   const {
     loaded,
     home,
-    arrival,
     conversedAt,
     tried,
     conversing,
@@ -261,7 +222,7 @@ export function introduction(state: {
   } = state;
   const hidden = (id: StepId) => dismissed.includes(id);
 
-  if (!loaded || !home || !arrival) return { show: 'none' };
+  if (!loaded || !home || contactsBase === null) return { show: 'none' };
   // **Nothing at all while a conversation is happening**, which is unchanged
   // and is not the retirement: a card still on screen during the conversation
   // it was asking for is the one moment it would be actively silly. It comes
@@ -277,42 +238,6 @@ export function introduction(state: {
   if (conversedAt !== null && allTried(tried)) return { show: 'none' };
 
   const installing = hidden('install') ? null : installStep(install);
-
-  // **The card is for the cohort that has not yet conversed, and only that.**
-  // It exists because the rungs before `stepIn` are born ticked here and a
-  // list of somebody else's doing is theatre; the four below are done by
-  // nobody but the reader, so once the one thing this card asks for has
-  // happened there is an honest ladder left and the argument for the card is
-  // spent.
-  if (arrival === 'invited' && conversedAt === null && !hidden('stepIn')) {
-    const invite = home.invites[0];
-    return {
-      show: 'invited',
-      from: invite ? invite.from.displayName : null,
-      channelId: invite ? invite.channelId : null,
-      install: installing,
-    };
-  }
-
-  // **Dismissing the card dismisses the one thing it asks**, which for this
-  // cohort is the whole of it: every rung below `stepIn` is done inside a
-  // channel, and this is somebody who has not been in one. Drawing the four
-  // *try* rungs at them here would answer a dismissal by producing four rows
-  // where there was one, all of them about a screen they have not reached.
-  // The install rung is the exception it always is — it is not about a
-  // channel, and it was never part of what the card asked.
-  if (arrival === 'invited' && conversedAt === null) {
-    return installing
-      ? { show: 'alone', steps: [installing] }
-      : { show: 'none' };
-  }
-
-  // **An invited account that has conversed is shown the four and no more.**
-  // Drawing `somebody` and `stepIn` ticked above them would be the theatre the
-  // card was built to avoid, a fortnight later and with two extra rows of it.
-  if (arrival === 'invited') {
-    return ladder(tryingSteps(tried), dismissed);
-  }
 
   return ladder(
     [
@@ -383,7 +308,7 @@ export function introduction(state: {
 function ladder(steps: Step[], dismissed: readonly StepId[]): Introduction {
   const drawn = steps.filter((step) => !dismissed.includes(step.id));
   if (drawn.length === 0) return { show: 'none' };
-  return { show: 'alone', steps: drawn };
+  return { show: 'ladder', steps: drawn };
 }
 
 /**

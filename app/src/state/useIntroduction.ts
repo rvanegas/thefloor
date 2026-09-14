@@ -13,10 +13,8 @@ import {
   type TriedId,
 } from './tried';
 import {
-  arrivalOf,
   introduction,
   isStepId,
-  type Arrival,
   type Introduction,
   type StepId,
 } from './introduction';
@@ -31,19 +29,29 @@ import {
  * what they are about. `installNotice.ts` and the four `thefloor.notifications`
  * keys survive sign-out deliberately: they record what this *browser* or this
  * *install* has been shown, and iOS grants its one dialog per install however
- * many people sign in on the phone. These two record what an *account* has
- * done — how it arrived, and whether it has ever had a conversation — and a
+ * many people sign in on the phone. These record what an *account* has done —
+ * what it started from, and whether it has ever had a conversation — and a
  * second account signing in on the same phone has done neither. Left standing
  * they would tell a brand-new account it had finished.
  */
-const ARRIVAL_KEY = 'thefloor.intro.arrival';
+/**
+ * **Read once and deleted, and nothing writes it any more.** It held how an
+ * account arrived — `invited` or `alone` — which decided whether it was shown
+ * a card or a ladder, and which of the two it was stopped mattering when
+ * `contactsBase` made the first rung tick on an act rather than on a standing
+ * fact. What is left is its other job: its presence says this install has seen
+ * a snapshot before, which is what stops an account already halfway up the
+ * ladder having its starting line drawn from wherever it happens to be today.
+ * See the load effect. Gate 198 — planning/SHIMS.md.
+ */
+const LEGACY_ARRIVAL_KEY = 'thefloor.intro.arrival';
 /**
  * **The name is historical and the key string must not change.** It is written
  * at exactly the moment it always was — the first conversation — and every
  * account already carrying one means precisely that. What changed on
  * 2026-09-13 is what is *concluded* from it: it used to retire the whole
- * checklist and now it ticks one rung and settles which of two things an
- * `invited` arrival is shown. Renaming the key would have discarded that
+ * checklist and now it ticks one rung and nothing else. Renaming the key
+ * would have discarded that
  * stamp on every install for no gain; the field it loads into is called
  * `conversedAt`, which is what it has always meant.
  */
@@ -73,13 +81,15 @@ const DISMISSED_KEY = 'thefloor.intro.dismissed';
  * standing fact, so reading the rung off `length > 0` ticked it for anybody
  * who had ever been in touch with anybody — which is every invited account
  * from its first frame, and every account that taps *Show the checklist
- * again*. Latched once, beside `arrival` and at the same instant, and the rung
- * is done when the count has gone *up* since.
+ * again*. Latched once, at the first snapshot this install ever saw, and the
+ * rung is done when the count has gone *up* since.
  *
- * **Absent means zero, which is what leaves every install already climbing
- * alone.** Nothing writes this key retroactively: an account partway up the
- * ladder reads no key, gets a baseline of nought, and its rung ticks off the
- * first contact exactly as it did before.
+ * **It is the latch as well as the line.** Its absence is what says this
+ * install has not seen a snapshot yet, which `thefloor.intro.arrival` used to
+ * say; nothing is drawn until it holds a number. An install that was climbing
+ * before it existed is given nought rather than whatever it holds today — see
+ * `LEGACY_ARRIVAL_KEY` and the load effect, since writing anything else would
+ * un-tick a rung somebody earned.
  *
  * Cleared on sign-out with the three above, and for their reason — it is a
  * fact about one account's starting line.
@@ -126,8 +136,8 @@ export interface IntroductionState {
    * and *I have no guests to bring* are two different sentences, and a single
    * *hide all of this* would make somebody spend the second to say the first.
    *
-   * Written to the keychain rather than to the account, alongside `arrival`
-   * and `conversedAt` and unlike the four *try* stamps. Those four are facts
+   * Written to the keychain rather than to the account, alongside
+   * `contactsBase` and `conversedAt` and unlike the four *try* stamps. Those four are facts
    * about a person that a second device has no way to derive — which is what
    * moved them to the server — and this is a preference about a card, which a
    * second device is entitled to ask again. Undone only by `forget` below.
@@ -136,8 +146,8 @@ export interface IntroductionState {
   /**
    * Puts this account back where it started, for a debug account only.
    *
-   * **There is nothing else that does this.** The two account keys are cleared
-   * on sign-out, but signing in again re-latches the arrival from the same
+   * **There is nothing else that does this.** The account keys are cleared on
+   * sign-out, but signing in again re-latches the starting line from the same
    * snapshot and `conversedAt` is written off `conversing`, which by then is a
    * fact about an account that has conversed — so signing out and back in
    * returns somebody to exactly the silence they were in. The four *try* rungs
@@ -150,16 +160,19 @@ export interface IntroductionState {
    * The state is reset alongside the keys rather than left to a relaunch,
    * which is what makes the ladder reappear on the tap.
    *
-   * **It latches `alone` rather than re-arming the latch**, which is the
-   * change of 2026-09-13 and the only place in this file that sets an arrival
-   * to anything but what a snapshot said. Clearing the key re-derived the
-   * arrival from the snapshot already in hand, and `arrivalOf` answers
-   * *invited* for anybody with a contact, a channel or an invitation — so an
-   * established account tapped a control called *Show the checklist again* and
-   * got the one-line card, whose five stored rungs it had just cleared and
-   * four of which that card cannot draw. The honest reading of the tap is *put
-   * the whole thing in front of me*; `alone` is the cohort that gets the whole
-   * thing, and `somebody` simply draws ticked, which it is.
+   * **It moves the starting line to here rather than clearing it**, which is
+   * the other half of what the tap means. An account that reaches for this
+   * has contacts, so a line left where it was would hand back a ladder whose
+   * first rung was ticked before it was drawn — the free tick the whole
+   * feature now refuses. Moved to the count at the tap, *Get somebody here*
+   * asks for somebody more, which is the only honest reading of it on an
+   * account that already has somebody.
+   *
+   * This replaced latching `alone`, which was what the same tap needed while
+   * an arrival decided between a card and a ladder: clearing the arrival
+   * re-derived it, `arrivalOf` answered *invited* for anybody with a contact,
+   * and an established account got the one-line card whose five stored rungs
+   * it had just cleared. There is one ladder now and no arrival to latch.
    *
    * The dismissals go with them. A rung put away by hand is the other way this
    * card ends, and a reset that left them standing would return somebody to a
@@ -193,13 +206,14 @@ export function useIntroduction(state: {
    * bug fix.** `AppProvider` starts at `token: null` and restores the real one
    * in an effect, so every cold launch passes through a frame that looks
    * exactly like a sign-out — and the sign-out path below is the one place
-   * that *deletes* both keys. The retirement was therefore wiped at every
+   * that *deletes* these keys. The retirement was therefore wiped at every
    * launch, the arrival re-latched from the snapshot then in hand, and an
    * established account — which has contacts — latched `invited` and was shown
-   * a card about an invitation nobody had sent. With no invitation pending
-   * that card has no name to put in it, so what people actually saw was its
-   * fallback sentence — then *You have not stepped in yet*, now *Nobody has
-   * heard you yet* — on accounts that plainly had. See
+   * a card about an invitation nobody had sent, whose fallback sentence read
+   * *You have not stepped in yet* on accounts that plainly had. The card has
+   * since gone and the arrival with it; what a wiped key would cost now is the
+   * starting line, re-latched from today's contact count, which is the same
+   * bug wearing the other hat — a finished account handed a fresh ladder. See
    * `__tests__/introColdLaunch.test.tsx`.
    */
   ready: boolean;
@@ -226,15 +240,15 @@ export function useIntroduction(state: {
   const { ready, token, home, conversing, install } = state;
 
   const [loaded, setLoaded] = useState(false);
-  const [arrival, setArrival] = useState<Arrival | null>(null);
   const [conversedAt, setConversedAt] = useState<number | null>(null);
   /** The rungs put away by hand — `dismiss`. Read once, with the two above. */
   const [dismissed, setDismissed] = useState<readonly StepId[]>([]);
   /**
    * The contact count the ladder started from — `CONTACTS_BASE_KEY`. Null
-   * until the keychain has been read *and* until the latch below has run,
-   * which is the same null the arrival uses and means the same thing: nothing
-   * may be concluded yet.
+   * until the keychain has been read *and* until the latch below has run.
+   * Nothing at all is drawn while it is null — it is the latch the arrival
+   * used to be, and it means what that null meant: nothing may be concluded
+   * yet.
    */
   const [contactsBase, setContactsBase] = useState<number | null>(null);
   /**
@@ -274,7 +288,6 @@ export function useIntroduction(state: {
     let cancelled = false;
     if (!token) {
       setLoaded(false);
-      setArrival(null);
       setConversedAt(null);
       setDismissed([]);
       setMarked([]);
@@ -287,7 +300,7 @@ export function useIntroduction(state: {
       // TEMPORARY — see `introTrace` in `AppProvider`. This is the one path
       // that un-writes the flag, and it should appear only on a sign-out.
       recordEvent('intro cleared (no token)');
-      void storage.remove(ARRIVAL_KEY);
+      void storage.remove(LEGACY_ARRIVAL_KEY);
       void storage.remove(CONVERSED_AT_KEY);
       void storage.remove(DISMISSED_KEY);
       void storage.remove(CONTACTS_BASE_KEY);
@@ -301,7 +314,7 @@ export function useIntroduction(state: {
         storedContactsBase,
         ...storedTried
       ] = await Promise.all([
-        storage.get(ARRIVAL_KEY),
+        storage.get(LEGACY_ARRIVAL_KEY),
         storage.get(CONVERSED_AT_KEY),
         storage.get(DISMISSED_KEY),
         storage.get(CONTACTS_BASE_KEY),
@@ -328,19 +341,23 @@ export function useIntroduction(state: {
           )
           .catch(() => {});
       }
-      setArrival(
-        storedArrival === 'invited' || storedArrival === 'alone'
-          ? storedArrival
-          : null
-      );
       const stamp = Number(storedConversedAt);
       setConversedAt(Number.isFinite(stamp) && stamp > 0 ? stamp : null);
       setDismissed(parseDismissed(storedDismissed));
-      // An install that has never written one reads nought, which is what
-      // leaves every account already on the ladder where it was — see
-      // `CONTACTS_BASE_KEY`.
+      // **Three cases, and the middle one is a one-time migration.** A stored
+      // line is the line. No stored line but a stored *arrival* is an install
+      // that was climbing this ladder before the line existed: its starting
+      // point was nought whatever it holds today, and writing anything else
+      // would un-tick a rung somebody earned. Neither is an install that has
+      // never seen a snapshot, and it latches below.
       const base = Number(storedContactsBase);
-      setContactsBase(Number.isFinite(base) && base > 0 ? base : 0);
+      if (storedContactsBase !== null && Number.isFinite(base) && base >= 0) {
+        setContactsBase(base);
+      } else if (storedArrival !== null) {
+        setContactsBase(0);
+        void storage.set(CONTACTS_BASE_KEY, '0');
+        void storage.remove(LEGACY_ARRIVAL_KEY);
+      }
       setLoaded(true);
       // TEMPORARY — see `introTrace` in `AppProvider`. What the keychain had
       // when this account signed in, which is the other half of the question.
@@ -359,27 +376,26 @@ export function useIntroduction(state: {
    * The latch, and the only moment it can be set: the first snapshot this
    * account's install ever saw.
    *
-   * Written before anything is drawn from it, so the arrival is decided by
-   * what was true on arrival rather than by what is true when somebody first
-   * scrolls. See `Arrival` for what asking this question twice would do.
+   * Written before anything is drawn from it, so the starting line is what
+   * was true on arrival rather than what is true when somebody first scrolls.
+   * See `contactsBase` in `introduction.ts` for what asking this question
+   * twice would do.
    */
   useEffect(() => {
-    if (!loaded || !home || arrival) return;
-    const next = arrivalOf(home);
-    setArrival(next);
-    void storage.set(ARRIVAL_KEY, next);
-    // **The starting line, latched in the same breath as the arrival**, and
-    // for the same reason: both are questions about the moment somebody got
-    // here, and both give a different answer an hour later. An invited
-    // account arrives holding a contact, so its baseline is one and *Get
-    // somebody here* asks it for somebody of its own — see
-    // `CONTACTS_BASE_KEY`. Only ever written where the arrival is, so an
-    // install that already has an arrival is never given a line it did not
-    // start from.
+    if (!loaded || !home || contactsBase !== null) return;
+    // **Latched rather than recomputed, and that is load-bearing** — it was
+    // the arrival's rule and it is this value's now. The question is what this
+    // account had when it got here, and it gives a different answer an hour
+    // later: recomputed continuously the rung would be unticked for ever,
+    // since the line would follow the count up.
+    //
+    // An invited account arrives holding a contact, so its line is one and
+    // *Get somebody here* asks it for somebody of its own. An uninvited one
+    // arrives at nought and its first contact ticks the rung.
     const base = home.contacts.length;
     setContactsBase(base);
     void storage.set(CONTACTS_BASE_KEY, String(base));
-  }, [loaded, home, arrival]);
+  }, [loaded, home, contactsBase]);
 
   /**
    * The first conversation, written once and never unwritten. It records that
@@ -388,7 +404,7 @@ export function useIntroduction(state: {
    *
    * **This is no longer the retirement**, though it is the same write at the
    * same instant: since 2026-09-13 the checklist retires when the last rung is
-   * done, and this ticks `stepIn` and decides what an `invited` arrival sees.
+   * done, and this ticks `stepIn` and nothing else.
    * See `introduction`.
    */
   useEffect(() => {
@@ -454,9 +470,6 @@ export function useIntroduction(state: {
   }, []);
 
   const forget = useCallback(async () => {
-    // **Latched, not cleared** — see `forget` on `IntroductionState` for why
-    // an established account must not be handed back to the latch here.
-    setArrival('alone');
     setConversedAt(null);
     setDismissed([]);
     setMarked([]);
@@ -473,7 +486,6 @@ export function useIntroduction(state: {
     // is the ordinary answer for everybody else and not something to report.
     if (token) await api.forgetTried(token).catch(() => undefined);
     await Promise.all([
-      storage.set(ARRIVAL_KEY, 'alone'),
       storage.set(CONTACTS_BASE_KEY, String(base)),
       storage.remove(CONVERSED_AT_KEY),
       storage.remove(DISMISSED_KEY),
@@ -488,13 +500,12 @@ export function useIntroduction(state: {
     introduction: introduction({
       loaded,
       home,
-      arrival,
       conversedAt,
       tried,
       conversing,
       install,
       dismissed,
-      contactsBase: contactsBase ?? 0,
+      contactsBase,
     }),
     markTried,
     dismiss,

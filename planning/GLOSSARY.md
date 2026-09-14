@@ -78,13 +78,14 @@ caused; the list carries the meaning.
 **Words that exist only in the codebase**
 
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
-- **Arrival (invited / alone)** — How an account got here, latched at its first Home snapshot; it decides which *introduction* is drawn and is never recomputed
+- **Starting line** — The contact count an account's *introduction* began from, latched at its first Home snapshot and again on *Show the checklist again*; *get somebody here* ticks when the count has gone above it. Replaced *arrival (invited / alone)* on 2026-09-13
 - **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
 - **Core** — `core/`, the rules: pure functions over a `ChannelState`, no I/O and no imports outside itself
+- **Conversing** — You, present in a channel, with somebody else in it — another member or a *guest*; `isConversing` in `app/src/state/conversing.ts`. It stamps the *introduction*'s *step in with somebody* rung and latches the notification ask, and it is not the same as having stepped in
 - **Detail (pane)** — The right-hand pane of the two-pane layout, above the width breakpoint — the other is the *list*
 - **Detail (what is open)** — The `Detail` type: one value naming the single thing the detail pane is showing
 - **Detail (of a notification level)** — The sublabel under a notification option, saying what that level does
@@ -100,7 +101,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
+- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1225,19 +1226,6 @@ unlike the *presence* it ends — see STATES.md. And its expiry is an ordinary
 and *Nearby* is not what it produces. Which of the two words a browser produces
 is decided by which clock ran out first — see *Nearby / Stepped out*.
 
-## Arrival (invited / alone)
-
-How an account got here: `invited` when its first Home snapshot held anybody
-at all — a contact, a channel or an invitation, which is `somebody` in
-`AppProvider` — and `alone` when it held none of the three. Latched at that
-first snapshot and stored, never recomputed.
-
-**The latching is the point rather than an optimisation.** Asked continuously
-it would answer *invited* the moment an alone account finally got its first
-contact, which is exactly when that account is one rung from the top of the
-ladder — and the ladder would be replaced by a card about an invitation
-nobody ever sent. See *introduction*.
-
 ## Card
 
 One row in the *Channels* list, from either source — an invitation or a channel
@@ -1269,6 +1257,26 @@ stored, so there is nothing to keep in step with it.
 of its own and no imports outside itself — enforced by
 `core/__tests__/purity.test.ts`. Both server and app import it, which is what
 stops the two ends disagreeing about what a claim or a recording means.
+
+## Conversing
+
+You, present in a channel, with somebody else in it — `isConversing` in
+`app/src/state/conversing.ts`, asked of every channel snapshot the client
+holds. Two things read it and both are about that moment:
+`thefloor.intro.doneAt`, which ticks the *introduction*'s *step in with
+somebody* rung, and the notification ask, which latches the first conversation
+as the moment worth spending iOS's one dialog on.
+
+**Somebody else means a member or a *guest*.** Guests were not counted until
+2026-09-13, so a conversation held entirely through a guest link read as
+silence — on a ladder whose third rung is *bring in a guest*. Membership of a
+channel's `guests` means present, so counting keys is counting people in the
+room.
+
+**It is not *step in*.** Stepping into an empty channel is not conversing, and
+the rung that reads this said *Step in* until people who had stepped in were
+told they had not. See
+`decisions/2026-09-13-a-rung-says-what-ticks-it.md`.
 
 ## Detail (pane)
 
@@ -1401,18 +1409,27 @@ What a new account is shown above both of Home's lists, until every rung of it
 is done or dismissed. `state/introduction.ts` decides it and
 `ui/Introduction.tsx` draws it; planning/ONBOARDING.md is the design.
 
-Two shapes, one per *arrival*. An `alone` arrival gets a ladder — get somebody
-here, step in, and then four things to try inside a channel — each rung
-carrying an instruction naming where it is done and a button that goes there.
-An `invited` one gets a single card **until it has conversed**, because the
-rungs above *step in* are true before they arrive and a list congratulating
-somebody on what was done for them is theatre; afterwards it gets the four
-in-channel rungs and only those, for the same reason.
+One shape, for everybody: a ladder — get somebody here, step in with somebody,
+and then four things to try inside a channel — each rung carrying an
+instruction naming where it is done and a button that goes there.
+
+**There were two until 2026-09-13**, the second being a single card for an
+account that arrived with a contact, on the ground that its first rungs were
+true before it arrived and a list congratulating somebody on what was done for
+them is theatre. The *starting line* ended the born ticking — nobody's first
+rung is ticked by what somebody else did for them — and with it the argument
+for a second shape. What went with the card is the one control in this feature
+that opened a channel rather than a list.
+
+**Two rungs say what ticks them rather than what they are called after.** *Step
+in with somebody* is stamped by being in a channel while another member or a
+guest is, not by stepping in; the card it replaced said *You have not stepped
+in yet* to people who had. *Get somebody here* is measured against the
+*starting line*.
 
 **A third rung exists in a browser, since 2026-09-13, and only there**: *put
-The Floor on your home screen*, between the two on the ladder and below the
-text on the invited card — the one rung that is about the client rather than
-about the account. It is never ticked; a browser running the installed app
+The Floor on your home screen*, between the two account rungs — the one rung
+that is about the client rather than about the account. It is never ticked; a browser running the installed app
 reports it and the rung is simply not drawn, so its absence is the tick. What
 each browser is told to do is `state/install.ts`, and where a browser
 volunteers a `beforeinstallprompt` the row installs it directly. See
@@ -1450,8 +1467,8 @@ is the one instant at which none of those four can have been reached. Nothing
 is drawn *during* a conversation, which is a separate rule and unchanged — the
 card returns to Home afterwards carrying what is left.
 `thefloor.intro.doneAt` is still written at the first conversation and still
-called that on disk, but it now ticks *step in* and decides which shape an
-`invited` arrival gets, rather than retiring anything by itself. See
+called that on disk, but it now ticks *step in with somebody* and nothing else,
+rather than retiring anything by itself. See
 `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
 
 **Every row carries a cross, since 2026-09-13, and that is the second exit.**
@@ -1461,19 +1478,19 @@ against — a browser that will never be installed to, a guest link for somebody
 with no guests. Dismissing hides a rung and never ticks it: the four *try*
 stamps are facts about the account and a dismissal is a statement about the
 list, so it is written on this install, in `thefloor.intro.dismissed`, beside
-*arrival* and `doneAt` rather than on the account. The last dismissal retires
-the whole card, an empty one being a bug rather than a quiet card; on the
-invited card the cross is *step in*, that being the one thing it asks. See
+the *starting line* and `doneAt` rather than on the account. The last dismissal
+retires the whole card, an empty one being a bug rather than a quiet card. See
 *dismiss (a rung)* and
 `decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
 
-**And *Show the checklist again* returns the whole ladder, not the
-introduction this account would get today.** It latches the arrival at `alone`
-rather than clearing it, because `arrivalOf` answers *invited* for anybody with
-a contact, a channel or an invitation — so the debug reset used to clear five
-rungs and then draw the one-line card, which cannot show four of them. Five
-rungs come back hollow — *step in* and the four in-channel ones — and *get
-somebody here* draws ticked, being a standing fact rather than a task.
+**And *Show the checklist again* returns the whole ladder hollow.** It moves
+the *starting line* to the contact count of the moment rather than clearing it,
+so *get somebody here* asks an established account for somebody *more* — a line
+left where it was would hand back a ladder whose first rung was ticked before
+it was drawn. All six come back unticked. It used to latch an arrival of
+`alone` instead, for a defunct reason: clearing the arrival re-derived it,
+`arrivalOf` answered *invited* for anybody with a contact, and the reset drew
+the one-line card whose five cleared rungs it could not show.
 
 Called *introduction* in the code and never on screen, where it says *Getting
 started*. The convention's name is an onboarding checklist; this is the
@@ -1762,6 +1779,33 @@ is a dot on your own card during a claim you are silent in.
 
 Sent only while withheld, on the edges of the *smoothed* signal, so a claim
 somebody talks through costs two messages.
+
+## Starting line
+
+The contact count an account's *introduction* began from —
+`contactsBase` in `app/src/state/introduction.ts`, stored as
+`thefloor.intro.contactsBase`. *Get somebody here* is done when the account's
+contact count has gone **above** it, rather than when it is above nought.
+
+**It is what turns a count into an act.** `contacts.length > 0` is a standing
+fact about an account rather than something anybody did while the ladder was
+in front of them: an invited account arrives holding a contact, so its first
+rung was ticked before it was drawn, and *Show the checklist again* handed an
+established account the same free tick. Latched at the first Home snapshot the
+install ever saw, and moved to the count of the moment on that debug tap —
+which is what makes the tap ask for somebody *more*.
+
+**Latched rather than recomputed, and that is the point rather than an
+optimisation.** Read against today's count the rung would be unticked for ever,
+the line following it up.
+
+It replaced *arrival (invited / alone)*, which recorded whether an account's
+first snapshot held anybody and picked one of two introductions on the answer —
+a ladder for an account that had nobody, a one-line card for one that did,
+since that cohort's first rungs were born ticked. With nothing born ticked
+there is no second cohort and no card; what survived is the other half of the
+arrival's job, being the latch that says this install has seen a snapshot
+before. `thefloor.intro.arrival` is read once and deleted — planning/SHIMS.md.
 
 ## Stem
 

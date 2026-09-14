@@ -42,6 +42,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
 | 196 | `HomeView.tried` optionality | `core/protocol.ts`, `app/src/state/useIntroduction.ts` |
 | 196 | The keychain hand-up of the four tried rungs | `app/src/state/tried.ts`, `app/src/state/useIntroduction.ts` |
+| 198 | `thefloor.intro.arrival` read as the old latch | `app/src/state/useIntroduction.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -403,3 +404,34 @@ One argument for keeping it, recorded rather than endorsed: a separate room
 name is the natural mechanism if a wedged LiveKit room ever needs rebuilding
 under a live channel. Speculative, and today the field buys nothing while
 costing a wire field, a duplicated parameter and a misleading comment.
+
+---
+
+## Gate 198 — `thefloor.intro.arrival` read as the old latch
+
+**Nothing writes this key any more and one thing still reads it.** It held how
+an account arrived — `invited` or `alone` — and decided whether Home drew a
+one-line card or the ladder. Both went on 2026-09-13 when the first rung
+started ticking against a starting line rather than against nought: nothing is
+born ticked, so there is no cohort to draw a card for.
+`thefloor.intro.contactsBase` inherited the key's other job, which was to say
+that this install has seen a snapshot before.
+
+What is left is the handover between the two. An install that was already
+climbing the ladder holds an arrival and no starting line, and its line is
+**nought** whatever its contact count is today — latching from today's count
+would un-tick a rung somebody earned. So the load effect reads the arrival,
+writes a line of `0`, and deletes the arrival; an install with neither key has
+never seen a snapshot and latches from its first one.
+
+The `else if (storedArrival !== null)` branch in `useIntroduction`'s load
+effect, and `LEGACY_ARRIVAL_KEY` above it.
+
+**What must not be deleted with it**: `'thefloor.intro.arrival'` in
+`INSTALL_KEYS`, `app/src/state/storage.ts`, until the read itself goes —
+`forgetInstall` is the only way to clear a key from outside the app, and
+`storageKeys.test.ts` pairs the two. Delete both in the same commit.
+
+Gate 198 on the same reasoning as 196 above: an install below the floor cannot
+run at all, so once the floor has passed the build this shipped in, every
+install still running has done the handover.

@@ -1,27 +1,20 @@
 import { NOT_OFFERED, type Install } from '../install';
-import { arrivalOf, introduction, type Step } from '../introduction';
+import { introduction, type Step } from '../introduction';
 import { NOTHING_TRIED, type Tried } from '../tried';
 
 /**
- * What a new account is shown, which is two different things for two cohorts
- * and nothing at all for everybody else.
+ * What a new account is shown, which is one ladder or nothing at all.
  *
  * The cases worth guarding are the ones where being wrong is not a cosmetic
- * matter: showing a checklist to somebody who finished with it, and — the
- * one that decided the shape — the ladder disappearing out from under an
- * alone arrival at the moment they finally get a contact.
+ * matter: showing a checklist to somebody who finished with it, and ticking a
+ * rung nobody climbed — which for the first rung is every account that arrived
+ * with a contact, and is why there is a starting line at all.
  */
 
-const invite = {
-  channelId: 'c1',
-  from: { displayName: 'Sam' },
-};
-
-/** Everything settled, nothing done: the alone arrival at its first launch. */
-const alone = {
+/** Everything settled, nothing done: an uninvited account at its first launch. */
+const fresh = {
   loaded: true,
-  home: { contacts: [], rejoinable: [], invites: [] },
-  arrival: 'alone' as const,
+  home: { contacts: [] },
   conversedAt: null,
   tried: NOTHING_TRIED,
   /** Nothing put away by hand — the dismissal cases add their own. */
@@ -41,7 +34,7 @@ const installable: Install = {
 };
 
 const stepsOf = (result: ReturnType<typeof introduction>): Step[] =>
-  result.show === 'alone' ? result.steps : [];
+  result.show === 'ladder' ? result.steps : [];
 
 const done = (result: ReturnType<typeof introduction>, id: string) =>
   stepsOf(result).find((step) => step.id === id)?.done;
@@ -54,75 +47,54 @@ const ALL_TRIED: Tried = {
   player: true,
 };
 
-describe('which arrival this is', () => {
-  it('is invited when there is anybody at all, by any of the three routes', () => {
-    expect(
-      arrivalOf({ contacts: [], rejoinable: [], invites: [invite] })
-    ).toBe('invited');
-    expect(arrivalOf({ contacts: [{}], rejoinable: [], invites: [] })).toBe(
-      'invited'
-    );
-    expect(arrivalOf({ contacts: [], rejoinable: [{}], invites: [] })).toBe(
-      'invited'
-    );
-  });
-
-  it('is alone only when all three are empty', () => {
-    expect(arrivalOf({ contacts: [], rejoinable: [], invites: [] })).toBe(
-      'alone'
-    );
-  });
-});
-
 describe('before anything is known', () => {
   it('shows nothing while the keychain is still being read', () => {
-    expect(introduction({ ...alone, loaded: false }).show).toBe('none');
+    expect(introduction({ ...fresh, loaded: false }).show).toBe('none');
   });
 
   it('shows nothing before the first snapshot', () => {
-    expect(introduction({ ...alone, home: null }).show).toBe('none');
+    expect(introduction({ ...fresh, home: null }).show).toBe('none');
   });
 
-  it('shows nothing before the arrival has been latched', () => {
-    expect(introduction({ ...alone, arrival: null }).show).toBe('none');
-  });
-});
-
-describe('the invited arrival', () => {
-  const invited = {
-    ...alone,
-    arrival: 'invited' as const,
-    home: { contacts: [], rejoinable: [], invites: [invite] },
-  };
-
-  it('is one card rather than a list of things somebody else did', () => {
-    const result = introduction(invited);
-    expect(result.show).toBe('invited');
-  });
-
-  it('names who invited them, and where to go', () => {
-    const result = introduction(invited);
-    if (result.show !== 'invited') throw new Error('expected the card');
-    expect(result.from).toBe('Sam');
-    expect(result.channelId).toBe('c1');
-  });
-
-  it('still draws when the invitation has been taken up and is gone', () => {
-    const result = introduction({
-      ...invited,
-      home: { contacts: [{}], rejoinable: [{}], invites: [] },
-    });
-    if (result.show !== 'invited') throw new Error('expected the card');
-    // Accepted, in the channel, and not yet present in it: there is nobody to
-    // name any more, and the one thing left to do is the same thing.
-    expect(result.from).toBeNull();
-    expect(result.channelId).toBeNull();
+  it('shows nothing before the starting line has been latched', () => {
+    // The latch the arrival used to be. Drawing against a line of nought
+    // before one has been written would tick the first rung for every account
+    // that arrived with somebody, for the frame before the truth lands.
+    expect(introduction({ ...fresh, contactsBase: null }).show).toBe('none');
   });
 });
 
-describe('the alone arrival', () => {
+describe('an account that arrived with somebody', () => {
+  /**
+   * An invited arrival: a contact and a channel, neither of which it did
+   * anything to get. It used to be shown a one-line card on exactly that
+   * ground; it is shown the same ladder as everybody, with nothing ticked.
+   */
+  const invited = { ...fresh, home: { contacts: [{}] }, contactsBase: 1 };
+
+  it('is the same ladder as everybody else gets', () => {
+    const result = introduction(invited);
+    expect(result.show).toBe('ladder');
+    expect(stepsOf(result).map((step) => step.id)).toEqual([
+      'somebody',
+      'stepIn',
+      'floor',
+      'nearby',
+      'guest',
+      'player',
+    ]);
+  });
+
+  it('starts with nothing ticked, the contact being nobody of its own', () => {
+    expect(stepsOf(introduction(invited)).some((step) => step.done)).toBe(
+      false
+    );
+  });
+});
+
+describe('the ladder', () => {
   it('is the two account rungs, then the four things to try in a channel', () => {
-    expect(stepsOf(introduction(alone)).map((step) => step.id)).toEqual([
+    expect(stepsOf(introduction(fresh)).map((step) => step.id)).toEqual([
       'somebody',
       'stepIn',
       'floor',
@@ -135,7 +107,7 @@ describe('the alone arrival', () => {
   it('tells every rung where it is done and why it is worth doing', () => {
     // The half the labels never carried: *get somebody here* is the goal, and
     // it says nothing about which of the two lists keeps an invite link.
-    for (const step of stepsOf(introduction(alone))) {
+    for (const step of stepsOf(introduction(fresh))) {
       expect(step.instruction).not.toBe('');
       expect(step.note).not.toBe('');
     }
@@ -143,8 +115,8 @@ describe('the alone arrival', () => {
 
   it('ticks somebody on a request sent, not on one answered', () => {
     const result = introduction({
-      ...alone,
-      home: { contacts: [{}], rejoinable: [], invites: [] },
+      ...fresh,
+      home: { contacts: [{}] },
     });
     expect(done(result, 'somebody')).toBe(true);
   });
@@ -154,12 +126,12 @@ describe('the alone arrival', () => {
     // invited arrival, or anybody who tapped *Show the checklist again* — has
     // not got somebody here by continuing to have them; it ticks on the next
     // one up. See `contactsBase`.
-    const started = { ...alone, contactsBase: 1 };
+    const started = { ...fresh, contactsBase: 1 };
     expect(
       done(
         introduction({
           ...started,
-          home: { contacts: [{}], rejoinable: [], invites: [] },
+          home: { contacts: [{}] },
         }),
         'somebody'
       )
@@ -168,7 +140,7 @@ describe('the alone arrival', () => {
       done(
         introduction({
           ...started,
-          home: { contacts: [{}, {}], rejoinable: [], invites: [] },
+          home: { contacts: [{}, {}] },
         }),
         'somebody'
       )
@@ -176,24 +148,21 @@ describe('the alone arrival', () => {
   });
 
   it('goes on being the ladder once they have a contact', () => {
-    // The reason `arrival` is latched. Recomputed from the snapshot this
-    // account would now read as invited, and the ladder would be replaced by
-    // a card about an invitation nobody sent, one rung from the top.
-    const result = introduction({
-      ...alone,
-      home: { contacts: [{}], rejoinable: [{}], invites: [] },
-    });
-    expect(result.show).toBe('alone');
+    // The reason the starting line is latched. Read against today's count the
+    // rung would be unticked for ever, since the line would follow it up.
+    const result = introduction({ ...fresh, home: { contacts: [{}] } });
+    expect(result.show).toBe('ladder');
+    expect(done(result, 'somebody')).toBe(true);
   });
 
   it('leaves the last rung unticked, which is the whole mechanism', () => {
-    expect(done(introduction(alone), 'stepIn')).toBe(false);
+    expect(done(introduction(fresh), 'stepIn')).toBe(false);
   });
 });
 
 describe('the install rung', () => {
   it('is absent where there is nothing to install — every phone, and most browsers', () => {
-    expect(stepsOf(introduction(alone)).map((step) => step.id)).not.toContain(
+    expect(stepsOf(introduction(fresh)).map((step) => step.id)).not.toContain(
       'install'
     );
   });
@@ -204,14 +173,14 @@ describe('the install rung', () => {
     // this is the one rung that is about the client rather than about the
     // account or the room.
     expect(
-      stepsOf(introduction({ ...alone, install: installable })).map(
+      stepsOf(introduction({ ...fresh, install: installable })).map(
         (step) => step.id
       )
     ).toEqual(['somebody', 'install', 'stepIn', 'floor', 'nearby', 'guest', 'player']);
   });
 
   it('says what to do in this browser rather than in general', () => {
-    const step = stepsOf(introduction({ ...alone, install: installable })).find(
+    const step = stepsOf(introduction({ ...fresh, install: installable })).find(
       (candidate) => candidate.id === 'install'
     );
     expect(step?.instruction).toBe(installable.how);
@@ -220,29 +189,34 @@ describe('the install rung', () => {
   it('is never ticked, because its absence is the tick', () => {
     // An installed browser answers `NOT_OFFERED`, so there is no state to
     // remember and no row congratulating anybody.
-    expect(done(introduction({ ...alone, install: installable }), 'install')).toBe(
+    expect(done(introduction({ ...fresh, install: installable }), 'install')).toBe(
       false
     );
   });
 
-  it('joins the invited card, which is otherwise a card and not a list', () => {
-    const invited = {
-      ...alone,
-      arrival: 'invited' as const,
-      home: { contacts: [], rejoinable: [], invites: [invite] },
-    };
-    const without = introduction(invited);
-    if (without.show !== 'invited') throw new Error('expected the card');
-    expect(without.install).toBeNull();
-
-    const withOffer = introduction({ ...invited, install: installable });
-    if (withOffer.show !== 'invited') throw new Error('expected the card');
-    expect(withOffer.install?.id).toBe('install');
+  it('sits between the two account rungs, wherever the account came from', () => {
+    // It was the one row allowed to join the invited card, that card being
+    // the cohort's whole introduction. With one ladder there is one place for
+    // it, and it is the same place for everybody.
+    const invited = { ...fresh, home: { contacts: [{}] }, contactsBase: 1 };
+    expect(
+      stepsOf(introduction({ ...invited, install: installable })).map(
+        (step) => step.id
+      )
+    ).toEqual([
+      'somebody',
+      'install',
+      'stepIn',
+      'floor',
+      'nearby',
+      'guest',
+      'player',
+    ]);
   });
 
   it('goes with the rest of it once somebody has had a conversation', () => {
     expect(
-      introduction({ ...alone, install: installable, conversing: true }).show
+      introduction({ ...fresh, install: installable, conversing: true }).show
     ).toBe('none');
   });
 });
@@ -250,16 +224,16 @@ describe('the install rung', () => {
 const CONVERSED = 1_700_000_000_000;
 
 describe('the four things to try in a channel', () => {
-  it('are drawn under the two rungs, unticked, for an alone arrival', () => {
-    const ids = stepsOf(introduction(alone)).map((step) => step.id);
+  it('are drawn under the two account rungs, unticked', () => {
+    const ids = stepsOf(introduction(fresh)).map((step) => step.id);
     expect(ids).toEqual(['somebody', 'stepIn', 'floor', 'nearby', 'guest', 'player']);
-    expect(done(introduction(alone), 'floor')).toBe(false);
-    expect(done(introduction(alone), 'player')).toBe(false);
+    expect(done(introduction(fresh), 'floor')).toBe(false);
+    expect(done(introduction(fresh), 'player')).toBe(false);
   });
 
   it('tick one at a time, off what this install has done', () => {
     const result = introduction({
-      ...alone,
+      ...fresh,
       tried: { ...NOTHING_TRIED, floor: true, guest: true },
     });
     expect(done(result, 'floor')).toBe(true);
@@ -269,64 +243,30 @@ describe('the four things to try in a channel', () => {
   });
 
   it('tick `step in` once a conversation has happened, which it never used to', () => {
-    expect(done(introduction(alone), 'stepIn')).toBe(false);
-    expect(done(introduction({ ...alone, conversedAt: CONVERSED }), 'stepIn')).toBe(
+    expect(done(introduction(fresh), 'stepIn')).toBe(false);
+    expect(done(introduction({ ...fresh, conversedAt: CONVERSED }), 'stepIn')).toBe(
       true
     );
   });
 });
 
-describe('what an invited arrival sees', () => {
-  const invitedHome = {
-    contacts: [],
-    rejoinable: [],
-    invites: [invite],
-  };
-
-  it('is the single card until it has conversed', () => {
-    expect(
-      introduction({ ...alone, arrival: 'invited', home: invitedHome }).show
-    ).toBe('invited');
-  });
-
-  it('becomes the four rungs afterwards, and only the four', () => {
-    // The card exists because `somebody` and `stepIn` are born ticked for this
-    // cohort and congratulating them on it would be theatre. These four are
-    // done by nobody but the reader, so there is an honest ladder to draw —
-    // but drawing the two ticked ones above it would be that same theatre.
-    const result = introduction({
-      ...alone,
-      arrival: 'invited',
-      home: invitedHome,
-      conversedAt: CONVERSED,
-    });
-    expect(result.show).toBe('alone');
-    expect(stepsOf(result).map((step) => step.id)).toEqual([
-      'floor',
-      'nearby',
-      'guest',
-      'player',
-    ]);
-  });
-});
-
 describe('retirement', () => {
   it('stops the moment a conversation is happening', () => {
-    expect(introduction({ ...alone, conversing: true }).show).toBe('none');
+    expect(introduction({ ...fresh, conversing: true }).show).toBe('none');
   });
 
   it('comes back after that conversation, with what is left', () => {
     // The reversal of 2026-09-13. The old rule retired on the first
     // conversation, which is the one moment none of the four rungs below it
     // could ever have been reached.
-    const result = introduction({ ...alone, conversedAt: CONVERSED });
-    expect(result.show).toBe('alone');
+    const result = introduction({ ...fresh, conversedAt: CONVERSED });
+    expect(result.show).toBe('ladder');
     expect(done(result, 'floor')).toBe(false);
   });
 
   it('stops for good once the last rung is done', () => {
     expect(
-      introduction({ ...alone, conversedAt: CONVERSED, tried: ALL_TRIED }).show
+      introduction({ ...fresh, conversedAt: CONVERSED, tried: ALL_TRIED }).show
     ).toBe('none');
   });
 
@@ -334,18 +274,27 @@ describe('retirement', () => {
     // Not reachable in practice — the four are done inside a channel — but the
     // rule is *and*, not *or*, and a stray write must not retire the ladder
     // for somebody who has never stepped in.
-    expect(introduction({ ...alone, tried: ALL_TRIED }).show).toBe('alone');
+    expect(introduction({ ...fresh, tried: ALL_TRIED }).show).toBe('ladder');
   });
 
-  it('retires an invited arrival on the same two conditions', () => {
+  it('retires an account that arrived with somebody on the same two', () => {
+    // The cohort that used to be shown a card and retired on its one line.
+    // There is nothing special about it any more: it finishes when the last
+    // rung is behind it, like everybody.
     const settled = {
-      ...alone,
-      arrival: 'invited' as const,
-      home: { contacts: [], rejoinable: [], invites: [invite] },
+      ...fresh,
+      home: { contacts: [{}] },
+      contactsBase: 1,
       conversedAt: CONVERSED,
     };
-    expect(introduction(settled).show).toBe('alone');
-    expect(introduction({ ...settled, tried: ALL_TRIED }).show).toBe('none');
+    expect(introduction(settled).show).toBe('ladder');
+    expect(
+      introduction({
+        ...settled,
+        tried: ALL_TRIED,
+        home: { contacts: [{}, {}] },
+      }).show
+    ).toBe('none');
   });
 });
 
@@ -356,7 +305,7 @@ describe('retirement', () => {
  */
 describe('dismissal', () => {
   it('takes one rung out and leaves the rest in their order', () => {
-    const result = introduction({ ...alone, dismissed: ['stepIn'] });
+    const result = introduction({ ...fresh, dismissed: ['stepIn'] });
     expect(stepsOf(result).map((step) => step.id)).toEqual([
       'somebody',
       'floor',
@@ -370,13 +319,13 @@ describe('dismissal', () => {
     // The distinction the whole feature turns on: `tried` is a fact about the
     // account and this is a statement about the list. A dismissal that read as
     // *done* would tell a second device this person had claimed the floor.
-    const result = introduction({ ...alone, dismissed: ['floor'] });
+    const result = introduction({ ...fresh, dismissed: ['floor'] });
     expect(stepsOf(result).some((step) => step.id === 'floor')).toBe(false);
     expect(done(result, 'somebody')).toBe(false);
   });
 
   it('takes the install rung away like any other', () => {
-    const offered = { ...alone, install: installable };
+    const offered = { ...fresh, install: installable };
     expect(
       stepsOf(introduction(offered)).some((step) => step.id === 'install')
     ).toBe(true);
@@ -393,37 +342,28 @@ describe('dismissal', () => {
     // nothing.
     expect(
       introduction({
-        ...alone,
+        ...fresh,
         dismissed: ['somebody', 'stepIn', 'floor', 'nearby', 'guest', 'player'],
       }).show
     ).toBe('none');
   });
 
-  it('closes the invited card, which is the one thing it asks', () => {
-    const invited = {
-      ...alone,
-      arrival: 'invited' as const,
-      home: { contacts: [], rejoinable: [], invites: [invite] },
-    };
-    expect(introduction(invited).show).toBe('invited');
-    // Not answered with the four rungs below `stepIn`: this is somebody who
-    // has not been in a channel, so those four are about a screen they have
-    // not reached.
-    expect(introduction({ ...invited, dismissed: ['stepIn'] }).show).toBe(
-      'none'
-    );
-  });
-
-  it('leaves the install rung standing when that card is closed', () => {
-    // The exception it always is — it is not about a channel, and it was never
-    // part of what the card asked for.
+  it('leaves the rest standing when one rung is put away', () => {
+    // The install rung was the exception the invited card made: not about a
+    // channel, and never part of what that card asked. With one ladder it is
+    // an ordinary rung, and dismissing another leaves it where it was.
     const result = introduction({
-      ...alone,
-      arrival: 'invited' as const,
-      home: { contacts: [], rejoinable: [], invites: [invite] },
+      ...fresh,
       install: installable,
       dismissed: ['stepIn'],
     });
-    expect(stepsOf(result).map((step) => step.id)).toEqual(['install']);
+    expect(stepsOf(result).map((step) => step.id)).toEqual([
+      'somebody',
+      'install',
+      'floor',
+      'nearby',
+      'guest',
+      'player',
+    ]);
   });
 });

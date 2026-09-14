@@ -42,6 +42,7 @@ import {
   type NotificationAsk,
 } from './useNotificationAsk';
 import { useInstall } from './useInstall';
+import { isConversing } from './conversing';
 import { useIntroduction } from './useIntroduction';
 import type { Introduction, StepId } from './introduction';
 import type { TriedId } from './tried';
@@ -1154,9 +1155,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * latches it and never asks again.
    */
   const mine = state.me?.id ?? '';
-  const conversing = Object.values(state.channelViews).some(
-    (view) =>
-      view.channel.present.includes(mine) && view.channel.present.length > 1
+  const conversing = Object.values(state.channelViews).some((view) =>
+    isConversing(view.channel, mine)
   );
 
   /**

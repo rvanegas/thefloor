@@ -32,7 +32,7 @@ beforeEach(resetHarness);
 const empty = { invites: [], rejoinable: [], contacts: [], recordings: [] };
 
 const ladder = {
-  show: 'alone' as const,
+  show: 'ladder' as const,
   steps: [
     {
       id: 'somebody' as const,
@@ -43,7 +43,7 @@ const ladder = {
     },
     {
       id: 'stepIn' as const,
-      label: 'Step in',
+      label: 'Step in with somebody',
       instruction: 'On Channels, start one and step in.',
       note: 'why',
       done: false,
@@ -128,7 +128,7 @@ describe('the introduction on Home', () => {
     // label still is. See `Row`.
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [{ ...ladder.steps[0], done: true }, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
@@ -152,51 +152,19 @@ describe('the introduction on Home', () => {
     act(() => tree.unmount());
   });
 
-  it('names the person who invited them, and offers the way in', () => {
+  it('sends somebody to Channels rather than into a channel', () => {
+    // **What went with the invited card.** Its *Step in* opened the waiting
+    // channel outright, which is the one thing `actionFor` rules out for every
+    // rung — a card reaches as far as a list and no further. The rung goes to
+    // Channels, where that channel is the first row.
     mockApp.home = empty;
-    mockApp.introduction = {
-      show: 'invited',
-      from: 'Dana Chu',
-      channelId: 'sess_a',
-      install: null,
-    };
-    const entered: string[] = [];
-    const tree = render(
-      <HomeView {...homeNav} onEnterChannel={(id) => entered.push(id)} />
-    );
-    expect(textOf(tree)).toContain('Dana Chu invited you');
-    // One card, not a list: no rungs, and nothing about getting somebody here,
-    // which was done for them before they arrived.
-    expect(textOf(tree)).not.toContain('Getting started');
-
-    const stepIn = findButton(tree, 'Step in');
-    expect(stepIn).toBeDefined();
-    act(() => stepIn?.props.onPress());
-    expect(entered).toEqual(['sess_a']);
-    act(() => tree.unmount());
-  });
-
-  it('says the one thing left when the invitation is already taken up', () => {
-    mockApp.home = empty;
-    mockApp.introduction = {
-      show: 'invited',
-      from: null,
-      channelId: null,
-      install: null,
-    };
-    const tree = render(<HomeView {...homeNav} />);
-    // The sentence names what the card actually tests — having been in a
-    // channel with somebody — rather than the act of stepping in, which is
-    // something this cohort can have done and still be shown this.
-    expect(textOf(tree)).toContain('Nobody has heard you yet');
-    // Nowhere to send them from here, so nothing pretends there is.
-    //
-    // Asked of the exact name rather than of `findButton` alone, since
-    // 2026-09-13: every row carries a *Dismiss <rung>* control now, and that
-    // helper falls back to a substring match when nothing matches exactly —
-    // so *Dismiss Step in* answers for the button this is asserting is absent.
-    const stepIn = findButton(tree, 'Step in');
-    expect(stepIn && labelOf(stepIn).trim()).not.toBe('Step in');
+    mockApp.introduction = ladder;
+    const lists: string[] = [];
+    const tree = render(<HomeView {...homeNav} onList={(l) => lists.push(l)} />);
+    const open = findButton(tree, 'Open Contacts');
+    expect(open).toBeDefined();
+    act(() => open?.props.onPress());
+    expect(lists).toEqual(['contacts']);
     act(() => tree.unmount());
   });
 });
@@ -208,7 +176,7 @@ describe('the install rung', () => {
     // opened something else would be worse than the sentence alone.
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [ladder.steps[0], installRung, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
@@ -223,7 +191,7 @@ describe('the install rung', () => {
   it('does the deed itself where the browser volunteered a way', () => {
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [ladder.steps[0], installRung, ladder.steps[1]],
     };
     const prompted = jest.fn();
@@ -243,7 +211,7 @@ describe('the install rung', () => {
     // differs. See `actionFor`.
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [
         {
           id: 'floor',
@@ -274,21 +242,21 @@ describe('the install rung', () => {
     act(() => tree.unmount());
   });
 
-  it('joins the invited card without turning it into a list', () => {
+  it('is an ordinary rung wherever the account came from', () => {
+    // It was the one row allowed to join the invited card. With one ladder it
+    // has one place, between getting somebody here and stepping in.
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'invited',
-      from: 'Dana Chu',
-      channelId: 'sess_a',
-      install: installRung,
+      show: 'ladder',
+      steps: [
+        { ...ladder.steps[0], done: true },
+        installRung,
+        ...ladder.steps.slice(1),
+      ],
     };
     const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
-    expect(text).toContain('Dana Chu invited you');
-    expect(text).toContain('Put The Floor on your home screen');
-    // Still the card: no heading, and the way in is still the point.
-    expect(text).not.toContain('Getting started');
-    expect(findButton(tree, 'Step in')).toBeDefined();
+    expect(textOf(tree)).toContain('Getting started');
+    expect(textOf(tree)).toContain('Put The Floor on your home screen');
     act(() => tree.unmount());
   });
 });
@@ -303,7 +271,7 @@ describe('putting a rung away', () => {
   it('offers a cross on the row, naming the rung to a screen reader', () => {
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [
         {
           id: 'guest',
@@ -329,7 +297,7 @@ describe('putting a rung away', () => {
     // seventh.
     mockApp.home = empty;
     mockApp.introduction = {
-      show: 'alone',
+      show: 'ladder',
       steps: [
         {
           id: 'somebody',
@@ -346,19 +314,20 @@ describe('putting a rung away', () => {
     act(() => tree.unmount());
   });
 
-  it('closes the invited card as the rung it draws', () => {
-    // The card is a single-rung drawing of `stepIn`, so its cross reports that
-    // and not a name of its own — otherwise somebody could dismiss the card
-    // and meet the row again the day they first conversed.
+  it('names the step-in rung for what actually ticks it', () => {
+    // The rung is `stepIn` and its label is *Step in with somebody*, because
+    // what ticks it is a conversation rather than the act of stepping in — so
+    // the control that puts it away has to say the same thing.
     mockApp.home = empty;
+    // Drawn as the next rung, the one before it being behind them.
     mockApp.introduction = {
-      show: 'invited',
-      from: 'Dana Chu',
-      channelId: 'sess_a',
-      install: null,
+      show: 'ladder',
+      steps: [{ ...ladder.steps[0], done: true }, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
-    act(() => findButton(tree, 'Dismiss Step in')?.props.onPress());
+    act(() =>
+      findButton(tree, 'Dismiss Step in with somebody')?.props.onPress()
+    );
     expect(mockApp.dismissStep).toHaveBeenCalledWith('stepIn');
     act(() => tree.unmount());
   });

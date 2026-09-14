@@ -116,7 +116,7 @@ async function mount() {
     },
     shown: () => latest,
     ids: () =>
-      latest.show === 'alone' ? latest.steps.map((step) => step.id) : [],
+      latest.show === 'ladder' ? latest.steps.map((step) => step.id) : [],
     dismiss: (id: StepId) => actions.dismiss(id),
     forget: () => actions.forget(),
   };
@@ -132,7 +132,7 @@ describe('show the checklist again', () => {
     mockKeychain.set('thefloor.intro.doneAt', '1700000000000');
     await act(async () => card.forget());
 
-    expect(card.shown().show).toBe('alone');
+    expect(card.shown().show).toBe('ladder');
     expect(card.ids()).toEqual([
       'somebody',
       'stepIn',
@@ -163,7 +163,7 @@ describe('show the checklist again', () => {
     await act(async () => card.forget());
 
     const shown = card.shown();
-    if (shown.show !== 'alone') throw new Error('expected the ladder');
+    if (shown.show !== 'ladder') throw new Error('expected the ladder');
     expect(
       shown.steps.filter((step) => !step.done).map((step) => step.id)
     ).toEqual(['somebody', 'stepIn']);
@@ -179,7 +179,7 @@ describe('show the checklist again', () => {
     const card = await mount();
     await act(async () => card.forget());
     expect(
-      card.shown().show === 'alone' &&
+      card.shown().show === 'ladder' &&
         (card.shown() as { steps: Array<{ id: string; done: boolean }> }).steps
           .find((step) => step.id === 'somebody')?.done
     ).toBe(false);
@@ -190,18 +190,19 @@ describe('show the checklist again', () => {
     } as unknown as HomeView);
 
     const shown = card.shown();
-    if (shown.show !== 'alone') throw new Error('expected the ladder');
+    if (shown.show !== 'ladder') throw new Error('expected the ladder');
     expect(shown.steps.find((step) => step.id === 'somebody')?.done).toBe(true);
     await act(async () => card.tree.unmount());
   });
 
-  it('latches the arrival rather than re-arming the latch', async () => {
-    // The fix itself, at the key. A cleared key would be re-derived from the
-    // snapshot in hand on the very next render, which is what produced the
-    // card; the written one survives a relaunch too.
+  it('moves the starting line rather than clearing it', async () => {
+    // The fix itself, at the key. A cleared line would be re-latched from the
+    // snapshot in hand on the very next render — today's contact count — and
+    // the first rung would come back ticked, which is the free tick this
+    // whole mechanism refuses. The written one survives a relaunch too.
     const card = await mount();
     await act(async () => card.forget());
-    expect(mockKeychain.get('thefloor.intro.arrival')).toBe('alone');
+    expect(mockKeychain.get('thefloor.intro.contactsBase')).toBe('1');
     await act(async () => card.tree.unmount());
   });
 

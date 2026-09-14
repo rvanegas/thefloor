@@ -464,7 +464,7 @@ export function HomeView({
             those two rows rather than competing with them — but it does
             contradict a dated decision. See planning/ONBOARDING.md.
           */}
-          <Introduction onEnterChannel={onEnterChannel} onList={onList} />
+          <Introduction onList={onList} />
 
           {list === "channels" ? (
             <ChannelsView

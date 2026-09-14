@@ -16,6 +16,14 @@ code reference below was checked against the tree at `f3459cf`.
 below is a separate feature and was not written; neither were the three
 campaign gaps, one of which is more urgent than any of this.
 
+**The two cohorts below are gone, and so is the card.** Since
+2026-09-13 there is one ladder for everybody and nothing is born ticked: the
+first rung is measured against the contact count the ladder started from, so an
+invited account is asked for somebody of its own rather than congratulated on
+the one it arrived with. Every *invited arrival* / *alone arrival* split below
+is history — see `decisions/2026-09-13-a-rung-says-what-ticks-it.md`. *Step in*
+is called *Step in with somebody*, because what ticks it is a conversation.
+
 **Seven rungs since 2026-09-13, and this file describes two.** *Claim the
 floor*, *say you are nearby*, *bring in a guest* and *play something together*
 joined the ladder below *step in*; they are the only rungs the server had to be
