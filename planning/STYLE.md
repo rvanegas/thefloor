@@ -32,7 +32,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Controls* | Button, IconButton, Field, Segmented, FooterAction |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the pinned header, the pinned footer, split panes |
+| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
@@ -502,6 +502,27 @@ being reached for. `useRevealOnKeyboard(active)` returns a ref to attach to a
 manual trigger for growth that has nothing to do with a keyboard. It fires on
 `keyboardDidShow`, not on focus, because the keyboard is what shrinks the
 viewport.
+
+**No editable element may be left under the keyboard, and neither may the
+control that commits it.** That is the rule; the two sentences above are the
+whole of how it is kept. A screen gets the first half for free by being a
+`Screen` — every field in the application is inside that one avoider, and
+there is no `Modal` anywhere to put one outside it. **Above the breakpoint the
+list pane is the exception**, for the reason given above, and it is an
+exception rather than an exemption: a field that ends up in that pane is one
+the rule has nothing left to enforce it with. What it does not get for
+free is the second half, because avoiding shortens the viewport without
+scrolling it: a field far enough down a long tab is under the keyboard even
+though the avoider is doing its job. So any card whose field can sit below the
+fold takes `useRevealOnKeyboard`, held on *whether the box is showing* rather
+than on focus. `ProfileView`'s ping card and `ChannelView`'s notepad are the
+two.
+
+**A second `KeyboardAvoidingView` is the wrong fix and is the one reached for
+first.** Nested inside `Screen`'s, it counts the keyboard's height twice on
+iOS and leaves a gap that tall under the card. The symptom that sends somebody
+looking for one — a box under the keyboard — is a scrolling problem, not an
+avoidance problem, and `useRevealOnKeyboard` is its answer.
 
 ### The pinned header
 

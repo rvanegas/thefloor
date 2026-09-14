@@ -96,6 +96,7 @@ import {
   Screen,
   SectionLabel,
   Segmented,
+  useRevealOnKeyboard,
 } from './components';
 import { ago, duration } from './relativeTime';
 import {
@@ -333,6 +334,26 @@ export function ChannelView({
    * read it.
    */
   const [notepadEditing, setNotepadEditing] = useState(false);
+
+  /**
+   * The notepad card, brought wholly into view when the keyboard opens over
+   * it.
+   *
+   * **Not a `KeyboardAvoidingView` of its own**, which is the obvious reading
+   * of the problem and the wrong one: this screen is a `Screen`, so the box
+   * is already inside the application's one avoider, and a second one nested
+   * in it counts the keyboard's height twice on iOS and leaves a gap that
+   * tall under the card. What the avoider does not do is *scroll*, and the
+   * notepad sits far enough down a long tab that shortening the viewport can
+   * leave it under the keyboard entirely.
+   *
+   * Held while the box is showing rather than while it has focus: it is the
+   * only field on this tab, so any keyboard here is that one's. The card is
+   * the unit rather than the field, because a reveal that stopped at the
+   * field would leave *Done* and the character count beneath the keyboard.
+   * See `useRevealOnKeyboard`.
+   */
+  const notepadCard = useRevealOnKeyboard(notepadEditing);
 
   /**
    * Sends an action to this channel.
@@ -2225,70 +2246,74 @@ export function ChannelView({
           it has a section label over it and a card under it, and bare prose
           between the two reads as text that has come loose from something.
         */}
-        <Card style={styles.stack}>
-          {notepadEditing ? (
-            <>
-              <Field
-                value={notepad}
-                onChangeText={(v) =>
-                  setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
-                }
-                placeholder="Links, a reading list, what this is for…"
-                autoCapitalize="sentences"
-                autoFocus
-                multiline
-                onBlur={persistNotepad}
-              />
-              <Text style={styles.count}>
-                {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
-              </Text>
-              {/*
-                *Done* writes and puts the sheet back. Blur writes too — the
-                keyboard going down, or a tap somewhere else on the tab — so
-                nothing here depends on this button being found; it is the way
-                out of the box for somebody who has stopped typing, a
-                multiline field having no return key that means finished.
-              */}
-              <Button
-                label="Done"
-                variant="primary"
-                onPress={() => {
-                  persistNotepad();
-                  setNotepadEditing(false);
-                }}
-              />
-            </>
-          ) : (
-            <>
-              {notepadShown.trim() ? (
-                <Text style={styles.description}>{notepadShown}</Text>
-              ) : (
-                // Said rather than left blank, and it says what would change
-                // it: a card with a heading and nothing under it reads as
-                // something that failed to load.
-                <Text style={type.muted}>
-                  {mayWriteNotepad
-                    ? 'Nothing on the notepad. Write on it.'
-                    : 'Nothing on the notepad. Step in to write on it.'}
-                </Text>
-              )}
-
-              {mayWriteNotepad ? (
-                <Button
-                  label="Edit"
-                  variant="ghost"
-                  style={styles.notepadEdit}
-                  onPress={() => setNotepadEditing(true)}
+        {/* `collapsable={false}` so the card survives into the native
+            tree and can be measured; see `notepadCard`. */}
+        <View ref={notepadCard} collapsable={false}>
+          <Card style={styles.stack}>
+            {notepadEditing ? (
+              <>
+                <Field
+                  value={notepad}
+                  onChangeText={(v) =>
+                    setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
+                  }
+                  placeholder="Links, a reading list, what this is for…"
+                  autoCapitalize="sentences"
+                  autoFocus
+                  multiline
+                  onBlur={persistNotepad}
                 />
-              ) : notepadShown.trim() ? (
-                <Text style={type.muted}>
-                  Step in to write on this. It is what the channel is for, and
-                  that is for whoever is in it to say.
+                <Text style={styles.count}>
+                  {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
                 </Text>
-              ) : null}
-            </>
-          )}
-        </Card>
+                {/*
+                  *Done* writes and puts the sheet back. Blur writes too — the
+                  keyboard going down, or a tap somewhere else on the tab — so
+                  nothing here depends on this button being found; it is the way
+                  out of the box for somebody who has stopped typing, a
+                  multiline field having no return key that means finished.
+                */}
+                <Button
+                  label="Done"
+                  variant="primary"
+                  onPress={() => {
+                    persistNotepad();
+                    setNotepadEditing(false);
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                {notepadShown.trim() ? (
+                  <Text style={styles.description}>{notepadShown}</Text>
+                ) : (
+                  // Said rather than left blank, and it says what would change
+                  // it: a card with a heading and nothing under it reads as
+                  // something that failed to load.
+                  <Text style={type.muted}>
+                    {mayWriteNotepad
+                      ? 'Nothing on the notepad. Write on it.'
+                      : 'Nothing on the notepad. Step in to write on it.'}
+                  </Text>
+                )}
+
+                {mayWriteNotepad ? (
+                  <Button
+                    label="Edit"
+                    variant="ghost"
+                    style={styles.notepadEdit}
+                    onPress={() => setNotepadEditing(true)}
+                  />
+                ) : notepadShown.trim() ? (
+                  <Text style={type.muted}>
+                    Step in to write on this. It is what the channel is for, and
+                    that is for whoever is in it to say.
+                  </Text>
+                ) : null}
+              </>
+            )}
+          </Card>
+        </View>
 
           </>
         ) : null}
