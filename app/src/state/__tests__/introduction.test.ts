@@ -26,6 +26,8 @@ const alone = {
   tried: NOTHING_TRIED,
   /** Nothing put away by hand — the dismissal cases add their own. */
   dismissed: [],
+  /** Arrived with nobody, so the first contact is somebody they brought. */
+  contactsBase: 0,
   conversing: false,
   // A phone, where there is nothing to install. The browser cases say so.
   install: NOT_OFFERED as Install,
@@ -145,6 +147,32 @@ describe('the alone arrival', () => {
       home: { contacts: [{}], rejoinable: [], invites: [] },
     });
     expect(done(result, 'somebody')).toBe(true);
+  });
+
+  it('ticks somebody against the line the ladder started from', () => {
+    // **A count is not an act.** An account that started with a contact — an
+    // invited arrival, or anybody who tapped *Show the checklist again* — has
+    // not got somebody here by continuing to have them; it ticks on the next
+    // one up. See `contactsBase`.
+    const started = { ...alone, contactsBase: 1 };
+    expect(
+      done(
+        introduction({
+          ...started,
+          home: { contacts: [{}], rejoinable: [], invites: [] },
+        }),
+        'somebody'
+      )
+    ).toBe(false);
+    expect(
+      done(
+        introduction({
+          ...started,
+          home: { contacts: [{}, {}], rejoinable: [], invites: [] },
+        }),
+        'somebody'
+      )
+    ).toBe(true);
   });
 
   it('goes on being the ladder once they have a contact', () => {

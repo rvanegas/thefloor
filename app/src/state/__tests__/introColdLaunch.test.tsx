@@ -7,7 +7,9 @@ import { useIntroduction } from '../useIntroduction';
 /**
  * The checklist coming back on an account that finished with it months ago,
  * reported as "I regularly see *You have not stepped in yet*" by somebody who
- * plainly had.
+ * plainly had. That sentence now reads *Nobody has heard you yet*, the card
+ * having been reworded to name the condition it tests; the report is quoted as
+ * it was made.
  *
  * **The cause is a null token that means two different things.** `AppProvider`
  * starts at `token: null` and restores the real one from the mockKeychain in an
@@ -99,7 +101,7 @@ test('a cold launch does not wipe an account that has already finished', async (
   // a stamped account is not necessarily finished — it may have the ladder
   // still, with what is left on it. What it must never be is `invited`, which
   // is the card that was appearing, and which on this account has no name to
-  // show and falls back to *You have not stepped in yet*.
+  // show and falls back to *Nobody has heard you yet*.
   expect(show).not.toBe('invited');
 });
 

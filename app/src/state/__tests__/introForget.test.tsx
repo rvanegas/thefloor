@@ -63,9 +63,11 @@ const established = {
 } as unknown as HomeView;
 
 function Probe({
+  home,
   report,
   onReady,
 }: {
+  home: HomeView;
   report: (introduction: Introduction) => void;
   onReady: (actions: {
     dismiss: (id: StepId) => void;
@@ -75,7 +77,7 @@ function Probe({
   const { introduction, dismiss, forget } = useIntroduction({
     ready: true,
     token: 'tok',
-    home: established,
+    home,
     conversing: false,
     install: NOT_OFFERED,
   });
@@ -92,20 +94,26 @@ async function mount() {
     forget: () => Promise<void>;
   };
   let tree!: ReactTestRenderer;
+  const draw = (home: HomeView) => (
+    <Probe
+      home={home}
+      report={(next) => {
+        latest = next;
+      }}
+      onReady={(next) => {
+        actions = next;
+      }}
+    />
+  );
   await act(async () => {
-    tree = renderer.create(
-      <Probe
-        report={(next) => {
-          latest = next;
-        }}
-        onReady={(next) => {
-          actions = next;
-        }}
-      />
-    );
+    tree = renderer.create(draw(established));
   });
   return {
     tree,
+    /** A later snapshot, for the rungs that are read off one. */
+    snapshot: async (home: HomeView) => {
+      await act(async () => tree.update(draw(home)));
+    },
     shown: () => latest,
     ids: () =>
       latest.show === 'alone' ? latest.steps.map((step) => step.id) : [],
@@ -145,8 +153,12 @@ describe('show the checklist again', () => {
     // fixture's snapshot still says all four are done, and the honest drawing
     // of that is that they still say done.
     //
-    // `somebody` is neither: a standing fact about an account that has a
-    // contact, ticked rather than cleared, which is why the reset is five.
+    // **`somebody` goes hollow too, and it is cleared by neither route.** It
+    // is read against the contact count this ladder started from, and the tap
+    // moves that line to here — so an account that already has somebody is
+    // asked for somebody *more*, rather than handed a ladder whose first rung
+    // was ticked before it was drawn. See `contactsBase` in
+    // `state/introduction.ts`.
     const card = await mount();
     await act(async () => card.forget());
 
@@ -154,8 +166,32 @@ describe('show the checklist again', () => {
     if (shown.show !== 'alone') throw new Error('expected the ladder');
     expect(
       shown.steps.filter((step) => !step.done).map((step) => step.id)
-    ).toEqual(['stepIn']);
+    ).toEqual(['somebody', 'stepIn']);
     expect(mockForgetTried).toHaveBeenCalled();
+    await act(async () => card.tree.unmount());
+  });
+
+  it('ticks the first rung on a contact brought after the tap', async () => {
+    // **The other half of the rung going hollow, and the half that makes it
+    // honest.** Clearing it would be a lie of the opposite kind if nothing
+    // could ever tick it again: the line moved to the count at the tap, so the
+    // next contact — the one this person actually goes and gets — is above it.
+    const card = await mount();
+    await act(async () => card.forget());
+    expect(
+      card.shown().show === 'alone' &&
+        (card.shown() as { steps: Array<{ id: string; done: boolean }> }).steps
+          .find((step) => step.id === 'somebody')?.done
+    ).toBe(false);
+
+    await card.snapshot({
+      ...established,
+      contacts: [{ id: 'them' }, { id: 'brought' }],
+    } as unknown as HomeView);
+
+    const shown = card.shown();
+    if (shown.show !== 'alone') throw new Error('expected the ladder');
+    expect(shown.steps.find((step) => step.id === 'somebody')?.done).toBe(true);
     await act(async () => card.tree.unmount());
   });
 

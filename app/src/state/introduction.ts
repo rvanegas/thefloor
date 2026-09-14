@@ -213,6 +213,21 @@ export function introduction(state: {
   /** The four *try* rungs, off the Home snapshot — `core/tried.ts`. */
   tried: Tried;
   /**
+   * How many contacts this account had when the ladder started, latched with
+   * the arrival — `useIntroduction`.
+   *
+   * **It is what turns a count into an act.** `somebody` used to read
+   * `contacts.length > 0`, which is a fact about the account rather than
+   * something anybody did while the ladder was in front of them: an invited
+   * account is born holding one, and *Show the checklist again* handed back a
+   * ladder with its first rung already ticked. Measured against the starting
+   * line, the rung asks for somebody this person brought.
+   *
+   * Zero for every install that predates the key, which is what leaves an
+   * account already climbing exactly where it was.
+   */
+  contactsBase: number;
+  /**
    * The rungs this person has put away by hand, which are drawn no more.
    *
    * **The second exit, and the first one that is the reader's.** Until
@@ -242,6 +257,7 @@ export function introduction(state: {
     conversing,
     install,
     dismissed,
+    contactsBase,
   } = state;
   const hidden = (id: StepId) => dismissed.includes(id);
 
@@ -310,7 +326,11 @@ export function introduction(state: {
         // the app's own words for an outgoing request are "an address rather
         // than a person", and waiting on somebody else's tap would leave this
         // unticked for a day after the only action available had been taken.
-        done: home.contacts.length > 0,
+        //
+        // **Against the starting line rather than against nought** — see
+        // `contactsBase`. The rung is a thing to do, and an account that
+        // already had somebody has not done it by continuing to have them.
+        done: home.contacts.length > contactsBase,
       },
       // Between the two, which is where it belongs on both readings: it is
       // not the first thing to do — nobody installs an app they have not
@@ -323,10 +343,19 @@ export function introduction(state: {
       ...(installing ? [installing] : []),
       {
         id: 'stepIn',
-        label: 'Step in',
+        // **The label says *with somebody* because that is what ticks it.**
+        // `done` below is `conversedAt`, stamped only while another member is
+        // present — `AppProvider`'s `conversing`. Called *Step in* it named an
+        // act somebody could complete alone and then find unticked, which is
+        // the one thing a ladder read off real state must never do.
+        label: 'Step in with somebody',
+        // The guest link left this instruction when the label changed: a
+        // guest is not a member and does not stamp `conversedAt`, so naming
+        // one here offered a way of climbing this rung that does not work.
+        // The `guest` rung below is where guest links belong anyway.
         instruction:
-          'On Channels, start one and step in. Anybody you invite arrives there, and a guest link works while you wait in it.',
-        note: 'That is the moment people can hear you, and it is what all of this is for.',
+          'On Channels, start one and step in, and stay there until somebody else steps in too. Anybody you invite arrives in that channel.',
+        note: 'Two of you in a channel at once is the moment people can hear you, and it is what all of this is for.',
         // **It ticks now, where it never could before.** This was the rung the
         // whole ladder retired on, so it was drawn permanently unticked and
         // the card vanished the moment it came true. With four rungs below it

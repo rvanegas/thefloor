@@ -92,13 +92,23 @@ export function Introduction({
               ladder's first rung was climbed for them before they got here,
               and a list that opened by congratulating them on it would be
               theatre. The single thing left is the single thing said.
+
+              **Both lines name the condition the card actually tests, which
+              is not stepping in.** It is drawn until `conversedAt` is
+              stamped, and that happens on the first frame this account is in
+              a channel with somebody else in it — `AppProvider`'s
+              `conversing`. Wording it as *you have not stepped in* promised a
+              test the code does not run: somebody who stepped in alone, found
+              an empty channel and stepped out again had done the thing the
+              card named and was told they had not.
             */}
             <Text style={type.body}>
-              {from ? `${from} invited you` : 'You have not stepped in yet'}
+              {from ? `${from} invited you` : 'Nobody has heard you yet'}
             </Text>
             <Text style={type.muted}>
-              Stepping in is the moment people can hear you. Until then you are
-              here and quiet, which is a fine thing to be — but nobody knows it.
+              Step in while somebody else is there — that is the moment people
+              can hear you. Until then you are here and quiet, which is a fine
+              thing to be, but nobody knows it.
             </Text>
           </View>
           {/*
@@ -108,7 +118,11 @@ export function Introduction({
             it as anything else would let somebody dismiss the card and meet
             the row again the day they first conversed.
           */}
-          <Dismiss step="stepIn" label="Step in" onDismiss={dismissStep} />
+          <Dismiss
+            step="stepIn"
+            label="Step in with somebody"
+            onDismiss={dismissStep}
+          />
         </View>
         {channelId ? (
           <View style={styles.actions}>

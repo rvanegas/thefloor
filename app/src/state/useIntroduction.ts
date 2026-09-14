@@ -65,6 +65,26 @@ const CONVERSED_AT_KEY = 'thefloor.intro.doneAt';
  * in on the same phone has decided nothing.
  */
 const DISMISSED_KEY = 'thefloor.intro.dismissed';
+/**
+ * How many contacts this account had when the ladder started, so that *Get
+ * somebody here* asks for somebody rather than for somebody already there.
+ *
+ * **The rung is about an act, and a count is not one.** `home.contacts` is a
+ * standing fact, so reading the rung off `length > 0` ticked it for anybody
+ * who had ever been in touch with anybody — which is every invited account
+ * from its first frame, and every account that taps *Show the checklist
+ * again*. Latched once, beside `arrival` and at the same instant, and the rung
+ * is done when the count has gone *up* since.
+ *
+ * **Absent means zero, which is what leaves every install already climbing
+ * alone.** Nothing writes this key retroactively: an account partway up the
+ * ladder reads no key, gets a baseline of nought, and its rung ticks off the
+ * first contact exactly as it did before.
+ *
+ * Cleared on sign-out with the three above, and for their reason — it is a
+ * fact about one account's starting line.
+ */
+const CONTACTS_BASE_KEY = 'thefloor.intro.contactsBase';
 
 /** The stored form, ignoring anything that is not a rung this build knows. */
 function parseDismissed(stored: string | null): StepId[] {
@@ -178,8 +198,9 @@ export function useIntroduction(state: {
    * established account — which has contacts — latched `invited` and was shown
    * a card about an invitation nobody had sent. With no invitation pending
    * that card has no name to put in it, so what people actually saw was its
-   * fallback sentence, *You have not stepped in yet*, on accounts that
-   * plainly had. See `__tests__/introColdLaunch.test.tsx`.
+   * fallback sentence — then *You have not stepped in yet*, now *Nobody has
+   * heard you yet* — on accounts that plainly had. See
+   * `__tests__/introColdLaunch.test.tsx`.
    */
   ready: boolean;
   /** Null when signed out, and then this forgets everything it knew. */
@@ -209,6 +230,13 @@ export function useIntroduction(state: {
   const [conversedAt, setConversedAt] = useState<number | null>(null);
   /** The rungs put away by hand — `dismiss`. Read once, with the two above. */
   const [dismissed, setDismissed] = useState<readonly StepId[]>([]);
+  /**
+   * The contact count the ladder started from — `CONTACTS_BASE_KEY`. Null
+   * until the keychain has been read *and* until the latch below has run,
+   * which is the same null the arrival uses and means the same thing: nothing
+   * may be concluded yet.
+   */
+  const [contactsBase, setContactsBase] = useState<number | null>(null);
   /**
    * The four *try* rungs this session has just done, over and above whatever
    * the snapshot in hand says.
@@ -250,6 +278,7 @@ export function useIntroduction(state: {
       setConversedAt(null);
       setDismissed([]);
       setMarked([]);
+      setContactsBase(null);
       // **Forgetting in memory is right either way; forgetting on disk is
       // not.** Before the restore has resolved there is nothing to conclude
       // from a null token, so the state is cleared — nothing may be drawn from
@@ -261,6 +290,7 @@ export function useIntroduction(state: {
       void storage.remove(ARRIVAL_KEY);
       void storage.remove(CONVERSED_AT_KEY);
       void storage.remove(DISMISSED_KEY);
+      void storage.remove(CONTACTS_BASE_KEY);
       return;
     }
     void (async () => {
@@ -268,11 +298,13 @@ export function useIntroduction(state: {
         storedArrival,
         storedConversedAt,
         storedDismissed,
+        storedContactsBase,
         ...storedTried
       ] = await Promise.all([
         storage.get(ARRIVAL_KEY),
         storage.get(CONVERSED_AT_KEY),
         storage.get(DISMISSED_KEY),
+        storage.get(CONTACTS_BASE_KEY),
         ...TRIED_IDS.map((id) => storage.get(TRIED_KEYS[id])),
       ]);
       if (cancelled) return;
@@ -304,6 +336,11 @@ export function useIntroduction(state: {
       const stamp = Number(storedConversedAt);
       setConversedAt(Number.isFinite(stamp) && stamp > 0 ? stamp : null);
       setDismissed(parseDismissed(storedDismissed));
+      // An install that has never written one reads nought, which is what
+      // leaves every account already on the ladder where it was — see
+      // `CONTACTS_BASE_KEY`.
+      const base = Number(storedContactsBase);
+      setContactsBase(Number.isFinite(base) && base > 0 ? base : 0);
       setLoaded(true);
       // TEMPORARY — see `introTrace` in `AppProvider`. What the keychain had
       // when this account signed in, which is the other half of the question.
@@ -331,6 +368,17 @@ export function useIntroduction(state: {
     const next = arrivalOf(home);
     setArrival(next);
     void storage.set(ARRIVAL_KEY, next);
+    // **The starting line, latched in the same breath as the arrival**, and
+    // for the same reason: both are questions about the moment somebody got
+    // here, and both give a different answer an hour later. An invited
+    // account arrives holding a contact, so its baseline is one and *Get
+    // somebody here* asks it for somebody of its own — see
+    // `CONTACTS_BASE_KEY`. Only ever written where the arrival is, so an
+    // install that already has an arrival is never given a line it did not
+    // start from.
+    const base = home.contacts.length;
+    setContactsBase(base);
+    void storage.set(CONTACTS_BASE_KEY, String(base));
   }, [loaded, home, arrival]);
 
   /**
@@ -412,6 +460,13 @@ export function useIntroduction(state: {
     setConversedAt(null);
     setDismissed([]);
     setMarked([]);
+    // **The starting line moves to here, which is what the tap means.** An
+    // account that taps this has contacts, and a ladder whose first rung was
+    // ticked before it was drawn is the theatre the whole card avoids. Taking
+    // the count now asks for one *more*, which is the only honest reading of
+    // *Get somebody here* on an account that already has somebody.
+    const base = home?.contacts.length ?? 0;
+    setContactsBase(base);
     // The four stamps are the server's now, so this is the one part of
     // forgetting that has to travel. Refused for an account without `debug`,
     // which is every account that cannot reach the button — so a failure here
@@ -419,6 +474,7 @@ export function useIntroduction(state: {
     if (token) await api.forgetTried(token).catch(() => undefined);
     await Promise.all([
       storage.set(ARRIVAL_KEY, 'alone'),
+      storage.set(CONTACTS_BASE_KEY, String(base)),
       storage.remove(CONVERSED_AT_KEY),
       storage.remove(DISMISSED_KEY),
       // Only still here for the hand-up above, and only reachable at all by an
@@ -426,7 +482,7 @@ export function useIntroduction(state: {
       // means forgetting rather than forgetting until the next launch.
       ...TRIED_IDS.map((id) => storage.remove(TRIED_KEYS[id])),
     ]);
-  }, [token]);
+  }, [token, home?.contacts.length]);
 
   return {
     introduction: introduction({
@@ -438,6 +494,7 @@ export function useIntroduction(state: {
       conversing,
       install,
       dismissed,
+      contactsBase: contactsBase ?? 0,
     }),
     markTried,
     dismiss,

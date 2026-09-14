@@ -58,6 +58,7 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.intro.arrival',
   'thefloor.intro.doneAt',
   'thefloor.intro.dismissed',
+  'thefloor.intro.contactsBase',
   // The four *try* rungs — `tried.ts`. Named one by one rather than kept in a
   // blob for exactly this test's sake: every key this app writes is listed
   // here, and a blob would hide four of them behind one name.

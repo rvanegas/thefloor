@@ -185,7 +185,10 @@ describe('the introduction on Home', () => {
       install: null,
     };
     const tree = render(<HomeView {...homeNav} />);
-    expect(textOf(tree)).toContain('You have not stepped in yet');
+    // The sentence names what the card actually tests — having been in a
+    // channel with somebody — rather than the act of stepping in, which is
+    // something this cohort can have done and still be shown this.
+    expect(textOf(tree)).toContain('Nobody has heard you yet');
     // Nowhere to send them from here, so nothing pretends there is.
     //
     // Asked of the exact name rather than of `findButton` alone, since
