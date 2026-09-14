@@ -18,12 +18,18 @@ campaign gaps, one of which is more urgent than any of this.
 
 **Seven rungs since 2026-09-13, and this file describes two.** *Claim the
 floor*, *say you are nearby*, *bring in a guest* and *play something together*
-joined the ladder below *step in*; they are the only rungs recorded rather than
-derived, since no snapshot says whether any of them has been done, and they are
-per install rather than per account for that reason. They also moved
+joined the ladder below *step in*; they are the only rungs the server had to be
+taught to record, nothing it already held saying whether any of them has been
+done, and they ride on the Home snapshot like every other rung. They also moved
 retirement — see § *Retirement* below. The account of all of it is
 `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, and
 this file is not corrected for them beyond these pointers.
+
+**They were per install for a day**, in four keychain keys, and the reasoning
+for that and against it is
+`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md` — which also
+carries the change that stops this card drawing all seven rungs at once: one
+rung in full, the done ones a title each, the rest behind *See more*.
 
 **A third rung exists in a browser since 2026-09-13** — *put The Floor on your
 home screen* — and it is the only one that is about the client rather than the

@@ -99,7 +99,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Introduction** — What a new account is shown above both lists until every rung of it is done: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs recorded rather than derived
+- **Introduction** — What a new account is shown above both lists until every rung of it is done: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1425,13 +1425,22 @@ request the username rung needed. See
 
 **Four more rungs since 2026-09-13, and they are a different kind**: *claim
 the floor*, *say you are nearby*, *bring in a guest*, *play something
-together*. All four are done inside a channel, and they are the only rungs not
-derived from the Home snapshot — nothing the server sends says whether an
-account has ever done any of them — so they are recorded per install in
-`thefloor.intro.tried.*` as the control that does the thing is used. They say
-*try this* where the rungs above say *this is true of you*, which is why being
-per install rather than per account is acceptable for them and would not be
-for the others.
+together*. All four are done inside a channel, and they are the only rungs
+nothing else on the Home snapshot could answer — nothing the server otherwise
+holds says whether an account has ever done any of them — so the server was
+taught to record them, four stamps on the account written as the control that
+does the thing is used, and they ride on that snapshot like every other rung.
+They say *try this* where the rungs above say *this is true of you*. They were
+per install, in `thefloor.intro.tried.*`, for the day between their being
+built and the account taking them; those keys are read once and handed to the
+server now. `core/tried.ts` and
+`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`.
+
+**One rung is drawn in full: the first that is not done.** The ones behind
+somebody are a title each, and the ones after the next are behind *See more*,
+shut again on every mount. Seven rungs each carrying an instruction, a note
+and a button is a wall above the lists rather than a ladder, and what a card
+read on the way past is for is the next thing to do.
 
 **It retires when the last rung is done, not on the first conversation.** That
 reverses the original rule, which was right for a ladder whose every rung came

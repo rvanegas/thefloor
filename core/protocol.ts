@@ -1,6 +1,7 @@
 import type { ImHandles } from './im';
 import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
+import type { Tried } from './tried';
 import type { ChannelState, Clip, UserId } from './types';
 
 /**
@@ -768,6 +769,20 @@ export interface HomeView {
   invites: InviteView[];
   rejoinable: RejoinableView[];
   contacts: ContactView[];
+  /**
+   * Which of the four *try* rungs this account has behind it — `core/tried.ts`.
+   *
+   * On Home because that is where the introduction is drawn and where every
+   * other rung is read from: the ladder is a view of this snapshot, and these
+   * four were the one part of it the snapshot could not answer. Sent to
+   * everybody, since it costs four booleans and the alternative is a second
+   * request made only by accounts that are new.
+   *
+   * Optional, so a server older than the field simply sends nothing and the
+   * client reads absence as its own keychain's answer — which is what every
+   * build up to 195 believed in the first place. See planning/SHIMS.md.
+   */
+  tried?: Tried;
 }
 
 /**

@@ -59,8 +59,8 @@ export type Arrival = 'invited' | 'alone';
  * so every one of them is reachable only after `stepIn` — which is exactly
  * when this whole card used to disappear. They are the reason retirement
  * moved off the first conversation and onto the last rung; see `introduction`
- * below, and `tried.ts` for why these four are the only ones not read off a
- * snapshot.
+ * below, and `core/tried.ts` for why these four are the only ones the server
+ * had to be taught to record at all.
  *
  * **They say *try this*, where the three above say *this is true of you*.**
  * That is a real departure — `planning/ONBOARDING.md` § *What is deliberately
@@ -184,7 +184,7 @@ export function introduction(state: {
    * from it changed. See `useIntroduction`.
    */
   conversedAt: number | null;
-  /** The four *try* rungs, per install — `tried.ts`. */
+  /** The four *try* rungs, off the Home snapshot — `core/tried.ts`. */
   tried: Tried;
   /** In a channel with somebody else, now — see `AppProvider`. */
   conversing: boolean;
@@ -277,8 +277,8 @@ export function introduction(state: {
 
 /**
  * The four things to try inside a channel, which are the same four for both
- * arrivals — see `tried.ts` for why they are the only rungs this app writes
- * down about itself.
+ * arrivals — see `core/tried.ts` for why they are the only rungs the server
+ * had to be taught to record.
  *
  * **Every instruction names the tab or the slot**, rather than the feature.
  * These sit on Home and are done two screens away, and the whole failure mode

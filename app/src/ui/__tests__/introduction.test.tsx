@@ -66,7 +66,7 @@ describe('the introduction on Home', () => {
     act(() => tree.unmount());
   });
 
-  it('draws the ladder, every rung of it, with what to do on each', () => {
+  it('draws the next rung in full and holds the rest back', () => {
     mockApp.home = empty;
     mockApp.introduction = ladder;
     const tree = render(<HomeView {...homeNav} />);
@@ -74,12 +74,31 @@ describe('the introduction on Home', () => {
     expect(text).toContain('Getting started');
     expect(text).toContain('Get somebody here');
     expect(text).toContain('On Contacts, send an invite link.');
-    expect(text).toContain('Step in');
-    expect(text).toContain('On Channels, start one and step in.');
+    // Not even its title: a rung that is neither done nor next is waiting,
+    // and the card is asking for one thing at a time.
+    expect(text).not.toContain('Step in');
+    expect(text).not.toContain('On Channels, start one and step in.');
     act(() => tree.unmount());
   });
 
-  it('offers a control on every rung, both of them going to a list', () => {
+  it('shows what is waiting when asked, and hides it again', () => {
+    mockApp.home = empty;
+    mockApp.introduction = ladder;
+    const tree = render(<HomeView {...homeNav} />);
+
+    const more = findButton(tree, 'See more');
+    expect(more).toBeDefined();
+    act(() => more?.props.onPress());
+    expect(textOf(tree)).toContain('On Channels, start one and step in.');
+
+    const less = findButton(tree, 'See less');
+    expect(less).toBeDefined();
+    act(() => less?.props.onPress());
+    expect(textOf(tree)).not.toContain('On Channels, start one and step in.');
+    act(() => tree.unmount());
+  });
+
+  it('offers a control on every rung it draws in full', () => {
     mockApp.home = empty;
     mockApp.introduction = ladder;
     const lists: string[] = [];
@@ -90,7 +109,10 @@ describe('the introduction on Home', () => {
     const contacts = findButton(tree, 'Open Contacts');
     expect(contacts).toBeDefined();
     act(() => contacts?.props.onPress());
+    // The rung after it is not being asked for yet, so neither is its button.
+    expect(findButton(tree, 'Open Channels')).toBeUndefined();
 
+    act(() => findButton(tree, 'See more')?.props.onPress());
     const channels = findButton(tree, 'Open Channels');
     expect(channels).toBeDefined();
     act(() => channels?.props.onPress());
@@ -99,17 +121,23 @@ describe('the introduction on Home', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps the control on a rung that is already done', () => {
-    // Two rows, and the second is the one that matters: hiding the first
-    // row's button would change the card's shape under somebody who had just
-    // finished with it.
+  it('says a finished rung in a line, and asks nothing more of it', () => {
+    // The instruction tells somebody how to do what they have just done and
+    // the note argues for doing it; neither is any use afterwards, and the
+    // label still is. See `Row`.
     mockApp.home = empty;
     mockApp.introduction = {
       show: 'alone',
       steps: [{ ...ladder.steps[0], done: true }, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
-    expect(findButton(tree, 'Open Contacts')).toBeDefined();
+    const text = textOf(tree);
+    expect(text).toContain('Get somebody here');
+    expect(text).not.toContain('On Contacts, send an invite link.');
+    expect(findButton(tree, 'Open Contacts')).toBeUndefined();
+    // And the next one is now the one in full, with nothing left to disclose.
+    expect(text).toContain('On Channels, start one and step in.');
+    expect(findButton(tree, 'See more')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -174,6 +202,9 @@ describe('the install rung', () => {
       steps: [ladder.steps[0], installRung, ladder.steps[1]],
     };
     const tree = render(<HomeView {...homeNav} />);
+    // Behind the first rung, which is the one being asked for, so the
+    // disclosure is what puts it on screen at all.
+    act(() => findButton(tree, 'See more')?.props.onPress());
     expect(textOf(tree)).toContain('Tap Share in Safari');
     expect(findButton(tree, 'Install')).toBeUndefined();
     act(() => tree.unmount());
@@ -188,6 +219,7 @@ describe('the install rung', () => {
     const prompted = jest.fn();
     mockApp.installPrompt = prompted;
     const tree = render(<HomeView {...homeNav} />);
+    act(() => findButton(tree, 'See more')?.props.onPress());
     const install = findButton(tree, 'Install');
     expect(install).toBeDefined();
     act(() => install?.props.onPress());
@@ -195,10 +227,10 @@ describe('the install rung', () => {
     act(() => tree.unmount());
   });
 
-  it('draws the four things to try, each with a way into Channels', () => {
-    // Every rung carries a control, and for these four there is exactly one
-    // place to send somebody — the row's own instruction is what differs. See
-    // `actionFor`.
+  it('draws the thing to try next, with a way into Channels', () => {
+    // Every rung drawn in full carries a control, and for these four there is
+    // exactly one place to send somebody — the row's own instruction is what
+    // differs. See `actionFor`.
     mockApp.home = empty;
     mockApp.introduction = {
       show: 'alone',
@@ -222,14 +254,13 @@ describe('the install rung', () => {
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).toContain('Claim the floor');
-    expect(text).toContain('Play something together');
     expect(text).toContain(
       'In a channel, tap Claim in the bar along the bottom.'
     );
-    // A done rung keeps its instruction and its button — see `Row`, which
-    // argues that hiding half of a finished row changes the card's shape under
-    // somebody who has just finished it.
     expect(findButton(tree, 'Open Channels')).toBeDefined();
+    // The done one is a line and nothing else — its title, and no way in.
+    expect(text).toContain('Play something together');
+    expect(text).not.toContain("On a channel's Player tab, add audio.");
     act(() => tree.unmount());
   });
 

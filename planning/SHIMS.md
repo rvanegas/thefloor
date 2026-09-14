@@ -40,6 +40,8 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
+| 196 | `HomeView.tried` optionality | `core/protocol.ts`, `app/src/state/useIntroduction.ts` |
+| 196 | The keychain hand-up of the four tried rungs | `app/src/state/tried.ts`, `app/src/state/useIntroduction.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -76,6 +78,52 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 196 — `HomeView.tried` optionality
+
+Which of the introduction's four *try* rungs an account has behind it, moved
+off the phone and onto the account on 2026-09-13 —
+`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`. Optional
+because a server that predates it sends no such key, and the client reads
+absence as *none of them*, which is the ladder every build drew before the
+account held anything.
+
+Set unconditionally in `homeFor`, `server/src/app.ts`, from `Accounts.tried`.
+The client-side fallback is the `?? NOTHING_TRIED` in `useIntroduction`.
+
+**What must not be deleted with it**: nothing here is the `marked` overlay's
+business. That is the half-second between doing a thing in a channel and the
+Home push arriving, and it is needed against a current server exactly as much
+as an absent field.
+
+Gate 196 because build 195 is already tagged: the client that speaks this
+ships in the next upload.
+
+---
+
+## Gate 196 — The keychain hand-up of the four tried rungs
+
+The same move, from the other end. Every account that existed on 2026-09-13
+has its four answers in `thefloor.intro.tried.*` on a phone and **nowhere
+else** — nothing on the server records that a floor was ever claimed, so there
+was nothing to backfill from. So the client reads the four keys once per
+sign-in, offers whatever it finds to `POST /me/tried` in one request, and
+deletes them only when that request succeeds.
+
+`legacyTried` and `TRIED_KEYS` in `app/src/state/tried.ts`, and the `handUp`
+block in `useIntroduction`'s load effect. Nothing writes those keys any more.
+
+**What must not be deleted with it**: the four keys' entries in
+`INSTALL_KEYS`, `app/src/state/storage.ts`, until the keys themselves go — and
+`storageKeys.test.ts` enforces that pairing, so it will say so. Nor
+`forget`'s call to `api.forgetTried`, which is the debug button's server half
+and has nothing to do with the migration.
+
+Gate 196 for the reason above, and the gate is honest here rather than
+conservative: an install below the floor cannot run at all, and every install
+at or above 196 performs the hand-up on the first sign-in it manages.
 
 ---
 

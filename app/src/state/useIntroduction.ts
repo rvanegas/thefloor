@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api } from '../api/http';
 import type { HomeView } from '../../../core/protocol';
 import { recordEvent } from '../audio/diagnostics';
 import type { Install } from './install';
 import { storage } from './storage';
 import {
+  legacyTried,
   NOTHING_TRIED,
   TRIED_IDS,
   TRIED_KEYS,
@@ -19,8 +21,9 @@ import {
 
 /**
  * The two things this has to remember *about the account*, the rest of the
- * ladder being derived from the snapshot. The four `thefloor.intro.tried.*`
- * keys below are about the install and are governed differently — `tried.ts`.
+ * ladder being derived from the snapshot — which since 2026-09-13 includes the
+ * four *try* rungs. The `thefloor.intro.tried.*` keys are read once and handed
+ * to the server now; nothing writes them — `tried.ts`.
  *
  * **Cleared on sign-out, unlike every other key here**, and the difference is
  * what they are about. `installNotice.ts` and the four `thefloor.notifications`
@@ -64,7 +67,8 @@ export interface IntroductionState {
   /**
    * Records one of the four *try* rungs as done, called from wherever that
    * thing is actually done rather than from the checklist — which is the whole
-   * difference between these four and every other rung. See `tried.ts`.
+   * difference between these four and every other rung. It goes to the server
+   * and comes back on the next Home snapshot; see `core/tried.ts`.
    */
   markTried: (id: TriedId) => void;
   /**
@@ -74,11 +78,12 @@ export interface IntroductionState {
    * on sign-out, but signing in again re-latches the arrival from the same
    * snapshot and `conversedAt` is written off `conversing`, which by then is a
    * fact about an account that has conversed — so signing out and back in
-   * returns somebody to exactly the silence they were in. The four *try* keys
-   * are not cleared on sign-out at all, so that route would not touch them.
-   * *Forget this phone* clears all six as part of `INSTALL_KEYS`, but it takes
-   * the session with it and is aimed at the whole install; this is the
-   * checklist alone, on an account that stays signed in.
+   * returns somebody to exactly the silence they were in. The four *try* rungs
+   * are on the account since 2026-09-13 and would survive that route entirely,
+   * which is why this one reaches the server. *Forget this phone* clears the
+   * six keys as part of `INSTALL_KEYS`, but it takes the session with it, is
+   * aimed at the whole install, and no longer touches the four rungs at all;
+   * this is the checklist alone, on an account that stays signed in.
    *
    * The state is reset alongside the keys rather than left to a relaunch,
    * which is what makes the ladder reappear on the tap: clearing `arrival`
@@ -150,12 +155,34 @@ export function useIntroduction(state: {
   const [arrival, setArrival] = useState<Arrival | null>(null);
   const [conversedAt, setConversedAt] = useState<number | null>(null);
   /**
-   * The four *try* rungs. Per install and not per account, so unlike the two
-   * above these are **not** cleared on sign-out: they record what this device
-   * has been shown a control for, which a second person signing in on the same
-   * phone has equally been shown. See `tried.ts`.
+   * The four *try* rungs this session has just done, over and above whatever
+   * the snapshot in hand says.
+   *
+   * **The snapshot is the truth and this is the half-second before it
+   * arrives.** Since 2026-09-13 the four belong to the account and come down
+   * on Home — `core/tried.ts` — so there is nothing to remember here; but the
+   * rung is ticked from a channel screen two screens away, and the write goes
+   * to the server and comes back as a push. Without this, somebody who claimed
+   * the floor and went straight to Home could find that rung still hollow.
+   *
+   * Emptied on sign-out along with the two keys below, for their reason
+   * exactly: it is about the account, and the next one has done none of it.
    */
-  const [tried, setTried] = useState<Tried>(NOTHING_TRIED);
+  const [marked, setMarked] = useState<readonly TriedId[]>([]);
+
+  /**
+   * What the account has behind it, which is the snapshot with this session's
+   * own doings laid over the top. Never the other way round: the server is
+   * allowed to be ahead of us — another device — and is never behind, these
+   * being facts that are only ever set.
+   */
+  const tried = useMemo<Tried>(() => {
+    const base = home?.tried ?? NOTHING_TRIED;
+    if (marked.length === 0) return base;
+    const merged = { ...base };
+    for (const id of marked) merged[id] = true;
+    return merged;
+  }, [home?.tried, marked]);
 
   // Read once per signed-in session. Signing out clears both keys and puts
   // this back where it started, so the next account reads nothing rather than
@@ -166,6 +193,7 @@ export function useIntroduction(state: {
       setLoaded(false);
       setArrival(null);
       setConversedAt(null);
+      setMarked([]);
       // **Forgetting in memory is right either way; forgetting on disk is
       // not.** Before the restore has resolved there is nothing to conclude
       // from a null token, so the state is cleared — nothing may be drawn from
@@ -186,11 +214,26 @@ export function useIntroduction(state: {
           ...TRIED_IDS.map((id) => storage.get(TRIED_KEYS[id])),
         ]);
       if (cancelled) return;
-      setTried(
-        Object.fromEntries(
-          TRIED_IDS.map((id, at) => [id, storedTried[at] === '1'])
-        ) as unknown as Tried
-      );
+      // **The one-time hand-up.** These four were kept on the phone until
+      // 2026-09-13 and are the account's now, so an install that ticked any of
+      // them holds the only copy of that answer — the server has no way to
+      // derive it and deliberately does not try. Offered once and the keys
+      // cleared on success, so nothing can offer them twice; kept where they
+      // are if the request fails, which is what makes a retry the next launch
+      // rather than a fact lost to a dropped connection. Laid over the
+      // snapshot immediately, so the rungs do not go hollow while it flies.
+      // Deleted with the keys — planning/SHIMS.md.
+      const handUp = legacyTried(storedTried);
+      if (handUp.length > 0) {
+        setMarked(handUp);
+        recordEvent(`intro handing up tried=${handUp.join(',')}`);
+        void api
+          .markTried(token, handUp)
+          .then(() =>
+            Promise.all(handUp.map((id) => storage.remove(TRIED_KEYS[id])))
+          )
+          .catch(() => {});
+      }
       setArrival(
         storedArrival === 'invited' || storedArrival === 'alone'
           ? storedArrival
@@ -267,21 +310,39 @@ export function useIntroduction(state: {
    * somebody does the same thing, which is a checklist being slightly wrong
    * rather than anything being broken.
    */
-  const markTried = useCallback((id: TriedId) => {
-    setTried((current) => (current[id] ? current : { ...current, [id]: true }));
-    void storage.set(TRIED_KEYS[id], '1');
-  }, []);
+  const markTried = useCallback(
+    (id: TriedId) => {
+      setMarked((current) =>
+        current.includes(id) ? current : [...current, id]
+      );
+      if (!token) return;
+      // Sent on every claim of the floor rather than only the first: this
+      // client cannot know whether another device got there first, and the
+      // server declines the write and the push when it was not news. Cheaper
+      // than asking.
+      void api.markTried(token, [id]).catch(() => {});
+    },
+    [token]
+  );
 
   const forget = useCallback(async () => {
     setArrival(null);
     setConversedAt(null);
-    setTried(NOTHING_TRIED);
+    setMarked([]);
+    // The four stamps are the server's now, so this is the one part of
+    // forgetting that has to travel. Refused for an account without `debug`,
+    // which is every account that cannot reach the button — so a failure here
+    // is the ordinary answer for everybody else and not something to report.
+    if (token) await api.forgetTried(token).catch(() => undefined);
     await Promise.all([
       storage.remove(ARRIVAL_KEY),
       storage.remove(CONVERSED_AT_KEY),
+      // Only still here for the hand-up above, and only reachable at all by an
+      // install that has never managed one. Cleared anyway, so that forgetting
+      // means forgetting rather than forgetting until the next launch.
       ...TRIED_IDS.map((id) => storage.remove(TRIED_KEYS[id])),
     ]);
-  }, []);
+  }, [token]);
 
   return {
     introduction: introduction({

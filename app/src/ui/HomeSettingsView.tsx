@@ -435,8 +435,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           <Text style={type.muted}>
             The introduction above the lists on Home. It goes for good once
             every rung is done — the conversation, and the four things to try
-            in a channel — and this is the only way of getting it back short of
-            forgetting the phone.
+            in a channel — and this is the only way of getting it back. The
+            four belong to the account rather than to this phone, so forgetting
+            the phone no longer returns them.
           </Text>
         </Card>
         </>

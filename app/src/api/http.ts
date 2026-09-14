@@ -10,6 +10,7 @@ import type {
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
 import type { AccountSettings } from '../../../core/settings';
+import type { Tried, TriedId } from '../../../core/tried';
 import type {
   VoiceDeclarations,
   VoiceEntry,
@@ -279,6 +280,30 @@ export const api = {
       body: changes,
       token,
     }),
+
+  /**
+   * Records one or more of the introduction's four *try* rungs as done.
+   *
+   * Sent every time the thing is done rather than the first, this client
+   * having no way to know whether another device got there first — the server
+   * writes the stamp once and pushes Home only when it was news.
+   *
+   * The list form is for the one caller that has several at once: the first
+   * sign-in after this feature shipped, handing up whatever the keychain held.
+   * See `useIntroduction`.
+   */
+  markTried: (token: string, ids: readonly TriedId[]) =>
+    request<Tried>('/me/tried', { method: 'POST', body: { ids }, token }),
+
+  /**
+   * Unsets all four, for the debug *Forget the introduction*.
+   *
+   * Refused with a 403 for any account without the `debug` column, which is
+   * the same gate the screen offering it sits behind — so the caller treats a
+   * refusal as nothing to report.
+   */
+  forgetTried: (token: string) =>
+    request<Tried>('/me/tried', { method: 'DELETE', token }),
 
   /**
    * The invitation standings.

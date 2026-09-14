@@ -156,6 +156,25 @@ export interface AccountRow {
    * public name reserved for nobody, for ever.
    */
   username: string | null;
+  /**
+   * When this account first did each of the four things the introduction asks
+   * it to try, or null for one it has not done — `core/tried.ts`.
+   *
+   * **A stamp rather than a flag**, though only its nullness is ever read.
+   * The wire carries four booleans and always will; keeping the moment costs
+   * the same four columns and is the only chance to record it, these being
+   * written exactly once each and never again.
+   *
+   * Null for every account that predates the columns, including ones that
+   * have plainly done all four: the fact lived in the keychain until
+   * 2026-09-13 and the phone is the only place it survives. The client hands
+   * its four keys up rather than the server inferring anything — see
+   * `useIntroduction` and planning/SHIMS.md.
+   */
+  tried_floor: number | null;
+  tried_nearby: number | null;
+  tried_guest: number | null;
+  tried_player: number | null;
 }
 
 export interface ContactRow {
@@ -447,7 +466,21 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- nothing yet. Stored as typed; uniqueness is judged folded, by the
   -- case-insensitive index created in the migration below. See
   -- core/username.ts for what may be in here.
-  username TEXT
+  username TEXT,
+  -- When this account first claimed the floor, said it was nearby, brought in
+  -- a guest and played something — the four rungs of the introduction that
+  -- nothing else here records. Null until it happens, and never unset except
+  -- by the debug *Forget the introduction*.
+  --
+  -- A stamp rather than a 1, on the reasoning free_transcript_at is a stamp:
+  -- the wire wants a boolean and this costs the same, and the day somebody
+  -- asks how long the four take, the answer is here rather than gone. Four
+  -- columns rather than one blob, so each is a value the database can be
+  -- asked about. See core/tried.ts.
+  tried_floor  INTEGER,
+  tried_nearby INTEGER,
+  tried_guest  INTEGER,
+  tried_player INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1529,6 +1562,19 @@ function migrate(db: Db): void {
   // permanent public name nobody asked for, to everybody at once.
   if (!accountColumns.some((c) => c.name === 'username')) {
     db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
+  }
+  // Null for every existing account, and deliberately not inferred. The four
+  // facts were kept on the device until 2026-09-13, in the keychain, so the
+  // only copy of the answer for an established account is on their phone —
+  // which is why the client hands its four keys up on the first snapshot that
+  // carries this field rather than the server guessing. Reconstructing them
+  // from the tables here is not available either: nothing records that a floor
+  // was ever claimed, only who holds one now.
+  if (!accountColumns.some((c) => c.name === 'tried_floor')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN tried_floor INTEGER');
+    db.exec('ALTER TABLE accounts ADD COLUMN tried_nearby INTEGER');
+    db.exec('ALTER TABLE accounts ADD COLUMN tried_guest INTEGER');
+    db.exec('ALTER TABLE accounts ADD COLUMN tried_player INTEGER');
   }
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.
   // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`

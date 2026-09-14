@@ -17,6 +17,7 @@ import {
   type ImHandles,
   type ImService,
 } from '../../core/im';
+import { NOTHING_TRIED, type Tried, type TriedId } from '../../core/tried';
 import { foldUsername, normaliseUsername } from '../../core/username';
 import {
   displayNameFromIdentifier,
@@ -77,6 +78,21 @@ const IM_COLUMNS = {
 } as const satisfies Record<ImService, keyof AccountRow>;
 
 const imColumn = (service: ImService) => IM_COLUMNS[service];
+
+/**
+ * Which column holds each of the four introduction rungs.
+ *
+ * `satisfies Record<TriedId, keyof AccountRow>` for `IM_COLUMNS`' reason: the
+ * names are interpolated into SQL, so the compiler checking them against the
+ * row type is the only thing standing between a typo and a statement that
+ * fails at runtime on a path nobody exercises until somebody new signs up.
+ */
+const TRIED_COLUMNS = {
+  floor: 'tried_floor',
+  nearby: 'tried_nearby',
+  guest: 'tried_guest',
+  player: 'tried_player',
+} as const satisfies Record<TriedId, keyof AccountRow>;
 
 export const OTP_TTL_MS = 10 * 60 * 1000;
 /**
@@ -530,6 +546,67 @@ export class Accounts {
         .run(changes.labs ? 1 : 0, accountId);
     }
     return this.settings(accountId);
+  }
+
+  /**
+   * Which of the four introduction rungs this account has behind it.
+   *
+   * Answers for an account that does not exist, with none of them tried —
+   * `settings` above states the reasoning, and it is the same here: the
+   * callers have authenticated already, so a missing row is a deletion racing
+   * a snapshot, and the honest answer for a read is the one everybody starts
+   * with rather than a throw on the Home path.
+   */
+  tried(accountId: string): Tried {
+    const row = this.byId(accountId);
+    if (!row) return { ...NOTHING_TRIED };
+    return {
+      floor: row.tried_floor !== null,
+      nearby: row.tried_nearby !== null,
+      guest: row.tried_guest !== null,
+      player: row.tried_player !== null,
+    };
+  }
+
+  /**
+   * Records one of the four as done, and says whether that was news.
+   *
+   * **Written once and never overwritten**, which is what `IS NULL` in the
+   * clause is for: the stamp is the *first* time somebody did the thing, and
+   * every subsequent claim of the floor would otherwise move it forward for
+   * no reason. The boolean answer is the same fact read off `changes`, and
+   * the caller uses it to decide whether anybody's Home needs redrawing —
+   * this is called from a claim, so on an established account it is a no-op
+   * being reported hundreds of times.
+   *
+   * Answers false for an account that does not exist, an unwritten row being
+   * indistinguishable from an unchanged one and neither being worth a push.
+   */
+  markTried(accountId: string, id: TriedId, at: number): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE accounts SET ${TRIED_COLUMNS[id]} = ?
+         WHERE id = ? AND ${TRIED_COLUMNS[id]} IS NULL`
+      )
+      .run(at, accountId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Unsets all four, for the debug *Forget the introduction* and nothing else.
+   *
+   * The one writer that undoes a stamp. It exists because the client half of
+   * that button used to clear four keychain keys and now has nothing local to
+   * clear — see `useIntroduction.forget`.
+   */
+  forgetTried(accountId: string): void {
+    this.db
+      .prepare(
+        `UPDATE accounts SET tried_floor = NULL, tried_nearby = NULL,
+           tried_guest = NULL, tried_player = NULL
+         WHERE id = ?`
+      )
+      .run(accountId);
   }
 
   /**
@@ -2162,7 +2239,8 @@ export class Accounts {
             SET identifier = ?, display_name = ?, username = NULL,
                 last_seen_at = NULL, donations_allowed = NULL,
                 debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
-                im_signal = NULL
+                im_signal = NULL, tried_floor = NULL, tried_nearby = NULL,
+                tried_guest = NULL, tried_player = NULL
           WHERE id = ?`
       )
       .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);

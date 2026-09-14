@@ -442,6 +442,17 @@ self-muted person whose claim is running — so they may not share an edge.
 others.** Otherwise the state card is two pixels larger than its neighbours.
 ProfileView's `channel` and Home's `inviteQuiet` both do this.
 
+**A card of many items asks for one of them.** There is one such card —
+Home's introduction, since 2026-09-13 — and it is the pattern to copy rather
+than to invent around: the item being asked for is drawn whole, the items
+behind the reader are a title each in `textMuted`, and the rest are behind a
+ghost *See more* at the foot, which says *See less* while it is open. The
+disclosure is **shut on every mount** and remembers nothing, because a card
+read on the way past is asking *this one next*, and one that stayed open would
+be the wall again on a screen somebody opened for another reason. The items
+keep their order in every state; a card that reshuffles as things are ticked
+is a different card each time it is read.
+
 ### Rows pack or spread, and it means something
 
 - **Packed** (`flexDirection: 'row'`, `gap`, no `justifyContent`) — the

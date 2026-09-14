@@ -19,6 +19,7 @@ import {
   normaliseImHandle,
 } from '../../core/im';
 import { describeChannel } from '../../core/naming';
+import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
 import {
   isColorSchemePreference,
@@ -2204,6 +2205,81 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Records one of the introduction's four *try* rungs as done.
+   *
+   * **Called from where the thing is actually done**, which is a channel
+   * screen two screens away from the ladder, and called every time rather
+   * than the first: the client cannot know whether some other device got
+   * there first, and asking would cost a round trip to save a write that
+   * `markTried` already declines to make. So this is idempotent by
+   * construction and says nothing about whether it was news — see
+   * `Accounts.markTried`, which only pushes when it was.
+   *
+   * Takes a list rather than one id, because the first snapshot after an
+   * upgrade hands up whatever the keychain had and that can be all four at
+   * once. One request that half-succeeds is better than four that can fail
+   * independently and leave the ladder disagreeing with itself.
+   *
+   * Answers with all four as they now stand, so the caller that asked need
+   * not wait for the Home push to redraw. Every other device gets that push.
+   */
+  fastify.post('/me/tried', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as
+      | { id?: unknown; ids?: unknown }
+      | undefined;
+    // One or many, the singular being what every call site but the migration
+    // sends. Refused rather than ignored when it is neither: a name this
+    // server does not know is a client bug, and silently succeeding would
+    // leave a rung that never ticks and nothing saying why.
+    const raw = Array.isArray(body?.ids)
+      ? body.ids
+      : body?.id !== undefined
+        ? [body.id]
+        : [];
+    if (raw.length === 0 || !raw.every(isTriedId)) {
+      return reply
+        .code(400)
+        .send({ error: `id must be one of ${TRIED_IDS.join(', ')}.` });
+    }
+
+    const at = now();
+    let changed = false;
+    for (const id of raw) {
+      if (accounts.markTried(account.id, id, at)) changed = true;
+    }
+    // Only when it was news, this being called on every claim of the floor
+    // for the rest of somebody's life. Their own devices and nobody else's:
+    // what a person has tried is on no roster and changes nothing anybody
+    // else can see.
+    if (changed) homeNotifier.notify([account.id]);
+    return accounts.tried(account.id);
+  });
+
+  /**
+   * Puts the introduction back where it started, for a debug account only.
+   *
+   * The server half of *Forget the introduction* — the four stamps, which are
+   * now the only part of that state this box holds. The rest of what that
+   * button forgets is still on the phone. It is gated like the diagnostic
+   * panel rather than open to everybody, for the same reason: it is a lever
+   * with no screen behind it for ordinary accounts, and the one screen that
+   * does offer it is already behind `debug`.
+   */
+  fastify.delete('/me/tried', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (!accounts.byId(account.id)?.debug) {
+      return reply.code(403).send({ error: 'Not available.' });
+    }
+    accounts.forgetTried(account.id);
+    homeNotifier.notify([account.id]);
+    return accounts.tried(account.id);
+  });
+
+  /**
    * Deletes your account, from inside the application.
    *
    * App Store Guideline 5.1.1(v) requires this of anything that lets people
@@ -3635,6 +3711,12 @@ export function buildApp(options: BuildOptions = {}): App {
     return {
       invites: channels.invitesFor(userId),
       rejoinable: channels.rejoinableFor(userId),
+      // The introduction's four *try* rungs, which are on this snapshot
+      // because every other rung already is — see core/tried.ts. Sent to
+      // everybody rather than to the accounts still being introduced: which
+      // those are is the client's judgement, made from this and three other
+      // things, and a server deciding it would need to reproduce all of it.
+      tried: accounts.tried(userId),
       // contactsFor already returns the public shape, deliberately: an
       // outgoing request carries the address rather than a name, so a request
       // to a real account and one to an address without an account look the

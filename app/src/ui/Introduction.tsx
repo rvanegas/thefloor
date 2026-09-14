@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../state/AppProvider';
 import type { Step } from '../state/introduction';
@@ -13,6 +13,15 @@ import { colors, spacing, type } from './theme';
  * 2026-09-13: four of the rungs are things done inside a channel, so the card
  * has to survive the conversation to be any use at all. It is still drawn
  * nothing-at-all *during* one. See `state/introduction.ts`.
+ *
+ * **One rung in full, the finished ones in a line each, the rest behind *See
+ * more*.** Seven rungs each carrying an instruction, a note and a button is a
+ * wall above the lists, and it grew into one a rung at a time — the objection
+ * was already on the record about buttons alone. What a card read on the way
+ * past is for is the next thing to do; what is behind you is worth a line, and
+ * what is after the next thing is worth knowing exists. Which rung is which
+ * is `state/introduction.ts`' answer, not this file's — this decides only how
+ * much of each is drawn.
  *
  * **A body, not an overlay**, which is the one decision here that was made
  * against the convention rather than with it. The pattern is usually a modal
@@ -46,6 +55,18 @@ export function Introduction({
   onList: (list: List) => void;
 }) {
   const { introduction, installPrompt } = useApp();
+  /**
+   * Whether the rungs after the next one are showing.
+   *
+   * Shut on every mount, deliberately, rather than remembered: the card is
+   * read on the way past and the thing it is trying to say is *the next one
+   * is this*. A disclosure that stayed open would put the wall back a day
+   * later, on a screen somebody opened to do something else.
+   *
+   * Here rather than beside the list it governs, because hooks may not sit
+   * behind the two returns below.
+   */
+  const [expanded, setExpanded] = useState(false);
 
   if (introduction.show === 'none') return null;
 
@@ -93,17 +114,59 @@ export function Introduction({
   }
 
   const { steps } = introduction;
+  /**
+   * The one rung drawn in full: the first thing left to do.
+   *
+   * **One at a time, since 2026-09-13.** Every rung used to carry its
+   * instruction, its note and its button, which for a fresh account is seven
+   * of those stacked above the lists — a wall rather than a ladder, which is
+   * the objection the four-rung version already raised against giving every
+   * rung a control and which four more rungs made true of the prose as well.
+   * What somebody needs on the way past is the next thing, and the shape of
+   * what is coming.
+   */
+  const next = steps.find((step) => !step.done) ?? null;
+  /**
+   * The rungs that are neither done nor next, which are the ones worth hiding.
+   * A done rung is never hidden: it is one line, and it is the half of this
+   * card that says somebody is getting somewhere.
+   */
+  const later = steps.filter((step) => !step.done && step !== next);
 
   return (
     <Card style={styles.card}>
       <Text style={type.body}>Getting started</Text>
-      {steps.map((step) => (
-        <Row
-          key={step.id}
-          step={step}
-          action={actionFor(step, onList, installPrompt)}
-        />
-      ))}
+      {steps.map((step) => {
+        // Three ways to draw a rung, and which one is about what the rung is
+        // rather than where it sits: a done one says so in a line, the next
+        // one says everything, and the ones after it wait behind the control
+        // below. They keep their own order throughout — a card that
+        // reshuffled itself as things were ticked would be a different card
+        // every time somebody read it.
+        if (step.done) return <Row key={step.id} step={step} brief />;
+        if (step !== next && !expanded) return null;
+        return (
+          <Row
+            key={step.id}
+            step={step}
+            action={actionFor(step, onList, installPrompt)}
+          />
+        );
+      })}
+      {/*
+        Nothing to disclose when there is nothing waiting, which is the state
+        every account ends in — and one rung short of retirement this control
+        would be offering to expand an empty list.
+      */}
+      {later.length > 0 ? (
+        <View style={styles.actions}>
+          <Button
+            label={expanded ? 'See less' : 'See more'}
+            variant="ghost"
+            onPress={() => setExpanded((open) => !open)}
+          />
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -111,13 +174,17 @@ export function Introduction({
 /**
  * Where a rung sends somebody.
  *
- * **Every rung carries one, since 2026-09-13**, which reverses what the four-
- * rung ladder did: that one gave a control to the next unfinished rung alone,
- * on the grounds that four calls to action stacked above a list is a wall
- * rather than a ladder. With two rungs there is no wall to build, and the
- * argument the other way is stronger — both of these are done somewhere else
- * in the app, and a row that names a place without going there makes somebody
- * hunt for a tab they have not learned the names of yet.
+ * **Every rung that is drawn in full carries one**, which is the whole of the
+ * four-rung ladder's rule arrived at from the other end. That one gave a
+ * control to the next unfinished rung alone, on the grounds that four calls to
+ * action stacked above a list is a wall; this gives one to every rung and then
+ * draws one rung. The rule the wall argument was really making is that a card
+ * should ask for one thing at a time, and the caller enforces it.
+ *
+ * A rung that is drawn in full is one somebody is being asked to do, and a row
+ * that names a place without going there makes them hunt for a tab whose name
+ * they have not learned yet — which is why the *See more* rungs keep their
+ * buttons too.
  *
  * Both go to a list rather than into anything. That is as far as this card is
  * allowed to reach: starting a channel or sending an invite is a decision with
@@ -165,7 +232,7 @@ function actionFor(
 }
 
 /**
- * One rung: a disc, what it is, and why.
+ * One rung: a disc, what it is, and — unless it is behind somebody — why.
  *
  * **The disc is the live bar's, one screen over** — filled for done, hollow
  * for not — rather than a tick, which this app has no icon for and would have
@@ -174,17 +241,33 @@ function actionFor(
  */
 function Row({
   step,
-  action,
+  action = null,
+  brief = false,
 }: {
   step: Step;
-  action: { label: string; onPress: () => void } | null;
+  action?: { label: string; onPress: () => void } | null;
+  /**
+   * Draws the title alone — no instruction, no note, no button.
+   *
+   * **What a finished rung is worth**, and the reason it is not simply
+   * dropped: the instruction tells somebody how to do a thing they have
+   * already done, and the note argues for doing it. Neither is any use
+   * afterwards, and the label still is — it is the line that says this is
+   * behind you, and a ladder with its climbed rungs deleted would be a card
+   * that shrank as somebody got further rather than one that filled in.
+   */
+  brief?: boolean;
 }) {
   return (
     <View
       accessible
-      accessibilityLabel={`${step.done ? 'Done' : 'Not done'}: ${step.label}. ${
-        step.instruction
-      } ${step.note}`}
+      accessibilityLabel={
+        brief
+          ? `Done: ${step.label}.`
+          : `${step.done ? 'Done' : 'Not done'}: ${step.label}. ${
+              step.instruction
+            } ${step.note}`
+      }
       style={styles.row}
     >
       <View style={[styles.disc, !step.done && styles.discOpen]} />
@@ -194,22 +277,23 @@ function Row({
         </Text>
         {/*
           The instruction above the note, and both above the button: what to
-          do, then why it is worth doing, then the way there. A done rung keeps
-          all three — it is two rows, the second is the one that matters, and
-          hiding half of the first would make the card change shape under
-          somebody who had just finished it.
+          do, then why it is worth doing, then the way there.
         */}
-        <Text style={type.muted}>{step.instruction}</Text>
-        <Text style={type.muted}>{step.note}</Text>
-        {action ? (
-          <View style={styles.actions}>
-            <Button
-              label={action.label}
-              variant="ghost"
-              onPress={action.onPress}
-            />
-          </View>
-        ) : null}
+        {brief ? null : (
+          <>
+            <Text style={type.muted}>{step.instruction}</Text>
+            <Text style={type.muted}>{step.note}</Text>
+            {action ? (
+              <View style={styles.actions}>
+                <Button
+                  label={action.label}
+                  variant="ghost"
+                  onPress={action.onPress}
+                />
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
     </View>
   );
