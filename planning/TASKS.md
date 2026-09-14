@@ -4,6 +4,10 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
+## Obscuring Keyboard
+
+Is there mention in STYLE of editable elements that must not be obscured by the keyboard.
+
 ## Red Badge on Contacts Tab
 
 If there are requests to answer.
