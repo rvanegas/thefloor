@@ -1,5 +1,37 @@
 # The deploy history
 
+## 2026-09-14 (second) — `b2daa24` → `a5bbeb1`
+
+Copy on the served pages, and one email template. No wire change, no shim.
+
+**ROADMAP item 6 is closed properly this time.** The first deploy today fixed
+the two files that entry named; there were three. `invite.ts` carried *one
+person speaks at a time* in **both** of its bodies — the page MARKETING.md
+calls the top of the funnel, since somebody opening an invite has been asked by
+name. The entry's list had been made by grepping for a remembered phrase, which
+found the two files already open.
+
+**Every served body now opens with the listing's first line**, which also
+retired *The Floor is a small application* — true when written, and falsified
+in a minute now by transcripts, watch parties and sixty-odd thousand lines.
+
+**The landing page says why the floor exists**, not only what it does:
+non-interruption as one principle at two scales, the floor being the ring's
+motivation one level in. Listed apart they are two conveniences.
+
+**`mail.ts` changed, so this reaches people who are not looking at a page.**
+The invitation said you can see who is around *before you interrupt anybody*,
+which frames arriving as an interruption — the inverse of the proposition, in
+the first sentence most people ever read about the app. Every invitation sent
+from now carries the new wording.
+
+One thing this deploy removed that was never meant to ship: fifteen lines of
+internal reasoning served inside `/support`'s body as an HTML comment, visible
+in view-source for part of the day.
+
+Health came back on the sha sent, clean, `oldestBuild` 80 against a floor of
+80, no silent builds and no drops.
+
 ## 2026-09-14 — `5482243` → `b2daa24`
 
 Nine commits, and **the box carries only the served pages** — everything else
