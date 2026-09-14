@@ -143,6 +143,13 @@ npm run build:web --prefix server --silent
 # disappearance the persistence work was for, and it would have come straight
 # back through this line. Anchored, so nothing nested called `tracks` is caught.
 #
+# **`/assets/` is the store captures and is excluded because the box has no use
+# for it.** Nine hundred kilobytes of full-resolution PNG kept as the record of
+# what a submission was reviewed with; what the server actually serves is
+# `server/public/*.webp`, which are small derivatives of two of them and are
+# not excluded. Anchored, so nothing nested called `assets` is caught — the
+# same trap the `/app/` comment above describes. See assets/store/README.md.
+#
 # What is about to be running, recorded before it goes rather than inferred
 # afterwards. This syncs like any other file and is read by server/src/release.ts.
 #
@@ -177,6 +184,7 @@ rsync -az --delete -e "$SSH" \
   --include '.env.example' --exclude '.env*' \
   --exclude '*.db' --exclude '*.db-*' --exclude 'dev-*.mjs' \
   --exclude '/server/tracks/' \
+  --exclude '/assets/' \
   --exclude '*.p8' --exclude 'fcm-service-account.json' \
   ./ "$HOST:/home/ubuntu/thefloor/"
 

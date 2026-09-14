@@ -106,10 +106,10 @@ recency, and a roster showing *has the floor* as a state on a person.
 
 **The half that is still open is everything image-first.** Product Hunt,
 Instagram and every paid social surface need assets that are composed rather
-than captured, and there are none. **And the App Store set is not in the
-repository at all** — the four submitted for 1.4.0 live in a folder on a
-desktop, which is not a record. Anything a submission depends on should be
-somewhere a checkout can find it.
+than captured, and there are none. **The store captures are now in the repository**, in
+`assets/store/`, at full resolution and excluded from `bin/deploy` — they were
+in a desktop folder, which is not a record for something a submission depends
+on. The two the landing page uses are derived from them.
 
 **One limit applies to every image this project will ever make.** The central
 claim is a non-event: a phone that does not ring cannot be photographed. No
