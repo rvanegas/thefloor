@@ -32,15 +32,29 @@ export function escapeHtml(value: string): string {
 /**
  * Wraps a document body in the page both pages are.
  *
- * `color-scheme: light dark` is the whole of the dark-mode support: it tells the
- * browser to use its own dark palette for the default colours, which is right
- * for a page that is text and nothing else. The app's theme has no business
- * here — these are read in Safari, by people who may not have installed
- * anything.
+ * `color-scheme` is the whole of the dark-mode support: it tells the browser to
+ * use its own dark palette for the default colours, which is right for a page
+ * that is text and nothing else. The app's theme has no business here — these
+ * are read in Safari, by people who may not have installed anything.
  */
 export function page(options: {
   title: string;
   heading: string;
+  /**
+   * What the browser may paint this page in. `light dark` — the default and
+   * what three of the four pages want — lets it follow the reader's setting.
+   *
+   * **`light` is for a page carrying images that are themselves light**, which
+   * since 2026-09-14 is the landing page and nothing else. A screenshot does
+   * not have a dark variant unless somebody captures one, so a page that goes
+   * dark around it turns two screenshots into two glowing rectangles. Pinning
+   * the page is the cheaper half of that trade and was chosen at the prompt;
+   * the other half is capturing a dark set, which nobody has done.
+   *
+   * **So this is a marker as much as a setting.** If dark captures ever land,
+   * this argument is why the value is here rather than why it has to stay.
+   */
+  colorScheme?: 'light dark' | 'light';
   /** The line under the heading — a date, or what the page is for. */
   standfirst: string;
   body: string;
@@ -81,7 +95,7 @@ export function page(options: {
 ${options.head ?? ''}
 <title>${escapeHtml(options.title)}</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: ${options.colorScheme ?? 'light dark'}; }
   body {
     font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     max-width: 38rem; margin: 0 auto; padding: 2rem 1.25rem 4rem;

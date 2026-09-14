@@ -72,10 +72,11 @@ import { escapeHtml, page } from './html';
  * things a marketing page has that a document does not — and nothing that
  * redefines `body`, `h1` or the palette.
  *
- * `color-scheme: light dark` means the browser picks the ground, so every
- * colour here is either the app's own brand pair or a `currentColor`
- * derivative. **Do not introduce a fixed background**, or the page stops
- * agreeing with the reader's setting halfway down.
+ * **This page is pinned to light**, unlike the other three, because the two
+ * screenshots in it are light captures with no dark counterpart — the
+ * reasoning is on `colorScheme` in html.ts. So the colours here may assume a
+ * light ground, which is the one liberty this stylesheet has that a document's
+ * would not.
  */
 const STYLE = `
   .mark { width: 2.5rem; height: 2.5rem; display: block; border-radius: 0.5rem; }
@@ -155,6 +156,9 @@ when you are not looking at it.</p>`
     title: 'The Floor',
     heading: 'The Floor',
     standfirst: 'Group voice on your own time',
+    // Light whatever the reader's setting, because the two screenshots below
+    // are light and have no dark counterpart — see `colorScheme` in html.ts.
+    colorScheme: 'light',
     style: STYLE,
     body: `${MARK}
 
