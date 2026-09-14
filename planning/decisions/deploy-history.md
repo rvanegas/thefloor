@@ -1,5 +1,21 @@
 # The deploy history
 
+## 2026-09-14 (third) — `a5bbeb1` → `d5401dd`
+
+One paragraph swap on `/`, at the prompt, after reading the live page.
+
+The page said what it was four times before saying anything — standfirst, *it's
+a group chat but voice*, *a channel is a place you drop into*, *The Floor is
+for talking with people you already know*. Two of those are openers, stacked in
+the wrong order, which made two false starts and buried *It waits for you*.
+They are LISTING.md's own order now: the promise, then the explanation.
+
+**The promotional text is written to stand alone in its own App Store field**,
+so it cannot also open a page that already has a heading and a standfirst. The
+fields are not interchangeable and that is now written down in `landing.ts`.
+
+Health came back on the sha sent, clean.
+
 ## 2026-09-14 (second) — `b2daa24` → `a5bbeb1`
 
 Copy on the served pages, and one email template. No wire change, no shim.
