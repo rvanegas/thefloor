@@ -294,3 +294,95 @@ directory and no strangers, which is most of what that category names — but a
 secondary is a discovery surface rather than a claim, and being findable by
 people looking for a way to talk to their friends is worth more than the
 purity.
+
+---
+
+## Applying it: what is live, what is not, and what nobody can see
+
+**Added 2026-09-14.** Everything above argues the copy and it is argued well;
+what it never said is **which of it has actually been pasted in**. The answer
+is *most of the description and none of the rest*, and the gap had gone
+unrecorded because the lookup API returns the description and nothing else.
+
+Read back from `https://itunes.apple.com/lookup?id=6799628190` on 2026-09-14:
+**version 1.4.0, released 2026-09-08, primary Utilities, secondary Social
+Networking**, name *The Floor Uninterrupted*.
+
+### The description is one revision behind, and the gap is the invite link
+
+The live text is the 2026-09-03 draft, not the 2026-09-07 revision above.
+Seven differences, and **the fifth is the one that costs something**:
+
+1. **Second paragraph** loses *and its recordings* — live says the channel
+   keeps its name; the draft says it keeps its name and its recordings.
+2. **Fourth paragraph** loses the quarter-hour clause. That clause is the
+   reason to trust the paragraph it sits in, and the behaviour shipped.
+3. **Fifth paragraph** ends at *with the screen off*, without *and the phone
+   still in your pocket*.
+4. **Recording paragraph** loses *it is named once for everybody* and the whole
+   of *or delete it — anyone in the channel can, not only whoever started it*.
+5. **The mutual-agreement paragraph has no invite link in it.** Live: *they
+   accepted a request from you, you accepted theirs*. **The link that seats
+   exactly one person shipped in 1.4.0 and the listing does not mention it** —
+   which matters more than the other six together, because § *What changed on
+   2026-09-07* argues it is *the sentence the recommender needs, since what
+   they will actually do is send their link*. The listing is silent about the
+   app's own viral primitive.
+6. **The data paragraph is missing entirely** — *a conversation passes through
+   and is gone*, and the minutes-carried sentence.
+7. **The closing line** is *It is free, there is no advertising, but donations
+   are appreciated*, rather than *it is free, there is no advertising, and it
+   is the same app whether or not you ever chip in*. The live version makes
+   the donation an expectation; the revision makes it explicitly optional,
+   which is what `support.ts` implements.
+
+**So the description above is the one to paste, unchanged.** Nothing in it
+describes anything unshipped, which was checked against the 1.4.0 release notes
+rather than assumed.
+
+### Four fields nobody outside App Store Connect can read
+
+The lookup API returns none of these, so **what is live is unknown and has to
+be read in App Store Connect before it is replaced** — the warning § *Subtitle*
+already gives, now generalised, because it applies to all four.
+
+| Field | Proposed | Length | Limit |
+| --- | --- | --- | --- |
+| Subtitle | Group voice on your own time | 28 | 30 |
+| Promotional text | *see § Promotional text* | 156 | 170 |
+| Keywords | *see § Keywords* | 95 | 100 |
+| What's New | per train | — | 4000 |
+
+**Check the subtitle first and for one specific thing.** If the live subtitle
+already does the categorising — says *voice*, or *group*, or names the
+category — then *Group voice* in the proposal is doing that work twice and the
+description's first line is doing it a third time. That is the one substantive
+decision left in this file and it cannot be made from outside.
+
+**Promotional text is the field to change first regardless**, because it is the
+only one that changes without a review. It is the recommender's sentence, and
+it can be live within the hour.
+
+### The checklist, in order of what it costs
+
+1. **Promotional text.** No review. Do it today.
+2. **Read the live subtitle**, then set it if § *Subtitle* still holds after
+   reading it. Requires a submission.
+3. **Keywords.** Requires a submission. Ninety-five characters, and the bets
+   are `no ring` and `intercom` — planning/MARKETING.md § *Paid* proposes
+   buying the same terms on Apple Search Ads, where what converts feeds back
+   into this field.
+4. **Description**, the full 2026-09-07 text above. Requires a submission.
+5. **The categories, which are in dispute and are the one item here that is
+   not merely outstanding.** Live is primary **Utilities**, secondary **Social
+   Networking**. Rodrigo decided the reverse on 2026-08-27 — primary Social
+   Networking, secondary Utilities — and § *Category* above argues for what is
+   live, on the thesis that this is a tool rather than a place to spend the
+   day. **Both records are confident and they disagree**, so this is a
+   question to ask rather than a change to make. Raise it at the next
+   `bin/submit-ios`; it is app-level rather than version-level, so it does not
+   wait on a submission, but a submission is when anybody is looking.
+
+**Items 2 through 4 ride on the next submission rather than justifying one.**
+None of them is worth a review cycle of its own; all of them should go in the
+moment one is happening anyway.

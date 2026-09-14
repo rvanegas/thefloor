@@ -45,6 +45,24 @@ export function page(options: {
   standfirst: string;
   body: string;
   /**
+   * Extra CSS for a page that is not purely a document, appended to the rules
+   * below rather than replacing them.
+   *
+   * **Added 2026-09-14, for the landing page and for nothing else so far.**
+   * The other three pages here are documents and the shared chrome is the
+   * whole of what they want. `/` is not a document — it is the page a stranger
+   * who has never heard of this lands on, and a wall of undifferentiated
+   * paragraphs is the wrong thing to hand them. The alternative was giving
+   * landing.ts its own chrome, as `/open` and the guest page have; that was
+   * rejected because it would fork the viewport meta and the `color-scheme`
+   * line, which is exactly the drift this module exists to prevent.
+   *
+   * **Keep whatever goes through here additive.** A caller that overrides
+   * `body` or `h1` has reimplemented the chrome through the back door and
+   * should be having the other argument instead.
+   */
+  style?: string;
+  /**
    * Anything else this page needs in `<head>`, verbatim.
    *
    * Deliberately narrow: it exists because a page can have a rule about the
@@ -73,6 +91,7 @@ ${options.head ?? ''}
   .updated { color: #6b7280; margin-top: 0; }
   ul { padding-left: 1.25rem; }
   li { margin: 0.4rem 0; }
+${options.style ?? ''}
 </style>
 </head>
 <body>

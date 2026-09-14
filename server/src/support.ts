@@ -30,9 +30,11 @@ export function supportPage(contactEmail?: string): string {
     heading: 'Support',
     standfirst: 'The Floor · getting help, and how the app works',
     body: `
-<p>The Floor is a small application for talking with people you know: one
-person speaks at a time, by taking the floor, and a conversation lives in a
-channel that stays there between calls.</p>
+<p>The Floor is a small application for talking with people you know. A
+conversation lives in a channel that stays there between calls, and nothing
+about it rings: when somebody wants you, you get an ordinary notification that
+waits its turn. Everyone in a channel can speak; taking the floor is what one
+person does when they need to finish a thought.</p>
 
 <h2>Getting in touch</h2>
 <p><strong>Write to ${contact}.</strong> It is read by a person. There is no
