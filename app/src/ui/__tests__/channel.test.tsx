@@ -955,7 +955,7 @@ describe('Channel', () => {
       />);
     showPlayer(tree);
 
-    const share = findButton(tree, 'Share track')!;
+    const share = findExactButton(tree, 'Share')!;
     expect(share.props.accessibilityState.disabled).toBe(false);
 
     const { shareTrack } = require('../../api/download');
@@ -2587,8 +2587,8 @@ describe('Channel', () => {
     showRecordings(tree);
 
     // Share, Rename and Delete rather than Play, which is also the name of
-    // the shared audio control further up the screen — and 'Share track' is
-    // that card's too.
+    // the shared audio control further up the screen — and 'Share' is that
+    // card's own button too.
     for (const label of ['Share', 'Rename', 'Delete']) {
       expect(findExactButton(tree, label)).toBeUndefined();
     }

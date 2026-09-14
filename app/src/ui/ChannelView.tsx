@@ -2320,7 +2320,7 @@ export function ChannelView({
 
               <View style={styles.buttonRow}>
                 <Button
-                  label={upload ? uploadingLabel(upload.percent) : 'Change track'}
+                  label={upload ? uploadingLabel(upload.percent) : 'Change'}
                   style={styles.flexButton}
                   disabled={!mayLoadTrack || uploading}
                   onPress={loadTrack}
@@ -2335,14 +2335,13 @@ export function ChannelView({
                   would change the room.
                 */}
                 <Button
-                  label={trackSharing ? 'Preparing…' : 'Share track'}
+                  label={trackSharing ? 'Preparing…' : 'Share'}
                   style={styles.flexButton}
                   disabled={trackSharing}
                   onPress={takeTrack}
                 />
                 <Button
                   label="Remove"
-                  variant="ghost"
                   style={styles.flexButton}
                   disabled={!mayControlPlayback}
                   onPress={() => act({ type: 'CLEAR_TRACK' })}

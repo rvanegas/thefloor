@@ -1007,8 +1007,8 @@ year out of date.
 
 Handing a copy of something to whatever else is on the device: a *recording*, a
 *transcript*, or the track the channel is listening to. One verb, three
-buttons — `Share`, `Share` and `Share track` — and on a phone all three end at
-the system share sheet.
+buttons, all three labelled `Share` — and on a phone all three end at the
+system share sheet.
 
 **It was called *Export* until 2026-09-12**, which said what the file did and
 not what the person was doing with it. Nothing about the mechanism changed with

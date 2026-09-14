@@ -504,10 +504,11 @@ export function showTab(tree: ReactTestRenderer, label: string): void {
  * The button whose label is *exactly* this, where a substring catches another.
  *
  * `Share` is the case that forced it, when the recordings list stopped saying
- * `Export`: a channel screen carries `Share a guest link` and `Share track`
- * beside it, so a substring search for the row's own button finds one of those
- * instead — and an assertion that the row is closed passes or fails on a
- * control at the other end of the screen.
+ * `Export`: a channel screen carries `Share a guest link` beside it, so a
+ * substring search for the row's own button finds that instead — and an
+ * assertion that the row is closed passes or fails on a control at the other
+ * end of the screen. The player's own button is now `Share` exactly, so an
+ * exact search only disambiguates while that card is off screen.
  */
 export function findExactButton(
   tree: ReactTestRenderer,
