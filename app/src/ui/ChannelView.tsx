@@ -248,7 +248,12 @@ export function ChannelView({
    * cannot drift apart.
    *
    * `canPing` is the reachability half: not yourself, and not somebody who can
-   * hear you. The contact list is the authorization half, and it is not in
+   * hear you — and, since 2026-09-14, your own standing at this channel, since
+   * a ping comes from the room or from beside it. A reader who has stepped out
+   * gets no ping button anywhere on this screen, which is why that rung lives
+   * in `core/` alongside the rest rather than being drawn here.
+   *
+   * The contact list is the authorization half, and it is not in
    * `core/` because `ChannelState` has no idea who knows whom — a channel
    * holds people a mutual friend brought in, and being in the room together is
    * not permission to put a notification on somebody's lock screen. The server
@@ -3533,12 +3538,15 @@ function ParticipantCard({
       setPinged(true);
     } catch {
       // Left to correct itself rather than reported on a card with no room for
-      // a sentence. Two of the three refusals the server can give are already
+      // a sentence. Three of the four refusals the server can give are already
       // on their way here as state: they walked in, and the card stops being
       // nearby; or somebody pinged them a moment ago, and the next snapshot
-      // brings the window that disables this button and says "Pinged".
+      // brings the window that disables this button and says "Pinged"; or the
+      // reader themselves has stopped being present or nearby, which is a tap
+      // they just made and whose snapshot takes every ping button on the
+      // screen away.
       //
-      // The third — they are not a contact — is the one that explains itself
+      // The last — they are not a contact — is the one that explains itself
       // to nobody, since the card stays nearby and the window is untouched. It
       // is unreachable from a build that has `mayPing`, which does not draw
       // the button at all; what can produce it is a screen whose contact list

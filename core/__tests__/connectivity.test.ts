@@ -273,6 +273,25 @@ describe('calling somebody back', () => {
     expect(canPing(state, A, B)).toBe(true);
   });
 
+  /**
+   * The sender's own standing, since 2026-09-14. Everything above asks whether
+   * the person being called can hear you; this asks whether you are anywhere
+   * near the room you are calling them to. Stepped out is away — a summons
+   * from there is to a conversation the sender is not at either.
+   */
+  it('is refused from somebody who has stepped out themselves', () => {
+    let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    state = reduce(state, { type: 'STEP_OUT', userId: A }, T0 + 1_000);
+    expect(canPing(state, A, B)).toBe(false);
+  });
+
+  it('is allowed from beside the room, nearby being at it', () => {
+    let state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
+    state = reduce(state, { type: 'DECLARE_NEARBY', userId: A }, T0 + 1_000);
+    expect(isPresent(state, A)).toBe(false);
+    expect(canPing(state, A, B)).toBe(true);
+  });
+
   it('is never a thing you do to yourself, or to a stranger', () => {
     const state = reduce(joined(), { type: 'DISCONNECTED', userId: B }, T0);
     expect(canPing(state, B, B)).toBe(false);

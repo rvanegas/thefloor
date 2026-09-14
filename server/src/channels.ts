@@ -3381,6 +3381,12 @@ export class ChannelRegistry {
    * anyone present, so a ping arriving for one is a stale screen rather than an
    * intention. Refusing it agrees with the button that is not there.
    *
+   * **And from the room or beside it, since 2026-09-14.** The sender has to be
+   * present or nearby: summoning somebody to a channel you have yourself
+   * stepped out of is asking for a conversation you are not at. `canPing`
+   * carries the rule, so the app draws no button either; the rung below it
+   * here exists only so the refusal says which tap fixes it.
+   *
    * **Contacts only**, which is a different kind of guard from the rest and is
    * why it sits where it does. Pinging is something contacts do to each other,
    * not something co-participants do: a channel holds people a mutual friend
@@ -3442,6 +3448,19 @@ export class ChannelRegistry {
     // somebody who is not there.
     if (!this.accounts.areContacts(senderId, targetId)) {
       return { ok: false, error: 'Not a contact.', code: 'forbidden' };
+    }
+    // Your own standing, which `canPing` also asks and which is given its own
+    // rung here for the sentence's sake: the one below says "They are already
+    // here.", which is a nonsense answer to somebody who is the one not here.
+    // Present or nearby — calling a person back to a room you have walked away
+    // from is the summons this refuses. The wording names the two taps that
+    // fix it, both of which are one tap away on the screen that asked.
+    if (!isPresent(channel, senderId) && !isWaiting(channel, senderId)) {
+      return {
+        ok: false,
+        error: 'Step in or be nearby to ping.',
+        code: 'conflict',
+      };
     }
     // Reachability rather than presence — somebody inside the disconnect grace
     // is counted present and cannot hear a word of it. See `canPing`.

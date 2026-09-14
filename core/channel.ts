@@ -1122,6 +1122,20 @@ export function canClearClip(state: ChannelState, userId: UserId): boolean {
  * hearing from them. Being wrong costs a notification to somebody sitting in
  * the room with a flapping socket, once per PING_INTERVAL_MS.
  *
+ * **And it asks the same question of the sender, since 2026-09-14: calling
+ * somebody back is something you do from the room or from beside it.** Present
+ * or nearby, which are the two rungs of the ladder that are still at this
+ * channel — a member who is stepped out has left, and a phone that has left
+ * has no standing to put a notification on somebody's lock screen about a room
+ * neither of them is at. The case it refuses is somebody scrolling a channel
+ * they walked away from an hour ago and summoning a person to a conversation
+ * that is not happening; the way to get it back is the same tap that makes the
+ * summons honest, *Be nearby* or *Step in*, and the arrival that goes with it
+ * is often the whole of what the ping was for. Nearby counts rather than
+ * merely presence because standing beside a room is exactly the state the
+ * ping-rather-than-give-up rule was written for — see GLOSSARY.md § *Nearby /
+ * Stepped out*.
+ *
  * **This is not the whole of whether you may ping somebody, and the name is
  * broader than the function.** It is the reachability half. The other half is
  * authorization — you may ping a contact, and being in the same channel as
@@ -1140,6 +1154,7 @@ export function canPing(
     senderId !== targetId &&
     isParticipant(state, senderId) &&
     isParticipant(state, targetId) &&
+    (isPresent(state, senderId) || isWaiting(state, senderId)) &&
     (!isPresent(state, targetId) || targetId in state.disconnectedAt)
   );
 }

@@ -61,7 +61,7 @@ caused; the list carries the meaning.
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
-- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; its words stay on their profile card while the window is open
+- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
@@ -854,6 +854,16 @@ connection has dropped, telling them somebody wants them. Rate-limited per
 person per channel, so somebody who has just been pinged cannot be pinged again
 immediately. You may ping a contact; being in the same channel as somebody is
 not enough.
+
+**Sent from the room or from beside it, since 2026-09-14.** The sender has to
+be *present* in the channel or *nearby* in it — the two rungs of the ladder that
+are still at it. Somebody who has stepped out is away, and a summons from there
+calls a person to a conversation the sender is not at either; the button is not
+drawn, and the server answers *Step in or be nearby to ping.*, which names the
+two taps that give it back. `canPing` in `core/channel.ts` carries both halves
+of the condition — the sender's standing and the target being out of earshot —
+and the contact check stays on the server, which is the only layer that knows
+who knows whom.
 
 **Its words outlive the notification, on the profile card.** For as long as the
 window is open, anybody in the channel who opens that person's profile sees

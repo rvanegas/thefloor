@@ -792,6 +792,42 @@ describe('who is in the channel, and who is talking', () => {
   });
 
   /**
+   * The same card, from a reader who has walked away, since 2026-09-14.
+   *
+   * A ping comes from the room or from beside it: the person calling has to be
+   * present or nearby themselves, since otherwise they are summoning somebody
+   * to a conversation they are not at. So the card still says *Nearby* — that
+   * is a fact about the other person and is unchanged — and the button is
+   * gone. `canPing` is where that rung lives, which is why it takes the button
+   * off both surfaces at once.
+   */
+  it('offers no ping to a reader who has stepped out themselves', () => {
+    knowing(THEM);
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        const out = NOW + DISCONNECT_GRACE_MS + 1;
+        const gone = reduce(dropped, { type: 'TICK' }, out);
+        return reduce(gone, { type: 'STEP_OUT', userId: ME }, out + 1);
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Nearby');
+    expect(findButton(tree, 'Ping')).toBeUndefined();
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
    * The composer, reached the way somebody actually reaches it — through the
    * roster card rather than by rendering `ProfileView` with an `onPing` handed
    * to it. Whether that handler is supplied at all is this screen's decision,

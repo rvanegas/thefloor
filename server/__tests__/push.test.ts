@@ -1266,6 +1266,55 @@ describe('a ping', () => {
     expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
   });
 
+  /**
+   * The other end of the same rule, from 2026-09-14: a ping comes from the
+   * room or from beside it. Alice scrolling a channel she left an hour ago
+   * has no standing to call Bob back to it — she would not be there when he
+   * arrived. The wording names the two taps that give it back, both of which
+   * are on the screen she is looking at.
+   */
+  it('refuses a sender who has stepped out themselves', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    await settle();
+    pusher.sent.length = 0;
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.json().error).toBe('Step in or be nearby to ping.');
+    expect(pusher.messagesFor('bob-phone')).toEqual([]);
+  });
+
+  /**
+   * And nearby is standing at the room rather than away from it, which is the
+   * rung *ping rather than give up* was written for: somebody who has declared
+   * themselves a notification away is exactly who should be calling.
+   */
+  it('allows a sender who is nearby', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'DECLARE_NEARBY',
+    });
+    await settle();
+    const state = app.channels.get(channelId)!;
+    expect(state.present).not.toContain(alice.account.id);
+    expect(state.waiting).toContain(alice.account.id);
+    pusher.sent.length = 0;
+
+    const reply = await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+    });
+    await settle();
+
+    expect(reply.statusCode).toBe(200);
+    expect(pusher.messagesFor('bob-phone')).toHaveLength(1);
+  });
+
   it('refuses somebody who is not in the channel', async () => {
     const { alice, channelId } = await bobStepsOut();
     const carol = await signIn('carol@example.com', 'Carol');
