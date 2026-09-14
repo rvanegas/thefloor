@@ -1,0 +1,73 @@
+1. SCREEN RECORDING AND DEVICES
+None attached; section 3 walks it. No purchases, no tracking, no ATT
+prompt. iPhone is portrait; iPad takes all four orientations.
+
+2. WHAT IT DOES
+Voice conversation between people who know each other. A channel holds up to
+six and outlasts a conversation; anyone present may claim "the floor",
+withholding every other microphone for a minute. New: Nearby, a middle state
+holding no microphone and no audio, offering a step in when somebody arrives; a channel screen in tabs; a per-channel "Record automatically"; a
+Support list on Home carrying Help, a question box; and a getting-started
+checklist.
+
+3. GETTING IN AND REACHING FEATURES
+No passwords; a code is emailed. This account has a fixed
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+
+The account holds a contact, Sam Rivera, and three channels; "Weekly Convo"
+holds a recording, "Short Sample".
+
+Home switches between Channels, Contacts and Support. Open "Weekly Convo".
+The bar at the bottom is the controls: Mute, Claim, and the rungs In, Nearby
+and Out. Stepping in prompts for the microphone. Tapping somebody in the
+roster opens their profile, which carries "Mute them" above Ping.
+
+The tabs across the top are the rest. Notepad is plain text behind an Edit,
+with the shared clipboard above it. Invite holds the two ways in - a contact,
+and "Share a guest link". Player plays an audio file from this phone.
+Recordings holds Record/Stop, and Rename, Play, Share and Delete per row.
+"Record automatically" is in the channel's Settings, in the header.
+
+Settings > Labs > "Show experimental features" reveals Transcribe on a
+recording's row and a Watch tab (section 6).
+
+NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
+unavailable while alone; Nearby lapses after fifteen minutes and the rung
+restarts it; stepping into one channel leaves you Nearby in the others; a
+channel recording automatically starts one run per sitting, so Stop is final
+until the room empties; "Mute them" goes once that person is muted, only they
+can open their microphone again.
+
+4. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted by us) for audio and recordings; S3 stores
+them; SES for sign-in codes; APNs; Ko-fi for donations; AssemblyAI, sent only
+a recording somebody asked to have transcribed, reachable only with Labs on.
+No third-party sign-in, payment processor or advertising.
+
+5. REGIONAL DIFFERENCES
+The Support screen's Ko-fi link appears only in the US storefront (3.1.1(a)). Voluntary, unlocks nothing; the app is free.
+
+6. THIRD-PARTY MATERIAL AND WATCH PARTIES
+A member may play their own audio file in; any member can delete any
+recording. A watch party is behind Labs and carries no video: this app
+never fetches, decodes, stores or shows a frame, it shares a position and a
+clock. "Watch on another screen" mints a link to a page where YouTube's own
+IFrame player plays it unmodified, unobscured, with its own controls.
+
+GUIDELINE 1.2: no discovery and no directory - nothing can be browsed and
+nobody found. A username names an invite link and is not a search term; new
+accounts are given one derived from their address, editable. A link is minted
+by its owner and seats one person. The field taking an email
+address does not search: it sends a request there and returns nothing,
+disclosing not even whether an account exists. Contacts need both sides to
+accept, only a contact can be added to a channel, an address appears on a
+profile only if that person chose to show it, and Ping is for contacts only.
+
+Guest links are the one way someone without an account takes part: a visitor
+knocks under a typed name and a member admits them. Any member can withdraw a
+guest's microphone or remove them, revoking their link, and every guest goes
+when the last member steps out. Recording happens only by a tap or by the
+channel's setting, and its indicator shows to everybody, guests included.
+
+PLEASE TEST ACCOUNT DELETION LAST - it is immediate and leaves a working,
+empty app.

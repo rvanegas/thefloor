@@ -1,0 +1,29 @@
+Nearby is a state you can now choose. The bar at the bottom of a channel has three buttons, In, Nearby and Out, beside Mute and Claim. Nearby opens no microphone and plays no sound, but when somebody steps into the channel you are told who it is and offered Step in or Stay nearby. You can be nearby in up to five channels at once, and Home shows which ones. Stepping into one channel leaves you nearby in the rest. Nearby lasts fifteen minutes; tap it again to start it over.
+
+Stepping into a channel now stops whatever else your phone is playing, so that you hear anybody who speaks. Choose Nearby instead to stay within reach without that.
+
+A channel now has tabs: Roster, Notepad, Invite, Player and Recordings. Home, Settings and the recording indicator sit above them. The indicator stays on screen whichever tab you are on, and shows that a recording is running and how long it has been going.
+
+Record automatically is a new switch in a channel's Settings. With it on, the channel starts recording by itself. Stop still stops it.
+
+Notepad is a plain text note for the channel. Tap Edit to write in it. The shared clipboard is on the same tab, above it.
+
+The Player's buttons are Change, Share and Remove. Share saves a copy of the track to your phone. Export is called Share everywhere now, including on recordings.
+
+Home has three lists: Channels, Contacts and Support. Help and Chip in are on Support. Help lets you write a question, and the answer appears under it the next time you open the screen.
+
+A getting-started list appears on Home: Get somebody here, Step in with somebody, Claim the floor, Say you are nearby, Bring in a guest, Play something together. Tapping one takes you to where it is done, and the cross beside it takes it off the list.
+
+The app explains what notifications are for before iOS asks for them, and it asks later than it used to instead of just after you sign up. There is a new one: you are told when somebody accepts your invitation or your contact request.
+
+When somebody pings you, what they wrote is shown on their profile for as long as the ping lasts.
+
+New accounts are given a name and a username made from the email address used to sign in. You can change both.
+
+Add a contact offers both ways on one screen: send a request to an email address, or share an invite link. The link goes through the usual share sheet.
+
+The floor's countdown is now on the person. Whoever holds it has their minute counting down on their row, and your own row shows how long before you can claim it again.
+
+If somebody speaks while the floor is claimed you can see that they are talking, even though you cannot hear them.
+
+The setting "Hide the repeated channel controls" is gone, and so are the cards it hid. The buttons at the bottom of the screen are the only place those controls appear.
