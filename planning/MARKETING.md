@@ -28,8 +28,9 @@ rather than invented here.
   top of it; the listing is the middle.
 - **The funnel, level by level** — the thirteen levels, what each one loses
   people to, and which of them are even visible today.
-- **Measurement, which is now a choice** — what first-party analytics can
-  buy, what third-party would cost, and where the line should sit.
+- **Measurement, which is now a choice** — what `bin/growth` already answers,
+  what is still unmeasured, what first-party analytics can buy, and what
+  third-party would cost.
 - **Paid, since it is on the table** — what money can and cannot buy here,
   ranked, with the kill rule.
 - **Organic, ranked** — where the effort actually goes.
@@ -291,21 +292,54 @@ the listing links to it.
 4. **Invite pin redemptions**, which are level 12 exactly, recorded because the
    feature needs them to be.
 
-*Direction.* **`bin/growth`, in the mould of `bin/usage`** — queries run from
-outside the application, on the same reasoning `usage.ts` gives for keeping the
-figures out of the app's reach: *a figure the application can see is a figure
-the application will eventually decide something with*. **That rule should
-survive the policy change**, since it is about product integrity rather than
-privacy — it is what stops a growth number becoming a re-engagement
-notification, which is the one thing the proposition forbids outright.
+**Corrected 2026-09-14.** This section originally proposed writing
+`bin/growth`. **It already existed**, since 2026-09-10, and is 33 KB of
+carefully argued shell — the proposal was made without looking in `bin/`, and
+what was proposed was thinner than what is there.
 
-It should report the funnel above, level by level, plus:
+### What `bin/growth` actually does, which is the referral half
 
-- **Mutual pairs per account** as a distribution rather than a mean, since the
-  shape that matters is how many accounts sit at zero and how many at three or
-  more.
-- **Second-week retention of groups**, not of accounts.
-- **Ping-to-arrival rate**, the leading indicator for level 10.
+It answers *where the people here came from*, on two graphs that deliberately
+do not have to agree:
+
+- **The invitation forest.** Every account has at most one inviter, written
+  once and never moved, so depth in that forest classifies everybody:
+  **alone** (depth 0), **first circle** (depth 1, invited by a root) and
+  **onward** (depth 2+, invited by somebody who was themselves invited).
+  **The third class is the one that matters** — its own header says it: *first
+  circle can be bought with effort, onward cannot.*
+- **The islands**, connected components of the accepted-contacts graph. Not
+  the forest: somebody can be invited, arrive, and accept no contact at all,
+  and two people who each arrived alone can end up on one island. `roots_on_it`
+  is written as a premise being tested rather than a fact, and on this box it
+  already fails — which is the network working.
+
+Seven reports: `classes`, `weeks`, `months`, `depth`, `roots`, `islands`,
+`defects`. Read-only, run from outside the application, exactly the discipline
+`usage.ts` argues for. **It serves level 12 of § *The funnel* completely, and
+levels 4 and 5 obliquely** — islands are a better answer than the
+pairs-per-account distribution this file originally asked for.
+
+**And it states its own limits**, which are worth repeating because they bound
+every claim below: not installs (the box hears about somebody at sign-in, and
+nothing joins that to App Store Connect), not guests (no account, no class),
+and erased accounts and the two App Review accounts are excluded throughout.
+
+### What is still not measured, which is the group half
+
+**Levels 6 through 11 — every channel and every conversation.** Nothing reports
+a channel created, a conversation held, a ping sent or a ping answered over
+time. `bin/live` is the present moment rather than a history, and `bin/usage`
+is minutes and bytes as capacity instrumentation. **So the conversion at level
+10 is currently unmeasurable**, and so is the leading indicator at level 9.
+
+*Direction.* **A second set of reports on the same pattern**, in `bin/growth`
+or beside it, over channels rather than accounts: channels by member count,
+conversations per channel per week, ping-sent against ping-answered, and
+second-week retention of groups rather than of accounts. Plus **the one
+client-side addition worth making**, the notification permission outcome at
+level 3. `bin/growth` is the model to copy — the vocabulary declared once as
+temp views, each report being the question it asks.
 
 **Installs are deliberately not at the top of that report.** They are in App
 Store Connect, they are level 2 of thirteen, and putting them beside the right
@@ -357,11 +391,27 @@ because a leaky funnel does not get fixed by putting more in at the top.
 
 **Small, sequential, and with the kill rule written before the money goes
 in**, because the measurement is thin enough that a large parallel test cannot
-be read afterwards. One channel at a time. A fixed budget per test, decided in
-advance. And the stopping condition stated up front in terms of the right
-metric — *groups formed*, read from `bin/growth`, against the same window
-before the test — rather than in terms of installs, which will look fine and
-mean nothing.
+be read afterwards. One channel at a time, and a fixed budget per test decided
+in advance.
+
+**And `bin/growth` already says what the kill rule has to be.** Its own header
+makes the point this file would otherwise have had to discover: *depth 0 is not
+a claim about how somebody got here* — word of mouth, a passed-on link, a store
+listing found by accident and a paid campaign all land in **alone**,
+indistinguishable — so **a campaign will swell that class without a single
+thing here having spread.**
+
+Which gives the rule exactly: **judge a campaign by what grows underneath the
+roots it bought, not by the roots.** First circle and onward, in the `weeks`
+and `roots` reports, over the weeks *after* the spend. A campaign that adds
+forty to *alone* and nothing to the two classes below has bought forty trees of
+one, which is the scattered-install failure made visible for once. Installs
+will look fine throughout and mean nothing.
+
+**The lag is part of the rule and has to be budgeted for.** Recruiting the
+second and third person is level 5 and is slower than arriving; a read taken
+the week the spend ends is taken before the only number that matters has had
+time to move.
 
 **Expect the first read to be ambiguous**, because the volumes involved are
 small enough that ordinary variation will swamp the effect. That is not a
@@ -467,11 +517,13 @@ What to do, in order, and what each is waiting on.
    outstanding is the subtitle, promotional text and keywords, none of which
    can be read back from the public lookup API. Needs App Store Connect, not a
    deploy.
-3. **Write `bin/growth`, and instrument level 3.** Everything after this is
-   unreadable without it. Most of it is queries over tables that already
-   exist; the one genuine addition is the notification permission outcome,
-   which is a field rather than a pipeline. **Amend `/privacy` in the same
-   commit** — the page is a live public claim and the listing links to it.
+3. **Extend `bin/growth` to the group half, and instrument level 3.**
+   `bin/growth` exists and covers arrivals and the contact graph; what nothing
+   reports is channels and conversations over time, which is where the
+   conversion at level 10 lives. Queries over tables that already exist. The
+   one genuine addition is the notification permission outcome, a field rather
+   than a pipeline — **amend `/privacy` in the same commit**, since the page is
+   a live public claim and the listing links to it.
 4. **Get the rest of the imagery into the repository.** Two landing-page
    screenshots landed on 2026-09-14; the App Store set is on a desktop and
    nothing composed exists at all. Blocks nothing above it and everything
