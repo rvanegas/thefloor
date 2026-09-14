@@ -325,21 +325,48 @@ every claim below: not installs (the box hears about somebody at sign-in, and
 nothing joins that to App Store Connect), not guests (no account, no class),
 and erased accounts and the two App Review accounts are excluded throughout.
 
-### What is still not measured, which is the group half
+### The group half, added 2026-09-14
 
-**Levels 6 through 11 — every channel and every conversation.** Nothing reports
-a channel created, a conversation held, a ping sent or a ping answered over
-time. `bin/live` is the present moment rather than a history, and `bin/usage`
-is minutes and bytes as capacity instrumentation. **So the conversion at level
-10 is currently unmeasurable**, and so is the leading indicator at level 9.
+`bin/growth` gained four reports, on the same pattern: the vocabulary declared
+once as temp views, each report being the question it asks.
 
-*Direction.* **A second set of reports on the same pattern**, in `bin/growth`
-or beside it, over channels rather than accounts: channels by member count,
-conversations per channel per week, ping-sent against ping-answered, and
-second-week retention of groups rather than of accounts. Plus **the one
-client-side addition worth making**, the notification permission outcome at
-level 3. `bin/growth` is the model to copy — the vocabulary declared once as
-temp views, each report being the question it asks.
+- **`pairs`** — mutual contacts per person as a distribution rather than a
+  mean, which is levels 4 and 5. The mean would hide the thing worth knowing:
+  an average of four is compatible with half of everybody having none.
+- **`channels`** — rooms by how many people are in them, and made per month.
+  Level 6, and full history, since channels are not swept.
+- **`talking`** — two people in a room together, by week. Levels 7 and 11.
+- **`groups`** — rooms used on more than one day. **This is level 10, the
+  conversion**, and the reason the other three are there.
+
+**The memory is thirty days and that bounds two of the four.** The only durable
+trace of a conversation anywhere in the box is a `pair` span in `usage_spans`,
+swept at `USAGE_RETENTION_MS`. So `talking` and `groups` are a window rather
+than a history — **a group that meets monthly cannot show two days inside it**
+and reads as one that did not convert. Which makes a low number ambiguous and a
+high number trustworthy, the right way round for a figure nobody should be able
+to talk themselves into.
+
+### What is still not measured
+
+**Levels 8 and 9 — the ping sent, and the ping answered.** `lastPingedAt` in
+`channels.ts` is an in-memory Map for rate limiting; nothing writes a ping to
+disk. So the moment somebody asks for company, and the moment it works, are
+both invisible — and § *The three levels worth all the attention* names the
+second as one of the three leakiest points in the whole funnel. **There is
+nothing to query: measuring it means instrumenting it first.**
+
+**Level 3, whether notifications are allowed.** The box knows a device token
+exists, not whether the permission the product runs on was ever granted.
+
+**And guests are invisible throughout.** No account, so no contact edge and no
+`pair` span: a member and four guests talking for an hour leave nothing in any
+report.
+
+*Direction.* Two small pieces of instrumentation, in the order they matter — a
+durable record of a ping and of somebody arriving after one, and the
+notification permission outcome as a field on an existing request rather than a
+pipeline. **Amend `/privacy` in the same commit as either.**
 
 **Installs are deliberately not at the top of that report.** They are in App
 Store Connect, they are level 2 of thirteen, and putting them beside the right
@@ -517,13 +544,13 @@ What to do, in order, and what each is waiting on.
    outstanding is the subtitle, promotional text and keywords, none of which
    can be read back from the public lookup API. Needs App Store Connect, not a
    deploy.
-3. **Extend `bin/growth` to the group half, and instrument level 3.**
-   `bin/growth` exists and covers arrivals and the contact graph; what nothing
-   reports is channels and conversations over time, which is where the
-   conversion at level 10 lives. Queries over tables that already exist. The
-   one genuine addition is the notification permission outcome, a field rather
-   than a pipeline — **amend `/privacy` in the same commit**, since the page is
-   a live public claim and the listing links to it.
+3. **Instrument the ping, and the notification permission.** `bin/growth`
+   now covers arrivals, the contact graph, channels and the conversion at
+   level 10 — done 2026-09-14. What is left are the two things no table holds:
+   a ping and its answer, which is the leakiest point in the funnel, and
+   whether the permission was ever granted. Both are small. **Amend `/privacy`
+   in the same commit as either**, since the page is a live public claim and
+   the listing links to it.
 4. **Get the rest of the imagery into the repository.** Two landing-page
    screenshots landed on 2026-09-14; the App Store set is on a desktop and
    nothing composed exists at all. Blocks nothing above it and everything

@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Where the people here came from: who arrived on their own, who one of them
-# brought, and who arrived further down the chain — over time.
+# Where the people here came from — who arrived on their own, who one of them
+# brought, and who arrived further down the chain — and what they did once
+# they were here.
 #
 #   bin/growth                 every report, against the deployed server
 #   bin/growth classes         one report
@@ -86,6 +87,41 @@
 # alone are on one island of nineteen. That is the network working, not a
 # defect — but it means an island is not a root's tree and a report that
 # assumed it was would be wrong.
+#
+# ── The rooms, added 2026-09-14 ─────────────────────────────────────────────
+#
+# The reports above answer where people came from. Four more answer what
+# happened next, because planning/MARKETING.md wanted a funnel and this script
+# only had the top and the bottom of it: `pairs`, `channels`, `talking` and
+# `groups`.
+#
+# **`groups` is the one that matters.** A group is a channel that had a
+# conversation and then had another one on a different day — one is a trial,
+# the second is a habit starting — and it is the conversion this whole project
+# is for. Everything else here is a denominator for it.
+#
+# **The memory is thirty days, and that is the thing to hold on to.** Channels
+# are not swept, so `channels` is full history; but the only durable trace of a
+# conversation anywhere in this box is a `pair` span in `usage_spans`, and
+# those are swept at USAGE_RETENTION_MS. So `talking` and `groups` are a
+# window. **A group that meets monthly cannot show two days inside it** and
+# reads here as a group that did not convert — which makes a low number
+# ambiguous and a high number trustworthy, the right way round for a figure
+# nobody should be able to talk themselves into.
+#
+# ── What still cannot be measured, and why it is not a to-do here ───────────
+#
+#   * **The ping, sent or answered.** `lastPingedAt` in channels.ts is an
+#     in-memory Map for rate limiting and nothing writes a ping to disk. So the
+#     step where somebody asks for company, and the step where it works, are
+#     both invisible — and MARKETING.md names the second of those as one of the
+#     three leakiest points in the funnel. Measuring it means instrumenting it
+#     first; there is nothing here to query.
+#   * **Whether notifications are allowed.** The box knows a device token
+#     exists, not whether the person ever granted the permission the whole
+#     product runs on.
+#   * **Guests.** No account, so no contact edge and no `pair` span. A member
+#     and four guests talking for an hour leave nothing in any report here.
 #
 # ── What these numbers are not ──────────────────────────────────────────────
 #
@@ -219,6 +255,90 @@ CREATE TEMP VIEW island AS
     SELECT r.seed, l.y FROM reach r JOIN link l ON l.x = r.node
   )
   SELECT seed AS id, MIN(node) AS island FROM reach GROUP BY seed;
+
+-- ── The rooms, which are the other half of this script ──────────────────────
+
+-- One row per member of a channel that still exists, restricted to people who
+-- count. `participants` is a JSON array of account ids, so this needs json1 —
+-- present in every SQLite this runs against, and the failure if it ever is not
+-- is a plain `no such function: json_each` rather than a wrong number.
+--
+-- **Deleted channels are out and ended ones are in.** `deleted_at` is somebody
+-- deciding the channel should not exist; `ended_at` predates deletion existing
+-- and is set on rows nobody deleted, so excluding those would drop most of the
+-- early history for a reason that no longer means anything.
+--
+-- Rows that predate `participants` have none, and are absent rather than
+-- counted as empty.
+CREATE TEMP VIEW membership AS
+  SELECT c.id AS channel_id, j.value AS account_id
+    FROM channels c, json_each(c.participants) j
+   WHERE c.deleted_at IS NULL
+     AND c.participants IS NOT NULL;
+
+-- One row per channel, with how many of its members are people who count.
+--
+-- **This is current membership, and `together` below is history.** The two
+-- disagree whenever somebody has left a channel they used to talk in, and a
+-- row reading `members = 1` with several days against it in the `groups`
+-- report is that, not a defect — one person stayed and the other went. The
+-- number is what the channel is now, which is the right answer for the size
+-- reports and the wrong one to read backwards.
+--
+-- **Reviewers and tombstones are not counted, and the channel is not dropped
+-- for holding one.** A channel of one real person and one App Review account
+-- reads as `members = 1`, which is the honest number: there is one person in
+-- it. A channel of reviewers alone reads as 0 and is excluded below, which is
+-- the whole reason the count is a join rather than `json_array_length`.
+CREATE TEMP VIEW room AS
+  SELECT c.id, c.created_at, c.name, c.ended_at,
+         (SELECT COUNT(*)
+            FROM membership m JOIN person p ON p.id = m.account_id
+           WHERE m.channel_id = c.id) AS members
+    FROM channels c
+   WHERE c.deleted_at IS NULL
+     AND c.participants IS NOT NULL;
+
+-- Every span of two people being in the same channel at once.
+--
+-- **This is the only durable trace of a conversation anywhere in the box**, and
+-- it carries three limits that every report using it inherits:
+--
+--   * **Thirty days and no more.** `usage_spans` is swept at
+--     USAGE_RETENTION_MS, so this is a window and not a history. A report over
+--     it cannot say anything about a month ago, and the first row is the edge
+--     of the sweep rather than the start of anything.
+--   * **Present, not audible.** A `pair` span is two people in the same
+--     channel at the same time. Two people sitting there saying nothing are a
+--     pair span, and a channel one person talks into alone is not.
+--   * **Accounts only.** A guest has no account, so a member and a guest
+--     talking for an hour produce no row here at all.
+--
+-- Both ends restricted to `person`, so a conversation with a reviewer is not
+-- one of these.
+CREATE TEMP VIEW together AS
+  SELECT s.channel_id,
+         s.account_id, s.peer_id,
+         s.started_at, s.ended_at,
+         date(s.started_at / 1000, 'unixepoch') AS day
+    FROM usage_spans s
+    JOIN person a ON a.id = s.account_id
+    JOIN person b ON b.id = s.peer_id
+   WHERE s.kind = 'pair';
+
+-- The same spans with one row per end, so that counting people is a
+-- `COUNT(DISTINCT)` rather than a sum of two of them.
+--
+-- **Adding the two distinct counts is wrong and was wrong here first.**
+-- `pairKey` orders a pair, so which side somebody lands on depends on the id
+-- of whoever they were with — one person is an `account_id` in one span and a
+-- `peer_id` in the next, and gets counted twice by anything that adds the two
+-- columns. `UNION ALL` here and `DISTINCT` at the point of counting is the
+-- shape that cannot make that mistake.
+CREATE TEMP VIEW together_end AS
+  SELECT channel_id, day, started_at, account_id AS id FROM together
+  UNION ALL
+  SELECT channel_id, day, started_at, peer_id FROM together;
 SQL
 }
 
@@ -637,7 +757,142 @@ SELECT COUNT(*) AS invited_by_a_tombstone
 SQL
 }
 
-report_names=(classes weeks months depth roots islands defects)
+report_pairs() {
+  cat <<'SQL'
+.print ''
+.print '── Mutual contacts per person ──────────────────────────────────'
+.print ''
+-- **The distribution, not the mean**, and that is the whole point of the
+-- report. The proposition says this app needs three to five specific people
+-- somebody already knows, so what matters is how many accounts sit below that
+-- and how many are above it. An average of four is compatible with half of
+-- everybody having none.
+--
+-- `none` is the number with nothing: the population for whom this app does not
+-- yet do anything at all, whatever else is true of the week.
+SELECT CASE WHEN n = 0 THEN '0 none'
+            WHEN n = 1 THEN '1 one'
+            WHEN n = 2 THEN '2 two'
+            WHEN n <= 5 THEN '3 three to five'
+            ELSE '4 six or more' END AS contacts,
+       COUNT(*) AS people,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct
+  FROM (SELECT p.id, (SELECT COUNT(*) FROM link l WHERE l.x = p.id) AS n
+          FROM person p)
+ GROUP BY contacts
+ ORDER BY contacts;
+SQL
+}
+
+report_channels() {
+  cat <<'SQL'
+.print ''
+.print '── Channels by how many people are in them ─────────────────────'
+.print ''
+-- Full history, unlike everything below: `channels` is not swept, so this is
+-- the one part of the room half that can say anything about a month ago.
+--
+-- **A channel is not a group.** It is a room somebody made, and making one
+-- costs a tap; whether anybody ever talked in it is the `groups` report and is
+-- a different question with a much shorter memory. Read this as the
+-- denominator for that one.
+SELECT CASE WHEN members <= 1 THEN '1 alone in it'
+            WHEN members = 2 THEN '2 a pair'
+            WHEN members <= 5 THEN '3 three to five'
+            ELSE '4 six' END AS size,
+       COUNT(*) AS channels,
+       SUM(name IS NOT NULL) AS named,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct
+  FROM room
+ WHERE members > 0
+ GROUP BY size
+ ORDER BY size;
+
+.print ''
+.print '── Channels made, by calendar month ────────────────────────────'
+.print ''
+-- `three_plus` is the one to watch: two people in a room is a conversation the
+-- telephone already serves, and the proposition's claim is about the group.
+SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch') AS month,
+       COUNT(*) AS made,
+       SUM(members >= 3) AS three_plus,
+       SUM(COUNT(*)) OVER (
+         ORDER BY strftime('%Y-%m', created_at / 1000, 'unixepoch')
+       ) AS to_date
+  FROM room
+ WHERE members > 0
+ GROUP BY month
+ ORDER BY month;
+SQL
+}
+
+report_talking() {
+  cat <<'SQL'
+.print ''
+.print '── Being in a room together, by week · LAST 30 DAYS ONLY ───────'
+.print ''
+-- **The window is the sweep and not the history.** `usage_spans` is swept at
+-- USAGE_RETENTION_MS, so the earliest week here is thirty days ago however
+-- long this box has been running, and the first row is always partial. A week
+-- missing from this table had no two people in a room together; a week missing
+-- from the *top* of it has been swept.
+--
+-- `channel_days` is the unit that means something: one channel, one calendar
+-- day, at least two people in it at once. Counting spans instead would make a
+-- pair who stepped out and back in look like two conversations, and counting
+-- minutes would make one long silence beat six real exchanges.
+SELECT date(started_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
+       COUNT(DISTINCT channel_id || ' ' || day) AS channel_days,
+       COUNT(DISTINCT channel_id) AS channels,
+       COUNT(DISTINCT id) AS people
+  FROM together_end
+ GROUP BY week
+ ORDER BY week;
+SQL
+}
+
+report_groups() {
+  cat <<'SQL'
+.print ''
+.print '── Rooms with more than one day in them · LAST 30 DAYS ONLY ────'
+.print ''
+-- **This is the conversion, and it is the one number this script exists to
+-- report** — planning/MARKETING.md calls it level 10: a group is a channel
+-- that had a conversation, and then had another one on a different day. One
+-- conversation is a trial; the second is the habit starting.
+--
+-- **The thirty-day sweep bounds it in a way that flatters nothing.** A group
+-- that talks monthly cannot show two days inside the window and will read here
+-- as a group that did not convert. So a low number is ambiguous and a high one
+-- is not, which is the right way round for a number nobody should be able to
+-- talk themselves into.
+SELECT COALESCE(r.name, '(unnamed)') AS channel,
+       r.members,
+       COUNT(DISTINCT t.day) AS days,
+       MIN(t.day) AS first_day,
+       MAX(t.day) AS last_day
+  FROM together t JOIN room r ON r.id = t.channel_id
+ GROUP BY t.channel_id
+HAVING days > 1
+ ORDER BY days DESC, last_day DESC;
+
+.print ''
+.print '── And the same, counted ───────────────────────────────────────'
+.print ''
+-- `converted` over `active` is the rate, within the window. `active` is every
+-- channel that saw two people at once at all, so the denominator is rooms that
+-- were used rather than rooms that exist — `channels` has that one.
+SELECT COUNT(*) AS active,
+       SUM(days > 1) AS converted,
+       SUM(days > 1 AND members >= 3) AS converted_three_plus,
+       CAST(ROUND(100.0 * SUM(days > 1) / COUNT(*)) AS INT) AS pct
+  FROM (SELECT t.channel_id, r.members, COUNT(DISTINCT t.day) AS days
+          FROM together t JOIN room r ON r.id = t.channel_id
+         GROUP BY t.channel_id);
+SQL
+}
+
+report_names=(classes weeks months depth roots islands pairs channels talking groups defects)
 
 list_reports() {
   cat <<'TXT'
@@ -647,6 +902,10 @@ months    the same by calendar month, for comparing against anything monthly
 depth     how many people sit at each generation, and how recent each is
 roots     one row per tree: who came alone, and what grew under them
 islands   connected components of the contacts graph, now and week by week
+pairs     mutual contacts per person, as a distribution rather than a mean
+channels  rooms by how many people are in them, and made per month
+talking   two people in a room together, by week — last 30 days only
+groups    rooms that were used on more than one day — the conversion
 defects   edges naming nobody, self-invites, cycles, contacts with the gone
 TXT
 }
