@@ -53,7 +53,7 @@ describe('Home', () => {
   it('no longer says who you are signed in as', () => {
     // It is a fact about the account, and the screen about the account is
     // Contact settings, which now carries it. Home is a list of rooms.
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).not.toContain('Signed in');
     act(() => tree.unmount());
@@ -85,7 +85,6 @@ describe('Home', () => {
         { account: { id: 'acct_p', displayName: 'Priya Raman' }, status: 'incoming' },
         { account: { id: 'acct_q', displayName: 'Quinn Ito' }, status: 'accepted' },
       ],
-      recordings: [],
     };
 
     const tree = render(<HomeView {...homeNav} />);
@@ -117,7 +116,6 @@ describe('Home', () => {
       invites: [],
       rejoinable: [seat],
       contacts: [],
-      recordings: [],
     };
 
     const phone = render(<HomeView {...homeNav} />);
@@ -153,7 +151,7 @@ describe('Home', () => {
    * to have chosen without being told. Hence a browser, hence once.
    */
   it('offers the app to a browser, once, and never on a phone', () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.updateUrl = 'https://apps.apple.com/app/id123';
 
     // A phone is already the thing the notice is asking for.
@@ -180,7 +178,7 @@ describe('Home', () => {
   });
 
   it('offers no install where there is no App Store to offer', () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     // Unset on a box that has not been told, and a call to action that goes
     // nowhere is worse than none.
     mockApp.updateUrl = null;
@@ -234,7 +232,6 @@ describe('Home', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
 
     const tree = render(<HomeView {...homeNav} />);
@@ -264,7 +261,6 @@ describe('Home', () => {
       ],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
@@ -292,7 +288,6 @@ describe('Home', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     expect(textOf(tree)).toContain('2 hours ago');
@@ -317,7 +312,6 @@ describe('Home', () => {
       ],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
@@ -345,7 +339,6 @@ describe('Home', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
@@ -381,7 +374,6 @@ describe('Home', () => {
       ],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
@@ -411,40 +403,11 @@ describe('Home', () => {
       ],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
     expect(text).not.toContain('is waiting');
     expect(text).toContain('asked you in · an hour ago');
-    act(() => tree.unmount());
-  });
-
-  it('does not list recordings, which belong to their channel', () => {
-    // They were here, as one flat list belonging to nothing. The server still
-    // sends the field for build 20, which renders it; this screen ignores it.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [],
-      contacts: [],
-      recordings: [
-        {
-          id: 'rec_1',
-          channelId: 'sess_1',
-          name: 'Dana Chu and Me',
-          others: [{ id: THEM, displayName: 'Dana Chu' }],
-          startedAt: NOW,
-          endedAt: NOW + 92_000,
-          durationMs: 92_000,
-        },
-      ],
-    };
-
-    const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
-    expect(text).not.toContain('Dana Chu and Me');
-    expect(text).not.toContain('1:32');
-    expect(findExactButton(tree, 'Share')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -462,7 +425,6 @@ describe('Home', () => {
         contacts: [
           { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
         ],
-        recordings: [],
       };
       const tree = render(<HomeView {...homeNav} />);
       const [decline] = tree.root.findAll(
@@ -540,7 +502,7 @@ describe('Home', () => {
     // below. The banner is about a connection that failed, not about one
     // that has not finished being made.
     jest.useFakeTimers();
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.status = 'closed';
     const tree = render(<HomeView {...homeNav} />);
     act(() => {
@@ -558,7 +520,6 @@ describe('Home while still in a channel', () => {
       invites: [],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
   };
 
@@ -752,7 +713,6 @@ describe('Home while still in a channel', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView
@@ -790,7 +750,6 @@ describe('Home while still in a channel', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} />
@@ -840,7 +799,6 @@ describe('Home while nearby', () => {
         nearby: true,
       })),
       contacts: [],
-      recordings: [],
     };
   };
 
@@ -1003,7 +961,6 @@ describe('Home while nearby', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree).replace(/\s+/g, ' ');
@@ -1032,7 +989,6 @@ describe('a channel with nobody in it', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} />
@@ -1046,7 +1002,7 @@ describe('a channel with nobody in it', () => {
 
 describe('the connection warning', () => {
   const empty = () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
   };
 
   it('stays quiet while the first connection is being made', () => {

@@ -633,7 +633,7 @@ export function ChannelView({
         // server has always said no inside the window, and a button that is
         // offered, pressed and rejected teaches nothing that saying so up
         // front does not.
-        pingableAt={view.pingableAt?.[viewing.id] ?? null}
+        pingableAt={view.pingableAt[viewing.id] ?? null}
         // Their microphone, offered only where the favour means something:
         // somebody else, in the room, with you in it too. Those are the same
         // conditions `canMuteOther` checks, and they are asked again here
@@ -1631,7 +1631,7 @@ export function ChannelView({
                     ? () => app.ping(channel.id, participant.id, '')
                     : undefined
                 }
-                pingableAt={view.pingableAt?.[participant.id] ?? null}
+                pingableAt={view.pingableAt[participant.id] ?? null}
                 attentiveAt={view.attentiveAt?.[participant.id] ?? null}
                 // The claim's clock, on the card of whoever is holding it and
                 // on nobody else's — `claimRemaining` is a fact about the

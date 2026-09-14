@@ -372,6 +372,7 @@ describe('the claim on the audio system', () => {
         },
         participants: [{ id: 'acct_me', displayName: 'Me' }],
         recordings: [],
+        pingableAt: {},
         serverNow: NOW,
       },
     };
@@ -499,6 +500,7 @@ describe('the explanation, unbidden', () => {
         },
         participants: [{ id: 'acct_me', displayName: 'Me' }],
         recordings: [],
+        pingableAt: {},
         serverNow: NOW,
       },
     };
@@ -622,6 +624,7 @@ describe('a window wide enough for two panes', () => {
           { id: 'acct_2', displayName: 'Dana Chu' },
         ],
         recordings: [],
+        pingableAt: {},
         serverNow: NOW,
       },
     };
@@ -641,7 +644,6 @@ describe('a window wide enough for two panes', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
 
     let tree!: ReactTestRenderer;

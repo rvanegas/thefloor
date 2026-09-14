@@ -95,7 +95,6 @@ describe('named channels and described ones do not look alike', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     return render(
       <HomeView {...homeNav} />
@@ -166,7 +165,6 @@ describe('named channels and described ones do not look alike', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} />
@@ -212,7 +210,7 @@ describe('the order of your channels', () => {
   };
 
   const show = (rejoinable: ReturnType<typeof channel>[]) => {
-    mockApp.home = { invites: [], rejoinable, contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable, contacts: [] };
     return render(
       <HomeView {...homeNav} />
     );
@@ -341,7 +339,6 @@ describe('tapping a row', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
@@ -377,7 +374,6 @@ describe('tapping a row', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
@@ -405,7 +401,6 @@ describe('tapping a row', () => {
       ],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(<HomeView {...homeNav} />);
 
@@ -430,7 +425,6 @@ describe('tapping a row', () => {
       invites: [],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} onEnterChannel={onEnterChannel} />
@@ -493,7 +487,7 @@ describe('tapping a row', () => {
 
 describe('channels you share with somebody', () => {
   const withChannels = (rejoinable: HomeViewData['rejoinable']) => {
-    mockApp.home = { invites: [], rejoinable, contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable, contacts: [] };
   };
 
   const channel = (id: string, name: string | null, otherId: string) => ({
@@ -900,7 +894,6 @@ describe('the order channels are listed in', () => {
         channel('chan_a', 'Occupied', 2, NOW - 3_600_000),
         channel('chan_c', 'Older', 0, NOW - 86_400_000),
       ],
-      recordings: [],
       contacts: [],
     };
     const tree = render(
@@ -923,7 +916,6 @@ describe('the order channels are listed in', () => {
         channel('chan_a', null, 2, NOW),
         channel('chan_b', 'Emptied', 0, NOW - 3_600_000),
       ],
-      recordings: [],
       contacts: [],
     };
     const tree = render(
@@ -969,7 +961,6 @@ describe('how quiet a channel is, counting other people only', () => {
       invites: [],
       rejoinable: rejoinable as never,
       contacts: [],
-      recordings: [],
     };
     return render(<HomeView {...homeNav} />);
   };

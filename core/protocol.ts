@@ -768,7 +768,6 @@ export interface HomeView {
   invites: InviteView[];
   rejoinable: RejoinableView[];
   contacts: ContactView[];
-  recordings: RecordingView[];
 }
 
 /**
@@ -800,12 +799,9 @@ export interface ChannelView {
    * card being reached from inside a channel and the window being per channel
    * and target.
    *
-   * Optional so that a client older than the field simply does not see it. It
-   * only ever *withdraws* an affordance the server would refuse anyway, so a
-   * client that ignores it behaves exactly as it did — it offers the button and
-   * is told no, which is what every build up to 55 does.
+   * Always sent; absent from the map means now.
    */
-  pingableAt?: Partial<Record<UserId, number>>;
+  pingableAt: Partial<Record<UserId, number>>;
   /**
    * When each participant was last attending **this channel**, for those the
    * server has heard from.
@@ -852,12 +848,11 @@ export interface ChannelView {
    * everybody's would make "has muted this" readable by the people it is about
    * — which is a different feature, and not one anybody asked for.
    *
-   * Optional, so a client older than the field simply does not see it. Absent
-   * means `DEFAULT_NOTIFICATION_LEVEL`, which is also what the server assumes
-   * for anybody who has never touched it, so the missing case and the untouched
-   * case agree.
+   * Always sent. Somebody who has never touched it gets
+   * `DEFAULT_NOTIFICATION_LEVEL`, which is what the server assumes for them
+   * everywhere else.
    */
-  notificationLevel?: NotificationLevel;
+  notificationLevel: NotificationLevel;
   /**
    * Who is talking while *withheld* — see `ClientMessage.channel.speaking` for
    * why this cannot be observed and has to be reported.

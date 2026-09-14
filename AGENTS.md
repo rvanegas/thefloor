@@ -157,7 +157,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 547 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 548 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -394,11 +394,12 @@ are the rules.
   and disconnects, so raising this number now ends sessions on phones rather
   than merely licensing a deletion. Builds before 37 send no build number at
   all and are counted as `silentBuilds` on `/healthz`; raising the floor past
-  them expires installs nobody can see. **And build 51 is below all of that**:
-  it announces which build it is but predates the expiry client by hours, so
-  the first public build is one that can never be shown the update screen and
-  has to be waited out instead. See RELEASING.md, and **SHIMS.md for what
-  moving it frees**, which is the only reason to care what the number is.
+  them expires installs nobody can see. **And build 51 was below all of that**:
+  it announced which build it was but predated the expiry client by hours, so
+  the first public build could never be shown the update screen and had to be
+  waited out — which it was, the floor going 51 → 80 on 2026-09-13 once
+  `oldestBuild` had already passed it. Always that order. See RELEASING.md, and
+  **SHIMS.md for what moving it frees**, the only reason to care what it is.
 
 The thing to hold on to: **the App Store is not a version, it is a
 population.** What the server owes compatibility to is the oldest build still

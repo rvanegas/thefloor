@@ -33,7 +33,7 @@ jest.mock('../../state/AppProvider', () =>
 
 beforeEach(() => {
   resetHarness();
-  mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+  mockApp.home = { invites: [], rejoinable: [], contacts: [] };
 });
 
 describe('the banner on the tier', () => {

@@ -40,7 +40,7 @@ const settle = async () => {
 
 describe('the way in', () => {
   it('offers Help on the Support tab', async () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     const tree = render(<HomeView {...homeNav} list="support" />);
     await settle();
 
@@ -54,7 +54,7 @@ describe('the way in', () => {
     makes a tab pointless.
   */
   it('is not under either list', async () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     for (const list of ['channels', 'contacts'] as const) {
       const tree = render(<HomeView {...homeNav} list={list} />);
       await settle();
@@ -70,7 +70,7 @@ describe('the way in', () => {
     // ask a question that only some accounts have is not a help mechanism, so
     // this is the one row there with no gate on it, and the one that stops the
     // tab ever coming up empty.
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.loadSupport.mockResolvedValueOnce({
       url: null,
       identifier: 'me@example.com',
@@ -86,7 +86,7 @@ describe('the way in', () => {
   });
 
   it('opens the screen rather than doing anything itself', async () => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     const onOpenHelp = jest.fn();
     const tree = render(
       <HomeView {...homeNav} list="support" onOpenHelp={onOpenHelp} />

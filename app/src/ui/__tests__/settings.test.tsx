@@ -212,7 +212,6 @@ describe("Home settings", () => {
       invites: [],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     const tree = render(
       <HomeView {...homeNav} onOpenSettings={onOpenSettings} />,

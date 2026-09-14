@@ -2,6 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { ChannelState } from '../../../../core/types';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
@@ -78,6 +79,8 @@ function push(channel: ChannelState, serverNow = T0): void {
       { id: THEM, displayName: 'Dana' },
     ],
     recordings: [],
+    pingableAt: {},
+    notificationLevel: DEFAULT_NOTIFICATION_LEVEL,
     serverNow,
   });
 }

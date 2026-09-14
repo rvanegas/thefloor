@@ -1126,7 +1126,6 @@ describe('who is in the channel, and who is talking', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const onEnterChannel = jest.fn();
     const tree = render(
@@ -1181,7 +1180,6 @@ describe('who is in the channel, and who is talking', () => {
         },
       ],
       contacts: [],
-      recordings: [],
     };
     const onEnterChannel = jest.fn();
     const tree = render(
@@ -1323,7 +1321,7 @@ describe('pinging somebody who is not in the room', () => {
     onPing?: (text: string) => Promise<void>,
     pingableAt?: number | null
   ) => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
@@ -1634,7 +1632,7 @@ describe('somebody else’s microphone, from their profile', () => {
     mic: Mic | null,
     onSetMute?: (muted: boolean) => void
   ) => {
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
@@ -1761,7 +1759,6 @@ describe('muting somebody else, through the channel screen', () => {
       invites: [],
       rejoinable: [],
       contacts: [],
-      recordings: [],
     };
     let tree!: ReactTestRenderer;
     await act(async () => {

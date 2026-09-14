@@ -90,10 +90,10 @@ export const mockApp = {
       channel: ChannelState;
       participants: Array<{ id: string; displayName: string }>;
       recordings: RecordingView[];
-      // Absent on most of these, as it is on the wire: a missing entry means
-      // pingable now, so a view without the map is a channel nobody has been
-      // pinged in.
-      pingableAt?: Record<string, number>;
+      // Always present, as it is on the wire; `showChannel` supplies an empty
+      // one. A missing *entry* means pingable now, so the empty map is a
+      // channel nobody has been pinged in, which is most of these.
+      pingableAt: Record<string, number>;
       // Likewise absent on most of these, and it means something different
       // when it is: no attention clock for that person, which is a build too
       // old to report one. A test that wants the *nearby* line's number sets
@@ -568,6 +568,7 @@ export function showChannel(channel: ChannelState, recordings: RecordingView[] =
       displayName: names[id] ?? id,
     })),
     recordings,
+    pingableAt: {},
     serverNow: NOW,
   };
   // Being in the channel and being the device that is in it are different
@@ -593,7 +594,6 @@ export function knowing(...ids: string[]) {
       account: { id, displayName: id === THEM ? 'Dana Chu' : id },
       status: 'accepted' as const,
     })),
-    recordings: [],
   };
 }
 

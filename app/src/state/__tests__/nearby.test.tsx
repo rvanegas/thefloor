@@ -2,6 +2,7 @@ import React from 'react';
 import { AppState } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { ChannelState } from '../../../../core/types';
 import type { ChannelView } from '../../../../core/protocol';
 import { somebodyArrived, whoArrived } from '../nearby';
@@ -81,6 +82,8 @@ const viewOf = (channel: ChannelState): ChannelView => ({
     { id: THIRD, displayName: 'Sam' },
   ],
   recordings: [],
+  pingableAt: {},
+  notificationLevel: DEFAULT_NOTIFICATION_LEVEL,
   serverNow: T0,
 });
 

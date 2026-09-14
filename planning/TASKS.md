@@ -90,10 +90,6 @@ it carries what publishing costs: the Ogg/Opus mix no podcast client plays,
 the consent a guest cannot give, and the fact that unpublishing recalls 
 nothing.
 
-## Calendar Integrations
-
-Explore scheduling and usage patterns
-
 ## Introduce Radiate
 
 A channel owner can gen a link defining the channel as root. Define a user's 

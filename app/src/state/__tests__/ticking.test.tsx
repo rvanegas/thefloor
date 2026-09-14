@@ -2,6 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
 
@@ -115,6 +116,8 @@ describe('countdown ticking', () => {
           { id: THEM, displayName: 'Dana' },
         ],
         recordings: [],
+        pingableAt: {},
+        notificationLevel: DEFAULT_NOTIFICATION_LEVEL,
         serverNow: T0,
       });
     });
@@ -159,6 +162,8 @@ describe('countdown ticking', () => {
           { id: THEM, displayName: 'Dana' },
         ],
         recordings: [],
+        pingableAt: {},
+        notificationLevel: DEFAULT_NOTIFICATION_LEVEL,
         serverNow: T0,
       });
     });

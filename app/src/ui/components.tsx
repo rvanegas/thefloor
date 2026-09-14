@@ -700,9 +700,11 @@ const styles = StyleSheet.create({
 /**
  * A finished recording, with the control that turns it into a file.
  *
- * Shared because recordings are shown on the channel they were made in and,
- * for as long as build 20 is out there, on Home — and a recording must not be
- * called one thing on one screen and something else on the other.
+ * Here rather than in `ChannelView.tsx`, which is now its only production
+ * consumer, because it shares `recordingStyles` with `TranscriptSearch` below
+ * it. It was shared for a second reason until the floor passed 21: Home drew
+ * recordings too, and a recording must not be called one thing on one screen
+ * and something else on the other.
  */
 export function RecordingRow({
   recording,
@@ -713,11 +715,7 @@ export function RecordingRow({
   onOpenTranscript,
 }: {
   recording: RecordingView;
-  /**
-   * Whether this row can be played into the room. False on Home, where the
-   * rows shown are the ones whose channel is gone — there is no room to play
-   * them into.
-   */
+  /** Whether this row can be played into the room. */
   playable?: boolean;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
   playDisabled?: boolean;

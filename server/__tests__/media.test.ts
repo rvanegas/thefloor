@@ -1064,21 +1064,8 @@ describe('who a recording says was there', () => {
       name: string | null;
     };
 
-  const recordingsFor = async (token: string) => {
-    const reply = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(token),
-    });
-    return (
-      reply.json() as {
-        recordings: Array<{
-          name: string;
-          others: Array<{ displayName: string }>;
-        }>;
-      }
-    ).recordings;
-  };
+  const recordingsFor = (channelId: string, userId: string) =>
+    app.recordingsInChannel(channelId, userId);
 
   async function recorded() {
     const { alice, bob, channelId } = await sessionOfTwo();
@@ -1105,7 +1092,7 @@ describe('who a recording says was there', () => {
   it('keeps the name somebody had, when they change it afterwards', async () => {
     // A recording is a record of something that happened. Relabelling it
     // because somebody has since renamed themselves rewrites that record.
-    const { alice, bob } = await recorded();
+    const { alice, bob, channelId } = await recorded();
     await app.fastify.inject({
       method: 'POST',
       url: '/me',
@@ -1113,7 +1100,7 @@ describe('who a recording says was there', () => {
       payload: { displayName: 'Robert' },
     });
 
-    const [recording] = await recordingsFor(alice.token);
+    const [recording] = recordingsFor(channelId, alice.account.id);
     expect(recording.others.map((o) => o.displayName)).toEqual(['Bob']);
   });
 
@@ -1139,7 +1126,7 @@ describe('who a recording says was there', () => {
         channelId
       );
 
-    const [recording] = await recordingsFor(alice.token);
+    const [recording] = recordingsFor(channelId, alice.account.id);
     expect(recording.others.map((o) => o.displayName)).toContain(
       'Someone Who Left'
     );
@@ -1151,7 +1138,7 @@ describe('who a recording says was there', () => {
       .prepare('UPDATE recordings SET participant_names = NULL WHERE channel_id = ?')
       .run(channelId);
 
-    const [recording] = await recordingsFor(alice.token);
+    const [recording] = recordingsFor(channelId, alice.account.id);
     expect(recording.others.map((o) => o.displayName)).toEqual([
       bob.account.displayName,
     ]);
@@ -1174,14 +1161,8 @@ describe('naming a recording', () => {
         .get(channelId) as { name: string | null }
     ).name;
 
-  const homeRecordings = async (token: string) => {
-    const reply = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(token),
-    });
-    return (reply.json() as { recordings: Array<{ name: string }> }).recordings;
-  };
+  const channelRecordings = (channelId: string, userId: string) =>
+    app.recordingsInChannel(channelId, userId);
 
   async function recorded() {
     const { alice, bob, channelId } = await sessionOfTwo();
@@ -1201,9 +1182,9 @@ describe('naming a recording', () => {
   it('reads the same to both of them', async () => {
     // The property the whole design is for. A viewer-relative label would
     // give Alice "Bob" and Bob "Alice" for one and the same recording.
-    const { alice, bob } = await recorded();
-    const [forAlice] = await homeRecordings(alice.token);
-    const [forBob] = await homeRecordings(bob.token);
+    const { alice, bob, channelId } = await recorded();
+    const [forAlice] = channelRecordings(channelId, alice.account.id);
+    const [forBob] = channelRecordings(channelId, bob.account.id);
     expect(forAlice.name).toBe(forBob.name);
     expect(forAlice.name).toBe('Alice and Bob');
   });
@@ -1218,7 +1199,7 @@ describe('naming a recording', () => {
     });
 
     expect(nameFor(channelId)).toBe('Alice and Bob');
-    const [recording] = await homeRecordings(alice.token);
+    const [recording] = channelRecordings(channelId, alice.account.id);
     expect(recording.name).toBe('Alice and Bob');
   });
 
@@ -1235,7 +1216,7 @@ describe('naming a recording', () => {
     await settle();
 
     expect(nameFor(channelId)).toBe('Thursday rehearsal');
-    const [forBob] = await homeRecordings(bob.token);
+    const [forBob] = channelRecordings(channelId, bob.account.id);
     expect(forBob.name).toBe('Thursday rehearsal');
   });
 
@@ -1313,7 +1294,7 @@ describe('naming a recording', () => {
 
     // Nothing was written down, so the old viewer-relative label is the only
     // honest answer: Alice sees who else was there.
-    const [recording] = await homeRecordings(alice.token);
+    const [recording] = channelRecordings(channelId, alice.account.id);
     expect(recording.name).toBe('Bob');
   });
 });

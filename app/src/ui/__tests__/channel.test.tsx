@@ -292,7 +292,6 @@ describe('Channel', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
@@ -397,7 +396,6 @@ describe('Channel', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
@@ -999,7 +997,6 @@ describe('Channel', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
@@ -1436,7 +1433,6 @@ describe('Channel', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],

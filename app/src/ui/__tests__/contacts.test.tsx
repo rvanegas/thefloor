@@ -76,7 +76,6 @@ describe('Contacts', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: contacts.map(({ id, displayName, status, ...rest }) => ({
         account: { id, displayName },
         status: status ?? 'accepted',
@@ -564,7 +563,6 @@ describe('the order contacts are listed in', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: contacts.map(({ id, displayName, ...rest }) => ({
         account: { id, displayName },
         status: 'accepted' as const,
@@ -794,7 +792,6 @@ describe('your own profile', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [],
     };
     mockApp.loadProfile.mockResolvedValueOnce({
@@ -864,7 +861,6 @@ describe('your own profile', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [],
     };
     mockApp.loadProfile.mockResolvedValueOnce({
@@ -895,7 +891,7 @@ describe('editing your own profile', () => {
    * of the kind the separate screen needed.
    */
   const openMine = async () => {
-    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
       im: { telegram: 'me_here' },
@@ -927,7 +923,7 @@ describe('editing your own profile', () => {
     // Otherwise the fields open empty and a blur writes that emptiness over
     // handles somebody has, which is the one way this screen could destroy
     // work.
-    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.loadProfile.mockReturnValueOnce(new Promise(() => {}) as never);
     const tree = render(
       <ProfileView accountId={ME} fallbackName="Me" onBack={() => {}} />
@@ -1184,7 +1180,7 @@ describe('adding a contact you met in a channel', () => {
   it('offers to add a stranger, and asks by id', async () => {
     // The whole point: you know their name and their account id, and nothing
     // else. Adding them by address was never possible.
-    mockApp.home = { invites: [], rejoinable: [], contacts: [], recordings: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     const tree = await openTheirProfile();
 
     expect(textOf(tree)).toContain('They will see a request');
@@ -1200,7 +1196,6 @@ describe('adding a contact you met in a channel', () => {
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
       ],
-      recordings: [],
     };
     const tree = await openTheirProfile();
     expect(textOf(tree)).toContain('Already one of your contacts');
@@ -1215,7 +1210,6 @@ describe('adding a contact you met in a channel', () => {
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status: 'outgoing' },
       ],
-      recordings: [],
     };
     const tree = await openTheirProfile();
     expect(textOf(tree)).toContain('waiting for them to accept');
@@ -1230,7 +1224,6 @@ describe('adding a contact you met in a channel', () => {
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status: 'incoming' },
       ],
-      recordings: [],
     };
     const tree = await openTheirProfile();
     const accept = findButton(tree, 'Accept their request');
@@ -1255,7 +1248,6 @@ describe('removing a contact', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status },
       ],
@@ -1327,7 +1319,6 @@ describe('removing a contact', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status: 'accepted' },
       ],
@@ -1366,7 +1357,6 @@ describe('showing your email to a contact', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status },
       ],
@@ -1520,7 +1510,7 @@ describe('reaching somebody in the messaging apps they use', () => {
     } as ProfileViewData);
 
   const open = async (id: string = THEM) => {
-    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(
@@ -1567,7 +1557,7 @@ describe('reaching somebody in the messaging apps they use', () => {
   });
 
   it('offers the fields on your own profile, and stores what it can read', async () => {
-    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
       im: { telegram: 'me_here' },
@@ -1603,7 +1593,7 @@ describe('reaching somebody in the messaging apps they use', () => {
   });
 
   it('says what a half-typed handle needs rather than sending it', async () => {
-    mockApp.home = { invites: [], rejoinable: [], recordings: [], contacts: [] };
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
     } as ProfileViewData);
@@ -1658,7 +1648,6 @@ describe('when somebody was last in the app', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
-      recordings: [],
       contacts: [
         { account: { id: THEM, displayName: 'Dana Chu' }, status },
       ],

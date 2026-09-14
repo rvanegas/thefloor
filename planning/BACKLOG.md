@@ -1436,10 +1436,10 @@ required in WEB.md § *Required elsewhere* and did not get built before that
 file was retired into decisions/ § *The web app is a versioned
 client*.
 
-Worth knowing that it is unreachable today and will stay so for a while: the
-floor is 51 and every web train is cut at or above the released build, so this
-is a screen waiting for the first time somebody leaves a tab open across a
-floor raise.
+The floor moved for the first time on 2026-09-13, 51 to 80, which is exactly
+the event this was waiting for: a tab left open on a train cut below 80 now
+meets `UpdateRequiredView` and is told to go to the App Store, which a browser
+cannot do. It is no longer a screen waiting for a hypothetical.
 
 ## The support page's notifications section is iOS-only, and there is now a web client
 

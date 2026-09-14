@@ -171,26 +171,14 @@ describe('a recording that has just been made', () => {
    * exist yet.
    */
   it('reports itself as mixing over the wire, and stops when it is done', async () => {
-    const { alice } = await record({ uploaded: true });
+    const { alice, channelId } = await record({ uploaded: true });
 
-    const during = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(alice.token),
-    });
-    const [pending] = (during.json() as { recordings: Array<{ mixing?: boolean }> })
-      .recordings;
+    const [pending] = app.recordingsInChannel(channelId, alice.account.id);
     expect(pending.mixing).toBe(true);
 
     await app.channels.mixesSettled();
 
-    const after = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(alice.token),
-    });
-    const [ready] = (after.json() as { recordings: Array<{ mixing?: boolean }> })
-      .recordings;
+    const [ready] = app.recordingsInChannel(channelId, alice.account.id);
     expect(ready.mixing).toBe(false);
   }, 60_000);
 

@@ -43,39 +43,39 @@ import {
  * phone that matters, which after a public release means waiting rather than
  * deciding.
  *
- * **51 since 2026-08-18**, and still on the same reasoning that made 36 free to
- * move: nothing has ever been public. Build 36 was submitted and rejected
- * rather than released, so every build below 51 is a TestFlight install on
- * devices whose owners update on demand — and `oldestBuild` on `/healthz` read
- * 51 when this was raised, meaning every install that says which build it is
- * was already there. The three `silentBuilds` — a count of *accounts*, which
- * is what that field meant until 2026-08-24; it counts sessions now — are
- * pre-37 and cannot be stranded
- * by this: they predate the header, and `mustUpdate` reads a null build as not
- * expired, so they were never going to act on this number at all.
+ * **80 since 2026-09-13**, raised from 51 because the population had already
+ * moved: `oldestBuild` on `/healthz` read 80 and `silentBuilds` read 0, so
+ * every install that speaks to this server was at or above the new floor
+ * before it was raised, and nobody was shown an update screen by the change.
+ * That is the only order this may happen in — the measurement first, the
+ * number second. SHIMS.md is what turns the new number into a list of
+ * deletions; it does not license the raise.
  *
- * Nothing was waiting on the raise. The wire had gained four optional fields
- * — `RecordingView.mixing`, and `InviteView`'s `name`, `others` and
- * `presentCount` — and every one is additive, so no shim existed to delete.
- * That is worth writing down because it is the wrong reason to move this
- * number, and it was nearly moved for it: the floor is permission to delete a
- * shim, not a record of what the population is running.
+ * Build 51 was the one that had to be waited out rather than retired. The
+ * expiry client — `app/src/api/expiry.ts` and `UpdateRequiredView` — landed
+ * hours after `build/51` was tagged, so 51 sends its build number and reads
+ * neither `minBuild` nor `mustUpdate`: it could never have been shown the
+ * update screen, only left behind. `oldestBuild` reaching 80 is what says it
+ * finally was.
+ *
+ * **51 was the floor from 2026-08-18**, on the reasoning that made 36 free to
+ * move: nothing had ever been public. Build 36 was submitted and rejected
+ * rather than released, so every build below 51 was a TestFlight install on
+ * devices whose owners update on demand. Nothing was waiting on that raise —
+ * the wire had gained four optional fields, `RecordingView.mixing` and
+ * `InviteView`'s `name`, `others` and `presentCount`, every one additive, so
+ * no shim existed to delete. That is worth writing down because it is the
+ * wrong reason to move this number, and it was nearly moved for it: the floor
+ * is permission to delete a shim, not a record of what the population is
+ * running.
  *
  * **It stopped being free on 2026-08-19**, when build 51 was released. Raising
- * it now expires installs belonging to people who cannot be asked to update,
- * and the cost is theirs rather than ours — so it moves only once `oldestBuild`
+ * it expires installs belonging to people who cannot be asked to update, and
+ * the cost is theirs rather than ours — so it moves only once `oldestBuild`
  * on `/healthz` has already passed the number, never in advance to license a
  * deletion.
- *
- * And for build 51 in particular it does nothing at all. The expiry client —
- * `app/src/api/expiry.ts` and `UpdateRequiredView` — landed hours after
- * `build/51` was tagged, so 51 sends its build number and reads neither
- * `minBuild` nor `mustUpdate`. It cannot be shown the update screen, only
- * waited out. Every build from 52 on can be retired properly; the first public
- * one is the exception, and the floor cannot pass it without breaking it
- * silently.
  */
-export const MIN_SUPPORTED_BUILD = 51;
+export const MIN_SUPPORTED_BUILD = 80;
 
 /**
  * The first build that reports attention, and so the first the server may

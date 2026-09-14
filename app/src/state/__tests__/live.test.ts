@@ -1,4 +1,5 @@
 import { createChannel, reduce } from '../../../../core/channel';
+import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { ChannelState } from '../../../../core/types';
 import type { ChannelView } from '../../../../core/protocol';
 import { liveChannelView } from '../live';
@@ -53,6 +54,8 @@ function viewOf(channel: ChannelState, serverNow = T0): ChannelView {
       { id: THEM, displayName: 'Dana' },
     ],
     recordings: [],
+    pingableAt: {},
+    notificationLevel: DEFAULT_NOTIFICATION_LEVEL,
     serverNow,
   };
 }

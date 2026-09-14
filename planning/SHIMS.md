@@ -11,10 +11,11 @@ itself: **a compatibility shim may be deleted once the floor has passed the
 build that needed it, and not before.** That rule was decidable and unfindable
 — each shim named its own gate in its own doc comment, so knowing what a floor
 of 80 freed meant grepping the tree for build numbers and hoping the wording
-matched. Two of the entries below carry no build number in the code at all and
-were found only by reading `planning/BACKLOG.md`; one of those,
-`ChannelView.pingableAt`, had been free to delete since the floor passed 56 and
-nobody knew.
+matched. Two entries carried no build number in the code at all and were found
+only by reading `planning/BACKLOG.md`; one of those, `ChannelView.pingableAt`,
+had been free to delete since the floor passed 56 and nobody knew. The floor
+went to 80 on 2026-09-13 and this file was what said which three went with
+it — which is the whole of what it is for.
 
 **This file does not license raising the floor.** Since build 51 went public on
 2026-08-19, raising it takes installed apps off the air — an app below the
@@ -29,9 +30,6 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 
 | Gate | Shim | Lives in |
 | --- | --- | --- |
-| 21 | `HomeView.recordings` | `core/protocol.ts`, `server/src/app.ts` |
-| 56 | `ChannelView.pingableAt` optionality | `core/protocol.ts` |
-| 78 | `ChannelView.notificationLevel` optionality | `core/protocol.ts` |
 | 110 | The legacy heartbeat budget | `core/constants.ts`, `server/src/release.ts` |
 | 121 | The `device` parameter's token fallback | `server/src/ws.ts` |
 | 123 | `bio` accepted and ignored | `server/src/app.ts` |
@@ -42,8 +40,10 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 
-The floor is **51**. `oldestBuild` read **80** on 2026-09-09, so the first
-three are already free and the rest are not.
+The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
+already read 80. Everything it freed — `HomeView.recordings`,
+`ChannelView.pingableAt` and `ChannelView.notificationLevel` — went in the same
+commit, so nothing above is free today.
 
 `mediaRoom` has no gate because the client half that would fix one has not
 shipped. It is here rather than omitted because it is a wire field whose
@@ -123,58 +123,6 @@ in both files. That is not a fallback for an older server — a guest is never i
 
 Gate 188 because build 187 is already tagged: the client that speaks this ships
 in the next upload.
-
----
-
-## Gate 21 — `HomeView.recordings`
-
-The app shows recordings on the channel they were made in. The server still
-sends the flat Home list, because build 20 and earlier render it and would
-otherwise lose every recording at a deploy.
-
-Once nobody is on 20, the field goes: `homeFor` stops calling `recordingsFor`,
-and `RecordingView` leaves `HomeView` in `core/protocol.ts`. What must *not* go
-with it is `recordingsFor` itself — the export and playback endpoints both read
-it, and it is the one place the access rule is written down.
-
-What else goes with it: the "does not list recordings" test in
-`app/src/ui/__tests__/home.test.tsx`, which exists only to assert that the app
-ignores the field. And `RecordingRow` in `app/src/ui/components.tsx` is in that
-shared module solely because Home and the channel screen both drew recordings
-and must not have called them different things — with Home gone it has one
-production consumer, `ChannelView.tsx`, and can move there.
-
----
-
-## Gate 56 — `ChannelView.pingableAt` optionality
-
-Optional in `core/protocol.ts` so that a client older than the field does not
-see it; every build up to 55 ignores it, offers the ping button anyway and is
-told no, which is what the server would have said regardless.
-
-The floor has passed this. The server sets it unconditionally at
-`server/src/ws.ts:531`, so the field can become required and the
-`view.pingableAt?.[…] ?? null` reads in `app/src/ui/ChannelView.tsx` collapse.
-
-**A type tidy rather than a wire change**, and the distinction is why this is
-small: making a field required asserts the server always sends it, which has
-been true since it shipped. Nothing on the wire changes and no install notices.
-
----
-
-## Gate 78 — `ChannelView.notificationLevel` optionality
-
-The same shape as `pingableAt` above and the same treatment. Optional so an
-older client reads absence as `DEFAULT_NOTIFICATION_LEVEL`, which is also what
-the server assumes for anybody who has never touched it, so the missing case
-and the untouched case agree.
-
-Set unconditionally at `server/src/ws.ts:536`. The floor has passed 78. The
-client-side fallback is `app/src/ui/ChannelSettingsView.tsx`.
-
-Its doc comment names no build, which is why it was missed: the gate here comes
-from `git tag --contains` on the commit that added the field, and pinning it
-in this table is most of the point of the file.
 
 ---
 

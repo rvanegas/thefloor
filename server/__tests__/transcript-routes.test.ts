@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
+import type { RecordingRow } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 import { MemoryRecordingStore } from '../src/storage';
 import { MemoryTranscription } from '../src/transcription';
@@ -132,6 +133,21 @@ afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
 });
+
+/**
+ * The recording as its channel's snapshot would carry it.
+ *
+ * Composed from the row rather than fetched, because these tests write the
+ * channel straight to the database: the registry has never heard of it, and
+ * `recordingsInChannel` — which is how the snapshot is built — goes through
+ * the registry, that being what enforces who may see what.
+ */
+const listedFor = (userId: string) =>
+  app.recordingView(
+    app.db.prepare('SELECT * FROM recordings WHERE id = ?').get(RECORDING) as
+      unknown as RecordingRow,
+    userId
+  );
 
 /** Two signed-in members of one channel with one recording in it. */
 async function room() {
@@ -287,17 +303,7 @@ describe('asking for one', () => {
     // And the field goes with it, which is what takes the button off the
     // screen — the app draws nothing for a recording with no transcript
     // field, the same way it does against a server with no provider.
-    const home = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(alice.token),
-    });
-    expect(home.statusCode).toBe(200);
-    const listed = (home.json() as {
-      recordings: Array<Record<string, unknown>>;
-    }).recordings;
-    expect(listed).toHaveLength(1);
-    expect(listed[0].transcript).toBeUndefined();
+    expect(listedFor(alice.account.id).transcript).toBeUndefined();
   });
 
   it('tells a stranger the recording does not exist', async () => {
@@ -416,24 +422,13 @@ describe('the one free transcript', () => {
 
   it('tells the app it is the free one, so the confirmation can say so', async () => {
     const { alice } = await room();
-    const listed = async (token: string) => {
-      const answered = await app.fastify.inject({
-        method: 'GET',
-        url: '/home',
-        headers: auth(token),
-      });
-      return (answered.json().recordings ?? []).find(
-        (row: { id: string }) => row.id === RECORDING
-      );
-    };
-
-    expect((await listed(alice.token)).transcript).toMatchObject({
+    expect(listedFor(alice.account.id).transcript).toMatchObject({
       mayRequest: true,
       spendsFreeUse: true,
     });
 
     markUnlimited(alice.account.id);
-    const unlimited = (await listed(alice.token)).transcript;
+    const unlimited = listedFor(alice.account.id).transcript!;
     expect(unlimited.mayRequest).toBe(true);
     // Nothing to warn about: an unlimited account is not spending a thing it
     // has only one of.
@@ -446,16 +441,9 @@ describe('the one free transcript', () => {
     await app.transcripts.settled();
     await ask(bob.token, 'DELETE');
 
-    const answered = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(bob.token),
-    });
-    const row = (answered.json().recordings ?? []).find(
-      (r: { id: string }) => r.id === RECORDING
-    );
-    expect(row.transcript.mayRequest).toBe(false);
-    expect(row.transcript.requestLimit).toMatch(/one free transcript/i);
+    const row = listedFor(bob.account.id);
+    expect(row.transcript!.mayRequest).toBe(false);
+    expect(row.transcript!.requestLimit).toMatch(/one free transcript/i);
   }, 60_000);
 });
 
@@ -1203,26 +1191,15 @@ describe('searching a channel', () => {
 });
 
 describe('what the recordings list carries', () => {
-  // Recordings reach a client on the Home snapshot rather than a route of
+  // Recordings reach a client on the channel snapshot rather than a route of
   // their own, so this is where the field has to be right.
-  const listed = async (token: string) => {
-    const answered = await app.fastify.inject({
-      method: 'GET',
-      url: '/home',
-      headers: auth(token),
-    });
-    return (answered.json().recordings ?? []).find(
-      (row: { id: string }) => row.id === RECORDING
-    );
-  };
-
   it('offers one before anybody asks, and names who would be sent it', async () => {
     // 'none' rather than nothing. Absent is reserved for a server that cannot
     // transcribe — collapsing the two leaves a server that can looking exactly
     // like one that cannot until the first transcript exists, so the button
     // that would start one never appears.
     const { alice } = await room();
-    expect((await listed(alice.token)).transcript).toEqual({
+    expect(listedFor(alice.account.id).transcript).toEqual({
       state: 'none',
       provider: provider.name,
       requestedBy: null,
@@ -1238,7 +1215,7 @@ describe('what the recordings list carries', () => {
     await ask(alice.token);
     await app.transcripts.settled();
 
-    expect((await listed(bob.token)).transcript).toMatchObject({
+    expect(listedFor(bob.account.id).transcript).toMatchObject({
       state: 'pending',
       requestedBy: { displayName: 'Alice' },
     });
@@ -1257,7 +1234,7 @@ describe('what the recordings list carries', () => {
     clock += 120_000;
     await app.transcripts.tick();
 
-    expect((await listed(bob.token)).transcript).toMatchObject({
+    expect(listedFor(bob.account.id).transcript).toMatchObject({
       state: 'ready',
       missing: 1,
     });
@@ -1266,6 +1243,6 @@ describe('what the recordings list carries', () => {
   it('says nothing on a server that cannot transcribe', async () => {
     build(false);
     const { alice } = await room();
-    expect((await listed(alice.token)).transcript).toBeUndefined();
+    expect(listedFor(alice.account.id).transcript).toBeUndefined();
   });
 });

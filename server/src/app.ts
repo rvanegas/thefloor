@@ -261,6 +261,19 @@ export interface App {
   donations: Donations;
   transcripts: Transcripts;
   help: Help;
+  /**
+   * Where a `RecordingView` is composed, and since the floor passed 21 the
+   * only place: Home stopped carrying the flat list, so recordings reach a
+   * client on the channel snapshot and nowhere else.
+   *
+   * Both are here because that snapshot travels over the websocket, and a test
+   * about what a recording *says* should not have to open a socket to read it.
+   * `recordingsInChannel` is right for a channel the registry is holding;
+   * `recordingView` is for a row written straight to the database, which the
+   * registry has never heard of.
+   */
+  recordingsInChannel: (channelId: string, userId: string) => RecordingView[];
+  recordingView: (row: RecordingRow, userId: string) => RecordingView;
 }
 
 /**
@@ -3643,13 +3656,6 @@ export function buildApp(options: BuildOptions = {}): App {
             ? undefined
             : reachability.inApp(entry.account.id),
       })),
-      // Still sent, though the app now shows recordings on the channel they
-      // were made in. Build 20 and earlier render this list on Home and would
-      // otherwise lose them at a server deploy, a release ahead of the build
-      // that stops reading it. See planning/BACKLOG.md.
-      recordings: channels.recordingsFor(userId).map((row) =>
-        toRecordingView(row, userId)
-      ),
     };
   }
 
@@ -3684,6 +3690,8 @@ export function buildApp(options: BuildOptions = {}): App {
     donations,
     transcripts,
     help,
+    recordingsInChannel,
+    recordingView: toRecordingView,
   };
 }
 
