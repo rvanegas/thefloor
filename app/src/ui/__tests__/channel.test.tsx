@@ -231,11 +231,23 @@ describe('Channel', () => {
       />);
 
     const text = textOf(tree);
-    // Sentence case since the two departures stopped sharing a label.
-    expect(text).toContain('Step in');
-    expect(text).toContain('Nobody can hear you');
-    expect(text).not.toContain('Your microphone');
+    // Nothing in the body about the ways in and out, since 2026-09-13: the
+    // card that carried them was the footer's three rungs with sentences
+    // under them, and the rung you are standing on is what the bar is for.
+    expect(findButton(tree, 'Step in')).toBeUndefined();
     expect(findButton(tree, 'Step out')).toBeUndefined();
+    expect(findButton(tree, 'Be nearby')).toBeUndefined();
+    // Out is the lit rung, and the two above it are live.
+    expect(findButton(tree, 'Out')!.props.accessibilityState.selected).toBe(
+      true
+    );
+    expect(findButton(tree, 'In')!.props.accessibilityState).toEqual({
+      disabled: false,
+      selected: false,
+    });
+    // And no microphone, which is the other half of this test: nothing on
+    // that card is true of somebody who has not stepped in.
+    expect(text).not.toContain('Your microphone');
     expect(findButton(tree, 'Mute yourself')).toBeUndefined();
     // The floor is somebody else's business until you are in the room, so the
     // footer's claim is refused. Which of the several reasons it is refused
@@ -247,7 +259,7 @@ describe('Channel', () => {
 
     // Stepping in stays put: you are already looking at the channel, and the
     // screen fills in around the tap rather than closing and reopening.
-    act(() => findButton(tree, 'Step in')!.props.onPress());
+    act(() => findButton(tree, 'In')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
     expect(onExit).not.toHaveBeenCalled();
     act(() => tree.unmount());
@@ -450,7 +462,10 @@ describe('Channel', () => {
     // reasons are still refused — the rule did not turn into "anything goes
     // in an empty room".
     showRoster(tree);
-    expect(textOf(tree)).toContain('Step in');
+    // The way in is the footer's rung and nothing else since 2026-09-13 — the
+    // card that used to say "Step in" in full was the same act with a
+    // sentence under it.
+    expect(on('In')).toEqual({ disabled: false, selected: false });
     expect(on('Claim').disabled).toBe(true);
 
     showRecordings(tree);
@@ -1115,15 +1130,17 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    expect(findButton(tree, 'Step out')).toBeUndefined();
-    const stepIn = findButton(tree, 'Step in');
-    expect(stepIn).toBeDefined();
-    // And it says which of the two "not in it" cases this is, rather than the
-    // copy for a channel nobody is in.
+    // The way in is the footer's rung, and the way out is not offered: this
+    // copy of the app is not holding anything to give up.
+    const stepIn = findButton(tree, 'In')!;
+    expect(stepIn.props.accessibilityState.selected).toBe(false);
+    // And the sentence says which of the two "not in it" cases this is. It is
+    // the one thing about being outside that no rung and no roster card can
+    // say, which is why it outlived the card that used to carry it — see the
+    // note under the roster in ChannelView.
     expect(textOf(tree)).toContain('not on this device');
-    expect(textOf(tree)).not.toContain('without being in it');
 
-    act(() => stepIn!.props.onPress());
+    act(() => stepIn.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
     act(() => tree.unmount());
   });
@@ -1143,17 +1160,22 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    expect(findButton(tree, 'Step in')).toBeDefined();
+    expect(findButton(tree, 'In')).toBeDefined();
     expect(textOf(tree)).toContain('on another device');
     act(() => tree.unmount());
   });
 
   /**
-   * A channel nobody is in is the third case, and must keep its own words —
-   * the two above are about being present somewhere you are not holding, and
-   * this is about not being present at all.
+   * A channel this account is not in at all is the third case, and since
+   * 2026-09-13 it is the one with nothing to say.
+   *
+   * It used to have its own sentence — *you are looking at this channel
+   * without being in it* — on the Step in card. The two above are facts a
+   * snapshot cannot show you, another device being invisible to this screen;
+   * that one was a readout of which rung you are on, which the footer lights
+   * and your own roster card says in words. It went with the card.
    */
-  it('keeps the plain copy for a channel this account is not in', () => {
+  it('says nothing extra for a channel this account is not in', () => {
     const channel = reduce(channelOf(), { type: 'STEP_OUT', userId: ME }, NOW);
     showChannel(channel);
     mockApp.standingIn = null;
@@ -1164,15 +1186,20 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    expect(findButton(tree, 'Step in')).toBeDefined();
-    expect(textOf(tree)).toContain('without being in it');
+    expect(findButton(tree, 'Out')!.props.accessibilityState.selected).toBe(
+      true
+    );
+    expect(textOf(tree)).not.toContain('without being in it');
     expect(textOf(tree)).not.toContain('not on this device');
+    // The roster card is what says it instead, and says it about a person
+    // rather than about a device.
+    expect(textOf(tree)).toContain('Stepped out');
     act(() => tree.unmount());
   });
 
   it('offers only stepping out on the channel screen', () => {
-    // Leaving lives in settings. Beside Step out, in the colour reserved for
-    // danger, it drew the eye straight to the least likely action.
+    // Leaving lives in settings. Beside the way out, in the colour reserved
+    // for danger, it drew the eye straight to the least likely action.
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1181,28 +1208,40 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    const stepOut = findButton(tree, 'Step out');
-    expect(stepOut).toBeDefined();
-    // Bare: no sublabel and no heading over it. Somebody reaching for this one
-    // knows what it does, and the words were saying so a second time.
-    expect(labelOf(stepOut!)).not.toContain('You stay a member');
+    // The Out rung, which since 2026-09-13 is the whole of the way out. It
+    // had a card of its own until then, and by the end the card was two
+    // buttons the bar already had — the last of its words having gone when
+    // the sublabel did. See the note where `controlCards` used to be
+    // declared in ChannelView.
+    const stepOut = findButton(tree, 'Out')!;
+    expect(stepOut.props.accessibilityState).toEqual({
+      disabled: false,
+      selected: false,
+    });
+    expect(findButton(tree, 'Step out')).toBeUndefined();
     expect(findButton(tree, 'Leave channel')).toBeUndefined();
 
-    act(() => stepOut!.props.onPress());
+    act(() => stepOut.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
     act(() => tree.unmount());
   });
 
   /**
-   * The card half of the three rungs, which is the same pair the footer draws
-   * and the place the words are.
+   * Being nearby from inside the room, which since 2026-09-13 is the footer's
+   * rung and nothing else.
    *
    * Out of Labs on 2026-09-09. It was gated while it was one experiment among
    * two, and a gate is what let the same action carry two names — "Step in
    * nearby" from outside, "Nearby" from inside — for something the reducer has
    * always treated as one act.
+   *
+   * It had a card too, above the way out, until the pair were deleted for
+   * being the bar again in longer words. That card is also where the drift a
+   * duplicated control invites actually happened: its *Be nearby* had lost
+   * the `markTried('nearby')` its footer twin kept, so declaring nearby from
+   * the card never ticked the checklist rung. Hence the assertion here.
    */
-  it('offers being nearby above the way out, and no longer behind Labs', () => {
+  it('offers being nearby from inside the room, and no longer behind Labs', () => {
     mockApp.labs = false;
     showChannel(channelOf());
     const tree = render(<ChannelView
@@ -1212,15 +1251,14 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    // In the rungs' own order — in, nearby, out — so the gentler departure is
-    // always the one above.
-    expect(textOf(tree)).toContain('Give the audio system back');
-    const nearby = findButton(tree, 'Be nearby');
-    expect(nearby).toBeDefined();
-    expect(findButton(tree, 'Step out')).toBeDefined();
+    expect(findButton(tree, 'Be nearby')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Give the audio system back');
+    const nearby = findButton(tree, 'Nearby')!;
+    expect(nearby.props.accessibilityState.selected).toBe(false);
 
-    act(() => nearby!.props.onPress());
+    act(() => nearby.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'DECLARE_NEARBY' });
+    expect(mockApp.markTried).toHaveBeenCalledWith('nearby');
     // Staying within reach is staying, so the screen it offers the step in on
     // is not taken away.
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
@@ -1240,13 +1278,18 @@ describe('Channel', () => {
       />);
 
     const text = textOf(tree);
-    // The rung you are on is the one thing not offered, on the card or in the
-    // footer: there is no *Be nearby* anywhere on a screen you are nearby in.
+    // No long forms anywhere: the card that spelled these two out in
+    // sentences went on 2026-09-13, and the bar is the whole of the ladder.
     expect(text).not.toContain('Be nearby');
-    expect(text).toContain('You are nearby rather than in this channel');
-    expect(findButton(tree, 'Step in')).toBeDefined();
+    expect(text).not.toContain('You are nearby rather than in this channel');
+    // The lit rung is where you are, and the other two are live. Nearby stays
+    // pressable while lit — the tap restarts the wait.
+    expect(findButton(tree, 'Nearby')!.props.accessibilityState.selected).toBe(
+      true
+    );
+    expect(findButton(tree, 'In')).toBeDefined();
 
-    act(() => findButton(tree, 'Step out')!.props.onPress());
+    act(() => findButton(tree, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
     act(() => tree.unmount());
   });
@@ -1320,17 +1363,21 @@ describe('Channel', () => {
 
     /*
       The roster's own, which is what is true of the conversation right now.
-      **Two, since 2026-09-13.** *The floor* was first among them and is gone
-      with its card: what it held was the state of the floor in a sentence,
-      and the roster above it says the same thing about the people it is
-      about.
+      **One, since 2026-09-13**, and what is left of it is a readout.
 
-      *Step out* is sentence case with the rest of them. It was "Step Out",
-      capitalised, because one label served both departures and flipped to
-      "Step In" when you were not present; splitting them left nothing for the
-      capital to distinguish.
+      There were four. *The floor* went first: what its card held was the
+      state of the floor in a sentence, and the roster above it says the same
+      thing about the people it is about. *Step in* and *Step out* followed
+      the same afternoon, being the footer's three rungs with sentences under
+      them. *Your microphone* is the survivor and lost its button — the bar
+      greys without ever saying which of four reasons it is, and that sentence
+      is the card.
+
+      What is under this heading is therefore not a control, which is why the
+      heading is still here at all: a section of readout is a thing to read,
+      and the setting that used to be able to hide it was about repetition.
     */
-    expect(sections()).toEqual(['Your microphone', 'Step out']);
+    expect(sections()).toEqual(['Your microphone']);
 
     // What the channel has written down, at two speeds — and in that order
     // since 2026-09-13: the clipboard, which is minutes old and is what
@@ -2288,8 +2335,10 @@ describe('Channel', () => {
    * anyway would make them say it twice — walk in deliberately, step out, and
    * find the channel gone from under you.
    *
-   * Both sites, because the footer and the card are the same control drawn
-   * twice and this is exactly the pair that drifts.
+   * One site since 2026-09-13, the card having been deleted for being the
+   * footer in longer words. It was two sites, and the pair is exactly the
+   * kind that drifts — which is why both shared `stepOut` and why the
+   * function is still a function with one caller.
    */
   it('leaves the screen open when stepping out, if a tap only looks', () => {
     mockApp.tapToLook = true;
@@ -2305,10 +2354,8 @@ describe('Channel', () => {
     expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();
 
-    // And the card, which still says the act in full.
-    act(() => findButton(tree, 'Step out')!.props.onPress());
-    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
-    expect(onExit).not.toHaveBeenCalled();
+    // And nowhere else says the act at all any more.
+    expect(findButton(tree, 'Step out')).toBeUndefined();
 
     act(() => footer.unmount());
     act(() => tree.unmount());

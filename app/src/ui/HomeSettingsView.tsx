@@ -262,53 +262,27 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           as well.
         </Text>
 
-        <View style={styles.divider} />
-
         {/*
-          Named by what it stops drawing rather than by a word like "compact",
-          and the second paragraph names what goes with the cards. Named for
-          the departure, like the tap above it and Labs below, so that Off is
-          the untouched answer on every setting here — see
-          DEFAULT_ACCOUNT_SETTINGS in core/settings.ts. What goes is a way
-          of doing something a second time and nothing else, which is why the
-          two notices below it stay: a setting that quietly stopped a screen
-          explaining itself would be discovered at exactly the moment the
-          explanation was wanted.
+          **"Hide the repeated channel controls" was here and went on
+          2026-09-13**, with the cards it hid.
 
-          The floor used to be the exception here — its card stayed, minus the
-          button, for the countdown and the reason a claim was refused. The
-          countdown went to the roster on 2026-09-12 and the card itself on
-          2026-09-13, so there is no longer an exception to describe.
+          `hideControlCards` switched off the channel screen's repetitions of
+          its own footer — the microphone and the two departures, each a card
+          down the screen as well as a slot in the bar. Those cards are now
+          deleted for everybody, or in the microphone's case reduced to the
+          sentence a bar cannot carry, so the setting had nothing left to
+          govern and this was a choice between two identical screens. See
+          decisions/2026-09-13-the-cards-a-footer-made-redundant.md.
+
+          The two notices it promised stay — a silenced microphone is still
+          being recorded, and this channel is held on another device — which
+          is what it always promised and is now simply true.
+
+          **The setting itself is still on the wire** and still a column on
+          `accounts`: see `hideControlCards` in core/settings.ts. Taking it
+          out is a wire change and a migration rather than a screen edit, and
+          nothing reads it now.
         */}
-        <Text style={type.heading}>Hide the repeated channel controls</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, 'On'],
-              [false, 'Off'],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.hideControlCards === value ? 'primary' : 'default'}
-              onPress={() => app.setHideControlCards(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>
-          A channel keeps the floor, your microphone and the ways in and out
-          under your thumb at all times. Off, which is where everybody starts,
-          the microphone and the ways in and out also have cards further down
-          the screen. On, the bar is the whole of them and the screen below is
-          who is in the room and what the room is carrying.
-        </Text>
-        <Text style={type.muted}>
-          Two things stay whichever way this is set — that a silenced
-          microphone is still being recorded, and that you are in this channel
-          on another device.
-        </Text>
       </Card>
 
       {/*

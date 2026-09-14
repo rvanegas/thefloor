@@ -30,14 +30,14 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
 | *Controls* | Button, IconButton, Field, Segmented, FooterAction |
-| *Cards and rows* | the card, its tinted states, packed rows against spread ones |
+| *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
-| *The rules that are actually load-bearing* | the six things to not break |
+| *The rules that are actually load-bearing* | the seven things to not break |
 
 ---
 
@@ -480,6 +480,48 @@ always what gives.**
 vertically and collapses a self-sizing card to its buttons; Home keeps a
 separate `noticeMain` with no flex for exactly that reason.
 
+### The cards a footer made redundant
+
+Adopted 2026-09-13, after the channel screen spent a fortnight saying
+everything twice.
+
+A pinned footer and a card can offer the same act, and for a while that was
+defended as a division of labour: the bar is where the act is quick, the card
+is where the state is explained. **That holds only while the card is actually
+explaining something.** The channel screen's four — the floor, the microphone,
+Step in, Step out — each began with sentences under the button and each lost
+them one at a time, to a roster card that says whose minute it is, to a bar
+whose accent says which rung you are on, and to editing that decided the
+sentence was saying it twice. What was left was a button with a heading over
+it, one scroll below the same button.
+
+So the rule, which is a question to ask of any card that repeats a pinned
+control:
+
+- **If the card is a button and a sentence, keep both.** It is the bar's
+  explanation, and an icon that greys with no reason given is the one shape a
+  control may not have.
+- **If the sentence goes, the card goes.** A heading and a button are not an
+  explanation; they are the footer at the wrong size and in the wrong place.
+- **If the button goes and the sentence stays, keep the card and drop the
+  button.** That is a readout, and a readout is not a repetition of anything —
+  *Your microphone* is the survivor of the four on exactly this ground, since
+  the bar greys without ever saying which of four reasons it is.
+
+**A readout must not be gated on a preference about repetition.** This is what
+the rule costs and it is worth saying on its own: `hideControlCards` hid the
+cards that repeated the bar, and the moment a card stops repeating anything
+that setting has no business reaching it. The audio diagnostic panel had to be
+given a card of its own for a while to escape exactly this, which is the
+symptom to watch for — when the exceptions to a setting outnumber what it
+governs, what it governs has gone.
+
+**What survives has no second home.** Two sentences on the channel screen are
+there because nothing else can say them: that a silenced microphone is still
+being captured, and that the room is held on another phone. The second is
+under the roster rather than on a card, there being no card left it could
+belong to.
+
 ---
 
 ## Dots, pills and rules
@@ -605,9 +647,13 @@ banners.
 
 The channel bar carries five — Mute, Claim, In, Nearby, Out — and each is
 `flex: 1`, so it is a fifth of the bar whatever its label says. That is also
-why the labels are short forms: the cards below say "Step in" and "Be nearby",
-which are acts with a sentence under them, where these are the same rungs at
-11pt in a fifth of a phone and the long forms truncate. Sizing to content would move a target under the thumb the moment
+why the labels are short forms: the long forms, "Step in" and "Be nearby", are
+acts, and belonged on a control with a sentence under it, where these are the
+same rungs at 11pt in a fifth of a phone and the long forms truncate. **The
+cards that had them are gone as of 2026-09-13**, so the bar is now the whole
+of the ladder, the microphone and the floor; what is left in the body is a
+readout apiece, and only where there is something the bar cannot state. See
+*The cards a footer made redundant* below. Sizing to content would move a target under the thumb the moment
 "Claim" becomes "Release" — **position is what a set of fixed controls is
 for.**
 
@@ -762,7 +808,7 @@ rules.
 
 ## The rules that are actually load-bearing
 
-Six things that look like tidying and are not:
+Seven things that look like tidying and are not:
 
 1. **Violet is the floor and nothing else.** Every other coloured thing on the
    palette is claimed by exactly one meaning. Adding a sixteenth colour, or
@@ -783,6 +829,12 @@ Six things that look like tidying and are not:
    action, a fixed-height disc whether accented or not, two static rows of tabs
    rather than a scroller. A target that moves under a thumb already on its way
    is the wrong one pressed.
+7. **A card that repeats a pinned control earns its place with a sentence, or
+   not at all.** When the sentence goes the card goes; when the button goes and
+   the sentence stays it becomes a readout, and a readout may not be hidden by
+   a preference about repetition. See § *The cards a footer made redundant*,
+   which is what four cards on the channel screen cost before anybody counted
+   them.
 
 And one that is about this file: **a departure from any of the above is
 written down where it is made.** The style blocks in `app/src/ui/` are

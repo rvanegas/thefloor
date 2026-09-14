@@ -24,6 +24,18 @@ was written against is gone.
   `decisions/2026-09-09-presence-is-a-ladder.md`. *Step in nearby* and
   *Nearby* are both **Be nearby** now, in the body and in a new footer slot,
   and *Nearby* has a way out for the first time. Step 12.
+- **The body's cards went on 2026-09-13**, and this is the one that most
+  changes what you are looking at while you walk:
+  `decisions/2026-09-13-the-cards-a-footer-made-redundant.md`. There is no
+  *Step in*, *Step out* or *Be nearby* card any longer, and no button by any
+  of those names — **every step below that names one means the footer's rung**,
+  which is labelled *In*, *Nearby* or *Out*. The rung you are standing on is
+  the lit one. What survives in the body is the arrival offer in step 5,
+  which was never one of these, and the microphone card, which kept its
+  sentences and lost its button. Step 12 is the one to read twice: it was
+  written against a two-slot footer that flipped its words, and the point it
+  is making — that no slot ever moves — is now made by three slots that never
+  change their words at all.
 
 **The suite is green and that is evidence about the reducer, the hook and the
 socket. It is no evidence about what a phone does with an audio session.**
@@ -123,11 +135,11 @@ mean `mixWithOthers` has come back from somewhere.
 reads `released` and, in a debug build, the category it saw. Then repeat twice
 more, because the three exits take different paths to the same teardown:
 
-1. **Step out** — the tap.
-2. **Be nearby** — the button above *Step out* in that card, or the bell in
-   the footer. Same release, and both must now read *Step out*: the bell
-   because you are on the nearby rung, the door because you are no longer in
-   the room.
+1. **Out** — the tap, at the end of the footer.
+2. **Nearby** — the bell, two slots to its left. Same release, and the bar
+   must now light *Nearby* rather than *In*: you have moved down a rung
+   without leaving. Both of these were buttons in a card as well until
+   2026-09-13; the card is gone and the bar is the whole of it.
 3. **Force-quit the app** while stepped in. The session dies with the process;
    nothing releases it and nothing has to. What the *others* see of this exit
    is step 13, and it changed on 2026-09-08.
@@ -382,12 +394,14 @@ from the footer's door, and again from the card.
 
 **What settles it.** Both leave you on the channel screen, looking at a room
 you are no longer in. Turn the setting **off** and repeat: both now close the
-screen. The rule is that the setting decides at both doors, so the footer and
-the card can never disagree — see `decisions/2026-09-08-stepping-out-follows-the-tap.md`.
+screen. The rule is that the setting decides at both doors — see
+`decisions/2026-09-08-stepping-out-follows-the-tap.md`. It was written when the
+footer and a card were two ways out that could disagree; there is one way out
+now, and the rule is what survived the pair.
 
 Stepping out of *Nearby* takes the same path, which is worth one extra tap
-here: be nearby, tap the bell's *Step out*, and the screen behaves exactly as
-the door's does. **Be nearby** never closes the screen either way, because that
+here: be nearby, tap *Out*, and the screen behaves exactly as it does from
+inside the room. **Nearby** never closes the screen either way, because that
 is where the offer in step 5 gets drawn.
 
 ### 15. Android, if there is a build

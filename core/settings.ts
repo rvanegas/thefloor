@@ -69,19 +69,26 @@ export interface AccountSettings {
   tapToLook: boolean;
   /**
    * Whether the channel screen has stopped drawing a card for each of the
-   * three controls pinned in its footer.
+   * controls pinned in its footer.
    *
-   * Unset, which is the default, the screen is as it has always been: the
-   * footer is a row of shortcuts and the floor, the microphone and the two
-   * departures each keep a card further down, where the state is explained.
-   * Set, the cards go and the footer is the whole of those three controls —
-   * a channel screen that opens on who is in the room and what the room is
-   * carrying, for somebody who has learnt what the three do and no longer
-   * reads the sentences under them.
+   * **Nothing reads this as of 2026-09-13**, and it is here because taking it
+   * out is a wire change and a migration rather than a deletion. It is still
+   * accepted on `PATCH /settings`, still a column on `accounts`, still
+   * mirrored into the app's state — and no screen asks it anything.
    *
-   * It is a preference about how much a screen repeats itself, which is a
-   * habit rather than a property of a handset, so it belongs to the person on
-   * the same reasoning as the tap. See `app/src/ui/ChannelView.tsx`.
+   * What it used to govern: the channel screen drew the floor, the
+   * microphone and the two departures as a card apiece further down the
+   * screen as well as a slot in the bar, and setting this dropped the cards.
+   * Every one of those cards has since been deleted outright or reduced to
+   * the sentence a footer cannot carry, so there is no longer a screen for it
+   * to switch between. The Home settings toggle went with them. See
+   * `planning/decisions/2026-09-13-the-cards-a-footer-made-redundant.md`.
+   *
+   * **Retiring it is the wire two-step**, not a field deletion: the server
+   * keeps accepting the name while any installed build still sends it, and
+   * `settings-wire.ts` already carries an alias for the older `controlCards`
+   * spelling that would go at the same time. SHIMS.md is where that gets
+   * written down when somebody starts it.
    */
   hideControlCards: boolean;
   /**

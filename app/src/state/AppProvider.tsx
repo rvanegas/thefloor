@@ -585,11 +585,11 @@ interface AppValue extends AppState {
    * something about the handset you learnt it on, and the second phone
    * disagreeing with the first is the app forgetting it.
    *
-   * Off by default and read only by `ChannelView`. What goes with the cards is
-   * named on the settings screen rather than hidden behind the word "compact"
-   * — the sentence saying why a control is refused, the floor's countdown, and
-   * the notice that a silenced microphone is still being recorded. The last of
-   * those does not go: it moves. See `ChannelView`.
+   * **Read by nothing since 2026-09-13.** The cards it hid are deleted for
+   * everybody and the Home settings toggle with them; this stays wired up
+   * because it is on the wire and in a column, and retiring it is a two-step
+   * rather than an edit. See `hideControlCards` in core/settings.ts, which
+   * carries the whole of it.
    */
   hideControlCards: boolean;
   setHideControlCards: (value: boolean) => void;

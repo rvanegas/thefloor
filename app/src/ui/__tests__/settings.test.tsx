@@ -222,69 +222,20 @@ describe("Home settings", () => {
   });
 });
 
-describe("the control-cards setting", () => {
-  const openSettings = async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
-    });
-    return tree;
-  };
+/*
+  `describe("the control-cards setting")` was here and went on 2026-09-13,
+  with the setting itself. It asserted the three things every setting on this
+  screen owes — both answers, a mark on the one in force, reporting a change
+  upward — about "Hide the repeated channel controls", which switched off the
+  channel screen's repetitions of its own footer.
 
-  /**
-   * Three cards on this screen offer On and Off, so the label alone does not
-   * pick one out. They are found in render order and this is the second — the
-   * tap is above it and the headset below.
-   *
-   * One node per button. `findAll` matches three for each — the Pressable, the
-   * component it renders and the host view under that — and an unfiltered
-   * search would make "the second Off" the first button's insides. The one
-   * that carries `onPress` is the one there is exactly one of.
-   */
-  const cardsButton = (tree: ReactTestRenderer, label: string) =>
-    tree.root
-      .findAll(
-        (n) =>
-          n.props?.accessibilityRole === "button" &&
-          typeof n.props.onPress === "function",
-      )
-      .filter((n) => labelOf(n).includes(label))[1];
-
-  it("offers both answers and names what goes with the cards", async () => {
-    const tree = await openSettings();
-    const text = textOf(tree);
-    expect(text).toContain("Hide the repeated channel controls");
-    // The floor was the exception this named until its card went on
-    // 2026-09-13; what the setting takes is now the microphone and the ways
-    // in and out, and the copy claims nothing about a card that is not there.
-    expect(text).not.toContain("its card stays either way");
-    expect(text).toContain("the microphone and the ways in and out also have");
-    // The promise the channel screen keeps by moving two sentences upward.
-    expect(text).toContain("still being recorded");
-    act(() => tree.unmount());
-  });
-
-  it("reports a change rather than keeping it", async () => {
-    const tree = await openSettings();
-    act(() => cardsButton(tree, "Off").props.onPress());
-    expect(mockApp.setHideControlCards).toHaveBeenCalledWith(false);
-    expect(mockApp.setTapToLook).not.toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  it("marks which one is in force", async () => {
-    mockApp.hideControlCards = true;
-    const tree = await openSettings();
-    const cardStyleOf = (label: string) =>
-      StyleSheet.flatten(
-        cardsButton(tree, label).props.style({ pressed: false }),
-      ) as { backgroundColor?: unknown };
-    expect(cardStyleOf("Off").backgroundColor).not.toBe(
-      cardStyleOf("On").backgroundColor,
-    );
-    act(() => tree.unmount());
-  });
-});
+  Those cards are deleted for everybody now, so the setting governed nothing
+  and the screen no longer offers it. What it used to hide is asserted on the
+  channel screen instead, which is where it always was: see
+  `a channel screen that does not repeat its footer` in channelRoster.test.tsx.
+  The wire field and the column survive, unread — see
+  decisions/2026-09-13-the-cards-a-footer-made-redundant.md.
+*/
 
 /**
  * The gate over the experimental features.
@@ -306,11 +257,12 @@ describe("the Labs setting", () => {
   };
 
   /**
-   * The third On/Off pair: the tap, the cards, then this. Positional, so it
-   * moves when a setting is added or taken away above it — which has happened
-   * twice, the tabs arriving on 2026-09-12 and going on 2026-09-13, and is
-   * the whole of why the number is here rather than buried in the expression
-   * below.
+   * The second On/Off pair: the tap, then this. Positional, so it moves when
+   * a setting is added or taken away above it — which has now happened three
+   * times: the tabs arriving on 2026-09-12 and going on 2026-09-13, and the
+   * repeated channel controls going the same day, which is what took this
+   * from third to second. That is the whole of why the number is here rather
+   * than buried in the expression below.
    */
   const labsButton = (tree: ReactTestRenderer, label: string) =>
     tree.root
@@ -319,7 +271,7 @@ describe("the Labs setting", () => {
           n.props?.accessibilityRole === "button" &&
           typeof n.props.onPress === "function",
       )
-      .filter((n) => labelOf(n).includes(label))[2];
+      .filter((n) => labelOf(n).includes(label))[1];
 
   /**
    * The heading, which names which of the two settings screens this is.
@@ -348,7 +300,6 @@ describe("the Labs setting", () => {
     const tree = await openSettings();
     act(() => labsButton(tree, "On").props.onPress());
     expect(mockApp.setLabs).toHaveBeenCalledWith(true);
-    expect(mockApp.setHideControlCards).not.toHaveBeenCalled();
     expect(mockApp.setTapToLook).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });

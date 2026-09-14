@@ -817,34 +817,31 @@ export function ChannelView({
    * told us.
    */
   const takenByAnotherDevice = elsewhereOnAnotherDevice && app.displaced;
-  /**
-   * Whether the microphone and the two departures still get a card apiece
-   * further down.
-   *
-   * On unless somebody has said otherwise, from Home settings — see
-   * `AppValue.hideControlCards`, which is the setting and is named for the
-   * departure rather than for this. What is conditional on it is only ever a
-   * way of doing something twice: no act becomes unavailable, because every one of
-   * the three is in the footer at all times and the footer is not conditional
-   * on anything.
-   *
-   * The floor was the exception in shape from 2026-08-31: its card stayed and
-   * only the Claim/Release button went, on the grounds that a readout — the
-   * state of the floor, the countdown, and the sentence saying why the act was
-   * refused — is not a repetition of a footer icon. The countdown moved to the
-   * holder's roster card on 2026-09-12 and the rest of the card went on
-   * 2026-09-13, the roster having become the better place to read all of it.
-   * There is no exception left: this setting now governs three cards of the
-   * same kind.
-   *
-   * Two sentences survive the cards that carried them, and they are marked at
-   * each site. The recording warning is a notice rather than an explanation,
-   * and being told you are captured is not a convenience anybody chose to give
-   * up. The other-device sentence is the same kind: stepping in from here
-   * closes a microphone somewhere else, and the footer's Step In cannot say
-   * so.
-   */
-  const controlCards = !app.hideControlCards;
+  /*
+    `controlCards` was here and is gone as of 2026-09-13, with the three cards
+    it governed.
+
+    It read `!app.hideControlCards`, and what it decided was whether the
+    microphone and the two departures each got a card down the screen as well
+    as a slot in the footer. Every one of those cards has since been either
+    deleted or reduced to the half a footer cannot carry, so there is nothing
+    left for a setting about duplication to switch off:
+
+      - **Step out**, deleted. Two buttons, both of them footer rungs, and by
+        the end only one of them had so much as a sentence under it.
+      - **Step in**, deleted. Three buttons, all three of them footer rungs.
+        Its one sentence with no second home — you are in this channel on
+        another device — is now drawn under the roster unconditionally.
+      - **Your microphone**, kept, minus its button. What is left says *why*
+        the microphone is shut, which the bar greys without ever saying.
+      - **The floor**, which went the same way first: the Claim/Release button
+        on 2026-08-31, the countdown to the holder's roster card on
+        2026-09-12, the rest on 2026-09-13.
+
+    The setting itself outlives this file, `hideControlCards` being on the
+    wire and in a column on the accounts table — see core/settings.ts. What it
+    no longer has is anything to govern.
+  */
   /**
    * What Step Out does about the screen, as against about the room.
    *
@@ -876,10 +873,16 @@ export function ChannelView({
   /**
    * Steps out, and closes the screen if that is what stepping out means here.
    *
-   * One function for the footer and the card, which say the same thing twice
-   * by design — see `controlCards`. They were two copies of these three lines,
-   * and a pair like that is exactly the kind that drifts once there is a
-   * condition in it.
+   * One function for the footer and the card that used to repeat it, which
+   * said the same thing twice by design. They were two copies of these three
+   * lines, and a pair like that is exactly the kind that drifts once there is
+   * a condition in it — which is what it did. The card's *Be nearby* beside
+   * it was not extracted the same way, and by the time the card was deleted
+   * on 2026-09-13 it had lost the `markTried('nearby')` its footer twin
+   * still had: declaring nearby from the card never ticked the checklist
+   * rung. Only the footer calls this now, and the function stays a function
+   * because the question it answers — does leaving here mean leaving the
+   * screen — has one answer for whoever asks it.
    */
   const stepOut = () => {
     act({ type: 'STEP_OUT' });
@@ -1476,31 +1479,31 @@ export function ChannelView({
     ways in and the two ways out, which is what presence being three rungs
     rather than a switch costs the bar — one more slot.
 
-    **These are shortcuts, not the controls, by default.** Each of them still
-    has its card on the roster tab — with the sentence saying why it is
-    refused, the warning about being recorded while silenced. A footer cannot
-    carry any of that, and an icon that greys with no reason given is the one
-    shape this codebase does not allow a control to have. So the card stays as
-    the place the state is explained and this is the place the act is quick,
-    which is the arrangement `ProfileView`'s Copy button already has against the
-    selectable address above it: the shortcut must not outweigh the thing it
-    shortcuts.
+    **These are the controls, as of 2026-09-13, and not shortcuts to them.**
+    Each of the four had a card on the roster tab saying the same thing in
+    words, and that arrangement was defensible for exactly as long as the
+    cards carried something the bar could not: the sentence saying why an act
+    was refused, the warning about being recorded while silenced. One by one
+    they stopped. The floor's card went first and in two steps — the button on
+    2026-08-31, the rest on 2026-09-12 and 13, its readouts having moved to the
+    roster card of whoever holds it. The microphone, Step in and Step out
+    followed on 2026-09-13; the first kept its explanation and lost its button,
+    and the other two were buttons and nothing else by the end.
 
-    **Unless the cards have been turned off, in which case this is the whole of
-    the microphone and the ways in and out.** `hideControlCards`, from Home
-    settings, is a choice somebody makes after the sentences have done their
-    work — see `AppValue.hideControlCards`. That is why the rule above is about
-    what a screen may show somebody who has not asked, rather than about what a
-    screen may ever be: what a footer cannot state is kept rather than dropped.
-    The floor is the one act with no card behind it either way, since
-    2026-09-13 — but it is not the bar's sole account of itself either: whose
-    minute it is and how much of it is left are on the roster card of whoever
-    is holding it, which this setting does not reach. What went with the card
-    is the sentence saying *why* a claim is refused, and the icon greys without
-    saying which of the four reasons it is. Nothing here is conditional on the setting,
-    and nothing here may become so — a bar that
-    changes shape with a preference is the same finger-under-the-thumb problem
-    as one that changes shape with state.
+    **What could not move down here did not get dropped for it.** That is the
+    whole of the rule, and it is unchanged: an icon that greys with no reason
+    given is the one shape this codebase does not allow a control to have. So
+    *why* your microphone is shut is still a sentence, on the one card left; the
+    floor's four reasons for refusing a claim are the one place the rule is
+    bent, and the bend is paid for by the clock and the cooldown on the roster.
+    Three of these four now say all they say in a glyph, a word and a colour,
+    because there turned out to be nothing else about them worth saying.
+
+    Nothing here is conditional on a setting, and nothing here may become so — a
+    bar that changes shape with a preference is the same finger-under-the-thumb
+    problem as one that changes shape with state. That used to be said against
+    `hideControlCards`, which switched the cards off and never reached the bar;
+    it now has nothing to be said against, the cards being gone for everybody.
 
     **Labelled, though the request was for icons.** Two of these three are
     mechanics this application invented — nobody arrives knowing what claiming
@@ -1595,11 +1598,14 @@ export function ChannelView({
         back on. It looks no different from the other two while lit, which is
         deliberate: see `repeatable` on `FooterAction`.
 
-        **Short forms, deliberately.** The cards below still say "Step in",
-        "Be nearby" and "Step out", which are acts and belong on a control with
-        a sentence under it; a roster card still says *Present* and *Stepped
-        out* about other people. These are the same three rungs at 11pt in a
-        fifth of a phone, and the long forms truncate there.
+        **Short forms, deliberately.** The long forms — "Step in", "Be
+        nearby", "Step out" — are acts, and belonged on a control with a
+        sentence under it; the cards that had them are gone as of 2026-09-13,
+        and the arrival offer still says "Step in" and "Stay nearby" because
+        it is a question rather than a rung. A roster card still says
+        *Present* and *Stepped out* about other people. These are the same
+        three rungs at 11pt in a fifth of a phone, and the long forms truncate
+        there.
       */}
       <FooterAction
         label="In"
@@ -1729,25 +1735,31 @@ export function ChannelView({
           ) : null}
 
           {/*
-            The two sentences the cards below carry, at the one moment there
-            are no cards below to carry them. Both are here rather than left
-            out because neither is an explanation of a control: they are facts
-            about what is happening to you that the footer has no room for, and
-            the settings screen promises in as many words that they stay.
+            **The other-device sentence, unconditionally, and it is the only
+            one left here.** It sat beside a copy of the recording warning,
+            both drawn only when the cards below were switched off and both
+            carrying a sentence one of those cards would otherwise have said.
+            The microphone card can no longer be switched off, so it keeps its
+            warning and this pair is down to one.
 
-            Under the roster for the same reason the party-muted line is —
-            they are claims about the room you are looking at, made where you
-            are looking. Nothing renders here while the cards are drawn, so
-            neither sentence is ever said twice.
+            This one cannot go the same way, because there is no card left to
+            put it on: it is true only of somebody who has *not* stepped in,
+            and the microphone card is drawn only for somebody who has. The
+            Step in card carried it until 2026-09-13 and was otherwise three
+            buttons the footer already had.
+
+            It stays rather than being left to the footer because it is not an
+            explanation of a control. Stepping in from here closes a
+            microphone somewhere else, and an icon in a bar cannot say so —
+            the settings screen promised in as many words that this one stays
+            whichever way that setting was set, and now it stays because
+            nothing can take it away.
+
+            Under the roster for the same reason the party-muted line is: it
+            is a claim about the room you are looking at, made where you are
+            looking.
           */}
-          {!controlCards && recordingLive && iAmSilenced ? (
-            <Text style={styles.warning}>
-              You are still being recorded. Nobody can hear you, but your
-              microphone is captured; it is left out of the mix anybody can play or share,
-              not out of the capture.
-            </Text>
-          ) : null}
-          {!controlCards && !iAmPresent && elsewhereOnAnotherDevice ? (
+          {!iAmPresent && elsewhereOnAnotherDevice ? (
             <Text style={type.muted}>
               {takenByAnotherDevice
                 ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
@@ -1849,10 +1861,13 @@ export function ChannelView({
           is this — the same detection, `state/nearby.ts`, drawn as a thing to
           tap rather than performed.
 
-          **It is not behind `controlCards`.** That setting decides whether the
-          footer's controls are repeated in the body; this is not a repeated
-          control but the answer to a question the app has just asked, and a
-          setting about duplication has no business taking it away.
+          **It was never behind `controlCards`**, and that is why it is still
+          here now the three cards that setting governed are not. Those were
+          the footer's controls repeated in the body; this is not a repeated
+          control but the answer to a question the app has just asked. Its
+          *Step in* coincides with a footer rung, and its *Stay nearby* is on
+          no bar and no other card — dismissing an offer is not a rung, and
+          the pair is the question, not two shortcuts.
 
           **It is filtered against the roster rather than expired on a clock.**
           Somebody who arrived and has since left is no longer a reason to step
@@ -1884,115 +1899,37 @@ export function ChannelView({
         ) : null}
 
         {/*
-          Stepping in, directly under the roster, because on a screen you are
-          not in it is the only thing you came to decide — everything below it
-          describes a conversation you are not part of yet. It used to share a
-          card with Step Out, one position serving two controls that want
-          opposite ends of the screen; see the note on Step Out below.
+          **A readout, and since 2026-09-13 nothing else.** The button that
+          used to head this card was the footer's Mute exactly — the same
+          label, the same action, and the same `canSetSelfMute` guard
+          character for character — so it has gone the way the floor's
+          Claim/Release went on 2026-08-31, leaving behind the half a footer
+          cannot carry.
 
-          Reachable only with "Tap a channel to step in" turned off in Home
-          settings — the setting that opens a channel without arriving in it.
-          Stepping in from here does not navigate: you are already looking at
-          the channel, and what changes is that the others can hear you and the
-          screen fills in around this card — the microphone, the door, the
-          floor — which is a better answer than a screen that closes and
-          reopens on the same channel.
-        */}
-        {iAmPresent || !controlCards ? null : (
-          <>
-            <SectionLabel>Step in</SectionLabel>
-            <Card style={styles.stack}>
-              {/* The loud thing on a screen you are not in yet. */}
-              <Button
-                label="Step in"
-                variant="primary"
-                onPress={() => act({ type: 'ENTER' })}
-              />
-              <Text style={type.muted}>
-                {takenByAnotherDevice
-                  ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
-                  : elsewhereOnAnotherDevice
-                    ? 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'
-                    : iAmNearby
-                      ? 'You are nearby rather than in this channel. Nobody can hear you, and your microphone stays closed until you step in.'
-                      : 'You are looking at this channel without being in it. Nobody can hear you, and your microphone stays closed until you step in.'}
-              </Text>
-              {/*
-                **The other move off this rung**, and which one it is depends
-                on which rung you are on: somebody stepped out is offered
-                *nearby*, and somebody already nearby is offered the way out of
-                it. The pair with Step in above is the whole of what this card
-                is — see the footer, where the same two moves are the same two
-                slots.
+          That half is *why* the microphone is in the state it is in. The bar
+          greys and tints, and neither says which of the four reasons it is:
+          somebody else's floor claim, your own hand, a device with no input,
+          or a room with nobody in it to hear you yet. `iAmSilenced` is said
+          nowhere else on this screen at all — a roster card's `· muted` reads
+          `selfMuted`, so somebody force-muted by a claim is drawn there as a
+          plain *Present*, which is the one sentence here with no second home.
 
-                Nearby is the other way of being in a room: within reach, one
-                notification away, claiming no audio at all — so another app
-                goes on playing and a Bluetooth headset stays in stereo.
-                Stepping in claims the audio system outright, and this is the
-                escape hatch for somebody who wants to be reachable without
-                their music stopping.
+          **So it is no longer behind a setting.** `hideControlCards` governed
+          the controls this screen repeated from the footer, and there is no
+          longer a control here to repeat; a readout was never what it was
+          for, which is the argument the diagnostic panel's own card was
+          making from the other side until it was folded back in below. The
+          fallback copies went with it: nothing on this tab is drawn twice any
+          more, so nothing needs a second site to be drawn at instead.
 
-                Plain labelled buttons in the body rather than only icons in
-                the footer: the footer is for the controls somebody reaches for
-                without reading, and a way of being in a room that has to be
-                explained is a button with words under it.
-              */}
-              {iAmNearby ? (
-                <>
-                  <Button label="Step out" onPress={stepOut} />
-                  <Text style={type.muted}>
-                    You are nearby. Nothing on this phone is claimed, and this
-                    screen offers you a step in when somebody arrives; stepping
-                    out ends that until you are nearby again.
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Button
-                    label="Be nearby"
-                    onPress={() => {
-                      app.markTried('nearby');
-                      act({ type: 'DECLARE_NEARBY' });
-                    }}
-                  />
-                  <Text style={type.muted}>
-                    Be reachable without joining: no microphone, nothing heard,
-                    and whatever else this phone is playing goes on playing.
-                    When somebody arrives you are told, and stepping in stays
-                    your tap.
-                  </Text>
-                </>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/*
-          Nothing here is true of somebody who has not stepped in: the
+          Absent rather than disabled when you have not stepped in. The
           microphone is not open, muting it changes nothing anybody can hear,
-          and the session this describes has not been asked for. So the card is
-          absent rather than disabled, and the Step In card above — which is
-          the way in — carries the sentence that would have gone here.
-
-          Absent for a second reason once the cards are off, which is the whole
-          of `controlCards`: the mute is in the footer, the audio line is a
-          readout, and the one sentence here that is a notice rather than a
-          readout — being recorded while silenced — is drawn under the roster
-          instead. The diagnostic panel gets a card of its own below.
+          and the session this describes has not been asked for.
         */}
-        {iAmPresent && controlCards ? (
+        {iAmPresent ? (
           <>
             <SectionLabel>Your microphone</SectionLabel>
             <Card style={styles.stack}>
-              <Button
-                label={iAmSelfMuted ? 'Unmute yourself' : 'Mute yourself'}
-                // Holding the floor is holding it open to speak. The reducer
-                // refuses the mute either way; disabling the control is what stops
-                // the two disagreeing on screen. Same for a device with no
-                // microphone, where there is nothing to unmute at all.
-                disabled={noInput || !canSetSelfMute(channel, me, !iAmSelfMuted)}
-                onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
-              />
               <Text style={type.muted}>
                 {noInput
                   ? 'This device has no microphone, so nothing is published. You can still hear everybody.'
@@ -2014,6 +1951,10 @@ export function ChannelView({
                 // Being unheard is not the same as being unrecorded, and it would
                 // be easy to assume otherwise. Say it plainly rather than let
                 // someone speak freely on that assumption.
+                //
+                // The one place it is said, again. It had a copy under the
+                // roster for as long as this card could be switched off, and
+                // that copy went when the switch stopped reaching this card.
                 <Text style={styles.warning}>
                   You are still being recorded. Nobody can hear you, but your
                   microphone is captured; it is left out of the mix anybody can play or share,
@@ -2032,6 +1973,12 @@ export function ChannelView({
                 not been switched on, and switching one off is an `UPDATE` and a
                 reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
                 what would trigger it* says who decides and names every piece.
+
+                It had a card of its own from the day this one could be
+                switched off, for the case where the setting would otherwise
+                have taken the panel away from the one account in a position
+                to be debugging its audio. That case no longer exists, and the
+                card went with it.
               */}
               {/*
                 Not on web, whatever the column says. The panel is an
@@ -2050,104 +1997,6 @@ export function ChannelView({
                   onResubscribe={audio.resubscribe}
                 />
               ) : null}
-            </Card>
-          </>
-        ) : null}
-
-        {/*
-          Stepping out is the ordinary way to finish talking, so it is the only
-          departure offered here. Leaving the channel outright lives in
-          settings: it is rare, it is close to irreversible, and putting it
-          beside this one in the colour reserved for danger drew the eye
-          straight to the action least likely to be wanted.
-
-          Still directly under the microphone, because the two are the same
-          question asked at different strengths — whether the others can hear
-          you, and whether you are still there at all. It is the last thing on
-          this tab, which is the whole of what is about you being in the room;
-          what the channel is carrying is the four tabs beside it, and used to
-          be the rest of this scroll under a heading.
-
-          Unexplained: it is the one thing on this screen somebody reaches for
-          already knowing what it does, so the sublabel that used to describe
-          it is gone. The heading and the card stay, every other control on
-          this screen sitting in one.
-
-          It no longer doubles as Step In. One card said both, so one position
-          had to serve a control somebody wants at the top of a screen they
-          have not entered and a control that belongs at the foot of one they
-          have — and the position was chosen for Step Out, which left Step In
-          below a microphone card that was not being rendered anyway.
-        */}
-        {iAmPresent && controlCards ? (
-          <>
-            <SectionLabel>Step out</SectionLabel>
-            <Card style={styles.stack}>
-              {/*
-                **Nearby first, and the way out under it.** The two moves off
-                this rung, in the order the rungs are in — in, nearby, out — so
-                that wherever this pair is drawn the gentler departure is above
-                the outright one and neither ever changes place with the other.
-                On the card above, where you are not in the room, the same
-                order puts Step in at the top.
-
-                *Be nearby* is the same declaration as the one on that card,
-                made from inside, and here it abandons the claim. It gives the
-                audio system back — the session is deactivated rather than
-                quietened — and leaves you in `waiting`, where every build
-                already draws you as *Nearby* and offers a ping. One word for
-                it in both places, since `DECLARE_NEARBY` is one action and the
-                branch inside it is the whole of the difference; it was "Step
-                in nearby" from outside and "Nearby" from inside until
-                2026-09-09, which was two names for one act.
-
-                **It never closes the screen**, where Step Out below does when
-                the tap steps in — see `stepOutClosesScreen`. That is the
-                difference between the two rather than an inconsistency:
-                stepping out is leaving, and this is staying within reach.
-                Staying is also where the offer is drawn — the arrival comes
-                over the ordinary websocket, and this screen is what puts a
-                step in under your thumb when it lands.
-              */}
-              <Button
-                label="Be nearby"
-                onPress={() => act({ type: 'DECLARE_NEARBY' })}
-              />
-              <Text style={type.muted}>
-                Give the audio system back and stay within reach. Your
-                microphone closes and you hear nothing, and when somebody
-                arrives this screen offers you a step back in.
-              </Text>
-              <Button label="Step out" onPress={stepOut} />
-            </Card>
-          </>
-        ) : null}
-
-        {/*
-          The diagnostic panel, when the card it normally sits inside is not
-          being drawn.
-
-          It is not a control and the footer does not represent it, so a
-          setting about repeating the footer has no business taking it away —
-          and taking it away is what would happen, silently, to the one account
-          in a position to be debugging its audio. It keeps its position in the
-          order and gets the heading the microphone card was giving it.
-
-          The condition is the whole of the microphone card's, plus this card
-          being the fallback: on web there is nothing to compare against, and
-          `app.debug` is off for everybody who has not been switched on in the
-          database. See the note inside that card for both.
-        */}
-        {!controlCards && iAmPresent && app.debug && Platform.OS !== 'web' ? (
-          <>
-            <SectionLabel>Audio session</SectionLabel>
-            <Card style={styles.stack}>
-              <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
-              <AudioDebugPanel
-                asked={audio.asked}
-                onReconnect={audio.reconnect}
-                onResubscribe={audio.resubscribe}
-              />
             </Card>
           </>
         ) : null}

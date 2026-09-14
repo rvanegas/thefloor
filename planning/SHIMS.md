@@ -275,6 +275,17 @@ answer to `POST /me/settings` — all pass through `settingsForWire`, deliberate
 a client that learnt one shape from the hello and another from the event would
 be the same bug in a harder place to find.
 
+**One of the two settings is now dead, which makes half of this cheaper and
+none of it optional.** Nothing has read `hideControlCards` since 2026-09-13:
+the channel screen's repeated cards were deleted and the Home settings toggle
+with them — `decisions/2026-09-13-the-cards-a-footer-made-redundant.md`. The
+field is still on the wire, still a column, and still sent both ways, because
+builds below the floor are still reading the answer and a missing key is a
+different thing from a key nobody uses. So the gate does not move; what
+changes is that whoever reaches 159 can delete the alias *and* consider
+retiring the field itself in the same two-step, rather than preserving a
+setting for a screen that no longer offers it.
+
 The app's cache of the last answer has the same shape and the same expiry:
 `LEGACY_TAP_TO_STEP_IN_KEY` and `LEGACY_CONTROL_CARDS_KEY` in `AppProvider`,
 read only when the current key is missing, negated on the way in, and removed

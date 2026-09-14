@@ -376,8 +376,11 @@ things that this file keeps apart:
   snapshots are being sent to you. **Watching is not being there**, and since
   2026-08-22 the app can be in that state on purpose: with the Home setting
   "Tap a channel to look, not step in" turned on, a tap opens the channel
-  screen and dispatches no `ENTER`, so the screen offers **Step In** where it
-  offers **Step Out** to somebody present. A notification tap used to land this way
+  screen and dispatches no `ENTER`, so the footer lights the **Out** rung
+  where it lights **In** for somebody present. Both used to be cards saying
+  the act in full; they were deleted on 2026-09-13 for being the footer in
+  longer words, and the ladder in the bar is now the whole of it. A
+  notification tap used to land this way
   too; **since 2026-09-04 it lands on the channel list instead**, naming no
   room at all, so the only way into a channel screen is a tap on a row. See
   decisions/ § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
@@ -1159,8 +1162,9 @@ lifted an entry elsewhere.
 
    What closed it is `AppProvider.standingIn`, mirrored from
    `Realtime.enteredChannel`, which had held the fact all along as the thing a
-   reconnect re-enters from. The button, the microphone card and the audio all
-   follow it now, so they cannot disagree about which device is in the room.
+   reconnect re-enters from. The footer's rungs, the microphone card and the
+   audio all follow it now, so they cannot disagree about which device is in
+   the room.
 
    **One consequence is deliberate and is the price of the distinction.** An
    app relaunched into a channel the account is still present in offers Step In

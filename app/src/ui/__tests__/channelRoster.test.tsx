@@ -10,6 +10,7 @@ import {
 } from '../../../../core/constants';
 import { type Guest } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
+import { AudioDebugPanel } from '../AudioDebugPanel';
 import { Screen } from '../components';
 import { ProfileView } from '../ProfileView';
 import { Share, StyleSheet } from 'react-native';
@@ -1471,48 +1472,56 @@ describe('pinging somebody who is not in the room', () => {
  * precisely the silent state this app keeps writing warnings about.
  */
 
-describe('a channel screen without the repeated cards', () => {
+describe('a channel screen that does not repeat its footer', () => {
   const footerOf = (tree: ReactTestRenderer) => {
     const [screen] = tree.root.findAll((node) => node.type === Screen);
     return render(screen.props.footer);
   };
 
+  /*
+    **Unconditional since 2026-09-13**, which is what this whole block used to
+    be about. It ran with `hideControlCards` on, that being the setting under
+    which the channel screen stopped repeating the footer as cards; the cards
+    have since been deleted for everybody, so the setting no longer reaches
+    this screen and these are simply assertions about the screen.
+  */
   const showBare = (channel = channelOf()) => {
-    mockApp.hideControlCards = true;
     showChannel(channel);
     return render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
   };
 
-  it('drops the cards the footer already offers', () => {
+  it('drops the buttons the footer already offers', () => {
     const tree = showBare();
     const text = textOf(tree);
-    expect(text).not.toContain('Your microphone');
+    // The microphone keeps its card and loses its button: what is left is the
+    // sentence saying why the bar's Mute is the colour it is.
+    expect(text).toContain('Your microphone');
     expect(text).not.toContain('Mute yourself');
-    // The cards are what went, and their words with them. The footer's three
-    // rungs say "In", "Nearby" and "Out" rather than the acts, so the card's
-    // sentences are the only place these two phrases occurred at all — which
-    // is why this counts none of them rather than one, as it did while the
-    // footer flipped between the same words the cards used.
+    // The two departures kept nothing, being buttons and sentences about
+    // buttons. The footer's three rungs say "In", "Nearby" and "Out" rather
+    // than the acts, so these phrases now occur nowhere on the screen.
+    expect(text).not.toContain('Step in');
     expect(text).not.toContain('Step out');
     expect(text).not.toContain('Be nearby');
-    // And the bar itself is untouched by the setting.
-    expect(textOf(footerOf(tree))).toContain('Nearby');
     expect(text).not.toContain('Give the audio system back');
+    // And the bar itself is the same bar.
+    expect(textOf(footerOf(tree))).toContain('Nearby');
     act(() => tree.unmount());
   });
 
   /**
-   * There is no floor card to reach into any more, with the setting on or
-   * off. It was the one card that stayed, on the argument that a readout is
-   * not a repetition of the footer; the clock went to the roster on
-   * 2026-09-12 and the state of the floor followed it on 2026-09-13, leaving
-   * a card whose remaining sentences said why a claim was refused. That is
-   * gone with it, and this asserts the whole of the section's absence rather
-   * than only its button's.
+   * There is no floor card to reach into any more.
+   *
+   * It was the one card that stayed when the setting was on, on the argument
+   * that a readout is not a repetition of the footer; the clock went to the
+   * roster on 2026-09-12 and the state of the floor followed it on
+   * 2026-09-13, leaving a card whose remaining sentences said why a claim was
+   * refused. That is gone with it, and this asserts the whole of the
+   * section's absence rather than only its button's.
    */
-  it('has no floor card, with the cards off or on', () => {
+  it('has no floor card', () => {
     const tree = showBare();
     const text = textOf(tree);
     expect(text).not.toContain('The floor');
@@ -1526,10 +1535,10 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The clock survives the setting, wherever it is drawn. It is on the
-   * holder's roster card now rather than in the floor's own card, and a bar
-   * with room for one word is no more able to carry it than before — so the
-   * screen with the repeated cards off still counts the minute down.
+   * The clock survives every card that has been deleted around it. It is on
+   * the holder's roster card now rather than in the floor's own, and a bar
+   * with room for one word was never able to carry it — so the screen still
+   * counts the minute down with no card left to count it in.
    */
   it('still runs the countdown while somebody holds the floor', () => {
     const tree = showBare(
@@ -1547,9 +1556,9 @@ describe('a channel screen without the repeated cards', () => {
 
   it('leaves everything the footer does not represent alone', () => {
     const tree = showBare();
-    // The roster, and then the tabs the setting has no business touching: what
-    // it decides is whether the footer's own three controls are said twice,
-    // and nothing on these is a second way of doing anything in the bar.
+    // The roster, and then the tabs: what was deleted is the places the
+    // footer's own controls were said twice, and nothing on these is a second
+    // way of doing anything in the bar.
     expect(textOf(tree)).toContain('Dana Chu');
     showNotepad(tree);
     expect(textOf(tree)).toContain('Shared clipboard');
@@ -1563,10 +1572,10 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The point of the setting, and the reason nothing is actually lost: the bar
-   * is the same bar, with the same five controls on it, whichever way this is
-   * set. A footer that thinned out with the cards would be a preference that
-   * removed abilities rather than repetition.
+   * The reason nothing is actually lost: the bar is the same bar, with the
+   * same five controls on it, and every act the deleted cards offered is one
+   * of them. A footer that thinned out alongside them would have made this a
+   * removal of abilities rather than of repetition.
    */
   it('keeps all five controls in the footer', () => {
     const tree = showBare();
@@ -1582,10 +1591,14 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * Being unheard is not being unrecorded, and that sentence lived in the
-   * microphone card. It is a notice rather than an explanation of a control,
-   * so it moves up under the roster rather than going with the card — the
-   * settings screen promises exactly this in as many words.
+   * Being unheard is not being unrecorded, and that sentence lives in the
+   * microphone card — the half of it that survived the button.
+   *
+   * It had a second home under the roster for as long as the card could be
+   * switched off, since it is a notice rather than an explanation of a
+   * control and the settings screen promised it stayed. The card can no
+   * longer be switched off, so the copy has gone and the test below asserts
+   * it is said once.
    */
   it('still says a silenced microphone is being recorded', () => {
     const tree = showBare(
@@ -1601,8 +1614,7 @@ describe('a channel screen without the repeated cards', () => {
     act(() => tree.unmount());
   });
 
-  it('says it exactly once when the cards are drawn', () => {
-    mockApp.hideControlCards = false;
+  it('says it exactly once', () => {
     showChannel(
       channelOf((c) =>
         reduce(
@@ -1620,12 +1632,14 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The other exception. Stepping in from here closes a microphone on another
-   * phone, which the footer's Step In has no room to say and which somebody
-   * would otherwise discover by doing it.
+   * The sentence with nowhere else to go. Stepping in from here closes a
+   * microphone on another phone, which the footer's In rung has no room to
+   * say and which somebody would otherwise discover by doing it — and it
+   * cannot join the microphone card, that one being drawn only for somebody
+   * who has already stepped in. So it is under the roster, unconditionally,
+   * where it used to be only while the cards were switched off.
    */
   it('still says the channel is held on another device', () => {
-    mockApp.hideControlCards = true;
     mockApp.displaced = true;
     showChannel(channelOf());
     // Present in the room, not on this device: the case the sentence is for.
@@ -1641,14 +1655,23 @@ describe('a channel screen without the repeated cards', () => {
   });
 
   /**
-   * The panel is a diagnostic, not one of the three acts, so a setting about
-   * repeating the footer must not take it away — it would take it away from
-   * the one account in a position to be reading it.
+   * The panel is a diagnostic and not one of the acts, so nothing done to the
+   * repeated controls may take it away from the one account in a position to
+   * be reading it.
+   *
+   * It had a card and a heading of its own — *Audio session* — for the case
+   * where the setting switched the microphone card off underneath it. The
+   * microphone card is now unconditional, so the panel is back inside it and
+   * that second card is gone.
    */
-  it('keeps the audio diagnostic panel, under a heading of its own', () => {
+  it('keeps the audio diagnostic panel, inside the microphone card', () => {
     mockApp.debug = true;
     const tree = showBare();
-    expect(textOf(tree)).toContain('Audio session');
+    expect(textOf(tree)).toContain('Your microphone');
+    expect(textOf(tree)).not.toContain('Audio session');
+    expect(
+      tree.root.findAll((node) => node.type === AudioDebugPanel)
+    ).toHaveLength(1);
     act(() => tree.unmount());
   });
 });
