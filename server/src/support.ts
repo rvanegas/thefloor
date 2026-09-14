@@ -20,6 +20,27 @@
 
 import { escapeHtml, page } from './html';
 
+/**
+ * **Not "a small application", which it was when somebody wrote that and is
+ * not now.** Sixty-odd thousand lines of first-party source, twenty-five
+ * tables, transcripts, watch parties, recordings and guests: a reader who goes
+ * looking falsifies the word in about a minute. It was doing two jobs —
+ * *modest and unobtrusive*, which is on-thesis, and *not much software*, which
+ * is no longer true — and only the second reading is the one a stranger takes
+ * from an opening sentence.
+ *
+ * **The opening is the store listing's first line now, on every served page.**
+ * planning/ROADMAP.md § *Say the same thing everywhere* is the entry that asks
+ * for that, and planning/LISTING.md is the source of truth for the wording. If
+ * modesty needs saying, say it as behaviour — nothing runs in the background,
+ * nothing asks for your attention — which is checkable where an adjective is
+ * not.
+ *
+ * **This was an HTML comment inside the body for part of a day**, which meant
+ * fifteen lines of internal reasoning were served to everybody who opened
+ * `/support` and sat in view-source. Reasoning for whoever reads the code goes
+ * outside the template literal; nothing inside one is private.
+ */
 export function supportPage(contactEmail?: string): string {
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
@@ -30,7 +51,7 @@ export function supportPage(contactEmail?: string): string {
     heading: 'Support',
     standfirst: 'The Floor · getting help, and how the app works',
     body: `
-<p>The Floor is a small application for talking with people you know. A
+<p>The Floor is for talking with people you already know. A
 conversation lives in a channel that stays there between calls, and nothing
 about it rings: when somebody wants you, you get an ordinary notification that
 waits its turn. Everyone in a channel can speak; taking the floor is what one

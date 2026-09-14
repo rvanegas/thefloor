@@ -180,9 +180,15 @@ function inviteBody(from: string, link: string): string {
   return [
     `${from} added you as a contact on The Floor, using this email address.`,
     '',
+    // **"before you interrupt anybody" was the wrong frame, and was here until
+    // 2026-09-14.** Dropping into a channel is not an interruption — that is
+    // the whole proposition, and this is the first sentence most people ever
+    // read about the app. See planning/PROPOSITION.md § *Non-interruption is
+    // one principle at three scales*; the wording follows the listing's "you
+    // can see where everybody is before you say anything".
     'The Floor is for talking rather than for calling. You drop into a channel',
     'when you have something to say, and you can see who is around before you',
-    'interrupt anybody.',
+    'say anything. Nothing rings, and nobody has to answer.',
     '',
     // **One link, and it is the first thing to do.** It used to be the App
     // Store, which asked somebody to install an application before they had

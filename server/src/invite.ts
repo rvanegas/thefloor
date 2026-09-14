@@ -28,6 +28,28 @@ import { escapeHtml, page } from './html';
 import type { InviteRefusal } from './accounts';
 
 /**
+ * **This page said the two wrong things longer than any other, and was on
+ * nobody's list.** Until 2026-09-14 both bodies below opened *The Floor is a
+ * small application … one person speaks at a time* — the first false since the
+ * app stopped being small, the second describing a different application
+ * altogether, since conversation is open by default and the floor is a claim
+ * somebody makes to finish a thought.
+ *
+ * **planning/ROADMAP.md § *Say the same thing everywhere* named landing.ts and
+ * support.ts and stopped there.** It missed this file, in two places — which
+ * matters more than either of the two it found: planning/MARKETING.md argues
+ * that the invite page is the *top of the funnel*, since somebody opening one
+ * has been asked by name, where a listing has to persuade from cold. The
+ * wrongest copy was on the most-converting page.
+ *
+ * **The lesson is about how the list was made, not about this file.** It was
+ * assembled by grepping for a phrase somebody remembered; two of four hits
+ * were found because those were the files being read at the time. Grep the
+ * whole of `server/src` for any sentence that introduces the app before
+ * believing a list of where it appears.
+ */
+
+/**
  * The key the app takes the invitation out of, and the shape it expects.
  *
  * Repeated here rather than imported, exactly as `landing.ts` repeats
@@ -162,9 +184,10 @@ export function invitePage(options: InvitePageOptions): string {
       body: `<p>${said.body}</p>
 
 <h2>In the meantime</h2>
-<p>The Floor is a small application for talking with people you know. One
-person speaks at a time, and a conversation lives in a channel that stays there
-between calls.</p>
+<p>The Floor is for talking with people you already know. A conversation
+lives in a channel that stays there between calls, and nothing about it rings:
+when somebody wants you, you get an ordinary notification that waits its
+turn.</p>
 ${store}
 <p><a href="/">More about The Floor</a></p>
 `,
@@ -189,10 +212,12 @@ this server has no browser version to accept in.</p>`;
     heading: 'The Floor',
     standfirst: `${options.displayName} invited you`,
     head: REFERRER,
-    body: `<p>The Floor is a small application for talking with people you
-know. One person speaks at a time, by taking the floor, and a conversation
-lives in a channel that stays there between calls — so it is somewhere you go
-back to rather than a call you place.</p>
+    body: `<p>The Floor is for talking with people you already know. A
+conversation lives in a channel that stays there between calls — somewhere you
+go back to rather than a call you place — and nothing about it rings: when
+somebody wants you, you get an ordinary notification that waits its turn.
+Everyone in a channel can speak; taking the floor is what one person does when
+they need to finish a thought.</p>
 
 <p>Nobody can reach you unless you have both agreed. There is no directory and
 no search for strangers.</p>

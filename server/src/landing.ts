@@ -55,6 +55,15 @@
  * planning/MARKETING.md § *The funnel is upside down* says why this page is the
  * middle of the funnel rather than the top.
  *
+ * **The two claims are one principle, and the page says so since 2026-09-14.**
+ * *Nothing rings* and *take the floor* read as two features and are not:
+ * planning/PROPOSITION.md § *Non-interruption is one principle at three
+ * scales* has them as consent at different ranges, and says the floor's
+ * motivation is the ring's one level in — the overtalking that degrades a
+ * debate is intrusion, and the fix is a boundary rather than a moderator. A
+ * page that lists them separately has described two conveniences instead of
+ * one argument, which is the ground this app loses on.
+ *
  * **The claim is non-intrusion and never silence, and the caption under the
  * lock screen said silence for a day.** It read *nothing here made a sound*,
  * which is false twice over: a notification makes a notification sound, and
@@ -241,6 +250,11 @@ you can answer, with the screen off and the phone still in your pocket.</p>
 properly they take the floor, and every other microphone stays quiet until they
 give it back. It is enforced on the audio rather than asked of people
 politely.</p>
+
+<p>It is the same idea as the notification, one level in. Being talked over is
+an intrusion too, and the answer here is a boundary rather than somebody
+keeping order &mdash; there are no moderators in a channel, and nothing to
+appeal to.</p>
 
 <figure>
 <img src="/assets/floor.webp" width="750" height="1624" loading="lazy"

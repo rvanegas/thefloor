@@ -254,6 +254,24 @@ support, privacy — with LISTING.md's first line as the source. This is copy in
 `server/src/`, it ships with a deploy rather than a review, and it does not
 need to wait for anything above it.
 
+**Done, 2026-09-14 — and the list above was wrong.** It named two files and
+there were three: `server/src/invite.ts` carried *one person speaks at a time*
+in **both** of its bodies and was on nobody's list. That is the worst place to
+have had it, since MARKETING.md argues the invite page is the top of the funnel
+— somebody opening one has been asked by name, where a listing has to persuade
+from cold.
+
+**A second stale sentence came out with it**, not part of this item and found
+at the prompt: all three served pages opened *The Floor is a small application*,
+which was true when written and is not now. Sixty-odd thousand lines of source,
+twenty-five tables, transcripts and watch parties; a reader falsifies it in a
+minute. All four bodies now open with the listing's own first line.
+
+**The lesson is about how the list was made.** It came from grepping for a
+phrase somebody remembered, and the two hits it found were the two files
+already open. Grep for every sentence that *introduces the app*, not for the
+wording you recall.
+
 ---
 
 ## What decides anything not on this list

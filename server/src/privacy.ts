@@ -148,7 +148,7 @@ unnoticed for far longer.</p>
     heading: 'Privacy',
     standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
     body: `
-<p>The Floor is a small application for talking with people you know. This
+<p>The Floor is for talking with people you already know. This
 page says what it stores, why, and for how long. It is short because the
 application collects little.</p>
 
