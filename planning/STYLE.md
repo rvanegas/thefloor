@@ -516,11 +516,20 @@ header, a `ScrollView`, and an optional pinned footer.
 **Revealing the card** is the screen's other job. When a form grows, scroll the
 *card* into view rather than the field — a keyboard-aware scroll brings the
 field in and leaves the Save button under the keyboard, which is the control
-being reached for. `useRevealOnKeyboard(active)` returns a ref to attach to a
-`View` around the whole card with `collapsable={false}`; `useReveal()` is the
-manual trigger for growth that has nothing to do with a keyboard. It fires on
-`keyboardDidShow`, not on focus, because the keyboard is what shrinks the
-viewport.
+being reached for. **`<Reveal when={…}>` wraps the whole card**, label and all;
+`useRevealOnKeyboard(active)` is the hook under it, for a card that is already
+a component of its own, and `useReveal()` is the manual trigger for growth that
+has nothing to do with a keyboard. It fires on `keyboardDidShow`, not on focus,
+because the keyboard is what shrinks the viewport.
+
+**Ask from inside the screen.** `RevealContext`'s provider is in `Screen`'s own
+tree, so a reveal requested by the component that *renders* `<Screen>` reads
+the default and moves nothing at all. Both of the cards below shipped that way
+on 2026-09-13 and the failure is silent by construction — the wrapper is in
+place, the keyboard listener fires, and the function it calls is a no-op. That
+is what `Reveal` is for: being a child, it cannot be wired up from the wrong
+side. Asking from the wrong side now writes a `[reveal]` line in a development
+build rather than going quiet.
 
 **No editable element may be left under the keyboard, and neither may the
 control that commits it.** That is the rule; the two sentences above are the
@@ -533,7 +542,7 @@ the rule has nothing left to enforce it with. What it does not get for
 free is the second half, because avoiding shortens the viewport without
 scrolling it: a field far enough down a long tab is under the keyboard even
 though the avoider is doing its job. So any card whose field can sit below the
-fold takes `useRevealOnKeyboard`, held on *whether the box is showing* rather
+fold is wrapped in a `Reveal`, open on *whether the box is showing* rather
 than on focus. `ProfileView`'s ping card and `ChannelView`'s notepad are the
 two.
 

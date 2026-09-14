@@ -402,6 +402,17 @@ export function Screen({
 /**
  * How a card asks to be seen. Null outside a `Screen`, where there is nothing
  * to scroll and asking is a no-op rather than an error.
+ *
+ * **The provider is inside `Screen`'s own tree, which is the trap.** A
+ * component that *renders* `<Screen>` sits above it and reads the default —
+ * so `useReveal` there returns the no-op and every request it makes is
+ * dropped in silence. Only a *child* of the screen can ask. The notepad card
+ * shipped the wrong way round on 2026-09-13 and looked, from the outside,
+ * exactly like a reveal that had been written and did not work: the wrapper
+ * was in place, the keyboard listener fired, and the function it called did
+ * nothing whatsoever. `Reveal` is the child for a card that has no component
+ * of its own to be one; `useRevealOnKeyboard` says so when it is called from
+ * the wrong side.
  */
 const RevealContext = React.createContext<
   ((node: React.RefObject<View | null>) => void) | null
@@ -435,20 +446,71 @@ export function useReveal(): (node: React.RefObject<View | null>) => void {
  * keyboard's own arrival already implies. Attach the returned ref to a View
  * around the whole card, with `collapsable={false}` so it survives into the
  * native tree and can be measured.
+ *
+ * **Call it from a component inside the screen, not from the one that renders
+ * `<Screen>`** — see `RevealContext`. A card with no component of its own
+ * wants `Reveal`, which is that component. Getting this wrong is silent, so
+ * it is said out loud here instead: in a development build the first reveal
+ * that has nowhere to go writes a line naming the component.
  */
 export function useRevealOnKeyboard(
   active: boolean
 ): React.RefObject<View | null> {
-  const reveal = useReveal();
+  const reveal = React.useContext(RevealContext);
   const card = React.useRef<View>(null);
 
   React.useEffect(() => {
     if (!active) return;
+    if (!reveal) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[reveal] asked for outside a Screen, so nothing will move. ' +
+            'useRevealOnKeyboard has to be called from a component *inside* ' +
+            'the screen — the one that renders <Screen> is above the ' +
+            'provider. Wrap the card in <Reveal> instead.'
+        );
+      }
+      return;
+    }
     const shown = Keyboard.addListener('keyboardDidShow', () => reveal(card));
     return () => shown.remove();
   }, [active, reveal]);
 
   return card;
+}
+
+/**
+ * A card that comes into view when the keyboard opens over it.
+ *
+ * The component form of `useRevealOnKeyboard`, and the one to reach for: it is
+ * rendered among the screen's children, which is the side of `RevealContext`
+ * the request has to be made from, so it cannot be wired up the way the
+ * notepad and the ping card both were — from the component that renders the
+ * screen, where the hook reads the default and the reveal goes nowhere.
+ *
+ * Wrap the whole card, label and all. The unit is what has to be visible: a
+ * reveal that stopped at the field would leave the button that commits it
+ * under the keyboard, which is the control being reached for.
+ *
+ * `when` is whether the form that would raise the keyboard is on screen — a
+ * composer showing, a box open — not whether the field has focus.
+ */
+export function Reveal({
+  when,
+  children,
+}: {
+  when: boolean;
+  children: React.ReactNode;
+}) {
+  const card = useRevealOnKeyboard(when);
+  // `collapsable={false}` keeps the view in the native tree, without which it
+  // cannot be measured.
+  return (
+    <View ref={card} collapsable={false}>
+      {children}
+    </View>
+  );
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {

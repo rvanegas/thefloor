@@ -8,6 +8,7 @@ import { Screen, SectionLabel, Segmented } from '../components';
 import { BellIcon, StepIcon } from '../icons';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Share,
   StyleSheet,
@@ -2819,6 +2820,53 @@ describe('Channel', () => {
     act(() => findExactButton(tree, 'Done')!.props.onPress());
     expect(field()).toBeUndefined();
     expect(textOf(tree)).toContain('Dune, Thursdays');
+    act(() => tree.unmount());
+  });
+
+  it('asks to be revealed when the box opens over the keyboard', () => {
+    /*
+      The box sits far enough down this tab that `Screen`'s avoider, which
+      shortens the viewport without scrolling it, can leave the field and
+      *Done* underneath the keyboard. `Reveal` is the answer, and the half
+      that is worth a test is not the arithmetic — that is `reveal.test.ts` —
+      but *where the request is made from*.
+
+      `RevealContext`'s provider lives inside `Screen`'s own tree, so a
+      reveal asked for by the component that renders `<Screen>`, which this
+      one is, reads the default and moves nothing. It shipped that way on
+      2026-09-13 and looked exactly like a feature that had been written and
+      did not work. A subscription and no complaint is the pair that says the
+      card is asking from inside.
+    */
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let listeners = 0;
+    jest
+      .spyOn(Keyboard, 'addListener')
+      .mockImplementation(((event: string) => {
+        if (event === 'keyboardDidShow') listeners += 1;
+        return { remove: jest.fn() };
+      }) as unknown as typeof Keyboard.addListener);
+
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showNotepad(tree);
+
+    // Nothing while the sheet is a sheet: no field is open, so no keyboard
+    // here is the notepad's.
+    expect(listeners).toBe(0);
+
+    act(() => findExactButton(tree, 'Edit')!.props.onPress());
+    expect(listeners).toBe(1);
+    expect(warn).not.toHaveBeenCalled();
+
+    // And it lets go again when the box does, rather than holding a listener
+    // for a keyboard that now belongs to some other tab.
+    act(() => findExactButton(tree, 'Done')!.props.onPress());
     act(() => tree.unmount());
   });
 

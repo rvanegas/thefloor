@@ -16,6 +16,14 @@ If there are requests to answer.
 
 ## Better Controls for Playback
 
+## Rename Title
+
+Rename "Channel settings" to "Channel Settings"
+
+## Internationalization
+
+First replace all text with functions. Then Spanish.
+
 ## Record Labels
 
 Add labels below recording controls, and remove text below it except in case of error.

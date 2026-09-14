@@ -93,10 +93,10 @@ import {
   IconButton,
   RecordingRow,
   TranscriptSearch,
+  Reveal,
   Screen,
   SectionLabel,
   Segmented,
-  useRevealOnKeyboard,
 } from './components';
 import { ago, duration } from './relativeTime';
 import {
@@ -334,26 +334,6 @@ export function ChannelView({
    * read it.
    */
   const [notepadEditing, setNotepadEditing] = useState(false);
-
-  /**
-   * The notepad card, brought wholly into view when the keyboard opens over
-   * it.
-   *
-   * **Not a `KeyboardAvoidingView` of its own**, which is the obvious reading
-   * of the problem and the wrong one: this screen is a `Screen`, so the box
-   * is already inside the application's one avoider, and a second one nested
-   * in it counts the keyboard's height twice on iOS and leaves a gap that
-   * tall under the card. What the avoider does not do is *scroll*, and the
-   * notepad sits far enough down a long tab that shortening the viewport can
-   * leave it under the keyboard entirely.
-   *
-   * Held while the box is showing rather than while it has focus: it is the
-   * only field on this tab, so any keyboard here is that one's. The card is
-   * the unit rather than the field, because a reveal that stopped at the
-   * field would leave *Done* and the character count beneath the keyboard.
-   * See `useRevealOnKeyboard`.
-   */
-  const notepadCard = useRevealOnKeyboard(notepadEditing);
 
   /**
    * Sends an action to this channel.
@@ -2264,9 +2244,30 @@ export function ChannelView({
           it has a section label over it and a card under it, and bare prose
           between the two reads as text that has come loose from something.
         */}
-        {/* `collapsable={false}` so the card survives into the native
-            tree and can be measured; see `notepadCard`. */}
-        <View ref={notepadCard} collapsable={false}>
+        {/*
+          Brought wholly into view when the keyboard opens over it.
+
+          **Not a `KeyboardAvoidingView` of its own**, which is the obvious
+          reading of the problem and the wrong one: this screen is a `Screen`,
+          so the box is already inside the application's one avoider, and a
+          second one nested in it counts the keyboard's height twice on iOS
+          and leaves a gap that tall under the card. What the avoider does not
+          do is *scroll*, and the notepad sits far enough down a long tab that
+          shortening the viewport can leave it under the keyboard entirely.
+
+          Open while the box is showing rather than while it has focus: it is
+          the only field on this tab, so any keyboard here is that one's. The
+          card is the unit rather than the field, because a reveal that
+          stopped at the field would leave *Done* and the character count
+          beneath the keyboard.
+
+          A `Reveal` rather than the hook it wraps, because the hook has to be
+          called from inside the screen and this component is the one that
+          renders it — called up there it reads no provider and moves nothing,
+          which is how this shipped not working the first time. See
+          `RevealContext`.
+        */}
+        <Reveal when={notepadEditing}>
           <Card style={styles.stack}>
             {notepadEditing ? (
               <>
@@ -2331,7 +2332,7 @@ export function ChannelView({
               </>
             )}
           </Card>
-        </View>
+        </Reveal>
 
           </>
         ) : null}

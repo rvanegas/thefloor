@@ -36,9 +36,9 @@ import {
   Card,
   Field,
   IconButton,
+  Reveal,
   Screen,
   SectionLabel,
-  useRevealOnKeyboard,
 } from './components';
 import { CloseIcon } from './icons';
 import {
@@ -911,19 +911,6 @@ export function ProfileView({
       ? mic.mutableAt - app.serverNow()
       : null;
 
-  /**
-   * The ping card, brought wholly into view when the keyboard opens over it.
-   *
-   * Held while the composer is showing rather than while the field has focus:
-   * it is the only field on this screen, so any keyboard here is that one's,
-   * and the card is what has to be visible — a reveal that stopped at the
-   * field would leave "Send ping" underneath the keyboard. See
-   * `useRevealOnKeyboard`.
-   */
-  const pingCard = useRevealOnKeyboard(
-    onPing !== undefined && !pingSent && pingWait === null
-  );
-
   return (
     <Screen contentStyle={styles.container}>
       {/*
@@ -1221,9 +1208,22 @@ export function ProfileView({
         question the composer is asking.
       */}
       {onPing ? (
-        // Kept in the native tree so it can be measured, and wrapping the
-        // label as well as the card so what is revealed is the whole section.
-        <View ref={pingCard} collapsable={false}>
+        /*
+          Brought wholly into view when the keyboard opens over it, label and
+          all: what is revealed is the whole section, because a reveal that
+          stopped at the field would leave "Send ping" underneath the
+          keyboard.
+
+          Open while the composer is showing rather than while the field has
+          focus — it is the only field on this screen, so any keyboard here is
+          that one's.
+
+          A `Reveal` rather than the hook it wraps, because the hook has to be
+          called from inside the screen and this component is the one that
+          renders it; called up there it read no provider and moved nothing.
+          See `RevealContext`.
+        */
+        <Reveal when={!pingSent && pingWait === null}>
           <SectionLabel>Ping</SectionLabel>
           <Card style={styles.stack}>
             {pingSent || pingWait !== null ? (
@@ -1294,7 +1294,7 @@ export function ProfileView({
             )}
             {pingError ? <Text style={styles.error}>{pingError}</Text> : null}
           </Card>
-        </View>
+        </Reveal>
       ) : null}
 
       {/*
