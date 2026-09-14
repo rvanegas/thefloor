@@ -2339,7 +2339,13 @@ export function ChannelView({
         {shown === 'player' ? (
           <>
 
-        <SectionLabel>Shared audio</SectionLabel>
+        {/*
+          No label over it, since 2026-09-13. The tab is called *Player* and
+          this is the only thing on it, so SHARED AUDIO was the screen saying
+          its own name twice — and the card's own sentence, at the foot of
+          it, already says that everyone hears this. The recording transport
+          one tab over has gone the same way, and for the same reason.
+        */}
         <Card style={styles.stack}>
           {playback.failure ? (
             <Text style={styles.warning}>
@@ -2555,111 +2561,125 @@ export function ChannelView({
           is what is legible: a control you may press is filled, one you may
           not is `disabled` with a `textFaint` glyph and inert. Nothing
           appears or disappears, so the shapes stay where the thumb learned
-          them. No card and no RECORDING label above them, which is the one
-          part of the bare-glyph pass that was right: the state of the run is
-          reported in the header, and the tab is already named after these —
-          and the words beneath the glyphs name the three acts rather than
-          the object, so none of them is that label under another name.
+          them.
+
+          **In a `Card`, since 2026-09-13, which is the shared track's shape
+          one tab over.** The row was bare on the background, and the
+          argument above — that this is the same act as the player's
+          transport and so is the same row — does not stop at the row: that
+          one sits on `surface` with its failure lines under it, and so does
+          this. A group of filled rectangles with nothing behind them reads
+          as loose on a screen where everything that is a thing is on a card.
+          What is inside is the transport and what went wrong; the list
+          below is its own section and stays outside.
+
+          Still no RECORDING label above it, which is the part of the
+          bare-glyph pass that was right: the state of the run is reported in
+          the header, and the tab is already named after these — and the
+          words beneath the glyphs name the three acts rather than the
+          object, so none of them is that label under another name.
         */}
-        <View style={[styles.buttonRow, styles.transport]}>
+        <Card style={styles.stack}>
+          <View style={styles.buttonRow}>
+            {/*
+              Record and Resume are one control, because they are one idea —
+              *start capturing* — and a paused run is the only state where the
+              second is what that means. Splitting them would put a fourth
+              button on a row whose whole argument is that the positions do not
+              move.
+
+              `primary` for the same reason Play has it one tab over: it is the
+              one of the three somebody came here to press, and the other two
+              are only reachable once it has been. Stop is not `danger` — that
+              fill is spent on deletion, and ending a run keeps what it
+              captured.
+            */}
+            <Button
+              label={
+                channel.recording.status === 'paused'
+                  ? 'Resume recording'
+                  : 'Record'
+              }
+              sublabel={
+                channel.recording.status === 'paused' ? 'Resume' : 'Record'
+              }
+              variant="primary"
+              style={styles.flexButton}
+              icon={(color) => <RecordingsIcon color={color} />}
+              disabled={
+                channel.recording.status === 'paused'
+                  ? !canResumeRecording(channel, me)
+                  : !canStartRecording(channel, me)
+              }
+              onPress={() =>
+                act({
+                  type:
+                    channel.recording.status === 'paused'
+                      ? 'RESUME_RECORDING'
+                      : 'START_RECORDING',
+                })
+              }
+            />
+            <Button
+              label="Pause recording"
+              sublabel="Pause"
+              style={styles.flexButton}
+              icon={(color) => <PauseIcon color={color} />}
+              disabled={!canPauseRecording(channel, me)}
+              onPress={() => act({ type: 'PAUSE_RECORDING' })}
+            />
+            <Button
+              label="Stop recording"
+              sublabel="Stop"
+              style={styles.flexButton}
+              icon={(color) => <StopIcon color={color} />}
+              disabled={!canStopRecording(channel, me)}
+              onPress={() => act({ type: 'STOP_RECORDING' })}
+            />
+          </View>
+
           {/*
-            Record and Resume are one control, because they are one idea —
-            *start capturing* — and a paused run is the only state where the
-            second is what that means. Splitting them would put a fourth
-            button on a row whose whole argument is that the positions do not
-            move.
+            **What is left under the row is failure, and nothing else**, since
+            2026-09-13. Four muted paragraphs used to hang here — what the last
+            run captured, that the channel records itself, and the reason a
+            grey control is grey — on the reasoning that a glyph cannot say any
+            of it. The glyphs now carry their words, and three of the four were
+            answering a question that is answered elsewhere on the way here: the
+            run's state is the header's pill, what was saved is the list
+            immediately below, and `autoRecord` is a switch in this channel's
+            settings, set by somebody who was there when it was set. A greyed control
+            with a paragraph under it is also a paragraph read before every
+            recording and skipped after the second.
 
-            `primary` for the same reason Play has it one tab over: it is the
-            one of the three somebody came here to press, and the other two
-            are only reachable once it has been. Stop is not `danger` — that
-            fill is spent on deletion, and ending a run keeps what it
-            captured.
+            A capture that stopped for a reason nobody asked for is the
+            exception, in both tenses, because nothing else on this screen
+            reports it and a recording that was not kept is not something to
+            find out later.
           */}
-          <Button
-            label={
-              channel.recording.status === 'paused'
-                ? 'Resume recording'
-                : 'Record'
-            }
-            sublabel={
-              channel.recording.status === 'paused' ? 'Resume' : 'Record'
-            }
-            variant="primary"
-            style={styles.flexButton}
-            icon={(color) => <RecordingsIcon color={color} />}
-            disabled={
-              channel.recording.status === 'paused'
-                ? !canResumeRecording(channel, me)
-                : !canStartRecording(channel, me)
-            }
-            onPress={() =>
-              act({
-                type:
-                  channel.recording.status === 'paused'
-                    ? 'RESUME_RECORDING'
-                    : 'START_RECORDING',
-              })
-            }
-          />
-          <Button
-            label="Pause recording"
-            sublabel="Pause"
-            style={styles.flexButton}
-            icon={(color) => <PauseIcon color={color} />}
-            disabled={!canPauseRecording(channel, me)}
-            onPress={() => act({ type: 'PAUSE_RECORDING' })}
-          />
-          <Button
-            label="Stop recording"
-            sublabel="Stop"
-            style={styles.flexButton}
-            icon={(color) => <StopIcon color={color} />}
-            disabled={!canStopRecording(channel, me)}
-            onPress={() => act({ type: 'STOP_RECORDING' })}
-          />
-        </View>
+          {channel.recording.failure ? (
+            // Capture stopping for a reason nobody asked for must not read like
+            // a recording somebody chose to end. Whoever was speaking on the
+            // strength of the indicator needs to know it was not kept.
+            <Text style={styles.warning}>
+              Recording failed — {channel.recording.failure}
+            </Text>
+          ) : null}
 
-        {/*
-          **What is left under the row is failure, and nothing else**, since
-          2026-09-13. Four muted paragraphs used to hang here — what the last
-          run captured, that the channel records itself, and the reason a
-          grey control is grey — on the reasoning that a glyph cannot say any
-          of it. The glyphs now carry their words, and three of the four were
-          answering a question that is answered elsewhere on the way here: the
-          run's state is the header's pill, what was saved is the list
-          immediately below, and `autoRecord` is a switch in this channel's
-          settings, set by somebody who was there when it was set. A greyed control
-          with a paragraph under it is also a paragraph read before every
-          recording and skipped after the second.
-
-          A capture that stopped for a reason nobody asked for is the
-          exception, in both tenses, because nothing else on this screen
-          reports it and a recording that was not kept is not something to
-          find out later.
-        */}
-        {channel.recording.failure ? (
-          // Capture stopping for a reason nobody asked for must not read like
-          // a recording somebody chose to end. Whoever was speaking on the
-          // strength of the indicator needs to know it was not kept.
-          <Text style={styles.warning}>
-            Recording failed — {channel.recording.failure}
-          </Text>
-        ) : null}
-
-        {/*
-          The same about the run before this one. This line used to report
-          every finished run — *Saved — 4:12 captured* — which is the list
-          directly below it saying the same thing in the same place; a run
-          that ended early is the half that list cannot tell you, since there
-          it is only a short recording.
-        */}
-        {channel.recording.status === 'idle' &&
-        channel.lastRecording?.failure ? (
-          <Text style={styles.warning}>
-            Ended early — {formatDuration(channel.lastRecording.durationMs)}{' '}
-            captured.
-          </Text>
-        ) : null}
+          {/*
+            The same about the run before this one. This line used to report
+            every finished run — *Saved — 4:12 captured* — which is the list
+            directly below it saying the same thing in the same place; a run
+            that ended early is the half that list cannot tell you, since there
+            it is only a short recording.
+          */}
+          {channel.recording.status === 'idle' &&
+          channel.lastRecording?.failure ? (
+            <Text style={styles.warning}>
+              Ended early — {formatDuration(channel.lastRecording.durationMs)}{' '}
+              captured.
+            </Text>
+          ) : null}
+        </Card>
 
         {/*
           Recordings live here because they belong to the channel: it names
@@ -4403,12 +4423,6 @@ const styles = StyleSheet.create({
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
-  /**
-   * What the recording transport adds to `buttonRow`, which is the rest of
-   * it: the row is the player's, and this is only the gap under it that the
-   * section label above it used to contribute to the rhythm.
-   */
-  transport: { marginBottom: spacing(0.5) },
   inviteRow: {
     flexDirection: 'row',
     alignItems: 'center',

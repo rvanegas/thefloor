@@ -407,8 +407,16 @@ So the row is now `buttonRow` + `flexButton` with `Button`'s `icon`, which is
 the affordance that pass really wanted — the glyphs were right, the third
 control type was not. What carried over: all three present always, in the
 order start, hold, end, so the positions never move and the irreversible one
-is last; and no card and no RECORDING label around them, the header's pill
-being where the state of the run is reported.
+is last; and no RECORDING label over them, the header's pill being where the
+state of the run is reported.
+
+**The card came back later the same day, and the label did not.** Dropping
+both was one move, and only half of it was about the label: a `Card` is not a
+heading, it is what everything on this screen that is a thing sits on, and the
+row that had just been argued into being the player's row was the one thing
+left loose on the background. It now sits on `surface` with its failure lines
+under it, exactly as the shared track's transport does one tab over. The list
+of recordings stays outside it, being its own section.
 
 ---
 
@@ -582,6 +590,12 @@ with `edges={['top', 'bottom']}`.
 and `spacing(0.75)` below. `Empty` is `type.muted` with `spacing(2)` of
 vertical padding, and takes a sentence rather than a word — "Nothing matches."
 rather than "Empty".
+
+**A tab with one thing on it gets no label**, since 2026-09-13. A section
+label divides; where there is nothing to divide from, it is the screen saying
+its own name twice under a tab that already said it. *Player* lost SHARED
+AUDIO and *Recordings* keeps only the one over the list, the transport above
+it having no heading at all.
 
 ### Two panes
 

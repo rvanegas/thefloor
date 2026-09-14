@@ -215,7 +215,9 @@ recorded and what was recorded before, what is being watched. The
 recording transport is on *Recordings* since 2026-09-12; it was a second card
 on *Player* until then, on the reasoning that recording is what playing is
 doing to the room — but the tab somebody goes to about a recording is the one
-named after them.
+named after them. It is a card again on the tab it moved to, as of
+2026-09-13, and neither it nor the shared track's card carries a label over
+it: the tab is the heading where a tab holds one thing.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
 

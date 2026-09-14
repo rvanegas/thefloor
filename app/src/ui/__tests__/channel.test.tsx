@@ -1340,15 +1340,18 @@ describe('Channel', () => {
     showNotepad(tree);
     expect(sections()).toEqual(['Shared clipboard', 'Notepad']);
 
-    // What is playing, and nothing else: the recording transport moved to
-    // *Recordings* on 2026-09-12, the tab being named after what it makes.
+    // Nothing at all, since 2026-09-13: the recording transport moved to
+    // *Recordings* on 2026-09-12, and what was left was one card under a
+    // SHARED AUDIO label on a tab called *Player* — the screen naming itself
+    // twice over a card whose own sentence says everyone hears this.
     showPlayer(tree);
-    expect(sections()).toEqual(['Shared audio']);
+    expect(sections()).toEqual([]);
 
     // The transport above the list it produces, and one heading rather than
-    // two: the transport lost its RECORDING label on 2026-09-13 along with
-    // the card around it, three glyphs under the tab named after them needing
-    // no second announcement of what they are.
+    // two: the transport lost its RECORDING label on 2026-09-13, three
+    // glyphs under the tab named after them needing no second announcement
+    // of what they are. It is back in a card as of the same day — the
+    // player's shape — and a card is not a heading.
     showRecordings(tree);
     expect(sections()).toEqual(['Recordings']);
 
