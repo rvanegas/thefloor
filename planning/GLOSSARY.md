@@ -292,7 +292,7 @@ The thing on it is a *clip*.
 ## Close
 
 **The way off a screen you opened**, and the word every one of them uses:
-Settings, Channel settings, Support, Standings, a profile, a transcript, and a
+Settings, Channel Settings, Support, Standings, a profile, a transcript, and a
 channel you are no longer present in. It empties the *detail* pane and leaves
 the *list* beside it alone.
 
@@ -406,7 +406,7 @@ microphone and costs you nothing. Neither writes the other. See STATES.md.
 **The settings screen behind the gear in Home's header**, and the one the word
 *Settings* used to name on its own. Called this since 2026-09-12, because a
 channel has a screen of its own reached by an identical gear from an identical
-header — *Channel settings* — and two screens with one name leave which of them
+header — *Channel Settings* — and two screens with one name leave which of them
 you are on to be inferred from what is on it.
 
 What is on it belongs to the account rather than to the phone, so it follows
@@ -918,7 +918,7 @@ process to infer an absence from — see *Attention*.
 
 ## Record automatically
 
-A channel setting, in Channel settings, off until somebody in the room turns it
+A channel setting, in Channel Settings, off until somebody in the room turns it
 on. On, a *recording* begins by itself as soon as the room holds two people —
 which is exactly when *Record* stops being greyed out, and is the same
 condition, deliberately, so that nothing is recorded automatically that could

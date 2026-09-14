@@ -16,10 +16,6 @@ If there are requests to answer.
 
 ## Better Controls for Playback
 
-## Rename Title
-
-Rename "Channel settings" to "Channel Settings"
-
 ## Internationalization
 
 First replace all text with functions. Then Spanish.

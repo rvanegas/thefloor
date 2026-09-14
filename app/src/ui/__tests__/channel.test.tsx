@@ -3016,7 +3016,7 @@ describe('Channel', () => {
     const settings = findButton(tree, 'Settings');
     expect(settings).toBeDefined();
     act(() => settings!.props.onPress());
-    expect(textOf(tree)).toContain('Channel settings');
+    expect(textOf(tree)).toContain('Channel Settings');
 
     // The placeholder is what the channel is called while nobody has named
     // it — the same roster description the header draws — rather than a
@@ -3038,7 +3038,7 @@ describe('Channel', () => {
 
     // And it does not close the screen out from under somebody who was also
     // going to write a description.
-    expect(textOf(tree)).toContain('Channel settings');
+    expect(textOf(tree)).toContain('Channel Settings');
     act(() => findButton(tree, 'Close')!.props.onPress());
     expect(textOf(tree)).toContain('Your microphone');
     act(() => tree.unmount());

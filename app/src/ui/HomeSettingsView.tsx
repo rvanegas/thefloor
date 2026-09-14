@@ -178,7 +178,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       <View style={styles.header}>
         {/* "Floor Settings" rather than "Settings", since 2026-09-12. There
             are two settings screens and both used to be called the same thing:
-            this one and a channel's, which says "Channel settings" and is
+            this one and a channel's, which says "Channel Settings" and is
             reached by an identical gear from an identical header. A screen
             called only *Settings* leaves which of the two you are on to be
             inferred from what is on it, which is the wrong way round. */}

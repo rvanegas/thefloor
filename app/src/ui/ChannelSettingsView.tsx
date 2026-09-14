@@ -27,7 +27,7 @@ import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 
 /**
- * Channel settings, reached from the Channel view. Holds what is about the
+ * Channel Settings, reached from the Channel view. Holds what is about the
  * channel rather than about the conversation: its name, which replaces the
  * roster-derived header ("3 people"), how it records itself, and the ways a
  * membership ends.
@@ -220,7 +220,7 @@ export function ChannelSettingsView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Channel settings</Text>
+        <Text style={type.heading}>Channel Settings</Text>
         {/* "Close" rather than "Channel". Naming the destination reads well
             until there are three settings screens and each names a different
             place — then the one word every one of them shares is the act, and
