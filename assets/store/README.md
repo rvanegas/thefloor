@@ -19,8 +19,17 @@ overwriting these.**
 | `2026-09-14-iphone-floor.png` | A roster where somebody *has the floor*, and Release in the footer |
 | `2026-09-14-iphone-player.png` | The player, with the floor gating who can change what plays |
 | `2026-09-14-ipad-invite.png` | Two panes on iPad, and the guest link |
+| `2026-09-14-lockscreen.png` | A real lock screen: a ping, the step-in before it, and an ordinary reminder |
 
-**Two of the four serve the landing page** — home and floor, chosen because the
+**The lock screen is a real device rather than the simulator**, and is the
+only one of these that was composed rather than captured in passing — five
+attempts, and the differences between them were all about *time*. The one that
+works shows the ping at `now` with the step-in six minutes behind it, which is
+inside `WAITING_WINDOW_MS`: the request is still answerable and the roster
+would still read Nearby. Attempts at thirty minutes showed a lapsed intention
+and read as a backlog.
+
+**Three of the five serve the landing page** — home and floor, chosen because the
 interface itself carries an argument in them rather than displaying a feature.
 planning/MARKETING.md § *What is already built* says why the other two are good
 store assets and not landing-page ones.

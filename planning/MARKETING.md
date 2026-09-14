@@ -112,10 +112,23 @@ than captured, and there are none. **The store captures are now in the repositor
 in a desktop folder, which is not a record for something a submission depends
 on. The two the landing page uses are derived from them.
 
-**One limit applies to every image this project will ever make.** The central
-claim is a non-event: a phone that does not ring cannot be photographed. No
-screenshot supports it, and no video will either without a comparison in the
-frame — see § *The sequence* item 6.
+**The central claim was thought unphotographable, and it turned out not to
+be.** A phone that does not ring is a non-event, so no screenshot of the app
+can carry it — but a *lock screen* can, by comparison: The Floor's notification
+sitting in the ordinary queue, the same shape as an activity reminder beneath
+it. That capture joined the page on 2026-09-14 and is the third image on it.
+
+**What it cost is the lesson worth keeping.** Five attempts, and every
+difference between them was about *time* rather than composition. The one that
+works shows a ping at `now` with the step-in six minutes behind it — inside
+`WAITING_WINDOW_MS`, so the request is still answerable. Attempts at thirty
+minutes showed a lapsed intention and read as a backlog, which is the opposite
+claim. **A marketing image that contradicts the product's own clock is worse
+than no image**, and nothing about that is visible without knowing the
+constant.
+
+The same principle carries to video, and is why the format there is a
+comparison rather than a demo — § *The sequence* item 7.
 
 ## The funnel is upside down
 

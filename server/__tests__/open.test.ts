@@ -143,8 +143,12 @@ describe('the landing page', () => {
     });
   });
 
-  it('serves the two screenshots it references', async () => {
-    for (const asset of ['/assets/home.webp', '/assets/floor.webp']) {
+  it('serves the screenshots it references', async () => {
+    for (const asset of [
+      '/assets/home.webp',
+      '/assets/floor.webp',
+      '/assets/lockscreen.webp',
+    ]) {
       const page = await app.fastify.inject({ method: 'GET', url: asset });
       expect(page.statusCode).toBe(200);
       expect(page.headers['content-type']).toBe('image/webp');

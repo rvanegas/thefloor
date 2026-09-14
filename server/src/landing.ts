@@ -55,6 +55,16 @@
  * planning/MARKETING.md § *The funnel is upside down* says why this page is the
  * middle of the funnel rather than the top.
  *
+ * **The lock screen under the first claim is the one image here that carries
+ * a non-event.** A phone that does not ring cannot be photographed, so it is
+ * photographed by comparison instead: The Floor's notification is the same
+ * shape as the activity reminder beneath it, and the only thing on the screen
+ * saying *ring* belongs to another app. The two Floor notifications in it are
+ * a sequence rather than chatter — somebody stepped in, then asked — and the
+ * six minutes between them is inside `WAITING_WINDOW_MS`, so the frame shows a
+ * request that is still answerable rather than one that has lapsed. Earlier
+ * captures were thirty minutes old and showed the opposite.
+ *
  * **Every claim on it is checkable against the shipped build**, on the
  * listing's own rule — nothing about open channels, alarm-by-permission or
  * anything else unbuilt. The quarter-hour sentence and the answer-with-the-
@@ -175,6 +185,18 @@ ${browser}
 waiting in line with all the others. Your ringer stays yours, your Focus mode
 holds, and the answer keeps until you have a moment for it. There is no
 telephone call here to answer or decline.</p>
+
+<figure>
+<img src="/assets/lockscreen.webp" width="750" height="1624" loading="lazy"
+alt="A phone's lock screen. One notification reads &quot;Morning Standup
+&mdash; Beth Frankish: We're waiting for you&quot;, sent just now. Below it,
+among the older notifications, an earlier one reads &quot;Beth Frankish stepped
+in&quot; six minutes ago, and beneath that an activity reminder from another
+app.">
+<figcaption>Beth stepped in six minutes ago and has just asked for you. It
+is the same shape as every other notification on the screen, and nothing here
+made a sound.</figcaption>
+</figure>
 
 <h2 class="claim">A channel is a place, not a call</h2>
 <p>It holds up to six people, keeps its name between conversations, and is
