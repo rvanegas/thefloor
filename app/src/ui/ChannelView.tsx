@@ -2467,35 +2467,49 @@ export function ChannelView({
           Above the list rather than below it, so the control that is about
           right now is not reached past a history that may be any length.
 
-          **Three glyphs and no card, since 2026-09-13.** It was a card under
-          a RECORDING label holding a full-width *Record* that became *Pause*
-          and *Stop* once a run was going — so the one control on the screen
-          that has to be found in a hurry moved, changed its word, and was
-          drawn at the size of a primary action while the state it is about
-          was already reported in the header, twice over. The label and the
-          box were saying what the tab above them says.
+          **Buttons carrying glyphs, since 2026-09-13, and the shape is the
+          player's.** It spent a few hours as three bare glyphs huddled at the
+          left margin — legible as a group, but drawn unlike every other
+          control in the app, and in particular unlike the row of three doing
+          the same job one tab over. What starts, holds and ends the shared
+          track is `buttonRow` and `flexButton`: filled rectangles in equal
+          thirds across the width. This is the same act on the same screen, so
+          it is the same row, and a hand that has learnt one has learnt both.
+          The glyphs stay — record, pause and stop are older than any wording
+          of them, and `Button`'s `icon` keeps the word for the screen reader.
 
           Always all three, and in this order: start, hold, end, which is the
           run's own order and puts the irreversible one last where a thumb
           moving in a hurry is least likely to land on it. What is available
-          is what is legible: a control you may press is drawn in the text
-          colour, one you may not is grey and inert. Nothing appears or disappears, so the shapes stay where the
-          thumb learned them.
+          is what is legible: a control you may press is filled, one you may
+          not is `disabled` with a `textFaint` glyph and inert. Nothing
+          appears or disappears, so the shapes stay where the thumb learned
+          them. No card and no RECORDING label above them, which is the one
+          part of the bare-glyph pass that was right: the state of the run is
+          reported in the header, and the tab is already named after these.
         */}
-        <View style={styles.transport}>
+        <View style={[styles.buttonRow, styles.transport]}>
           {/*
             Record and Resume are one control, because they are one idea —
             *start capturing* — and a paused run is the only state where the
             second is what that means. Splitting them would put a fourth
-            glyph on a row whose whole argument is that the positions do not
+            button on a row whose whole argument is that the positions do not
             move.
+
+            `primary` for the same reason Play has it one tab over: it is the
+            one of the three somebody came here to press, and the other two
+            are only reachable once it has been. Stop is not `danger` — that
+            fill is spent on deletion, and ending a run keeps what it
+            captured.
           */}
-          <TransportAction
+          <Button
             label={
               channel.recording.status === 'paused'
                 ? 'Resume recording'
                 : 'Record'
             }
+            variant="primary"
+            style={styles.flexButton}
             icon={(color) => <RecordingsIcon color={color} />}
             disabled={
               channel.recording.status === 'paused'
@@ -2511,14 +2525,16 @@ export function ChannelView({
               })
             }
           />
-          <TransportAction
+          <Button
             label="Pause recording"
+            style={styles.flexButton}
             icon={(color) => <PauseIcon color={color} />}
             disabled={!canPauseRecording(channel, me)}
             onPress={() => act({ type: 'PAUSE_RECORDING' })}
           />
-          <TransportAction
+          <Button
             label="Stop recording"
+            style={styles.flexButton}
             icon={(color) => <StopIcon color={color} />}
             disabled={!canStopRecording(channel, me)}
             onPress={() => act({ type: 'STOP_RECORDING' })}
@@ -3184,55 +3200,6 @@ function FooterAction({
           {label}
         </Text>
       </View>
-    </Pressable>
-  );
-}
-
-/**
- * One glyph of the recording transport: record, pause, stop.
- *
- * **Not `FooterAction`, and the difference is what the two bars mean.** The
- * footer is where you are — muted, holding the floor, in the room — so its
- * controls carry a word each, take an accent for the rung you are standing
- * on, and never all mean the same kind of thing at once. This is a transport:
- * three verbs on one object, in an order that has not changed since tape, and
- * the shapes are the vocabulary. A word under each would be teaching what a
- * square already says.
- *
- * So there are exactly two appearances, and no third. Available is the text
- * colour; unavailable is `textFaint` and inert. There is no accent here — the
- * state of the run is the header's job, and a lit dot down here would be a
- * third drawing of something already drawn twice.
- *
- * `label` is the accessibility label and is the only place the words survive.
- * It is written as the action, not the state: "Resume recording", not
- * "Paused".
- */
-function TransportAction({
-  label,
-  icon,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  icon: (color: ColorValue) => React.ReactNode;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const color = disabled ? colors.textFaint : colors.text;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={!!disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.transportAction,
-        pressed && !disabled && styles.transportActionPressed,
-      ]}
-    >
-      {icon(color)}
     </Pressable>
   );
 }
@@ -4388,32 +4355,11 @@ const styles = StyleSheet.create({
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
   /**
-   * The recording transport: three glyphs in a row, left-aligned.
-   *
-   * Left rather than spread across the width, because they are one object
-   * rather than a bar — a transport is read as a group and reached for as a
-   * group, and stretching three shapes edge to edge would make them look like
-   * three unrelated sections. `marginBottom` is what the section label above
-   * them used to contribute to the rhythm.
+   * What the recording transport adds to `buttonRow`, which is the rest of
+   * it: the row is the player's, and this is only the gap under it that the
+   * section label above it used to contribute to the rhythm.
    */
-  transport: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(0.5),
-    marginBottom: spacing(0.5),
-  },
-  /**
-   * `minHeight`/`minWidth` of 44 is the target Apple asks for; the glyph is 22,
-   * so the padding is most of it and is the reason the shapes are not crowded
-   * against each other despite a small gap.
-   */
-  transportAction: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  transportActionPressed: { opacity: 0.6 },
+  transport: { marginBottom: spacing(0.5) },
   inviteRow: {
     flexDirection: 'row',
     alignItems: 'center',

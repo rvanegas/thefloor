@@ -1,5 +1,13 @@
 # The recording transport is three glyphs, and there is no card around them
 
+**Superseded the same day by
+`2026-09-13-the-transport-is-the-player-s-row.md`.** The row is three filled
+`Button`s carrying these glyphs now, built like the player's transport, and
+`TransportAction` is gone. What still stands is everything this file says about
+what is *not* drawn — no card, no section label, nothing that appears or
+disappears, the words surviving as accessibility labels — and why Record and
+Resume are one control. Read that file for the part about how it is drawn.
+
 2026-09-13. Follows `2026-09-13-the-indicator-is-one-object-in-the-header.md`,
 which took the state off the card and left the card holding only the transport
 and the lines around it.

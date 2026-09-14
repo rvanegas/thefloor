@@ -8,10 +8,6 @@ and things to go and find out. There are more in BACKLOG.md.
 
 Move it to 80. Tidy according to SHIMS.md
 
-## Recording Controls
-
-Recording controls should be centralized and placed in buttons.
-
 ## Record and Player Controls Access
 
 ## Better Controls for Playback

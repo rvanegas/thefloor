@@ -23,19 +23,39 @@ import { usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
+/**
+ * The ordinary control: a filled rectangle with a word on it.
+ *
+ * **`icon` draws a glyph where the word would be, and the word does not
+ * disappear — it stops being drawn.** `label` stays required and becomes the
+ * `accessibilityLabel`, on exactly the reasoning `IconButton` below sets out:
+ * a glyph with no name is a control only sighted users have, and the tests
+ * that press these by name go on finding them. The callback is handed the
+ * variant's foreground colour, so a glyph on `primary` comes out in `bg` and a
+ * disabled one in `textFaint` without the caller knowing the palette — this
+ * file decides the tone and `icons.tsx` decides the shape, as everywhere else.
+ *
+ * It is a glyph *instead of* the word rather than beside it. A row of icon
+ * buttons is read as a group of shapes, and a shape with its own word next to
+ * it is teaching what the shape already says; `sublabel` is still available
+ * for a caller who has something else to add.
+ */
 export function Button({
   label,
   onPress,
   disabled,
   variant = 'default',
   sublabel,
+  icon,
   style,
 }: {
+  /** The word on the button — or, with `icon`, the word a screen reader says. */
   label: string;
   onPress: () => void;
   disabled?: boolean;
   variant?: 'default' | 'primary' | 'floor' | 'danger' | 'ghost';
   sublabel?: string;
+  icon?: (color: ColorValue) => React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
   const tone = {
@@ -46,9 +66,16 @@ export function Button({
     ghost: { bg: 'transparent', fg: colors.textMuted },
   }[variant];
 
+  const fg = disabled ? colors.textFaint : tone.fg;
+
   return (
     <Pressable
       accessibilityRole="button"
+      // Only when the word is not on screen. A button that draws its label
+      // reads it out along with any `sublabel` underneath, and naming it here
+      // would silence that second line — which on *Play something together* is
+      // the half that says what would happen.
+      accessibilityLabel={icon ? label : undefined}
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
       disabled={disabled}
@@ -60,20 +87,14 @@ export function Button({
         style,
       ]}
     >
-      <Text
-        style={[
-          styles.buttonLabel,
-          { color: disabled ? colors.textFaint : tone.fg },
-        ]}
-      >
-        {label}
-      </Text>
+      {icon ? (
+        icon(fg)
+      ) : (
+        <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
+      )}
       {sublabel ? (
         <Text
-          style={[
-            styles.buttonSublabel,
-            { color: disabled ? colors.textFaint : tone.fg },
-          ]}
+          style={[styles.buttonSublabel, { color: fg }]}
         >
           {sublabel}
         </Text>

@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button, IconButton, Field, Segmented, FooterAction, TransportAction |
+| *Controls* | Button, IconButton, Field, Segmented, FooterAction |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the pinned header, the pinned footer, split panes |
@@ -296,6 +296,16 @@ floor*. It was three until 2026-09-13, the other two being the floor card's
 Claim and Release; the card is gone and the footer draws its own icon rather
 than a `Button`.
 
+**A button may carry a glyph instead of its word.** `icon` is a callback handed
+the variant's foreground colour, and it is drawn where the label would be; the
+label stays required and becomes the `accessibilityLabel`, so the word survives
+for a screen reader and for the tests that press controls by name. Instead of
+the word, never beside it — a shape with its own caption is teaching what the
+shape already says. The recording transport on *Recordings* is the only user:
+three of them, `primary` then two `default`, in the `buttonRow` / `flexButton`
+row the player's transport is built from, which is the point of drawing them
+this way. See § *TransportAction is gone*.
+
 **A button inside a row of text is tightened rather than made a new
 component** — `{ paddingVertical: spacing(0.5), paddingHorizontal: spacing(1),
 minHeight: 0 }`, via the `style` prop. ChannelView's `cardPing` and
@@ -367,25 +377,29 @@ The disc is a fixed 54pt box whether or not it is filled, so the bar never
 changes height; `minWidth` equal to the height makes it a circle for short
 labels and a pill for long ones.
 
-### TransportAction
+### TransportAction is gone
 
-The recording transport — record, pause, stop — and the third thing that is
-neither a `Button` nor a `FooterAction`. A bare 22px glyph in a 44pt target,
-three of them in a row at `spacing(0.5)`, **left-aligned rather than spread**:
-they are one object read and reached for as a group, and stretching three
-shapes edge to edge would make them look like three unrelated sections.
+Removed 2026-09-13, the same day it was added, and named here because the
+argument it lost is worth not re-running.
 
-**Exactly two appearances, and no third.** Available is `text`; unavailable is
-`textFaint` and inert. There is no accent — the state of the run is the
-header's pill, and a lit glyph down here would be a third drawing of something
-already drawn twice.
+It was a bare 22px glyph in a 44pt target, three in a row at `spacing(0.5)`,
+left-aligned and unfilled, on the reasoning that a transport is one object
+read and reached for as a group, that the shapes are the vocabulary, and that
+a fill would make three verbs on one object look like three sections. All of
+which is true of a transport in isolation, and none of which survives the
+screen it was on: one tab away, the thing that starts, holds and moves the
+shared track is three filled `Button`s in equal thirds across the width, and
+the recording transport is the same act on the same channel. Two constructions
+for one gesture is the cost the argument did not price.
 
-The contrast with `FooterAction` is the point of both. The footer says *where
-you are*, so each control carries a word and takes the accent for the rung you
-are standing on; a transport is three verbs on one object, in an order that
-has not changed since tape. The accessibility label is the only place the
-words survive, and it is written as the action rather than the state —
-"Resume recording", not "Paused".
+So the row is now `buttonRow` + `flexButton` with `Button`'s `icon`, which is
+the affordance that pass really wanted — the glyphs were right, the third
+control type was not. What carried over: all three present always, in the
+order start, hold, end, so the positions never move and the irreversible one
+is last; and no card and no RECORDING label around them, the header's pill
+being where the state of the run is reported.
+
+---
 
 ---
 
@@ -575,9 +589,9 @@ the copy.
   legible the first time and the glyph is what makes it findable after that,
   so neither half is ever dropped — an icon-only tab bar is one where the
   third tab is a guess. The exceptions are the header's `IconButton`s and the
-  recording transport, where the shapes have meant one thing each since tape
-  and a word under a square would be teaching what the square already says.
-  In both, the word survives as the accessibility label.
+  recording transport's three buttons, where the shapes have meant one thing
+  each since tape and a word beside a square would be teaching what the square
+  already says. In both, the word survives as the accessibility label.
 - **Only the microphone changes glyph between states**, because a
   struck-through mic is the one piece of this vocabulary everybody already
   knows. The floor keeps one hand in both states: no icon set has a "released
@@ -595,7 +609,8 @@ The whole feedback vocabulary is opacity on press:
 
 - **0.7** — a button, a segment, a small control.
 - **0.6** — a large pressable surface: a whole row, a footer action, a
-  recording card, a transport glyph.
+  recording card. The recording transport left this list on 2026-09-13 and
+  presses at 0.7 with every other button, which is what it is now.
 
 Two other kinds of press response exist and are not opacity: a channel card
 darkens to `surfaceRaised` instead, because it is already tinted, and a
