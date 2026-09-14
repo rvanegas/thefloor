@@ -774,6 +774,19 @@ export class ChannelRegistry {
    * restart being no reason to refuse somebody a ping.
    */
   private lastPingedAt = new Map<string, number>();
+  /**
+   * The words of the ping that opened each live window, and who wrote them,
+   * keyed the same way `lastPingedAt` is.
+   *
+   * Only where there were words. A wordless ping still opens a window and
+   * still belongs in `lastPingedAt`; it has nothing to say here, and clearing
+   * the entry is what stops it inheriting the last sentence somebody wrote.
+   *
+   * Sender-stamped because a quotation without a name is worse than no
+   * quotation: the profile card is read by everybody in the channel, so it has
+   * to be able to say who is asking as well as what they said.
+   */
+  private pingedWith = new Map<string, { by: string; text: string }>();
 
   constructor(
     private db: Db,
@@ -3311,6 +3324,36 @@ export class ChannelRegistry {
   }
 
   /**
+   * What was said to each participant whose window is still open, for the ones
+   * whose ping had words.
+   *
+   * **Read against `pingWindows` and never alone.** An entry lives exactly as
+   * long as the window it belongs to, so the same expiry governs both — words
+   * outliving the window would put a quotation on a card that is offering to
+   * ping again, which reads as the ping that has not been sent yet.
+   *
+   * The same answer for everybody, for `pingWindows`'s reason: the words are a
+   * fact about the person being pinged, shown on their profile to the people
+   * who can already see that somebody pinged them. That is a disclosure, which
+   * is why the sender's name travels with it rather than leaving the room to
+   * guess who wrote it.
+   */
+  pingTexts(channelId: string): Record<string, { by: string; text: string }> {
+    const said: Record<string, { by: string; text: string }> = {};
+    const channel = this.channels.get(channelId);
+    if (!channel) return said;
+    const now = this.now();
+    for (const userId of channel.participants) {
+      const key = this.pingKey(channelId, userId);
+      const last = this.lastPingedAt.get(key);
+      if (last === undefined || last + PING_INTERVAL_MS <= now) continue;
+      const words = this.pingedWith.get(key);
+      if (words) said[userId] = words;
+    }
+    return said;
+  }
+
+  /**
    * Spends whatever announcement these people are holding.
    *
    * Called when somebody becomes present, because going is what answers a
@@ -3426,6 +3469,11 @@ export class ChannelRegistry {
       };
     }
     this.lastPingedAt.set(key, now);
+    // Set or cleared together with the window, never left behind: a wordless
+    // ping is a window with nothing to quote, and the entry the last one left
+    // would otherwise be shown against it.
+    if (trimmed) this.pingedWith.set(key, { by: senderId, text: trimmed });
+    else this.pingedWith.delete(key);
 
     this.push.notify(
       [targetId],

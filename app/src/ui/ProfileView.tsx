@@ -141,6 +141,7 @@ export function ProfileView({
   onEnterChannel,
   onPing,
   pingableAt = null,
+  pingedWith = null,
   mic = null,
   onSetMute,
   onRemoved,
@@ -197,6 +198,20 @@ export function ProfileView({
    * from, or null when that is now. Only meaningful alongside `onPing`.
    */
   pingableAt?: number | null;
+  /**
+   * What the ping that opened that window said, and who wrote it, or null
+   * where it said nothing or no window is open.
+   *
+   * `by` is a name to show, not an id: the caller has the roster and this card
+   * does not, and a quotation is the one place a fallback like "somebody"
+   * would be worse than the words being absent. **Null where the viewer wrote
+   * them**, which the caller knows and this card does not — the line above
+   * already says "Sent.", and a name over your own words is noise.
+   *
+   * Read alongside `pingableAt` and never instead of it — the words belong to
+   * the wait, so nothing is drawn from this while the composer is offered.
+   */
+  pingedWith?: { by: string | null; text: string } | null;
   /**
    * Their microphone, as the channel this card was opened from sees it —
    * `muted` being `channel.selfMuted[them]`, and `mayChange` the reducer's own
@@ -285,6 +300,15 @@ export function ProfileView({
   const [pinging, setPinging] = useState(false);
   const [pingError, setPingError] = useState<string | null>(null);
   const [pingSent, setPingSent] = useState(false);
+  /**
+   * The words of the ping just sent from this screen, so the confirmation can
+   * quote them before the snapshot that carries them arrives.
+   *
+   * Local and short-lived on purpose: `pingedWith` is the durable answer and
+   * replaces this the moment it lands, which is also what makes the quotation
+   * survive closing the card and opening it again. This is only the gap.
+   */
+  const [sentText, setSentText] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   /** While the decision about your own address is in flight. */
   const [showingEmail, setShowingEmail] = useState(false);
@@ -597,12 +621,14 @@ export function ProfileView({
     if (!onPing) return;
     setPinging(true);
     setPingError(null);
+    const said = pingText.trim();
     try {
-      await onPing(pingText.trim());
+      await onPing(said);
       // Cleared on the way out so that reopening the card does not offer to
       // send the same words again, which the interval would refuse anyway.
       setPingText('');
       setPingSent(true);
+      setSentText(said || null);
     } catch (e) {
       setPingError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -862,6 +888,18 @@ export function ProfileView({
     pingableAt !== null && pingableAt > app.serverNow()
       ? pingableAt - app.serverNow()
       : null;
+
+  /**
+   * The words to quote under the confirmation, or null where the ping had
+   * none.
+   *
+   * The snapshot first, since it is the attributed and durable answer and is
+   * what survives closing this card; `sentText` covers only the half-second
+   * before it lands, and so is unattributed — it is yours, and "Sent." has
+   * just said so.
+   */
+  const said: { by: string | null; text: string } | null =
+    pingedWith ?? (sentText !== null ? { by: null, text: sentText } : null);
 
   /**
    * How long until this person can be muted by somebody else again, or null
@@ -1197,12 +1235,33 @@ export function ProfileView({
               // though it had lost them. When the window *is* known it is said
               // as a length rather than a moment; when it is not, the sentence
               // this said before the countdown existed is still true.
-              <Text style={type.muted}>
-                {pingSent ? 'Sent.' : 'They have just been pinged.'}
-                {pingWait !== null
-                  ? ` You can ping them again in ${duration(pingWait)}.`
-                  : ' They will not be pinged again for a few minutes.'}
-              </Text>
+              <>
+                <Text style={type.muted}>
+                  {pingSent ? 'Sent.' : 'Pinged.'}
+                  {pingWait !== null
+                    ? ` You can ping them again in ${duration(pingWait)}.`
+                    : ' They will not be pinged again for a few minutes.'}
+                </Text>
+                {/*
+                  What was actually said, when anything was. Body weight rather
+                  than muted, and below the line that says a ping happened: the
+                  state is the smaller fact and the words are the message, so
+                  the sentence reads as a caption to them rather than the other
+                  way about.
+
+                  Attributed unless it was you — "Alice asked:" is the whole
+                  reason the sender's name is on the wire, and repeating your
+                  own name back at you is noise directly above "Sent."
+                */}
+                {said ? (
+                  <View>
+                    {said.by !== null ? (
+                      <Text style={type.muted}>{`${said.by} said:`}</Text>
+                    ) : null}
+                    <Text style={type.body}>{said.text}</Text>
+                  </View>
+                ) : null}
+              </>
             ) : (
               <>
             <Field
@@ -1210,8 +1269,10 @@ export function ProfileView({
               onChangeText={(v) => {
                 setPingText(v.slice(0, MAX_PING_TEXT_LENGTH));
                 // The confirmation belongs to the ping that was sent, not to
-                // the field; typing again is the start of a different one.
+                // the field; typing again is the start of a different one, and
+                // the quotation goes with the confirmation it belongs to.
                 setPingSent(false);
+                setSentText(null);
               }}
               placeholder="Anything you want to say (optional)"
               autoCapitalize="sentences"

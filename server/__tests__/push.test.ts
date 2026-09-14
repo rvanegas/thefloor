@@ -1452,6 +1452,52 @@ describe('a ping', () => {
     expect(app.channels.pingWindows(channelId)).toEqual({});
   });
 
+  /**
+   * The words as well as the window, so the profile card can quote what was
+   * actually asked rather than only that somebody asked. Sender-stamped: these
+   * are shown to everybody in the channel, and an unattributed quotation about
+   * somebody who is not there to answer it is worse than none.
+   */
+  it('reports what a ping said, for as long as the window it opened', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    expect(app.channels.pingTexts(channelId)).toEqual({});
+
+    await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+      text: '  we are starting  ',
+    });
+    await settle();
+    // Trimmed, the same value that went to the phone.
+    expect(app.channels.pingTexts(channelId)).toEqual({
+      [bob.account.id]: { by: alice.account.id, text: 'we are starting' },
+    });
+
+    // And gone with the window rather than outliving it: words still on screen
+    // beside an offer to ping again read as the ping that has not been sent.
+    clock += PING_INTERVAL_MS;
+    expect(app.channels.pingTexts(channelId)).toEqual({});
+  });
+
+  /**
+   * A wordless ping is the ordinary one, and it must not inherit the sentence
+   * the last one left behind.
+   */
+  it('quotes nothing for a ping that said nothing', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    await ping(alice.token, channelId, {
+      targetId: bob.account.id,
+      text: 'we are starting',
+    });
+    await settle();
+
+    clock += PING_INTERVAL_MS;
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    await settle();
+
+    expect(app.channels.pingWindows(channelId)).not.toEqual({});
+    expect(app.channels.pingTexts(channelId)).toEqual({});
+  });
+
   it('lets the same person be pinged again once the window has passed', async () => {
     const { alice, bob, channelId } = await bobStepsOut();
     await ping(alice.token, channelId, { targetId: bob.account.id });

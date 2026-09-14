@@ -517,6 +517,10 @@ export function registerWebsocket(deps: {
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),
+        // The words that opened those windows, where there were any. The same
+        // answer for everybody, like the windows themselves — see
+        // `Channels.pingTexts` for why a sender's name travels with them.
+        pingedWith: channels.pingTexts(channelId),
         // What ends both absent states, and what the roster's *nearby* line
         // counts — *stepped out* counts presence instead. Per channel
         // because that is where it is read, but the value is per account —

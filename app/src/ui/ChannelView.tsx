@@ -606,6 +606,7 @@ export function ChannelView({
   // Rendered instead of the channel, not instead of being in it: the audio
   // connection lives above this screen, so neither of these hangs up.
   if (viewing) {
+    const pingedWith = view.pingedWith?.[viewing.id] ?? null;
     return (
       <ProfileView
         accountId={viewing.id}
@@ -655,6 +656,23 @@ export function ChannelView({
         // offered, pressed and rejected teaches nothing that saying so up
         // front does not.
         pingableAt={view.pingableAt[viewing.id] ?? null}
+        // What that ping said, where it said anything. The sender is resolved
+        // to a name here because this is the screen holding the roster —
+        // `nameOf` answers "Someone" for anybody it cannot find, which is the
+        // right failure for a quotation: the words still say what was asked,
+        // and withholding them over a missing name would leave the card quiet
+        // for a reason nobody could see.
+        //
+        // Null for `by` when it was you. The card says "Sent." directly above
+        // these words and does not need your name over them as well.
+        pingedWith={
+          pingedWith
+            ? {
+                by: pingedWith.by === me ? null : nameOf(pingedWith.by),
+                text: pingedWith.text,
+              }
+            : null
+        }
         // Their microphone, offered only where the favour means something:
         // somebody else, in the room, with you in it too. Those are the same
         // conditions `canMuteOther` checks, and they are asked again here

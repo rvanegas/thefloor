@@ -803,6 +803,32 @@ export interface ChannelView {
    */
   pingableAt: Partial<Record<UserId, number>>;
   /**
+   * What was said to each participant whose ping window is open, for the ones
+   * whose ping carried words, and who wrote them.
+   *
+   * **A subset of `pingableAt`'s keys, and read against it.** The server lists
+   * only live windows in both, so an entry here always has one there; the
+   * reverse does not hold, a wordless ping being the ordinary case. Nothing
+   * reads this without the window, the words belonging to the wait rather than
+   * standing on their own.
+   *
+   * Here for `pingableAt`'s reason exactly: no reducer knows about it and
+   * `core/` has never heard of it, it is server bookkeeping about who has been
+   * bothered and what with, and it rides the channel snapshot because the
+   * profile card that asks is reached from inside a channel.
+   *
+   * **`by` is not decoration.** These are words one person wrote to another,
+   * shown to everybody in the channel who opens that person's profile — the
+   * same people who can already see that somebody pinged them. Carrying the
+   * name is what keeps that a message from a named contact rather than an
+   * anonymous sentence about somebody who is not there to answer it.
+   *
+   * Optional, so a client older than the field ignores it and a server older
+   * than it simply sends nothing; the card then says what it said before, that
+   * they have just been pinged. See SHIMS.md.
+   */
+  pingedWith?: Partial<Record<UserId, { by: UserId; text: string }>>;
+  /**
    * When each participant was last attending **this channel**, for those the
    * server has heard from.
    *

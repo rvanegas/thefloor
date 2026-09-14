@@ -39,6 +39,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
+| 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -75,6 +76,30 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 195 — `ChannelView.pingedWith` optionality
+
+What a ping said and who said it, for every participant whose ping window is
+still open — the field the profile card quotes under "Pinged." Optional because
+a server that predates it sends no such key, and the client reads absence as *a
+ping with no words*, which is the card exactly as every build drew it: the
+state, the countdown, and nothing quoted.
+
+Set unconditionally in `pushChannel`, `server/src/ws.ts`, from
+`Channels.pingTexts`. The client-side fallback is the `?? null` on
+`view.pingedWith?.[viewing.id]` in `ChannelView`, which feeds `ProfileView`'s
+own `pingedWith = null` default.
+
+**What must not be deleted with it**: `ProfileView`'s `sentText`, which is not
+a shim. It quotes the ping you have just sent during the half-second before any
+snapshot carries it, and is needed against a current server exactly as much as
+an old one. Nor the `by: null` arm — that is how the card says *these are your
+own words* and has nothing to do with the server's age.
+
+Gate 195 because build 194 is already tagged: the client that speaks this ships
+in the next upload.
 
 ---
 

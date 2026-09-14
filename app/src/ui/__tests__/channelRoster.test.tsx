@@ -1319,7 +1319,8 @@ describe('pinging somebody who is not in the room', () => {
 
   const renderProfile = async (
     onPing?: (text: string) => Promise<void>,
-    pingableAt?: number | null
+    pingableAt?: number | null,
+    pingedWith?: { by: string | null; text: string } | null
   ) => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     let tree!: ReactTestRenderer;
@@ -1331,6 +1332,7 @@ describe('pinging somebody who is not in the room', () => {
           onBack={() => {}}
           onPing={onPing}
           pingableAt={pingableAt}
+          pingedWith={pingedWith}
         />
       );
     });
@@ -1363,9 +1365,54 @@ describe('pinging somebody who is not in the room', () => {
     // told no, which loses the words as well as the ping.
     const tree = await renderProfile(async () => {}, NOW + 4 * 60_000);
 
-    expect(textOf(tree)).toContain('They have just been pinged.');
+    expect(textOf(tree)).toContain('Pinged.');
     expect(textOf(tree)).toContain('You can ping them again in 4 minutes.');
     expect(textOf(tree)).not.toContain('Send ping');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The words themselves, which is the whole of what this card knows that the
+   * roster's "Pinged" does not. A ping is the one notification somebody
+   * composes, and until now the only copy of what they wrote was on the
+   * pinged person's lock screen.
+   */
+  it('quotes what the ping said, and says who said it', async () => {
+    const tree = await renderProfile(async () => {}, NOW + 4 * 60_000, {
+      by: 'Ali Reyes',
+      text: 'we are starting without you',
+    });
+
+    expect(textOf(tree)).toContain('Pinged.');
+    expect(textOf(tree)).toContain('Ali Reyes said:');
+    expect(textOf(tree)).toContain('we are starting without you');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Your own words carry no name: "Sent." is directly above them and has
+   * already said whose they are.
+   */
+  it('does not put your own name over your own words', async () => {
+    const tree = await renderProfile(async () => {}, NOW + 4 * 60_000, {
+      by: null,
+      text: 'come when you can',
+    });
+
+    expect(textOf(tree)).toContain('come when you can');
+    expect(textOf(tree)).not.toContain('said:');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * A wordless ping is the ordinary one. Nothing is quoted, and in particular
+   * nothing left over from whoever pinged them last.
+   */
+  it('quotes nothing when the ping had no words', async () => {
+    const tree = await renderProfile(async () => {}, NOW + 4 * 60_000, null);
+
+    expect(textOf(tree)).toContain('Pinged.');
+    expect(textOf(tree)).not.toContain('said:');
     act(() => tree.unmount());
   });
 
@@ -1390,6 +1437,10 @@ describe('pinging somebody who is not in the room', () => {
 
     expect(onPing).toHaveBeenCalledWith('we are starting');
     expect(textOf(tree)).toContain('Sent.');
+    // Quoted straight back, without waiting on the snapshot that will carry
+    // them: the words have gone, and a confirmation that cannot yet say what
+    // was sent reads as one that lost them.
+    expect(textOf(tree)).toContain('we are starting');
     act(() => tree.unmount());
   });
 

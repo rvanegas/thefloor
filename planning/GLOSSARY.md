@@ -61,7 +61,7 @@ caused; the list carries the meaning.
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
-- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them
+- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
@@ -850,6 +850,13 @@ connection has dropped, telling them somebody wants them. Rate-limited per
 person per channel, so somebody who has just been pinged cannot be pinged again
 immediately. You may ping a contact; being in the same channel as somebody is
 not enough.
+
+**Its words outlive the notification, on the profile card.** For as long as the
+window is open, anybody in the channel who opens that person's profile sees
+*Pinged.* and, where the ping carried any, what was said and who said it. The
+lock screen used to hold the only copy. That makes a ping's words a small
+disclosure to the room rather than a private message, which is why the sender's
+name travels with them — see `ChannelView.pingedWith`.
 
 ## Present
 

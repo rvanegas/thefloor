@@ -20,10 +20,6 @@ Add labels below recording controls, and remove text below it except in case of 
 
 Swiping left from channel view, returns to home view. Swiping right from home view goes to channel view, if user is present in any channel.
 
-## Ping Text
-
-When a channel member is pinged with an accompanying text, display "pinged" in same format as in roster, but here, in profile view, also show the text sent.
-
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
@@ -35,6 +31,8 @@ Improve look and feel
 ## Youtube Extraction
 
 Take a youtube url, determine whether an audio only download is available, and make it available to media player using yt-dlp and ffmpeg.
+
+## Improve Transcripts UI
 
 ## Call if You Must
 
