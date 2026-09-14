@@ -38,10 +38,11 @@ export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * The stack that somebody asking for you lands in.
  *
- * Shared by `invited` and `pinged` across every channel, which is the seam this
- * app turned out to want and is not the one the rest of this file is organised
- * around: those are the ones where **a person did something aimed at you** —
- * added you to a channel, or called you into one. `arrived` is the only one that is merely the room
+ * Shared by `invited`, `pinged` and `accepted` across every channel, which is
+ * the seam this app turned out to want and is not the one the rest of this
+ * file is organised around: those are the ones where **a person did something
+ * aimed at you** — added you to a channel, called you into one, or took up the
+ * invitation you sent. `arrived` is the only one that is merely the room
  * reporting its own state, and it keeps a stack per channel.
  *
  * So a phone shows at most two kinds of pile: somebody wants you, and this
@@ -99,10 +100,15 @@ export interface PushMessage {
    * one rung down: a notification that stays true discarded by one that does
    * not.
    *
-   * Only `invited` uses the second key now. It shared it with `started` until
-   * the two were folded together — a pair safe to collapse into each other for
-   * the same reason they were safe to merge outright: being invited to a
-   * channel you were just added to does not happen.
+   * `invited` and `accepted` use the second key. `invited` shared it with
+   * `started` until the two were folded together — a pair safe to collapse
+   * into each other for the same reason they were safe to merge outright:
+   * being invited to a channel you were just added to does not happen.
+   * `accepted` joined them on 2026-09-13 and sits there on a stronger footing
+   * still: it is sent once in a channel's life, in the moment that channel is
+   * created, so the only thing it can ever meet on that key is a later
+   * `invited` about the same pair — which is a membership statement in its own
+   * right and the better version of this one by the time it arrives.
    *
    * **Null for a ping, and that is the whole of the rule.** Each one carries
    * words somebody chose, so no two are versions of each other and there is
@@ -165,10 +171,11 @@ export interface PushMessage {
   /**
    * Whether this may reach somebody who is already holding a live socket.
    *
-   * False for everything the channel says about itself. Those are duplicates
-   * when the app is open — the socket has already put the arrival on screen
-   * and the channel in the Home list — so a notification would be a second
-   * copy of what somebody is looking at.
+   * False for everything the channel says about itself, and for `accepted`.
+   * Those are duplicates when the app is open — the socket has already put the
+   * arrival on screen and the channel in the Home list, and it has already put
+   * a new contact and their new channel there too — so a notification would be
+   * a second copy of what somebody is looking at.
    *
    * True for a ping, and only for a ping, since 2026-08-22. It is the one
    * nobody's client can have already shown, because a person composed it and
@@ -200,7 +207,8 @@ export interface PushMessage {
  * The names are words the code already used rather than new coinages.
  * `invited` is the first word of the body it sends, so the name and the
  * sentence on the lock screen cannot drift apart; `arrived` is what
- * `announceActive` already calls the person walking in.
+ * `announceActive` already calls the person walking in; `accepted` is what
+ * `acceptContact` and `redeemInvitePin` between them do.
  *
  * - `invited` — somebody added you to a channel: one already under way, or one
  *   that did not exist until they made it with you. Those were two
@@ -209,6 +217,9 @@ export interface PushMessage {
  *   is asking for you; the room simply has someone in it.
  * - `pinged` — somebody in a channel asked for you by name, in their own words.
  *   The only one a person sits down and decides to send.
+ * - `accepted` — somebody you invited took it up: followed your invite link, or
+ *   accepted your contact request. Added 2026-09-13, and the only one here that
+ *   is about a person rather than about a room.
  *
  * **Two seams, and they do not fall in the same place**, which is why the names
  * earn their keep rather than merely tidying.
@@ -368,10 +379,12 @@ export const notifications = {
   /**
    * Somebody in a channel asked for one particular absent person by name.
    *
-   * The only one of the four a person decides to send. The other three are the
-   * channel reporting on itself, which is why they may overwrite one another
-   * freely; this one was typed and aimed, and is the reason `collapseKey` is a
-   * field rather than a constant in the transport.
+   * **The only one of the four whose words a person chose.** Two of the others
+   * are the channel reporting on itself, which is why they may overwrite one
+   * another freely, and `accepted` is a fact the server assembled about a
+   * person — somebody did decide to accept, but nobody wrote that sentence.
+   * This one was typed and aimed, and is the reason `collapseKey` is a field
+   * rather than a constant in the transport.
    *
    * **It is delivered whether or not the recipient has the app open**, which
    * the other three are not, and which this one was not until 2026-08-22. It
@@ -429,6 +442,72 @@ export const notifications = {
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
       reachesInApp: true,
+    };
+  },
+
+  /**
+   * Somebody took up your invitation, and the two of you are now contacts.
+   *
+   * **The one notification here that is not about a room**, which is why it
+   * reads oddly against its neighbours until you see what it is for. The other
+   * three answer *what is happening in a channel you belong to*; this one
+   * answers *has the person I asked turned up yet* — a question somebody holds
+   * for days after sending an invite link, with nothing to check.
+   *
+   * It still names a channel, and that is not a fudge. Becoming contacts
+   * creates the pair's channel in the same breath, so there is a real id to
+   * hand over, and the three things this system keys on one — the recipient's
+   * level, the collapse key, the thread — all get a genuine answer rather than
+   * a sentinel nothing else would know to expect. It is also the channel the
+   * recipient wants, since meeting this person right away means stepping into
+   * exactly that room.
+   *
+   * **Two bodies, on the precedent `invited` and `arrived` both set**, because
+   * the two ways a pair becomes contacts are not the same act and one sentence
+   * covering both would be false about one of them. Following an invite link
+   * is somebody arriving at the far end of something you handed out; accepting
+   * a contact request is somebody answering something you asked. The
+   * consequence is identical and is deliberately left unsaid — it is on Home
+   * by the time anybody reads this, and a lock screen has room for the half
+   * that is news.
+   *
+   * Titled with the person, like `invited` and for the same reason doubled:
+   * the channel has no name and did not exist a second ago, and who it is is
+   * the entire content of the notification.
+   *
+   * It keeps the participation lifetime. This is a fact that stays true — that
+   * person is a contact now, and will still be one when a phone that was off
+   * all week comes back — so it is on the `invited` side of the seam rather
+   * than the `arrived` side, however much the brief that asked for it was
+   * about being timely. Being late with it costs the chance to meet them that
+   * evening; dropping it costs the only notice anybody ever gets.
+   */
+  accepted(
+    who: string,
+    how: 'link' | 'request',
+    channelId: string
+  ): PushMessage {
+    return {
+      kind: 'accepted',
+      title: who,
+      body:
+        how === 'link'
+          ? 'Followed your invite link.'
+          : 'Accepted your contact request.',
+      channelId,
+      // The membership key rather than the room's, which is the seam it
+      // belongs on: this changes who belongs to a channel — it is the reason
+      // the channel exists — and nothing about the room's comings and goings
+      // may overwrite it. Sent once in a channel's life, so what it shares
+      // that key with is only ever a later `invited`, which is a membership
+      // statement in its own right and entitled to replace this one.
+      collapseKey: `${channelId}:you`,
+      // Somebody did something aimed at you, which is what that stack is.
+      threadId: ASKING_THREAD,
+      lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      // False, with `invited`: the socket has already put the contact and the
+      // new channel on Home, so an app that is open has drawn this already.
+      reachesInApp: false,
     };
   },
 };

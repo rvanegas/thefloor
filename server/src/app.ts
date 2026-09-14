@@ -79,7 +79,12 @@ import {
   MEDIA_IDENTITY,
   type RefusalCode,
 } from './channels';
-import { ConsolePusher, createPushNotifier, type Pusher } from './push';
+import {
+  ConsolePusher,
+  createPushNotifier,
+  notifications,
+  type Pusher,
+} from './push';
 import type { RecordingStore } from './storage';
 import {
   createHomeNotifier,
@@ -528,6 +533,44 @@ export function buildApp(options: BuildOptions = {}): App {
         });
     }
   };
+
+  /**
+   * Tells whoever asked that the person they asked has turned up.
+   *
+   * **The one notification this server sends that nobody could have been
+   * waiting for on a screen.** Every other one announces something inside a
+   * channel both people already belong to, where the socket has usually drawn
+   * it before the push lands. An invite link is handed over and then there is
+   * nothing: no row on Home, no way to check, and days between sending it and
+   * whatever happens next. This is the answer arriving.
+   *
+   * Called from the three places a pair becomes contacts — a link redeemed, a
+   * request accepted, and the crossed pair of requests that accepts itself —
+   * rather than from inside `Accounts`, which is where the rule about *who*
+   * becomes a contact lives and which has never heard of a notification.
+   * `ChannelRegistry` gets the same separation from the other direction.
+   *
+   * **Silently does nothing without a pair channel**, which `ensurePairChannel`
+   * answers null for only when the two ids are the same — already impossible
+   * on every path here, since none of them can make somebody their own
+   * contact. It is a guard against a future caller rather than a case: there is
+   * no honest notification to send about a channel that does not exist, and
+   * inventing an id for one would put a value into the collapse key, the
+   * thread and the recipient's level that nothing else in the system would
+   * recognise.
+   */
+  function tellTheInviter(
+    inviterId: string,
+    whoAccepted: AccountRow,
+    pair: { channelId: string } | null,
+    how: 'link' | 'request'
+  ): void {
+    if (!pair) return;
+    pushNotifier.notify(
+      [inviterId],
+      notifications.accepted(whoAccepted.display_name, how, pair.channelId)
+    );
+  }
 
   const channels = new ChannelRegistry(
     db,
@@ -980,9 +1023,11 @@ export function buildApp(options: BuildOptions = {}): App {
     }
 
     // The same crossed-requests case as the by-id route below: they had asked
-    // first, so this accepted theirs, and the pair are owed their channel.
+    // first, so this accepted theirs, and the pair are owed their channel —
+    // and they are owed the news, which is the half a screen cannot give them.
     if (result.accepted && result.targetId) {
-      channels.ensurePairChannel(result.targetId, account.id);
+      const pair = channels.ensurePairChannel(result.targetId, account.id);
+      tellTheInviter(result.targetId, account, pair, 'request');
     }
 
     // The recipient is the whole point: without telling them, a request simply
@@ -1071,8 +1116,12 @@ export function buildApp(options: BuildOptions = {}): App {
     // reasons: a pair who are contacts are owed the channel that is the point
     // of being contacts, and both Homes have somebody on them who was not
     // there a moment ago.
-    channels.ensurePairChannel(result.owner.id, account.id);
+    const pair = channels.ensurePairChannel(result.owner.id, account.id);
     homeNotifier.notify([account.id, result.owner.id]);
+    // And a third since 2026-09-13, which the other two cannot do: whoever
+    // minted this link is not looking at the app — they handed it over hours
+    // or days ago and have had nothing to check since. See `tellTheInviter`.
+    tellTheInviter(result.owner.id, account, pair, 'link');
     return { ok: true, contact: accounts.public(result.owner.id) };
   });
 
@@ -1131,7 +1180,13 @@ export function buildApp(options: BuildOptions = {}): App {
     // They had asked first, so this request accepted theirs — one of the three
     // ways a pair becomes contacts, and each owes the pair a channel. They are
     // therefore the requester, and go first; see the accept route below.
-    if (result.accepted) channels.ensurePairChannel(id, account.id);
+    if (result.accepted) {
+      const pair = channels.ensurePairChannel(id, account.id);
+      // Their request is the one that was accepted, so they are the one owed
+      // the news — the crossed case reaching the same place the accept route
+      // below reaches by the ordinary route.
+      tellTheInviter(id, account, pair, 'request');
+    }
     homeNotifier.notify([account.id, id]);
     return { ok: true, accepted: result.accepted };
   });
@@ -1153,8 +1208,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // out. Whoever reached out is the nearest thing this channel has to an
     // initiator, and the alternative was ordering it by which of them happened
     // to tap accept.
-    channels.ensurePairChannel(id, account.id);
+    const pair = channels.ensurePairChannel(id, account.id);
     homeNotifier.notify([account.id, id]);
+    // The requester asked and has been waiting; this is the answer. Where the
+    // request went to an address with no account, the wait has been days.
+    tellTheInviter(id, account, pair, 'request');
     return { ok: true };
   });
 

@@ -105,6 +105,7 @@ caused; the list carries the meaning.
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
 - **Mix** — The single file a finished recording becomes, made from its *stems*
 - **Mute (four things, one word)** — The word does four jobs and only the first is the user's; they are separated in the entry
+- **Notification kinds — invited / arrived / accepted / pinged** — The four things this server sends to a phone; only *pinged* is words somebody wrote, and only *accepted* is about a person rather than a room
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
 - **Protocol** — `core/protocol.ts` — the wire
@@ -812,6 +813,38 @@ saying the opposite: one entry per thing somebody wanted to say, kept in order,
 each surviving the next. This is one surface, overwritten, with no history and
 nobody's name on it. If what you want is to say something to the people in a
 channel and have it stay said, that is not this and does not exist yet.
+
+## Notification kinds — invited / arrived / accepted / pinged
+
+**The four things this server sends to a phone**, named in
+`core/notifications.ts` and composed in `server/src/push.ts`. Each name is a
+word the code already used rather than a coinage, and for three of them it is
+the first word of the sentence that lands on the lock screen.
+
+- **invited** — somebody added you to a channel, whether or not it existed a
+  moment ago.
+- **arrived** — somebody stepped into, or declared themselves *nearby* in, a
+  channel you belong to and were not in.
+- **accepted** — somebody you invited took it up: followed your *invite link*,
+  or accepted your contact *request*. Added 2026-09-13.
+- **pinged** — somebody in a channel asked for you by name, in their own words.
+
+**Two seams cut this set, and they do not fall in the same place**, which is
+the whole reason the names are worth having. By *what stays true*: `invited`
+and `accepted` announce who belongs to something and are good for a month;
+`arrived` and `pinged` say come now and lapse in five minutes. By *who decided
+to send it*: `pinged` alone is a sentence a person composed, which is why it
+overwrites nothing, reaches an app that is already open, and is the one that
+makes a sound at the default level.
+
+**`accepted` is the odd one and is the one to read the entry for.** The other
+three are a room reporting on itself to people who belong to it. This one
+answers a question its recipient has been holding with nothing to check — *has
+the person I invited turned up yet* — and it is the only one whose recipient
+could not have been watching a screen for it. It names a channel all the same,
+because becoming contacts creates the pair's channel in the same breath, and
+the three things this system keys on a channel — the recipient's level, the
+collapse key, the thread — all want a real id.
 
 ## Ping
 

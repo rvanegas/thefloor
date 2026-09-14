@@ -10,16 +10,30 @@
  */
 
 /**
- * The three notifications this system sends, named as `push.ts` names them.
+ * The four notifications this system sends, named as `push.ts` names them.
  *
- * There were four until 2026-08-22. `started` — somebody opened a channel with
- * you — was folded into `invited`, having ended the day differing from it in
- * nothing a rule could see: same collapse key, same thread, same lifetime,
+ * There were four before 2026-08-22 as well, and not the same four.
+ * `started` — somebody opened a channel with you — was folded into
+ * `invited`, having ended the day differing from it in nothing a rule could
+ * see: same collapse key, same thread, same lifetime,
  * same alert at every level, swept by neither. What was left was one sentence,
  * and `invited`'s sentence covers both cases, since a channel is never named
  * at creation and "Invited you to a channel" is what a new one is.
  */
-export type NotificationKind = 'invited' | 'arrived' | 'pinged';
+export type NotificationKind = 'invited' | 'arrived' | 'pinged' | 'accepted';
+
+/**
+ * `accepted` joined them on 2026-09-13, and is the first that is not about a
+ * channel at all.
+ *
+ * The other three announce something that happened in a room the recipient
+ * already belongs to. This one announces that a *person* took up an
+ * invitation — followed an invite link, or accepted a contact request — and
+ * the pair are now contacts. It names a channel all the same, because
+ * becoming contacts creates one for the pair and the three fields this system
+ * keys on a channel (the level, the collapse key, the thread) all want a real
+ * id rather than a special case.
+ */
 
 /**
  * How much of a channel's activity is worth being interrupted for.
@@ -100,11 +114,21 @@ export const ANDROID_CHANNEL_IDS: Readonly<Record<NotificationAlert, string>> = 
  * The table is small enough to read and is deliberately written out rather
  * than computed, because the interesting part is not the arithmetic:
  *
- * | | invited | arrived | pinged |
- * | --- | --- | --- | --- |
- * | `low` | passive | passive | **passive** |
- * | `medium` | silent | silent | **audible** |
- * | `high` | **audible** | **audible** | audible |
+ * | | invited | arrived | accepted | pinged |
+ * | --- | --- | --- | --- | --- |
+ * | `low` | passive | passive | passive | **passive** |
+ * | `medium` | silent | silent | silent | **audible** |
+ * | `high` | **audible** | **audible** | **audible** | audible |
+ *
+ * **`accepted` sits with the quiet ones, and the argument is not that it is
+ * unimportant.** It is the one notification that arrives *before* its
+ * recipient could have set a level for the channel it names — the channel is
+ * created in the same breath — so whatever this column says is what everybody
+ * gets, and making the unsettable one the loudest is a decision nobody can
+ * undo. It is also, in the brief's own words, an arrival: somebody has turned
+ * up, and the rung that governs that is `arrived`'s. A person who wants to
+ * hear about it can still say so, in the row rather than the column, by
+ * turning that pair's channel up.
  *
  * **`low` takes the ping down with everything else**, and that is the one
  * entry not dictated by the brief, which said only that a ping goes passive

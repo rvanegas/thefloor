@@ -6,7 +6,13 @@ import {
   type NotificationKind,
 } from '../notifications';
 
-const automatic: NotificationKind[] = ['invited', 'arrived'];
+/**
+ * Everything a person did not sit down and compose — the three that a rule
+ * rather than a sentence decides to send. `accepted` joins them despite being
+ * an act somebody performed: what reaches the recipient is a fact the server
+ * assembled, not words anybody chose, which is the line this list draws.
+ */
+const automatic: NotificationKind[] = ['invited', 'arrived', 'accepted'];
 
 describe('how loudly a channel may interrupt', () => {
   it('leaves the default arrangement alone', () => {

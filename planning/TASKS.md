@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Acceptance Notification
-
-Notify when someone accepts an invitation. If I send by email or guest link, I want to be notified when that person joins so that if I’m free, I can meet them right away. Consider it an arrival notification. Arrival to the app.
-
 ## Remove Tab Option
 
 Remove option to move tabs to just above footer. Unoptional position is as if option were cleared.
