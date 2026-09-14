@@ -39,25 +39,21 @@ If there are requests to answer.
 
 ## Better Controls for Playback
 
-## Internationalization
-
-First replace all text with functions. Then Spanish.
-
-## Record Labels
-
-Add labels below recording controls, and remove text below it except in case of error.
-
 ## Swiping
 
 Swiping left from channel view, returns to home view. Swiping right from home view goes to channel view, if user is present in any channel.
+
+## Clarify "Live" in Glossary
+
+Apparently it is ambiguous.
 
 ## Audio Announcement
 
 When member steps in or steps out, there ought to be an audible announcement, such as two inverse distinguishable subtle chimes.
 
-## UI Restyling
+## Internationalization
 
-Improve look and feel
+First replace all text with functions. Then Spanish.
 
 ## Youtube Extraction
 
@@ -68,10 +64,6 @@ Take a youtube url, determine whether an audio only download is available, and m
 ## Call if You Must
 
 Special case.
-
-## Clarify "Live" in Glossary
-
-Apparently it is ambiguous.
 
 ## Keep Alive During Watch Party
 
