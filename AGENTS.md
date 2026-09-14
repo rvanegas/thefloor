@@ -32,9 +32,7 @@ convention is extended to cover them.
 **Decisions are one file each**, since 2026-09-07, in `planning/decisions/`,
 named `<date>-<title>.md`. Writing one means adding a file and nothing else —
 no volume to choose, no cap to check, no rollover. `planning/decisions/README.md`
-is the whole convention, and the reason it replaced an append-only volume:
-two worktrees landing in the same week used to conflict at the same place every
-time, and the surgery to avoid that went wrong in both directions. The eleven
+is the whole convention and why it replaced an append-only volume. The eleven
 closed volumes are frozen in `planning/decisions/archive/`.
 
 **It is archaeology, for the exceptional case, and is not consulted as a matter
@@ -157,7 +155,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 548 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 549 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -217,18 +215,14 @@ So these rules are about what this file **points at**, not only what it holds:
   unconditional *read it* aimed at a file that quadruples is a bill that grows
   on its own, unsigned by anybody.
 - **A record that many sessions append to is one file per entry, not one file.**
-  `DECISIONS` was a single append-only volume rolled over at 2,000 lines, and
-  it failed in the ways that scheme always fails: two worktrees landing in the
-  same week conflicted at the same place, the rollover was hand surgery done in
-  the middle of unrelated work, and the running records were copied forward
-  until three volumes held a stale `## The deploy history`. It is now a file per
-  decision, and there is nothing left to get wrong. **The 2,000-line read limit
-  that drove the old cap still exists** — a plain read stops there and drops the
-  tail, which in an append-only file is the newest material — so it is a reason
-  to prefer many files, not to police one.
+  `DECISIONS` was one append-only volume rolled over at 2,000 lines and failed
+  in every way that scheme fails; `planning/decisions/README.md` has the
+  account. **The 2,000-line read limit that drove its cap still exists** — a
+  plain read stops there and drops the tail, which in an append-only file is
+  the newest material — so it is a reason to prefer many files, not to police
+  one.
 
-Line *length* is not a constraint worth thinking about — a read truncates at
-2,000 characters and the prose here wraps at 79.
+Line *length* is not a constraint — a read truncates at 2,000 characters.
 
 ---
 
@@ -327,6 +321,13 @@ are the rules.
   to say what is outstanding, so it belongs in the same commit rather than
   stashed aside and handed back. **Take theirs where the two disagree**: a
   deleted entry beats a session's note explaining why the entry was kept.
+
+- **Every commit a session writes carries two trailers**, `Co-Authored-By` and,
+  since 2026-09-13, `Claude-Session: https://claude.ai/code/session_<id>` — the
+  URL of the conversation the change was argued in. A commit message says what
+  changed and a decision file says why; neither reaches the transcript, where
+  the approach that was rejected and the question that reframed it are. Only a
+  running session knows its own URL, so nothing can add this afterwards.
 
 - **Landing is manually triggered, every time, and is never something a
   session decides to do — and so are deploying and uploading**, added

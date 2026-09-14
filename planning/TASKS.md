@@ -32,9 +32,9 @@ When member steps in or steps out, there ought to be an audible announcement, su
 
 Improve look and feel
 
-## yt-dlp Integration
+## Youtube Extraction
 
-Take a youtube url, determine whether an audio only download is available, and make it available to media player.
+Take a youtube url, determine whether an audio only download is available, and make it available to media player using yt-dlp and ffmpeg.
 
 ## Call if You Must
 
@@ -124,38 +124,6 @@ presence became three rungs with the controls to match — *Be nearby* is one
 word in one place now, *Nearby* has a way out, and the footer has a fourth
 slot. Steps 12 and 14 are the interface ones and cost a minute between them.
 
-## Build for Android
-
-First evaluate relevant differences and establish dev simulator on mac.
-
-**Both halves of that were done on 2026-09-01, and what they turned up is
-planning/ANDROID.md.** `bin/android` builds, installs and runs the app on an
-emulator and on a handset; the audio session is configured on Android, which it
-had never been. **Two-party audio works** — an Android phone and an iPhone
-audible both ways, which was the question the whole port rested on.
-
-This entry stays because what it names is not finished, and the order changed
-once real hardware was involved. **Background audio was first and was built on
-2026-09-03** — a foreground service typed `microphone`, in a local Expo module
-at `app/modules/call-service/`, started for as long as this app is in a
-channel. It compiles and autolinks and nobody has watched it work: what stops a
-process being killed off screen is the platform's judgement, which neither a
-ytest nor an emulator can stand in for.
-
-So what is first now is **a handset**, carrying four questions rather than one:
-whether a backgrounded call survives, and the three that were already waiting —
-echo, Bluetooth and wired routing, and an incoming phone call — none of which a
-working two-way call says anything about. Then audio focus.
-
-**Push was built on 2026-09-04**, ahead of the sequence above and ahead of the
-credential it needs: an FCM sender beside the APNs one, platform routing, and
-three notification channels, all inert until a Firebase project exists. What is
-left of it is that project and the same handset — nobody has watched a
-notification arrive. Getting onto Play is its own track and is blocked only on
-creating the Console account; ANDROID.md carries the signup checklist, the
-Data safety draft and what each remaining item would cost. Read it rather than
-re-deriving from this paragraph.
-
 ## Payments Upgrade
 
 Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
@@ -199,7 +167,8 @@ muted channel should have. `anyMicrophoneOpen` in `core/micNeeded.ts` says the
 opposite, in exactly the case it was written for: it excludes self-muted people
 by construction, so *everybody* muted means `anyMicOpen` is false, and
 `sessionFor(false, 0)` is `IDLE` — `playback` with `mixWithOthers`. The music
-is supposed to keep playing. What one person's self-mute keeps a call is everybody else's session while somebody else's microphone is still open; when
+is supposed to keep playing. What one person's self-mute keeps a call is 
+everybody else's session while somebody else's microphone is still open; when
 no microphone is open there is nothing to be exclusive for, and `IDLE` exists
 precisely so that a quiet channel costs another app's audio nothing.
 
