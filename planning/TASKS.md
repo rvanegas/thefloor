@@ -4,10 +4,6 @@
 These are new items on the roadmap — features, but also audits, open questions
 and things to go and find out. There are more in BACKLOG.md.
 
-## Remove Tab Option
-
-Remove option to move tabs to just above footer. Unoptional position is as if option were cleared.
-
 ## Update minBuild
 
 Move it to 80. Tidy according to SHIMS.md

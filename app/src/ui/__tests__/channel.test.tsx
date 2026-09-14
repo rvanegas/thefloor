@@ -1350,43 +1350,35 @@ describe('Channel', () => {
   });
 
   /*
-    **Where the tabs are drawn, which is a setting since 2026-09-12.** See
-    `tabsAtFoot` in core/settings.ts.
+    **Where the tabs are drawn, which is the top and is not a setting.** It
+    was one between 2026-09-12 and 2026-09-13 — the switch could put them
+    above the footer, and an account that had never said got a coin toss. See
+    planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
 
     Read as a position in the rendered tree rather than by looking for a
-    footer: `Screen` puts its `footer` below the scroll, so a switch drawn
+    header: `Screen` puts its `footer` below the scroll, so a switch drawn
     before the roster's first heading is at the top of the screen and one
-    drawn after every heading on it is at the foot. That is the whole of what
-    the setting does, and it is the only thing asserted here — the same six
-    tabs in the same order either way is asserted by the test above, which
-    does not know the setting exists.
+    drawn after every heading on it is at the foot. The assertion is that
+    there is exactly one of them and it is the first thing — one switch being
+    half of what went, a second home for a set of controls being a second
+    place to look for them.
   */
-  it('draws the tabs at the top, or above the footer when asked', () => {
+  it('draws the tabs at the top of the screen, and only there', () => {
     showChannel(channelOf());
-    const positions = () => {
-      const tree = render(<ChannelView
-          channelId="sess_1"
-          audio={AUDIO}
-          onClose={() => {}}
-          onExit={() => {}}
-        />);
-      const nodes = tree.root.findAll(
-        (node) => node.type === Segmented || node.type === SectionLabel
-      );
-      const at = nodes.findIndex((node) => node.type === Segmented);
-      const headings = nodes.length - 1;
-      act(() => tree.unmount());
-      return { at, headings };
-    };
-
-    const top = positions();
-    expect(top.at).toBe(0);
-    expect(top.headings).toBeGreaterThan(0);
-
-    mockApp.tabsAtFoot = true;
-    const foot = positions();
-    expect(foot.at).toBe(foot.headings);
-    expect(foot.headings).toBe(top.headings);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    const nodes = tree.root.findAll(
+      (node) => node.type === Segmented || node.type === SectionLabel
+    );
+    const switches = nodes.filter((node) => node.type === Segmented);
+    expect(switches).toHaveLength(1);
+    expect(nodes.indexOf(switches[0]!)).toBe(0);
+    expect(nodes.length - 1).toBeGreaterThan(0);
+    act(() => tree.unmount());
   });
 
   /*

@@ -233,16 +233,13 @@ here.
 Rarity is a reason not to make a tab the one you land on; it is not a reason to
 file it away from the subject it belongs to.
 
-**At the top of the screen, or pinned above the footer.** *Floor Settings*
-carries the choice, and it moves them and does nothing else — the same six, in
-the same order, drawn by the same control, either on the bar that holds the
-microphone and the ways in and out or above the first card.
-
-**Which one a new account gets is a coin toss**, since 2026-09-12, and the
-settings card says so. It is the only setting in the application whose
-untouched case is not a fixed default: the server tosses once per account and
-remembers how it landed, so that which side people go on to change is
-something that can be counted. See `tabsAtFootFor` in server/src/accounts.ts.
+**At the top of the screen, pinned with the rest of the header.** For a day
+between 2026-09-12 and 2026-09-13 that was a choice on *Floor Settings* —
+there or above the footer, with a coin toss deciding which an account that had
+never said got. Both are gone: a set of controls with two homes is a set with
+two places to look for it, and the one setting in the application whose
+untouched case was not a fixed default is no longer an exception to explain.
+See planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
 
 **Two of them, since 2026-09-12; six before that is wrong and two is what it
 was.** *Roster* and *Invite links* were the pair, and everything else ran down
@@ -411,10 +408,10 @@ you are on to be inferred from what is on it.
 What is on it belongs to the account rather than to the phone, so it follows
 somebody to a second device: the colour scheme, whether a tap on a channel
 looks or steps in, whether the channel screen repeats its footer's controls as
-cards, where the *channel tabs* go, and *Labs*. Below those sit the things
+cards, and *Labs*. Below those sit the things
 about this install and this account — notifications, the policies, chipping in,
 signing out, and deleting the account. See core/settings.ts, which is where the
-five that travel are defined.
+four that travel are defined.
 
 ## Guest
 

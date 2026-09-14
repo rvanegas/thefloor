@@ -27,11 +27,6 @@ beforeEach(() => {
     mailer: new MemoryMailer(),
     now: () => clock,
   });
-  // The one setting whose untouched case is a coin toss rather than a fixed
-  // default — where the channel tabs go. Pinned to the top here so that every
-  // test below is about the thing it says it is about; the toss itself has its
-  // own tests, which are the only ones that touch this again.
-  app.accounts.coin = () => false;
 });
 
 afterEach(async () => {
@@ -70,45 +65,6 @@ describe('the settings that follow the account', () => {
     );
   });
 
-  /**
-   * Except for the tabs, which are a coin toss for anybody who has never said
-   * — half of new accounts get them above the footer, and what is being
-   * learnt is which half then goes and changes it. See `tabsAtFootFor`.
-   */
-  it('tosses for the tab position rather than defaulting it', async () => {
-    app.accounts.coin = () => true;
-    const alice = await signIn('user1@example.com', 'Alice');
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(true);
-  });
-
-  /**
-   * And tosses once. A preference that came back different on the next
-   * connection is not an experiment, it is a screen that moves its tabs while
-   * somebody is using it — and the other device of the same account has to be
-   * told what this one was.
-   */
-  it('remembers how the toss landed rather than tossing again', async () => {
-    let tosses = 0;
-    app.accounts.coin = () => {
-      tosses += 1;
-      return true;
-    };
-    const alice = await signIn('user1@example.com', 'Alice');
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(true);
-    app.accounts.coin = () => false;
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(true);
-    expect(tosses).toBe(1);
-  });
-
-  /** And a choice beats the toss, in either direction. */
-  it('takes a choice over the toss it had already made', async () => {
-    app.accounts.coin = () => true;
-    const alice = await signIn('user1@example.com', 'Alice');
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(true);
-    await save(alice.token, { tabsAtFoot: false });
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(false);
-  });
-
   it('answers with the whole of it, not the half that was sent', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
     const response = await save(alice.token, { appearance: 'dark' });
@@ -120,7 +76,6 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToLook: false,
       hideControlCards: false,
-      tabsAtFoot: false,
       labs: false,
       // The two old names as well, which is what stops a build already on a
       // phone reading this answer as both of its channel settings having been
@@ -143,7 +98,6 @@ describe('the settings that follow the account', () => {
       appearance: 'light',
       tapToLook: true,
       hideControlCards: false,
-      tabsAtFoot: false,
       labs: false,
     });
 
@@ -152,7 +106,6 @@ describe('the settings that follow the account', () => {
       appearance: 'light',
       tapToLook: false,
       hideControlCards: true,
-      tabsAtFoot: false,
       labs: false,
     });
 
@@ -161,7 +114,6 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToLook: false,
       hideControlCards: true,
-      tabsAtFoot: false,
       labs: false,
     });
   });
@@ -178,13 +130,11 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToLook: true,
       hideControlCards: true,
-      tabsAtFoot: true,
     });
     await save(alice.token, {
       appearance: 'system',
       tapToLook: false,
       hideControlCards: false,
-      tabsAtFoot: false,
     });
     expect(app.accounts.settings(alice.account.id)).toEqual(
       DEFAULT_ACCOUNT_SETTINGS
@@ -219,13 +169,25 @@ describe('the settings that follow the account', () => {
     );
   });
 
-  // The newest of them, and the one with no old name to be read under: it
-  // shipped after the 2026-09-07 turn, so a body may say it exactly one way.
-  it('refuses a tab position that is not a yes or a no', async () => {
+  /**
+   * The tab position, which was a setting for a day and is not one now — the
+   * tabs are at the top of the channel screen for everybody. See
+   * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+   *
+   * Ignored rather than refused, which is the half worth a test: builds 193
+   * and earlier still have the card and send this the moment somebody presses
+   * it, and a 400 would be an error on a screen where nothing went wrong. An
+   * unknown field is left alone here, as it is for anything else a body
+   * carries, and what comes back does not mention it.
+   */
+  it('ignores the tab position an installed build still sends', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    const response = await save(alice.token, { tabsAtFoot: 'bottom' });
-    expect(response.statusCode).toBe(400);
-    expect(app.accounts.settings(alice.account.id).tabsAtFoot).toBe(false);
+    const response = await save(alice.token, {
+      appearance: 'dark',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().tabsAtFoot).toBeUndefined();
+    expect(app.accounts.settings(alice.account.id).appearance).toBe('dark');
   });
 
   it('refuses a Labs setting that is not a yes or a no', async () => {
@@ -299,7 +261,6 @@ describe('the settings that follow the account', () => {
       'controlCards',
       'hideControlCards',
       'labs',
-      'tabsAtFoot',
       'tapToLook',
       'tapToStepIn',
     ]);
@@ -321,7 +282,6 @@ describe('the settings that follow the account', () => {
       appearance: 'system',
       tapToLook: true,
       hideControlCards: true,
-      tabsAtFoot: false,
       labs: false,
     });
 

@@ -485,6 +485,45 @@ it('drops the bio column from a database that has one', () => {
   again.close();
 });
 
+it('drops the tab-position column from a database that has one', () => {
+  // Added on 2026-09-12 and dropped on 2026-09-13 with the setting it stored,
+  // which means the live database has one holding a coin toss. The same
+  // reasoning as the bio above: nothing can read it back, so keeping it is a
+  // column every later reader of this table has to ask about. See
+  // planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+  const path = join(dir, 'tabs.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.exec('ALTER TABLE accounts ADD COLUMN tabs_at_foot INTEGER');
+  old
+    .prepare('UPDATE accounts SET tabs_at_foot = 1 WHERE id = ?')
+    .run('acct_a');
+  old.close();
+
+  const db = openDb(path);
+  const columns = () =>
+    (
+      db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+    ).map((c) => c.name);
+  expect(columns()).not.toContain('tabs_at_foot');
+  // And the settings beside it are untouched, this being one column going
+  // rather than the block of them being rewritten.
+  expect(columns()).toContain('tap_to_look');
+  db.close();
+
+  // A second open finds nothing to drop, which is the guard working.
+  const again = openDb(path);
+  expect(
+    (
+      again.prepare('PRAGMA table_info(accounts)').all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name)
+  ).not.toContain('tabs_at_foot');
+  again.close();
+});
+
 /**
  * A database as the box held it on 2026-08-24, the moment before sessions
  * learned to say when they were last heard from and what build they are.

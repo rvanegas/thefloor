@@ -798,12 +798,6 @@ export function ChannelView({
    */
   const controlCards = !app.hideControlCards;
   /**
-   * Where the tabs are drawn, which is the top unless somebody has said
-   * otherwise. From Home settings; see `AppValue.tabsAtFoot` and the two
-   * places below that read it.
-   */
-  const tabsAtFoot = app.tabsAtFoot;
-  /**
    * What Step Out does about the screen, as against about the room.
    *
    * Stepping out closed this screen from the first build, because for that
@@ -1406,15 +1400,19 @@ export function ChannelView({
         tells you where you are does.
 
         Inside `headerInner`, so the switch lines up with the cards below
-        rather than running to the window's edge. Nothing here when they have
-        been asked for at the foot — the footer draws them then, and the two
-        must never both be true. See `AppValue.tabsAtFoot`.
+        rather than running to the window's edge.
+
+        **Here and nowhere else, since 2026-09-13.** A Floor Settings switch
+        moved them into the footer for a day, and half the accounts that had
+        never touched it were put on each side of that by a coin toss. Both
+        are gone: a second home for a set of controls is a second place to
+        look for them, and the top is where the tabs have been since there
+        were tabs. See
+        planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
       */}
-      {tabsAtFoot ? null : (
-        <View style={[styles.tabs, styles.tabsHeader]}>
-          <Segmented options={tabs} value={shown} onChange={setTab} />
-        </View>
-      )}
+      <View style={[styles.tabs, styles.tabsHeader]}>
+        <Segmented options={tabs} value={shown} onChange={setTab} />
+      </View>
       </View>
     </View>
   );
@@ -1476,24 +1474,6 @@ export function ChannelView({
   */
   const footer = (
     <View style={styles.footer}>
-      {/*
-        **The tabs, when somebody has asked for them down here.** From Home
-        settings; see `AppValue.tabsAtFoot`. Inside the footer's own surface
-        rather than in a bar of its own, so the two read as one pinned block
-        with the tabs sitting on the actions — which is what they are, the
-        actions being true of the channel whichever tab is showing.
-
-        Nothing about the tabs themselves changes with the setting: same six,
-        same order, same control. What a preference may move is where a set of
-        controls *is*; what it may not do is which of them there are or what
-        order they come in, which is the same rule the footer's own note
-        states about state.
-      */}
-      {tabsAtFoot ? (
-        <View style={[styles.tabs, styles.tabsFooter]}>
-          <Segmented options={tabs} value={shown} onChange={setTab} />
-        </View>
-      ) : null}
       <View style={styles.footerInner}>
       <FooterAction
         label={iAmSelfMuted ? 'Unmute' : 'Mute'}
@@ -4061,24 +4041,6 @@ const styles = StyleSheet.create({
    * rather than with the window.
    */
   tabsHeader: { marginTop: 0, marginBottom: 0 },
-  /**
-   * The same switch, pinned above the bar instead.
-   *
-   * Capped and centred on `footerInner`'s width for the reason that style
-   * exists: a third of a 1300pt iPad is not a control, and a tab bar run edge
-   * to edge above a bar that is not would be two objects rather than one. The
-   * top margin goes — the footer's own `paddingTop` is already the gap above
-   * this — and what is left below is the space between the tabs and the
-   * actions.
-   */
-  tabsFooter: {
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-    paddingHorizontal: spacing(1),
-    marginTop: 0,
-    marginBottom: spacing(1),
-  },
   roster: { gap: spacing(1), marginTop: spacing(1) },
   guestActions: { flexDirection: 'row', gap: spacing(1), flexWrap: 'wrap' },
   participantCard: {

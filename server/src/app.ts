@@ -2167,16 +2167,13 @@ export function buildApp(options: BuildOptions = {}): App {
     if (hideControlCards !== undefined) {
       changes.hideControlCards = hideControlCards;
     }
-    // One name only, this having shipped after the turn that renamed the two
-    // above: there is no build out there that knows it by anything else.
-    if (body?.tabsAtFoot !== undefined) {
-      if (typeof body.tabsAtFoot !== 'boolean') {
-        return reply
-          .code(400)
-          .send({ error: 'tabsAtFoot must be true or false.' });
-      }
-      changes.tabsAtFoot = body.tabsAtFoot;
-    }
+    // `tabsAtFoot` is not read here and is deliberately not refused either.
+    // Builds 193 and earlier carry the setting and send it when somebody
+    // touches that card, and this endpoint is partial — a field it does not
+    // know is a field it leaves alone, which is the behaviour a removed
+    // setting wants. The tabs are at the top for those builds too, since the
+    // server stops sending the value they draw from. See
+    // planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
     if (body?.labs !== undefined) {
       if (typeof body.labs !== 'boolean') {
         return reply.code(400).send({ error: 'labs must be true or false.' });

@@ -104,20 +104,15 @@ const HIDE_CONTROL_CARDS_KEY = 'thefloor.hideControlCards';
 const LEGACY_CONTROL_CARDS_KEY = 'thefloor.controlCards';
 
 /**
- * Whether the channel screen's tabs are pinned above its footer, cached from
- * the account the way the keys above are, and read the same way: only `'true'`
- * is on, so a missing key and a build that never wrote one both mean the
- * default.
- *
- * Cached rather than left to arrive for the tap's reason rather than the
- * cards' — this one decides where a control *is*, and a tab bar that spends
- * the first second of a cold start at the top before dropping to the foot is
- * the worst version of this setting there could be. It is also the only one
- * of these whose value the app cannot guess: the server tosses for an account
- * that has never said, so before the first `hello` there is nothing to fall
- * back on but the cache. See `tabsAtFoot` in core/settings.ts.
+ * Where the channel tabs used to be cached, written by builds 193 and earlier
+ * and read by nothing since 2026-09-13 — the tabs are at the top for
+ * everybody. Kept only so the two paths that empty this install can empty it
+ * too: `forgetSettings` below and `INSTALL_KEYS` in state/storage.ts, which
+ * would otherwise leave a dead string on every phone that upgrades. The same
+ * shape the two legacy keys above have. See
+ * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
  */
-const TABS_AT_FOOT_KEY = 'thefloor.tabsAtFoot';
+const DEAD_TABS_AT_FOOT_KEY = 'thefloor.tabsAtFoot';
 
 /**
  * Whether the experimental features are visible to this account, cached from
@@ -597,16 +592,6 @@ interface AppValue extends AppState {
   hideControlCards: boolean;
   setHideControlCards: (value: boolean) => void;
   /**
-   * Whether the channel screen's tabs are pinned above its footer rather than
-   * drawn at the top of the screen.
-   *
-   * Off by default and read only by `ChannelView`, like the one above it, and
-   * it moves the tabs and does nothing else: the same six, in the same order,
-   * offered by the same control. See `tabsAtFoot` in core/settings.ts.
-   */
-  tabsAtFoot: boolean;
-  setTabsAtFoot: (value: boolean) => void;
-  /**
    * Whether this account has asked to see the experimental features.
    *
    * Off by default like the two above it, and unlike them it hides things
@@ -736,17 +721,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, []);
-  /** Read the same way, at the same moment, for the same second or so. */
-  const [tabsAtFoot, setTabsAtFootState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.tabsAtFoot
-  );
-  useEffect(() => {
-    void (async () => {
-      if ((await storage.get(TABS_AT_FOOT_KEY)) === 'true') {
-        setTabsAtFootState(true);
-      }
-    })();
-  }, []);
   /**
    * Read the same way and at the same moment, and tested for `'true'` rather
    * than `'false'` because this one defaults off. The gap it covers is a
@@ -792,8 +766,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       settings.hideControlCards ? 'true' : 'false'
     );
     void storage.remove(LEGACY_CONTROL_CARDS_KEY);
-    setTabsAtFootState(settings.tabsAtFoot);
-    void storage.set(TABS_AT_FOOT_KEY, settings.tabsAtFoot ? 'true' : 'false');
     setLabsState(settings.labs);
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
   }, []);
@@ -816,8 +788,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHideControlCardsState(DEFAULT_ACCOUNT_SETTINGS.hideControlCards);
     void storage.remove(HIDE_CONTROL_CARDS_KEY);
     void storage.remove(LEGACY_CONTROL_CARDS_KEY);
-    setTabsAtFootState(DEFAULT_ACCOUNT_SETTINGS.tabsAtFoot);
-    void storage.remove(TABS_AT_FOOT_KEY);
+    void storage.remove(DEAD_TABS_AT_FOOT_KEY);
     setLabsState(DEFAULT_ACCOUNT_SETTINGS.labs);
     void storage.remove(LABS_KEY);
   }, []);
@@ -1535,17 +1506,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      tabsAtFoot,
-      setTabsAtFoot: (value) => {
-        setTabsAtFootState(value);
-        void storage.set(TABS_AT_FOOT_KEY, value ? 'true' : 'false');
-        if (state.token) {
-          void api
-            .saveSettings(state.token, { tabsAtFoot: value })
-            .catch(() => {});
-        }
-      },
-
       labs,
       setLabs: (value) => {
         setLabsState(value);
@@ -2017,7 +1977,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appearance,
       tapToLook,
       hideControlCards,
-      tabsAtFoot,
       labs,
       forgetSettings,
       expiry,

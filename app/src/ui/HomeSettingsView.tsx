@@ -225,11 +225,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       */}
       <SectionLabel>Channels</SectionLabel>
       {/*
-        The three of them in one card rather than three, since 2026-08-31 and
-        unchanged by the third arriving on 2026-09-12. They are one question
-        asked three times — what you want a channel screen to look like — and
-        three cards under one label read as three subjects rather than one
-        with three dials. The hairline between them is what a card gives up when
+        The two of them in one card rather than two, since 2026-08-31 —
+        briefly three, a third having arrived on 2026-09-12 and gone on
+        2026-09-13. They are one question asked twice — what you want a
+        channel screen to look like — and two cards under one label read as
+        two subjects rather than one with two dials. The hairline between them is what a card gives up when
         it stops being one setting: enough of a seam that the second heading is
         obviously a new question, and not so much that the two stop belonging
         together. The tap is above the rule for the reason the section comment
@@ -308,62 +308,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           Two things stay whichever way this is set — that a silenced
           microphone is still being recorded, and that you are in this channel
           on another device.
-        </Text>
-
-        <View style={styles.divider} />
-
-        {/*
-          The third question about the same screen, and the smallest: it moves
-          one control and changes nothing else. Named for the departure like
-          the two above it, so Off is the untouched answer here as well — see
-          DEFAULT_ACCOUNT_SETTINGS in core/settings.ts.
-
-          The paragraph says what does *not* change, which is the thing worth
-          promising: the same six tabs in the same order. A setting that
-          quietly reordered them would undo what a tab bar is for.
-        */}
-        <Text style={type.heading}>Put the channel tabs above the footer</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, 'On'],
-              [false, 'Off'],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.tabsAtFoot === value ? 'primary' : 'default'}
-              onPress={() => app.setTabsAtFoot(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>
-          A channel is six tabs — who is here, what has been written down, the
-          ways in, the shared track, the recordings and the watch party. Off,
-          they sit at the top of the screen. On, they move to the bottom and
-          sit directly on the bar that holds your microphone and the ways in
-          and out, within reach of the same thumb.
-        </Text>
-        <Text style={type.muted}>
-          It moves them and does nothing else: the same tabs, in the same
-          order, wherever they are drawn.
-        </Text>
-        {/*
-          **Said out loud, because this is the one setting on this screen
-          nobody starts in a known place.** Anybody who has never set it is
-          given one side or the other at random — existing accounts as well as
-          new ones, since neither has said — so that which of them people go
-          on to change is worth knowing. A screen that let somebody discover
-          that by comparing two phones would have kept a secret for no reason.
-          See `tabsAtFoot` in core/settings.ts.
-        */}
-        <Text style={type.muted}>
-          Unlike everything else here, this one does not start in the same
-          place for everybody: until you set it, you get one side or the other
-          at random, which is how we find out which one people prefer.
-          Whatever you choose here is yours from then on.
         </Text>
       </Card>
 

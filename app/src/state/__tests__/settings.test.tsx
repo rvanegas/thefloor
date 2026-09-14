@@ -54,7 +54,6 @@ jest.mock('../../api/http', () => ({
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
-        tabsAtFoot: false,
         labs: false,
       };
     }),
@@ -82,8 +81,7 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToLook ? 'open' : 'tap'}/
-      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}/
-      {app.tabsAtFoot ? 'foot' : 'top'}
+      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}
     </Text>
   );
 }
@@ -106,7 +104,6 @@ function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
   tapToLook: boolean;
   hideControlCards: boolean;
-  tabsAtFoot: boolean;
   labs: boolean;
 } | null): void {
   handlers.onHello?.(
@@ -157,29 +154,26 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.appearance'] = 'light';
     mockStored['thefloor.tapToLook'] = 'false';
     mockStored['thefloor.hideControlCards'] = 'true';
-    mockStored['thefloor.tabsAtFoot'] = 'true';
     // All of them read as "only 'true' turns it on", every one defaulting
     // off since 2026-09-07.
     mockStored['thefloor.labs'] = 'true';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap/bare/labs/foot');
+    expect(textOf(tree)).toContain('light/tap/bare/labs');
 
     await act(async () =>
       hello({
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: false,
-        tabsAtFoot: false,
         labs: false,
       })
     );
-    expect(textOf(tree)).toContain('dark/open/cards/plain/top');
+    expect(textOf(tree)).toContain('dark/open/cards/plain');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
     expect(mockStored['thefloor.tapToLook']).toBe('true');
     expect(mockStored['thefloor.hideControlCards']).toBe('false');
-    expect(mockStored['thefloor.tabsAtFoot']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
   });
 
@@ -206,7 +200,6 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: true,
         hideControlCards: true,
-        tabsAtFoot: true,
         labs: false,
       })
     );
@@ -233,7 +226,6 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
-        tabsAtFoot: false,
         labs: false,
       })
     );
@@ -242,7 +234,6 @@ describe('the settings that follow the account', () => {
         appearance: 'light',
         tapToLook: true,
         hideControlCards: true,
-        tabsAtFoot: true,
         labs: true,
       })
     );
@@ -260,7 +251,6 @@ describe('the settings that follow the account', () => {
         appearance: 'system',
         tapToLook: false,
         hideControlCards: false,
-        tabsAtFoot: false,
         labs: false,
       })
     );
@@ -289,16 +279,6 @@ describe('the settings that follow the account', () => {
       { hideControlCards: true },
       { labs: true },
     ]);
-
-    await act(async () => latest!.setTabsAtFoot(true));
-    expect(textOf(tree)).toContain('dark/open/bare/labs/foot');
-    expect(mockSaved).toEqual([
-      { appearance: 'dark' },
-      { tapToLook: true },
-      { hideControlCards: true },
-      { labs: true },
-      { tabsAtFoot: true },
-    ]);
   });
 
   /**
@@ -307,13 +287,14 @@ describe('the settings that follow the account', () => {
    * whoever signs in next, for as long as it takes the next hello to arrive.
    */
   it('forgets them at sign-out, and leaves the headset alone', async () => {
+    // Left by a build that had the tabs setting; see the assertion below.
+    mockStored['thefloor.tabsAtFoot'] = 'true';
     const tree = await mount();
     await act(async () =>
       hello({
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: true,
-        tabsAtFoot: true,
         labs: true,
       })
     );
@@ -325,5 +306,10 @@ describe('the settings that follow the account', () => {
     expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBeUndefined();
     expect(mockStored['thefloor.labs']).toBeUndefined();
+    // Including the one no build writes any more: a phone that had the tabs
+    // above its footer on 2026-09-12 still has the key, and nothing but this
+    // path and *forget this phone* will ever clear it. See
+    // `DEAD_TABS_AT_FOOT_KEY` in AppProvider.tsx.
+    expect(mockStored['thefloor.tabsAtFoot']).toBeUndefined();
   });
 });
