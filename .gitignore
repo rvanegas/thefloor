@@ -134,3 +134,8 @@ server/deployed.json
 # noise — it warns about an embedded repository and stages the worktree as a
 # gitlink, which is never what was meant.
 .claude/worktrees/
+
+# PDFs rendered from planning/ for reading offline. The markdown is the source
+# of truth and a committed PDF is a second copy that goes stale silently — the
+# same argument as the deployed.json entry above, one level out.
+*.pdf
