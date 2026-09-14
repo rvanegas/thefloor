@@ -48,9 +48,16 @@
  * still gates it, for the reason it always did.
  *
  * **The copy's source of truth is planning/LISTING.md**, not this file: the
- * headings are that document's argument in the order it makes it, and the lede
- * is its promotional text, which is written to be *repeatable by a
- * recommender* rather than persuasive to cold traffic. Change it there first,
+ * headings are that document's argument in the order it makes it.
+ *
+ * **The first two paragraphs are that document's two openers, and their order
+ * was wrong until 2026-09-14.** The promotional text led and the description's
+ * first line followed, which put two openings back to back — the page said
+ * what it was four times before saying anything, counting the standfirst, and
+ * buried *It waits for you*, which is the shortest and strongest line here.
+ * They are the listing's own order now: the promise, then the explanation.
+ * **The promotional text is written to stand alone in its own field**, so it
+ * cannot also be the thing that opens a page that already has a standfirst. Change it there first,
  * or the two surfaces drift and the store's is the one under review.
  * planning/MARKETING.md § *The funnel is upside down* says why this page is the
  * middle of the funnel rather than the top.
@@ -196,11 +203,12 @@ when you are not looking at it.</p>`
     style: STYLE,
     body: `${MARK}
 
-<p class="lede">It&rsquo;s a group chat, but voice. A channel is a place you
-drop into rather than a call you answer: you arrive when it suits you, and
-whoever is there is there.</p>
+<p class="lede">The Floor is for talking with people you already know.
+It waits for you.</p>
 
-<p>The Floor is for talking with people you already know. It waits for you.</p>
+<p>It&rsquo;s a group chat, but voice. A channel is a place you drop into
+rather than a call you answer: you arrive when it suits you, and whoever is
+there is there.</p>
 
 ${browser}
 
