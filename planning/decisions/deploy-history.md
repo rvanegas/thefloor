@@ -1,5 +1,40 @@
 # The deploy history
 
+## 2026-09-14 — `5482243` → `b2daa24`
+
+Nine commits, and **the box carries only the served pages** — everything else
+is `planning/`, `bin/growth`, and captures excluded from the sync. No wire
+change, no shim, nothing a build number cares about, and no reason for any
+installed app to notice this restart at all.
+
+**What changed at `/` is a correction rather than a redesign.** The landing
+page said the app is one where *one person speaks at a time*, and so did
+`/support`; PROPOSITION.md says in terms that this describes a different
+application, since conversation is open by default and the floor is a claim
+somebody makes to finish a thought. ROADMAP.md § *Say the same thing
+everywhere* is the entry that found it, and both surfaces are now corrected —
+that item is closed. Nothing outside the store listing said that **nothing
+rings**, either; it is the first heading on the page now.
+
+**Three screenshots joined it**, served from `server/public` under `/assets/`
+by a second `@fastify/static` registration, 91 KB the three, cached a week
+because the filenames are not hashed. The lock screen under the first claim is
+the one that carries a non-event, by comparison rather than by depiction — and
+its caption had to be corrected before this deploy, having claimed silence when
+`push.ts` says a ping is precisely the notification that makes a noise.
+
+**And `/` no longer redirects anybody.** A script used to send a visitor
+holding a token to `/open` before paint, with `?stay` as the hatch; both are
+gone at the prompt, and the browser link moved to the top to compensate. So a
+signed-in person now reads the marketing page like everybody else — which is
+also the only way anybody signed in can see it at all.
+
+The page is pinned to light rather than following the reader, because the
+screenshots are light captures with no dark counterpart.
+
+Health came back on the sha sent, clean rather than `-dirty`, `oldestBuild` 80
+against a floor of 80, no silent builds and no drops.
+
 ## 2026-09-10 — `2924355` → `5482243`
 
 Twelve commits, but only one of them is behaviour the box carries: the
