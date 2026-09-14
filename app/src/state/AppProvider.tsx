@@ -44,6 +44,7 @@ import {
 import { useInstall } from './useInstall';
 import { useIntroduction } from './useIntroduction';
 import type { Introduction } from './introduction';
+import type { TriedId } from './tried';
 import {
   APPEARANCE_KEY,
   applyPreference,
@@ -618,8 +619,8 @@ interface AppValue extends AppState {
    */
   notifications: NotificationAsk;
   /**
-   * What a new account is shown above the two lists, before it has ever had a
-   * conversation — the ladder, the single card, or nothing at all.
+   * What a new account is shown above the two lists, until every rung of it
+   * is done — the ladder, the single card, or nothing at all.
    *
    * Computed here rather than in `HomeView` for the reason `notifications` is:
    * it turns on `conversing`, which is read off every channel snapshot this
@@ -638,6 +639,17 @@ interface AppValue extends AppState {
    * `state/useIntroduction.ts` for what it does and what it cannot undo.
    */
   forgetIntroduction: () => Promise<void>;
+  /**
+   * Records one of the checklist's four *try* rungs as done.
+   *
+   * **Called from the control that does the thing, not from the checklist** —
+   * `ChannelView`, at the four places somebody claims the floor, declares
+   * themselves nearby, shares a guest link or plays something. That is the
+   * whole difference between these rungs and the ones above them: the others
+   * are read off a snapshot the server sends, and nothing in any snapshot says
+   * whether this has ever been done. See `state/tried.ts`.
+   */
+  markTried: (id: TriedId) => void;
   /**
    * Installs the web app from inside it, where the browser volunteered a way.
    *
@@ -1182,7 +1194,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // on it and the checklist is computed here.
   const { install, promptInstall } = useInstall();
 
-  const { introduction, forget: forgetIntroduction } = useIntroduction({
+  const {
+    introduction,
+    markTried,
+    forget: forgetIntroduction,
+  } = useIntroduction({
+    ready: state.ready,
     token: state.token,
     home: state.home,
     conversing,
@@ -1454,6 +1471,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearNotificationTap: () => setNotificationTapped(false),
       notifications,
       introduction,
+      markTried,
       forgetIntroduction,
       installPrompt: promptInstall,
 
@@ -1972,6 +1990,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notificationTapped,
       notifications,
       introduction,
+      markTried,
       forgetIntroduction,
       promptInstall,
       appearance,

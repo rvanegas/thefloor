@@ -1,6 +1,7 @@
 /**
- * What a new account is shown before it has had a conversation, and when to
- * stop showing it.
+ * What a new account is shown above the two lists, and when to stop showing
+ * it — which since 2026-09-13 is when the last rung is done rather than when
+ * the first conversation happens.
  *
  * **An activation ladder, not a tour.** There are no coach marks and nothing
  * points at a control: every item is a thing the app can already see is done
@@ -15,6 +16,7 @@
  */
 
 import type { Install } from './install';
+import { allTried, type Tried } from './tried';
 
 /**
  * How this account got here, decided once and then remembered.
@@ -51,8 +53,30 @@ export type Arrival = 'invited' | 'alone';
  * to install because the thing being run *is* the installation. `install.ts`
  * decides whether there is an offer at all and what to say, and there is no
  * rung when there is not.
+ *
+ * **Four more since 2026-09-13, and they are a different kind of rung.**
+ * `floor`, `nearby`, `guest` and `player` are things done *inside* a channel,
+ * so every one of them is reachable only after `stepIn` — which is exactly
+ * when this whole card used to disappear. They are the reason retirement
+ * moved off the first conversation and onto the last rung; see `introduction`
+ * below, and `tried.ts` for why these four are the only ones not read off a
+ * snapshot.
+ *
+ * **They say *try this*, where the three above say *this is true of you*.**
+ * That is a real departure — `planning/ONBOARDING.md` § *What is deliberately
+ * left out* rules out "a checklist that lists everything the app does" on the
+ * grounds that it stops being an activation ladder. These four are bounded to
+ * the four controls somebody would otherwise never find, rather than to the
+ * feature list, and they retire for good the moment they are behind somebody.
  */
-export type StepId = 'somebody' | 'stepIn' | 'install';
+export type StepId =
+  | 'somebody'
+  | 'stepIn'
+  | 'install'
+  | 'floor'
+  | 'nearby'
+  | 'guest'
+  | 'player';
 
 export interface Step {
   id: StepId;
@@ -79,10 +103,13 @@ export interface Step {
  * One value rather than a set of booleans, on the reasoning `Ask` gives: these
  * are alternatives, and separate flags would let two of them be true at once.
  *
- * - `'none'` — the ordinary case, and every account that has ever stepped in.
- * - `'invited'` — a single card, because for this cohort both items are born
- *   ticked and a list of things somebody else did for you is theatre. It says
- *   the one thing that is actually left.
+ * - `'none'` — the ordinary case, and every account that has finished.
+ * - `'invited'` — a single card, because for this cohort the rungs above
+ *   `stepIn` are born ticked and a list of things somebody else did for you is
+ *   theatre. It says the one thing that is actually left. **It is what this
+ *   cohort sees until it has conversed, and not a moment longer**: after that
+ *   the four *try* rungs are neither born ticked nor done for them by
+ *   anybody, so there is a real ladder to draw and they get one.
  * - `'alone'` — the ladder, for the cohort it was designed for.
  */
 export type Introduction =
@@ -145,23 +172,50 @@ export function introduction(state: {
   } | null;
   /** Latched at the first snapshot; null until that has happened. */
   arrival: Arrival | null;
-  /** When this account first stepped in. Non-null retires all of this. */
-  doneAt: number | null;
+  /**
+   * When this account first had a conversation, or null if it never has.
+   *
+   * **It no longer retires anything by itself**, which is the change of
+   * 2026-09-13 and the reason it is no longer called `doneAt`. It ticks the
+   * `stepIn` rung and it decides which of the two things an `invited` arrival
+   * is shown; retirement is now the whole ladder being finished. The stored
+   * key is still `thefloor.intro.doneAt` and is written at exactly the moment
+   * it always was, so no account has to be migrated — only what is concluded
+   * from it changed. See `useIntroduction`.
+   */
+  conversedAt: number | null;
+  /** The four *try* rungs, per install — `tried.ts`. */
+  tried: Tried;
   /** In a channel with somebody else, now — see `AppProvider`. */
   conversing: boolean;
 }): Introduction {
-  const { loaded, home, arrival, doneAt, conversing, install } = state;
+  const { loaded, home, arrival, conversedAt, tried, conversing, install } =
+    state;
 
   if (!loaded || !home || !arrival) return { show: 'none' };
-  // Retired for good, and retired the instant it happens rather than at the
-  // next launch: the hook writes `doneAt` off the same signal, but a card
-  // still on screen during the conversation it was asking for is the one
-  // moment it would be actively silly.
-  if (doneAt !== null || conversing) return { show: 'none' };
+  // **Nothing at all while a conversation is happening**, which is unchanged
+  // and is not the retirement: a card still on screen during the conversation
+  // it was asking for is the one moment it would be actively silly. It comes
+  // back on Home afterwards with whatever is left, which is the whole point of
+  // the four rungs below — they are done in a channel, and read here.
+  if (conversing) return { show: 'none' };
+  // **Retired on the last rung, not the first conversation**, reversing
+  // ONBOARDING.md § *Retirement* — see
+  // `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
+  // The old rule was right about a ladder whose every rung came before
+  // stepping in; with four that come after, retiring on the conversation would
+  // mean they were never drawn at all.
+  if (conversedAt !== null && allTried(tried)) return { show: 'none' };
 
   const installing = installStep(install);
 
-  if (arrival === 'invited') {
+  // **The card is for the cohort that has not yet conversed, and only that.**
+  // It exists because the rungs before `stepIn` are born ticked here and a
+  // list of somebody else's doing is theatre; the four below are done by
+  // nobody but the reader, so once the one thing this card asks for has
+  // happened there is an honest ladder left and the argument for the card is
+  // spent.
+  if (arrival === 'invited' && conversedAt === null) {
     const invite = home.invites[0];
     return {
       show: 'invited',
@@ -169,6 +223,13 @@ export function introduction(state: {
       channelId: invite ? invite.channelId : null,
       install: installing,
     };
+  }
+
+  // **An invited account that has conversed is shown the four and no more.**
+  // Drawing `somebody` and `stepIn` ticked above them would be the theatre the
+  // card was built to avoid, a fortnight later and with two extra rows of it.
+  if (arrival === 'invited') {
+    return { show: 'alone', steps: tryingSteps(tried) };
   }
 
   return {
@@ -188,8 +249,12 @@ export function introduction(state: {
       },
       // Between the two, which is where it belongs on both readings: it is
       // not the first thing to do — nobody installs an app they have not
-      // decided to keep — and it is not the last, because stepping in is what
-      // the ladder retires on and nothing may sit below it.
+      // decided to keep — and it does not belong under `stepIn`, since
+      // everything below that rung is done inside a channel and this is the
+      // one rung that is about the client rather than the account or the room.
+      // (It used to be *not last* because stepping in was what the ladder
+      // retired on; that is no longer true of the ladder, and the placement
+      // survives it on the reason above.)
       ...(installing ? [installing] : []),
       {
         id: 'stepIn',
@@ -197,14 +262,69 @@ export function introduction(state: {
         instruction:
           'On Channels, start one and step in. Anybody you invite arrives there, and a guest link works while you wait in it.',
         note: 'That is the moment people can hear you, and it is what all of this is for.',
-        // Never true here — `conversing` returns `'none'` above, and this is
-        // the rung the whole ladder retires on. It is drawn unticked, on
-        // purpose: an unfinished list is the only part of this pattern that
-        // does any work.
-        done: false,
+        // **It ticks now, where it never could before.** This was the rung the
+        // whole ladder retired on, so it was drawn permanently unticked and
+        // the card vanished the moment it came true. With four rungs below it
+        // the card outlives the conversation, and a rung that stayed hollow
+        // afterwards would be claiming somebody had not done the thing they
+        // had just done.
+        done: conversedAt !== null,
       },
+      ...tryingSteps(tried),
     ],
   };
+}
+
+/**
+ * The four things to try inside a channel, which are the same four for both
+ * arrivals — see `tried.ts` for why they are the only rungs this app writes
+ * down about itself.
+ *
+ * **Every instruction names the tab or the slot**, rather than the feature.
+ * These sit on Home and are done two screens away, and the whole failure mode
+ * they exist to fix is somebody never finding a control; a row that named
+ * *the player* without saying which of six tabs it is on would reproduce it.
+ */
+function tryingSteps(tried: Tried): Step[] {
+  return [
+    {
+      id: 'floor',
+      label: 'Claim the floor',
+      instruction:
+        'In a channel, tap Claim in the bar along the bottom. Everybody else is muted until you release it.',
+      note: 'It is the thing the app is named after: one person speaking, and nobody able to talk over them.',
+      done: tried.floor,
+    },
+    {
+      id: 'nearby',
+      label: 'Say you are nearby',
+      instruction:
+        'In a channel, tap Nearby. It notifies everybody who is not there that you are within reach for the next quarter of an hour.',
+      note: 'It is how a conversation starts without anybody having to arrange one: you are reachable without being in it.',
+      done: tried.nearby,
+    },
+    {
+      id: 'guest',
+      label: 'Bring in a guest',
+      instruction:
+        "On a channel's Invite tab, share a guest link. Whoever opens it is in the channel in a browser, with no account and nothing to install.",
+      // **The lifetime is the note and not a footnote.** The glossary is
+      // explicit that a guest link stops working once the channel is empty of
+      // members, and *send a link, they will join later* is what everybody
+      // assumes. ONBOARDING.md § *Three things the campaign exposes* names
+      // this as something the copy has to say; this is the copy saying it.
+      note: 'Stay in the channel while they open it — a guest link stops working the moment no member is there.',
+      done: tried.guest,
+    },
+    {
+      id: 'player',
+      label: 'Play something together',
+      instruction:
+        "On a channel's Player tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
+      note: 'It is the one thing here that is not somebody talking, and the room stays a room while it plays.',
+      done: tried.player,
+    },
+  ];
 }
 
 /**

@@ -195,6 +195,44 @@ describe('the install rung', () => {
     act(() => tree.unmount());
   });
 
+  it('draws the four things to try, each with a way into Channels', () => {
+    // Every rung carries a control, and for these four there is exactly one
+    // place to send somebody — the row's own instruction is what differs. See
+    // `actionFor`.
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'alone',
+      steps: [
+        {
+          id: 'floor',
+          label: 'Claim the floor',
+          instruction: 'In a channel, tap Claim in the bar along the bottom.',
+          note: 'why',
+          done: false,
+        },
+        {
+          id: 'player',
+          label: 'Play something together',
+          instruction: "On a channel's Player tab, add audio.",
+          note: 'why',
+          done: true,
+        },
+      ],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    const text = textOf(tree);
+    expect(text).toContain('Claim the floor');
+    expect(text).toContain('Play something together');
+    expect(text).toContain(
+      'In a channel, tap Claim in the bar along the bottom.'
+    );
+    // A done rung keeps its instruction and its button — see `Row`, which
+    // argues that hiding half of a finished row changes the card's shape under
+    // somebody who has just finished it.
+    expect(findButton(tree, 'Open Channels')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
   it('joins the invited card without turning it into a list', () => {
     mockApp.home = empty;
     mockApp.introduction = {

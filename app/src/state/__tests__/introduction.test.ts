@@ -1,5 +1,6 @@
 import { NOT_OFFERED, type Install } from '../install';
 import { arrivalOf, introduction, type Step } from '../introduction';
+import { NOTHING_TRIED, type Tried } from '../tried';
 
 /**
  * What a new account is shown, which is two different things for two cohorts
@@ -21,7 +22,8 @@ const alone = {
   loaded: true,
   home: { contacts: [], rejoinable: [], invites: [] },
   arrival: 'alone' as const,
-  doneAt: null,
+  conversedAt: null,
+  tried: NOTHING_TRIED,
   conversing: false,
   // A phone, where there is nothing to install. The browser cases say so.
   install: NOT_OFFERED as Install,
@@ -39,6 +41,14 @@ const stepsOf = (result: ReturnType<typeof introduction>): Step[] =>
 
 const done = (result: ReturnType<typeof introduction>, id: string) =>
   stepsOf(result).find((step) => step.id === id)?.done;
+
+/** Everything in `tried` behind somebody — half of what retires the ladder. */
+const ALL_TRIED: Tried = {
+  floor: true,
+  nearby: true,
+  guest: true,
+  player: true,
+};
 
 describe('which arrival this is', () => {
   it('is invited when there is anybody at all, by any of the three routes', () => {
@@ -107,10 +117,14 @@ describe('the invited arrival', () => {
 });
 
 describe('the alone arrival', () => {
-  it('is the two-rung ladder, the name and the username being derived now', () => {
+  it('is the two account rungs, then the four things to try in a channel', () => {
     expect(stepsOf(introduction(alone)).map((step) => step.id)).toEqual([
       'somebody',
       'stepIn',
+      'floor',
+      'nearby',
+      'guest',
+      'player',
     ]);
   });
 
@@ -156,13 +170,14 @@ describe('the install rung', () => {
 
   it('sits between getting somebody here and stepping in', () => {
     // Not first: nobody installs an app they have not decided to keep. Not
-    // last: stepping in is what the ladder retires on and nothing may sit
-    // below it.
+    // below `stepIn`: everything under that rung is done inside a channel, and
+    // this is the one rung that is about the client rather than about the
+    // account or the room.
     expect(
       stepsOf(introduction({ ...alone, install: installable })).map(
         (step) => step.id
       )
-    ).toEqual(['somebody', 'install', 'stepIn']);
+    ).toEqual(['somebody', 'install', 'stepIn', 'floor', 'nearby', 'guest', 'player']);
   });
 
   it('says what to do in this browser rather than in general', () => {
@@ -202,28 +217,104 @@ describe('the install rung', () => {
   });
 });
 
+const CONVERSED = 1_700_000_000_000;
+
+describe('the four things to try in a channel', () => {
+  it('are drawn under the two rungs, unticked, for an alone arrival', () => {
+    const ids = stepsOf(introduction(alone)).map((step) => step.id);
+    expect(ids).toEqual(['somebody', 'stepIn', 'floor', 'nearby', 'guest', 'player']);
+    expect(done(introduction(alone), 'floor')).toBe(false);
+    expect(done(introduction(alone), 'player')).toBe(false);
+  });
+
+  it('tick one at a time, off what this install has done', () => {
+    const result = introduction({
+      ...alone,
+      tried: { ...NOTHING_TRIED, floor: true, guest: true },
+    });
+    expect(done(result, 'floor')).toBe(true);
+    expect(done(result, 'guest')).toBe(true);
+    expect(done(result, 'nearby')).toBe(false);
+    expect(done(result, 'player')).toBe(false);
+  });
+
+  it('tick `step in` once a conversation has happened, which it never used to', () => {
+    expect(done(introduction(alone), 'stepIn')).toBe(false);
+    expect(done(introduction({ ...alone, conversedAt: CONVERSED }), 'stepIn')).toBe(
+      true
+    );
+  });
+});
+
+describe('what an invited arrival sees', () => {
+  const invitedHome = {
+    contacts: [],
+    rejoinable: [],
+    invites: [invite],
+  };
+
+  it('is the single card until it has conversed', () => {
+    expect(
+      introduction({ ...alone, arrival: 'invited', home: invitedHome }).show
+    ).toBe('invited');
+  });
+
+  it('becomes the four rungs afterwards, and only the four', () => {
+    // The card exists because `somebody` and `stepIn` are born ticked for this
+    // cohort and congratulating them on it would be theatre. These four are
+    // done by nobody but the reader, so there is an honest ladder to draw —
+    // but drawing the two ticked ones above it would be that same theatre.
+    const result = introduction({
+      ...alone,
+      arrival: 'invited',
+      home: invitedHome,
+      conversedAt: CONVERSED,
+    });
+    expect(result.show).toBe('alone');
+    expect(stepsOf(result).map((step) => step.id)).toEqual([
+      'floor',
+      'nearby',
+      'guest',
+      'player',
+    ]);
+  });
+});
+
 describe('retirement', () => {
   it('stops the moment a conversation is happening', () => {
     expect(introduction({ ...alone, conversing: true }).show).toBe('none');
   });
 
-  it('stays retired afterwards, with both rungs still unticked', () => {
-    // Retiring on the last rung rather than on all of them: a leftover
-    // unticked *get somebody here* is not a reason to go on asking somebody
-    // who has already had the conversation this was for.
-    expect(introduction({ ...alone, doneAt: 1_700_000_000_000 }).show).toBe(
-      'none'
-    );
+  it('comes back after that conversation, with what is left', () => {
+    // The reversal of 2026-09-13. The old rule retired on the first
+    // conversation, which is the one moment none of the four rungs below it
+    // could ever have been reached.
+    const result = introduction({ ...alone, conversedAt: CONVERSED });
+    expect(result.show).toBe('alone');
+    expect(done(result, 'floor')).toBe(false);
   });
 
-  it('retires the invited card on the same event', () => {
+  it('stops for good once the last rung is done', () => {
     expect(
-      introduction({
-        ...alone,
-        arrival: 'invited',
-        home: { contacts: [], rejoinable: [], invites: [invite] },
-        doneAt: 1_700_000_000_000,
-      }).show
+      introduction({ ...alone, conversedAt: CONVERSED, tried: ALL_TRIED }).show
     ).toBe('none');
+  });
+
+  it('does not stop on the four alone, without a conversation', () => {
+    // Not reachable in practice — the four are done inside a channel — but the
+    // rule is *and*, not *or*, and a stray write must not retire the ladder
+    // for somebody who has never stepped in.
+    expect(introduction({ ...alone, tried: ALL_TRIED }).show).toBe('alone');
+  });
+
+  it('retires an invited arrival on the same two conditions', () => {
+    const settled = {
+      ...alone,
+      arrival: 'invited' as const,
+      home: { contacts: [], rejoinable: [], invites: [invite] },
+      conversedAt: CONVERSED,
+    };
+    expect(introduction(settled).show).toBe('alone');
+    expect(introduction({ ...settled, tried: ALL_TRIED }).show).toBe('none');
   });
 });

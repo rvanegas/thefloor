@@ -424,7 +424,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             onPress={() =>
               Alert.alert(
                 'Show the checklist again?',
-                'This account forgets how it arrived and that it has ever stepped in, so Home draws the introduction again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: being in one with somebody retires it again immediately. What comes back is whichever introduction this account would get today, so an account with contacts gets the card rather than the ladder.',
+                'This account forgets how it arrived, that it has ever stepped in, and which of the four things in a channel it has tried, so Home draws the introduction again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: nothing is drawn while a conversation is happening, and being in one with somebody marks that rung done again straight away. What comes back is whichever introduction this account would get today, so an account with contacts gets the card rather than the ladder.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Show it', onPress: () => void forgetIntroduction() },
@@ -433,9 +433,10 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             }
           />
           <Text style={type.muted}>
-            The introduction above the lists on Home. It goes for good the
-            first time you step in with somebody, and this is the only way of
-            getting it back short of forgetting the phone.
+            The introduction above the lists on Home. It goes for good once
+            every rung is done — the conversation, and the four things to try
+            in a channel — and this is the only way of getting it back short of
+            forgetting the phone.
           </Text>
         </Card>
         </>

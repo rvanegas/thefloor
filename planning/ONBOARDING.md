@@ -16,6 +16,15 @@ code reference below was checked against the tree at `f3459cf`.
 below is a separate feature and was not written; neither were the three
 campaign gaps, one of which is more urgent than any of this.
 
+**Seven rungs since 2026-09-13, and this file describes two.** *Claim the
+floor*, *say you are nearby*, *bring in a guest* and *play something together*
+joined the ladder below *step in*; they are the only rungs recorded rather than
+derived, since no snapshot says whether any of them has been done, and they are
+per install rather than per account for that reason. They also moved
+retirement — see § *Retirement* below. The account of all of it is
+`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, and
+this file is not corrected for them beyond these pointers.
+
 **A third rung exists in a browser since 2026-09-13** — *put The Floor on your
 home screen* — and it is the only one that is about the client rather than the
 account. It appears on the ladder between the other two and under the text on
@@ -218,6 +227,18 @@ about being reached — the thing a browser cannot do is still not claimed, by
 this or by anything else on the screen. See the decision above.
 
 ## Retirement
+
+**Reversed on 2026-09-13, and this section now describes the old rule.** Four
+rungs were added that are done *inside* a channel — claim the floor, say you
+are nearby, bring in a guest, play something together — and the first
+conversation is the one instant at which none of them can have been reached, so
+retiring there would have shipped four rows no account could ever see. It now
+retires when the last rung is done; nothing is drawn *during* a conversation,
+which is a separate rule and is the half of the old condition that survived.
+The account is
+`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, which
+also carries the cold-launch defect this was found alongside. What follows is
+kept as the reasoning that was right for the ladder it was written for.
 
 **Retire on item 3, not on all boxes ticked.** Once somebody has had a
 conversation the checklist has done its job, and a leftover unticked *Say who

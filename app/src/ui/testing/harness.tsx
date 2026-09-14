@@ -158,6 +158,7 @@ export const mockApp = {
    * card replaces it. See `state/introduction.ts`.
    */
   introduction: { show: 'none' } as Introduction,
+  markTried: jest.fn(),
   forgetIntroduction: jest.fn(async () => undefined),
   /**
    * The shortcut a browser volunteered for installing this, which is null on

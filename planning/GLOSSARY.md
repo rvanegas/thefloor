@@ -99,7 +99,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Introduction** — What a new account is shown above both lists until it has had a conversation: the ladder for an *alone* arrival, one card for an *invited* one, and an install rung on both in a browser that can
+- **Introduction** — What a new account is shown above both lists until every rung of it is done: the ladder for an *alone* arrival, one card for an *invited* one until it has conversed, an install rung on both in a browser that can, and four things to try inside a channel that are the only rungs recorded rather than derived
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -1387,16 +1387,17 @@ timer.
 
 ## Introduction
 
-What a new account is shown above both of Home's lists, until it has had a
-conversation. `state/introduction.ts` decides it and `ui/Introduction.tsx`
-draws it; planning/ONBOARDING.md is the design.
+What a new account is shown above both of Home's lists, until every rung of it
+is done. `state/introduction.ts` decides it and `ui/Introduction.tsx` draws it;
+planning/ONBOARDING.md is the design.
 
-Two shapes, one per *arrival*. An `alone` arrival gets a two-rung ladder — get
-somebody here, step in — each rung derived from the Home snapshot rather than
-recorded as it is done, and each carrying an instruction naming the list it is
-done on and a button that goes there. An `invited` one gets a single card,
-because the first rung is true before they arrive and a list congratulating
-somebody on what was done for them is theatre.
+Two shapes, one per *arrival*. An `alone` arrival gets a ladder — get somebody
+here, step in, and then four things to try inside a channel — each rung
+carrying an instruction naming where it is done and a button that goes there.
+An `invited` one gets a single card **until it has conversed**, because the
+rungs above *step in* are true before they arrive and a list congratulating
+somebody on what was done for them is theatre; afterwards it gets the four
+in-channel rungs and only those, for the same reason.
 
 **A third rung exists in a browser, since 2026-09-13, and only there**: *put
 The Floor on your home screen*, between the two on the ladder and below the
@@ -1413,11 +1414,26 @@ username* went when both became derived at signup, and with them the profile
 request the username rung needed. See
 `decisions/2026-09-13-the-checklist-is-two-rungs.md`.
 
-**It retires on stepping in, not on every rung being ticked.** Once somebody
-has been in a channel with another person this has done its job, and a
-leftover unticked *get somebody here* is not a reason to go on asking. That is
-also why the only thing stored is `thefloor.intro.doneAt` — every rung is
-derived, so there is nothing else worth keeping.
+**Four more rungs since 2026-09-13, and they are a different kind**: *claim
+the floor*, *say you are nearby*, *bring in a guest*, *play something
+together*. All four are done inside a channel, and they are the only rungs not
+derived from the Home snapshot — nothing the server sends says whether an
+account has ever done any of them — so they are recorded per install in
+`thefloor.intro.tried.*` as the control that does the thing is used. They say
+*try this* where the rungs above say *this is true of you*, which is why being
+per install rather than per account is acceptable for them and would not be
+for the others.
+
+**It retires when the last rung is done, not on the first conversation.** That
+reverses the original rule, which was right for a ladder whose every rung came
+before stepping in and wrong the moment four came after: the first conversation
+is the one instant at which none of those four can have been reached. Nothing
+is drawn *during* a conversation, which is a separate rule and unchanged — the
+card returns to Home afterwards carrying what is left.
+`thefloor.intro.doneAt` is still written at the first conversation and still
+called that on disk, but it now ticks *step in* and decides which shape an
+`invited` arrival gets, rather than retiring anything by itself. See
+`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
 
 Called *introduction* in the code and never on screen, where it says *Getting
 started*. The convention's name is an onboarding checklist; this is the

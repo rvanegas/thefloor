@@ -34,6 +34,7 @@ function Probe({
   report: (i: Introduction) => void;
 }) {
   const { introduction } = useIntroduction({
+    ready: true,
     token: 'auth',
     home: homeView,
     conversing,

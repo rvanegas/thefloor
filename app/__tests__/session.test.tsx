@@ -63,6 +63,7 @@ const mockApp = {
    * card between these tests and the list they are about.
    */
   introduction: { show: 'none' } as const,
+  markTried: () => undefined,
   forgetIntroduction: async () => undefined,
   status: 'open' as const,
   lastError: null,

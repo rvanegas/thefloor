@@ -1204,6 +1204,10 @@ export function ChannelView({
     setUploadError(null);
     setUpload({ percent: null, cancel: null });
     try {
+      // The checklist's `player` rung. **On putting something in the room and
+      // not on pressing Play**: an empty player has no Play worth pressing, so
+      // loading a track is the act somebody has to be shown, and everything
+      // else on that tab follows from having done it once.
       await pickAndUploadTrack(app.token ?? '', channelId, {
         // Guarded on the current state rather than set outright: both of these
         // arrive from a native callback and can land after the upload has
@@ -1211,6 +1215,7 @@ export function ChannelView({
         onStart: (cancel) => setUpload((u) => (u ? { ...u, cancel } : u)),
         onProgress: (percent) => setUpload((u) => (u ? { ...u, percent } : u)),
       });
+      app.markTried('player');
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1504,9 +1509,13 @@ export function ChannelView({
         icon={(color) => <FloorIcon color={color} />}
         disabled={!iHoldFloor && !claimable}
         tone={iHoldFloor ? 'active' : 'idle'}
-        onPress={() =>
-          act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' })
-        }
+        onPress={() => {
+          // The checklist's `floor` rung, ticked on the claim and not on the
+          // release: claiming is the thing somebody has to be shown once, and
+          // releasing is what anybody who has claimed will do next anyway.
+          if (!iHoldFloor) app.markTried('floor');
+          act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' });
+        }}
       />
       {/*
         The ladder itself, one slot per rung, in its own order: in, nearby,
@@ -1570,7 +1579,10 @@ export function ChannelView({
         // The one rung that stays live while it is lit: the tap restarts the
         // fifteen minutes rather than moving you anywhere. See `repeatable`.
         repeatable
-        onPress={() => act({ type: 'DECLARE_NEARBY' })}
+        onPress={() => {
+          app.markTried('nearby');
+          act({ type: 'DECLARE_NEARBY' });
+        }}
       />
       <FooterAction
         label="Out"
@@ -1890,7 +1902,10 @@ export function ChannelView({
                 <>
                   <Button
                     label="Be nearby"
-                    onPress={() => act({ type: 'DECLARE_NEARBY' })}
+                    onPress={() => {
+                      app.markTried('nearby');
+                      act({ type: 'DECLARE_NEARBY' });
+                    }}
                   />
                   <Text style={type.muted}>
                     Be reachable without joining: no microphone, nothing heard,
@@ -3048,6 +3063,9 @@ export function ChannelView({
               setShareNote(null);
               try {
                 const url = await app.inviteGuest(channel.id);
+                // After the mint and not before it: the rung claims a guest
+                // link exists, and until this resolves none does.
+                app.markTried('guest');
                 const handoff = await shareLink(url);
                 if (handoff === 'copied') {
                   setShareNote('Link copied. Paste it wherever you like.');

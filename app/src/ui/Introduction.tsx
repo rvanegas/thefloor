@@ -7,8 +7,12 @@ import type { List } from './detail';
 import { colors, spacing, type } from './theme';
 
 /**
- * What a new account sees above the two lists, until it has had a
- * conversation.
+ * What a new account sees above the two lists, until it has finished with it.
+ *
+ * **Until the last rung, not until the first conversation**, since
+ * 2026-09-13: four of the rungs are things done inside a channel, so the card
+ * has to survive the conversation to be any use at all. It is still drawn
+ * nothing-at-all *during* one. See `state/introduction.ts`.
  *
  * **A body, not an overlay**, which is the one decision here that was made
  * against the convention rather than with it. The pattern is usually a modal
@@ -142,6 +146,21 @@ function actionFor(
       return installPrompt
         ? { label: 'Install', onPress: installPrompt }
         : null;
+    // **All four go to Channels, and the repetition is the honest answer.**
+    // Every one of them is done inside a channel, so there is exactly one
+    // place to send somebody and no amount of varying the word changes where
+    // the tap lands. The row's own instruction names the tab or the slot once
+    // they are there, which is the half that differs.
+    //
+    // This card is still not allowed to reach past a list — see above. It will
+    // not step somebody into a channel to claim a floor for them, and a rung
+    // that opened the Player tab of a channel they were not in would be
+    // promising something the app would then refuse.
+    case 'floor':
+    case 'nearby':
+    case 'guest':
+    case 'player':
+      return { label: 'Open Channels', onPress: () => onList('channels') };
   }
 }
 
