@@ -22,6 +22,14 @@ hyphen:
 with the full title as the `#` heading inside. `ls` is the index. Finishing a
 task deletes its file, exactly as it used to delete the entry.
 
+**Do not compute the slug by hand.** `bin/task "Some Title"` makes the file and
+gets the name right; `bin/note rename <file> "New Title"` retitles one and moves
+it to match, which is the step that gets skipped when a task is rewritten in
+place. `bin/note list tasks` prints a title and first line each, which is the
+index `BACKLOG.md` used to keep by hand. The slug is implemented once, in
+`bin/note`, and `bin/note check` — which the test suite runs — is what stops
+this file's prose and the directory drifting apart.
+
 **A file holding nothing but its heading is a real state**, not an accident:
 somebody wrote down a title and no more. It says the work is wanted and that
 nobody has yet said what it is.

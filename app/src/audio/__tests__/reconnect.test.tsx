@@ -160,8 +160,8 @@ describe('a room that drops', () => {
    * rebuilds, which evicts the device that just took the room, which rebuilds
    * in turn. Two screens then trade the conversation on a 500ms-doubling
    * backoff for as long as both are open — which is what "the two devices
-   * competed for the audio" sounded like. See planning/TASKS.md, Two Devices
-   * In One Channel.
+   * competed for the audio" sounded like. See planning/TWO-DEVICES-WALK.md,
+   * which is where that entry went on 2026-09-02.
    *
    * Counting rooms for the same reason the rest of the file does, and for the
    * mirror-image regression: here the failure is *something* happening.

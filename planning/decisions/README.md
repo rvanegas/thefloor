@@ -25,8 +25,17 @@ and the title:**
 
 with the full title, date suffix and all, as the `#` heading inside. That is
 the whole convention. `ls` is the index, the names sort chronologically, and
-`grep -l` over the filenames is the cheap way to find an entry before reading
-one.
+`bin/note find "Some Title"` — or `grep -l` over the filenames — is the cheap
+way to locate an entry before reading one. `bin/note new decisions "..."` makes
+the file with today's date already on it.
+
+**The paragraph above describes 9 of these 73 files.** The rest lead with a
+bare title, or with the date then the title, or with the filename repeated as a
+heading; only 21 have a heading that slugifies back to their own name. So
+`bin/note check` asks of a decision only that it be dated and titled, and holds
+`tasks/` and `backlog/` to the strict rule instead. Which end to move is
+`tasks/decisions-do-not-obey-the-convention-they-document.md`; until that is
+settled, read this section as aspirational rather than descriptive.
 
 **Why it changed.** The old scheme put every entry at the tail of one file, so
 two worktrees landing in the same week conflicted in the same place every time,

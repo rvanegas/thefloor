@@ -1,0 +1,291 @@
+#!/bin/bash
+#
+# The one implementation of title → slug → filename, for the three directories
+# that are one file per item.
+#
+#   bin/task "Some Title"           a new task — the common case, its own script
+#   bin/note new tasks "..."        the same thing, spelled out
+#   bin/note new backlog "..."      a new backlog item
+#   bin/note new decisions "..."    a new decision, dated
+#   bin/note find "Some Title"      which file a quoted reference means
+#   bin/note list tasks             title and first sentence, one line each
+#   bin/note rename <file> "..."    retitle, and move the file to match
+#   bin/note check                  the invariants, for the test suite
+#
+# **The slug rule lives here and nowhere else.** Lowercase, every run of
+# non-alphanumerics collapsed to a single hyphen, no leading or trailing one.
+# AGENTS.md and the three READMEs describe it in prose; this is what decides
+# it. `check` is what stops the prose and the tree drifting apart, and
+# `server/__tests__/planning-filenames.test.ts` runs it, so drift fails
+# `npm test` and therefore `bin/deploy`.
+#
+# ── Why a tool at all ────────────────────────────────────────────────────────
+#
+# Adopted 2026-09-14, the day the split landed. The rule was implemented by eye
+# by every session that touched it, which is three chances to disagree: making
+# a file, resolving a reference, and checking neither has rotted. The third was
+# written ad hoc during the split itself and then deleted, which is the whole
+# argument in one gesture.
+#
+# **`find` is the load-bearing mode**, being AGENTS.md's matching rule made
+# executable: slugify the quotation, take an exact filename, else the unique
+# file it prefixes, else refuse and say why. The refusal is the point — an
+# ambiguous reference should be reported rather than guessed at, and the
+# ~30 citations still reading `TASKS.md § *Title*` resolve through it.
+#
+# ── A verb, then its arguments ───────────────────────────────────────────────
+#
+# Verb-first throughout, including for the common case, on the reasoning
+# bin/help § *A verb, then an id, and one option* arrived at: a bare argument
+# that means something different from a verb is a shape nobody remembers. The
+# common case is short because it has its own script name, not because it is
+# spelled irregularly.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+planning="$root/planning"
+
+die() { echo "bin/note: $*" >&2; exit 1; }
+
+# The rule. Everything else in this file is bookkeeping around it.
+slug() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+# The `#` heading of a file, without the marker. Empty if it has none.
+heading() {
+  local first
+  first="$(head -1 "$1")"
+  [[ "$first" == '# '* ]] && printf '%s' "${first:2}"
+}
+
+# A decision's filename carries the date its title does not; strip it before
+# comparing. Only decisions/ is dated — see AGENTS.md.
+expected_slug() {
+  local dir="$1" title="$2"
+  if [[ "$dir" == decisions ]]; then
+    printf '%s-%s' "$(date +%F)" "$(slug "$title")"
+  else
+    slug "$title"
+  fi
+}
+
+# The slug a decision file's name should have, given its heading, keeping
+# whatever date the file already carries rather than today's.
+stored_slug() {
+  local dir="$1" base="$2" title="$3"
+  if [[ "$dir" == decisions && "$base" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
+    printf '%s-%s' "${BASH_REMATCH[1]}" "$(slug "$title")"
+  else
+    slug "$title"
+  fi
+}
+
+dirs_with_entries() { echo "tasks backlog decisions"; }
+
+valid_dir() {
+  case "$1" in
+    tasks|backlog|decisions) return 0 ;;
+    *) die "no such directory '$1' — one of tasks, backlog, decisions" ;;
+  esac
+}
+
+# Files that are entries. READMEs are the convention, not an item, and
+# decisions/ holds two running records that are edited in place and are not
+# dated entries.
+entries() {
+  local dir="$1" f base
+  for f in "$planning/$dir"/*.md; do
+    [[ -e "$f" ]] || continue
+    base="$(basename "$f" .md)"
+    case "$base" in
+      README|deploy-history|android-adaptive-icon) continue ;;
+    esac
+    echo "$f"
+  done
+}
+
+cmd_new() {
+  local dir="${1:-}" title="${2:-}"
+  [[ -n "$dir" && -n "$title" ]] || die "usage: bin/note new <tasks|backlog|decisions> \"Some Title\""
+  valid_dir "$dir"
+  local s path
+  s="$(expected_slug "$dir" "$title")"
+  [[ -n "$s" ]] || die "that title slugifies to nothing"
+  path="$planning/$dir/$s.md"
+  [[ -e "$path" ]] && die "already exists: ${path#$root/}"
+
+  # A heading and nothing else. The file is the request; somebody writes it.
+  printf '# %s\n' "$title" > "$path"
+  echo "${path#$root/}"
+}
+
+cmd_find() {
+  local query="${1:-}"
+  [[ -n "$query" ]] || die "usage: bin/note find \"Some Title\""
+  local s hits=() f base
+  s="$(slug "$query")"
+  [[ -n "$s" ]] || die "that reference slugifies to nothing"
+
+  # Exact first, then unique prefix — AGENTS.md's rule, in that order. A
+  # decision's date prefix means the match is tried against the undated tail
+  # as well, so a citation that names only the title still resolves.
+  for dir in $(dirs_with_entries); do
+    while read -r f; do
+      [[ -n "$f" ]] || continue
+      base="$(basename "$f" .md)"
+      [[ "$base" == "$s" ]] && { echo "${f#$root/}"; return 0; }
+      [[ "$base" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-(.*)$ && "${BASH_REMATCH[1]}" == "$s" ]] \
+        && { echo "${f#$root/}"; return 0; }
+    done < <(entries "$dir")
+  done
+
+  for dir in $(dirs_with_entries); do
+    while read -r f; do
+      [[ -n "$f" ]] || continue
+      base="$(basename "$f" .md)"
+      base="${base#[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-}"
+      [[ "$base" == "$s"* ]] && hits+=("$f")
+    done < <(entries "$dir")
+  done
+
+  case "${#hits[@]}" in
+    0) echo "bin/note: nothing matches '$query' (slug: $s)" >&2; return 1 ;;
+    1) echo "${hits[0]#$root/}" ;;
+    *)
+      # Listing forty of them helps nobody; a handful shows the shape of the
+      # collision, which is what somebody needs to lengthen the quotation.
+      {
+        echo "bin/note: '$query' is ambiguous — it prefixes ${#hits[@]} files:"
+        printf '  %s\n' "${hits[@]:0:8}" | sed "s|$root/||"
+        [[ "${#hits[@]}" -gt 8 ]] && echo "  … and $(( ${#hits[@]} - 8 )) more"
+        echo "Not a reference. Say more of the title."
+      } >&2
+      return 1 ;;
+  esac
+}
+
+cmd_list() {
+  local dir="${1:-tasks}" f title body
+  valid_dir "$dir"
+  while read -r f; do
+    [[ -n "$f" ]] || continue
+    title="$(heading "$f")"
+    # The first sentence of the body, which is as much index as anybody needs.
+    body="$(tail -n +2 "$f" | grep -v '^[[:space:]]*$' | head -1 \
+      | sed -E 's/\*\*//g; s/^[-*] //' | cut -c1-90)"
+    if [[ -n "$body" ]]; then
+      printf '%s\n    %s\n' "$title" "$body"
+    else
+      printf '%s\n    (a heading and nothing else)\n' "$title"
+    fi
+  done < <(entries "$dir")
+}
+
+cmd_rename() {
+  local file="${1:-}" title="${2:-}"
+  [[ -n "$file" && -n "$title" ]] || die "usage: bin/note rename <file> \"New Title\""
+  [[ -f "$file" ]] || die "no such file: $file"
+  local dir base s dest
+  dir="$(basename "$(dirname "$(cd "$(dirname "$file")" && pwd)/$(basename "$file")")")"
+  valid_dir "$dir"
+  base="$(basename "$file" .md)"
+  s="$(stored_slug "$dir" "$base" "$title")"
+  [[ -n "$s" ]] || die "that title slugifies to nothing"
+  dest="$planning/$dir/$s.md"
+
+  # The heading is the title; the filename follows from it. Both, or neither.
+  local tmp
+  tmp="$(mktemp)"
+  { printf '# %s\n' "$title"; tail -n +2 "$file"; } > "$tmp"
+  mv "$tmp" "$file"
+  if [[ "$dest" != "$(cd "$(dirname "$file")" && pwd)/$(basename "$file")" ]]; then
+    [[ -e "$dest" ]] && die "would collide with ${dest#$root/}"
+    # `git mv` keeps the rename legible in the diff, but refuses a file git has
+    # never seen — which is the ordinary case for a task retitled minutes after
+    # bin/task made it.
+    if git -C "$root" ls-files --error-unmatch "$file" >/dev/null 2>&1; then
+      git -C "$root" mv "$file" "$dest"
+    else
+      mv "$file" "$dest"
+    fi
+  fi
+  echo "${dest#$root/}"
+}
+
+# What is checked differs by directory, and the reason is historical rather
+# than principled.
+#
+# **tasks/ and backlog/ are held to the strict rule** — the heading slugifies
+# to the filename, exactly — because both were created by the 2026-09-14 split
+# and have never been anything else.
+#
+# **decisions/ is held only to having a date and a heading.** Its README states
+# the strict rule and its contents do not obey it: of 73 files, 41 lead with a
+# bare title, 23 with the date then the title, 9 with the title then the date,
+# and only 21 have a heading that slugifies to their own filename. These are
+# history, cited by title from thirty-odd places, and renaming them to satisfy
+# a checker would churn the archive to no one's benefit. So the checker
+# describes what is true rather than what the README wishes were.
+cmd_check() {
+  local bad=0 seen=() f base title want dir
+  for dir in $(dirs_with_entries); do
+    [[ -d "$planning/$dir" ]] || { echo "missing directory: planning/$dir" >&2; bad=1; continue; }
+    [[ -f "$planning/$dir/README.md" ]] || { echo "planning/$dir has no README.md" >&2; bad=1; }
+    while read -r f; do
+      [[ -n "$f" ]] || continue
+      base="$(basename "$f" .md)"
+      title="$(heading "$f")"
+      if [[ -z "$title" ]]; then
+        echo "no '# ' heading: planning/$dir/$base.md" >&2; bad=1; continue
+      fi
+      if [[ "$dir" == decisions ]]; then
+        [[ "$base" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]] \
+          || { echo "a decision's filename starts with its date: planning/$dir/$base.md" >&2; bad=1; }
+        continue
+      fi
+      want="$(slug "$title")"
+      if [[ "$base" != "$want" ]]; then
+        echo "heading and filename disagree: planning/$dir/$base.md holds \"$title\" (wants $want.md)" >&2
+        bad=1
+      fi
+      for s in ${seen[@]+"${seen[@]}"}; do
+        [[ "$s" == "$base" ]] && { echo "slug used twice across tasks/ and backlog/: $base.md" >&2; bad=1; }
+      done
+      seen+=("$base")
+    done < <(entries "$dir")
+  done
+
+  # A pointer to a file that no longer exists is a dead end rather than a
+  # citation; the split left the titled ones alone deliberately, so only bare
+  # paths are a fault.
+  if grep -rn 'planning/TASKS\.md\|planning/BACKLOG\.md' "$root/bin" "$root/app/src" \
+       "$root/server/src" "$root/core" 2>/dev/null | grep -v '§' \
+       | grep -v "^$root/bin/note:" | grep -q .; then
+    echo "a bare pointer to planning/TASKS.md or planning/BACKLOG.md survives in the code:" >&2
+    grep -rn 'planning/TASKS\.md\|planning/BACKLOG\.md' "$root/bin" "$root/app/src" \
+      "$root/server/src" "$root/core" 2>/dev/null | grep -v '§' \
+      | grep -v "^$root/bin/note:" >&2
+    bad=1
+  fi
+
+  [[ "$bad" == 0 ]] || return 1
+  echo "planning/: every task and backlog filename is its heading's slug; decisions are dated and titled"
+}
+
+verb="${1:-}"
+shift || true
+case "$verb" in
+  new)    cmd_new "$@" ;;
+  find)   cmd_find "$@" ;;
+  list)   cmd_list "$@" ;;
+  rename) cmd_rename "$@" ;;
+  check)  cmd_check "$@" ;;
+  ''|-h|--help)
+    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^#\{0,1\} \{0,1\}//'
+    ;;
+  *) die "no such verb '$verb' — one of new, find, list, rename, check" ;;
+esac

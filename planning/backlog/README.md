@@ -34,6 +34,12 @@ non-alphanumerics collapsed to a hyphen:
 with the full title as the `#` heading inside. `ls` is the index. Finishing an
 item deletes its file, exactly as it used to delete the entry.
 
+**Do not compute the slug by hand.** `bin/note new backlog "Some Title"` makes
+the file, `bin/note rename` retitles one and moves it to match, and `bin/note
+find "..."` says which file a quoted reference means. The slug is implemented
+once, in `bin/note`; `bin/note check` runs in the test suite and is what stops
+this file's prose and the directory drifting apart.
+
 **Two files are lists rather than entries.** `known-defects.md` and
 `untested-behaviour.md` each hold a numbered list of small things, ordered
 deliberately — the second by how likely each is to be wrong. They stay whole

@@ -16,18 +16,18 @@ one file per item, a paragraph or so each, and `ls` indexes each directory.
 **Any verb followed by a quoted string that slugifies to the name of a file in
 `planning/tasks/` or `planning/backlog/` is a reference to that file, and is not
 itself a description of the work.** `Do task "Track Usage"` and `Start on
-"track-usage"` mean the same thing — the match is on the slug, so capitals and
-punctuation do not matter. Go and read the file first; what is in it is the
-request, and everything the title leaves out is in it. Taking the title at face
-value and starting to write is how you build something adjacent to the ask.
+"track-usage"` mean the same thing. Go and read the file first; what is in it is
+the request, and everything the title leaves out is in it. Taking the title at
+face value and starting to write is how you build something adjacent to the ask.
 
-**The verb is not part of the convention** — it says what is wanted done, which
-varies, since a good half of these entries are questions rather than features.
-The match on the slug is what makes it a reference; a shortened quotation counts
-when it prefixes exactly one filename, and not when it could be two. If one
-happens to coincide with a filename and the surrounding request is plainly about
-something else, it is a coincidence; read it as context tells you to, and say
-which way you read it.
+**`bin/note find "..."` is that rule, executable** — resolve one with it rather
+than by eye: exact slug, else the file it uniquely prefixes, else it refuses and
+says what it collided with. **`bin/task "Some Title"` makes a new one**; `bin/note`
+alone lists the rest. If a quotation coincides with a filename and the request
+is plainly about something else, it is a coincidence; read it as context tells
+you to, and say which way. **The verb is not part of the convention** — it says
+what is wanted done, which varies, since a good half of these are questions
+rather than features.
 
 **A decision's filename carries its date too**, `<date>-<title>.md`, which the
 other two do not: a decision is dated history, a task is not. Writing one means
