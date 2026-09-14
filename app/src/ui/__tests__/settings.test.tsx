@@ -444,7 +444,7 @@ describe("showing the checklist again", () => {
 
     // The one thing that is not guessable from the button: `doneAt` is
     // written off `conversing`, so doing this from inside a channel with
-    // somebody retires the checklist again before it can be looked at.
+    // somebody re-ticks that rung before the list can be looked at.
     const body = asked.mock.calls[0][1] as string;
     expect(body).toContain("Step out of any channel first");
 

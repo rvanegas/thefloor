@@ -400,7 +400,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             onPress={() =>
               Alert.alert(
                 'Show the checklist again?',
-                'This account forgets that it has ever stepped in, which of the four things in a channel it has tried, and any rung put away by hand, so Home draws the whole ladder again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: nothing is drawn while a conversation is happening, and being in one with somebody marks that rung done again straight away.\n\nWhat comes back is the full list rather than whichever introduction this account would get today — five hollow rungs, and getting somebody here already ticked if you have a contact.',
+                'This account forgets that it has ever stepped in, which of the four things in a channel it has tried, and any rung put away by hand, so Home draws the whole ladder again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: being in one with somebody marks that rung done again straight away, so the list comes back with it already ticked.\n\nWhat comes back is the full list rather than whichever introduction this account would get today — five hollow rungs, and getting somebody here already ticked if you have a contact.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Show it', onPress: () => void forgetIntroduction() },

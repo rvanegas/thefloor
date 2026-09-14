@@ -64,10 +64,13 @@ const established = {
 
 function Probe({
   home,
+  conversing = false,
   report,
   onReady,
 }: {
   home: HomeView;
+  /** Standing in a channel with somebody, which used to blank the card. */
+  conversing?: boolean;
   report: (introduction: Introduction) => void;
   onReady: (actions: {
     dismiss: (id: StepId) => void;
@@ -78,7 +81,7 @@ function Probe({
     ready: true,
     token: 'tok',
     home,
-    conversing: false,
+    conversing,
     install: NOT_OFFERED,
   });
   onReady({ dismiss, forget });
@@ -94,9 +97,11 @@ async function mount() {
     forget: () => Promise<void>;
   };
   let tree!: ReactTestRenderer;
-  const draw = (home: HomeView) => (
+  let standing = established;
+  const draw = (home: HomeView, conversing = false) => (
     <Probe
       home={home}
+      conversing={conversing}
       report={(next) => {
         latest = next;
       }}
@@ -112,7 +117,12 @@ async function mount() {
     tree,
     /** A later snapshot, for the rungs that are read off one. */
     snapshot: async (home: HomeView) => {
+      standing = home;
       await act(async () => tree.update(draw(home)));
+    },
+    /** Stepping into a channel with somebody, and back out again. */
+    conversing: async (yes: boolean) => {
+      await act(async () => tree.update(draw(standing, yes)));
     },
     shown: () => latest,
     ids: () =>
@@ -214,6 +224,39 @@ describe('show the checklist again', () => {
     await act(async () => card.forget());
     expect(card.ids()).toContain('guest');
     expect(mockKeychain.has('thefloor.intro.dismissed')).toBe(false);
+    await act(async () => card.tree.unmount());
+  });
+});
+
+describe('standing in a channel afterwards', () => {
+  it('leaves the ladder up, which is where the four rungs are climbed', async () => {
+    // **The bug this reverses**, reported 2026-09-14: press *Show the
+    // checklist again*, step into a channel with somebody, go back to Home,
+    // and the card is gone — because `conversing` blanked the whole thing for
+    // as long as it held. Home is reachable from the live bar while you are
+    // still in the room, and that reader is precisely who the four in-channel
+    // rungs are written for. See
+    // `decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+    const card = await mount();
+    await act(async () => card.forget());
+    // The snapshot the `DELETE /me/tried` above brings down: the four are the
+    // account's, so this is where their clearing actually lands.
+    await card.snapshot({
+      ...established,
+      tried: { floor: false, nearby: false, guest: false, player: false },
+    } as unknown as HomeView);
+    expect(card.shown().show).toBe('ladder');
+
+    await card.conversing(true);
+    expect(card.shown().show).toBe('ladder');
+    // And the rung that just came true says so, rather than waiting for the
+    // conversation to end.
+    const shown = card.shown();
+    if (shown.show !== 'ladder') throw new Error('expected the ladder');
+    expect(shown.steps.find((step) => step.id === 'stepIn')?.done).toBe(true);
+
+    await card.conversing(false);
+    expect(card.shown().show).toBe('ladder');
     await act(async () => card.tree.unmount());
   });
 });

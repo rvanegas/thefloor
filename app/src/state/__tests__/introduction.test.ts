@@ -21,7 +21,6 @@ const fresh = {
   dismissed: [],
   /** Arrived with nobody, so the first contact is somebody they brought. */
   contactsBase: 0,
-  conversing: false,
   // A phone, where there is nothing to install. The browser cases say so.
   install: NOT_OFFERED as Install,
 };
@@ -214,10 +213,14 @@ describe('the install rung', () => {
     ]);
   });
 
-  it('goes with the rest of it once somebody has had a conversation', () => {
+  it('is drawn while the conversation it asked for is happening', () => {
+    // The reversal of 2026-09-14. A conversation in progress used to blank the
+    // whole card; the only reader that ever saw the blank was somebody on Home
+    // who was still standing in the room — which is exactly who the four rungs
+    // below `stepIn` are written for.
     expect(
-      introduction({ ...fresh, install: installable, conversing: true }).show
-    ).toBe('none');
+      introduction({ ...fresh, install: installable, conversedAt: 1 }).show
+    ).toBe('ladder');
   });
 });
 
@@ -251,11 +254,7 @@ describe('the four things to try in a channel', () => {
 });
 
 describe('retirement', () => {
-  it('stops the moment a conversation is happening', () => {
-    expect(introduction({ ...fresh, conversing: true }).show).toBe('none');
-  });
-
-  it('comes back after that conversation, with what is left', () => {
+  it('stays up through the conversation, with what is left', () => {
     // The reversal of 2026-09-13. The old rule retired on the first
     // conversation, which is the one moment none of the four rungs below it
     // could ever have been reached.

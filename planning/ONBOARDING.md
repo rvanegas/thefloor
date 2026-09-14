@@ -247,9 +247,12 @@ rungs were added that are done *inside* a channel — claim the floor, say you
 are nearby, bring in a guest, play something together — and the first
 conversation is the one instant at which none of them can have been reached, so
 retiring there would have shipped four rows no account could ever see. It now
-retires when the last rung is done; nothing is drawn *during* a conversation,
-which is a separate rule and is the half of the old condition that survived.
-The account is
+retires when the last rung is done. The other half of the old condition —
+nothing drawn *during* a conversation — survived that day and was reversed in
+turn on 2026-09-14, having turned out to hide the card from the one reader the
+four new rungs are written for:
+`decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+The account of the first reversal is
 `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, which
 also carries the cold-launch defect this was found alongside. What follows is
 kept as the reasoning that was right for the ladder it was written for.
@@ -294,7 +297,8 @@ than a task. See
 
 The alert still says the thing that is not guessable — *step out of the channel
 first*, since `doneAt` is written off `conversing` and being in one with
-somebody re-retires that rung within a frame.
+somebody re-ticks that rung within a frame. Since 2026-09-14 that is all it
+costs: the card itself is no longer blanked while the conversation lasts.
 
 **And there is a second exit now, which is the reader's rather than the debug
 panel's**: every row carries a cross that puts that rung away for good. It

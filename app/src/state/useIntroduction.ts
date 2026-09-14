@@ -178,12 +178,13 @@ export interface IntroductionState {
    * card ends, and a reset that left them standing would return somebody to a
    * ladder with holes in it — see `dismiss`.
    *
-   * **Leave the channel first.** Nothing is drawn at all while `conversing`,
-   * and `conversedAt` is written off it — so doing this in a channel with
-   * somebody shows nothing and then re-ticks that rung within a frame. It no
-   * longer re-retires the whole card, the four below `stepIn` having been
-   * cleared too, but the first thing somebody would see is still not the thing
-   * they tapped for. The caller says so; see `HomeSettingsView`.
+   * **Step out first, still.** `conversedAt` is written off `conversing`, so
+   * doing this in a channel with somebody re-ticks that rung within a frame —
+   * a ladder handed back with its third rung already filled in. The card is no
+   * longer blanked while that holds, since 2026-09-14, so what somebody sees
+   * is the whole list with one rung ticked rather than nothing at all; it is
+   * still not the thing they tapped for. The caller says so; see
+   * `HomeSettingsView`.
    */
   forget: () => Promise<void>;
 }
@@ -221,8 +222,12 @@ export function useIntroduction(state: {
   token: string | null;
   home: HomeView | null;
   /**
-   * In a channel with somebody else. It draws nothing while it holds, and it
-   * is what stamps `conversedAt` — it is no longer what retires the card.
+   * In a channel with somebody else.
+   *
+   * **It stamps `conversedAt`, and that is now all it does.** It blanked the
+   * card for as long as it held until 2026-09-14, which turned out to hide it
+   * from the one reader the four in-channel rungs are written for — see
+   * `introduction.ts`.
    */
   conversing: boolean;
   /**
@@ -502,7 +507,6 @@ export function useIntroduction(state: {
       home,
       conversedAt,
       tried,
-      conversing,
       install,
       dismissed,
       contactsBase,

@@ -207,28 +207,22 @@ export function introduction(state: {
    * marks it; the row simply is not there to fill in.
    */
   dismissed: readonly StepId[];
-  /** In a channel with somebody else, now — see `AppProvider`. */
-  conversing: boolean;
 }): Introduction {
-  const {
-    loaded,
-    home,
-    conversedAt,
-    tried,
-    conversing,
-    install,
-    dismissed,
-    contactsBase,
-  } = state;
+  const { loaded, home, conversedAt, tried, install, dismissed, contactsBase } =
+    state;
   const hidden = (id: StepId) => dismissed.includes(id);
 
   if (!loaded || !home || contactsBase === null) return { show: 'none' };
-  // **Nothing at all while a conversation is happening**, which is unchanged
-  // and is not the retirement: a card still on screen during the conversation
-  // it was asking for is the one moment it would be actively silly. It comes
-  // back on Home afterwards with whatever is left, which is the whole point of
-  // the four rungs below — they are done in a channel, and read here.
-  if (conversing) return { show: 'none' };
+  // **`conversing` no longer blanks this**, reversed 2026-09-14 — see
+  // `decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+  // It was kept on the argument that a checklist on screen *during* the
+  // conversation it asked for is actively silly, which is true of a screen
+  // this card is not on: `HomeView` is its only reader, and the channel screen
+  // draws none of it. What the rule actually hid was Home reached from the
+  // live bar — the reader still standing in the room, which is the one reader
+  // the four rungs below are written for and the only one `live` in
+  // `ui/Introduction.tsx` can point anywhere.
+  //
   // **Retired on the last rung, not the first conversation**, reversing
   // ONBOARDING.md § *Retirement* — see
   // `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
