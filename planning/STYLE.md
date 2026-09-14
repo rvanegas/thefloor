@@ -306,6 +306,17 @@ three of them, `primary` then two `default`, in the `buttonRow` / `flexButton`
 row the player's transport is built from, which is the point of drawing them
 this way. See § *TransportAction is gone*.
 
+**Never beside it, but since 2026-09-13 under it**, and only there: the same
+three buttons carry *Record* — *Resume* when a run is paused — *Pause* and
+*Stop* as a `sublabel` beneath the glyph. The caption rule holds for a shape
+somebody may press and fails for one that is grey, which two of these three
+usually are; an inert square says neither what it does nor why it will not,
+and what used to answer that was four muted paragraphs under the row. The word
+is what made removing them affordable, so the two changes are one. It is the
+footer's shape — glyph over word — for the same reason: a row where half the
+slots are refusals. The `accessibilityLabel` is still the longer phrase
+(*Pause recording*), and drawing a `sublabel` does not silence it.
+
 **A button inside a row of text is tightened rather than made a new
 component** — `{ paddingVertical: spacing(0.5), paddingHorizontal: spacing(1),
 minHeight: 0 }`, via the `style` prop. ChannelView's `cardPing` and
@@ -612,7 +623,9 @@ the copy.
   third tab is a guess. The exceptions are the header's `IconButton`s and the
   recording transport's three buttons, where the shapes have meant one thing
   each since tape and a word beside a square would be teaching what the square
-  already says. In both, the word survives as the accessibility label.
+  already says. In both, the word survives as the accessibility label — and on
+  the transport, since 2026-09-13, under the glyph as well, which is what lets
+  the prose that used to explain its grey controls be gone. See § *Button*.
 - **Only the microphone changes glyph between states**, because a
   struck-through mic is the one piece of this vocabulary everybody already
   knows. The floor keeps one hand in both states: no icon set has a "released
@@ -656,8 +669,15 @@ rules.
   `disabled` while it does. One character, `…`, never three dots.
 - **A disabled control is accompanied by a sentence saying why**, in
   `type.muted`, beside it rather than up in a summary. A disabled control with
-  no reason is a bug — the one exception is a state that will move on its own
-  and has nothing to wait for on this screen, like "Transcribing…".
+  no reason is a bug. Two exceptions: a state that will move on its own and
+  has nothing to wait for on this screen, like "Transcribing…"; and **a row
+  where being refused is the ordinary condition**, which as of 2026-09-13 is
+  the recording transport and nothing else. Two of its three are grey most of
+  the time, by design, and a sentence for each was four paragraphs under three
+  buttons — read once and skipped after, and answering questions the header's
+  pill, the list below and the channel's settings each answer in their own
+  place. What replaced them is the word under the glyph: refusals a rule can
+  enumerate are worth a sentence, a permanent condition of the row is not.
 - **Destructive and irreversible acts confirm through `Alert.alert`**, with
   `style: 'cancel'` first and `style: 'destructive'` second, and the body says
   what is actually lost and for how long. There are 28 of these; there are no

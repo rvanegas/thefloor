@@ -245,15 +245,17 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('refuses Record with the reason, rather than a dead button', () => {
+  it('greys Record while a party runs, and gives no reason for it', () => {
     showChannel(watching());
-    // On *Recordings*, which is where recording is: the refusal and the thing
-    // causing it are a tab apart now, which is exactly why the reason has to
-    // travel with the button rather than be inferred from the card next to it.
+    // On *Recordings*, which is where recording is. The reason used to travel
+    // with the button, the party being a tab away; it left on 2026-09-13 with
+    // the rest of the prose under the transport, which is now failure and
+    // nothing else. What survives is the refusal itself, and the word under
+    // the glyph saying what is being refused.
     const tree = openOnRoster();
     showRecordings(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Stop the watch party to record');
+    expect(textOf(tree)).not.toContain('Stop the watch party to record');
     act(() => tree.unmount());
   });
 

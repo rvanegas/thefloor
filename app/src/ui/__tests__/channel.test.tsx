@@ -554,6 +554,51 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('reports the last run only when it ended early', () => {
+    /*
+      The two halves of the 2026-09-13 clearing-out, in one test.
+
+      *Saved — 4:12 captured* is the recordings list directly below saying the
+      same thing about the same run, so it went with the rest of the prose.
+      *Ended early* is the half the list cannot tell you — there a run that
+      failed is just a short recording — so it stays, and it stays as a
+      warning rather than a muted aside.
+    */
+    const ended = (failure: string | null) => {
+      const channel = channelOf();
+      return {
+        ...channel,
+        lastRecording: {
+          runId: 'rec_1',
+          startedAt: NOW - 60_000,
+          endedAt: NOW,
+          durationMs: 60_000,
+          failure,
+        },
+      };
+    };
+    const open = () => {
+      const tree = render(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />);
+      showRecordings(tree);
+      return tree;
+    };
+
+    showChannel(ended(null));
+    const saved = open();
+    expect(textOf(saved)).not.toContain('Saved');
+    act(() => saved.unmount());
+
+    showChannel(ended('the egress stopped'));
+    const early = open();
+    expect(textOf(early)).toContain('Ended early');
+    act(() => early.unmount());
+  });
+
   it('shows a disconnected party as nearby, not present', () => {
     // **Not "left"**: they are still in the channel, still hold whatever they
     // hold, and have a minute to come back — which is why the grace exists and
@@ -1599,9 +1644,11 @@ describe('Channel', () => {
     in a hurry was never twice in the same place. Greyed is how this row says
     *not now*; nothing leaves it.
 
-    Asserted through `accessibilityState`, which is the only place the words
-    survive now that the shapes carry the meaning — and is what a screen reader
-    is told, so it is the assertion worth making.
+    Asserted through `accessibilityState`, which is what a screen reader is
+    told and so is the assertion worth making. Found by the word under the
+    glyph — *Record*, *Pause*, *Stop* — since `findButton` prefers the text on
+    screen to the `accessibilityLabel`, and since 2026-09-13 there is text on
+    screen. The label a screen reader hears is still the longer phrase.
   */
   it('draws record, pause and stop at all times, greying what cannot be pressed', () => {
     const transport = (tree: ReactTestRenderer, label: string) => {
@@ -1617,8 +1664,8 @@ describe('Channel', () => {
     );
     showRecordings(idle);
     expect(transport(idle, 'Record')).toBe(false);
-    expect(transport(idle, 'Pause recording')).toBe(true);
-    expect(transport(idle, 'Stop recording')).toBe(true);
+    expect(transport(idle, 'Pause')).toBe(true);
+    expect(transport(idle, 'Stop')).toBe(true);
     act(() => idle.unmount());
 
     // Running: the two that end it, and no second run to start.
@@ -1632,8 +1679,8 @@ describe('Channel', () => {
     );
     showRecordings(live);
     expect(transport(live, 'Record')).toBe(true);
-    expect(transport(live, 'Pause recording')).toBe(false);
-    expect(transport(live, 'Stop recording')).toBe(false);
+    expect(transport(live, 'Pause')).toBe(false);
+    expect(transport(live, 'Stop')).toBe(false);
     act(() => live.unmount());
 
     // Paused: the record glyph is what sets it going again — one control for
@@ -1651,11 +1698,11 @@ describe('Channel', () => {
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecordings(paused);
-    expect(transport(paused, 'Resume recording')).toBe(false);
-    expect(transport(paused, 'Pause recording')).toBe(true);
-    expect(transport(paused, 'Stop recording')).toBe(false);
+    expect(transport(paused, 'Resume')).toBe(false);
+    expect(transport(paused, 'Pause')).toBe(true);
+    expect(transport(paused, 'Stop')).toBe(false);
     act(() =>
-      findButton(paused, 'Resume recording')!.props.onPress()
+      findButton(paused, 'Resume')!.props.onPress()
     );
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'RESUME_RECORDING',
@@ -2965,11 +3012,20 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('says on the channel screen that the channel records itself', () => {
+  /*
+    The sentence this asserted until 2026-09-13 is gone, and its absence is
+    what is asserted now.
+
+    It said, under the transport, that the channel records itself and what it
+    was waiting for. True, and said to somebody who had switched the setting
+    on themselves in this channel's own settings, every time they opened the
+    tab — and it was one of four muted paragraphs there. The transport carries
+    its words now, and prose under it is reserved for a capture that failed.
+  */
+  it('says nothing under the transport about the channel recording itself', () => {
     // Idle and not yet recordable — the state a channel is in between one
-    // person arriving and the second. The Record button is dead here either
-    // way, and this is the difference between a channel that is waiting for a
-    // tap and one that is waiting for company.
+    // person arriving and the second, and the state the sentence was about.
+    // The greying of Record is what says *not now* here.
     showChannel(
       channelOf((s) =>
         reduce(
@@ -2986,9 +3042,8 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecordings(tree);
-    expect(textOf(tree)).toContain(
-      'This channel records itself. One starts as soon as there is somebody else in the room.'
-    );
+    expect(textOf(tree)).not.toContain('records itself');
+    expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     act(() => tree.unmount());
   });
 });

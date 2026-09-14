@@ -2534,7 +2534,20 @@ export function ChannelView({
           thirds across the width. This is the same act on the same screen, so
           it is the same row, and a hand that has learnt one has learnt both.
           The glyphs stay — record, pause and stop are older than any wording
-          of them, and `Button`'s `icon` keeps the word for the screen reader.
+          of them — and each carries its word beneath it, in `sublabel`.
+
+          **The word under the glyph arrived later the same day, with the
+          paragraphs under the row leaving.** The case for a bare glyph is
+          that a shape which has meant one thing since tape does not need a
+          caption, and it holds right up until the shape is `disabled`: an
+          inert grey square says neither what it does nor why it will not do
+          it, and the answer used to be four muted paragraphs underneath.
+          One word apiece costs a line of the row's height and takes the
+          first half of that question away from the prose, which is what
+          made removing the rest of it affordable. It is the footer's shape —
+          a glyph over its word — and the footer is the other place in this
+          app where three or four states sit in one row and half of them are
+          refusals.
 
           Always all three, and in this order: start, hold, end, which is the
           run's own order and puts the irreversible one last where a thumb
@@ -2544,7 +2557,9 @@ export function ChannelView({
           appears or disappears, so the shapes stay where the thumb learned
           them. No card and no RECORDING label above them, which is the one
           part of the bare-glyph pass that was right: the state of the run is
-          reported in the header, and the tab is already named after these.
+          reported in the header, and the tab is already named after these —
+          and the words beneath the glyphs name the three acts rather than
+          the object, so none of them is that label under another name.
         */}
         <View style={[styles.buttonRow, styles.transport]}>
           {/*
@@ -2566,6 +2581,9 @@ export function ChannelView({
                 ? 'Resume recording'
                 : 'Record'
             }
+            sublabel={
+              channel.recording.status === 'paused' ? 'Resume' : 'Record'
+            }
             variant="primary"
             style={styles.flexButton}
             icon={(color) => <RecordingsIcon color={color} />}
@@ -2585,6 +2603,7 @@ export function ChannelView({
           />
           <Button
             label="Pause recording"
+            sublabel="Pause"
             style={styles.flexButton}
             icon={(color) => <PauseIcon color={color} />}
             disabled={!canPauseRecording(channel, me)}
@@ -2592,6 +2611,7 @@ export function ChannelView({
           />
           <Button
             label="Stop recording"
+            sublabel="Stop"
             style={styles.flexButton}
             icon={(color) => <StopIcon color={color} />}
             disabled={!canStopRecording(channel, me)}
@@ -2600,11 +2620,22 @@ export function ChannelView({
         </View>
 
         {/*
-          What the glyphs cannot say, under them and unboxed. The card is
-          gone; these are not. A capture that failed, a run that was saved,
-          and the reason a grey control is grey are the three things somebody
-          standing in front of an inert transport needs, and none of them is
-          drawable.
+          **What is left under the row is failure, and nothing else**, since
+          2026-09-13. Four muted paragraphs used to hang here — what the last
+          run captured, that the channel records itself, and the reason a
+          grey control is grey — on the reasoning that a glyph cannot say any
+          of it. The glyphs now carry their words, and three of the four were
+          answering a question that is answered elsewhere on the way here: the
+          run's state is the header's pill, what was saved is the list
+          immediately below, and `autoRecord` is a switch in this channel's
+          settings, set by somebody who was there when it was set. A greyed control
+          with a paragraph under it is also a paragraph read before every
+          recording and skipped after the second.
+
+          A capture that stopped for a reason nobody asked for is the
+          exception, in both tenses, because nothing else on this screen
+          reports it and a recording that was not kept is not something to
+          find out later.
         */}
         {channel.recording.failure ? (
           // Capture stopping for a reason nobody asked for must not read like
@@ -2616,60 +2647,17 @@ export function ChannelView({
         ) : null}
 
         {/*
-          What the previous run captured. A channel holds as many recordings
-          as people care to make, so stopping is no longer a dead end — this
-          reports the last one and the dot above offers another.
+          The same about the run before this one. This line used to report
+          every finished run — *Saved — 4:12 captured* — which is the list
+          directly below it saying the same thing in the same place; a run
+          that ended early is the half that list cannot tell you, since there
+          it is only a short recording.
         */}
-        {channel.recording.status === 'idle' && channel.lastRecording ? (
-          <Text style={type.muted}>
-            {channel.lastRecording.failure ? 'Ended early — ' : 'Saved — '}
-            {formatDuration(channel.lastRecording.durationMs)} captured.
-          </Text>
-        ) : null}
-
-        {/*
-          Said here rather than only in the channel's settings, because a
-          screen showing an idle record dot in a channel that records itself
-          is otherwise telling half the truth.
-
-          Two sentences, because idle means two different things once the
-          setting is on. A room that is not yet recordable is waiting for its
-          recording; a room that is recordable and still idle has already had
-          one and been stopped, and the reason it is not starting another is
-          the thing somebody is about to wonder. See `autoRecord` in
-          core/types.ts for the rule both sentences describe.
-        */}
-        {channel.recording.status === 'idle' && channel.autoRecord ? (
-          <Text style={type.muted}>
-            {canStartRecording(channel, me)
-              ? 'This channel records itself, and this room has had its recording. Press record for another — one starts by itself again after everybody has left and come back.'
-              : 'This channel records itself. One starts as soon as there is somebody else in the room.'}
-          </Text>
-        ) : null}
-
-        {recordingLive && !isPresent(channel, me) ? (
-          // Before the silenced line, which would otherwise claim this
-          // person's microphone is being captured — `isSilenced` asks only
-          // who holds the floor, and somebody who is not in the room is not
-          // on the recording at all. The transport is theirs again the
-          // moment they step in; see `canPauseRecording`.
-          <Text style={type.muted}>
-            Step in to pause or stop this recording.
-          </Text>
-        ) : iAmSilenced && recordingLive ? (
-          <Text style={type.muted}>
-            Silenced — pause and stop unavailable, and your microphone is
-            still being captured.
-          </Text>
-        ) : channel.recording.status === 'idle' &&
-          !canStartRecording(channel, me) ? (
-          <Text style={type.muted}>
-            {party
-              ? // The reason, rather than a dead control. Named before the
-                // presence reason because it is the one that surprises
-                // somebody who is plainly standing in the room.
-                'Stop the watch party to record. A video is watched on your own screen and never reaches the recording.'
-              : 'Step in to record. A recording stops when the last person leaves.'}
+        {channel.recording.status === 'idle' &&
+        channel.lastRecording?.failure ? (
+          <Text style={styles.warning}>
+            Ended early — {formatDuration(channel.lastRecording.durationMs)}{' '}
+            captured.
           </Text>
         ) : null}
 

@@ -35,10 +35,19 @@ import { colors, formatDuration, measure, radius, spacing, type } from './theme'
  * disabled one in `textFaint` without the caller knowing the palette — this
  * file decides the tone and `icons.tsx` decides the shape, as everywhere else.
  *
- * It is a glyph *instead of* the word rather than beside it. A row of icon
+ * It is a glyph *instead of* the word rather than beside it: a row of icon
  * buttons is read as a group of shapes, and a shape with its own word next to
- * it is teaching what the shape already says; `sublabel` is still available
- * for a caller who has something else to add.
+ * it is teaching what the shape already says.
+ *
+ * **Under it is the exception, and `sublabel` is how it is drawn** — the
+ * recording transport since 2026-09-13, which is a glyph over its word in
+ * the footer's shape. The argument above holds for a shape that can be
+ * pressed and stops holding for one that is `disabled`, where the caption is
+ * the only thing saying what is being refused; that transport is three
+ * buttons of which two are usually grey. Note what this does to the
+ * accessibility label below: a glyph is named by `label` whether or not a
+ * `sublabel` is drawn, so the word on screen can be the short one and the
+ * word a screen reader hears the fuller phrase.
  */
 export function Button({
   label,
@@ -74,7 +83,9 @@ export function Button({
       // Only when the word is not on screen. A button that draws its label
       // reads it out along with any `sublabel` underneath, and naming it here
       // would silence that second line — which on *Play something together* is
-      // the half that says what would happen.
+      // the half that says what would happen. An `icon` button's `sublabel`
+      // is silenced deliberately: `label` is the same act said in full, so
+      // reading both would be a stutter.
       accessibilityLabel={icon ? label : undefined}
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
