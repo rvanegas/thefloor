@@ -547,12 +547,15 @@ link works because the motive behind it is real.
 
 What to do, in order, and what each is waiting on.
 
-1. **Fix the copy that describes a different app.** ROADMAP item 6: the
-   landing page and `support.ts` both say *one person speaks at a time*, which
-   the proposition says in terms is wrong, and nothing outside the listing says
-   that nothing rings. Cheapest item on any list here, ships with a deploy,
-   waits on nothing. **Done as part of this work** — see the rebuilt
-   `landing.ts`.
+1. **~~Fix the copy that describes a different app.~~ Done, 2026-09-14**, and
+   it was bigger than ROADMAP item 6 described. That entry named two files;
+   there were three, and the one it missed — `invite.ts`, in both bodies — is
+   the page § *The funnel is upside down* calls the top of the funnel. Out with
+   it went *The Floor is a small application*, true when written and false now,
+   and `mail.ts`'s claim that you can see who is around *before you interrupt
+   anybody*, which framed arriving as an interruption. The landing page now
+   also says **why** the floor exists rather than only what it does. Deployed
+   twice that day; deploy-history.md has both.
 2. **Close the listing.** LISTING.md's draft is argued and mostly live; what is
    outstanding is the subtitle, promotional text and keywords, none of which
    can be read back from the public lookup API. Needs App Store Connect, not a
@@ -564,13 +567,27 @@ What to do, in order, and what each is waiting on.
    whether the permission was ever granted. Both are small. **Amend `/privacy`
    in the same commit as either**, since the page is a live public claim and
    the listing links to it.
-4. **Get the rest of the imagery into the repository.** Two landing-page
-   screenshots landed on 2026-09-14; the App Store set is on a desktop and
-   nothing composed exists at all. Blocks nothing above it and everything
-   below.
-5. **Apple Search Ads**, small, on the complaint keywords, once 3 can read the
-   result past level 2. It is first among paid because its attribution needs
-   nothing installed and its intent is already present.
+4. **Composed imagery, which is the half still missing.** The captures are in
+   hand — `assets/store/` holds the five, three of them serving the landing
+   page, including the lock screen that carries the central claim. What does
+   not exist is anything *composed* rather than captured: a Product Hunt
+   gallery, a social card, an Instagram frame. Blocks 6 and 7 and nothing
+   above them.
+5. **Apple Search Ads**, small, on the complaint keywords. First among paid
+   because its attribution needs nothing installed and the intent is already
+   present.
+
+   **It is not blocked on 3, and this list said it was.** The kill rule in
+   § *The shape of the spend* judges a campaign by what grows *underneath* the
+   roots it buys — first circle and onward — and `bin/growth`'s `classes`,
+   `weeks` and `roots` already report exactly that. Item 3 tells you *why* a
+   funnel leaks at level 9; it is not needed to tell whether a campaign
+   worked. **So this is unblocked now.**
+
+   **What it is genuinely waiting on is 2**, and that ordering is not
+   negotiable: Search Ads sends people to the App Store product page, so
+   buying traffic before the listing is right pays to show strangers a
+   description that still does not mention the invite link.
 6. **The launch surfaces**, once 4 exists, because a Product Hunt post without
    imagery is a post that was not made.
 7. **Group-affinity social**, last, because it is the most expensive to do
