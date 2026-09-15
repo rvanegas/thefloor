@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import {
   chime,
@@ -6,6 +6,7 @@ import {
   CHIME_LEAD,
   chimeInfo,
   configureSession,
+  prepareChime,
   routeSnapshot,
   startInput,
   stopInput,
@@ -87,6 +88,15 @@ const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
  * stopped growing.
  */
 const LEADS = ['0', '0.18', '0.35', '0.6', '1'];
+
+/** Every kind the buttons below can ask for, so all of them can be warmed. */
+const CHIME_KINDS: (ChimeKind | ChimeCandidate)[] = [
+  'in',
+  'out',
+  'nearby-a',
+  'nearby-b',
+  'nearby-c',
+];
 
 /** One row of the matrix, and why it is in it. */
 interface Preset {
@@ -331,6 +341,24 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * to have done nothing.
    */
   const renderer = useMemo(() => chimeInfo(), []);
+
+  /**
+   * Warms every kind at the chosen peak and lead, whenever either chip moves.
+   *
+   * **Because the cache key includes the amplitude, every chip is a cold
+   * sound**, and a cold first tap is the thing under suspicion. A sweep that
+   * renders at the moment of the tap is not comparing amplitudes; it is
+   * comparing five first plays. Warming on selection puts the render and the
+   * load before the tap, so what the tap measures is the sound.
+   *
+   * The lab is the place this matters most and the place it is least obvious,
+   * since the app only ever has three keys and hits them over and over.
+   */
+  useEffect(() => {
+    for (const kind of CHIME_KINDS) {
+      prepareChime(kind, Number(peak), Number(lead));
+    }
+  }, [peak, lead]);
 
   /**
    * What the last chime did, which is the finding.

@@ -109,6 +109,8 @@ interface NativeAudioRoute {
    * been reported as *still happening*.
    */
   chimeInfo?(): ChimeInfo;
+  /** Renders and loads a chime without playing it. */
+  prepareChime?(kind: string, amplitude: number, lead: number): boolean;
   /**
    * The lab's three. Optional on the type because a Metro reload can leave a
    * new bundle talking to a binary built before they existed, and the lab says
@@ -335,6 +337,34 @@ export const CHIME_LEAD = 0.18;
  * how loud it is, and that is not settled by this type.
  */
 export type ChimePath = 'system' | 'player';
+
+/**
+ * Renders a chime and hands it to the system sound server, without playing it.
+ *
+ * **Call this before the tap, not at it.** The first `chime` for a given kind,
+ * amplitude and lead renders a WAV, writes it, creates a `SystemSoundID` and
+ * plays it in one breath — and a cue 180ms long has no margin for a server
+ * still picking the file up. Warming it is the difference between a cue and a
+ * cue's first half.
+ *
+ * **The cache key includes the amplitude**, which is why this reaches the flat
+ * sweep as well: every chip on the peak row is a cold key, so sweeping five
+ * peaks one tap each compares five cold sounds rather than five amplitudes.
+ *
+ * Returns whether it loaded. False on a binary older than this function, which
+ * is the same reading it is everywhere else here.
+ */
+export function prepareChime(
+  kind: ChimeKind | ChimeCandidate,
+  amplitude: number = CHIME_AMPLITUDE,
+  lead: number = CHIME_LEAD
+): boolean {
+  try {
+    return native?.prepareChime?.(kind, amplitude, lead) ?? false;
+  } catch {
+    return false;
+  }
+}
 
 /** What the running binary's chime renderer holds, for the lab to display. */
 export interface ChimeInfo {

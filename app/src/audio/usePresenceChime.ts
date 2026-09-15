@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ChannelState, UserId } from '../../../core/types';
-import { chime, type ChimeKind } from './chime';
+import { chime, warmChimes, type ChimeKind } from './chime';
 
 /**
  * Sounds a chime in the room this device is standing in when somebody arrives
@@ -50,6 +50,18 @@ export function usePresenceChime(
     nearby: readonly UserId[];
     lastPresentAt: Partial<Record<UserId, number>>;
   } | null>(null);
+
+  /**
+   * Renders the three sounds before any of them is wanted.
+   *
+   * **The cue's whole job is to land at the moment somebody walks in**, and the
+   * first play of an unrendered chime is the one that has a WAV written and a
+   * system sound created underneath it. Mounting is early and idle; an arrival
+   * is neither.
+   */
+  useEffect(() => {
+    warmChimes();
+  }, []);
 
   const channelId = channel?.id ?? null;
   // Joined into strings so the effect re-runs when the room changes shape and

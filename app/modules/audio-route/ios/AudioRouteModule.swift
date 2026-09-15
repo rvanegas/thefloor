@@ -184,6 +184,42 @@ public class AudioRouteModule: Module {
     }
 
     /**
+     Renders a chime and loads it into the system sound server without playing.
+
+     **This is the candidate mechanism for *quiet once, normal twice*, and it
+     was sitting in plain sight the whole time.** On the first call for a given
+     kind, amplitude and lead, `chime` renders a WAV, writes it to disk, creates
+     a `SystemSoundID` from it and plays it in the same breath.
+     `AudioServicesCreateSystemSoundID` returns a status, not a loaded sound —
+     and a cue 180ms long has no margin at all for a server still picking the
+     file up.
+
+     **It explains the flat sweep, which is the part no other theory reached.**
+     The cache key is kind *plus amplitude* plus lead, so every chip on the peak
+     row is a fresh key and therefore a cold first tap. Somebody sweeping the
+     five peaks taps each one once and hears five cold sounds — which is not a
+     comparison of amplitudes at all, however faithfully the file carries them.
+     It also survives the ringer result: the alert level never entered into it.
+
+     So the rendering and the loading come off the path of the tap. The app
+     warms its three at mount, the lab warms whatever its chips are set to, and
+     what is left at the tap is the play.
+
+     The discriminator, before any of this is believed: tap a peak twice, move
+     the chip away and back, and tap once. A cold theory says that tap is loud,
+     because the key is already warm.
+     */
+    Function("prepareChime") {
+      (kind: String, amplitude: Double, lead: Double) -> Bool in
+      guard
+        let url = self.chimeFile(kind: kind, amplitude: amplitude, lead: lead)
+      else {
+        return false
+      }
+      return self.chimeSound(url: url) != nil
+    }
+
+    /**
      What this binary's chime renderer actually is.
 
      **It exists because a fix that needs a native rebuild is indistinguishable,

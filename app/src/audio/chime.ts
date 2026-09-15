@@ -1,9 +1,32 @@
 import {
   chime as playChime,
+  prepareChime,
   type ChimeKind,
 } from '../../modules/audio-route';
 
 export type { ChimeKind };
+
+/** The three the app can actually play, which is what there is to warm. */
+const KINDS: ChimeKind[] = ['in', 'out', 'nearby'];
+
+/**
+ * Renders all three and hands them to the system sound server, ahead of time.
+ *
+ * **A chime that renders at the moment it is needed is a chime that arrives
+ * late or half-formed.** The first play of a given sound writes a WAV, creates
+ * a `SystemSoundID` and plays it in one breath, and a cue 180ms long has no
+ * margin for a server still picking the file up — which is the shape of *quiet
+ * once, normal twice*. The work is a few milliseconds and a file write; the
+ * only question is whether it lands before the tap or on it.
+ *
+ * Called once from `usePresenceChime`'s mount. Three sounds, rendered once for
+ * the life of the process, because the app only ever asks for one amplitude.
+ */
+export function warmChimes(): void {
+  for (const kind of KINDS) {
+    prepareChime(kind);
+  }
+}
 
 /**
  * The two sounds a room makes when its shape changes.
