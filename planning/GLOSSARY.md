@@ -95,6 +95,7 @@ caused; the list carries the meaning.
 - **Detail (pane)** — The right-hand pane of the two-pane layout, above the width breakpoint — the other is the *list*
 - **Detail (what is open)** — The `Detail` type: one value naming the single thing the detail pane is showing
 - **Detail (of a notification level)** — The sublabel under a notification option, saying what that level does
+- **Device token** — Where APNs delivers to one install. An *address*, not a credential, and absent entirely for an install that declined notifications
 - **Displaced** — The message telling a session it is no longer the one standing, another device having entered
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
@@ -125,6 +126,7 @@ caused; the list carries the meaning.
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. What a *getting-started channel* is gated on, and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
+- **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
 - **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
@@ -1352,6 +1354,12 @@ screens were flat.
 Exists only on the web. Native has no addresses and wants none, and
 `useRoute.ts` is a no-op for exactly that reason.
 
+**The word does two other jobs in the server, and neither is this one.** An
+*address* in `devices.ts` and in the sign-out routes is a push address — see
+*device token* — and a **sign-in address** is an email address, which is what
+`COHORT_HOST_IDENTIFIERS` names a *cohort host* by. This entry is the routing
+one, and is the only one of the three a user ever sees.
+
 ## Attention
 
 The clock a **web** client keeps over its own *standing*, in
@@ -1466,6 +1474,34 @@ one list and called the other *not that one*.
 The sublabel under a notification option — `describeLevel(level).detail` in
 `core/notifications.ts`, the sentence that says what the level does. A local
 field name, not a concept.
+
+## Device token
+
+**An address, not a credential.** Where APNs delivers to one install: minted by
+Apple on the device, and stored whole in `device_tokens` because it has to be
+handed back to Apple to send anything. A *session (auth)* token is its opposite
+on every count — our secret, stored only as a hash, and proof of who is asking
+rather than of where to reach them. The two are separate tables and separate
+words, and conflating them is the readiest mistake in this area.
+
+**An install may hold a session and no device token.** Notification permission
+is what mints one; an install that declined has a live session and no row here
+at all. That single fact is why this table cannot stand in for a list of
+somebody's devices, however much it looks like the nearer half of one — see the
+backlog entry *Sessions cannot be listed, only ended wholesale*.
+
+`session_hash` joins a row to the session that registered it, and is the only
+join the server has between a push address and a live socket: `POST /devices` is
+the one request carrying both credentials at once, the bearer token in the header
+and the APNs token in the body. Nothing else ever sees the pair. Deliberately not
+a foreign key, and null both for rows written before the column existed and for
+rows whose session has since been revoked; both fall back to the person-level
+test.
+
+It is also why `/auth/sign-out` and `/auth/sign-out-others` take a device token
+in the *body* while authenticating from the header. The server cannot tell which
+row belongs to the phone that is asking, so the caller names its own — and a
+caller with no row of its own names none, and correctly loses them all.
 
 ## Displaced
 
@@ -1890,6 +1926,33 @@ The durable half of a guest: a row in `guest_sessions` with a secret and an
 expiry, pushed out on every sign of life. `ChannelState.guests` is the volatile
 half and means *present*; the seat is what lets somebody come back. See *seat*
 in Part One.
+
+## Session (auth)
+
+One sign-in, and so in practice one device: a row in `tokens` holding a hashed
+secret, an account, a minted time, an expiry ninety days out, and — since
+2026-08-24 — `last_seen_at` and `last_build` for that device alone. `issueToken`
+mints a fresh row on every completed `/auth/verify` and never reuses one, so a
+phone and a tablet are two rows and two secrets.
+
+**Several per account, as of 2026-08-24.** Signing in used to revoke every other
+token first, so the table held at most one row per account and *session*,
+*device* and *account* were interchangeable in conversation. They are not now. An
+account may hold as many sessions as it likes and still has one voice and one
+pair of ears — that is *displaced*, which is about rooms rather than about
+credentials.
+
+**A session is anonymous by construction.** Nothing records what presented the
+token: the row is a hash and some timestamps, with no platform, no model and no
+origin. So the only two operations are the session you are holding
+(`/auth/sign-out`) and every other one at once (`/auth/sign-out-others`), with no
+way to name a third — and the second spares the caller by hash rather than by
+count. The backlog entry *Sessions cannot be listed, only ended wholesale* is
+that gap, and what it would cost to close it.
+
+**Not the audio session**, which is the other thing this word means in this
+codebase and is more often what a file named `session.ts` is about — see *session
+want*. Nor a `guest_sessions` row, which is a *seat (developer sense)*.
 
 ## Session want — `call`, `idle`
 
