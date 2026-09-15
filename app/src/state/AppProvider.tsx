@@ -528,8 +528,20 @@ interface AppValue extends AppState {
    * Held here rather than acted on where it arrives, because a tap can land
    * before there is anything to navigate — during a cold start the app is
    * still restoring its token when the response is read.
+   *
+   * **Three states and not two, which is why this is an object and not the
+   * boolean it was until 2026-09-15.** No tap is `null`; a tap naming a
+   * channel carries it; a tap naming nothing is an object with a null
+   * `channelId`, and still has to navigate — to the live rooms, which is what
+   * every tap did while the payload was being ignored. Folding the last two
+   * together would make an unreadable payload silently do nothing, which is
+   * the failure the old code was safe from only by never reading one.
+   *
+   * A fresh object per tap, deliberately: two pings from the same channel in a
+   * row are two taps, and a value compared equal to its predecessor would let
+   * the second one do nothing.
    */
-  notificationTapped: boolean;
+  notificationTap: { channelId: string | null } | null;
   clearNotificationTap: () => void;
   /**
    * This build is below the floor the server still answers, so nothing it
@@ -715,7 +727,9 @@ export function useApp(): AppValue {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [notificationTapped, setNotificationTapped] = useState(false);
+  const [notificationTap, setNotificationTap] = useState<{
+    channelId: string | null;
+  } | null>(null);
   /**
    * Read from this device's cache before anything is drawn, so a chosen scheme
    * does not arrive as a flash of the other one, and overwritten by the
@@ -1304,7 +1318,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // A tap on a notification, from either direction it can arrive. Mounted once
   // and independent of sign-in state, because the tap that launched the app is
   // read before the stored token has been restored.
-  useEffect(() => onNotificationTap(() => setNotificationTapped(true)), []);
+  useEffect(
+    () => onNotificationTap((channelId) => setNotificationTap({ channelId })),
+    []
+  );
 
   /**
    * Ships the audio log off the phone, for the one account that asked to see it.
@@ -1516,8 +1533,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lookAt,
       expired: expiry.expired,
       updateUrl: expiry.updateUrl,
-      notificationTapped,
-      clearNotificationTap: () => setNotificationTapped(false),
+      notificationTap,
+      clearNotificationTap: () => setNotificationTap(null),
       notifications,
       helpSeen,
       forcedDabs,
@@ -2040,7 +2057,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connect,
       realtime,
       tick,
-      notificationTapped,
+      notificationTap,
       notifications,
       helpSeen,
       forcedDabs,

@@ -406,7 +406,21 @@ export async function registerIfGranted(
 }
 
 /**
- * That a notification was tapped, from either direction it can arrive.
+ * Which channel a tapped notification was about, when it named one at all.
+ *
+ * Defensive in the way everything reading this payload is: the field is
+ * written by a server that may be older than the reader, and the only safe
+ * reading of a missing one is the behaviour that existed before it. The empty
+ * string is refused alongside a missing field, a channel screen for a channel
+ * called `''` being the same hazard as one for `undefined`.
+ */
+function channelOf(notification: Notifications.Notification): string | null {
+  const { channelId } = dataOf(notification);
+  return typeof channelId === 'string' && channelId ? channelId : null;
+}
+
+/**
+ * That a notification was tapped, and which channel it was about.
  *
  * Two sources, and the second is the one that matters most here. The listener
  * catches a tap while the app is running; `getLastNotificationResponseAsync`
@@ -414,19 +428,27 @@ export async function registerIfGranted(
  * for. Without that second call the feature works when backgrounded and
  * silently does nothing when closed — which is the case it exists for.
  *
- * **The payload is not read, since 2026-09-04.** It carries a `channelId` and
- * this used to hand it up so the app could open that conversation. A tap is
- * not an instruction about which room you meant — by the time a phone is
- * picked up there may be several with somebody in them — so the app shows the
- * live rooms and lets the person choose. Which also means a notification
- * cannot carry somebody into a channel, and nothing in this application steps
- * into a room without being told to twice.
+ * **The payload is read again, since 2026-09-15**, having been ignored since
+ * 2026-09-04 on the grounds that a tap is not an instruction about which room
+ * you meant. All four notifications name a room they are genuinely about, and
+ * the person tapped one of them rather than a badge, so it is. See
+ * decisions/2026-09-15-a-notification-names-the-room-it-is-about.md.
  *
- * So every tap reports, including one whose payload names nothing. That used
- * to be refused, on the grounds that navigating to `undefined` is a channel
- * screen for no channel — a hazard that went with the navigation.
+ * **What it hands up is a destination and not an entry.** Nothing here steps
+ * anybody into anything: the caller opens the channel screen, which is
+ * looking, and Step In stays the second deliberate tap it has always been. So
+ * the rule about being told twice survives the payload coming back — what the
+ * old comment here was defending was the entry, and only the id has returned.
+ *
+ * So every tap reports, including one whose payload names nothing, which
+ * arrives as `null` and means what a tap meant between those two dates: show
+ * the live rooms and let the person choose. That is the reading for a
+ * notification sent by a server predating the field, for one whose payload is
+ * malformed, and for one that genuinely is about nowhere.
  */
-export function onNotificationTap(handle: () => void): () => void {
+export function onNotificationTap(
+  handle: (channelId: string | null) => void
+): () => void {
   let cancelled = false;
 
   // Caught rather than left to reject: this reads a payload the app did not
@@ -435,12 +457,12 @@ export function onNotificationTap(handle: () => void): () => void {
   void Notifications.getLastNotificationResponseAsync()
     .then((response) => {
       if (cancelled || !response) return;
-      handle();
+      handle(channelOf(response.notification));
     })
     .catch(() => {});
 
   const subscription = Notifications.addNotificationResponseReceivedListener(
-    () => handle()
+    (response) => handle(channelOf(response.notification))
   );
 
   return () => {

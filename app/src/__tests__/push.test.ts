@@ -433,8 +433,28 @@ describe('a tap on a notification', () => {
 
     deliver({ channelId: 'chan_1', kind: 'pinged' });
 
-    expect(handle).toHaveBeenCalled();
+    expect(handle).toHaveBeenCalledWith('chan_1');
   });
+
+  /**
+   * **All four of them, because the destination is not per kind.** The
+   * decision of 2026-09-15 reasoned about each separately and arrived at one
+   * rule for the lot, so the thing worth defending is that no kind is special:
+   * a later change that makes one of these land somewhere else has to fail
+   * here rather than be discovered on a phone.
+   */
+  it.each(['pinged', 'arrived', 'invited', 'accepted'])(
+    'hands up the channel a %s notification named',
+    async (kind) => {
+      const handle = jest.fn();
+      onNotificationTap(handle);
+      await settle();
+
+      deliver({ channelId: 'chan_9', kind });
+
+      expect(handle).toHaveBeenCalledWith('chan_9');
+    }
+  );
 
   /**
    * The cold launch, and the reason the module reads a second source at all.
@@ -448,7 +468,7 @@ describe('a tap on a notification', () => {
     onNotificationTap(handle);
     await settle();
 
-    expect(handle).toHaveBeenCalled();
+    expect(handle).toHaveBeenCalledWith('chan_2');
   });
 
   /** An icon launch. Nothing was tapped, so there is nowhere to be taken. */
@@ -461,23 +481,30 @@ describe('a tap on a notification', () => {
   });
 
   /**
-   * **The payload is not read at all, since 2026-09-04.** A tap used to have
-   * to name a channel, and one that named none was refused on the grounds that
-   * navigating to `undefined` is a channel screen for no channel. There is no
-   * navigation to a channel now — a tap shows the live rooms and the person
-   * chooses — so a payload from an older server, or one whose field is not a
-   * string, is a perfectly good tap.
+   * **A tap that names nothing still reports, and reports `null`.** It was
+   * refused outright before 2026-09-04, on the grounds that navigating to
+   * `undefined` is a channel screen for no channel — which is true, and is why
+   * the caller reads `null` as the live rooms rather than as a destination.
+   * The hazard was never the missing id; it was treating it as one.
+   *
+   * A field that is not a string is the same case and has to stay so: this
+   * payload is written by a server that can be newer than the reader, and
+   * nothing here may hand a number on to something that will put it in a
+   * `channelId`. The empty string goes with them, being a falsy id that would
+   * otherwise pass a `typeof` test and open a screen for a channel nobody has.
    */
-  it('reports a tap whose payload names nothing', async () => {
+  it('reports a tap whose payload names nothing, as nothing', async () => {
     const handle = jest.fn();
     onNotificationTap(handle);
     await settle();
 
     deliver({ kind: 'arrived' });
     deliver({ channelId: 7 });
+    deliver({ channelId: '' });
     deliver(undefined);
 
-    expect(handle).toHaveBeenCalledTimes(3);
+    expect(handle).toHaveBeenCalledTimes(4);
+    expect(handle.mock.calls).toEqual([[null], [null], [null], [null]]);
   });
 
   /**

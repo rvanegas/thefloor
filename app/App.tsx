@@ -315,35 +315,49 @@ function Root() {
   }, [movedChannel]);
 
   /**
-   * A tap on a notification, which shows the live rooms rather than one of
-   * them.
+   * A tap on a notification, which opens the channel it was about.
    *
-   * **It named a channel and stepped you into it until 2026-09-04.** The
-   * payload still carries the channel — the server has not changed — but
-   * nothing reads it: a notification is not an instruction about which
-   * conversation you meant, and there may well be more than one room with
-   * somebody in it by the time a phone is picked up. So the tap brings the
-   * Channels tab up with nothing open, where the Live section is the first
-   * thing on it, and the choice is made by the person who was interrupted.
+   * **Which it stopped doing on 2026-09-04 and does again since 2026-09-15.**
+   * For eleven days a tap brought up the Channels tab with nothing open, on
+   * the reasoning that a notification is not an instruction about which
+   * conversation you meant. All four of them name a room they are genuinely
+   * about — a ping is a sentence somebody aimed at one, an invitation is the
+   * channel you were added to — and the person tapped that notification rather
+   * than the app icon. See decisions/2026-09-15-a-notification-names-the-room-
+   * it-is-about.md, which supersedes the notification half of *An address
+   * names a place and never an id* and leaves the rest standing: no URL
+   * carries an id, and this is not a URL.
    *
-   * That also took the last id out of the app that did not come from a list or
-   * a handover. See decisions/DECISIONS.md § *An address names a place and
-   * never an id*.
+   * **It opens the channel and does not step in, whatever `tapToLook` says.**
+   * That setting governs a tap on a row in a list, where the gesture is
+   * ambiguous; this one is not ambiguous and resolves the conservative way for
+   * everybody. Somebody who has it off is not being overridden so much as
+   * shown the distinction their list does not draw — the channel open in front
+   * of them, nobody able to hear them yet, Step In one deliberate tap away.
+   *
+   * A tap naming nothing is the older behaviour, and has to remain reachable:
+   * a payload this app cannot read must land somewhere rather than nowhere.
    *
    * Deferred until signed in and ready rather than acted on where it arrives:
    * a tap that launched the app is read while the stored token is still being
    * restored, and acting then would be undone by the effect below.
    */
-  const { notificationTapped, clearNotificationTap } = app;
+  const { notificationTap, clearNotificationTap } = app;
   useEffect(() => {
-    if (!notificationTapped || !ready || !token) return;
-    // Whatever was open closes, because this is an assignment: a tap means
-    // come and look, and coming back to a settings screen somebody had left
-    // open would be a surprise.
-    setDetail(NO_DETAIL);
+    if (!notificationTap || !ready || !token) return;
+    const { channelId: tapped } = notificationTap;
+    // Whatever was open closes either way, because this is an assignment: a
+    // tap means come and look, and coming back to a settings screen somebody
+    // had left open would be a surprise.
+    //
+    // Setting the detail is the whole of opening a channel: the screen
+    // subscribes itself, and the snapshot arrives over the socket. Entering is
+    // `ENTER`, which only the list sends and only when `tapToLook` is off, and
+    // which nothing on this path sends at all.
+    setDetail(tapped ? { kind: 'channel', channelId: tapped } : NO_DETAIL);
     setList('channels');
     clearNotificationTap();
-  }, [notificationTapped, ready, token, clearNotificationTap]);
+  }, [notificationTap, ready, token, clearNotificationTap]);
 
   /**
    * Signing out closes every screen stacked over Home.

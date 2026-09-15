@@ -8,10 +8,12 @@
  * something testable leaves only the plumbing unproven.
  *
  * **No address carries an id.** Not an account, not a channel, not a
- * recording. An id reaches this app from a snapshot or from a handover in
- * `sessionStorage`, never from a URL, and since 2026-09-04 not from a
- * notification either. See decisions/DECISIONS.md § *An address names a place
- * and never an id*.
+ * recording. An id reaches this app from a snapshot, from a handover in
+ * `sessionStorage`, or from a tapped notification, and never from a URL. See
+ * decisions/DECISIONS.md § *An address names a place and never an id*, and
+ * decisions/2026-09-15-a-notification-names-the-room-it-is-about.md, which
+ * put the notification back on that list and left this rule untouched — a
+ * notification is not an address, and none of what follows is about it.
  *
  * Web only. Native has no addresses and wants none.
  */

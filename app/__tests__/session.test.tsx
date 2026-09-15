@@ -102,7 +102,7 @@ const mockApp = {
   dismissInvite: jest.fn(),
   appearance: 'system' as const,
   setAppearance: jest.fn(),
-  notificationTapped: false,
+  notificationTap: null as { channelId: string | null } | null,
   clearNotificationTap: jest.fn(),
   movedChannel: null,
   /** Granted by hand on the account, and the only way Standings is reachable. */
@@ -270,12 +270,91 @@ describe('a tap on a notification', () => {
   beforeEach(() => {
     mockApp.ready = true;
     mockApp.token = 'token';
-    mockApp.notificationTapped = false;
+    mockApp.notificationTap = null;
     mockApp.standingIn = null;
     mockApp.leaderboard = false;
+    mockApp.channelViews = {};
+    (mockApp.act as jest.Mock).mockClear();
     (mockApp.watchChannel as jest.Mock).mockClear();
     (mockApp.clearNotificationTap as jest.Mock).mockClear();
   });
+
+  /**
+   * A channel this account belongs to and is not in, which is what every one
+   * of the four notifications is about by the time it is tapped — an absent
+   * participant is who they are sent to.
+   */
+  function withChannel(id: string) {
+    mockApp.channelViews = {
+      [id]: {
+        // Built by the reducer's own constructor rather than by hand: a
+        // literal here is a second statement of `ChannelState` that goes stale
+        // silently, which it already had — the first version of this fixture
+        // predated `waiting` and crashed the screen it was meant to render.
+        channel: createChannel({
+          id,
+          initiator: 'acct_me',
+          invitees: ['acct_them'],
+          now: NOW,
+          // Nobody in it. An absent participant is who these notifications are
+          // sent to, and being absent is what leaves Step In on the footer.
+          present: [],
+        }),
+        participants: [
+          { id: 'acct_me', displayName: 'Me' },
+          { id: 'acct_them', displayName: 'Them' },
+        ],
+        recordings: [],
+        pingableAt: {},
+        serverNow: NOW,
+      },
+    };
+  }
+
+  /**
+   * **The whole of the 2026-09-15 decision, in one assertion each way.**
+   *
+   * The screen opens, and nothing is entered. The second half is the one worth
+   * guarding: every other route into a channel decides whether to send `ENTER`
+   * — the list sends it unless `tapToLook` is on — and this route must never
+   * send it, whatever that setting says. A regression there is silent and
+   * expensive, since it puts somebody in a room, audible to everybody in it,
+   * from a single tap on a lock screen.
+   */
+  it('opens the channel it named, without stepping in', () => {
+    withChannel('chan_1');
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    act(() => {
+      mockApp.notificationTap = { channelId: 'chan_1' };
+      tree.update(<App />);
+    });
+
+    // The channel screen rather than the list. Asserted on a card that only
+    // this screen has: the footer says "In" and "Out" in the short forms, so
+    // no substring of it tells being there from looking at it.
+    expect(textOf(tree)).toContain('Notepad');
+    // And nothing was entered. `act` is how every action reaches the server,
+    // so an untouched mock is the whole claim: no `ENTER`, and no anything.
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(mockApp.clearNotificationTap).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **`tapToLook` is not exercised here, and there is nothing to exercise.**
+   * The obvious second test — the same tap with that setting off, asserting
+   * nobody is stepped in — was written and deleted: `App.tsx` does not read
+   * the setting on this path or any other, `ChannelsView` does, so the test
+   * set a field nothing consulted and passed for that reason rather than for
+   * the one it claimed. The guarantee is structural and the assertion above
+   * already states it: this route sends no action at all, so there is no
+   * branch for a setting to choose between.
+   */
 
   /**
    * What is *behind* a tap, which is the whole of what it does now: whatever
@@ -299,7 +378,7 @@ describe('a tap on a notification', () => {
     expect(textOf(tree)).toContain('Invitations');
 
     act(() => {
-      mockApp.notificationTapped = true;
+      mockApp.notificationTap = { channelId: null };
       tree.update(<App />);
     });
 
@@ -320,7 +399,7 @@ describe('a tap on a notification', () => {
    */
   it('waits for the session before going anywhere', () => {
     mockApp.token = null;
-    mockApp.notificationTapped = true;
+    mockApp.notificationTap = { channelId: null };
 
     let tree!: ReactTestRenderer;
     act(() => {
@@ -442,7 +521,7 @@ describe('the explanation, unbidden', () => {
   beforeEach(() => {
     mockApp.ready = true;
     mockApp.token = 'token';
-    mockApp.notificationTapped = false;
+    mockApp.notificationTap = null;
     mockApp.home = null;
     mockApp.channelViews = {};
     mockApp.standingIn = null;
@@ -561,7 +640,7 @@ describe('a window wide enough for two panes', () => {
     // `mockApp` is one mutable object shared by every block in this file, and
     // the notification tests leave a channel in it. Without these, `Root`
     // opens that channel and the pane under test is never reached.
-    mockApp.notificationTapped = false;
+    mockApp.notificationTap = null;
     mockApp.channelViews = {};
     mockApp.standingIn = null;
     windowWidth.current = 1024;

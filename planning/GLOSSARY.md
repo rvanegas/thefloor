@@ -977,6 +977,14 @@ to send it*: `pinged` alone is a sentence a person composed, which is why it
 overwrites nothing, reaches an app that is already open, and is the one that
 makes a sound at the default level.
 
+**A third seam was looked for and is not there: where a tap lands.** All four
+open the channel they name, and none of them steps you into it — reasoned out
+one kind at a time on 2026-09-15 and arriving at one rule, which is why the
+list above says nothing about it. See
+`decisions/2026-09-15-a-notification-names-the-room-it-is-about.md`. *Step in*
+stays a second, deliberate tap on the footer, so *opened from a notification*
+is an ordinary instance of looking at a channel you are not in.
+
 **`accepted` is the odd one and is the one to read the entry for.** The other
 three are a room reporting on itself to people who belong to it. This one
 answers a question its recipient has been holding with nothing to check — *has
