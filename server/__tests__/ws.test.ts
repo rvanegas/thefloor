@@ -834,6 +834,66 @@ describe('websocket', () => {
     client.close();
   });
 
+  it('writes down which end ended a socket, and how long it lasted', async () => {
+    // The journal records that a socket opened and, before this line, nothing
+    // else about it — a websocket upgrade is hijacked before Fastify completes
+    // the request, so there is no `request completed` and no `responseTime`.
+    // A client reconnecting on a fixed cadence therefore looked identical
+    // whether this server was killing it, its own watchdog was, or the
+    // transport had died. These two cases are that distinction.
+    const account = await signIn('closes@example.com', 'Cass');
+    const logged: Array<Record<string, unknown>> = [];
+    const info = jest
+      .spyOn(app.fastify.log, 'info')
+      .mockImplementation(((payload: unknown, msg?: string) => {
+        if (msg === 'socket closed') logged.push(payload as Record<string, unknown>);
+      }) as never);
+
+    try {
+      // One that hangs up of its own accord, answering right to the end.
+      const polite = new Client(account.token, baseUrl, FAST_HEARTBEAT_BUILD);
+      await polite.open();
+      await polite.next('hello');
+      clock += 1_500;
+      polite.close();
+      await polite.closed;
+      // The close handler runs on the server's turn, not this one.
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(logged).toHaveLength(1);
+      // The value that matters is the absence of one: nothing on this side
+      // ended it, so whatever did was the client or the network.
+      expect(logged[0]).toMatchObject({ endedBy: null, scope: 'session' });
+      expect(logged[0].ageMs).toBe(1_500);
+      // It had just spoken, which is what separates this from the sweep below.
+      expect(logged[0].sinceLastSeenMs).toBeLessThan(HEARTBEAT_TIMEOUT_MS);
+
+      logged.length = 0;
+
+      // And one this server ends, for a silence it cannot distinguish from
+      // death. `goDark` rather than merely going quiet, for the reason the
+      // grace-period test sets out. Announcing a build matters here: one that
+      // says nothing is judged against the legacy budget, which this jump
+      // would not clear.
+      const dark = new Client(account.token, baseUrl, FAST_HEARTBEAT_BUILD);
+      await dark.open();
+      await dark.next('hello');
+      dark.goDark();
+      clock += HEARTBEAT_TIMEOUT_MS + 1_000;
+      await sweeps();
+
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toMatchObject({ endedBy: 'silence' });
+      // Recorded rather than read off the close code, which is the whole point
+      // of carrying the flag: `terminate` produces an abnormal 1006, exactly
+      // as a transport dying on its own would.
+      expect(logged[0].sinceLastSeenMs).toBeGreaterThan(HEARTBEAT_TIMEOUT_MS);
+      dark.kill();
+    } finally {
+      info.mockRestore();
+    }
+  });
+
   it('starts the grace period for a connection that has gone silent', async () => {
     // A socket can die without either end being told: no close arrives and it
     // sits half-open until the OS gives up, which is hours. Nothing downstream

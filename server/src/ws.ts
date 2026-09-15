@@ -105,6 +105,32 @@ interface Connection {
    * by opening a channel.
    */
   device: string | null;
+  /**
+   * When this socket was accepted, which is the start of the only clock that
+   * says how long it lasted.
+   *
+   * Not derivable from anything else. A websocket upgrade is hijacked before
+   * Fastify finishes the request, so no `request completed` line is ever
+   * emitted for `/ws` and no `responseTime` exists — the journal records that
+   * a socket opened and nothing whatsoever about how long it lived. Two
+   * sockets, one that lasted nine seconds and one that never came up, are
+   * indistinguishable without this.
+   */
+  openedAt: number;
+  /**
+   * Which server-side rule ended this socket, or null if this end did not.
+   *
+   * **Recorded rather than inferred, because the close code cannot carry it.**
+   * `terminate` produces an abnormal 1006, which is exactly what a transport
+   * that died on its own produces, so reading the code alone cannot tell a
+   * sweep apart from a tunnel. The one moment the reason is known for certain
+   * is the moment the rule fires, which is where this is set.
+   *
+   * A socket still holding null at close was ended by the client or by the
+   * network between us — which is the question this whole field exists to
+   * settle. See `logClose`.
+   */
+  endedBy: 'silence' | 'unauthorized' | null;
 }
 
 /**
@@ -453,6 +479,12 @@ export function registerWebsocket(deps: {
       // Per connection, because the budget depends on how often that client
       // promised to speak. See `heartbeatTimeoutFor`.
       if (connection.lastSeen < at - heartbeatTimeoutFor(connection.build)) {
+        // Before the terminate rather than after, so there is no turn on which
+        // a socket is ending for a reason nobody has written down. `ws` emits
+        // `close` on a later tick today, so the other order happens to work —
+        // but that is its implementation detail and not a contract, and this
+        // costs nothing to get right.
+        connection.endedBy = 'silence';
         connection.socket.terminate();
         continue;
       }
@@ -485,6 +517,7 @@ export function registerWebsocket(deps: {
               : 'This device was signed out.',
           code: 'unauthorized',
         });
+        connection.endedBy = 'unauthorized';
         connection.socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
       }
     }
@@ -496,6 +529,59 @@ export function registerWebsocket(deps: {
     if (connection.socket.readyState === 1) {
       connection.socket.send(JSON.stringify(message));
     }
+  }
+
+  /**
+   * One line per socket that ends, which is the only record of a socket's life.
+   *
+   * **What this exists to answer is which end hung up, and it is not a question
+   * the box could answer before.** A client reconnecting on a fixed cadence is
+   * the symptom of several unrelated faults — a stale socket the client has
+   * disowned, a silence budget the client cannot meet, a proxy cutting an idle
+   * stream — and the journal held the same evidence for all of them: a row of
+   * `incoming request` lines and nothing else. See
+   * backlog/why-one-phone-could-not-hold-a-socket-is-diagnosed-not-observed.md,
+   * where a mechanism that fit had to stand in for one that was seen.
+   *
+   * The two numbers are what separate those faults.
+   *
+   * `ageMs` is how long the socket lasted. Near zero across a run means the
+   * connection is not surviving its own handshake; a stable figure well short
+   * of anything configured here means something between the two ends is
+   * cutting it, and the figure itself is the timeout to go and find.
+   *
+   * `sinceLastSeenMs` is how long the client had been quiet when it ended.
+   * Past the budget with `endedBy: 'silence'` is this server having done it,
+   * and the pair says so plainly rather than by arithmetic on a close code.
+   * Well inside the budget with `endedBy: null` is the other end hanging up on
+   * a connection that was answering perfectly — a client watchdog firing, or
+   * the transport dying.
+   *
+   * `build` and `client` ride along because the answer has differed by client
+   * before and the census is the only other place they are recorded.
+   *
+   * **No token and no account.** Neither is needed to tell one socket's life
+   * from another's — `device` already distinguishes them, and is by
+   * construction not a credential — and a line written per close is exactly
+   * the kind of line that accumulates in a journal nobody is guarding.
+   */
+  function logClose(connection: Connection, code: number, reason: string): void {
+    fastify.log.info(
+      {
+        device: connection.device,
+        scope: connection.scope.kind,
+        build: connection.build,
+        client: connection.client,
+        ageMs: now() - connection.openedAt,
+        sinceLastSeenMs: now() - connection.lastSeen,
+        // Null is the informative value here: nothing on this side ended it.
+        endedBy: connection.endedBy,
+        code,
+        // Empty from every abnormal close, which is most of them.
+        reason: reason === '' ? undefined : reason,
+      },
+      'socket closed'
+    );
   }
 
   function pushChannel(connection: Connection, channelId: string): void {
@@ -910,6 +996,8 @@ export function registerWebsocket(deps: {
       // this socket has a use for it: displacement is about live connections,
       // and an HTTP call is not one.
       device: claimedDevice(url.searchParams.get('device')),
+      openedAt: now(),
+      endedBy: null,
     };
     // Asked before the add, so it answers about the sockets that were already
     // here: a second device connecting is not an arrival, and announcing one
@@ -1256,8 +1344,12 @@ export function registerWebsocket(deps: {
       }
     });
 
-    socket.on('close', () => {
+    socket.on('close', (code: number, reason: Buffer) => {
       connections.delete(connection);
+      // Above the early return below, because a follower page that cannot hold
+      // a socket is the same fault wearing a different scope, and the line that
+      // would explain it is this one.
+      logClose(connection, code, reason.toString());
       // A follower page closing is a tab closing. It asserted nothing about
       // presence while it was open — see the connect path — so there is
       // nothing to withdraw, and reporting a disconnect here would step
