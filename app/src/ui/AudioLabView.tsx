@@ -626,14 +626,28 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           questions: <Text style={styles.strong}>how loud</Text>, and{' '}
           <Text style={styles.strong}>which note</Text> nearby gets.
         </Text>
-        <Text style={styles.step}>1 · Tap one with no session at all</Text>
-        <Text style={styles.step}>2 · Apply a configuration above, tap again</Text>
-        <Text style={styles.step}>3 · Input ON, tap again — the silent case</Text>
+        <Text style={styles.step}>
+          1 · Tap one, wait, tap it again — the two should match
+        </Text>
+        <Text style={styles.step}>2 · Tap one with no session at all</Text>
+        <Text style={styles.step}>3 · Apply a configuration above, tap again</Text>
+        <Text style={styles.step}>4 · Input ON, tap again — the silent case</Text>
+        <Text style={styles.note}>
+          Step 1 is the control, and it has failed before: until build 208 a
+          cold tap was barely audible and a second one straight after was
+          normal, because the output route was still powering up through the
+          whole of a sound only 180ms long. Every chime now opens with silence
+          for the route to wake up on. If a first tap is still quieter than a
+          second, nothing below this line means anything — the sweep would be
+          measuring the ramp.
+        </Text>
         <Text style={styles.note}>
           Volume is baked into the sound, because a system sound has no gain
           knob — asking for louder means rendering louder samples. Sweep the
           peaks below and say which one is audible across a room without being
-          a doorbell.
+          a doorbell. They are geometric, so each step should be an obvious one;
+          five rows that sound alike is the symptom of a cold route, not of a
+          dial that does nothing.
         </Text>
         <Text style={styles.note}>
           Where it went is read back under the buttons. Speaker is the

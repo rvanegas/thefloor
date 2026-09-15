@@ -419,6 +419,32 @@ public class AudioRouteModule: Module {
   private static let chimeSampleRate = 44_100.0
   private static let chimeNoteSeconds = 0.09
   /**
+   Silence in front of every chime, so that the notes are not what the output
+   route wakes up on.
+
+   **This is the fix for a cue that was quiet once and loud twice**, reported
+   from the audio lab on 2026-09-15: a single tap was barely audible, a second
+   tap straight after was normal, and the five peaks in the sweep sounded much
+   the same as each other. All three are one mechanism.
+   `AudioServicesPlaySystemSound` on an idle route makes iOS power the output
+   path up, and that ramp takes on the order of a hundred milliseconds — into
+   which this cue was delivering a sound a hundred and eighty long, starting at
+   full amplitude five milliseconds in. Most of the first tap was spent on the
+   amplifier coming up. The second tap landed while the route was still live
+   from the first, which is the level the file actually has.
+
+   **And it is why the peak dial looked broken.** When the ramp shapes most of
+   a short sound, what an ear is comparing is the ramp and not the samples, so
+   0.18 and full scale arrive nearly identical. A sweep run over a cold route
+   measures the route.
+
+   Silence costs nothing but delay, and this much of it is under the time it
+   takes to notice somebody has walked in. It is deliberately longer than the
+   ramp rather than tuned to it: the ramp is not a published number, it varies
+   by route, and being generous here is free where being exact is not.
+   */
+  private static let chimeLeadSeconds = 0.18
+  /**
    The peak the app plays at, and what a non-finite argument falls back to.
 
    **Chosen for *subtle*, which is in the request, and reported from a phone as
@@ -478,9 +504,12 @@ public class AudioRouteModule: Module {
     guard let notes = chimeNotes[kind] else { return nil }
     let peak = clampAmplitude(amplitude)
     let perNote = Int(chimeSampleRate * chimeNoteSeconds)
+    let lead = Int(chimeSampleRate * chimeLeadSeconds)
 
     var samples: [Int16] = []
-    samples.reserveCapacity(perNote * notes.count)
+    samples.reserveCapacity(lead + perNote * notes.count)
+    // The route wakes up on this, rather than on the first note.
+    samples.append(contentsOf: repeatElement(0, count: lead))
     for note in notes {
       for frame in 0..<perNote {
         let t = Double(frame) / chimeSampleRate
