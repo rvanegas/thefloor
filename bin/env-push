@@ -128,9 +128,14 @@ echo "→ sending"
 # file leaves a window where it is half-written and the server is one restart
 # away from reading it.
 scp -i "$KEY" -q "$LOCAL" "$HOST:/tmp/.thefloor-env"
+# The reload is unconditional and precedes the restart, so that whatever is on
+# disk is what the restart uses. It re-reads unit files and stops nothing, so it
+# costs nothing to do every time — and doing it here is the only way to be sure
+# the one restart this script spends is the current definition.
 $SSH "$HOST" "
   chmod 600 /tmp/.thefloor-env
   mv /tmp/.thefloor-env $REMOTE
+  sudo systemctl daemon-reload
   sudo systemctl restart thefloor
 "
 
@@ -148,13 +153,24 @@ for _ in $(seq 1 20); do
     fi
     echo "  restarted: $STARTED_AFTER"
 
-    # systemd runs the unit definition it has cached. If the file on disk has
-    # been edited since, the restart above used the old one and said so only in
-    # a warning that scrolls past — so it is worth ending on.
-    if [ "$($SSH "$HOST" "systemctl show thefloor -p NeedDaemonReload --value" 2>/dev/null || true)" = yes ]; then
-      echo "⚠ thefloor.service on disk differs from what systemd is running." >&2
-      echo "  sudo systemctl daemon-reload && sudo systemctl restart thefloor" >&2
-    fi
+    # There was a NeedDaemonReload check here until 2026-09-15, reporting that
+    # thefloor.service on disk differed from what systemd was running and
+    # advising a reload and a second restart. It said so on a box where the unit
+    # file had not been touched for a month, and it would have said so on every
+    # run from then on.
+    #
+    # NeedDaemonReload is not a fact about one unit. systemd hashes the mtimes
+    # of every directory on the unit search path, and when that hash moves it
+    # reports yes for *all* units — every service on the box, not just this one.
+    # snapd adds a snap-<name>-<rev>.mount to /etc/systemd/system whenever a
+    # snap refreshes, which moves the directory's mtime, so the flag latches on
+    # and stays yes until the next reload. It is a property of the box's
+    # housekeeping and says nothing about this unit.
+    #
+    # Believing it cost a second restart, and a restart drops every call in
+    # progress — so the warning's advice was more expensive than the thing it
+    # claimed to be protecting against. The reload above makes the question moot
+    # rather than answering it.
 
     # What the startup log says it configured, which is the only report of
     # whether a setting took. Not the values — the server does not log those.

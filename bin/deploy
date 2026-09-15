@@ -197,6 +197,7 @@ rm -f server/deployed.json
 echo "→ installing and restarting"
 $SSH "$HOST" '
   cd ~/thefloor/server && npm install --omit=dev --no-audit --no-fund --silent
+  sudo systemctl daemon-reload
   sudo systemctl restart thefloor
 '
 
