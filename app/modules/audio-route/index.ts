@@ -94,7 +94,12 @@ interface NativeAudioRoute {
    * count, and false is again the true answer — build 206 renders at a fixed
    * peak and cannot be asked for another.
    */
-  chime?(kind: string, amplitude: number, lead: number): boolean;
+  chime?(
+    kind: string,
+    amplitude: number,
+    lead: number,
+    via: string
+  ): boolean;
   /**
    * What the binary's chime renderer actually is, or absent on a binary built
    * before 2026-09-15 evening.
@@ -306,6 +311,31 @@ export const CHIME_AMPLITUDE = 0.18;
  */
 export const CHIME_LEAD = 0.18;
 
+/**
+ * Which path a chime is played down.
+ *
+ * **`system` is what the app has always used and has no volume control of any
+ * kind.** `AudioServicesPlaySystemSound` takes a sound id and nothing else, and
+ * what it plays goes out the alert path — a level this app neither sets nor can
+ * read. The samples were supposed to be the lever; they were then measured, and
+ * they are: the peak sweep spans a real 15dB in the file. A phone heard all
+ * five as much the same, which is the reading that puts the path itself under
+ * suspicion rather than anything rendered into it.
+ *
+ * **`player` is `AVAudioPlayer` at full gain**, on the media path, into the
+ * session this app already holds. It was ruled out when the chimes were built,
+ * on the grounds that it configures `AVAudioSession` itself and would become a
+ * fourth writer to the process-wide configuration — and `AVAudioPlayer.h` has
+ * no category or activation API on it at all. The objection was true of
+ * `expo-audio`, which does manage the session, and was carried across to the
+ * bare player without being checked.
+ *
+ * **It is a comparison and not yet a choice.** Which one the app ships on is a
+ * decision about what a presence cue is allowed to interrupt, not only about
+ * how loud it is, and that is not settled by this type.
+ */
+export type ChimePath = 'system' | 'player';
+
 /** What the running binary's chime renderer holds, for the lab to display. */
 export interface ChimeInfo {
   leadSeconds: number;
@@ -354,6 +384,9 @@ export function chimeInfo(): ChimeInfo | null {
  * @param lead seconds of silence in front of the notes, 0 to 1, clamped
  * natively — what the output route powers up on. Zero is the cue as it was
  * before 2026-09-15 and is the control the sweep is read against.
+ * @param via which path to play it down. `system` is the alert path with no
+ * gain, which is what the app ships; `player` is the media path at full gain.
+ * The lab is the only caller that passes the second.
  * @returns whether it played. False means no module, a native half older than
  * this function, or — since the argument became a string, and since a second
  * argument joined it — a binary that still expects the boolean, which is every
@@ -363,10 +396,11 @@ export function chimeInfo(): ChimeInfo | null {
 export function chime(
   kind: ChimeKind | ChimeCandidate,
   amplitude: number = CHIME_AMPLITUDE,
-  lead: number = CHIME_LEAD
+  lead: number = CHIME_LEAD,
+  via: ChimePath = 'system'
 ): boolean {
   try {
-    return native?.chime?.(kind, amplitude, lead) ?? false;
+    return native?.chime?.(kind, amplitude, lead, via) ?? false;
   } catch {
     return false;
   }

@@ -72,6 +72,15 @@ public class AudioRouteModule: Module {
    */
   private var engine: AVAudioEngine?
 
+  /**
+   The lab's chime player, held so the sound outlives the call that started it.
+
+   Nil until a `player` chime is asked for. One at a time is deliberate: these
+   are 180ms cues tapped by hand, and a queue would only blur the comparison
+   this exists to make.
+   */
+  private var player: AVAudioPlayer?
+
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
@@ -159,12 +168,17 @@ public class AudioRouteModule: Module {
      sound. `chimeNotes` is the set of kinds, and an unknown one returns false
      rather than guessing — a chime nobody recognises is worse than silence.
      */
-    Function("chime") { (kind: String, amplitude: Double, lead: Double) -> Bool in
+    Function("chime") {
+      (kind: String, amplitude: Double, lead: Double, via: String) -> Bool in
       guard
-        let id = self.chimeSound(kind: kind, amplitude: amplitude, lead: lead)
+        let url = self.chimeFile(kind: kind, amplitude: amplitude, lead: lead)
       else {
         return false
       }
+      if via == "player" {
+        return self.playThroughPlayer(url)
+      }
+      guard let id = self.chimeSound(url: url) else { return false }
       AudioServicesPlaySystemSound(id)
       return true
     }
@@ -371,23 +385,77 @@ public class AudioRouteModule: Module {
    */
   private static var soundIds: [String: SystemSoundID] = [:]
 
-  /** The id for one kind at one amplitude and lead, rendering it on first use. */
-  private func chimeSound(
-    kind: String, amplitude: Double, lead: Double
-  ) -> SystemSoundID? {
+  /** The rendered files, keyed the same way, so both arms share one render. */
+  private static var soundFiles: [String: URL] = [:]
+
+  /** The rendered file for one kind at one amplitude and lead, on first use. */
+  private func chimeFile(kind: String, amplitude: Double, lead: Double) -> URL? {
     let key = Self.chimeKey(kind: kind, amplitude: amplitude, lead: lead)
-    if let existing = Self.soundIds[key] { return existing }
+    if let existing = Self.soundFiles[key] { return existing }
     guard
       let url = Self.renderChime(kind: kind, amplitude: amplitude, lead: lead)
     else {
       return nil
     }
+    Self.soundFiles[key] = url
+    return url
+  }
+
+  /** The system-sound id for an already-rendered file. */
+  private func chimeSound(url: URL) -> SystemSoundID? {
+    let key = url.lastPathComponent
+    if let existing = Self.soundIds[key] { return existing }
     var id: SystemSoundID = 0
     let status = AudioServicesCreateSystemSoundID(url as CFURL, &id)
     guard status == kAudioServicesNoError else { return nil }
     Self.declareNotAUISound(id)
     Self.soundIds[key] = id
     return id
+  }
+
+  /**
+   The same file through `AVAudioPlayer` at full gain, which is the other arm
+   of the comparison.
+
+   **It exists because the samples were measured and the ear disagreed.** The
+   renderer was compiled and run on its own: the peak sweep spans a real 15dB,
+   −15.7 dBFS at the shipping 0.18 up to −0.8 dBFS at full scale. A phone
+   reported all five as much the same and all five as very quiet. Two readings
+   that cannot both be about the same signal path — so the path is the
+   variable, and this is the second value of it.
+
+   **`AudioServicesPlaySystemSound` takes a sound id and nothing else.** There
+   is no gain argument in the signature, and the sound goes out the alert path
+   rather than the media one, which is a level this app does not set and cannot
+   read. That is fine for a cue that only has to be noticed and fatal for one
+   that has to be *heard*, and nothing renderable fixes it.
+
+   **`AVAudioPlayer` was ruled out on a premise that does not hold.** The
+   comment above `chime` said it configures `AVAudioSession` itself, which
+   would have made it a fourth writer to the process-wide configuration
+   POSTMORTEM-echo.md is about. `AVAudioPlayer.h` has no category or activation
+   API on it at all — it reads `channelAssignments` off the session and
+   observes interruptions, and that is the whole of its contact with it. It
+   plays into the session this app already holds, and it has `volume`, "nominal
+   range … 0.0 to 1.0", which is the knob the other path does not have.
+
+   `expo-audio` is a different question and the original objection stands for
+   it: that one does manage the session. This is the bare player.
+
+   Held in a property because a local one deallocates at the end of this
+   function and takes the sound with it — the classic way this fails silently,
+   which is the last thing this investigation needs another of.
+   */
+  private func playThroughPlayer(_ url: URL) -> Bool {
+    do {
+      let player = try AVAudioPlayer(contentsOf: url)
+      player.volume = 1.0
+      player.prepareToPlay()
+      self.player = player
+      return player.play()
+    } catch {
+      return false
+    }
   }
 
   /**

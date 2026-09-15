@@ -11,6 +11,7 @@ import {
   stopInput,
   type ChimeCandidate,
   type ChimeKind,
+  type ChimePath,
   type TrialResult,
 } from '../../modules/audio-route';
 import { recordEvent } from '../audio/diagnostics';
@@ -312,6 +313,15 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const [lead, setLead] = useState(String(CHIME_LEAD));
 
   /**
+   * Which path the next chime goes down, and the most important chip on the
+   * screen until it is settled.
+   *
+   * Starts on `system`, which is what the app ships, so the first tap is the
+   * sound that was reported rather than the candidate replacing it.
+   */
+  const [path, setPath] = useState<ChimePath>('system');
+
+  /**
    * What the running binary's renderer holds, read once.
    *
    * **Read at mount rather than at each tap, because it cannot change without
@@ -335,6 +345,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     kind: string;
     peak: string;
     lead: string;
+    path: string;
     played: boolean;
     outputs: string;
     through: string;
@@ -425,21 +436,28 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * true and makes no noise. False is narrower and more useful: the binary is
    * older than this bundle and cannot play what was asked for, which during
    * development is a Metro reload against an unbuilt native half.
+   *
+   * **On the player path false means something else** — the player itself
+   * would not start, which is a real failure rather than a stale binary, so
+   * the readout says which. The two are worth telling apart here for the same
+   * reason everything else on this screen is.
    */
   const ring = (kind: ChimeKind | ChimeCandidate) => {
-    const played = chime(kind, Number(peak), Number(lead));
+    const played = chime(kind, Number(peak), Number(lead), path);
     const here = routeSnapshot();
     const outputs = here?.outputs.join(', ') ?? 'unreadable';
     setLastChime({
       kind,
       peak,
       lead,
+      path,
       played,
       outputs,
       through: through(here?.outputs),
     });
     recordEvent(
-      `lab CHIME ${kind} peak=${peak} lead=${lead} played=${played} @${phase} · ` +
+      `lab CHIME ${kind} peak=${peak} lead=${lead} via=${path} ` +
+        `played=${played} @${phase} · ` +
         `out=${outputs} via=${through(here?.outputs)} ` +
         `cat=${shortName(here?.category ?? '?')}/${shortName(here?.mode ?? '?')} ` +
         `opts=${(here?.categoryOptions ?? ['unreadable']).join('+')} ` +
@@ -672,27 +690,32 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           1 · Check the renderer below is this bundle's, not an older build's
         </Text>
         <Text style={styles.step}>
-          2 · Lead 0, tap, wait, tap again — the cold tap should be the quiet one
+          2 · Path system, tap · path player, tap — the one that matters
         </Text>
+        <Text style={styles.step}>3 · Sweep the peak on whichever path is audible</Text>
         <Text style={styles.step}>
-          3 · Lead 0.6, same pair — if they now match, the ramp is the mechanism
+          4 · Lead 0 against lead 0.6, if a first tap is still quieter than a second
         </Text>
-        <Text style={styles.step}>4 · Sweep the peak at whichever lead won</Text>
         <Text style={styles.step}>5 · Input ON, tap again — the silent case</Text>
         <Text style={styles.note}>
-          Steps 2 and 3 are the experiment and everything else here depends on
-          them. The claim under test is that a cold output route spends its
-          first tenth of a second powering up, and swallows a cue only 180ms
-          long — which would make a first tap quiet, a second one normal, and
-          the peak sweep unreadable, because an ear comparing two peaks over a
-          ramp is comparing ramps. Silence in front of the notes is what the
-          route would wake up on instead.
+          Step 2 is the experiment now. The renderer has been compiled and run
+          on its own, away from any phone: the file is well formed, the lead-in
+          is really in it, and the peak sweep spans a genuine 15dB — −15.7 dBFS
+          at 0.18 up to −0.8 dBFS at full scale. That measurement and an ear
+          that hears no difference between the five cannot both be about the
+          same signal path, so the path is what is under test.
         </Text>
         <Text style={styles.note}>
-          It is a claim and not a finding. A 180ms lead shipped on the strength
-          of it and was reported as changing nothing, which is why the length is
-          a dial here and why 0 is on the row. If 0 and 1 sound alike, the
-          mechanism is something else and the lead-in should come back out.
+          The alert path takes no gain argument and plays at a level this app
+          neither sets nor can read; the media path has a volume knob and is the
+          session this app already holds. Two taps settle which one the quiet is
+          coming from.
+        </Text>
+        <Text style={styles.note}>
+          Step 4 is the earlier theory, kept because it has not been falsified —
+          only outranked. A 180ms lead-in shipped on it and changed nothing,
+          which is weak evidence against it and no evidence at all if the path
+          was swallowing everything anyway.
         </Text>
         <Text style={styles.note}>
           Volume is baked into the sound, because a system sound has no gain
@@ -747,6 +770,25 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         The default lead the binary holds, not the one the chips below are
         asking for. They disagree freely and that is the point — this is the
         app's setting, the chips are the experiment.
+      </Text>
+
+      <SectionLabel>Path</SectionLabel>
+      <Choice
+        values={['system', 'player']}
+        selected={path}
+        onSelect={(next) => setPath(next as ChimePath)}
+      />
+      <Text style={styles.why}>
+        {path === 'system'
+          ? 'The alert path, which the app ships on and which has no gain of any kind.'
+          : 'AVAudioPlayer at full gain, on the media path, into the session already held.'}
+      </Text>
+      <Text style={styles.note}>
+        This is the one to try first. The renderer was compiled and measured on
+        its own and the peak sweep spans a real 15dB in the file — so a phone
+        hearing all five as much the same is a finding about the path, not about
+        anything rendered into it. If player is plainly louder, the samples were
+        never the problem and the alert path is the whole story.
       </Text>
 
       <SectionLabel>Lead-in</SectionLabel>
@@ -812,9 +854,16 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
             <Reading label="kind" value={lastChime.kind} />
             <Reading label="peak" value={lastChime.peak} />
             <Reading label="lead" value={`${lastChime.lead}s`} />
+            <Reading label="path" value={lastChime.path} />
             <Reading
               label="native"
-              value={lastChime.played ? 'played' : 'refused — rebuild needed'}
+              value={
+                lastChime.played
+                  ? 'played'
+                  : lastChime.path === 'player'
+                    ? 'refused — player would not start'
+                    : 'refused — rebuild needed'
+              }
             />
             <Reading label="output" value={lastChime.outputs} />
             <Reading label="through" value={lastChime.through} />
