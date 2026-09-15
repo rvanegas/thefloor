@@ -59,8 +59,9 @@ nineteen and a half seconds**, which is why this is a suspect and not a finding.
 
 The next thing this entry asked for was a log line at the close, "because the
 question is which end is closing and nothing on the box answers it." That is
-written and committed on `worktree-ws-close-diagnostics`. **It is not landed and
-not deployed, so none of it is answering anything yet.**
+written and landed. **It is not deployed, so none of it is answering anything
+yet** — nothing on the box emits this line until somebody deploys, and the
+queries below have nothing to read before then.
 
 Confirmed while writing it: the lifetime of a socket was genuinely
 unrecoverable, not merely unlogged. A websocket upgrade is hijacked before
@@ -107,5 +108,5 @@ journal would also destroy the reconnect history the section above rests on.
 **A number in the 2026-08-24 write-up does not mean what it appears to.** "448
 times in six hours" is one per forty-eight seconds, not the ten-second cadence
 the sentence puts beside it. It is consistent with roughly seventy-five minutes
-spent at the cap out of those six hours, which the histogram above confirms —
-but read as a continuous six-hour cadence it is wrong.
+spent at the cap out of those six hours, which the histogram in the decision
+confirms — but read as a continuous six-hour cadence it is wrong.
