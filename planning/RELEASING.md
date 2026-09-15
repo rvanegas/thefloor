@@ -141,10 +141,21 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   own, and the two `infoPlist` keys say it instead:
   `UISupportedInterfaceOrientations` is portrait, for the iPhone, and
   `UISupportedInterfaceOrientations~ipad` is all four, which Apple requires of
-  an app that can share the screen. **`UIRequiresFullScreen` is deliberately
-  absent**, and its absence is what allows that sharing; setting it true is the
-  one-line retreat if multitasking ever proves untenable, and it would leave
-  the layout correct, merely unexercised.
+  an app that can share the screen. **`UIRequiresFullScreen` is not set true**,
+  which is what allows that sharing — prebuild writes it `<false/>` rather than
+  omitting it, so finding the key in the plist is not evidence of compatibility
+  mode.
+
+  **There is no retreat, and this bullet promised one until 2026-09-15.**
+  Setting it true was supposed to be the one-line way out if multitasking ever
+  proved untenable. Apple's TN3192 deprecates the key in iPadOS 26 and says
+  that from **iOS 27 and iPadOS 27 it no longer opts an app out of resizing**,
+  once built against the iOS 27 SDK; the system resizes the scene discretely
+  instead. `UIRequiresFullScreenIgnoredStartingWithVersion` only moves the
+  version at which the system *starts* ignoring the key, so it buys behaviour
+  on older systems and nothing on newer ones. Plan on the iPad layout, not on
+  the exit — decisions/2026-09-15-uirequiresfullscreen-is-not-a-retreat-it-is-an-expiry.md
+  has the quotations and the two things that become live on the iOS 27 SDK.
 
   This is also the one place `orientation: "default"` reaches Android, whose
   regenerated manifest stops pinning portrait. **Confirmed 2026-09-01** rather
