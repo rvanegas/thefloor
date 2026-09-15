@@ -67,6 +67,10 @@ const dark = {
    * **Its whole job is to not mean error.** A request to answer and an answer
    * come back are both good news arriving slightly inconveniently, and a mark
    * in `danger`'s red would report a fault in an app that has none.
+   *
+   * The dab's `!` is drawn in `surface` on both sides of the theme, which on
+   * this value is the dark card colour on a bright rose and reads as punched
+   * out of the disc. White on it is 2.4:1 and would not.
    */
   waiting: '#F26D7F',
   disabled: '#2A2E35',
@@ -124,9 +128,10 @@ const light: Record<keyof typeof dark, string> = {
    * sits beside on a white card. S 65 V 82 instead, which is the same
    * arithmetic against the same two neighbours.
    *
-   * It carries no text — nothing is read *through* it, the label's covered
-   * corner being covered rather than tinted — so it is pinned by its neighbours
-   * rather than by contrast, exactly as `nearby` is.
+   * Pinned by its neighbours rather than by contrast, exactly as `nearby` is —
+   * and the one glyph it carries, the dab's `!`, is drawn in `surface` rather
+   * than in white for that reason: white on this is 3.6:1 and the card colour
+   * is 4.9:1, which is the ratio a 12pt bold glyph wants.
    */
   waiting: '#D1495B',
   disabled: '#E4E7EC',

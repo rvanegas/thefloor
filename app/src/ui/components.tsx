@@ -617,10 +617,10 @@ export function Segmented<T extends string>({
      * gets: draws the dab, and is appended to the label in the announcement.
      *
      * **A string rather than a boolean, so that a mark cannot exist without
-     * words for it.** The dab lays over part of the label, which is the whole
-     * of how it reads — and a mark that obscures a word while announcing
-     * nothing is one that costs a screen reader the tab and gives it nothing
-     * back. Presence is what draws it, so the two cannot come apart.
+     * words for it.** The dab carries a bare `!`, which is a shape rather than
+     * a sentence — and a mark that says *something* while announcing nothing
+     * is one that costs a screen reader the tab and gives it nothing back.
+     * Presence is what draws it, so the two cannot come apart.
      *
      * **It says that something is waiting, never how much.** Home's two marks
      * are a request to answer and an answer come back; the first is already
@@ -677,8 +677,8 @@ export function Segmented<T extends string>({
                   is a third of the track and a label is as wide as it reads, so
                   anchoring to the segment would leave the mark floating in
                   whitespace on the short labels and touching the neighbour on
-                  the long ones. This way it follows the text and needs nothing
-                  measured.
+                  the long ones. This way it sits off the leading edge of the
+                  text and needs nothing measured.
                 */}
                 <View style={styles.segmentLabelBox}>
                   <Text
@@ -691,7 +691,19 @@ export function Segmented<T extends string>({
                   >
                     {option.label}
                   </Text>
-                  {option.badge ? <View style={styles.dab} /> : null}
+                  {option.badge ? (
+                    <View style={styles.dab}>
+                      {/*
+                        `allowFontScaling={false}`: the disc is a fixed 18 and a
+                        glyph that grows past it is a clipped mark rather than a
+                        bigger one. What the setting is for is the label beside
+                        it, which does scale.
+                      */}
+                      <Text style={styles.dabGlyph} allowFontScaling={false}>
+                        !
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
             );
@@ -804,37 +816,52 @@ const styles = StyleSheet.create({
   /**
    * The dab: something is waiting on this tab.
    *
-   * **A lozenge laid over the end of the word, not a dot beside it**, and the
-   * difference is the whole of what it says. A dot beside a label is a status
-   * light — a thing reporting, which you read and move on from. A shape
-   * slightly *in the way* of the label is a thing asking. Clipping the upper
-   * corner of the last glyph or two is as far as that goes: the word is still
-   * read at a glance, so it asks without insisting, which is the register this
-   * mark wants — attend to it, but it can wait a beat.
+   * **A disc carrying an `!`, off the leading edge of the label and clear of
+   * it.** It was a rose lozenge laid over the trailing end of the word until
+   * 2026-09-15, on the argument that a shape slightly in the way of a label is
+   * a thing asking where a dot beside it is a thing reporting. The argument
+   * held; the execution did not. A mark over the word obscures the word, which
+   * on *Contacts* and *Support* clipped the letter that distinguishes them,
+   * and a blank lozenge still had to be read as a shape and guessed at. The
+   * `!` says *asking* outright, so the mark no longer has to say it by being
+   * in the way, and can go where nothing is lost: up and to the left, where
+   * the eye reaches the tab before the word rather than after it.
    *
-   * 16 × 11 at `radius.pill`, which is larger than every mark in STYLE.md
-   * § *Dots, pills and rules* and deliberately so — those are all 8 to 10 and
-   * all of them sit beside the thing they are about. Two thirds of its width
-   * lies over the label and the rest overhangs; on a 375pt screen a segment is
-   * ~107 and a 14pt semibold label ~60, so it stays well inside the segment and
-   * never reaches the 3pt gap or its neighbour. Nothing in this control sets
-   * `overflow: 'hidden'`, which is what lets the overhang draw at all.
+   * 18 across at `radius.pill`, which is larger than every mark in STYLE.md
+   * § *Dots, pills and rules* and deliberately so — those are all 8 to 10, and
+   * all of them are dots rather than a glyph in a disc.
    *
-   * Drawn after the `Text` so it lands above it. Under it would be a
-   * highlighter mark behind the word — legible, and reading as decoration on
-   * the label rather than as something arriving on the tab.
+   * `left: -19` clears the 18pt disc of the first glyph with a point in hand;
+   * `top: -9` lifts it to sit above the cap height. On a 375pt screen a
+   * segment is ~110 and a 14pt semibold label ~62, so the ~24pt of whitespace
+   * on the leading side of the word takes the disc without reaching the 3pt
+   * gap or the track's edge. Nothing in this control sets `overflow: 'hidden'`,
+   * which is what lets it draw outside the label's box at all.
    *
    * The same on a selected segment as an unselected one: the dab is about what
    * the tab holds, not about where you are standing.
    */
   dab: {
     position: 'absolute',
-    top: -2,
-    right: -4,
-    width: 16,
-    height: 11,
+    top: -9,
+    left: -19,
+    width: 18,
+    height: 18,
     borderRadius: radius.pill,
     backgroundColor: colors.waiting,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /**
+   * The `!`, in the one place in the app that draws a white glyph on `waiting`.
+   * 12 bold in an 18pt disc, with the line height pinned to the disc so that
+   * the platform's own leading cannot push it off centre.
+   */
+  dabGlyph: {
+    color: colors.surface,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
   },
   segmentLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
   /**

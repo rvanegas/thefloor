@@ -563,29 +563,40 @@ The small marks, and what a diameter means:
 | muted dot | 9, hollow, 1.5pt `textFaint` | you have closed your microphone |
 | speaking dot | 10, 1pt `border` → filled `floor` | this person is audible now |
 | recording dot | 8, solid `recording` (`textFaint` paused) | a recording is running |
-| dab | 16 × 11, `radius.pill`, solid `waiting` | something is waiting on this tab |
+| dab | 18, solid `waiting`, `!` in `surface` | something is waiting on this tab |
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
 bright colour.
 
-**The dab is the one mark that is not a dot, and it is deliberately in the
-way.** Every other row above sits *beside* the thing it is about and is 8 to 10
-across; this one is laid over the trailing end of a tab's label, clipping the
-upper corner of the last glyph or two. A dot beside a word is a status light — a
-thing reporting, which you read and move on from. A shape slightly in the way of
-the word is a thing asking. Clipping a corner is as far as that goes, so the
-label is still read at a glance and the mark asks without insisting: **attend to
-this, but it can wait a beat.**
+**The dab is the one mark that is not a dot, and the only one that carries a
+glyph.** Every other row above is 8 to 10 across and says what it means by
+where it sits; this one is an 18pt disc with an `!` in it, up and to the left of
+a tab's label and clear of the first glyph. A dot beside a word is a status
+light — a thing reporting, which you read and move on from. The `!` is a thing
+asking: **attend to this, but it can wait a beat.**
+
+**It was a rose lozenge laid over the end of the word until 2026-09-15**, on
+the argument that a shape slightly *in the way* of a label is what makes it
+read as asking rather than reporting. The argument holds and is why this is a
+disc with a mark in it rather than a fourth dot; what did not hold was covering
+the word to make it. A blank lozenge still had to be recognised as a shape and
+guessed at, and on Home it clipped *Contacts* and *Support* — the end of the
+word being the half that tells those two apart. Saying *asking* outright with
+the glyph buys the mark its way off the label.
 
 Positioned against the label's own box rather than the segment's, so it follows
-the word's width and needs nothing measured — `styles.dab` in `components.tsx`,
-and `Segmented`'s `badge`, which takes the words a screen reader is given rather
-than a boolean, a mark that obscures a word while announcing nothing being worse
-than none. Drawn on the selected tab as readily as an unselected one: it is
-about what the tab holds, not about where you are standing. **Never a count** —
-Home's two dabs are a request to answer and an answer come back, and neither
-number is one a tab can state honestly; see `state/helpSeen.ts`.
+the word wherever the word starts and needs nothing measured — `styles.dab` in
+`components.tsx`, and `Segmented`'s `badge`, which takes the words a screen
+reader is given rather than a boolean, an `!` being a shape rather than a
+sentence and a mark that announces nothing being worse than none. Drawn on the
+selected tab as readily as an unselected one: it is about what the tab holds,
+not about where you are standing. **Never a count**, which is why it is an `!`
+and not a number — Home's two dabs are a request to answer and an answer come
+back, and neither number is one a tab can state honestly; see
+`state/helpSeen.ts`. The glyph is `surface` rather than white: on light
+`waiting` white is 3.6:1 and the card colour 4.9:1, and on the dark value white
+is 2.4:1.
 
 **The recording pill** is a hairline `radius.pill` on `surface` — dot, word
 and clock. `surface` rather than `surfaceRaised`, because `surfaceRaised` is

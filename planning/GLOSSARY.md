@@ -45,7 +45,7 @@ caused; the list carries the meaning.
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
-- **Dab** — The soft rose mark laid over the end of a Home tab's label: something is waiting on that tab. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read
+- **Dab** — The soft rose disc carrying an `!`, up and to the left of a Home tab's label: something is waiting on that tab. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -427,18 +427,24 @@ Decline or Withdraw on itself.
 ## Dab
 
 **The mark on a Home tab that says something is waiting on it**: a soft rose
-lozenge, laid over the trailing end of the label so that it clips the upper
-corner of the last glyph or two. `styles.dab` in `ui/components.tsx`, drawn by
-`Segmented` for whichever options `HomeView` asks.
+disc with an `!` in it, sitting up and to the left of the label and clear of
+the word. `styles.dab` in `ui/components.tsx`, drawn by `Segmented` for
+whichever options `HomeView` asks.
 
 **Its own word because it is not a dot**, and the difference is the whole of
 what it says. Every other mark in the interface — live, nearby, muted, speaking,
 recording — is 8 to 10 across and sits *beside* the thing it is about, which
-reads as a status light: a thing reporting, which you read and move on from. A
-shape slightly in the way of a word is a thing asking. So a dab means *attend to
-this, but it can wait a beat*, and clipping a corner rather than covering a
-letter is what keeps it at that volume. STYLE.md § *Dots, pills and rules* has
-the geometry.
+reads as a status light: a thing reporting, which you read and move on from. The
+`!` is a thing asking. So a dab means *attend to this, but it can wait a beat*,
+and a single glyph rather than a number is what keeps it at that volume.
+
+**It was a blank lozenge laid over the end of the label until 2026-09-15**,
+which said *asking* by being in the way of the word. That is the right thing
+for it to say and the wrong way to say it: the mark covered the trailing
+letters, which on *Contacts* and *Support* are what tell the two apart, and a
+shape with nothing in it still had to be guessed at. The `!` says it outright,
+so the disc can go where nothing is lost. STYLE.md § *Dots, pills and rules*
+has the geometry.
 
 **Two things raise one, and they are not symmetrical.** On *Contacts* it means
 somebody has asked to be a contact and it is your turn — live state off the Home
@@ -453,7 +459,7 @@ the other is cleared by being read. `state/helpSeen.ts` argues it, and
 Contacts count at all — only the other person can answer one, and a mark for it
 could not be cleared by tapping through — and the Support one cannot be counted
 without the *Help* screen gaining the unread marks it does not have. What a tab
-owes is *go and look*.
+owes is *go and look*, which is what the `!` says and a number would not.
 
 Rose rather than red: it is good news arriving slightly inconveniently, not a
 fault. `waiting` in `theme.ts`, which is the palette's seventh hue and the only

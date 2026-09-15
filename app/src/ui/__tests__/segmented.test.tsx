@@ -157,8 +157,8 @@ describe('Segmented', () => {
  * for the two things that raise one, and `state/helpSeen.ts` for why they are
  * not symmetrical. What is tested here is the mark itself: that it appears only
  * where it was asked for, that it is drawn where the eye is told it will be,
- * and that a screen reader is told the tab has one at all, the mark being over
- * a word it cannot see.
+ * and that a screen reader is told the tab has one at all, a bare `!` being a
+ * shape rather than a sentence.
  */
 describe('the dab on a tab', () => {
   const marks = (tree: ReactTestRenderer) =>
@@ -221,10 +221,9 @@ describe('the dab on a tab', () => {
 
   /**
    * **The announcement, which is the half a dab cannot make for itself.** The
-   * mark lays over the end of the label, so a screen reader that is told only
-   * the label has lost part of a word and gained nothing. `badge` carries the
-   * words for exactly that reason — presence is what draws it, so the two
-   * cannot come apart.
+   * mark carries a bare `!`, which says *something is here* to an eye and
+   * nothing at all to a screen reader. `badge` carries the words for exactly
+   * that reason — presence is what draws it, so the two cannot come apart.
    */
   it('says what is waiting, in the label a screen reader gets', () => {
     const tree = render(
@@ -247,12 +246,15 @@ describe('the dab on a tab', () => {
   });
 
   /**
-   * **Over the label, and overhanging it.** A negative offset on both axes is
-   * the whole of how this reads as laid on the word rather than parked beside
-   * it — see the note on `styles.dab`. A "tidying" that squares those to zero
-   * turns the mark into a status light and says something else.
+   * **Up and to the left of the label, and clear of it.** The mark was laid
+   * over the trailing end of the word until 2026-09-15 and now carries an `!`
+   * instead, which says *asking* outright and so no longer has to say it by
+   * obscuring a letter — see the note on `styles.dab`. What is pinned here is
+   * that it is off the *leading* edge and far enough off to clear the first
+   * glyph: a `left` of more than the disc's own width is the whole of that, and
+   * shaving it back is how the mark creeps onto the word again.
    */
-  it('overlaps the label rather than sitting beside it', () => {
+  it('sits clear of the leading edge of the label', () => {
     const tree = render(
       <Segmented
         options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
@@ -263,10 +265,34 @@ describe('the dab on a tab', () => {
     const style = marks(tree)[0]!.props.style;
     expect(style.position).toBe('absolute');
     expect(style.top).toBeLessThan(0);
-    expect(style.right).toBeLessThan(0);
-    // Larger than every mark in STYLE.md's dots table, all of which sit beside
-    // the thing they are about.
+    expect(style.right).toBeUndefined();
+    expect(-style.left).toBeGreaterThanOrEqual(style.width);
+    // A disc rather than a lozenge, and larger than every mark in STYLE.md's
+    // dots table, all of which are dots rather than a glyph in a disc.
+    expect(style.width).toBe(style.height);
     expect(style.width).toBeGreaterThan(10);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The `!` is what the mark says**, and it is the reason the disc may sit
+   * beside the word rather than on it. A dab drawn empty is back to being a
+   * shape to be guessed at.
+   */
+  it('carries an exclamation mark', () => {
+    const tree = render(
+      <Segmented
+        options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
+        value="contacts"
+        onChange={() => {}}
+      />
+    );
+    expect(marks(tree)[0]!.props.children).toBeTruthy();
+    const glyphs = tree.root
+      .findAll((n) => n.type === 'Text')
+      .map((n) => n.props.children)
+      .filter((c) => c === '!');
+    expect(glyphs).toHaveLength(1);
     act(() => tree.unmount());
   });
 

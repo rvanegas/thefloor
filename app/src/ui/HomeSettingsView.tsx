@@ -451,9 +451,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           question has been answered, and both are a nuisance to arrange: the
           first wants a second account to send a request from, the second wants
           an answer published by hand with `bin/help`. So the mark that is a
-          design decision — 16x11 laid over the end of a word, in the seventh
-          hue the palette gained for it — was the part nobody could put on a
-          screen and look at. See STYLE.md § *Dots, pills and rules*.
+          design decision — an 18pt disc carrying an `!`, set off the leading
+          edge of a word in the seventh hue the palette gained for it — was the
+          part nobody could put on a screen and look at. See STYLE.md § *Dots, pills and rules*.
 
           **It forces the marks and nothing under them**, which is what makes it
           worth having rather than a way of lying to yourself: the screens
