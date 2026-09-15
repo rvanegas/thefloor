@@ -1,5 +1,12 @@
 # The checklist has a second exit, and the reset shows all of it
 
+**One paragraph of this was reversed the next day by
+`2026-09-14-the-checklist-reset-is-for-everybody.md`**: § *What was not done*
+keeps *Show the checklist again* behind `debug`, and it is now on Floor
+Settings for every account. The rest stands, and the reversal's reason is in
+this file — the crosses added below are what made an undo something an ordinary
+reader needs.
+
 2026-09-13. Two changes to the introduction, reported as one complaint and
 fixed together because they are the same fact from opposite ends: the card had
 exactly one way to end, and the control for putting it back did not put it

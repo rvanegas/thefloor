@@ -406,13 +406,14 @@ describe("forgetting this phone", () => {
 
 /**
  * Putting the introduction back, which is the narrow sibling of the card
- * above.
+ * above and, since 2026-09-14, the only one of the two that is not an
+ * instrument.
  *
- * Behind the same `debug` grant, and for the same reason — it is an
- * instrument. What it must not do is what its neighbour does: this one leaves
- * the session alone, and a version of it that signed out would make the
- * checklist cost a code by email to look at, which is the whole reason it
- * exists.
+ * It was behind the same `debug` grant and is offered to every account now:
+ * a rung put away with the cross is a decision somebody is allowed to
+ * reverse, and nothing else in the app reverses it. What it must not do is
+ * what its neighbour does — this one leaves the session alone, and a version
+ * that signed out would make the checklist cost a code by email to look at.
  */
 describe("showing the checklist again", () => {
   const openSettings = async () => {
@@ -426,15 +427,19 @@ describe("showing the checklist again", () => {
   const alertSpy = () =>
     jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
-  it("is not offered to an account without diagnostics", async () => {
+  // The gate this used to assert, inverted. An account without `debug` sees
+  // *Forget this phone* nowhere and this everywhere; the two cards sat under
+  // one grant and no longer do.
+  it("is offered to an account without diagnostics", async () => {
     mockApp.debug = false;
     const tree = await openSettings();
-    expect(findButton(tree, "Show the checklist again")).toBeUndefined();
+    expect(findButton(tree, "Show the checklist again")).toBeDefined();
+    expect(findButton(tree, "Forget this phone")).toBeUndefined();
     act(() => tree.unmount());
   });
 
   it("asks first, and says to step out of the channel", async () => {
-    mockApp.debug = true;
+    mockApp.debug = false;
     const asked = alertSpy();
     const tree = await openSettings();
 
@@ -453,7 +458,7 @@ describe("showing the checklist again", () => {
   });
 
   it("forgets the introduction and nothing else", async () => {
-    mockApp.debug = true;
+    mockApp.debug = false;
     const asked = alertSpy();
     const tree = await openSettings();
     act(() => findButton(tree, "Show the checklist again")!.props.onPress());

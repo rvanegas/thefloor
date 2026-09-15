@@ -123,11 +123,13 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   /**
    * Puts the introduction back, without touching anything else.
    *
-   * **The narrow sibling of *Forget this phone*, and it is here because that
-   * one is too blunt to use for this.** Forgetting the phone clears the
-   * checklist as one of eighteen keys, then signs out and asks for a code by
-   * email — so seeing the ladder a second time costs a round trip through a
-   * mailbox, every time, for the one screen somebody is iterating on.
+   * **The narrow sibling of *Forget this phone*, and it outlived being one.**
+   * It was built beside that card and behind the same `debug` grant, because
+   * forgetting the phone clears the checklist as one of eighteen keys and then
+   * signs out and asks for a code by email — a round trip through a mailbox
+   * every time somebody wanted to look at the screen they were iterating on.
+   * Since 2026-09-14 it is offered to everybody, the ladder having grown a
+   * per-rung dismissal with no way back; see the card's own comment below.
    *
    * It stays on this screen afterwards rather than closing itself onto Home.
    * Nothing here navigates, and a control that did would be the only one; the
@@ -286,13 +288,73 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </Card>
 
       {/*
-        Under the two settings about how channels behave and above appearance,
-        which is where it belongs by subject rather than by importance: it is
-        the third thing on this screen that changes the app, and the two above
-        it are the ones somebody actually came here for. Not at the bottom
-        beside the account, which is where a screen puts what it is slightly
-        ashamed of — this is opt-in and unfinished, not dangerous, and the card
-        says which.
+        **For everybody, since 2026-09-14.** It sat under Diagnostics behind
+        the `debug` grant, next to *Forget this phone*, on the reasoning that
+        it was an instrument: somebody working on the checklist wanted to look
+        at it again without paying a code by email for the privilege, and
+        nobody using the app had any reason to. That reading was too narrow.
+        The card is how Home says what there is to try, every rung of it is a
+        thing a person might come back to, and putting one away with the cross
+        is a decision they are allowed to change their mind about — and until
+        now there was nothing in the app that could change it back. Dismissing
+        was the reader's exit; this is the reader's way back in, and a one-way
+        door with no handle on the inside is the shape that made the card worth
+        ignoring in the first place. The decision that kept it behind `debug`
+        is 2026-09-13-the-checklist-has-a-second-exit.md; this reverses that
+        paragraph and nothing else in it.
+
+        **Its own section rather than joining Channels**, because the subject
+        is Home and that card's is a channel screen, and above Labs because it
+        is an ordinary setting and Labs is an invitation to unfinished ones.
+        Labelled *Getting started*, which is what the card calls itself on
+        Home — the code's word for it is *introduction*, and a section label
+        naming the thing by a word that appears on no screen would be a label
+        nobody can follow back.
+
+        **It is offered whether or not the checklist is showing.** A control
+        that appeared only once the card was gone would be one somebody could
+        not find at the moment they wanted it — they have just dismissed a rung
+        and want it back, and the card is still on Home with six rows left. It
+        is honest in that state too: what comes back is every rung, hollow,
+        including the ones already ticked.
+
+        It is not destructive — nothing is signed out and nothing else is
+        forgotten — so it asks for a confirmation only to have somewhere to say
+        the one thing that is not guessable from the button: leave the channel
+        first. See `state/useIntroduction.ts`.
+      */}
+      <SectionLabel>Getting started</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Show the checklist again</Text>
+        <Button
+          label={forgettingIntro ? 'Showing…' : 'Show the checklist again'}
+          disabled={forgettingIntro}
+          onPress={() =>
+            Alert.alert(
+              'Show the checklist again?',
+              'Getting started comes back on Home with every rung to do again — stepping in, the four things to try in a channel, and anything you put away with the cross beside it.\n\nNothing else changes: you stay signed in, and your channels, contacts, recordings and settings are untouched.\n\nStep out of any channel first. Being in one with somebody ticks the first rung straight away, so the list would come back with it already done.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Show it', onPress: () => void forgetIntroduction() },
+              ]
+            )
+          }
+        />
+        <Text style={type.muted}>
+          The list above your channels on Home. It goes for good once every
+          rung is done — the conversation, and the four things to try in a
+          channel — or once every rung has been put away with the cross beside
+          it, and this is the way to get it back.
+        </Text>
+      </Card>
+
+      {/*
+        Under the settings that change what the app does and above appearance,
+        which is where it belongs by subject rather than by importance: the
+        sections above it are the ones somebody actually came here for, and
+        this is the one they did not. Not at the bottom beside the account,
+        which is where a screen puts what it is slightly ashamed of — this is
+        opt-in and unfinished, not dangerous, and the card says which.
       */}
       <SectionLabel>Labs</SectionLabel>
       <Card style={styles.stack}>
@@ -378,43 +440,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           <Text style={type.muted}>
             For seeing what somebody arriving new sees. Signing out does not do
             this, and neither does deleting the app.
-          </Text>
-        </Card>
-        {/*
-          Under it, because it is the same errand at a tenth of the cost: the
-          card above is what you reach for to see a whole new install, this is
-          what you reach for when the thing you are looking at is the
-          checklist itself. It is not destructive in the way its neighbour is
-          — nothing is signed out and nothing else is forgotten — so it asks
-          for a confirmation only to have somewhere to say the two things that
-          are not guessable from the button: leave the channel first, and what
-          comes back is the whole ladder rather than the introduction this
-          account would be shown if it arrived today. It said the opposite
-          until 2026-09-13, and meant it — see `state/useIntroduction.ts`.
-        */}
-        <Card style={styles.stack}>
-          <Text style={type.heading}>Show the checklist again</Text>
-          <Button
-            label={forgettingIntro ? 'Forgetting…' : 'Show the checklist again'}
-            disabled={forgettingIntro}
-            onPress={() =>
-              Alert.alert(
-                'Show the checklist again?',
-                'This account forgets that it has ever stepped in, which of the four things in a channel it has tried, and any rung put away by hand, so Home draws the whole ladder again. Nothing else changes — you stay signed in, and your channels, contacts and settings are untouched.\n\nStep out of any channel first: being in one with somebody marks that rung done again straight away, so the list comes back with it already ticked.\n\nWhat comes back is the full list rather than whichever introduction this account would get today — five hollow rungs, and getting somebody here already ticked if you have a contact.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Show it', onPress: () => void forgetIntroduction() },
-                ]
-              )
-            }
-          />
-          <Text style={type.muted}>
-            The introduction above the lists on Home. It goes for good once
-            every rung is done — the conversation, and the four things to try
-            in a channel — or once every rung has been put away with the cross
-            beside it, and this is the only way of getting it back. The four
-            belong to the account rather than to this phone, so forgetting the
-            phone no longer returns them.
           </Text>
         </Card>
         </>

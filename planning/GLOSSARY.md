@@ -1802,8 +1802,8 @@ fact about an account rather than something anybody did while the ladder was
 in front of them: an invited account arrives holding a contact, so its first
 rung was ticked before it was drawn, and *Show the checklist again* handed an
 established account the same free tick. Latched at the first Home snapshot the
-install ever saw, and moved to the count of the moment on that debug tap —
-which is what makes the tap ask for somebody *more*.
+install ever saw, and moved to the count of the moment on *Show the
+checklist again* — which is what makes that tap ask for somebody *more*.
 
 **Latched rather than recomputed, and that is the point rather than an
 optimisation.** Read against today's count the rung would be unticked for ever,

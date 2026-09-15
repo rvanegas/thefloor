@@ -268,7 +268,7 @@ thing worth storing is *this is over*. **Any such key must be added to
 `__tests__/storageKeys.test.ts` fails on the drift — which is the intended
 behaviour of that test, not an obstacle.
 
-## Getting it back, which only a debug account can
+## Getting it back, which anybody can since 2026-09-14
 
 **The checklist has exactly one exit and it is one-way**, which is right for
 everybody using the app and impossible for anybody working on it: step in with
@@ -279,9 +279,21 @@ both, as two of eighteen `INSTALL_KEYS` — at the cost of the session and a
 fresh code by email, every time somebody wants to look at the screen they are
 iterating on.
 
-So *Show the checklist again* sits under it in Diagnostics, behind the same
-per-account `debug` grant on the same reasoning: it is an instrument, useless
-to somebody using the app.
+So *Show the checklist again* was built beside it in Diagnostics, behind the
+same per-account `debug` grant on the same reasoning: it was an instrument,
+useless to somebody using the app.
+
+**It is its own section now — Settings → *Getting started* — and every account
+has it.** What changed is not the lever but what the card became underneath it:
+once every rung carried a cross, an ordinary reader could put rungs away, and
+a reader who can put something away for good and cannot get it back is one the
+app has given a one-way door. The reset is the handle on the inside. It is
+above Labs, since it is an ordinary setting rather than an invitation to
+unfinished ones, and it is drawn whether or not the card is currently on Home —
+a control that appeared only once the card was gone would be missing at exactly
+the moment somebody wanted it. *Forget this phone* stays behind `debug`, being
+the one of the pair that ends the session. See
+`decisions/2026-09-14-the-checklist-reset-is-for-everybody.md`.
 
 **The paragraph that stood here was wrong, and was corrected on 2026-09-13.**
 It said the reset clears the keys, re-arms the latch, and lets the snapshot in
@@ -319,7 +331,7 @@ What was written, which is close to what the design predicted:
 | `app/src/state/useIntroduction.ts` | new — the two keys, the latch, the retirement, the one profile fetch, and `forget`, which un-retires it. Since 2026-09-13 a third key, `thefloor.intro.dismissed`, and `dismiss`; `forget` latches `alone` rather than clearing the arrival |
 | `app/src/ui/Introduction.tsx` | new — the card and the ladder. Its own file rather than in-file beside `InstallNotice` (`HomeView.tsx:470`) and `NotificationNotice` (`:530`), a checklist being bigger than a notice |
 | `app/src/state/AppProvider.tsx` | calls the hook and puts `introduction` and `forgetIntroduction` on the context, for `conversing`'s sake |
-| `app/src/ui/HomeSettingsView.tsx` | *Show the checklist again*, under Diagnostics — see below |
+| `app/src/ui/HomeSettingsView.tsx` | *Show the checklist again*, under *Getting started* — under Diagnostics until 2026-09-14, see below |
 | `app/src/ui/HomeView.tsx` | renders it at `:339`, first child of `<Screen>` |
 | `app/src/state/storage.ts` | both `thefloor.intro.*` keys into `INSTALL_KEYS` |
 | `app/src/state/__tests__/introduction.test.ts` | new — 19 cases, the policy |
