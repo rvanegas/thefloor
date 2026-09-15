@@ -34,7 +34,7 @@ rather than invented here.
   what is still unmeasured, what first-party analytics can buy, and what
   third-party would cost.
 - **Paid, since it is on the table** — what money can and cannot buy here,
-  ranked, with the kill rule.
+  ranked, with the kill rule, the Apple Ads keyword list and what a tap costs.
 - **Organic, ranked** — where the effort actually goes.
 - **What marketing may not do** — the constraints, applied to this file's
   subject rather than to the product's.
@@ -512,6 +512,126 @@ buys the wrong thing tells you precisely how much was wasted rather than
 saving any of it. Revisit this when § *The funnel* shows a healthy 5 and 12,
 because a leaky funnel does not get fixed by putting more in at the top.
 
+### The keyword list, in three tiers
+
+**Added 2026-09-15**, at the prompt, because § *Paid* named `no ring` and
+`intercom` as the bets and stopped there — which is the reasoning and not a
+list anybody can paste into a campaign. LISTING.md § *Keywords* holds the
+hundred-character store field; this is the buy, and the two are different
+instruments. The store field is a fixed budget of characters spent once; a
+campaign is priced per term, so a term that is too expensive to buy can still
+be worth a word in the field, and a term that converts in the campaign is what
+the field should be rewritten around.
+
+**Tier 1, the complaint terms, and the only tier that is fully on-thesis.**
+`intercom app`, `home intercom app`, `phone intercom`, `walkie talkie app`,
+`walkie talkie phone`, `push to talk`, `push to talk app`, `ptt app`,
+`voice chat app`, `group voice chat`, `voice chat with friends`,
+`voice channel app`, `audio room app`, `drop in audio`, `talk without calling`,
+`call without ringing`, `no ring call`, `silent call app`,
+`hands free talk app`, `always on voice chat`. Exact match, one ad group,
+modest caps. Somebody searching these has the complaint and does not know
+anything answers it.
+
+**Tier 2, the group affinities**, which follow from § *The unit of acquisition
+is a group* rather than from the complaint: `family voice chat`,
+`family group call`, `group audio chat`, `small group chat app`,
+`long distance voice chat`, `gaming voice chat`, `voice chat for gaming`,
+`dnd voice chat`, `band practice app`, `book club app`, `talk to friends app`,
+`keep in touch with friends app`. These buy somebody who already has the other
+three people, which is the whole test this file applies to everything else.
+
+**Tier 3, the recording half, low bid and harvest only.**
+`multitrack voice recorder`, `record conversation app`, `conversation
+recorder`, `remote podcast recording`, `record interview app`,
+`transcribe conversation`, `voice transcript app`. **Cap these hard**, for two
+independent reasons: they are contested by subscription apps with real revenue
+per user, so they are the most expensive terms on the list, and they buy an
+individual with nobody to talk to, which is the failure `bin/growth` will show
+as roots with nothing underneath. They are on the list because the recording
+half is genuinely why some people search at all, not because they are expected
+to pay.
+
+**The app name is a search-term liability, and it is the cheapest fix here.**
+*The Floor* collides with flooring, laminate, tile, carpet and floor plans —
+categories with far more ad money in them than this one. Brand defence buys
+`the floor uninterrupted` and `the floor voice chat`, never the bare name, and
+`flooring`, `floor plan`, `laminate`, `tile`, `carpet` and `hardwood` are
+account-level negatives. This is the one item here that is not a growth bet: it
+is stopping somebody else's category from being charged to this one.
+
+**The negatives matter more than the keywords, because three of the best terms
+are polluted** and Search Match finds the pollution first.
+
+- **`no ring` collides with Ring**, the doorbell company, which is the largest
+  single way to burn this budget. Negative `ring doorbell`, `ring camera`,
+  `ring alarm`, `ring app`, `ring login`, `video doorbell`.
+- **`intercom` collides with Intercom**, the support software, and with
+  doorbell hardware. Negative `intercom support`, `live chat`, `helpdesk`,
+  `door intercom`, `doorbell`, `baby monitor`.
+- **`walkie talkie` and `push to talk` collide with two-way radio and with
+  toys.** Negative `radio`, `frs`, `gmrs`, `ham`, `toy`, `kids`, `long range`.
+
+**Two campaigns rather than one.** Exact-match campaigns, an ad group per tier,
+so each tier reads separately; and **one Discovery campaign with Search Match
+on and every term above added as an exact negative**, so it can only surface
+terms nobody here thought of. That second campaign is the one that pays twice —
+§ *Paid* already argues that what converts feeds back into the store field, and
+Discovery is what generates that evidence rather than opinion about it.
+
+**The creative lever is Custom Product Pages and there is no other.** Apple
+builds the ad from store assets, so this file's rule that *the ad must ask for
+the group, not the install* cannot be met by writing better ad copy — there is
+no ad copy. One product page for the intercom and walkie searcher, a different
+first screenshot for the recording searcher, set up before the spend rather
+than after.
+
+### What a tap costs, and why that is not the constraint
+
+**Checked by search on 2026-09-15 and perishable** — these are market figures
+that move, so a session acting on them after some months should check again
+rather than trust this paragraph.
+
+**The mechanic.** Apple Ads is a second-price auction on **cost per tap**: paid
+per tap on the ad, not per impression and not per install. You set a maximum
+CPT per keyword, a daily cap, and optionally an advisory CPA goal. No minimum
+spend. **Your bid is not what you pay** — you clear just above the runner-up —
+which is why bidding an honest ceiling on a thin term like `intercom app` is
+safe, and why the Tier 1 list can be bid properly rather than timidly.
+
+**The figures.** Global median CPT around **$0.92**; the all-category average
+nearer **$1.40**, with North America the most expensive market by a distance.
+The spread by category is enormous — Sports around $14.41, Finance around $6.06
+— and **Utilities, which is the live primary category, is among the cheapest**,
+reported around **$2.90 CPI** in the US. Mapped onto the tiers above, expect
+roughly **$0.40–$1.20** on Tier 1, **$1–$2.50** on Tier 2, and **$3–$6 or
+worse** on Tier 3, which is the second reason to cap that tier.
+
+**None of which is the constraint, and this is the part worth keeping.** The
+app is free and `support.ts` makes the donation explicitly optional, so
+**revenue per install is approximately zero**. There is no ROAS to clear and no
+bid ceiling derivable from lifetime value. **A paid campaign here is a learning
+budget, not an investment**, and the only honest question it answers is whether
+the complaint terms convert at all.
+
+**And this file's own thesis moves the real figure by an order of magnitude.**
+At a dollar a tap and half of taps installing, that is about two dollars an
+install — but § *The unit of acquisition is a group* says an install is not the
+conversion. If something like one cold install in ten recruits even one other
+person, the cost per *seeded group* is nearer **twenty to thirty dollars**, and
+the cost per group that has a second conversation is higher again. **That
+arithmetic is illustrative and is not measured** — the recruitment rate in it
+is a guess, and it is precisely the number the first campaign exists to find
+out. It is recorded here so that nobody budgets against the two-dollar figure,
+which is real and is the wrong unit.
+
+**Which sizes the test.** Tier 1 volume is small enough that the spend may be
+hard to place at all, which § *Paid* already counts as a feature. Something
+like **$20–30 a day for four weeks**, six to eight hundred dollars, then **three
+to four weeks of silence** before reading `bin/growth` — the lag in § *The shape
+of the spend* is not optional, and a read taken the week the money stops is
+taken before the only number that matters has moved.
+
 ### The shape of the spend
 
 **Small, sequential, and with the kill rule written before the money goes
@@ -551,6 +671,19 @@ supplement to the organic work below rather than as the engine.
 - **No comparison by name** to any other app — the same 4.1 exposure LISTING.md
   refuses in the listing body and keywords, and it reads as positioning rather
   than describing.
+- **Bidding on a competitor's name is a separate question and is open**, raised
+  2026-09-15 and deliberately not settled here. The rule above was written
+  about *copy*, where naming a rival is both a review exposure and an admission
+  that the grid is the right frame. An Apple Ads keyword is neither: Apple
+  permits bidding on another app's name, the term never appears in the listing
+  or in any creative, and § *Who else is on the field* names several apps whose
+  searchers have exactly the complaint this one answers. **Some of the
+  highest-intent terms available are other apps' names.** Against that, it is
+  the one tactic in this file that buys somebody mid-decision about a
+  *different* product, which is persuasion rather than intent, and this file
+  spends its whole argument on the difference. **Ask rather than assume** — the
+  rule as written reads as a blanket refusal and extending or narrowing it is
+  Rodrigo's call, not a session's.
 - **No claim that is not checkable in the shipped build**, on the listing's own
   rule. Open channels and alarm-by-permission are not built and may not be
   advertised.
@@ -673,6 +806,14 @@ What to do, in order, and what each is waiting on.
    negotiable: Search Ads sends people to the App Store product page, so
    buying traffic before the listing is right pays to show strangers a
    description that still does not mention the invite link.
+
+   **The buy itself is now specified** — § *The keyword list, in three tiers*
+   holds the terms, the negatives and the campaign structure, and § *What a
+   tap costs* holds the pricing and the budget. **Two of their items belong in
+   the same App Store Connect sitting as 2** rather than in a later one: the
+   Custom Product Pages, which are the only creative lever Apple Ads has, and
+   the brand-defence negatives against flooring, which cost nothing and are
+   pure waste until they exist.
 6. **The launch surfaces**, once 4 exists, because a Product Hunt post without
    imagery is a post that was not made.
 7. **Group-affinity social**, last, because it is the most expensive to do
