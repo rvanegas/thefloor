@@ -508,6 +508,10 @@ export class Accounts {
       chimeAmplitude: isChimeAmplitude(row.chime_amplitude)
         ? row.chime_amplitude
         : DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude,
+      // A date on the way in and a boolean on the way out: the wire asks
+      // whether we may write to this person, and the column answers when they
+      // said we could. See `marketing_email_at` in db.ts.
+      marketingEmail: row.marketing_email_at !== null,
     };
   }
 
@@ -520,6 +524,11 @@ export class Accounts {
    * is the whole of it, because the caller's next move is to tell every device
    * this account holds, and a partial answer would make each of them merge.
    *
+   * **Takes the clock rather than reading one**, as everything here does,
+   * because one of these settings now writes a date: the marketing permission
+   * is stored as the moment it was granted. See the write at the foot of this
+   * method.
+   *
    * The default is stored as itself rather than as a null. That is the
    * opposite of what `NotificationPreferences.set` does, and deliberately:
    * these are set from a screen showing both choices as buttons, where
@@ -530,7 +539,8 @@ export class Accounts {
    */
   updateSettings(
     accountId: string,
-    changes: Partial<AccountSettings>
+    changes: Partial<AccountSettings>,
+    now: number
   ): AccountSettings | undefined {
     if (!this.byId(accountId)) return undefined;
     if (changes.appearance !== undefined) {
@@ -557,6 +567,26 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET chime_amplitude = ? WHERE id = ?')
         .run(changes.chimeAmplitude, accountId);
+    }
+    // The only setting on this screen that is a permission, and the only one
+    // whose two directions are not symmetrical. Granting stamps the moment,
+    // and stamps it only if there is nothing there — so somebody who turns it
+    // off and on again is one person who has said yes twice rather than a
+    // consent that has quietly changed its date. Withdrawing clears it, which
+    // is what withdrawal means: what is kept afterwards is the absence of a
+    // permission, and a date somebody has revoked is not a record worth
+    // keeping against them.
+    if (changes.marketingEmail !== undefined) {
+      const row = this.byId(accountId)!;
+      if (!changes.marketingEmail) {
+        this.db
+          .prepare('UPDATE accounts SET marketing_email_at = NULL WHERE id = ?')
+          .run(accountId);
+      } else if (!row.marketing_email_at) {
+        this.db
+          .prepare('UPDATE accounts SET marketing_email_at = ? WHERE id = ?')
+          .run(now, accountId);
+      }
     }
     return this.settings(accountId);
   }

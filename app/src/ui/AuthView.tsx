@@ -17,14 +17,17 @@ import { colors, spacing, type } from './theme';
  * replaced by typing here or on the Contact screen.
  */
 export function AuthView() {
-  const { requestCode, verify, lastError, clearError } = useApp();
+  const { requestCode, verify, lastError, clearError, signedInBefore } =
+    useApp();
   const [step, setStep] = useState<'identify' | 'verify'>('identify');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   /**
-   * Permission to send mail that is not a sign-in code. Starts clear and is
-   * only ever sent as a grant: see the checkbox below, and `api.verify`.
+   * Permission to send mail that is not a sign-in code. Starts clear, is only
+   * ever sent as a grant, and is asked for only on an install that has never
+   * been signed in: see the checkbox below, and `api.verify`. Floor Settings
+   * is where it is answered afterwards, in both directions.
    */
   const [marketingEmail, setMarketingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,27 +150,38 @@ export function AuthView() {
               submitLabel="go"
             />
             {/*
-              The one thing on this screen that is asked rather than required,
-              and it is here rather than on the first step deliberately: this
-              is the step that creates an account, and a box ticked beside an
-              address that then fails to verify is a permission granted by
-              nobody. It sits above the commitment rather than below it — a
-              question asked after the button that answers the screen is a
-              question most people never see.
+              **Offered to somebody signing up, and to nobody else.** A person
+              coming back has answered this once and has it on Floor Settings,
+              where it can also be turned off; asking them again at the door
+              would be asking a question whose answer we already hold.
+
+              `signedInBefore` is a guess and is the only signal there is:
+              nothing here can know whether this address has an account,
+              because `/auth/request-code` answers identically either way so
+              that sign-in cannot be used to ask which addresses exist — and by
+              the time the server could say, the code has been spent. What the
+              app can know is whether this install has ever held a session. It
+              is wrong in two directions, both of which cost one checkbox; see
+              `SIGNED_IN_BEFORE_KEY` in state/AppProvider.tsx.
+
+              **It is on this step rather than the first, and inline rather
+              than a step of its own.** This is the step that creates the
+              account, and a box ticked beside an address that then fails to
+              verify is a permission granted by nobody. A screen of its own
+              after the code would be a screen between somebody and the app
+              they just signed in to, which is a worse trade than the question
+              is worth.
 
               Clear by default, and nothing pre-ticks it: an opt-in that
-              arrives ticked is not one. Signing in again on another device
-              shows it clear again — this screen is read before anybody is
-              identified, so it cannot know what was already answered — which
-              is why an untouched box is silence and not a refusal. Withdrawing
-              is not offered here or anywhere yet; it belongs on the mail, and
-              see planning/backlog/.
+              arrives ticked is not one.
             */}
-            <Checkbox
-              label="Email me occasionally about The Floor — how to use it, and what is new."
-              checked={marketingEmail}
-              onChange={setMarketingEmail}
-            />
+            {signedInBefore ? null : (
+              <Checkbox
+                label="Email me occasionally about The Floor — how to use it, and what is new."
+                checked={marketingEmail}
+                onChange={setMarketingEmail}
+              />
+            )}
             <Button
               label={busy ? 'Checking…' : 'Sign in'}
               variant="primary"

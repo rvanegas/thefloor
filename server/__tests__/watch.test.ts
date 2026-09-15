@@ -145,7 +145,7 @@ async function signIn(identifier: string, displayName: string) {
     token: string;
     account: { id: string; displayName: string };
   };
-  app.accounts.updateSettings(account.account.id, { labs: true });
+  app.accounts.updateSettings(account.account.id, { labs: true }, clock);
   return account;
 }
 
@@ -492,7 +492,7 @@ describe('the Labs gate', () => {
    */
   it('refuses a party to somebody who has not turned Labs on', async () => {
     const { alice, channelId } = await channelOfTwo();
-    app.accounts.updateSettings(alice.account.id, { labs: false });
+    app.accounts.updateSettings(alice.account.id, { labs: false }, clock);
 
     const refused = app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_WATCH',
@@ -511,7 +511,7 @@ describe('the Labs gate', () => {
     } as never);
     // Bob never asked for any of this, and is now in a channel driving his
     // own player. Stopping it is the one thing he must be able to do.
-    app.accounts.updateSettings(bob.account.id, { labs: false });
+    app.accounts.updateSettings(bob.account.id, { labs: false }, clock);
 
     const stopped = app.channels.dispatch(channelId, bob.account.id, {
       type: 'STOP_WATCH',

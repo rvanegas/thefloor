@@ -72,6 +72,13 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.help.seenAnsweredAt',
   'thefloor.cohort.dismissed',
   'thefloor.handover',
+  // Whether this install has ever held a session — `AppProvider`. Listed here
+  // like everything else, and so cleared by *Forget this phone*, which is the
+  // one place it should be: that control exists to make a phone look like a
+  // fresh install, and a key whose whole job is to say this install is not
+  // fresh would be the one thing left contradicting it. Signing out does not
+  // touch it, deliberately.
+  'thefloor.signedInBefore',
   'thefloor.seat.channel',
   'thefloor.invite',
   'thefloor.train',

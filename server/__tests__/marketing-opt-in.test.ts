@@ -93,3 +93,79 @@ describe('the sign-in opt-in', () => {
     expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBeNull();
   });
 });
+
+/**
+ * The other end of the same permission: Floor Settings, which is behind a
+ * session and can therefore show the answer in force — and is consequently the
+ * only place it may be taken back.
+ */
+describe('the Floor Settings switch', () => {
+  async function save(token: string, marketingEmail: boolean) {
+    return app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { marketingEmail },
+    });
+  }
+
+  it('reads as a boolean though it is stored as a date', async () => {
+    const alice = await signIn('anna.k@example.com', { marketingEmail: true });
+    expect(app.accounts.settings(alice.account.id).marketingEmail).toBe(true);
+
+    const bea = await signIn('bea@example.com');
+    expect(app.accounts.settings(bea.account.id).marketingEmail).toBe(false);
+  });
+
+  it('grants, stamping the moment', async () => {
+    const alice = await signIn('anna.k@example.com');
+    clock += 60_000;
+    const saved = await save(alice.token, true);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({ marketingEmail: true });
+    expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBe(clock);
+  });
+
+  it('withdraws, which is what this screen is for', async () => {
+    const alice = await signIn('anna.k@example.com', { marketingEmail: true });
+    const saved = await save(alice.token, false);
+    expect(saved.json()).toMatchObject({ marketingEmail: false });
+    expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBeNull();
+  });
+
+  /**
+   * Turning it off and on again is one person saying yes twice, not a consent
+   * whose date has quietly moved — the second yes is a new grant, because the
+   * first was revoked.
+   */
+  it('dates a fresh grant after a withdrawal', async () => {
+    const alice = await signIn('anna.k@example.com', { marketingEmail: true });
+    await save(alice.token, false);
+    clock += 60_000;
+    await save(alice.token, true);
+    expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBe(clock);
+  });
+
+  /** Saying yes again while it already holds leaves the original date alone. */
+  it('does not re-date a permission that already holds', async () => {
+    const alice = await signIn('anna.k@example.com', { marketingEmail: true });
+    const granted = app.accounts.byId(alice.account.id)!.marketing_email_at;
+    clock += 60_000;
+    await save(alice.token, true);
+    expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBe(
+      granted
+    );
+  });
+
+  it('refuses anything that is not a yes or a no', async () => {
+    const alice = await signIn('anna.k@example.com');
+    const saved = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: { authorization: `Bearer ${alice.token}` },
+      payload: { marketingEmail: 'yes please' },
+    });
+    expect(saved.statusCode).toBe(400);
+    expect(app.accounts.byId(alice.account.id)!.marketing_email_at).toBeNull();
+  });
+});

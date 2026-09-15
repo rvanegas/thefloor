@@ -2353,6 +2353,19 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.labs = body.labs;
     }
+    // The one field here that is a permission rather than a preference, and
+    // the one place it may be withdrawn: this route is behind a session, so it
+    // can show the answer in force and can therefore take it back. The other
+    // writer is `/auth/verify`, which can only ever grant — see
+    // `Accounts.establish`.
+    if (body?.marketingEmail !== undefined) {
+      if (typeof body.marketingEmail !== 'boolean') {
+        return reply
+          .code(400)
+          .send({ error: 'marketingEmail must be true or false.' });
+      }
+      changes.marketingEmail = body.marketingEmail;
+    }
     // Refused rather than clamped, on the scheme's reasoning one screen up: a
     // peak outside the ladder is a client bug, and storing it would hand this
     // account's other phones a loudness nobody has ever listened to on one.
@@ -2365,7 +2378,7 @@ export function buildApp(options: BuildOptions = {}): App {
       changes.chimeAmplitude = body.chimeAmplitude;
     }
 
-    const settings = accounts.updateSettings(account.id, changes);
+    const settings = accounts.updateSettings(account.id, changes, now());
     if (!settings) return reply.code(404).send({ error: 'No such account.' });
     // Nobody else is told. These change nothing anybody but this person can
     // see — no roster, no name, no availability — so unlike a rename there is

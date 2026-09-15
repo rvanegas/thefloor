@@ -396,7 +396,10 @@ beside it in `type.muted`; ticked, it fills with `text` and draws a 16pt
 element with `accessibilityRole="checkbox"` and `checked` in its state.
 
 **One user so far, and the shape is the reason there is a component at all**:
-the marketing opt-in on the sign-in screen. Every other control here either has
+the marketing opt-in on the sign-in screen, offered to somebody signing up and
+to nobody else. The same permission on *Floor Settings* is an On/Off pair of
+buttons like every other setting there, and the difference is the point — a box
+is a question nobody has answered yet, a pair is an answer in force. Every other control here either has
 a value in force already — a `Segmented`, a ladder of buttons — or is a
 commitment somebody presses once. A permission is neither: it has to start
 clear, stay clear if nobody touches it, and read as unticked rather than as

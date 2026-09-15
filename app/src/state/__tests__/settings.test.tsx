@@ -56,6 +56,7 @@ jest.mock('../../api/http', () => ({
         hideControlCards: false,
         labs: false,
         chimeAmplitude: 0.18,
+        marketingEmail: false,
       };
     }),
   },
@@ -108,6 +109,7 @@ function hello(settings: {
   hideControlCards: boolean;
   labs: boolean;
   chimeAmplitude: number;
+  marketingEmail: boolean;
 } | null): void {
   handlers.onHello?.(
     { id: 'acct_me', displayName: 'Me' },
@@ -175,6 +177,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: false,
         labs: false,
         chimeAmplitude: 0.35,
+        marketingEmail: false,
       })
     );
     expect(textOf(tree)).toContain('dark/open/cards/plain/0.35');
@@ -211,6 +214,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: true,
         labs: false,
         chimeAmplitude: 0.18,
+        marketingEmail: false,
       })
     );
     expect(mockStored['thefloor.tapToLook']).toBe('true');
@@ -238,6 +242,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: false,
         labs: false,
         chimeAmplitude: 0.18,
+        marketingEmail: false,
       })
     );
     await act(async () =>
@@ -247,6 +252,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: true,
         labs: true,
         chimeAmplitude: 0.7,
+        marketingEmail: false,
       })
     );
     expect(textOf(tree)).toContain('light/open/bare/labs/0.7');
@@ -265,6 +271,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: false,
         labs: false,
         chimeAmplitude: 0.18,
+        marketingEmail: false,
       })
     );
 
@@ -322,6 +329,7 @@ describe('the settings that follow the account', () => {
         hideControlCards: true,
         labs: true,
         chimeAmplitude: 0.18,
+        marketingEmail: false,
       })
     );
     await act(async () => {

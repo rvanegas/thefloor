@@ -621,6 +621,61 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         the link is the API's own address and nothing new has to be
         threaded through the wire to find it.
       */}
+      {/*
+        Beside Privacy rather than under Account, and above it rather than
+        below: this is the one setting on the screen that is about what arrives
+        in somebody's inbox rather than about what the app does, and the
+        question it raises — what would you send me, and what do you already
+        have — is answered by the policy directly underneath it.
+
+        **The only place this permission can be withdrawn.** The other half of
+        it is a checkbox on the sign-in screen, which can only ever grant: that
+        screen is read before anybody is identified, so it cannot show an
+        answer already given and starts clear on every device. This screen is
+        behind a session and can show it in force, which is what makes a
+        two-way control honest here and dishonest there. See `marketingEmail`
+        in core/settings.ts.
+
+        On and Off as a pair of buttons rather than the sign-in screen's box,
+        because that is what every other setting on this screen is and because
+        the shapes are saying different things: a box is a question nobody has
+        answered yet, and this is an answer in force. See STYLE.md § *Checkbox*.
+      */}
+      <SectionLabel>Email</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>Occasional email about The Floor</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, 'On'],
+              [false, 'Off'],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.marketingEmail === value ? 'primary' : 'default'}
+              onPress={() => app.setMarketingEmail(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>
+          Off, which is where everybody starts unless they said otherwise when
+          they signed up. On, we may write to you about how to use The Floor
+          and what has changed in it.
+        </Text>
+        {/*
+          Said because the setting's name does not say it, and because the
+          fear a mail setting raises is the one about the mail somebody
+          actually needs. Turning this off cannot cost anybody their way in.
+        */}
+        <Text style={type.muted}>
+          Your sign-in codes arrive either way: those are how you get in, not
+          something we send you.
+        </Text>
+      </Card>
+
       <SectionLabel>Privacy</SectionLabel>
       <Card style={styles.stack}>
         <Button label="Privacy policy" onPress={() => void openPrivacy()} />

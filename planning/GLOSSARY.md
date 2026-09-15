@@ -62,7 +62,7 @@ caused; the list carries the meaning.
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
-- **Marketing email** — Permission to write to somebody about the application rather than to sign them in: granted by the one checkbox on the sign-in screen, clear unless ticked, and so far unspent — nothing sends any
+- **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
@@ -713,21 +713,31 @@ them in.** The sign-in screen's one checkbox, below the code and the display
 name, clear until somebody ticks it; ticking it stamps
 `accounts.marketing_email_at` with the moment.
 
-**A grant and never a withdrawal**, which is the whole of what is unusual
-about it. That screen is read before anybody is identified, so it cannot be
-shown in force the way a setting can — it starts clear on every device — and a
-clear box therefore means *did not opt in just now* rather than *no*. Reading
-it as a refusal would make signing in on a second phone revoke what the first
-one granted. A second tick is a no-op: the stamp says when permission was
-first given, which is the fact somebody may later have to be shown.
+**Asked in one place and answered in two.** The sign-in screen offers it to
+somebody *signing up* — an install that has never held a session — where it
+can only ever be a grant: that screen is read before anybody is identified, so
+it cannot show an answer already given, and a clear box means *did not opt in
+just now* rather than *no*. **Floor Settings § Email is the switch**, behind a
+session and therefore able to show the answer in force, and is the only place
+the permission may be withdrawn.
+
+**Whether somebody is new is a guess, and deliberately so.**
+`/auth/request-code` answers identically whether or not an address has an
+account, so that sign-in cannot be used to ask which addresses exist — which
+means nothing at the door can know. What the app knows is whether *this
+install* has ever been signed in. It is wrong in two directions and each costs
+one checkbox: a returning person on a new phone is asked again, and somebody
+signing up on a phone that has held another account is not asked and finds the
+switch on Floor Settings. See `SIGNED_IN_BEFORE_KEY`.
 
 The date rather than a 1, on the reasoning the four `tried_` columns are
-stamps. Erasing the account clears it along with everything else.
+stamps. Granting again while it holds keeps the original date; withdrawing
+clears it, so a later yes is a new grant with a new one. Erasing the account
+clears it along with everything else.
 
-**Nothing sends this mail yet, and nothing withdraws the permission** — the
-only exit today is deleting the account, which is not one. See
-`planning/backlog/marketing-email-has-consent-but-no-way-to-withdraw-it.md`,
-which carries what is missing and the order it will be wanted in.
+**Nothing sends this mail yet**, and the withdrawal that exists is the in-app
+switch rather than a link on a message nobody has sent. See
+`planning/backlog/marketing-email-has-no-unsubscribe-link.md`.
 
 ## Member
 

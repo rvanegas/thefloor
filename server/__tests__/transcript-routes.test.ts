@@ -89,7 +89,7 @@ const signIn = async (identifier: string, displayName: string) => {
     payload: { identifier, code, displayName },
   });
   const account = res.json() as { token: string; account: { id: string } };
-  app.accounts.updateSettings(account.account.id, { labs: true });
+  app.accounts.updateSettings(account.account.id, { labs: true }, clock);
   return account;
 };
 
@@ -294,7 +294,7 @@ describe('asking for one', () => {
    */
   it('refuses somebody who has not turned Labs on, and spends nothing', async () => {
     const { alice } = await room();
-    app.accounts.updateSettings(alice.account.id, { labs: false });
+    app.accounts.updateSettings(alice.account.id, { labs: false }, clock);
 
     const answered = await ask(alice.token);
     expect(answered.statusCode).toBe(403);

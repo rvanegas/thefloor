@@ -62,6 +62,26 @@ import {
 
 const TOKEN_KEY = 'thefloor.token';
 /**
+ * Whether anybody has ever been signed in on this install.
+ *
+ * Written the first time a session exists here — a fresh sign-in, or a token
+ * restored at boot — and **never removed**, which is the whole of what makes
+ * it useful: signing out does not make somebody a new user, and this is the
+ * only signal the sign-in screen has about which kind of person is looking at
+ * it. The server cannot tell it: `/auth/request-code` deliberately answers the
+ * same whether or not an address has an account, so that sign-in cannot be
+ * used to ask which addresses exist, and by the time the answer is knowable
+ * the code has already been spent.
+ *
+ * So it is a guess, and it is wrong in two directions that both cost the same
+ * small thing — a checkbox shown once too often, or once too few. A returning
+ * person on a new phone is offered the marketing opt-in again; somebody
+ * signing up on a phone that has held another account is not asked, and finds
+ * the same setting on Floor Settings. Neither can grant or revoke anything by
+ * itself, which is what makes a guess affordable here and would not elsewhere.
+ */
+const SIGNED_IN_BEFORE_KEY = 'thefloor.signedInBefore';
+/**
  * Whether a tap on a channel walks into it, or only opens it — cached from
  * what the server last said this account had chosen.
  *
@@ -650,6 +670,34 @@ interface AppValue extends AppState {
   chimeAmplitude: number;
   setChimeAmplitude: (value: number) => void;
   /**
+   * Whether this account has said we may write to them about the application
+   * rather than only to sign them in.
+   *
+   * **A permission rather than a preference**, and the one setting here that
+   * is granted in two places and withdrawn in one: the sign-in screen offers
+   * it to somebody signing up and can only ever grant it, and Floor Settings —
+   * which is behind a session and can therefore show the answer in force — is
+   * where it goes both ways. See `marketingEmail` in core/settings.ts.
+   *
+   * **Not cached to storage, unlike the four above.** Their cache exists to
+   * stop a cold start painting the wrong palette or drawing a control that
+   * then vanishes; this one is read by a single card on a settings screen that
+   * cannot be reached before `hello` has arrived, so there is no frame for a
+   * stale value to be wrong in.
+   */
+  marketingEmail: boolean;
+  setMarketingEmail: (value: boolean) => void;
+  /**
+   * Whether anybody has ever been signed in on this install.
+   *
+   * Read by the sign-in screen and by nothing else: the marketing opt-in is
+   * offered to somebody signing up and not to somebody coming back, who has
+   * answered it once already and has it on Floor Settings. **A guess, and the
+   * only one available** — see `SIGNED_IN_BEFORE_KEY`, which carries why the
+   * server cannot answer this and why being wrong about it is affordable.
+   */
+  signedInBefore: boolean;
+  /**
    * Whether this install should be asked to turn notifications on, and what it
    * takes to do it.
    *
@@ -849,6 +897,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (isChimeAmplitude(cached)) setChimeAmplitudeState(cached);
     })();
   }, []);
+  /** No cache and no effect; the interface entry above says why. */
+  const [marketingEmail, setMarketingEmailState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.marketingEmail
+  );
+  /**
+   * Whether this install has ever held a session, read once at start.
+   *
+   * False until the read comes back, which is the right way round for what
+   * reads it: the sign-in screen shows the opt-in to somebody it takes for
+   * new, and a box appearing a frame late on a returning person's screen is a
+   * smaller wrong than one that flickers away under a thumb.
+   */
+  const [signedInBefore, setSignedInBefore] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      if (await storage.get(SIGNED_IN_BEFORE_KEY)) setSignedInBefore(true);
+    })();
+  }, []);
+  /** Idempotent, and called from both places a session begins. */
+  const markSignedIn = useCallback(() => {
+    setSignedInBefore(true);
+    void storage.set(SIGNED_IN_BEFORE_KEY, 'true');
+  }, []);
   /**
    * Takes the account's settings as the server states them, whichever device
    * caused them to change.
@@ -885,6 +956,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
     setChimeAmplitudeState(settings.chimeAmplitude);
     void storage.set(CHIME_AMPLITUDE_KEY, String(settings.chimeAmplitude));
+    setMarketingEmailState(settings.marketingEmail);
   }, []);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -910,6 +982,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(LABS_KEY);
     setChimeAmplitudeState(DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude);
     void storage.remove(CHIME_AMPLITUDE_KEY);
+    setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
   }, []);
   /**
    * The address this install is registered at, kept so sign-out can hand it
@@ -1134,6 +1207,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const home = await api.home(token);
         if (cancelled) return;
         setState((s) => ({ ...s, ready: true, token, home }));
+        // A restored session is a session this install has held, which is what
+        // the key means; it is written here as well as at sign-in so that an
+        // install from before the key existed stops looking new the first time
+        // it starts up.
+        markSignedIn();
         connect(token);
       } catch (error) {
         // An expired or revoked token should land on sign-in, not an error.
@@ -1663,6 +1741,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      signedInBefore,
+      marketingEmail,
+      setMarketingEmail: (value) => {
+        setMarketingEmailState(value);
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { marketingEmail: value })
+            .catch(() => {});
+        }
+      },
+
       requestCode: async (identifier) => {
         await api.requestCode(identifier);
       },
@@ -1675,6 +1764,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           marketingEmail
         );
         await storage.set(TOKEN_KEY, token);
+        markSignedIn();
         setState((s) => ({ ...s, token, me: account, lastError: null }));
         connect(token);
       },
@@ -2136,6 +2226,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hideControlCards,
       labs,
       chimeAmplitude,
+      marketingEmail,
+      signedInBefore,
+      markSignedIn,
       forgetSettings,
       expiry,
     ]

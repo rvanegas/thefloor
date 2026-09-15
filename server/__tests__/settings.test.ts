@@ -83,6 +83,7 @@ describe('the settings that follow the account', () => {
       hideControlCards: false,
       labs: false,
       chimeAmplitude: 0.18,
+      marketingEmail: false,
       // The two old names as well, which is what stops a build already on a
       // phone reading this answer as both of its channel settings having been
       // turned over. See settings-wire.ts.
@@ -106,6 +107,7 @@ describe('the settings that follow the account', () => {
       hideControlCards: false,
       labs: false,
       chimeAmplitude: 0.18,
+      marketingEmail: false,
     });
 
     await save(alice.token, { tapToLook: false, hideControlCards: true });
@@ -115,6 +117,7 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       chimeAmplitude: 0.18,
+      marketingEmail: false,
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -124,6 +127,7 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       chimeAmplitude: 0.18,
+      marketingEmail: false,
     });
   });
 
@@ -329,6 +333,7 @@ describe('the settings that follow the account', () => {
       'controlCards',
       'hideControlCards',
       'labs',
+      'marketingEmail',
       'tapToLook',
       'tapToStepIn',
     ]);
@@ -352,6 +357,7 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       chimeAmplitude: 0.18,
+      marketingEmail: false,
     });
 
     await save(alice.token, { tapToStepIn: true });

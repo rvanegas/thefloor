@@ -55,6 +55,9 @@ const mockApp = {
   ),
   lastError: null as string | null,
   clearError: jest.fn(),
+  // The default is somebody the app has never seen sign in, which is the
+  // person the opt-in is for. Individual tests set it the other way.
+  signedInBefore: false,
 };
 
 jest.mock('../../state/AppProvider', () => ({
@@ -127,6 +130,7 @@ function render(): ReactTestRenderer {
 
 beforeEach(() => {
   embedded.value = false;
+  mockApp.signedInBefore = false;
   jest.clearAllMocks();
 });
 
@@ -202,6 +206,19 @@ describe('the embedded-browser notice', () => {
 describe('the marketing email opt-in', () => {
   it('is not asked before the address is proved', () => {
     expect(findCheckbox(render())).toBeUndefined();
+  });
+
+  /**
+   * The rule the box exists under: a person coming back has answered this
+   * once, and has it on Floor Settings where it can also be turned off.
+   */
+  it('is not offered on an install that has been signed in before', async () => {
+    mockApp.signedInBefore = true;
+    const tree = render();
+    await reachTheCodeStep(tree);
+    expect(findCheckbox(tree)).toBeUndefined();
+    // The step it is missing from is still the step: nothing else moved.
+    expect(findButton(tree, 'Sign in')).toBeDefined();
   });
 
   it('is offered with the code, and starts clear', async () => {

@@ -175,6 +175,25 @@ export interface AccountSettings {
    * loudest the file can be and not the loudest the phone will be.
    */
   chimeAmplitude: number;
+  /**
+   * Whether we may write to this person about the application rather than to
+   * sign them in — news, and how to use the thing.
+   *
+   * **The one setting here that is a permission rather than a preference**,
+   * and the difference shows in two places. Its default is false because
+   * nobody has said yes, not because false is the nicer behaviour; and it is
+   * stored as the date it was granted rather than as a 1, since a consent is
+   * something somebody may later have to be shown the date of. See
+   * `accounts.marketing_email_at`, which is what this boolean is a reading of.
+   *
+   * **It is granted in two places and withdrawn in one.** The sign-in screen
+   * offers it to somebody signing up, where it can only ever be a grant — that
+   * screen is read before anybody is identified, so it cannot show an answer
+   * already given and starts clear on every device. Floor Settings is behind a
+   * session, can therefore show it in force, and is the only place it goes
+   * both ways. See GLOSSARY.md § *Marketing email*.
+   */
+  marketingEmail: boolean;
 }
 
 /**
@@ -231,4 +250,10 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
    * changes the cue for everybody who never asked for anything.
    */
   chimeAmplitude: 0.18,
+  /**
+   * Nobody has given permission, which is the only value a default may take
+   * here: every other false on this object is a behaviour that can be argued
+   * about, and this one is the absence of somebody's yes.
+   */
+  marketingEmail: false,
 };
