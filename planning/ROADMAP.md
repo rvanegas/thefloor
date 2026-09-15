@@ -56,8 +56,8 @@ from.
 pinging** — before the ping, not after it. This is the piece that converts a
 silent failure into a visible one, and it is the highest-value third of the
 three. It needs the server to know the state, which is a fact about
-`device_tokens` rather than about the app; BACKLOG.md § *Sessions cannot be
-listed, only ended wholesale* is adjacent, noting that a session and a
+`device_tokens` rather than about the app; decisions/ § *Sessions are ended
+wholesale, and that is not a defect* is adjacent, noting that a session and a
 notification permission are separately recorded and can disagree. **Establish
 what the server can actually tell** — a device with no token, a token that has
 gone stale, and a permission explicitly refused are not the same state, and

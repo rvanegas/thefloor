@@ -1487,8 +1487,8 @@ words, and conflating them is the readiest mistake in this area.
 **An install may hold a session and no device token.** Notification permission
 is what mints one; an install that declined has a live session and no row here
 at all. That single fact is why this table cannot stand in for a list of
-somebody's devices, however much it looks like the nearer half of one — see the
-backlog entry *Sessions cannot be listed, only ended wholesale*.
+somebody's devices, however much it looks like the nearer half of one — see
+decisions/ § *Sessions are ended wholesale, and that is not a defect*.
 
 `session_hash` joins a row to the session that registered it, and is the only
 join the server has between a push address and a live socket: `POST /devices` is
@@ -1947,8 +1947,9 @@ token: the row is a hash and some timestamps, with no platform, no model and no
 origin. So the only two operations are the session you are holding
 (`/auth/sign-out`) and every other one at once (`/auth/sign-out-others`), with no
 way to name a third — and the second spares the caller by hash rather than by
-count. The backlog entry *Sessions cannot be listed, only ended wholesale* is
-that gap, and what it would cost to close it.
+count. That is deliberate and settled: decisions/ § *Sessions are ended
+wholesale, and that is not a defect* is the gap, and why it is not being
+closed.
 
 **Not the audio session**, which is the other thing this word means in this
 codebase and is more often what a file named `session.ts` is about — see *session
