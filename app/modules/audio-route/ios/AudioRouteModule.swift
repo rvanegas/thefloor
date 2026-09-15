@@ -159,12 +159,44 @@ public class AudioRouteModule: Module {
      sound. `chimeNotes` is the set of kinds, and an unknown one returns false
      rather than guessing — a chime nobody recognises is worse than silence.
      */
-    Function("chime") { (kind: String, amplitude: Double) -> Bool in
-      guard let id = self.chimeSound(kind: kind, amplitude: amplitude) else {
+    Function("chime") { (kind: String, amplitude: Double, lead: Double) -> Bool in
+      guard
+        let id = self.chimeSound(kind: kind, amplitude: amplitude, lead: lead)
+      else {
         return false
       }
       AudioServicesPlaySystemSound(id)
       return true
+    }
+
+    /**
+     What this binary's chime renderer actually is.
+
+     **It exists because a fix that needs a native rebuild is indistinguishable,
+     from the phone, from a fix that did not work.** The 180ms lead-in below
+     shipped on 2026-09-15 and was reported still broken; the first question —
+     which nobody could answer from the screen — was whether the running binary
+     had it at all, since a JavaScript reload picks up every word of the lab and
+     none of this file. A number read back off the renderer settles that in the
+     one place the symptom is.
+
+     It is the same rule the rest of this module is built on. `configure`
+     returns a snapshot rather than a success flag because reading back what you
+     asked for proves nothing; this returns what the renderer holds rather than
+     what the lab believes it passed.
+
+     **Its absence is the finding**, and is the only signal that can cross a
+     stale binary: a build without this function returns nothing at all, and the
+     lab says so in those words rather than showing a default.
+     */
+    Function("chimeInfo") { () -> [String: Any] in
+      [
+        "leadSeconds": Self.chimeLeadSeconds,
+        "noteSeconds": Self.chimeNoteSeconds,
+        "amplitude": Self.chimeAmplitude,
+        "sampleRate": Self.chimeSampleRate,
+        "kinds": Self.chimeNotes.keys.sorted(),
+      ]
     }
 
     /**
@@ -339,11 +371,15 @@ public class AudioRouteModule: Module {
    */
   private static var soundIds: [String: SystemSoundID] = [:]
 
-  /** The id for one kind at one amplitude, rendering it on first use. */
-  private func chimeSound(kind: String, amplitude: Double) -> SystemSoundID? {
-    let key = Self.chimeKey(kind: kind, amplitude: amplitude)
+  /** The id for one kind at one amplitude and lead, rendering it on first use. */
+  private func chimeSound(
+    kind: String, amplitude: Double, lead: Double
+  ) -> SystemSoundID? {
+    let key = Self.chimeKey(kind: kind, amplitude: amplitude, lead: lead)
     if let existing = Self.soundIds[key] { return existing }
-    guard let url = Self.renderChime(kind: kind, amplitude: amplitude) else {
+    guard
+      let url = Self.renderChime(kind: kind, amplitude: amplitude, lead: lead)
+    else {
       return nil
     }
     var id: SystemSoundID = 0
@@ -400,8 +436,12 @@ public class AudioRouteModule: Module {
    enough that a float's last bit cannot mint a second entry for the same
    sound.
    */
-  private static func chimeKey(kind: String, amplitude: Double) -> String {
-    "\(kind)-\(Int((clampAmplitude(amplitude) * 100).rounded()))"
+  private static func chimeKey(
+    kind: String, amplitude: Double, lead: Double
+  ) -> String {
+    let peak = Int((clampAmplitude(amplitude) * 100).rounded())
+    let silence = Int((clampLead(lead) * 1000).rounded())
+    return "\(kind)-\(peak)-\(silence)"
   }
 
   /**
@@ -414,6 +454,19 @@ public class AudioRouteModule: Module {
   private static func clampAmplitude(_ raw: Double) -> Double {
     guard raw.isFinite else { return chimeAmplitude }
     return max(0.01, min(1.0, raw))
+  }
+
+  /**
+   Lead-in as the renderer will actually use it.
+
+   Zero is allowed and is the point — it is the control the sweep is judged
+   against, the cue as it was before any of this. The ceiling is a second,
+   which is far past any plausible route ramp and already long enough that the
+   cue would feel broken.
+   */
+  private static func clampLead(_ raw: Double) -> Double {
+    guard raw.isFinite else { return chimeLeadSeconds }
+    return max(0.0, min(1.0, raw))
   }
 
   private static let chimeSampleRate = 44_100.0
@@ -500,16 +553,19 @@ public class AudioRouteModule: Module {
    amplitude begins on a discontinuity, and the click that produces is the part
    a listener would notice.
    */
-  private static func renderChime(kind: String, amplitude: Double) -> URL? {
+  private static func renderChime(
+    kind: String, amplitude: Double, lead: Double
+  ) -> URL? {
     guard let notes = chimeNotes[kind] else { return nil }
     let peak = clampAmplitude(amplitude)
+    let silence = clampLead(lead)
     let perNote = Int(chimeSampleRate * chimeNoteSeconds)
-    let lead = Int(chimeSampleRate * chimeLeadSeconds)
+    let leadFrames = Int(chimeSampleRate * silence)
 
     var samples: [Int16] = []
-    samples.reserveCapacity(lead + perNote * notes.count)
+    samples.reserveCapacity(leadFrames + perNote * notes.count)
     // The route wakes up on this, rather than on the first note.
-    samples.append(contentsOf: repeatElement(0, count: lead))
+    samples.append(contentsOf: repeatElement(0, count: leadFrames))
     for note in notes {
       for frame in 0..<perNote {
         let t = Double(frame) / chimeSampleRate
@@ -548,7 +604,9 @@ public class AudioRouteModule: Module {
     }
 
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("chime-\(chimeKey(kind: kind, amplitude: peak)).wav")
+      .appendingPathComponent(
+        "chime-\(chimeKey(kind: kind, amplitude: peak, lead: silence)).wav"
+      )
     do {
       try data.write(to: url, options: .atomic)
     } catch {

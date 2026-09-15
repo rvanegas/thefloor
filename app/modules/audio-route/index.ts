@@ -94,7 +94,16 @@ interface NativeAudioRoute {
    * count, and false is again the true answer — build 206 renders at a fixed
    * peak and cannot be asked for another.
    */
-  chime?(kind: string, amplitude: number): boolean;
+  chime?(kind: string, amplitude: number, lead: number): boolean;
+  /**
+   * What the binary's chime renderer actually is, or absent on a binary built
+   * before 2026-09-15 evening.
+   *
+   * **The absence is the reading.** A native fix and a native fix that was
+   * never compiled look identical from JavaScript, and one of them had already
+   * been reported as *still happening*.
+   */
+  chimeInfo?(): ChimeInfo;
   /**
    * The lab's three. Optional on the type because a Metro reload can leave a
    * new bundle talking to a binary built before they existed, and the lab says
@@ -282,6 +291,47 @@ export type ChimeCandidate = 'nearby-a' | 'nearby-b' | 'nearby-c';
 export const CHIME_AMPLITUDE = 0.18;
 
 /**
+ * The silence every chime opens with, mirroring `chimeLeadSeconds` in the
+ * Swift, on the same terms as `CHIME_AMPLITUDE` above.
+ *
+ * **What it is for:** `AudioServicesPlaySystemSound` on an idle route makes iOS
+ * power the output path up, and a cue only 180ms long can spend most of itself
+ * on that ramp. The silence is what the route wakes up on.
+ *
+ * **It is a dial and not yet an answer.** 0.18 was a first guess at a number
+ * nobody has measured, shipped, and reported as not having fixed anything — so
+ * the lab now sweeps this the way it sweeps the peak, and zero is in the sweep
+ * as the control. When an ear has settled it, this line and the Swift one
+ * change together.
+ */
+export const CHIME_LEAD = 0.18;
+
+/** What the running binary's chime renderer holds, for the lab to display. */
+export interface ChimeInfo {
+  leadSeconds: number;
+  noteSeconds: number;
+  amplitude: number;
+  sampleRate: number;
+  kinds: string[];
+}
+
+/**
+ * The renderer as the binary actually has it, or null on an older one.
+ *
+ * **Null does not mean broken; it means stale**, and that is the whole reason
+ * this exists. The lab prints it in those words, because "the fix did not
+ * work" and "the fix is not in this binary" are the same symptom and only one
+ * of them is worth debugging.
+ */
+export function chimeInfo(): ChimeInfo | null {
+  try {
+    return native?.chimeInfo?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The presence chime: two notes rising, the same two falling, or one alone.
  *
  * Rendered in the native half and played as a *system sound*, which is the
@@ -301,6 +351,9 @@ export const CHIME_AMPLITUDE = 0.18;
  *
  * @param kind which of the three, or a lab candidate for `nearby`.
  * @param amplitude peak sample value, 0.01 to 1.0, clamped natively.
+ * @param lead seconds of silence in front of the notes, 0 to 1, clamped
+ * natively — what the output route powers up on. Zero is the cue as it was
+ * before 2026-09-15 and is the control the sweep is read against.
  * @returns whether it played. False means no module, a native half older than
  * this function, or — since the argument became a string, and since a second
  * argument joined it — a binary that still expects the boolean, which is every
@@ -309,10 +362,11 @@ export const CHIME_AMPLITUDE = 0.18;
  */
 export function chime(
   kind: ChimeKind | ChimeCandidate,
-  amplitude: number = CHIME_AMPLITUDE
+  amplitude: number = CHIME_AMPLITUDE,
+  lead: number = CHIME_LEAD
 ): boolean {
   try {
-    return native?.chime?.(kind, amplitude) ?? false;
+    return native?.chime?.(kind, amplitude, lead) ?? false;
   } catch {
     return false;
   }

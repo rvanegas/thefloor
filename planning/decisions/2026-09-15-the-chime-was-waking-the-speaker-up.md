@@ -34,3 +34,10 @@ now a question the lab can actually answer.
 The lab gained a control step for it, ahead of the three it already had: tap
 once, wait, tap again, and the two should match. If they ever do not, the sweep
 below is measuring the ramp again and nothing it reports means anything.
+
+**This was reported as changing nothing, the same day.** The mechanism above was
+fitted to the symptoms rather than measured, and the length of the lead was a
+guess shipped as a constant. See
+*2026-09-15-the-lead-in-was-a-guess-so-the-lab-sweeps-it.md*, where it becomes a
+dial with zero as its control, and where the question of whether the binary
+under test even contained this is given a readout of its own.

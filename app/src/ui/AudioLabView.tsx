@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import {
   chime,
   CHIME_AMPLITUDE,
+  CHIME_LEAD,
+  chimeInfo,
   configureSession,
   routeSnapshot,
   startInput,
@@ -65,6 +67,25 @@ import { colors, spacing, type } from './theme';
  * what the readout below the buttons is for.
  */
 const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
+
+/**
+ * The lead-ins the chime is compared at, in seconds, as strings because the
+ * chips are.
+ *
+ * **`0` is the control and is the whole point of the row.** It is the cue with
+ * no silence in front of it at all — what shipped before 2026-09-15 and what
+ * was reported as quiet on a first tap and normal on a second. Every other
+ * value on this row means something only against it: if 0 and 0.18 sound the
+ * same, the output route powering up is not the mechanism and the fix that
+ * assumed it was should come out.
+ *
+ * **It goes past any plausible ramp on purpose.** 0.18 was a guess at a number
+ * nobody has measured, and a Bluetooth route takes far longer to come up than a
+ * loudspeaker — so the row runs to a full second, which is long enough to feel
+ * broken as a cue and is therefore a good place for the effect to have plainly
+ * stopped growing.
+ */
+const LEADS = ['0', '0.18', '0.35', '0.6', '1'];
 
 /** One row of the matrix, and why it is in it. */
 interface Preset {
@@ -283,6 +304,25 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const [peak, setPeak] = useState(String(CHIME_AMPLITUDE));
 
   /**
+   * The silence the next chime opens with, as the chip's own string.
+   *
+   * Starts at what the app ships for the same reason the peak does — the first
+   * tap should be the sound that is actually in somebody's hands.
+   */
+  const [lead, setLead] = useState(String(CHIME_LEAD));
+
+  /**
+   * What the running binary's renderer holds, read once.
+   *
+   * **Read at mount rather than at each tap, because it cannot change without
+   * the process restarting** — it is a property of the binary, not of the
+   * session. Null means this bundle is newer than the app it is running in,
+   * which is the single most likely explanation for a native fix that appears
+   * to have done nothing.
+   */
+  const renderer = useMemo(() => chimeInfo(), []);
+
+  /**
    * What the last chime did, which is the finding.
    *
    * **The route is captured at the moment of the tap** rather than rendered
@@ -294,6 +334,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const [lastChime, setLastChime] = useState<{
     kind: string;
     peak: string;
+    lead: string;
     played: boolean;
     outputs: string;
     through: string;
@@ -386,18 +427,19 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * development is a Metro reload against an unbuilt native half.
    */
   const ring = (kind: ChimeKind | ChimeCandidate) => {
-    const played = chime(kind, Number(peak));
+    const played = chime(kind, Number(peak), Number(lead));
     const here = routeSnapshot();
     const outputs = here?.outputs.join(', ') ?? 'unreadable';
     setLastChime({
       kind,
       peak,
+      lead,
       played,
       outputs,
       through: through(here?.outputs),
     });
     recordEvent(
-      `lab CHIME ${kind} peak=${peak} played=${played} @${phase} · ` +
+      `lab CHIME ${kind} peak=${peak} lead=${lead} played=${played} @${phase} · ` +
         `out=${outputs} via=${through(here?.outputs)} ` +
         `cat=${shortName(here?.category ?? '?')}/${shortName(here?.mode ?? '?')} ` +
         `opts=${(here?.categoryOptions ?? ['unreadable']).join('+')} ` +
@@ -627,19 +669,30 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           <Text style={styles.strong}>which note</Text> nearby gets.
         </Text>
         <Text style={styles.step}>
-          1 · Tap one, wait, tap it again — the two should match
+          1 · Check the renderer below is this bundle's, not an older build's
         </Text>
-        <Text style={styles.step}>2 · Tap one with no session at all</Text>
-        <Text style={styles.step}>3 · Apply a configuration above, tap again</Text>
-        <Text style={styles.step}>4 · Input ON, tap again — the silent case</Text>
+        <Text style={styles.step}>
+          2 · Lead 0, tap, wait, tap again — the cold tap should be the quiet one
+        </Text>
+        <Text style={styles.step}>
+          3 · Lead 0.6, same pair — if they now match, the ramp is the mechanism
+        </Text>
+        <Text style={styles.step}>4 · Sweep the peak at whichever lead won</Text>
+        <Text style={styles.step}>5 · Input ON, tap again — the silent case</Text>
         <Text style={styles.note}>
-          Step 1 is the control, and it has failed before: until build 208 a
-          cold tap was barely audible and a second one straight after was
-          normal, because the output route was still powering up through the
-          whole of a sound only 180ms long. Every chime now opens with silence
-          for the route to wake up on. If a first tap is still quieter than a
-          second, nothing below this line means anything — the sweep would be
-          measuring the ramp.
+          Steps 2 and 3 are the experiment and everything else here depends on
+          them. The claim under test is that a cold output route spends its
+          first tenth of a second powering up, and swallows a cue only 180ms
+          long — which would make a first tap quiet, a second one normal, and
+          the peak sweep unreadable, because an ear comparing two peaks over a
+          ramp is comparing ramps. Silence in front of the notes is what the
+          route would wake up on instead.
+        </Text>
+        <Text style={styles.note}>
+          It is a claim and not a finding. A 180ms lead shipped on the strength
+          of it and was reported as changing nothing, which is why the length is
+          a dial here and why 0 is on the row. If 0 and 1 sound alike, the
+          mechanism is something else and the lead-in should come back out.
         </Text>
         <Text style={styles.note}>
           Volume is baked into the sound, because a system sound has no gain
@@ -660,6 +713,49 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           phone because a phone speaker is the only room this cue plays in.
         </Text>
       </Card>
+
+      <SectionLabel>What this binary renders</SectionLabel>
+      <Card>
+        {renderer == null ? (
+          <>
+            <Text style={styles.mismatch}>
+              This build has no renderer to ask.
+            </Text>
+            <Text style={styles.body}>
+              The bundle is newer than the app it is running in — a Metro reload
+              picks up every word of this screen and nothing in the Swift. Stop
+              here and rebuild natively; nothing below this card is evidence
+              about anything until you have.
+            </Text>
+          </>
+        ) : (
+          <View>
+            <Reading
+              label="lead"
+              value={`${Math.round(renderer.leadSeconds * 1000)}ms`}
+            />
+            <Reading
+              label="notes"
+              value={`${Math.round(renderer.noteSeconds * 1000)}ms each`}
+            />
+            <Reading label="ships at" value={String(renderer.amplitude)} />
+            <Reading label="kinds" value={renderer.kinds.join(', ')} />
+          </View>
+        )}
+      </Card>
+      <Text style={styles.note}>
+        The default lead the binary holds, not the one the chips below are
+        asking for. They disagree freely and that is the point — this is the
+        app's setting, the chips are the experiment.
+      </Text>
+
+      <SectionLabel>Lead-in</SectionLabel>
+      <Choice values={LEADS} selected={lead} onSelect={setLead} />
+      <Text style={styles.why}>
+        {lead === '0'
+          ? 'No silence at all — the control, and the cue as it shipped before this.'
+          : `${lead}s of silence before the notes, for the route to power up on.`}
+      </Text>
 
       <SectionLabel>Peak</SectionLabel>
       <Choice values={PEAKS} selected={peak} onSelect={setPeak} />
@@ -715,6 +811,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           <View>
             <Reading label="kind" value={lastChime.kind} />
             <Reading label="peak" value={lastChime.peak} />
+            <Reading label="lead" value={`${lastChime.lead}s`} />
             <Reading
               label="native"
               value={lastChime.played ? 'played' : 'refused — rebuild needed'}
