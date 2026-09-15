@@ -3174,15 +3174,58 @@ describe('Channel', () => {
     tab — and it was one of four muted paragraphs there. The transport carries
     its words now, and prose under it is reserved for a capture that failed.
   */
+  it('offers Record to somebody alone in the room, and withdraws it when they mute', () => {
+    // The user-visible half of 2026-09-14. Alone with an open microphone the
+    // control is live; alone with nothing to capture it is not, and that is
+    // now the only thing being alone decides. See
+    // planning/decisions/2026-09-14-a-room-of-one-is-a-room.md.
+    const solo = (mute: boolean) =>
+      channelOf((s) => {
+        const left = reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW);
+        return mute
+          ? reduce(left, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
+          : left;
+      });
+
+    showChannel(solo(false));
+    const speaking = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showRecordings(speaking);
+    expect(findButton(speaking, 'Record')!.props.disabled).toBe(false);
+    act(() => speaking.unmount());
+
+    showChannel(solo(true));
+    const muted = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showRecordings(muted);
+    expect(findButton(muted, 'Record')!.props.disabled).toBe(true);
+    act(() => muted.unmount());
+  });
+
   it('says nothing under the transport about the channel recording itself', () => {
-    // Idle and not yet recordable — the state a channel is in between one
-    // person arriving and the second, and the state the sentence was about.
-    // The greying of Record is what says *not now* here.
+    // Idle and not yet recordable, which is still a state a channel set to
+    // record itself can be in — though no longer the one it used to be. Being
+    // alone stopped being what makes a room unrecordable on 2026-09-14; having
+    // nothing to capture is, so the person left here is muted. The greying of
+    // Record is what says *not now*, and the point of the test is that nothing
+    // says it a second time in prose.
     showChannel(
       channelOf((s) =>
         reduce(
-          { ...s, autoRecord: true },
-          { type: 'STEP_OUT', userId: THEM },
+          reduce(
+            { ...s, autoRecord: true },
+            { type: 'STEP_OUT', userId: THEM },
+            NOW
+          ),
+          { type: 'SET_SELF_MUTE', userId: ME, muted: true },
           NOW
         )
       )

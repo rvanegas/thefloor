@@ -94,14 +94,14 @@ const ask = (channelId: string, userId: string, autoRecord: boolean) =>
   } as never);
 
 describe('a channel that records itself', () => {
-  it('starts a run the moment the second person is in the room', async () => {
-    const { alice, bob, channelId } = await channelOfTwo();
+  it('starts a run for the one person already in the room', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    // **It waited for a second arrival until 2026-09-14** — on the reasoning
+    // that one person in a room is not a conversation — and it stopped waiting
+    // when `canStartRecording` did, the automatic start being possible in
+    // exactly the states the Record button is. Alice is here with an open
+    // microphone, so the setting has what it needs the moment it is asked for.
     ask(channelId, alice.id, true);
-    // Nothing yet: one person in a room is not a conversation, and the
-    // automatic start is possible in exactly the states the Record button is.
-    expect(channel(channelId).recording.status).toBe('idle');
-
-    app.channels.dispatch(channelId, bob.id, { type: 'ENTER' });
     const { recording } = channel(channelId);
     expect(recording.status).toBe('recording');
     expect(recording.runId).not.toBeNull();

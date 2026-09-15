@@ -81,6 +81,7 @@ caused; the list carries the meaning.
 - **Starting line** — The contact count an account's *introduction* began from, latched at its first Home snapshot and again on *Show the checklist again*; *get somebody here* ticks when the count has gone above it. Replaced *arrival (invited / alone)* on 2026-09-13
 - **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
+- **Capturable** — Whether a *recording* started now would capture anything: anybody's open microphone, or a track playing. `subscribeable`'s companion, and it counts you where that one discounts you — which is why one person alone may record and, since 2026-09-14, is the whole of what the recording guard asks about the room
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
@@ -929,10 +930,18 @@ process to infer an absence from — see *Attention*.
 ## Record automatically
 
 A channel setting, in Channel Settings, off until somebody in the room turns it
-on. On, a *recording* begins by itself as soon as the room holds two people —
-which is exactly when *Record* stops being greyed out, and is the same
-condition, deliberately, so that nothing is recorded automatically that could
-not have been recorded by hand.
+on. On, a *recording* begins by itself as soon as the room has anything to
+capture — which is exactly when *Record* stops being greyed out, and is the
+same condition, deliberately, so that nothing is recorded automatically that
+could not have been recorded by hand.
+
+**It waited for a second person until 2026-09-14** and now does not, having
+widened with the guard rather than by a decision of its own. Stepping into an
+auto-recording channel by yourself, with your microphone open, starts a run
+there and then. Note what that costs before turning it on: an *egress* opens
+for a lone speaker, billed per speaker per minute, and the room's turn is spent
+on a recording of one person — the turn coming back only once everybody has
+left and come back. See *Capturable*.
 
 **It decides how a recording begins and nothing else.** Pause, resume and stop
 are what they always were, and stopping is final: the room gets one automatic
@@ -958,6 +967,14 @@ who has stepped out is outside the conversation being recorded, and until
 belongs to the channel, is named when it stops, and carries the same name for
 everybody who was in it. A recording in progress is announced continuously to
 everybody in the room, guests included.
+
+**One person alone may record, and this reversed twice.** It was allowed until
+2026-09-07, refused until 2026-09-14, and is allowed again — the refusal having
+rested on a mechanical argument that the next day's audio redesign retired, and
+on a claim that nothing happens in a room of one which the same rule then
+contradicted by exempting a room of one with a track playing. What is asked
+instead is *Capturable*: not how many people are here, but whether anything
+would land in the file.
 
 A recording that has just stopped is **mixing** for a few seconds before it can
 be played or shared — its card appears immediately, with those two actions

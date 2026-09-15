@@ -46,27 +46,73 @@ describe('starting a recording', () => {
     expect(joined().recording.status).toBe('idle');
   });
 
-  it('is unavailable to one person alone in the channel', () => {
-    // The reverse of what this asserted until 2026-09-07. Recording here is a
-    // record of what happened in a room, and nothing happens in a room of one
-    // — a note to yourself is a different feature, and permitting it made a
-    // running recording a reason to hold the microphone open with nobody
-    // there. See `core/micNeeded.ts`.
+  it('is available to one person alone with their microphone open', () => {
+    // The reverse of what this asserted between 2026-09-07 and 2026-09-14, and
+    // the same thing it asserted before that. What the room needs is something
+    // to capture rather than a second person: somebody by themselves with
+    // something to say is a run worth having, and the rule that said otherwise
+    // exempted a room of one with a track playing in the same breath. See
+    // `capturable`.
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
     expect(alone.present).toEqual([A]);
-    expect(canStartRecording(alone, A)).toBe(false);
-    expect(reduce(alone, start(A), T0)).toBe(alone);
+    expect(alone.selfMuted[A]).toBe(false);
+    expect(canStartRecording(alone, A)).toBe(true);
+    expect(reduce(alone, start(A), T0).recording.status).toBe('recording');
+  });
+
+  it('is unavailable to one person alone who has muted themselves', () => {
+    // The whole of what is left of the old clause: a run that would capture
+    // nothing does not start. Not a judgement about how many people are here —
+    // a judgement about whether anything would land in the file.
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const muted = reduce(alone, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    expect(muted.selfMuted[A]).toBe(true);
+    expect(canStartRecording(muted, A)).toBe(false);
+    expect(reduce(muted, start(A), T0)).toBe(muted);
+  });
+
+  it('is unavailable to a roomful of people who have all muted themselves', () => {
+    // **Stricter than the old rule in exactly one place**, and deliberately.
+    // A second occupant used to be sufficient on its own; two people sitting
+    // muted with nothing playing would have filed silence and billed an egress
+    // apiece for it.
+    const both = apply(joined(), [
+      [{ type: 'SET_SELF_MUTE', userId: A, muted: true }, T0],
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: true }, T0 + 1],
+    ]);
+    expect(canStartRecording(both, A)).toBe(false);
+
+    // One of them opens a microphone and the room has something to record
+    // again — for either of them, this being a fact about the room.
+    const speaking = reduce(both, { type: 'SET_SELF_MUTE', userId: B, muted: false }, T0 + 2);
+    expect(canStartRecording(speaking, A)).toBe(true);
+    expect(canStartRecording(speaking, B)).toBe(true);
   });
 
   it('is available alone when media is playing into the room', () => {
-    // The second half of "something to record": the room has audio in it even
-    // with one person, so a run has something to capture.
+    // The second half of "something to capture": the room has audio in it even
+    // with one person muted, shared playback landing in a stem of its own.
     const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const muted = reduce(alone, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
     const playing = {
-      ...alone,
-      playback: { ...alone.playback, status: 'playing' as const },
+      ...muted,
+      playback: { ...muted.playback, status: 'playing' as const },
     };
     expect(canStartRecording(playing, A)).toBe(true);
+  });
+
+  it('does not count a track that is merely loaded and paused', () => {
+    // Tightened from `!== 'idle'` on 2026-09-14. A paused track publishes
+    // silence, so it is not something to capture — and it was the old rule's
+    // way round itself: play, record, clear the track, and a solo run ran on
+    // in a room the guard would have refused.
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const muted = reduce(alone, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    const paused = {
+      ...muted,
+      playback: { ...muted.playback, status: 'paused' as const },
+    };
+    expect(canStartRecording(paused, A)).toBe(false);
   });
 
   it('requires the person starting it to be present', () => {
@@ -85,13 +131,10 @@ describe('starting a recording', () => {
     expect(alsoEmpty.present).toEqual([]);
     expect(canStartRecording(alsoEmpty, A)).toBe(false);
 
-    // One returning is not enough any more — there has to be somebody to
-    // record with. Both back, and it is available again.
+    // One returning is enough again, as of 2026-09-14: stepping in opens a
+    // microphone, and an open microphone is something to record.
     const back = reduce(alsoEmpty, { type: 'ENTER', userId: A }, T0 + 2);
-    expect(canStartRecording(back, A)).toBe(false);
-
-    const bothBack = reduce(back, { type: 'ENTER', userId: B }, T0 + 3);
-    expect(canStartRecording(bothBack, A)).toBe(true);
+    expect(canStartRecording(back, A)).toBe(true);
   });
 
   it('can be initiated by either user', () => {
@@ -342,10 +385,20 @@ describe('automatic recording', () => {
     expect(autoRecordStarter(on(joined()))).toBe(A);
   });
 
-  it('names nobody while somebody is alone in the room', () => {
+  it('names somebody alone in the room, since 2026-09-14', () => {
+    // It named nobody until the recording guard widened, and it widened with
+    // it by construction rather than by a second decision — the two must be
+    // possible in exactly the same states. What this costs is an egress for a
+    // lone speaker in every channel with the setting on.
     const alone = on(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }));
     expect(alone.autoRecord).toBe(true);
-    expect(autoRecordStarter(alone)).toBeNull();
+    expect(autoRecordStarter(alone)).toBe(A);
+  });
+
+  it('names nobody while the only person here is muted', () => {
+    const alone = on(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }));
+    const muted = reduce(alone, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    expect(autoRecordStarter(muted)).toBeNull();
   });
 
   it('names nobody once a run is going', () => {

@@ -51,7 +51,7 @@ import {
   startRecording,
   stopRecording,
 } from './recording';
-import { inRoom, isGuest, roomOccupants } from './guests';
+import { guestMaySpeak, inRoom, isGuest, roomOccupants } from './guests';
 import type {
   ChannelAction,
   ChannelState,
@@ -274,6 +274,59 @@ export function subscribeable(state: ChannelState, userId: UserId): boolean {
   if (roomOccupants(state).some((id) => id !== userId)) return true;
   if (state.playback.status === 'playing') return true;
   return state.watch.status === 'playing';
+}
+
+/**
+ * Whether this person's microphone is open: they are in the room, nothing is
+ * withholding them, and they have not closed it by hand.
+ *
+ * **The reducer's answer to the server's `publishing`**, which is the same
+ * question asked of the media plane — a roster filtered to unmuted tracks. The
+ * two are stated separately because they are taken from different evidence and
+ * may briefly disagree: a device that has been told to mute has not muted yet.
+ * What is here is the intent, which is what a guard may act on; what is there
+ * is the fact, which is what a meter and a bill have to be taken from. Neither
+ * is the other's cache.
+ *
+ * The guest clause is `microphoneNeeded`'s, for its reason: a guest with no
+ * speech grant holds a token that cannot publish, so there is no track of
+ * theirs to open, to mute, or to record. See `core/micNeeded.ts`.
+ */
+function microphoneOpen(state: ChannelState, id: UserId): boolean {
+  if (!inRoom(state, id)) return false;
+  if (isGuest(state, id) && !guestMaySpeak(state, id)) return false;
+  if (state.selfMuted[id]) return false;
+  return !isWithheld(state, id);
+}
+
+/**
+ * Whether a recording started right now would capture anything at all.
+ *
+ * **The companion to `subscribeable`, and the difference between the two is
+ * you.** That one asks whether there is anything in the room for somebody to
+ * be here *for*, and so discounts the asker — a room containing only you holds
+ * nothing to listen to. This one asks whether the room is making a sound, and
+ * your own voice is a sound: it counts everybody, the asker included. Reading
+ * it as *is anybody else here* is the mistake the recording guard made for a
+ * week, and the one this name exists to stop making twice.
+ *
+ * **Two things count.** An open microphone belonging to anybody in the room,
+ * and a track playing — which publishes under an *identity* of its own and
+ * lands in a *stem* of its own, so shared listening is something a recording
+ * captures rather than something that happens beside one. A watch party is
+ * deliberately absent: its film plays on another device and reaches no stem,
+ * which is why `canStartRecording` refuses outright while a party is loaded
+ * rather than leaning on this.
+ *
+ * **It is the inverse of the server's `quiet`**, in `considerRetiring` — the
+ * predicate that retires a room nobody is making a sound in. That is the
+ * argument rather than a coincidence: a room too quiet to keep open is too
+ * quiet to begin recording. Anything looser files silence, and bills an
+ * *egress* per speaker per minute to do it.
+ */
+export function capturable(state: ChannelState): boolean {
+  if (state.playback.status === 'playing') return true;
+  return roomOccupants(state).some((id) => microphoneOpen(state, id));
 }
 
 /**
@@ -670,20 +723,40 @@ export function mutableAt(
  * merely a head count also means nobody can start recording a room they are
  * not in.
  *
- * **One person alone may no longer record, as of 2026-09-07.** It used to be
- * allowed on the grounds that a note to yourself is a use rather than a
- * mistake — but recording here is not a memo feature, it is a record of what
- * happened in a room, and there is nothing happening in a room of one. Allowing
- * it made `isRecordingActive` a reason to open the microphone all by itself,
- * which is what put a *recording* clause inside two predicates about *audio*
- * and made a solo phone hold a channel open. With this clause the two are
- * ordered instead: audio first, recording on top of it. See
- * `core/micNeeded.ts`, where `isRecordingActive` is now redundant rather than
- * removed — whenever a run is legal, one of the other clauses has already
- * answered true.
+ * **"Something to record" is `capturable`, since 2026-09-14, and one person
+ * alone is enough of it.** The clause here used to be `subscribeable`'s pair —
+ * *somebody else in the room, or media playing* — which refused a run to
+ * anybody by themselves. Two arguments were given for that on 2026-09-07 and
+ * neither survived.
  *
- * "Something to record" is deliberately the same pair `channelHasAudio` asks
- * about: somebody else in the room, or media playing into it.
+ * The mechanical one was that permitting a solo run made `isRecordingActive` a
+ * reason to open a microphone all by itself, which put a *recording* clause
+ * inside two predicates about *audio* and let a solo phone hold a channel
+ * open. That was true when it was written and was obsolete the next day: since
+ * the *Stepping in, and nearby* redesign of 2026-09-08, stepping in is itself
+ * the claim on the audio system, and `core/micNeeded.ts` opens the microphone
+ * on the way into a room whether or not anybody else ever arrives. A run now
+ * asks for nothing that standing here has not already taken.
+ *
+ * The other was that a recording is a record of what happened in a room and
+ * nothing happens in a room of one. The same commit then exempted a room of
+ * one with a track playing, which is a room of one — so the rule already did
+ * not mean what it said, and what it actually refused was the common case
+ * while admitting the odd one. It was also reachable by anybody who noticed:
+ * the playback clause gates only the *start*, so pressing Play, pressing
+ * Record and clearing the track left a solo run going indefinitely. A rule
+ * that a four-tap sequence walks around is not protecting anything.
+ *
+ * **What is left is the rule that was doing the work all along: do not start a
+ * run that would capture nothing.** `capturable` is that and only that —
+ * anybody's open microphone, or a track playing. It admits a person alone with
+ * something to say, which is the whole of the change, and it still refuses a
+ * room where every microphone is shut and nothing is playing, where a run
+ * would file silence and bill an *egress* per speaker per minute for it.
+ * **That last case is narrower than the old rule and also stricter than it in
+ * one place** — two people sitting muted could start a run before and cannot
+ * now — which is deliberate: it is the one configuration where the old clause
+ * said yes and nothing whatever would have been recorded.
  */
 export function canStartRecording(
   state: ChannelState,
@@ -697,8 +770,7 @@ export function canStartRecording(
     // and nothing in the file would say so.
     state.watch.party === null &&
     isPresent(state, userId) &&
-    (roomOccupants(state).some((id) => id !== userId) ||
-      state.playback.status !== 'idle')
+    capturable(state)
   );
 }
 
@@ -722,6 +794,16 @@ export function canStartRecording(
  * automatic start and the Record button must be possible in exactly the same
  * states, or a channel would begin recording in one nobody could have started
  * by hand.
+ *
+ * **Which is why this widened on 2026-09-14 without a line of it changing.**
+ * Once `canStartRecording` admits somebody alone, so does this: stepping into
+ * an auto-recording channel by yourself and speaking now starts a run, where
+ * before it waited for a second arrival. That follows from the coupling above
+ * rather than from a separate decision, and it is the coupling that is the
+ * decision — the setting says *the room's first recording begins by itself*,
+ * and a room is a room with one person in it. Note what it costs, since
+ * nothing else here will say it: an *egress* now opens for a lone speaker in
+ * every channel with the setting on.
  */
 export function autoRecordStarter(state: ChannelState): UserId | null {
   if (!state.autoRecord) return null;

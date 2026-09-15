@@ -509,9 +509,13 @@ roster, not the watch party, not a recording, not your own mute.
   run recorded nothing. The device is open before the button now, so there is
   nothing left to be ahead of.
 
-**A running recording was a condition until 2026-09-07** and is doubly
-unreachable now. `canStartRecording` requires somebody else present or media
-playing, and standing in the room already answers this true.
+**A running recording was a condition until 2026-09-07** and is unreachable
+now: standing in the room already answers this true, whoever else is here. It
+was *doubly* unreachable until 2026-09-14, the recording guard having also
+required a second occupant or media playing — that clause has gone, and this
+one is untouched by its going. The ordering is what matters and it still holds:
+audio first, recording on top of it. See
+decisions/2026-09-14-a-room-of-one-is-a-room.md.
 
 **Where the sources disagree.** **There are two senses of this state and they
 are both wanted.** `micOpen` decides whether *we publish*. `channelHasAudio`
@@ -578,9 +582,19 @@ a departure.
 by construction, because there is no `'stopped'`: a stopped run is simply over
 and the channel returns to idle, which is what makes several recordings in one
 channel possible. Guarded by `canStartRecording`, which requires the actor to
-be **present** and requires somebody else in the room or media playing into it
-— one person alone may not record, since 2026-09-07. The run stops the moment
-nobody is present.
+be **present** and requires the room to be `capturable` — anybody's open
+microphone, or a track playing. **One person alone may record**, as they could
+before 2026-09-07 and could not between then and 2026-09-14; what is refused is
+a room where every microphone is shut and nothing is playing, a run there
+having nothing to put in the file. The run stops the moment nobody is present.
+
+**The bound on a solo run is the attention clock, not the recording rules.**
+`expireInattentive` keeps a present person only while `subscribeable`, and a
+room of one is not — so a phone that stops reporting attention is stepped out
+after fifteen minutes and `settleEmpty` ends the run behind it. Recording alone
+runs indefinitely with the channel on screen and for a quarter of an hour in a
+pocket. That is the one place these two states are coupled, and it is easy to
+read as a recording bug.
 
 **Every action on the transport asks the same presence, since 2026-09-12.**
 Pause, resume and stop asked only whether the floor had silenced the actor, so
