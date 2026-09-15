@@ -517,6 +517,11 @@ export function registerWebsocket(deps: {
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),
+        // Which *getting-started cohort* this is, or null for every ordinary
+        // channel. Here rather than on `ChannelState` for `pingableAt`'s
+        // reason exactly: no reducer knows about it and `core/` has never
+        // heard of it. The screen is the only thing that asks.
+        cohort: channels.cohortNumberOf(channelId),
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

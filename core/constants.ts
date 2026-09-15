@@ -48,6 +48,38 @@ export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 export const MAX_CHANNEL_PARTICIPANTS = 6;
 
 /**
+ * How many people a *getting-started channel* holds: its host, and four
+ * arrivals.
+ *
+ * One under `MAX_CHANNEL_PARTICIPANTS` on purpose. A channel that is born full
+ * can never be widened by the people in it, and the one act this channel most
+ * wants to lead to is somebody bringing a person of their own into it — so the
+ * spare seat is the point rather than slack.
+ *
+ * Counted in seats *spent* rather than places occupied, **and the host's seat
+ * counts**: a full cohort is five people, one of whom is the host. See
+ * `cohort_seats` in server/src/db.ts for why leaving does not give one back.
+ */
+export const COHORT_SIZE = 5;
+
+/**
+ * The reach at which somebody no longer needs a cohort.
+ *
+ * A getting-started channel is for an arrival who has nobody here. Somebody
+ * who signs up already connected to a working group of contacts has what it
+ * would have given them, and putting them in a room of strangers on top of it
+ * is the app doing something nobody asked for.
+ *
+ * Four, so that a pair who each know nobody else — an island of two — are
+ * still seeded. That is the case a cohort helps most, and a floor of two would
+ * exclude it.
+ *
+ * See `Accounts.reachableFrom`, which is bounded by this and counts *pending*
+ * contact rows as edges. It is deliberately not `bin/growth`'s *island*.
+ */
+export const COHORT_REACH_FLOOR = 4;
+
+/**
  * The level a newly loaded track starts at, 0..1.
  *
  * Below full deliberately. Shared playback runs underneath a conversation

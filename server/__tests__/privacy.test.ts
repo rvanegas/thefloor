@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
   TRANSCRIPT_DELETED_RETENTION_MS,
   USAGE_RETENTION_MS,
@@ -180,6 +184,77 @@ describe('The privacy policy', () => {
         transcription: new MemoryTranscription(),
       });
       expect((await fetchPolicy()).body).toContain(PRIVACY_UPDATED);
+    });
+  });
+
+  /**
+   * The getting-started section, which is conditional on the same pattern the
+   * transcription one is and for the same reason: a page describing something
+   * that cannot happen to the reader is the failing this page most has to
+   * avoid.
+   */
+  describe('on getting-started channels', () => {
+    const collapsed = async () =>
+      (await fetchPolicy()).body.replace(/\s+/g, ' ');
+
+    it('says nothing when the server makes none', async () => {
+      app = buildApp({ dbPath: ':memory:' });
+      expect(await collapsed()).not.toContain('Getting Started Cohort');
+    });
+
+    it('describes them, and the limits, when it does', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        cohortHosts: ['rochelle@example.com'],
+      });
+      const page = await collapsed();
+
+      expect(page).toContain('Getting Started Cohort');
+      // The three claims somebody would otherwise reasonably assume the other
+      // way, and which the server has to keep true: it is not a contact, the
+      // address is not shown, and nobody can find you this way. `cohorts.test.ts`
+      // is what holds the first of them to the code.
+      expect(page).toContain('none of them become your\ncontacts'.replace(/\s+/g, ' '));
+      expect(page).toContain('not shown your email address');
+      expect(page).toContain('Nobody can find you this way');
+      // And that it is temporary, which is the honest half of asking somebody
+      // to accept an exception to what the app says it is for.
+      expect(page).toContain('It will stop');
+    });
+
+    it('goes on describing them after the switch is turned off', async () => {
+      // The trap this gate exists to avoid, and the one the transcripts
+      // section already warns about one direction over: emptying the host list
+      // stops new placements, it does not delete the channels people are in.
+      // A page that fell silent while they were still on somebody's screen
+      // would be withdrawing a disclosure rather than a feature.
+      // A file database, because the claim is about what a restart finds.
+      const dbPath = join(
+        mkdtempSync(join(tmpdir(), 'thefloor-privacy-')),
+        'test.db'
+      );
+      const signUp = async (identifier: string) => {
+        const code = app.accounts.issueCode(identifier, Date.now())!;
+        await app.fastify.inject({
+          method: 'POST',
+          url: '/auth/verify',
+          payload: { identifier, code },
+        });
+      };
+
+      app = buildApp({ dbPath, cohortHosts: ['rochelle@example.com'] });
+      await signUp('rochelle@example.com');
+      await signUp('new@example.com');
+      expect(app.channels.hasCohorts()).toBe(true);
+      app.channels.stop();
+      await app.fastify.close();
+
+      // The variable emptied and the box restarted. New placements stop; the
+      // cohort that exists is still somebody's channel, so the page still
+      // describes it.
+      app = buildApp({ dbPath, cohortHosts: [] });
+      expect(app.channels.hasCohorts()).toBe(true);
+      expect(await collapsed()).toContain('Getting Started Cohort');
     });
   });
 

@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import {
   ATTENTION_ECHO_MS,
   ATTENTION_WINDOW_MS,
+  COHORT_REACH_FLOOR,
+  COHORT_SIZE,
   DELETED_RETENTION_MS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
@@ -478,6 +480,21 @@ export class ChannelRegistry {
    */
   private autoRecorded = new Set<string>();
   /**
+   * Which cohort each *getting-started channel* is, by channel id, and how
+   * many of its seats have been spent. Absent from both means an ordinary
+   * channel, which is nearly all of them.
+   *
+   * Held here rather than read from the row each time for the reason the rest
+   * of this class holds its state in memory: the placement path runs on a
+   * signup and the seat count is consulted on every one of them. Both are
+   * written through to `channels.cohort` and `channels.cohort_seats` as they
+   * change, and `restore` reads them back — a cohort that lost its number in a
+   * restart would be an ordinary channel full of strangers with no card
+   * explaining itself.
+   */
+  private cohortNumbers = new Map<string, number>();
+  private cohortSeats = new Map<string, number>();
+  /**
    * When each refreshed declaration was last pushed to its channel, keyed
    * `channelId:userId`. See `NEARBY_ECHO_MS` and `stillHere`.
    *
@@ -833,7 +850,21 @@ export class ChannelRegistry {
      * was meant to outlive the process, and the system temp directory is the
      * system's to clean.
      */
-    trackRoot?: string
+    trackRoot?: string,
+    /**
+     * The sign-in addresses of the accounts that host *getting-started
+     * channels*, in order of preference.
+     *
+     * **Empty is the off switch**, and is what this ships as: no host, no
+     * cohorts, and the privacy page's section on them withdrawn. It is also
+     * how the feature ends — see `placeInCohort`.
+     *
+     * Addresses rather than account ids because that is what a person
+     * configuring a box knows, and because an id is minted by the database on
+     * a signup that may not have happened yet. Resolved at every use for the
+     * same reason; see `cohortHosts`.
+     */
+    private cohortHostIdentifiers: readonly string[] = []
   ) {
     this.usage = new UsageMeter(db, () => this.now());
     this.guests = new Guests(db);
@@ -1219,6 +1250,237 @@ export class ChannelRegistry {
       if (this.ensurePairChannel(a, b)?.created) created += 1;
     }
     return created;
+  }
+
+  /**
+   * The accounts configured to host *getting-started channels*, in order, and
+   * empty when the feature is off.
+   *
+   * Resolved at every use rather than once at boot, because an identifier can
+   * name an account that does not exist yet: the box is configured before
+   * anybody signs in on a fresh database, and a list resolved once would be
+   * empty for the life of the process.
+   */
+  private cohortHosts(): string[] {
+    return this.cohortHostIdentifiers
+      .map((identifier) => this.accounts.byIdentifier(identifier)?.id)
+      .filter((id): id is string => !!id);
+  }
+
+  /**
+   * The cohort still taking arrivals, and the number the next one would carry.
+   *
+   * The open one is the highest-numbered cohort with seats unspent. There is
+   * at most one at a time — a cohort is only ever opened when the previous is
+   * full — so this is a reading rather than a choice, and the ordering is what
+   * makes it deterministic if that invariant is ever broken by hand.
+   */
+  private openCohort(): { state: ChannelState | undefined; next: number } {
+    let open: ChannelState | undefined;
+    let highest = 0;
+    for (const channel of this.channels.values()) {
+      const n = this.cohortNumbers.get(channel.id);
+      if (n === undefined || channel.status !== 'active') continue;
+      if (n > highest) highest = n;
+      const spent = this.cohortSeats.get(channel.id) ?? 0;
+      if (spent < COHORT_SIZE && (!open || n > this.cohortNumbers.get(open.id)!)) {
+        open = channel;
+      }
+    }
+    return { state: open, next: highest + 1 };
+  }
+
+  /**
+   * Puts a new account in a *getting-started channel*, opening one if the
+   * current one is full.
+   *
+   * **Why this exists at all**: an account that arrives with nobody lands on a
+   * Home of two empty lists, and every single thing this application does
+   * needs a second person. So the first one is provided — four others who
+   * arrived around the same time, and somebody who runs The Floor to answer
+   * when one of them speaks.
+   *
+   * **It is a growth hack and it has an ending.** It seeds activity while
+   * there is not enough of it to seed itself. Unsetting the host list stops it
+   * happening and withdraws the privacy page's section on it in the same
+   * restart; the channels already made are left alone, being ordinary channels
+   * with people in them by then. Nothing about switching it off needs code.
+   *
+   * Returns null, and does nothing at all, when:
+   * - **no host is configured** — which is the off switch, and is the state
+   *   the feature ships in;
+   * - **this is a host** — they are in every cohort already;
+   * - **they are already in one** — which is what makes the boot backfill safe
+   *   to run on every boot, in the manner of `ensurePairChannel`;
+   * - **they can already reach `COHORT_REACH_FLOOR` people** — see
+   *   `Accounts.reachableFrom`. Somebody who signed up on an invitation into a
+   *   working group of contacts has what a cohort would have given them, and
+   *   the exception is not justified for them.
+   *
+   * **Nobody is told.** `create` pushes to its invitees; this deliberately
+   * does not. A placement is not somebody waiting for you in a room, and four
+   * "you have been invited" notifications per cohort — one to each person
+   * already in it, every time anybody signs up — would be the application
+   * inventing an event out of its own bookkeeping. The roster gains a name and
+   * that is the whole of it.
+   */
+  placeInCohort(userId: string): { channelId: string } | null {
+    const hosts = this.cohortHosts();
+    if (hosts.length === 0) return null;
+    if (hosts.includes(userId)) return null;
+    if (this.cohortOf(userId)) return null;
+    if (this.accounts.reachableFrom(userId, COHORT_REACH_FLOOR) >= COHORT_REACH_FLOOR) {
+      return null;
+    }
+
+    const { state, next } = this.openCohort();
+    // The first host is the host until there is a reason to rotate, and the
+    // list is ordered so that reason is configuration rather than a change
+    // here. See `cohortHosts`.
+    const host = hosts[0];
+    if (!state) return this.openNewCohort(host, userId, next);
+
+    const before = state;
+    const after = reduce(
+      before,
+      // From the host, so that `invitedBy` names somebody real. It is what
+      // `invitesFor` shows as an invitation's sender, and a cohort where that
+      // fell through to the initiator would read as an invitation from
+      // whichever stranger happened to be first into the room.
+      { type: 'INVITE', userId: host, inviteeId: userId },
+      this.now()
+    );
+    // `canInvite` refused — the only ways left are a channel at
+    // MAX_CHANNEL_PARTICIPANTS or a duplicate, both of which mean the seat
+    // count and the roster have drifted apart. Spend the cohort rather than
+    // retry into it: a new one is always a correct answer, and looping here
+    // would fail a signup over bookkeeping.
+    if (after === before) {
+      this.spendCohort(before.id, COHORT_SIZE);
+      return this.openNewCohort(host, userId, next);
+    }
+    this.commit(before, after);
+    this.spendCohort(before.id, (this.cohortSeats.get(before.id) ?? 0) + 1);
+    this.emit([before.id]);
+    return { channelId: before.id };
+  }
+
+  /**
+   * A cohort channel from nothing, holding its host and its first arrival.
+   *
+   * Row before memory, for the reason `ensurePairChannel` sets out at length:
+   * a live channel with no row behind it would be found by the lookups above
+   * on every retry, so the row could never be written.
+   *
+   * **`present` is empty and nobody has ever been in it**, which is the same
+   * marker a standing contact channel carries — so until somebody walks in,
+   * this is a place on Home rather than a summons. See `invitesFor`, which
+   * skips a channel nobody has entered, and `rejoinableFor`, which takes it.
+   */
+  private openNewCohort(
+    host: string,
+    userId: string,
+    n: number
+  ): { channelId: string } {
+    const createdAt = this.now();
+    const name = `Getting Started Cohort ${n}`;
+    const id = insertWithUniqueKey(
+      () => newId('chan'),
+      (candidate) =>
+        this.db
+          .prepare(
+            `INSERT INTO channels
+               (id, initiator_id, invitee_id, created_at, participants, name,
+                cohort, cohort_seats)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            candidate,
+            host,
+            userId,
+            createdAt,
+            JSON.stringify([host, userId]),
+            name,
+            n,
+            // Two: the host and the first arrival. **The host's seat counts.**
+            // `COHORT_SIZE` is how many people the channel holds, so a cohort
+            // that did not count the host would run to six and leave no room
+            // for anybody a member wants to bring in — which is the one act
+            // this channel most wants to lead to.
+            2
+          )
+    );
+    const channel: ChannelState = {
+      ...createChannel({
+        id,
+        initiator: host,
+        invitees: [userId],
+        now: createdAt,
+        present: [],
+      }),
+      // Named at creation, unlike every other channel here. A name is what
+      // tells somebody why they are in a room they did not ask to be in, and
+      // an unnamed channel is displayed as the list of who is in it — which
+      // for this one is a list of strangers.
+      name,
+      // The host asked nobody here in any real sense, but somebody has to be
+      // the sender of the invitation this becomes once anyone walks in, and
+      // the host is the only person in it who can answer for it.
+      invitedBy: { [userId]: host },
+    };
+    this.channels.set(channel.id, channel);
+    this.cohortNumbers.set(channel.id, n);
+    this.cohortSeats.set(channel.id, 2);
+    this.persistChannel(channel);
+    this.emit([channel.id]);
+    return { channelId: channel.id };
+  }
+
+  /** The cohort channel this account is in, if any. */
+  private cohortOf(userId: string): ChannelState | undefined {
+    for (const channel of this.channels.values()) {
+      if (!this.cohortNumbers.has(channel.id)) continue;
+      if (channel.status === 'active' && isParticipant(channel, userId)) {
+        return channel;
+      }
+    }
+    return undefined;
+  }
+
+  /** Records a seat as spent, in memory and in the row. */
+  private spendCohort(channelId: string, seats: number): void {
+    this.cohortSeats.set(channelId, seats);
+    this.db
+      .prepare('UPDATE channels SET cohort_seats = ? WHERE id = ?')
+      .run(seats, channelId);
+  }
+
+  /** The cohort number of a channel, for the snapshot. */
+  cohortNumberOf(channelId: string): number | null {
+    return this.cohortNumbers.get(channelId) ?? null;
+  }
+
+  /** Whether any cohort channel is still standing. See `policyOptions`. */
+  hasCohorts(): boolean {
+    return this.cohortNumbers.size > 0;
+  }
+
+  /**
+   * Every account owed a cohort that predates the feature, placed in one.
+   *
+   * The counterpart of `backfillPairChannels` and run beside it, for the same
+   * reason: the accounts that arrived before this existed are exactly the ones
+   * it was written for — they are still sitting in front of two empty lists.
+   *
+   * Idempotent, because `placeInCohort` is. The honest check that it worked is
+   * that a second boot places nobody.
+   */
+  backfillCohorts(candidates: readonly string[]): number {
+    let placed = 0;
+    for (const id of candidates) {
+      if (this.placeInCohort(id)) placed += 1;
+    }
+    return placed;
   }
 
   /**
@@ -5447,6 +5709,8 @@ export class ChannelRegistry {
       name: string | null;
       description: string | null;
       state: string | null;
+      cohort: number | null;
+      cohort_seats: number | null;
     }>;
     for (const row of rows) {
       // No blob means pre-persistence, and the migration closes those; one
@@ -5459,6 +5723,15 @@ export class ChannelRegistry {
       }
       const channel = this.revive(row);
       this.channels.set(channel.id, channel);
+      // Which cohort this is, if it is one. Not in the state blob: it is not a
+      // rule, no reducer has heard of it, and it belongs to the two columns
+      // that are queried rather than to the projection that is only ever read
+      // whole. A cohort revived without this would be an ordinary channel of
+      // strangers with nothing on screen explaining why they are there.
+      if (row.cohort !== null) {
+        this.cohortNumbers.set(channel.id, row.cohort);
+        this.cohortSeats.set(channel.id, row.cohort_seats ?? 0);
+      }
       // The file the revived track names, put back in the map the pump reads
       // from — `openPlayback` and `applyPlaybackToMedia` both go through it,
       // so a track restored without this would be one nobody could hear.

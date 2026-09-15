@@ -207,6 +207,22 @@ const review =
     : undefined;
 
 /**
+ * Who hosts the *getting-started channels*, by sign-in address, in order.
+ *
+ * Empty is off — no cohorts are created and the privacy page says nothing
+ * about them — and that is both how this ships and how it ends. See
+ * `AppOptions.cohortHosts`.
+ *
+ * Split on commas rather than taking one address, so that adding a second host
+ * later is a line in `.env` rather than a deploy. Blanks are dropped, which is
+ * what makes a trailing comma harmless.
+ */
+const cohortHosts = (process.env.COHORT_HOST_IDENTIFIERS ?? '')
+  .split(',')
+  .map((identifier) => identifier.trim())
+  .filter((identifier) => identifier.length > 0);
+
+/**
  * Donations, which are optional in both halves and independently so.
  *
  * KOFI_URL is what the app is told to open; unset, it offers nothing, and that
@@ -282,6 +298,7 @@ const app = buildApp({
   dbPath,
   trackRoot,
   review,
+  cohortHosts,
   kofi,
   contactEmail: process.env.CONTACT_EMAIL,
   // Where a build below MIN_SUPPORTED_BUILD is sent. Configuration rather than

@@ -106,6 +106,12 @@ export const mockApp = {
       // other such fact arriving through the media connection.
       speakingWhileWithheld?: string[];
       serverNow: number;
+      /**
+       * Which *getting-started cohort* this channel is, absent on all but the
+       * tests about it — exactly as it is on the wire for all but a handful of
+       * channels. See `ChannelView.cohort`.
+       */
+      cohort?: number | null;
     }
   >,
   goneChannels: [] as string[],
@@ -573,7 +579,11 @@ export function channelOf(mutate: (s: ChannelState) => ChannelState = (s) => s) 
   return mutate(reduce(base, { type: 'ENTER', userId: THEM }, NOW));
 }
 
-export function showChannel(channel: ChannelState, recordings: RecordingView[] = []) {
+export function showChannel(
+  channel: ChannelState,
+  recordings: RecordingView[] = [],
+  extra: { cohort?: number | null } = {}
+) {
   const names: Record<string, string> = {
     [ME]: 'Me',
     [THEM]: 'Dana Chu',
@@ -589,6 +599,7 @@ export function showChannel(channel: ChannelState, recordings: RecordingView[] =
     recordings,
     pingableAt: {},
     serverNow: NOW,
+    ...extra,
   };
   // Being in the channel and being the device that is in it are different
   // facts, and these tests mean both unless they say otherwise.

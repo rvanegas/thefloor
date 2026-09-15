@@ -163,6 +163,21 @@ export interface BuildOptions {
    */
   review?: { identifier: string; code: string; contact?: string };
   /**
+   * The sign-in addresses of the accounts that host *getting-started
+   * channels* — the introductory channel a new account with nobody in it is
+   * placed in. See `ChannelRegistry.placeInCohort`.
+   *
+   * **Unset is off**, which is what this ships as, and is also how it ends:
+   * emptying it stops cohorts being created and withdraws the privacy page's
+   * section about them in the same restart. The channels already made are left
+   * standing — by then they are ordinary channels with conversations in them,
+   * and retiring a feature is not a reason to take one away from anybody.
+   *
+   * It is a growth hack with a sunset written into its off switch. See
+   * planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md.
+   */
+  cohortHosts?: string[];
+  /**
    * Where to send somebody who wants to donate, and the token that proves an
    * incoming webhook came from Ko-fi.
    *
@@ -597,7 +612,8 @@ export function buildApp(options: BuildOptions = {}): App {
     pushNotifier,
     options.store,
     options.mixWaitMs,
-    options.trackRoot
+    options.trackRoot,
+    options.cohortHosts ?? []
   );
 
   // Reads the stems through the same gate the export does, and spends money,
@@ -644,6 +660,20 @@ export function buildApp(options: BuildOptions = {}): App {
   // silence would be indistinguishable from the pass having been skipped.
   const backfilled = channels.backfillPairChannels(accounts.acceptedPairs());
   fastify.log.info({ created: backfilled }, 'contact channels backfilled');
+
+  // The accounts that arrived before *getting-started channels* existed are
+  // exactly the ones they were written for: they are still looking at two
+  // empty lists. After `restore` and after the pass above, for both of their
+  // reasons — placement reads the live registry to find the open cohort, and
+  // the gate it applies counts contacts, which the line above does not change
+  // but the ordering makes obvious.
+  //
+  // Does nothing at all with no host configured, which is the state this
+  // ships in. Idempotent, so the reading that matters is the second boot's,
+  // which should place nobody; logged either way, since silence would be
+  // indistinguishable from the pass having been skipped.
+  const seeded = channels.backfillCohorts(accounts.cohortCandidates());
+  fastify.log.info({ placed: seeded }, 'cohorts backfilled');
 
   // Expired one-time codes and invitations are dead the moment their deadline
   // passes, and nothing else ever removes them. Sweeping belongs to the
@@ -781,6 +811,27 @@ export function buildApp(options: BuildOptions = {}): App {
     // One message for every failure mode, so this cannot be used to discover
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
+
+    // A brand-new account with nobody here is put in a *getting-started
+    // channel*. Here rather than inside `establish`, because `Accounts` must
+    // not learn about `ChannelRegistry` — this is the composition root, which
+    // is where every `ensurePairChannel` call site already lives.
+    //
+    // **`created` rather than an inference.** It is the one moment the answer
+    // is knowable; see `Accounts.establish`.
+    //
+    // Not allowed to cost a signup. Placement is a courtesy and a failed one
+    // is a channel somebody does not have, where a throw here is a 500 on a
+    // sign-in that has already spent its code — the account exists and the
+    // token has been issued, so the caller would be told to try again with a
+    // code that no longer works.
+    if (result.created) {
+      try {
+        channels.placeInCohort(result.account.id);
+      } catch (error) {
+        fastify.log.error({ err: error }, 'cohort placement failed');
+      }
+    }
 
     // Nothing is revoked and nothing is forgotten here, which is the whole of
     // what changed on 2026-08-24. Signing in used to end every other session
@@ -1773,6 +1824,13 @@ export function buildApp(options: BuildOptions = {}): App {
       // Named on the page only where the server can actually reach it. See
       // PolicyOptions.transcription.
       transcription: options.transcription?.name,
+      // Disclosed while it can happen to the reader, **or while the channels
+      // it already made are still standing**. Switching the hosts off stops
+      // new placements; it does not delete the cohorts people are in, and a
+      // page that went quiet about channels that still exist would be
+      // withdrawing a disclosure rather than a feature. See
+      // PolicyOptions.cohorts.
+      cohorts: (options.cohortHosts?.length ?? 0) > 0 || channels.hasCohorts(),
     });
   });
 

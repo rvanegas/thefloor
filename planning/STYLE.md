@@ -539,6 +539,17 @@ being captured, and that the room is held on another phone. The second is
 under the roster rather than on a card, there being no card left it could
 belong to.
 
+**A third arrived on 2026-09-15 and is the rule working rather than an
+exception to it.** The *getting-started* card — why you are in a channel with
+four people you have never met, and how to leave it — repeats no control at
+all, so `hideControlCards` has no claim on it, and there is nowhere else the
+sentence could live: a room of strangers with no reason given is precisely the
+shape this section forbids a control from having, one screen up. It sits above
+the tab content rather than on a tab, since the question is the same whichever
+of the six somebody lands on, and it can be dismissed for good because it is
+an introduction rather than a state. See
+`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md`.
+
 ---
 
 ## Dots, pills and rules

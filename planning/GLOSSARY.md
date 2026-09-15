@@ -49,6 +49,7 @@ caused; the list carries the meaning.
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
+- **Getting-started channel** — The one channel a new account with nobody here is put into, named *Getting Started Cohort <n>*: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
@@ -87,6 +88,8 @@ caused; the list carries the meaning.
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
+- **Cohort host** — The account a *getting-started channel* is opened with, named by sign-in address in `COHORT_HOST_IDENTIFIERS`. **Not a *root***, which is a position in the invitation forest and is most people
+- **Cohort seats** — How many people a *getting-started channel* has ever held, the host included. Spent rather than occupied: leaving does not give one back, so a closed cohort stays closed
 - **Core** — `core/`, the rules: pure functions over a `ChannelState`, no I/O and no imports outside itself
 - **Conversing** — You, present in a channel, with somebody else in it — another member or a *guest*; `isConversing` in `app/src/state/conversing.ts`. It stamps the *introduction*'s *step in with somebody* rung and latches the notification ask, and it is not the same as having stepped in
 - **Detail (pane)** — The right-hand pane of the two-pane layout, above the width breakpoint — the other is the *list*
@@ -119,6 +122,7 @@ caused; the list carries the meaning.
 - **Restore** — Reviving every unended channel from its state blob at startup
 - **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
+- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. What a *getting-started channel* is gated on, and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
@@ -503,6 +507,40 @@ cards, and *Labs*. Below those sit the things
 about this install and this account — notifications, the policies, chipping in,
 signing out, and deleting the account. See core/settings.ts, which is where the
 four that travel are defined.
+
+## Getting-started channel
+
+The one channel a new account is put into without asking for it: *Getting
+Started Cohort 1*, then 2, and so on. Up to four people who signed up around
+the same time, plus a *cohort host* — one of the people who run The Floor. It
+is an ordinary channel in every other respect: it can be named, written in,
+recorded in, and left from its settings screen like any other.
+
+**It exists because the application does nothing for one person.** Home is two
+lists, and a new account arrives with both of them empty and every control on
+the channel screen greyed out. Nothing here can be demonstrated alone, so
+somebody who arrives with nobody has no way to find out what this is.
+
+**Nobody in it is a contact, and that is not an oversight.** Being in a
+channel together has never been a contact here and this does not change it:
+the roster shows display names, no address is exposed, and every contact
+anybody ends up with is one they chose. It is one room, not a directory —
+there is no search for people and nothing suggests anybody to anybody.
+
+**Only for somebody who arrives with nobody.** An account that signs up on an
+invitation which already puts it within *reach* of four people is not placed
+in one; they have what it would have given them. See `COHORT_REACH_FLOOR`.
+
+**It is a growth hack and it ends.** It seeds activity while there is not
+enough to seed itself, and when growth no longer needs it, emptying
+`COHORT_HOST_IDENTIFIERS` stops new ones being made and withdraws the privacy
+page's section about them in the same restart. Channels already made are left
+standing — by then they hold conversations, and retiring a feature is not a
+reason to take one away from anybody. See
+`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md`.
+
+The card below the tabs is what says all of this to whoever is in one; it can
+be dismissed, per install, and dismissing it changes nothing about the channel.
 
 ## Guest
 
@@ -1635,6 +1673,12 @@ Pending contact requests are not edges. A contact is somebody you have both
 agreed to be in touch with, so an island is a claim about agreement; the
 bridges a pending request *would* build are reported separately.
 
+**Which is exactly where *reach* differs, on purpose.** The gate on a
+*getting-started channel* counts pending rows as edges, because it is asked at
+signup — when the invitation that brought somebody here is a pending row and
+nothing else. The two measures answer different questions and are both right
+about their own; see *reach*, and do not reconcile them.
+
 ## Live channel
 
 `liveChannelView` — the channel this **account** is standing in, chosen from
@@ -1787,6 +1831,30 @@ Separately, "the room" in prose and in `core/guests.ts` means **everybody
 present including guests** — `roomOccupants`, `inRoom` — as against
 `state.present`, which is members only.
 
+## Reach
+
+How many people somebody can get to by walking contacts, counting themselves,
+and **counting pending rows as edges**. `Accounts.reachableFrom(userId, limit)`.
+What decides whether a new account is given a *getting-started channel*: below
+`COHORT_REACH_FLOOR`, which is four, they are; at it or above, they are not.
+
+**Not an *island*, and the difference is the whole reason it has its own
+word.** An island walks accepted edges alone and is right to — it is a claim
+about who has agreed to be reachable to whom. Reach is asked at the moment of
+signup, when `resolveInvitesFor` has just written the invitation that brought
+somebody here as a *pending* row and nothing has been accepted yet. Walking
+accepted edges there would measure every invited arrival as an island of one
+and hand a cohort to precisely the people the gate exists to exclude. What it
+is asking for is the island somebody is *about* to be on — what `bin/growth`
+calls the bridges that would merge islands if the pending rows were accepted.
+
+**Bounded, and the bound is not an optimisation.** It stops as soon as `limit`
+people have been seen, so it costs the limit rather than the size of the
+component. The transitive closure `bin/growth` uses is quadratic in an island,
+which is fine in a report somebody runs by hand and is not fine on the signup
+path. Nothing ever needs the true number; the only question asked of it is
+whether it has reached a threshold.
+
 ## Root
 
 An account at depth 0 in the invitation forest — nobody's invitation brought it,
@@ -1803,6 +1871,12 @@ knows of no invitation — see *growth classes*, which is what the depth means.
 
 Not an island. Two roots can end up on one island by becoming contacts, and a
 root can be an island of one; see *island*.
+
+**And not a *cohort host*.** The task that asked for *getting-started
+channels* called the people who run The Floor its "root users", which is not
+what this word means here: a root is a position in the invitation forest, every
+cold install is one, and there are more of them than of anything else. A host
+is named by address in `COHORT_HOST_IDENTIFIERS` and there is one.
 
 ## Run
 

@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '1 September 2026';
+export const PRIVACY_UPDATED = '15 September 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -84,10 +84,29 @@ export interface PolicyOptions {
    * TRANSCRIPTS.md § *Order of work*, phase 5, specifies that split.
    */
   transcription?: string;
+  /**
+   * Whether this server puts new accounts into *getting-started channels*, or
+   * still holds any it made — and nothing when neither, which withdraws the
+   * whole section below.
+   *
+   * Conditional on `transcription`'s reasoning: the claim is only true where
+   * the feature is, and a page describing something that cannot happen to the
+   * reader is a worse failing here than anywhere else. It is the withdrawal
+   * switch too — emptying `COHORT_HOST_IDENTIFIERS` retracts the disclosure in
+   * the same restart that stops the placements, with no deploy.
+   *
+   * **Two conditions rather than one, and the second is the one that matters.**
+   * Switching the hosts off does not delete the cohorts people are already in.
+   * Gating on the setting alone would take the description off the page while
+   * the channels were still on their screens, which is the transcripts trap
+   * exactly — see the comment on `transcriptionSending` for the same mistake
+   * avoided in the other direction.
+   */
+  cohorts?: boolean;
 }
 
 export function privacyPage(options: PolicyOptions = {}): string {
-  const { contactEmail, transcription } = options;
+  const { contactEmail, transcription, cohorts } = options;
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
@@ -120,6 +139,51 @@ before anything leaves, exactly as they are removed from what the recording
 plays. ${provider} is not asked to tell voices apart between people — The Floor
 already knows whose microphone each part came from — and is told nothing about
 who is speaking, what the channel is, or who is in it.</p>
+
+`
+    : '';
+
+  /*
+    The one place this application introduces somebody to people they have not
+    met, and so the one claim on this page that the opening sentence does not
+    already cover.
+
+    **Written as the exception it is, and as a temporary one.** The Floor is
+    for talking with people you already know; that is what it is for and it is
+    what the listing, the manual and both invitation emails say. This is
+    scaffolding for a young application that cannot demonstrate itself to
+    somebody who arrives alone, and it goes when it is no longer needed. Saying
+    so is not a flourish — a reader who is told what a thing is *for* can
+    judge whether what it does matches, and "we will stop" is a checkable claim
+    about intent in a way that a permanent qualification of the opening
+    sentence would not be.
+
+    What it must be honest about is the shape of the exposure, which is small
+    and worth stating precisely: a display name, to four people, in one
+    channel, once. Not the address, not the handles, and no contact — which is
+    the thing somebody would reasonably assume and the thing this does not do.
+  */
+  const cohortSection = cohorts
+    ? `
+<h2>Getting started</h2>
+<p>The Floor is no use to somebody who arrives with nobody here, so a new
+account that signs up without an invitation is put into one channel — <em>Getting
+Started Cohort</em>, and a number — with up to three other people who joined
+around the same time, and one of the people who run The Floor. It happens once,
+at sign-up, and it never happens again. Somebody who arrives on an invitation
+from people who are already here is not put in one.</p>
+<p>The people in that channel see your display name, which is what anybody in
+a channel with you sees. They are not shown your email address, they are not
+shown any handle on your profile, and <strong>none of them become your
+contacts</strong> — being in a channel together is not a contact here, and who
+your contacts are stays entirely something you choose. Nobody can find you this
+way: there is no directory, no search for people, and no suggestion of anyone
+to anybody.</p>
+<p>You can leave that channel whenever you like, from its settings screen, and
+it disappears from your home screen for good. It stays where it is for everyone
+else.</p>
+<p>This is something The Floor does while it is new, to give people something
+to try. It will stop, and when it does this section goes with it.</p>
 
 `
     : '';
@@ -256,7 +320,7 @@ to you. Deleting your account disconnects any donation from it; the record of
 the payment itself stays, with Ko-fi and here, because it is money that changed
 hands rather than something about you.</p>
 
-<h2>Who else can see any of it</h2>
+${cohortSection}<h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
 and Google deliver notifications, each to their own phones. Ko-fi handles
 donations.${

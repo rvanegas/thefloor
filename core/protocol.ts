@@ -843,6 +843,28 @@ export interface ChannelView {
    */
   pingableAt: Partial<Record<UserId, number>>;
   /**
+   * Which *getting-started cohort* this channel is, and null for every
+   * ordinary one — which is nearly all of them.
+   *
+   * What the card below the tabs is drawn from. The number is in the channel's
+   * name too, and the client reads it from here rather than from there on
+   * purpose: the name is a string anybody in the channel may rewrite from the
+   * settings screen, and a card that vanishes because somebody retitled the
+   * room is a card with a trapdoor in it.
+   *
+   * Here rather than on `ChannelState` for `pingableAt`'s reason, and it is
+   * the same test: no reducer knows about it, `core/` has never heard of it,
+   * and it is server bookkeeping that rides the channel snapshot because the
+   * screen that asks is the channel screen.
+   *
+   * **Optional on the wire**, so a server that predates it and a client that
+   * does are both ordinary rather than broken; absent reads as null. No shim
+   * is owed either way — an old build ignores the field and draws no card,
+   * which is why the feature is switched on only once a build that draws one
+   * is out. See planning/SHIMS.md for what a shim is actually for.
+   */
+  cohort?: number | null;
+  /**
    * What was said to each participant whose ping window is open, for the ones
    * whose ping carried words, and who wrote them.
    *

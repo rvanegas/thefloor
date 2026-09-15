@@ -1108,7 +1108,7 @@ export class Accounts {
     code: string,
     displayName: string | undefined,
     now: number
-  ): { account: AccountRow; token: string } | null {
+  ): { account: AccountRow; token: string; created: boolean } | null {
     const id = normalize(identifier);
     if (!this.consumeCode(id, code, now)) return null;
     return this.establish(id, displayName, now);
@@ -1180,10 +1180,26 @@ export class Accounts {
     identifier: string,
     displayName: string | undefined,
     now: number
-  ): { account: AccountRow; token: string } {
+  ): { account: AccountRow; token: string; created: boolean } {
     const id = normalize(identifier);
     const name = displayName?.trim();
     let account = this.byIdentifier(id);
+    /**
+     * Whether this call is somebody's first, reported because it is knowable
+     * here and nowhere afterwards.
+     *
+     * A caller wanting to do something once per account — placing somebody in
+     * a *getting-started channel* is the one that asked for this — otherwise
+     * has to infer it, and both available inferences are wrong. `created_at
+     * === now` holds only while the clock is the one this call was given, and
+     * "has no contacts and no channels" is a description of an account's
+     * *state*, which somebody can return to by leaving things.
+     *
+     * It says the row was written, nothing more. A signup whose side effects
+     * then failed still reports true, which is the honest reading: the account
+     * is new either way.
+     */
+    const created = !account;
 
     if (!account) {
       const chosen = name || displayNameFromIdentifier(id);
@@ -1209,7 +1225,7 @@ export class Accounts {
       account = this.byId(account.id)!;
     }
 
-    return { account, token: this.issueToken(account.id, now) };
+    return { account, token: this.issueToken(account.id, now), created };
   }
 
   /**
@@ -1524,6 +1540,64 @@ export class Accounts {
   }
 
   /**
+   * How many people this account can reach through contacts, counting itself,
+   * and stopping at `limit`.
+   *
+   * What a *getting-started channel* is gated on. The question it answers is
+   * "does this person already have somebody here", asked in the only form that
+   * is honest about a network: not how many contacts they have, but how many
+   * people those contacts put them within reach of.
+   *
+   * **Pending rows are edges, and that is the whole reason this is not
+   * `bin/growth`'s island.** That report walks accepted edges alone, correctly
+   * — an island is people who have *agreed* to be reachable to each other. But
+   * this is asked at the moment of signup, and `resolveInvitesFor` has just
+   * written the invitation that brought somebody here as a **pending** row;
+   * nothing is accepted yet and nothing will be for as long as it takes them
+   * to tap it. Walking accepted edges here would measure every invited arrival
+   * as an island of one and hand a cohort to precisely the people who came in
+   * on somebody's invitation — the population this gate exists to exclude.
+   * What is wanted is the island they are *about* to be on, which is what
+   * `bin/growth` calls the bridges that would merge islands if the pending
+   * rows were accepted.
+   *
+   * So the two measures disagree by design and both are right about their own
+   * question. **Do not reconcile them.**
+   *
+   * **Bounded, and the bound is not an optimisation.** It stops as soon as
+   * `limit` people have been seen, so the cost is the limit rather than the
+   * size of the component — the transitive closure `bin/growth` uses is
+   * quadratic in an island, is fine in a report somebody runs by hand, and is
+   * not fine on the signup path. Nothing here needs the true size; the only
+   * question ever asked of it is whether it has reached a threshold.
+   */
+  reachableFrom(userId: string, limit: number): number {
+    const edges = this.db.prepare(
+      'SELECT a_id, b_id FROM contacts WHERE a_id = ? OR b_id = ?'
+    );
+
+    const seen = new Set([userId]);
+    const queue = [userId];
+    while (queue.length > 0 && seen.size < limit) {
+      const current = queue.shift()!;
+      const rows = edges.all(current, current) as Array<{
+        a_id: string;
+        b_id: string;
+      }>;
+      for (const row of rows) {
+        const other = row.a_id === current ? row.b_id : row.a_id;
+        if (seen.has(other)) continue;
+        seen.add(other);
+        // Checked here as well as in the loop guard so a person with fifty
+        // contacts does not walk all fifty to answer a question about four.
+        if (seen.size >= limit) return seen.size;
+        queue.push(other);
+      }
+    }
+    return seen.size;
+  }
+
+  /**
    * The contact list, including requests sent to addresses with no account.
    *
    * An outgoing request is shown as the address it was sent to rather than the
@@ -1680,6 +1754,38 @@ export class Accounts {
   }
 
   /** Every accepted pair, for the one-to-one channel each of them is owed. */
+  /**
+   * Every account that might be owed a *getting-started channel*, oldest
+   * first, excluding the demo accounts.
+   *
+   * **A candidate list, not a verdict.** Everything that decides eligibility
+   * is in `ChannelRegistry.placeInCohort` — hosts, people already in a cohort,
+   * and anybody who can already reach `COHORT_REACH_FLOOR` people — and this
+   * deliberately does not duplicate any of it. Two places answering the same
+   * question is how a backfill and a signup come to disagree about who gets
+   * one.
+   *
+   * The demo accounts are the exception, and they are excluded here because
+   * this is the only layer that knows which they are. A phone at Apple is not
+   * an arrival with nobody to talk to, on the same reasoning that keeps both
+   * of them out of the build census.
+   *
+   * Oldest first so that the people who have been waiting longest fill the
+   * earliest cohort, which is the only ordering anybody could defend when a
+   * backfill spans several.
+   */
+  cohortCandidates(): string[] {
+    const demo = [this.review?.identifier, this.review?.contact].filter(
+      (identifier): identifier is string => !!identifier
+    );
+    const rows = this.db
+      .prepare('SELECT id, identifier FROM accounts ORDER BY created_at ASC, id ASC')
+      .all() as unknown as Array<{ id: string; identifier: string }>;
+    return rows
+      .filter((row) => !demo.some((identifier) => sameIdentifier(row.identifier, identifier)))
+      .map((row) => row.id);
+  }
+
   acceptedPairs(): Array<[string, string]> {
     const rows = this.db
       .prepare("SELECT a_id, b_id FROM contacts WHERE state = 'accepted'")

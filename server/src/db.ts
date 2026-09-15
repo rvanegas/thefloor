@@ -1746,6 +1746,41 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE help_questions ADD COLUMN answer_draft TEXT');
     db.exec('ALTER TABLE help_questions ADD COLUMN drafted_at INTEGER');
   }
+
+  /*
+    A *getting-started channel*'s two columns, 2026-09-15. Null on every
+    channel that is not one, which is every channel that existed before today
+    and the great majority afterwards.
+
+    `cohort` is the number in the name and is the marker: null here is the
+    whole test for "this is an ordinary channel". It is not derived from the
+    name, deliberately — the name is a string somebody in the channel may
+    rewrite from the settings screen, and a feature that stops recognising its
+    own channel because a member retitled it is a feature with a trapdoor in
+    it.
+
+    **`cohort_seats` counts seats spent, not places occupied**, and that is the
+    one thing here worth reading twice. A cohort closes when
+    `COHORT_SIZE` people have been *placed* in it, whether or not they are
+    still there. Counting live participants instead would reopen a closed
+    cohort the moment somebody left, and drop a brand-new arrival into a room
+    whose introductions happened a week ago — which is the one experience this
+    whole feature exists to avoid. A seat is spent by being sat in once.
+
+    The host does not spend one, so a full cohort is the host plus
+    `COHORT_SIZE` - 1 arrivals; see COHORT_SIZE in core/constants.ts.
+  */
+  for (const column of ['cohort', 'cohort_seats']) {
+    if (!hasColumn(db, 'channels', column)) {
+      db.exec(`ALTER TABLE channels ADD COLUMN ${column} INTEGER`);
+    }
+  }
+  // Read on every signup, to find the open cohort, and on every boot by the
+  // backfill. Partial so it indexes only the handful of rows that are cohorts
+  // rather than every channel ever created.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS channels_cohort ON channels(cohort) WHERE cohort IS NOT NULL'
+  );
 }
 
 export function sha256(value: string): string {

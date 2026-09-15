@@ -111,6 +111,7 @@ import {
 import { louder, quieter } from './volume';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
+import { useCohortNotice } from './cohortNotice';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -423,6 +424,12 @@ export function ChannelView({
    * else is deliberate and worth one tap.
    */
   const [tab, setTab] = useState<ChannelTab>(asked ?? 'members');
+  /**
+   * Whether this channel still owes its occupant an explanation. Null channel
+   * id while the view is loading, which reads as "nothing to draw" — see
+   * `useCohortNotice`.
+   */
+  const cohortNotice = useCohortNotice(view?.cohort ? channelId : null);
   /**
    * Follows a caller that names a tab while this screen is already up.
    *
@@ -1666,6 +1673,45 @@ export function ChannelView({
 
   return (
     <Screen header={header} footer={footer} contentStyle={styles.container}>
+        {/*
+          Why you are in a room with people you have never met.
+
+          **Above the tab content rather than on one tab**, so it is the first
+          thing under the switch whichever of the six is showing. Somebody who
+          lands on *Notepad* and finds four strangers in a channel they did not
+          open has the same question as somebody who lands on *Members*, and an
+          explanation filed under one tab is one most of them would never
+          reach.
+
+          A readout: a sentence and a way to put it away, and no button
+          repeating anything in the footer. So it is not `hideControlCards`'
+          business and must not be given to it — see STYLE.md § *The cards a
+          footer made redundant*, which says in as many words that the moment a
+          card stops repeating the bar, that setting has no claim on it.
+
+          It goes when the person says it can. Nothing about the channel
+          changes when they do: it is an ordinary channel, they are an ordinary
+          member of it, and the card was only ever the introduction.
+        */}
+        {cohortNotice.show && view.cohort ? (
+          <Card style={styles.cohort}>
+            <Text style={type.body}>Your getting-started channel</Text>
+            <Text style={type.muted}>
+              The Floor is for talking with people you already know, and it is
+              no use at all on the first day, when nobody you know is here yet.
+              So you have been introduced to a few people who joined around the
+              same time as you, and to somebody who runs The Floor.
+            </Text>
+            <Text style={type.muted}>
+              Nobody here is one of your contacts, and nobody can see your email
+              address. Step in and say something, or leave whenever you like —
+              Channel Settings, at the top, has Leave this channel.
+            </Text>
+            <View style={styles.cohortActions}>
+              <Button label="Got it" variant="ghost" onPress={cohortNotice.dismiss} />
+            </View>
+          </Card>
+        ) : null}
         {shown === 'members' ? (
           <>
         <View style={styles.presence}>
@@ -3938,6 +3984,13 @@ const styles = StyleSheet.create({
   // truncates against is that column's, which the row constrains.
   otherName: { fontSize: 20, fontWeight: '700', color: colors.text },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
+  /**
+   * The getting-started card. `gap` rather than margins between its three
+   * children, and the dismissal pushed to the end of its own row so it sits
+   * where every other card's action does rather than under the last sentence.
+   */
+  cohort: { gap: spacing(1), marginBottom: spacing(2) },
+  cohortActions: { flexDirection: 'row', justifyContent: 'flex-end' },
   centered: {
     flex: 1,
     alignItems: 'center',
