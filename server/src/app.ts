@@ -1374,7 +1374,7 @@ export function buildApp(options: BuildOptions = {}): App {
      * resolves from disk per request and `bin/deploy-web` never touches the
      * running process.
      */
-    const shell = async (_request: FastifyRequest, reply: FastifyReply) => {
+    const shell = async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const html = await readFile(
           join(__dirname, '..', 'web', train.dir, 'index.html'),
@@ -1382,9 +1382,10 @@ export function buildApp(options: BuildOptions = {}): App {
         );
         reply.type('text/html; charset=utf-8');
         reply.header('cache-control', 'no-store');
-        // The manifest and the Apple tags, with this train's prefix in them.
-        // See shell.ts for why the export cannot write them itself.
-        return withInstallTags(html, train.prefix);
+        // The manifest and the Apple tags, with this train's prefix in them,
+        // and the link preview. See shell.ts for why the export cannot write
+        // any of them itself.
+        return withInstallTags(html, train.prefix, origin(request));
       } catch {
         // Built rather than committed, so a checkout that has not run
         // `bin/deploy-web` has no app. Said plainly, for the same reason the

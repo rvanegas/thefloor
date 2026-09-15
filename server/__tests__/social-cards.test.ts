@@ -22,6 +22,7 @@ import { invitePage } from '../src/invite';
 import { supportPage } from '../src/support';
 import { privacyPage } from '../src/privacy';
 import { deletionPage } from '../src/deletion';
+import { withInstallTags } from '../src/shell';
 
 const ORIGIN = 'https://example.test';
 
@@ -105,6 +106,34 @@ describe('the invite card, which is the one with something to protect', () => {
     expect(meta(refused, 'og:url')).toBeUndefined();
     expect(live).not.toContain('abc123"');
     expect(meta(live, 'og:image')).toBe(`${ORIGIN}/assets/og.png`);
+  });
+});
+
+describe('the web app shell', () => {
+  const html = '<html><head><title>x</title></head><body></body></html>';
+
+  it('carries the card beside the install tags', () => {
+    const out = withInstallTags(html, '/app', ORIGIN);
+    expect(meta(out, 'og:title')).toBe('The Floor');
+    expect(meta(out, 'og:image')).toBe(`${ORIGIN}/assets/og.png`);
+    // Still does the thing it existed for.
+    expect(out).toContain('<link rel="manifest" href="/app/manifest.json" />');
+  });
+
+  it('carries no og:url, because it is served for every in-app route', () => {
+    // This shell answers every path under the prefix — the app's routes are
+    // resolved in the browser afterwards — so there is no one address it could
+    // name. A fixed og:url would canonicalise every screen to the same page.
+    expect(meta(withInstallTags(html, '/app', ORIGIN), 'og:url')).toBeUndefined();
+    expect(meta(withInstallTags(html, '/beta', ORIGIN), 'og:url')).toBeUndefined();
+  });
+
+  it('still serves a shell with no head at all, untouched', () => {
+    // A bundle built by something other than the Expo export this expects.
+    // Refusing to serve the app over a missing card would turn a cosmetic
+    // surprise into an outage.
+    const headless = '<html><body></body></html>';
+    expect(withInstallTags(headless, '/app', ORIGIN)).toBe(headless);
   });
 });
 

@@ -25,8 +25,39 @@
  * directory.
  */
 
+import { socialCard, socialTags } from './html';
+
 /** The name under the icon, matching `app.json`'s `CFBundleDisplayName`. */
 const APP_NAME = 'The Floor';
+
+/**
+ * The link preview for the web app, and **it carries no `og:url`.**
+ *
+ * The reason is the same thing that makes this file necessary at all: this
+ * shell is returned for *every* route the single-page app has, so there is no
+ * one address it could name. A fixed `og:url` would canonicalise every in-app
+ * route to the same page — and pointing it at `/` would send a preview of the
+ * app to the marketing page instead, which is the mistake html.ts's `path`
+ * comment describes for the invite link.
+ *
+ * **Nothing here is route-specific, and nothing can be.** The server knows the
+ * prefix and not which screen the browser is about to render; the app's routes
+ * are resolved in JavaScript after this HTML has been served. That is fine
+ * rather than a limitation — no address in this application carries an id, so
+ * there is no in-app route whose card would want to say anything else.
+ *
+ * Same copy as the landing page's, deliberately. Somebody pasting a link to
+ * the app is saying *here is the thing*, and what the thing is does not change
+ * with the surface it was linked from.
+ */
+const CARD = {
+  title: 'The Floor',
+  description:
+    'It’s a group chat, but voice. A channel is a place you drop into ' +
+    'rather than a call you answer: you arrive when it suits you, and ' +
+    'whoever is there is there.',
+  imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
+};
 
 /**
  * Everything a browser reads before offering to install, and nothing else.
@@ -43,7 +74,7 @@ const APP_NAME = 'The Floor';
  * own test for whether it has been installed — answers to. Without it the
  * checklist rung on Home could never tick, however many people added the icon.
  */
-function head(prefix: string): string {
+function head(prefix: string, origin?: string): string {
   return [
     `<link rel="manifest" href="${prefix}/manifest.json" />`,
     `<link rel="apple-touch-icon" href="${prefix}/apple-touch-icon.png" />`,
@@ -51,6 +82,7 @@ function head(prefix: string): string {
     '<meta name="mobile-web-app-capable" content="yes" />',
     `<meta name="apple-mobile-web-app-title" content="${APP_NAME}" />`,
     '<meta name="apple-mobile-web-app-status-bar-style" content="default" />',
+    ...(origin ? [socialTags(socialCard(origin, CARD))] : []),
   ].join('\n    ');
 }
 
@@ -65,8 +97,12 @@ function head(prefix: string): string {
  *
  * @param prefix The train's prefix, `/app` or `/beta`, with no trailing slash.
  */
-export function withInstallTags(html: string, prefix: string): string {
+export function withInstallTags(
+  html: string,
+  prefix: string,
+  origin?: string
+): string {
   const at = html.indexOf('</head>');
   if (at === -1) return html;
-  return `${html.slice(0, at)}${head(prefix)}\n  ${html.slice(at)}`;
+  return `${html.slice(0, at)}${head(prefix, origin)}\n  ${html.slice(at)}`;
 }
