@@ -77,6 +77,12 @@ usage_minutes() {
 -- being forwarded. Read it as a ranking of who this box works hardest for.
 --
 -- Open spans are counted up to now, which is why a live channel moves this.
+--
+-- **And this total is short.** A span open when the server restarted was
+-- closed at its own start and contributes zero minutes here, silently. How
+-- many minutes that is, as a lower bound and per kind, is `bin/usage defects`
+-- — which as of 2026-09-15 says the `participant` series is missing at least
+-- two fifths of itself. Read that before quoting any figure below at anybody.
 SELECT COALESCE(a.display_name, '(gone)') AS who,
        s.account_id,
        ROUND(SUM(COALESCE(s.ended_at, unixepoch() * 1000) - s.started_at)
@@ -101,6 +107,10 @@ usage_pairs() {
 -- rows of an hour each and the column does not total to anything. Which side
 -- of the pair a name lands on carries no meaning either — `pairKey` orders
 -- them so a pair has one shape.
+--
+-- Short for the reason `minutes` is, and more quietly: a pair open when the
+-- server restarted is a *closed* span of zero length, so it passes the filter
+-- below and then adds nothing. See `bin/usage defects`.
 SELECT COALESCE(a.display_name, '(gone)') AS who,
        s.account_id,
        COALESCE(p.display_name, '(gone)') AS peer,
@@ -144,6 +154,12 @@ usage_peak() {
 -- and never closed. A span still open counts as open at every later instant,
 -- so a leaked span inflates every day after it; `bin/usage defects` is what
 -- says whether there is one.
+--
+-- The error runs the other way too, and harder. A span zeroed by a restart is
+-- open at no instant at all — `ended_at > i.t` is false from its own start —
+-- so a restart does not merely stop counting a connection, it removes it from
+-- every peak it had already set. A day with restarts in it under-reports, and
+-- the days that have them are listed by `bin/usage defects`.
 WITH RECURSIVE days(d) AS (
   SELECT date(unixepoch() - 2592000, 'unixepoch')
   UNION ALL
@@ -281,11 +297,84 @@ FROM usage_spans
 WHERE ended_at IS NULL AND started_at < unixepoch() * 1000 - 86400000
 ORDER BY started_at;
 
--- Spans a dead process left open, closed at their own start by closeStrays and
--- so of zero length. Not a defect on its own — it is a count of restarts that
--- interrupted something — but a lot of them next to few real spans is one.
-SELECT COUNT(*) AS zero_length_spans
-FROM usage_spans WHERE ended_at = started_at;
+-- **What the restarts took**, which is the defect the old count only hinted at.
+--
+-- A span open when the process died is closed at its own `started_at` by
+-- closeStrays, so it is of zero length. That is the right thing to write — the
+-- process died at an unknown moment and zero is the only figure certainly not
+-- an overstatement — but it means the time really spent is written down
+-- nowhere, and every other report here is short by it while saying so nowhere.
+-- `minutes` sums a zero, `pairs` sums a zero, and `peak` never counts one at
+-- any instant, since `ended_at > t` is false from the moment it starts. So
+-- this is not a count of restarts. It is the size of the hole in the rest of
+-- the output.
+--
+-- `minutes_lost` is a **lower bound, and a rigorous one**. For a zeroed span Z,
+-- take any span N that was open when Z started and that closed normally: the
+-- process was alive at `N.ended_at`, and N cannot have been open at the restart
+-- or it would have been zeroed too — so the restart came after `N.ended_at`,
+-- and Z was still open then. The furthest such `ended_at` is therefore a moment
+-- Z is *known* to have reached. Witnesses are taken from every channel, not
+-- just Z's, because it is one process that died.
+--
+-- The one assumption is that closeStrays wrote these rows. A span opened and
+-- closed inside the same millisecond would look identical and make its row's
+-- contribution nonsense; nothing in channels.ts does that except by a 1ms
+-- collision, and `closeOthers` keeps every span the pass just opened.
+--
+-- `missing_pct` is that lower bound as a share of what the series *would* have
+-- said — lost over lost-plus-counted — so it is itself a floor: the true figure
+-- can only be worse, never better.
+--
+-- Read it first. A kind whose losses approach its total is a series that
+-- cannot be quoted at anybody — and the ranking is not flat, because the
+-- longer a span runs the likelier a restart lands inside it: the kinds that
+-- stay open longest lose most, which is exactly the wrong bias for a meter.
+WITH lost AS (
+  SELECT z.kind,
+         COALESCE((SELECT MAX(n.ended_at) FROM usage_spans n
+                    WHERE n.ended_at > n.started_at
+                      AND n.started_at <= z.started_at
+                      AND n.ended_at   >  z.started_at),
+                  z.started_at) - z.started_at AS at_least
+  FROM usage_spans z WHERE z.ended_at = z.started_at
+)
+SELECT l.kind,
+       COUNT(*) AS lost_spans,
+       (SELECT COUNT(*) FROM usage_spans t WHERE t.kind = l.kind) AS of_spans,
+       ROUND(SUM(l.at_least) / 60000.0, 1) AS minutes_lost,
+       ROUND(100.0 * SUM(l.at_least) /
+             (SUM(l.at_least) +
+              (SELECT SUM(COALESCE(t.ended_at, unixepoch() * 1000) - t.started_at)
+                 FROM usage_spans t WHERE t.kind = l.kind)), 1) AS missing_pct
+FROM lost l
+GROUP BY l.kind
+ORDER BY minutes_lost DESC;
+
+-- When it happened, so the frequency is read rather than inferred. Each row is
+-- a day on which at least one restart discarded spans — at least one, since
+-- several restarts in a day collapse into a single row here. Dated by the last
+-- moment the process is known to have been running with the span still open,
+-- which is shortly before the restart rather than at it, so a loss either side
+-- of midnight can land on the previous day.
+--
+-- A table with a row per day is a server restarting into live conversations as
+-- a matter of routine, and that fix is not in this script.
+WITH lost AS (
+  SELECT z.channel_id,
+         COALESCE((SELECT MAX(n.ended_at) FROM usage_spans n
+                    WHERE n.ended_at > n.started_at
+                      AND n.started_at <= z.started_at
+                      AND n.ended_at   >  z.started_at),
+                  z.started_at) AS alive_until
+  FROM usage_spans z WHERE z.ended_at = z.started_at
+)
+SELECT date(alive_until / 1000, 'unixepoch') AS day,
+       COUNT(*) AS lost_spans,
+       COUNT(DISTINCT channel_id) AS channels_hit
+FROM lost
+GROUP BY day
+ORDER BY day DESC;
 SQL
 }
 
@@ -298,7 +387,8 @@ pairs        minutes each pair of people spent in a channel together
 peak         per day: most connections and most recording jobs at once
 bytes        recording bytes this server served, by kind
 transcripts  what transcription cost, who spent it, and where the free uses went
-defects      fallback mic spans, leaked open spans, spans a restart cut short
+defects      fallback mic spans, leaked open spans, and what restarts erased
+             from every other report above — read this before quoting those
 TXT
 }
 
