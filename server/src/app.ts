@@ -798,17 +798,28 @@ export function buildApp(options: BuildOptions = {}): App {
 
   fastify.post('/auth/verify', async (request, reply) => {
     const body = request.body as
-      | { identifier?: string; code?: string; displayName?: string }
+      | {
+          identifier?: string;
+          code?: string;
+          displayName?: string;
+          marketingEmail?: unknown;
+        }
       | undefined;
     if (!body?.identifier || !body?.code) {
       return reply.code(400).send({ error: 'identifier and code are required' });
     }
 
+    // Only `true` grants, and anything else — false, absent, a client too old
+    // to send it — is silence rather than a no. `Accounts.establish` says why
+    // that distinction matters: the box on the sign-in screen starts clear on
+    // every device, so reading a missing field as a refusal would make the
+    // second phone somebody signs in on revoke what the first one granted.
     const result = accounts.verifyCode(
       body.identifier,
       body.code,
       body.displayName,
-      now()
+      now(),
+      body.marketingEmail === true
     );
     // One message for every failure mode, so this cannot be used to discover
     // which identifiers have accounts.

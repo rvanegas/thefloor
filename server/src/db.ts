@@ -188,6 +188,20 @@ export interface AccountRow {
   tried_nearby: number | null;
   tried_guest: number | null;
   tried_player: number | null;
+  /**
+   * When this person said we may send them marketing and instructional email,
+   * and null while they have not. Only the sign-in screen's opt-in writes it,
+   * and only upwards: an unticked box is somebody who did not opt in just now,
+   * which is not the same statement as withdrawal, so signing in again with it
+   * clear leaves an existing consent standing. Nothing withdraws one yet —
+   * see planning/backlog/.
+   *
+   * A stamp rather than a 1, on the reasoning the four `tried_` columns and
+   * `free_transcript_at` are stamps, and here it is worth more than in either:
+   * a consent is a thing somebody may later have to be shown the date of, and
+   * a boolean throws that away for nothing.
+   */
+  marketing_email_at: number | null;
 }
 
 export interface ContactRow {
@@ -498,7 +512,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   tried_floor  INTEGER,
   tried_nearby INTEGER,
   tried_guest  INTEGER,
-  tried_player INTEGER
+  tried_player INTEGER,
+  -- When this person opted in to marketing and instructional email, null until
+  -- they do. Written by the sign-in screen's checkbox and by nothing else; see
+  -- the row type above for why an unticked box does not clear it.
+  marketing_email_at INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -1599,6 +1617,14 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE accounts ADD COLUMN tried_guest INTEGER');
     db.exec('ALTER TABLE accounts ADD COLUMN tried_player INTEGER');
   }
+  // Null for every account that predates the checkbox, which is the only
+  // honest value: consent is something somebody gave, and nobody who signed in
+  // before there was a box to tick has given it. Defaulting these to 1 would
+  // be writing down a permission nobody granted.
+  if (!accountColumns.some((c) => c.name === 'marketing_email_at')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN marketing_email_at INTEGER');
+  }
+
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.
   // SCHEMA runs before this function, and `CREATE TABLE IF NOT EXISTS accounts`
   // is a no-op against a database that already has the table — so an index on

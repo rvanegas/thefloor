@@ -45,7 +45,14 @@ jest.mock('../../api/config', () => ({
 
 const mockApp = {
   requestCode: jest.fn(async () => {}),
-  verify: jest.fn(async () => {}),
+  verify: jest.fn(
+    async (
+      _identifier: string,
+      _code: string,
+      _displayName?: string,
+      _marketingEmail?: boolean
+    ) => {}
+  ),
   lastError: null as string | null,
   clearError: jest.fn(),
 };
@@ -91,6 +98,23 @@ function findButton(
   return tree.root
     .findAll((n) => n.props?.accessibilityRole === 'button')
     .find((n) => labelOf(n).includes(label));
+}
+
+function findCheckbox(tree: ReactTestRenderer): ReactTestInstance | undefined {
+  return tree.root.findAll((n) => n.props?.accessibilityRole === 'checkbox')[0];
+}
+
+/** Gets past the first step, which is where the opt-in is not. */
+async function reachTheCodeStep(tree: ReactTestRenderer): Promise<void> {
+  const field = tree.root.findAll(
+    (n) => n.props?.placeholder === 'Email address'
+  )[0];
+  await act(async () => {
+    field.props.onChangeText('anna.k@example.com');
+  });
+  await act(async () => {
+    findButton(tree, 'Send code')!.props.onPress();
+  });
 }
 
 function render(): ReactTestRenderer {
@@ -163,5 +187,74 @@ describe('the embedded-browser notice', () => {
     const tree = render();
     expect(textOf(tree)).toContain('built-in browser');
     expect(findButton(tree, 'Send code')).toBeDefined();
+  });
+});
+
+/**
+ * The opt-in, which is the one thing this screen asks rather than requires.
+ *
+ * It is a permission, so what is tested is the shape a permission has to have:
+ * clear unless somebody touched it, sent as a grant when they did, and absent
+ * from the step where an address has not been proved yet. The server's half —
+ * that a clear box never withdraws a consent already given — is
+ * `server/__tests__/marketing-opt-in.test.ts`.
+ */
+describe('the marketing email opt-in', () => {
+  it('is not asked before the address is proved', () => {
+    expect(findCheckbox(render())).toBeUndefined();
+  });
+
+  it('is offered with the code, and starts clear', async () => {
+    const tree = render();
+    await reachTheCodeStep(tree);
+    const box = findCheckbox(tree);
+    expect(box).toBeDefined();
+    expect(box!.props.accessibilityState.checked).toBe(false);
+    expect(box!.props.accessibilityLabel).toContain('Email me');
+  });
+
+  it('signs in without permission when nobody touches it', async () => {
+    const tree = render();
+    await reachTheCodeStep(tree);
+    const code = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Six-digit code'
+    )[0];
+    await act(async () => {
+      code.props.onChangeText('123456');
+    });
+    await act(async () => {
+      findButton(tree, 'Sign in')!.props.onPress();
+    });
+    expect(mockApp.verify).toHaveBeenCalledWith(
+      'anna.k@example.com',
+      '123456',
+      undefined,
+      false
+    );
+  });
+
+  it('sends the grant when it is ticked', async () => {
+    const tree = render();
+    await reachTheCodeStep(tree);
+    await act(async () => {
+      findCheckbox(tree)!.props.onPress();
+    });
+    expect(findCheckbox(tree)!.props.accessibilityState.checked).toBe(true);
+
+    const code = tree.root.findAll(
+      (n) => n.props?.placeholder === 'Six-digit code'
+    )[0];
+    await act(async () => {
+      code.props.onChangeText('123456');
+    });
+    await act(async () => {
+      findButton(tree, 'Sign in')!.props.onPress();
+    });
+    expect(mockApp.verify).toHaveBeenCalledWith(
+      'anna.k@example.com',
+      '123456',
+      undefined,
+      true
+    );
   });
 });

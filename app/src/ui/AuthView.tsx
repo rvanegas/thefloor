@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL, describeMissingConfig } from '../api/config';
 import { copyText } from '../clipboard';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Field, Screen } from './components';
+import { Button, Card, Checkbox, Field, Screen } from './components';
 import { currentLink, inEmbeddedBrowser } from './embedded';
 import { colors, spacing, type } from './theme';
 
@@ -22,6 +22,11 @@ export function AuthView() {
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
+  /**
+   * Permission to send mail that is not a sign-in code. Starts clear and is
+   * only ever sent as a grant: see the checkbox below, and `api.verify`.
+   */
+  const [marketingEmail, setMarketingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -55,7 +60,12 @@ export function AuthView() {
     setError(null);
     clearError();
     try {
-      await verify(identifier.trim(), code.trim(), displayName.trim() || undefined);
+      await verify(
+        identifier.trim(),
+        code.trim(),
+        displayName.trim() || undefined,
+        marketingEmail
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -135,6 +145,28 @@ export function AuthView() {
               autoCapitalize="words"
               onSubmit={submitCode}
               submitLabel="go"
+            />
+            {/*
+              The one thing on this screen that is asked rather than required,
+              and it is here rather than on the first step deliberately: this
+              is the step that creates an account, and a box ticked beside an
+              address that then fails to verify is a permission granted by
+              nobody. It sits above the commitment rather than below it — a
+              question asked after the button that answers the screen is a
+              question most people never see.
+
+              Clear by default, and nothing pre-ticks it: an opt-in that
+              arrives ticked is not one. Signing in again on another device
+              shows it clear again — this screen is read before anybody is
+              identified, so it cannot know what was already answered — which
+              is why an untouched box is silence and not a refusal. Withdrawing
+              is not offered here or anywhere yet; it belongs on the mail, and
+              see planning/backlog/.
+            */}
+            <Checkbox
+              label="Email me occasionally about The Floor — how to use it, and what is new."
+              checked={marketingEmail}
+              onChange={setMarketingEmail}
             />
             <Button
               label={busy ? 'Checking…' : 'Sign in'}

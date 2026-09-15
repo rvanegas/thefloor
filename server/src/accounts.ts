@@ -1120,11 +1120,12 @@ export class Accounts {
     identifier: string,
     code: string,
     displayName: string | undefined,
-    now: number
+    now: number,
+    marketingEmail?: boolean
   ): { account: AccountRow; token: string; created: boolean } | null {
     const id = normalize(identifier);
     if (!this.consumeCode(id, code, now)) return null;
-    return this.establish(id, displayName, now);
+    return this.establish(id, displayName, now, marketingEmail);
   }
 
   /**
@@ -1188,11 +1189,21 @@ export class Accounts {
    * have the old one written down — an invite link is `/i/<username>/<pin>` —
    * and a handle that moves under its owner is worse than one that no longer
    * matches the name above it.
+   *
+   * **`marketingEmail` is a grant and never a withdrawal.** True stamps the
+   * consent if none is recorded; false and undefined are the same thing here,
+   * because the box on the sign-in screen starts clear and cannot be shown
+   * what an existing account already answered — the screen is read before
+   * anybody is identified. Treating a clear box as a no would mean every
+   * sign-in on a second device quietly revoked the consent given on the first.
+   * The stamp is left where it was on a second grant, so it keeps saying when
+   * permission was first given.
    */
   establish(
     identifier: string,
     displayName: string | undefined,
-    now: number
+    now: number,
+    marketingEmail?: boolean
   ): { account: AccountRow; token: string; created: boolean } {
     const id = normalize(identifier);
     const name = displayName?.trim();
@@ -1235,6 +1246,13 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
         .run(name, account.id);
+      account = this.byId(account.id)!;
+    }
+
+    if (marketingEmail && !account.marketing_email_at) {
+      this.db
+        .prepare('UPDATE accounts SET marketing_email_at = ? WHERE id = ?')
+        .run(now, account.id);
       account = this.byId(account.id)!;
     }
 
@@ -2359,7 +2377,8 @@ export class Accounts {
                 last_seen_at = NULL, donations_allowed = NULL,
                 debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
                 im_signal = NULL, tried_floor = NULL, tried_nearby = NULL,
-                tried_guest = NULL, tried_player = NULL
+                tried_guest = NULL, tried_player = NULL,
+                marketing_email_at = NULL
           WHERE id = ?`
       )
       .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);

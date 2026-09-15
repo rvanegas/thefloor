@@ -352,7 +352,8 @@ interface AppValue extends AppState {
   verify: (
     identifier: string,
     code: string,
-    displayName?: string
+    displayName?: string,
+    marketingEmail?: boolean
   ) => Promise<void>;
   signOut: () => Promise<void>;
   /**
@@ -1666,8 +1667,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await api.requestCode(identifier);
       },
 
-      verify: async (identifier, code, displayName) => {
-        const { token, account } = await api.verify(identifier, code, displayName);
+      verify: async (identifier, code, displayName, marketingEmail) => {
+        const { token, account } = await api.verify(
+          identifier,
+          code,
+          displayName,
+          marketingEmail
+        );
         await storage.set(TOKEN_KEY, token);
         setState((s) => ({ ...s, token, me: account, lastError: null }));
         connect(token);

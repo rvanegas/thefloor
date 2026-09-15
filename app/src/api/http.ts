@@ -156,10 +156,22 @@ export const api = {
       body: { identifier },
     }),
 
-  verify: (identifier: string, code: string, displayName?: string) =>
+  /**
+   * `marketingEmail` is a grant and never a withdrawal — only `true` says
+   * anything, and the server records the first one and leaves it alone
+   * afterwards. The box on the sign-in screen starts clear on every device and
+   * cannot be shown what this account already answered, so a clear one is
+   * somebody who did not opt in just now rather than somebody taking it back.
+   */
+  verify: (
+    identifier: string,
+    code: string,
+    displayName?: string,
+    marketingEmail?: boolean
+  ) =>
     request<{ token: string; account: PublicAccount }>('/auth/verify', {
       method: 'POST',
-      body: { identifier, code, displayName },
+      body: { identifier, code, displayName, marketingEmail },
     }),
 
   /**

@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button, IconButton, Field, Segmented, FooterAction — and when a set of choices stops being a row |
+| *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes |
@@ -51,10 +51,10 @@ provider, and no component library.
 - **`cssVariables.web.ts`** — the same palettes, emitted as CSS custom
   properties. Generated from `theme.ts`, never written by hand.
 - **`appearance.ts`** — light, dark or system, applied to the window.
-- **`components.tsx`** — `Button`, `IconButton`, `Field`, `Screen`, `Card`,
-  `SectionLabel`, `Segmented`, `Empty`, plus the recording row and the
+- **`components.tsx`** — `Button`, `IconButton`, `Field`, `Checkbox`, `Screen`,
+  `Card`, `SectionLabel`, `Segmented`, `Empty`, plus the recording row and the
   transcript search that are shared between screens.
-- **`icons.tsx`** — the fifteen glyphs, as vendored Lucide path data.
+- **`icons.tsx`** — the sixteen glyphs, as vendored Lucide path data.
 - **`layout.ts`** / **`Panes.tsx`** — the breakpoint, the list width, and which
   pane a subtree is in.
 
@@ -386,6 +386,25 @@ The details that took work and should not be undone:
 - `editable={false}` greys the field to read like the disabled buttons beside
   it. The caller is expected to say why underneath — which is what every
   disabled control in this app does.
+
+### Checkbox
+
+A 22pt square at `radius.sm` with a 1pt `border` on `surface`, its sentence
+beside it in `type.muted`; ticked, it fills with `text` and draws a 16pt
+`CheckIcon` in `bg` — the `primary` button's tone and not a new one. The row is
+44 tall, the label is part of the target, and the whole thing is one accessible
+element with `accessibilityRole="checkbox"` and `checked` in its state.
+
+**One user so far, and the shape is the reason there is a component at all**:
+the marketing opt-in on the sign-in screen. Every other control here either has
+a value in force already — a `Segmented`, a ladder of buttons — or is a
+commitment somebody presses once. A permission is neither: it has to start
+clear, stay clear if nobody touches it, and read as unticked rather than as
+*off*, which is a distinction a switch cannot draw.
+
+**Not the violet.** `floor` is spent on the floor; a box borrowing it would be
+a second thing on the screen claiming to be the mechanic. See § *The economy of
+colour*.
 
 ### Segmented
 
@@ -869,7 +888,8 @@ rules.
 ## Accessibility
 
 - `accessibilityRole="button"` on every `Pressable` — there are twenty-one,
-  plus one `tablist` on `Segmented` and one `image`.
+  plus one `tablist` on `Segmented`, one `checkbox` on `Checkbox`, and one
+  `image`.
 - **44pt minimum targets.** `IconButton` is 44 square; `FooterAction` sets a
   44 floor even though its disc already clears it.
 - **State goes in `accessibilityState`, not in the label.** A segment

@@ -62,6 +62,7 @@ caused; the list carries the meaning.
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
+- **Marketing email** — Permission to write to somebody about the application rather than to sign them in: granted by the one checkbox on the sign-in screen, clear unless ticked, and so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
@@ -704,6 +705,29 @@ Also used loosely in the code for "the channel this account, or this device, is
 actually standing in" — see *live channel* in Part Two, which is a narrower
 thing and is not what the Home section means. **In prose that thing is *the
 channel one is present in***, settled 2026-09-08; the code has not caught up.
+
+## Marketing email
+
+**Permission to write to somebody about the application rather than to sign
+them in.** The sign-in screen's one checkbox, below the code and the display
+name, clear until somebody ticks it; ticking it stamps
+`accounts.marketing_email_at` with the moment.
+
+**A grant and never a withdrawal**, which is the whole of what is unusual
+about it. That screen is read before anybody is identified, so it cannot be
+shown in force the way a setting can — it starts clear on every device — and a
+clear box therefore means *did not opt in just now* rather than *no*. Reading
+it as a refusal would make signing in on a second phone revoke what the first
+one granted. A second tick is a no-op: the stamp says when permission was
+first given, which is the fact somebody may later have to be shown.
+
+The date rather than a 1, on the reasoning the four `tried_` columns are
+stamps. Erasing the account clears it along with everything else.
+
+**Nothing sends this mail yet, and nothing withdraws the permission** — the
+only exit today is deleting the account, which is not one. See
+`planning/backlog/marketing-email-has-consent-but-no-way-to-withdraw-it.md`,
+which carries what is missing and the order it will be wanted in.
 
 ## Member
 

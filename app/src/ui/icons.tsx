@@ -9,10 +9,13 @@ import type { ColorValue } from 'react-native';
  * exists; the two after them are the header's *Close* and *Settings*, which
  * were words until 2026-09-02, with the house the channel screen's header
  * draws instead of the cross between them; then the six of that same screen's
- * tabs, which were words until 2026-09-12; and the two at the end are the
+ * tabs, which were words until 2026-09-12; then the two of the
  * recording transport's *Pause* and *Stop*, which were words until 2026-09-13.
  * Its third glyph is the record dot, which is `RecordingsIcon` above — the tab
  * and the control it offers are the same idea and take the same shape.
+ *
+ * The last is the tick inside the sign-in screen's opt-in box, which was never
+ * a word: a checkbox is a shape or it is not a checkbox.
  *
  * **Vendored rather than imported.** `lucide-react-native` would be a second
  * dependency on top of `react-native-svg`, and Metro does not tree-shake by
@@ -506,6 +509,27 @@ export function StopIcon({
   return (
     <Glyph color={color} size={size}>
       <Rect x="3" y="3" width="18" height="18" rx="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * A tick. `lucide/check`.
+ *
+ * Drawn inside `Checkbox`'s square and nowhere else so far. It carries no
+ * accessible name of its own: the box around it reports its state as a
+ * checkbox does, and a glyph that also said "checked" would be a stutter.
+ */
+export function CheckIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M20 6 9 17l-5-5" />
     </Glyph>
   );
 }

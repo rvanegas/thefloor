@@ -19,6 +19,7 @@ import type { RecordingView } from '../../../core/protocol';
 import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
+import { CheckIcon } from './icons';
 import { usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
@@ -163,6 +164,53 @@ export function IconButton({
       ]}
     >
       {icon(disabled ? colors.textFaint : colors.textMuted)}
+    </Pressable>
+  );
+}
+
+/**
+ * A square that is ticked or not, with its sentence beside it.
+ *
+ * The one control in this app whose whole job is to record that somebody said
+ * yes on purpose, which is why it is a box rather than a `Segmented` of two or
+ * a pair of buttons: an opt-in has to start clear and has to stay clear if
+ * nobody touches it, and every other control here either has a value in force
+ * already or is a commitment somebody presses once.
+ *
+ * The label is the touch target along with the square — a 22pt box is under
+ * the 44 a finger is entitled to, and a sentence somebody has to aim past is
+ * how a checkbox gets left unticked by accident rather than on purpose. The
+ * whole row is one accessible element for the same reason, reporting itself
+ * as a checkbox with `checked` on it, so a screen reader reads the sentence
+ * and its state together rather than as a shape and a caption.
+ *
+ * Ticked fills with `text` and draws the tick in `bg`, which is the `primary`
+ * button's tone and not a new one. It is deliberately not the violet: `floor`
+ * is spent on the floor and on nothing else, and a box that borrowed it would
+ * be the second thing on the screen claiming to be the mechanic. See STYLE.md
+ * § *The economy of colour*.
+ */
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      onPress={() => onChange(!checked)}
+      style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
+    >
+      <View style={[styles.checkBox, checked && styles.checkBoxOn]}>
+        {checked ? <CheckIcon color={colors.bg} size={16} /> : null}
+      </View>
+      <Text style={[type.muted, styles.checkLabel]}>{label}</Text>
     </Pressable>
   );
 }
@@ -737,6 +785,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing(1),
+    paddingVertical: spacing(1),
+    minHeight: 44,
+  },
+  checkBox: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkBoxOn: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  // Lifted by a point so the first line of the sentence sits level with the
+  // square rather than with the top of its box.
+  checkLabel: { flex: 1, lineHeight: 20, marginTop: 1 },
   buttonLabel: { fontSize: 15, fontWeight: '600' },
   buttonSublabel: {
     fontSize: 12,
