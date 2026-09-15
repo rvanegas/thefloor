@@ -127,6 +127,38 @@ public class AudioRouteModule: Module {
     }
 
     /**
+     The arrival and departure chime: two notes, in one order or the other.
+
+     **A system sound for the same reason `vibrate` is one.** The argument
+     above against `CHHapticEngine` — that it is an engine started next to a
+     live voice session, and this app has spent six builds on what that
+     neighbourhood does to audio — rules out `AVAudioPlayer` and `expo-audio`
+     here by exactly the same reasoning, and more sharply: those two configure
+     `AVAudioSession` themselves, which would make a fourth writer to the
+     process-wide configuration POSTMORTEM-echo.md is about. A system sound
+     starts nothing and configures nothing.
+
+     **It is a system sound, so `setAllowHapticsDuringRecording` governs it**
+     just as it governs the vibration — without that property this is silent
+     for the whole duration of a capturing session, which is most of when it
+     has anything to say. `useSessionAudio` asserts it on every configuration
+     write, so nothing extra is needed here; it is named because a future
+     session removing that call would silence this with no other symptom.
+
+     **Synthesised rather than shipped**, which costs a WAV header and buys no
+     asset in the repository and no decode at chime time.
+     `AudioServicesCreateSystemSoundID` wants a file, so each kind is rendered
+     once into the temporary directory and its id kept for the life of the
+     process. Two sounds, so two ids; `soundIds` is only ever touched from the
+     JavaScript thread, which is the only thread that calls this.
+     */
+    Function("chime") { (rising: Bool) -> Bool in
+      guard let id = self.chimeSound(rising: rising) else { return false }
+      AudioServicesPlaySystemSound(id)
+      return true
+    }
+
+    /**
      Writes the session exactly as asked and hands back what it actually became.
 
      **The whole point is that it does not know what a good configuration is.**
@@ -281,6 +313,99 @@ public class AudioRouteModule: Module {
         self.observer = nil
       }
     }
+  }
+
+  /**
+   The two rendered chimes, kept for the life of the process.
+
+   Keyed by the one bit there is. Rendering costs a few milliseconds and a file
+   write, and doing it per chime would put both on the path of a cue that has
+   to land at the moment somebody walks in.
+   */
+  private static var soundIds: [Bool: SystemSoundID] = [:]
+
+  /** The id for one direction, rendering and registering it on first use. */
+  private func chimeSound(rising: Bool) -> SystemSoundID? {
+    if let existing = Self.soundIds[rising] { return existing }
+    guard let url = Self.renderChime(rising: rising) else { return nil }
+    var id: SystemSoundID = 0
+    let status = AudioServicesCreateSystemSoundID(url as CFURL, &id)
+    guard status == kAudioServicesNoError else { return nil }
+    Self.soundIds[rising] = id
+    return id
+  }
+
+  private static let chimeSampleRate = 44_100.0
+  private static let chimeNoteSeconds = 0.09
+  /** Deliberately low. *Subtle* is in the request and is the easy part to lose. */
+  private static let chimeAmplitude = 0.18
+
+  /**
+   Two notes, in one order or the other, as a 16-bit mono WAV on disk.
+
+   **The two sounds are the same two notes reversed**, which is what makes them
+   a pair rather than two unrelated beeps: E5 then A5 going in, A5 then E5
+   coming out. Somebody hears the second one once and already knows what it
+   means, because it is audibly the first one backwards.
+
+   Each note is a sine under a 5ms attack and an exponential decay — struck
+   rather than switched on. The attack is not a nicety: a sine starting at full
+   amplitude begins on a discontinuity, and the click that produces is the part
+   a listener would notice.
+   */
+  private static func renderChime(rising: Bool) -> URL? {
+    let notes: [Double] = rising ? [659.25, 880.0] : [880.0, 659.25]
+    let perNote = Int(chimeSampleRate * chimeNoteSeconds)
+
+    var samples: [Int16] = []
+    samples.reserveCapacity(perNote * notes.count)
+    for note in notes {
+      for frame in 0..<perNote {
+        let t = Double(frame) / chimeSampleRate
+        let attack = min(1.0, t / 0.005)
+        let decay = exp(-t * 18.0)
+        let value = sin(2.0 * Double.pi * note * t) * attack * decay * chimeAmplitude
+        samples.append(Int16(max(-1.0, min(1.0, value)) * 32_767.0))
+      }
+    }
+
+    var data = Data()
+    func append16(_ value: UInt16) {
+      withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
+    }
+    func append32(_ value: UInt32) {
+      withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
+    }
+
+    let rate = UInt32(chimeSampleRate)
+    let bytes = UInt32(samples.count * 2)
+    data.append(contentsOf: Array("RIFF".utf8))
+    append32(36 + bytes)
+    data.append(contentsOf: Array("WAVE".utf8))
+    data.append(contentsOf: Array("fmt ".utf8))
+    append32(16)  // PCM header length
+    append16(1)   // uncompressed
+    append16(1)   // mono
+    append32(rate)
+    append32(rate * 2)  // bytes per second
+    append16(2)         // bytes per frame
+    append16(16)        // bits per sample
+    data.append(contentsOf: Array("data".utf8))
+    append32(bytes)
+    for sample in samples {
+      withUnsafeBytes(of: sample.littleEndian) { data.append(contentsOf: $0) }
+    }
+
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent(rising ? "chime-in.wav" : "chime-out.wav")
+    do {
+      try data.write(to: url, options: .atomic)
+    } catch {
+      // The cue is an extra. A temporary directory that cannot be written to
+      // is a real problem and this is not the place it should surface.
+      return nil
+    }
+    return url
   }
 
   private static func snapshot() -> [String: Any] {

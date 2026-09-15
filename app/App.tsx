@@ -5,6 +5,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
+import { usePresenceChime } from './src/audio/usePresenceChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
@@ -226,6 +227,18 @@ function Root() {
    * for the reason above it.
    */
   useKnockNudge(live);
+
+  /**
+   * Told that the room has changed shape, which is the one thing a
+   * conversation used to keep entirely to the screen.
+   *
+   * Here for the reason the three above are: presence is not a screen, and
+   * somebody who has walked back to Home is still in the room and still has an
+   * interest in who else is. Two inverse chimes rather than a buzz, because
+   * there are two things to tell apart — see `chime.ts`, which says why that
+   * does not contradict the entry forbidding the silenced-speaker tone.
+   */
+  usePresenceChime(live, me);
 
   /**
    * Says this device is being attended, which is all a client does about

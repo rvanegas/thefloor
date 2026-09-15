@@ -21,6 +21,13 @@
  * rules out — on web it would play over the very voice it was announcing, with
  * no locked phone to justify it.
  *
+ * **That last prohibition is about this cue and not about sound in general**,
+ * narrowed 2026-09-14 when `chime.web.ts` arrived next door and does make a
+ * noise. The objection was that a tone would talk over the voice it was
+ * announcing, which is true of a speaker who is already talking and false of
+ * somebody walking into a room. See
+ * `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+ *
  * Nothing here needs a permission or a service worker. `navigator.setAppBadge`
  * would give a real badge, but it requires an installed PWA and does not exist
  * in Firefox, so it is a later enhancement rather than the mechanism.

@@ -79,6 +79,13 @@ interface NativeAudioRoute {
   setAllowHapticsDuringRecording(allow: boolean): Promise<boolean>;
   vibrate(): boolean;
   /**
+   * Optional for the reason the lab's three below are, and here it is the
+   * ordinary case rather than a reload hazard: every build already installed
+   * predates this function, so `undefined` is what a phone that has not
+   * updated actually returns.
+   */
+  chime?(rising: boolean): boolean;
+  /**
    * The lab's three. Optional on the type because a Metro reload can leave a
    * new bundle talking to a binary built before they existed, and the lab says
    * so rather than throwing.
@@ -224,6 +231,32 @@ export async function setAllowHapticsDuringRecording(
 export function vibrate(): boolean {
   try {
     return native?.vibrate() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The presence chime: two notes rising, or the same two falling.
+ *
+ * Rendered in the native half and played as a *system sound*, which is the
+ * same delivery `vibrate` uses and is chosen for the same reason — it starts
+ * no engine and writes no session, where every audio player available to
+ * JavaScript would do both. See `ios/AudioRouteModule.swift`.
+ *
+ * It is a system sound, so — again like `vibrate` —
+ * `setAllowHapticsDuringRecording` governs it, and without that it is silent
+ * for exactly as long as anybody is capturing.
+ *
+ * @param rising true for an arrival, false for a departure.
+ * @returns whether it played. False means no module or a native half older
+ * than this function, which is Android, jest, and every build released so far.
+ * There is no fallback: a buzz cannot say *which* of the two happened, and
+ * that distinction is the whole cue.
+ */
+export function chime(rising: boolean): boolean {
+  try {
+    return native?.chime?.(rising) ?? false;
   } catch {
     return false;
   }

@@ -39,6 +39,7 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite, Player, Recordings, Watch
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
+- **Chime** — The two-note sound a device makes when somebody *else* steps in or out of the channel you are in: rising for arriving, the same notes falling for leaving
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -273,6 +274,30 @@ The word had no user-facing life until 2026-09-01, the list having been called
 *Home*. It is the plural of *channel* and nothing more; what it contrasts with
 is *Contacts*, which is the same people indexed by name rather than by the room
 you talk to them in.
+
+## Chime
+
+**The two-note sound a device makes when the room changes shape.** Rising when
+somebody steps in, the same two notes falling when somebody steps out — the
+second is audibly the first one backwards, which is what lets one bit be
+carried by a sound nobody was taught.
+
+**It is not in the media room**, and that is the distinction the word has to
+hold. Nothing is published into LiveKit; each device makes its own sound about
+other people, so it is absent from recordings, absent from transcripts, and —
+the rule that decided the whole design — **never heard by the person it is
+about**. You know you walked in. See
+`decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+
+**Only a departure somebody chose.** Of the four ways to stop being present,
+two are clocks running out — a connection past its grace, an attention window
+expiring — and neither sounds. See `core/channel.ts` § `Exit`.
+
+Distinct from the **buzz** (`app/src/audio/cue.ts`), which is the vibration
+motor and tells *you* something about yourself without words. The two share a
+delivery mechanism — an iOS system sound, chosen because it starts no engine
+and writes no audio session — and nothing else. `usePresenceChime` is the
+schedule, `chime.ts` the sound, and `AudioRouteModule.swift` renders it.
 
 ## Chip in
 

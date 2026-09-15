@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import {
+  chime,
   configureSession,
   routeSnapshot,
   startInput,
@@ -456,6 +457,31 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         </Card>
         <Card>
           <Button label="Release session" variant="ghost" onPress={release} />
+        </Card>
+        {/*
+          The presence chimes, on demand.
+
+          Here because the thing worth knowing about them cannot be asked of
+          two phones conveniently: whether a system sound survives the session
+          it is played under. Tap these after applying a configuration — under
+          `playAndRecord`/`videoChat` with the input capturing is the case that
+          matters, being the one iOS mutes system sounds for unless
+          `setAllowHapticsDuringRecording` has been asserted. Silence here is
+          the finding.
+        */}
+        <Card>
+          <Button
+            label="Chime — stepped in"
+            variant="ghost"
+            onPress={() => chime(true)}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Chime — stepped out"
+            variant="ghost"
+            onPress={() => chime(false)}
+          />
         </Card>
       </View>
 
