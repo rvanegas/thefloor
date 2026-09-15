@@ -36,3 +36,10 @@ assumed.
 That is the rule this module was written for in the first place — `configure`
 returns a snapshot rather than a success flag, because reading back the value
 you asked for proves nothing. It had simply never been pointed at the chimes.
+
+**Settled: the lead is zero.** The fault was `chimeSound` rendering and loading
+in the same breath as playing, and with that moved ahead of the tap the cue
+works at 0.18 with no silence in front of it. The dial stays in the lab because
+nobody has listened on a Bluetooth route, which comes up far more slowly than a
+loudspeaker. See
+*2026-09-15-the-chime-was-being-built-at-the-moment-it-played.md*.

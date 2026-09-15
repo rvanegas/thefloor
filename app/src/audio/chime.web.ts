@@ -28,15 +28,17 @@ const NOTE_A5 = 880.0;
 /**
  * The three kinds, as note sequences.
  *
- * `nearby` is one note where the others are two — the rung between being in a
- * room and being out of it, sounding like neither. The lab's `nearby-*`
- * candidates have no counterpart here on purpose: the choice between them is
- * made through a phone's speaker, and a browser is not that.
+ * `nearby` is the same note twice where the others move — the rung between
+ * being in a room and being out of it, sounding like neither direction. E5
+ * twice, picked by ear on a phone on 2026-09-15 over a single E5 and flat pairs
+ * at A5 and C#5. The lab's `nearby-*` candidates have no counterpart here on
+ * purpose: the choice between them is made through a phone's speaker, and a
+ * browser is not that.
  */
 const KINDS: Record<ChimeKind, number[]> = {
   in: [NOTE_E5, NOTE_A5],
   out: [NOTE_A5, NOTE_E5],
-  nearby: [NOTE_E5],
+  nearby: [NOTE_E5, NOTE_E5],
 };
 const NOTE_SECONDS = 0.09;
 /** Matches the native amplitude. *Subtle* is the requirement. */

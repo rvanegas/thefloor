@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
-- **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, one note alone for declaring themselves nearby
+- **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for declaring themselves nearby
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -303,9 +303,9 @@ somebody steps in, the same two falling when somebody steps out — the second i
 audibly the first one backwards, which is what lets the difference be carried by
 a sound nobody was taught.
 
-**Three of them, not two, since 2026-09-15.** A single note, neither rising nor
-falling, says somebody outside the room has declared themselves **nearby** to
-it. It had been ringing the arrival chime, which made *stepped in* and *stepped
+**Three of them, not two, since 2026-09-15.** A pair that does not move —
+E5 twice, neither rising nor falling — says somebody outside the room has
+declared themselves **nearby** to it. It had been ringing the arrival chime, which made *stepped in* and *stepped
 to the edge* the same event to every ear present — and they are not the same
 event, because one of them can speak and the other cannot. A cue that collapses
 them tells a room to expect a voice that is not coming, which is the one failure

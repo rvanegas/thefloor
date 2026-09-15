@@ -97,6 +97,7 @@ const CHIME_KINDS: (ChimeKind | ChimeCandidate)[] = [
   'nearby-a',
   'nearby-b',
   'nearby-c',
+  'nearby-d',
 ];
 
 /** One row of the matrix, and why it is in it. */
@@ -725,7 +726,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         </Text>
         <Text style={styles.step}>3 · Sweep the peak on whichever path is audible</Text>
         <Text style={styles.step}>
-          4 · Lead 0 against lead 0.6, if a first tap is still quieter than a second
+          4 · Lead 0 against lead 0.6, on Bluetooth, which nobody has tried
         </Text>
         <Text style={styles.step}>5 · Input ON, tap again — the silent case</Text>
         <Text style={styles.note}>
@@ -743,10 +744,12 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           coming from.
         </Text>
         <Text style={styles.note}>
-          Step 4 is the earlier theory, kept because it has not been falsified —
-          only outranked. A 180ms lead-in shipped on it and changed nothing,
-          which is weak evidence against it and no evidence at all if the path
-          was swallowing everything anyway.
+          Step 4 is a settled question left open in one place. The cue works at
+          0.18 with no lead at all once the sound is rendered and loaded before
+          the tap rather than at it, so the lead earns nothing on a loudspeaker
+          and the app asks for none. A Bluetooth route comes up far more slowly
+          and nobody has listened on one, which is the only reason the row is
+          still here.
         </Text>
         <Text style={styles.note}>
           Volume is baked into the sound, because a system sound has no gain
@@ -762,9 +765,11 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           is the first thing to rule out when a cue sounds faint.
         </Text>
         <Text style={styles.note}>
-          The three nearby rows are a comparison, not three features. One
-          becomes the sound and the other two are deleted; they are judged on a
-          phone because a phone speaker is the only room this cue plays in.
+          The four nearby rows are a comparison, not four features. One becomes
+          the sound and the rest are deleted; they are judged on a phone because
+          a phone speaker is the only room this cue plays in. D is what nearby
+          plays today — the losers are still here to be compared against it
+          rather than remembered.
         </Text>
       </Card>
 
@@ -826,7 +831,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
       <Choice values={LEADS} selected={lead} onSelect={setLead} />
       <Text style={styles.why}>
         {lead === '0'
-          ? 'No silence at all — the control, and the cue as it shipped before this.'
+          ? 'No silence at all, which is what the app asks for and what works.'
           : `${lead}s of silence before the notes, for the route to power up on.`}
       </Text>
 
@@ -872,6 +877,13 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
             label="Nearby C — flat pair, lower (C#5)"
             variant="ghost"
             onPress={() => ring('nearby-c')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby D — flat pair (E5 E5) · what nearby plays"
+            variant="ghost"
+            onPress={() => ring('nearby-d')}
           />
         </Card>
       </View>

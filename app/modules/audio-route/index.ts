@@ -279,7 +279,11 @@ export type ChimeKind = 'in' | 'out' | 'nearby';
  * is the only speaker whose verdict counts. `nearby` aliases the winner in
  * `AudioRouteModule.swift`; when it is picked these go, and so does this type.
  */
-export type ChimeCandidate = 'nearby-a' | 'nearby-b' | 'nearby-c';
+export type ChimeCandidate =
+  | 'nearby-a'
+  | 'nearby-b'
+  | 'nearby-c'
+  | 'nearby-d';
 
 /**
  * The peak the app plays its chimes at, mirroring `chimeAmplitude` in the
@@ -301,17 +305,18 @@ export const CHIME_AMPLITUDE = 0.18;
  * The silence every chime opens with, mirroring `chimeLeadSeconds` in the
  * Swift, on the same terms as `CHIME_AMPLITUDE` above.
  *
- * **What it is for:** `AudioServicesPlaySystemSound` on an idle route makes iOS
- * power the output path up, and a cue only 180ms long can spend most of itself
- * on that ramp. The silence is what the route wakes up on.
+ * **Zero, and the answer is that it was never the fault.** It was 180ms for
+ * part of 2026-09-15, on a theory that a cold output route swallows a cue
+ * shorter than its own power-up. What was actually wrong is that the first play
+ * of a sound rendered and loaded it in the same breath — `prepareChime` is the
+ * fix — and with that ahead of the tap the cue works at 0.18 with no lead at
+ * all.
  *
- * **It is a dial and not yet an answer.** 0.18 was a first guess at a number
- * nobody has measured, shipped, and reported as not having fixed anything — so
- * the lab now sweeps this the way it sweeps the peak, and zero is in the sweep
- * as the control. When an ear has settled it, this line and the Swift one
- * change together.
+ * **Kept as a dial rather than deleted**, because nobody has listened on a
+ * Bluetooth route, which comes up far more slowly than a loudspeaker. The app
+ * asks for zero; the lab can ask for a second.
  */
-export const CHIME_LEAD = 0.18;
+export const CHIME_LEAD = 0;
 
 /**
  * Which path a chime is played down.

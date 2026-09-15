@@ -579,28 +579,20 @@ public class AudioRouteModule: Module {
    Silence in front of every chime, so that the notes are not what the output
    route wakes up on.
 
-   **This is the fix for a cue that was quiet once and loud twice**, reported
-   from the audio lab on 2026-09-15: a single tap was barely audible, a second
-   tap straight after was normal, and the five peaks in the sweep sounded much
-   the same as each other. All three are one mechanism.
-   `AudioServicesPlaySystemSound` on an idle route makes iOS power the output
-   path up, and that ramp takes on the order of a hundred milliseconds — into
-   which this cue was delivering a sound a hundred and eighty long, starting at
-   full amplitude five milliseconds in. Most of the first tap was spent on the
-   amplifier coming up. The second tap landed while the route was still live
-   from the first, which is the level the file actually has.
+   **Zero, because it was tried and it was not the fault.** It was 180ms for
+   part of 2026-09-15, on a theory that a cold output route spends its first
+   tenth of a second powering up and swallows a cue only that long. The theory
+   explained the symptoms and was wrong: the cause was `chimeSound` rendering
+   and loading the file in the same breath as playing it, and once that moved
+   ahead of the tap the cue was reported as working at 0.18 **with no lead at
+   all**. A sixth of a second of delay that buys nothing is not kept.
 
-   **And it is why the peak dial looked broken.** When the ramp shapes most of
-   a short sound, what an ear is comparing is the ramp and not the samples, so
-   0.18 and full scale arrive nearly identical. A sweep run over a cold route
-   measures the route.
-
-   Silence costs nothing but delay, and this much of it is under the time it
-   takes to notice somebody has walked in. It is deliberately longer than the
-   ramp rather than tuned to it: the ramp is not a published number, it varies
-   by route, and being generous here is free where being exact is not.
+   **It stays as a dial rather than being deleted** because the lab is where
+   that was settled and is where it would be re-opened — a Bluetooth route
+   comes up far more slowly than a loudspeaker, and nobody has listened on one.
+   The app asks for zero; the lab can ask for a second.
    */
-  private static let chimeLeadSeconds = 0.18
+  private static let chimeLeadSeconds = 0.0
   /**
    The peak the app plays at, and what a non-finite argument falls back to.
 
@@ -630,8 +622,13 @@ public class AudioRouteModule: Module {
    **`nearby` is neither, and must not be either.** Stepping to the edge of a
    room is not arriving in it, and until this table existed it *sounded* like
    arriving — `usePresenceChime` fired the rising chime for a declaration, so
-   the two were indistinguishable to everybody in the room. A single note is
-   the shape that says *half of that pair* without anybody being taught it.
+   the two were indistinguishable to everybody in the room. A pair that does
+   not move is the shape that says *neither of those directions* without
+   anybody being taught it: the same two beats as the others, going nowhere.
+
+   **E5 twice, chosen by ear on a phone on 2026-09-15**, against a single E5
+   and flat pairs at A5 and C#5. It is `nearby-d` as well as `nearby` while the
+   losing candidates are still there to be compared against.
 
    **The three `nearby-*` rows are candidates, and are temporary.** They are
    here so the choice can be made through a phone's speaker, which is the only
@@ -643,10 +640,11 @@ public class AudioRouteModule: Module {
   private static let chimeNotes: [String: [Double]] = [
     "in": [noteE5, noteA5],
     "out": [noteA5, noteE5],
-    "nearby": [noteE5],
+    "nearby": [noteE5, noteE5],
     "nearby-a": [noteE5],
     "nearby-b": [noteA5, noteA5],
     "nearby-c": [noteCS5, noteCS5],
+    "nearby-d": [noteE5, noteE5],
   ]
 
   /**
