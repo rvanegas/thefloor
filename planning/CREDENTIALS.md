@@ -16,11 +16,40 @@ reducer or the app's behaviour, which is most work.
 **Read this before touching any credential, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.**
 
+**The nine are what this project holds. § *The credential this project issues*
+at the end is about one it mints** — the session token — and a place it is
+currently written down in clear.
+
 One of the traps here bites people who never open this file, so it stayed in
 AGENTS.md: `APNS_ENV`. The three artifacts that disagree about entitlements are
 in RELEASING.md.
 The `rtc.use_external_ip` trap stayed with the infrastructure inventory, in
 INFRASTRUCTURE.md § *What is where*, which it should not be separated from.
+
+---
+
+## What to read, and when
+
+Added 2026-09-15, when the file passed 20KB and AGENTS.md's rule for a
+`planning/` document that size took effect: carry an index, so a session pays
+for the entry it needs rather than for the file. **Go to one bullet.** Nothing
+here has to be read in order, and no entry depends on another.
+
+| Touching | Read |
+|---|---|
+| `bin/provision-livekit`, media that will not connect | LiveKit |
+| Recordings: writing them, or reading one back | `thefloor-egress`, `thefloor-server` |
+| A one-time code that never arrived | `thefloor-server` (SES, and the configuration-set trap) |
+| Push on iOS — and see `APNS_ENV` in AGENTS.md first | APNs auth key |
+| `bin/upload-ios`, `bin/submit-ios`, `bin/testflight` | App Store Connect API key |
+| An Android release build, `bin/android` | Android upload key |
+| Donations, `POST /donations/kofi` | Ko-fi webhook verification token |
+| Transcripts, and what `/privacy` claims | AssemblyAI |
+| Push on Android | Firebase service account |
+| Session tokens, and the journal | The credential this project issues |
+
+`bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
+§ *The nine*; every key and setting is documented in `server/.env.example`.
 
 ---
 
@@ -306,3 +335,50 @@ changed is reported by key name alone. `env-push` also names anything
 nobody is reading rather than reaching anybody. `KOFI_URL`, `CONTACT_EMAIL` and the
 `REVIEW_*` pair live there too and are settings rather than secrets —
 `server/.env.example` documents every one of them.
+
+---
+
+## The credential this project issues
+
+A **session token** is a credential like anything above: it authenticates every
+call and every socket its holder makes, for ninety days, and nothing else is
+needed to act as that person. It is not on the list because the project does
+not store it — it mints it. That is also why it was never held to the list's
+standards, and since 2026-09-15 there is a known place it is written down in
+clear.
+
+**Every `/ws` connection puts a live token in the journal.**
+`server/src/index.ts` passes a bare `logger: true`, so Fastify's default `req`
+serializer logs `request.url` — and `/ws` is the one route that takes a
+credential as a query parameter, because neither React Native's WebSocket nor
+the browser's carries custom headers (`ws.ts`, and the same reason `build` and
+`device` are parameters). Watch tokens arrive the same way. The journal on the
+box retains from 2026-08-09, so it holds every token any client has connected
+with since, most of them still valid.
+
+**The `Authorization` header is not affected.** Fastify's default serializer
+logs no headers at all — `method`, `url`, `host`, `remoteAddress`,
+`remotePort` and nothing else — so this is one parameter on one route rather
+than a general leak.
+
+**Reading it needs root on the box, which is the same bar as `server/.env`**,
+and that is the reason this is a defect rather than an emergency. What makes it
+worth fixing anyway is where a journal goes that a mode-600 file does not: it is
+greppable, long-lived, and routinely pasted into a terminal by somebody
+debugging something else. A live token reached a transcript that way on
+2026-09-15, from a query about reconnect cadence that had nothing to do with
+credentials.
+
+**The fix is a `req` serializer, not `redact`.** Pino's `redact` replaces a
+whole value, so `redact: ['req.url']` takes `build`, `client` and `device` with
+it — which the build census and the socket diagnostics both read. A custom
+serializer that strips `token=` and restates the other four default fields
+keeps them. See
+backlog/why-one-phone-could-not-hold-a-socket-is-diagnosed-not-observed.md,
+where the queries that depend on those fields are.
+
+**Clearing the back catalogue is a separate decision, and not an obvious one.**
+Vacuuming the journal would also destroy the reconnect history that entry rests
+on — the evidence a diagnosis was right, which is not recoverable once gone. The
+alternative that keeps it is signing out the affected sessions, which makes what
+is written there worthless without deleting it.

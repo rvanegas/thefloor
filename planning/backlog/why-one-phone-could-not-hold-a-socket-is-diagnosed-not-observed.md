@@ -1,27 +1,120 @@
 # Why one phone could not hold a socket is diagnosed, not observed
 
-**Status:** the consequences are fixed; the cause is inferred. See
-decisions/ § *A tap that waits ten seconds, and the socket that was
-nobody's*.
+**Status:** the phone is now observed and the diagnosis held. What is
+outstanding is a different client with the same symptom — the web app, which
+reconnects every twenty seconds and has been doing so since at least
+2026-09-02 — and a log line that will say why, written but not yet deployed.
 
-On 2026-08-24 the box showed one session opening `/ws` 448 times in six hours
-at a ten-second cadence — the reconnect backoff's cap, arriving over and over —
-while the other active session opened it twenty times. The stale-socket fault
-fixed that day explains a cadence of exactly that shape: an orphaned close
-tears down the connection that replaced it, so the client reconnects on every
-backoff while an open socket sits unreferenced. **That is a mechanism that fits,
-not a reproduction.** Nothing was instrumented on the device, and Caddy's
-access log is not enabled, so how long each of those sockets actually lived is
-not known — a connection that opened and lived nine seconds and one that never
-opened at all are indistinguishable in what was looked at.
+**The title is kept deliberately, though "one phone" is now the historical
+half.** The question it names is the one still open, with the browser where the
+phone used to be, and the filename is cited from `ws.ts`'s `logClose` and from
+the commit that added it. Renaming would dangle both, and the README's rule for
+resolving an old citation — slugify the title, match a filename by prefix —
+would not recover either.
 
-What would settle it: the cadence going away. A phone in that state now either
-holds its connection or, if something else is closing it, keeps reconnecting —
-and the count per session over an hour is one query against the journal. If it
-comes back, the next thing to add is a log line at the close, because the
-question is which end is closing and nothing on the box answers it.
+## What was settled, on 2026-09-15
 
-Worth knowing that the symptom of this is not a broken app. It is every control
-taking up to ten seconds, or silently doing nothing at all, while the screen
-says the app is connected — the queue's TTL and the backoff cap are the same
-ten seconds, so an action either just makes it or is dropped without a word.
+`journalctl` on the box retains back to 2026-08-09, so the original incident was
+still there to measure, which nobody had done. On 2026-08-24 the top token
+opened `/ws` 491 times; **451 of the 490 gaps between those opens were nine or
+ten seconds**, the reconnect backoff's cap, dead on, for about seventy-five
+minutes.
+
+That is the observation this entry was opened for, and it is stronger than the
+entry hoped for. A socket that opens successfully resets `reconnectAttempt` to
+zero, so the next gap would be half a second. Hundreds of consecutive gaps *at
+the cap* mean the client counted no successful opens at all — while the server
+logged and accepted every one of the 491. **The discrepancy is the bug**: an
+open socket the client had disowned, exactly as the stale-socket fault
+predicted. The mechanism that fit was the mechanism.
+
+It has not recurred. The same query across September finds seven gaps in the
+nine-to-ten-second band in total, scattered over a fortnight, with no runs; and
+no native device has exceeded seventeen opens in a day since the fix. On the
+platform this was diagnosed on, it is over.
+
+## What is outstanding: the web app, at twenty seconds
+
+Every high-volume device since the fix is `client=web` — 2,000 opens on
+2026-09-08, 1,512 on 09-05, 1,351 on 09-03, 858 on 09-13. The one running on
+2026-09-15 held **one device id and one token, reconnecting 157 times at twenty
+seconds and 144 times at nineteen**, and nothing else.
+
+**This is not the August fault wearing a new hat.** Twenty seconds is not the
+backoff cap, and there is no twenty-second constant anywhere in the tree. Since
+a successful open resets the backoff to half a second, a uniform twenty-second
+gap means the socket *opens, lives about nineteen and a half seconds, and dies*.
+Something is killing a healthy connection on a fixed cycle.
+
+Two things are ruled out. Caddy is not doing it — there is no idle or stream
+timeout in the Caddyfile, and `reverse_proxy` defaults to none. And it is not
+confined to one machine or one account: it recurs across distinct device ids on
+different days.
+
+The account currently doing it is `Rtest1`, a test account, **which is why
+nobody has felt this and is not a reason to leave it.** The client code is
+shared, so a real web user gets the same twenty-second cycle — and the symptom
+is the one this entry has always been about: every control taking seconds or
+silently doing nothing while the screen says the app is connected.
+
+The leading suspect is the tightened heartbeat. `HEARTBEAT_TIMEOUT_MS` is five
+seconds against a two-second ping, so a browser that throttles timers in a
+hidden tab starves the ping and the sweep terminates the socket; the client's
+own watchdog, at `app/src/api/socket.ts`, applies the same five seconds from the
+other end. Either fits a kill-and-reconnect loop. **Neither obviously produces
+nineteen and a half seconds**, which is why this is a suspect and not a finding.
+
+## What remains to be done, and it needs a deploy first
+
+The next thing this entry asked for was a log line at the close, "because the
+question is which end is closing and nothing on the box answers it." That is
+written and committed on `worktree-ws-close-diagnostics`. **It is not landed and
+not deployed, so none of it is answering anything yet.**
+
+Confirmed while writing it: the lifetime of a socket was genuinely
+unrecoverable, not merely unlogged. A websocket upgrade is hijacked before
+Fastify completes the request, so `/ws` emits no `request completed` line and
+carries no `responseTime`. No query against the existing journal could have
+produced it.
+
+The line carries `ageMs`, `sinceLastSeenMs` and `endedBy` beside the device,
+build and client. `endedBy` is recorded at the moment a server-side rule fires
+rather than inferred at the close, because the close code cannot carry it: the
+sweep's `terminate` produces an abnormal 1006, which is character for character
+what a transport dying on its own produces.
+
+**After the deploy, one read settles it**, filtering the new `socket closed`
+lines to `client=web`:
+
+- `endedBy: "silence"` with `sinceLastSeenMs` past five seconds — this server's
+  sweep did it, and the web client's ping is being starved. The fix is on the
+  client or in the budget, and SHIMS.md gets an entry if the budget moves.
+- `endedBy: null`, a small `sinceLastSeenMs`, code 1000 or 1005 — the client hung
+  up on a connection that was answering, meaning its own watchdog fired. The fix
+  is in `socket.ts`.
+- `endedBy: null` with code 1006 — the transport died between the two ends, and
+  the next question is what sits in the path that Caddy does not.
+
+`ageMs` clustering near 19,500 also confirms the socket is opening and being
+killed rather than failing to open, which is the one step still inferred above.
+
+**Then close this entry**, moving the 2026-08-24 account to decisions/ — the
+histogram is the evidence that a diagnosis was right, and it should not be left
+in a backlog file that deletes itself.
+
+## Two things found alongside, neither of them this
+
+**Session tokens are in the journal in plaintext**, back to 2026-08-09 and still
+live. `server/src/index.ts` passes a bare `logger: true`, so Fastify's default
+serializer logs `request.url`, and `/ws` is the one route that carries a
+credential in a query parameter. A custom `req` serializer that strips
+`token=` and restates the other four default fields is the fix; `redact` is the
+wrong reach, since it drops the whole URL and takes `build`, `client` and
+`device` with it. The back catalogue is a separate decision — vacuuming the
+journal would also destroy the reconnect history the section above rests on.
+
+**A number in the 2026-08-24 write-up does not mean what it appears to.** "448
+times in six hours" is one per forty-eight seconds, not the ten-second cadence
+the sentence puts beside it. It is consistent with roughly seventy-five minutes
+spent at the cap out of those six hours, which the histogram above confirms —
+but read as a continuous six-hour cadence it is wrong.
