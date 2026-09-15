@@ -49,7 +49,12 @@ const dark = {
   danger: '#F04438',
   success: '#32D583',
   /**
-   * Something is waiting for you: the dab on a Home tab.
+   * Something is waiting for you: the dab on a Home tab, and — since
+   * 2026-09-15 — the edge of a live invitation in the channel list, which is
+   * the same claim at a different size. A hue here is claimed by a meaning
+   * rather than by a widget, so a second use of one is a question about the
+   * meaning: that row is literally a thing waiting to be answered, and it took
+   * this rather than the floor accent it used to borrow.
    *
    * **A red that is deliberately not `danger`'s**, and the difference is
    * measured rather than eyeballed. `danger` is H 4 S 77 V 94; the two accents

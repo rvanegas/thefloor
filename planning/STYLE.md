@@ -97,7 +97,7 @@ to one palette and not the other fails to compile.
 | `silenced` | being muted by somebody else's claim; also a warning |
 | `recording` | the recording dot |
 | `danger` | a destructive button, an error line |
-| `waiting` | the dab: something is waiting on this tab |
+| `waiting` | something is waiting for you: the Home dab, and a live invitation's edge |
 | `success` | a status line that is good news |
 | `disabled` | the fill under a refused control |
 
@@ -168,9 +168,12 @@ read.**
   you.
 - **Orange is being silenced by somebody else.** Warnings borrow it.
 - **Red is a recording, a destructive button, or an error** — and **rose is
-  something waiting on a tab**, which is the seventh hue and the newest. The
+  something waiting for you**, which is the seventh hue and the newest. The
   two are separated by saturation more than by hue: see § *The tokens*
-  on `waiting`, and rule 1 below, which had to be amended to admit it.
+  on `waiting`, and rule 1 below, which had to be amended to admit it. It is
+  spent in two places, the Home dab and the edge of a live invitation, and
+  they are one meaning rather than two — which is the test a second use has to
+  pass. A hue is claimed by a *meaning*, not by a widget.
 - **Green appears on one status line.**
 - **Everything else is greyscale**, including every control that is merely
   available.
@@ -467,9 +470,20 @@ It is the default container for everything that is a thing rather than a line.
 
 **A tinted card is a state.** The pattern is a `*Dim` fill with the matching
 full-strength border: `floorDim` + `floor` for the room you are in, `nearbyDim`
-+ `nearby` for one within reach. Home's live bar, Home's nearby bar, an
-invitation somebody is waiting in, and a profile's live channel all wear it,
-and they are the same four lines each time.
++ `nearby` for one within reach. Home's live bar, Home's nearby bar and a
+profile's live channel all wear it, and they are the same four lines each time.
+
+**Three wearers, not four, since 2026-09-15** — and what left is the worked
+example of the pattern's one failure mode. Home's live invitation wore
+`floorDim` + `floor` too, which meant Home drew two cards in identical paint,
+eight rows apart, saying two different things: *you are standing in this room*
+and *you were asked into a room somebody else is standing in*. The tint is
+spent on the state, so two states may not share one. It now takes a
+`colors.waiting` border and no fill at all, which is also the cheaper half of
+the rule below — **a tinted card is a state, but a state need not be a tinted
+card.** A border in the hue that already carries the meaning says which kind of
+thing a row is without competing for the one tint on the screen that is
+allowed to shout.
 
 **Fill and border are two different questions on a roster card.** The border
 means *speaking*, driven by the room; the fill means *holds the floor*, driven

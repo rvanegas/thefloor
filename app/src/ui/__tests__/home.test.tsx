@@ -266,9 +266,55 @@ describe('Home', () => {
     const text = textOf(tree);
     expect(text).toContain('Live');
     expect(text).not.toContain('Invitations');
-    // Still says who asked, which is the thing a live channel of your own
-    // would not have to say.
-    expect(text).toContain('Dana Chu is waiting');
+    // **Says it was an invitation, not merely that somebody is there.** The
+    // heading that would have said so is the one this promotion gives up, and
+    // "Dana Chu is waiting" — which this asserted until 2026-09-15 — is a
+    // sentence a channel of your own could equally carry. The clause that
+    // cannot is `asked you in`.
+    expect(text).toContain('Dana Chu asked you in · waiting');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Violet is the floor and nothing else. This row and Home's live bar wore
+   * the same four lines until 2026-09-15 — `floorDim` under `floor` — which
+   * put *you are standing in this room* and *you were asked into one* in
+   * identical paint on one screen. The fill went; the edge carries `waiting`,
+   * the token that already means something is waiting for you.
+   */
+  it('marks a live invitation in the waiting hue, not the floor accent', () => {
+    mockApp.home = {
+      invites: [
+        {
+          channelId: 'sess_a',
+          from: { id: THEM, displayName: 'Dana Chu' },
+          createdAt: NOW,
+          name: 'Come In',
+          others: [{ id: THEM, displayName: 'Dana Chu' }],
+          presentCount: 2,
+        },
+      ],
+      rejoinable: [],
+      contacts: [],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    const row = findButton(tree, 'Come In')!;
+    // The `Card` inside the pressable, which is the thing that carries the
+    // edge; the pressable's own style is the press feedback.
+    const card = row.findAll(
+      (n) =>
+        typeof n.type === 'string' &&
+        (StyleSheet.flatten(n.props.style) as { borderRadius?: unknown })
+          ?.borderRadius != null
+    )[0]!;
+    const style = StyleSheet.flatten(card.props.style) as {
+      backgroundColor?: unknown;
+      borderColor?: unknown;
+    };
+    expect(style.borderColor).toBe(colors.waiting);
+    expect(style.borderColor).not.toBe(colors.floor);
+    // No tinted block: the live bar is the only one of those above this list.
+    expect(style.backgroundColor).not.toBe(colors.floorDim);
     act(() => tree.unmount());
   });
 
@@ -406,7 +452,10 @@ describe('Home', () => {
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
-    expect(text).not.toContain('is waiting');
+    // The whole word, since 2026-09-15: the live row's status is now `·
+    // waiting` rather than `is waiting`, so the narrower match would pass on a
+    // row that had gone back to claiming it.
+    expect(text).not.toContain('waiting');
     expect(text).toContain('asked you in · an hour ago');
     act(() => tree.unmount());
   });

@@ -404,7 +404,7 @@ describe('tapping a row', () => {
     };
     const tree = render(<HomeView {...homeNav} />);
 
-    expect(textOf(tree)).toContain('Dana Chu is waiting');
+    expect(textOf(tree)).toContain('Dana Chu asked you in · waiting');
     expect(textOf(tree)).not.toContain('tap to join');
     expect(pressableFor(tree, 'Dana Chu').props.accessibilityLabel).toContain(
       'Open.'

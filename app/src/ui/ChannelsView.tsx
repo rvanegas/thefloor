@@ -156,8 +156,12 @@ export function ChannelsView({
    * So an invitation with somebody in it is *live* rather than invited, which
    * is the case worth getting right — it is the most urgent thing on the
    * screen, and burying it under channels nobody is in to keep the categories
-   * tidy would be sorting by taxonomy rather than by what to do next. Its card
-   * still says who asked you in.
+   * tidy would be sorting by taxonomy rather than by what to do next.
+   *
+   * **The heading it gives up is the row's own job to replace**, and this
+   * comment claimed it already did — "its card still says who asked you in" —
+   * while the live branch of `line` said `Dana is waiting` and no such thing.
+   * It does now; see `ChannelCard`.
    */
   const live = cards.filter(isLive).sort(byIdleness);
   const invited = cards
@@ -721,6 +725,18 @@ function ChannelCard({
    * on claiming that moment is still happening — the banner used to say
    * somebody "is waiting in a channel" whatever the truth of it, so an
    * invitation to a room they had left summoned you to nobody.
+   *
+   * **Both halves, on both branches, since 2026-09-15.** The live branch used
+   * to read only `Dana is waiting`, which is a name and a state and never the
+   * word *invitation* — and it is the branch that has least else to say it
+   * with, because an invitation somebody is in is filed under *Live* rather
+   * than under *Invitations* and loses that heading on the way up. So the row
+   * said who was there and not that you had been asked, which is
+   * indistinguishable from a channel you already belong to that somebody has
+   * walked into. `asked you in` is the clause that carries the fact and it is
+   * now on both; what varies is the status after the dot, which is the same
+   * grammar the rest of this list uses — `· 2 present`, `· an hour ago`,
+   * `· waiting`.
    */
   const line =
     card.kind === 'invite'
@@ -729,7 +745,7 @@ function ChannelCard({
           // deliberate, the same tap opens the channel and joins nothing, and
           // promising otherwise would be the one place in this list where
           // the setting is not honoured.
-          `${card.from} is waiting${stepsIn ? ' — tap to join' : ''}`
+          `${card.from} asked you in · waiting${stepsIn ? ' — tap to join' : ''}`
         : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
       : card.kind === 'seat'
         ? // Said plainly, because a row that looked like the others would be
@@ -933,10 +949,32 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   startLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
-  /** An invitation somebody is waiting in, which is worth shouting about. */
+  /**
+   * An invitation somebody is waiting in, which is worth marking and is not
+   * the floor.
+   *
+   * **It wore `floorDim` + `floor` until 2026-09-15, which was the live bar's
+   * four lines exactly** — same fill, same border, same width — so Home drew
+   * two cards in identical paint, eight rows apart, for two different facts:
+   * *you are standing in this room*, and *you were asked into a room somebody
+   * else is standing in*. Violet is the floor and nothing else (STYLE.md rule
+   * 1), and the room you are in is the one thing on this screen entitled to
+   * shout; a card that merely wants answering was borrowing the volume.
+   *
+   * So the fill goes and the border changes hue. **`waiting` is the token
+   * whose meaning this already is** — *something is waiting for you*, spent on
+   * the Home dab, and written to not mean error precisely because a request to
+   * answer is good news arriving slightly inconveniently. That is this row. No
+   * eighteenth token: rose on the edge, the card's own `surface` behind it,
+   * and the live bar left as the only tinted block above.
+   *
+   * The border alone is also why this is quieter than what it replaced, which
+   * is the point rather than a cost. What makes the row urgent is that it is
+   * under *Live* at the top of the list; the paint only has to say which kind
+   * of thing it is.
+   */
   invite: {
-    backgroundColor: colors.floorDim,
-    borderColor: colors.floor,
+    borderColor: colors.waiting,
     borderWidth: 1,
   },
   /**
