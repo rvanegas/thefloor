@@ -88,8 +88,13 @@ interface NativeAudioRoute {
    * bundle calling this against that binary throws on the argument type and is
    * caught below into the same `false` an absent module gives — which is the
    * right answer, since a binary that predates the third kind cannot play it.
+   *
+   * **And an amplitude beside it since the same day**, for the same reason one
+   * layer down: a binary expecting one argument and handed two throws on the
+   * count, and false is again the true answer — build 206 renders at a fixed
+   * peak and cannot be asked for another.
    */
-  chime?(kind: string): boolean;
+  chime?(kind: string, amplitude: number): boolean;
   /**
    * The lab's three. Optional on the type because a Metro reload can leave a
    * new bundle talking to a binary built before they existed, and the lab says
@@ -261,6 +266,22 @@ export type ChimeKind = 'in' | 'out' | 'nearby';
 export type ChimeCandidate = 'nearby-a' | 'nearby-b' | 'nearby-c';
 
 /**
+ * The peak the app plays its chimes at, mirroring `chimeAmplitude` in the
+ * Swift.
+ *
+ * **Two copies on purpose, and neither is the fallback for the other.** The
+ * native constant is what an argument-less past build baked in and what a
+ * non-finite request lands on; this one is what every ordinary call passes
+ * today. They are kept equal so the lab's readout of *what the app does* is
+ * the number the app actually does.
+ *
+ * It is here rather than in `../../src/audio/chime.ts` because the lab imports
+ * from this module directly, and a volume sweep wants the starting point in
+ * the same file as the function it varies.
+ */
+export const CHIME_AMPLITUDE = 0.18;
+
+/**
  * The presence chime: two notes rising, the same two falling, or one alone.
  *
  * Rendered in the native half and played as a *system sound*, which is the
@@ -272,16 +293,26 @@ export type ChimeCandidate = 'nearby-a' | 'nearby-b' | 'nearby-c';
  * `setAllowHapticsDuringRecording` governs it, and without that it is silent
  * for exactly as long as anybody is capturing.
  *
+ * **The peak is an argument, and it is the only volume control there is.**
+ * `AudioServicesPlaySystemSound` takes no gain — the file *is* the loudness —
+ * so asking for a louder chime means rendering louder samples, which is what
+ * this number does. It defaults to what the app plays at; the audio lab is the
+ * one caller that passes anything else, and it passes a sweep.
+ *
  * @param kind which of the three, or a lab candidate for `nearby`.
+ * @param amplitude peak sample value, 0.01 to 1.0, clamped natively.
  * @returns whether it played. False means no module, a native half older than
- * this function, or — since the argument became a string — a binary that still
- * expects the boolean, which is every build up to and including 205. There is
- * no fallback: a buzz cannot say *which* of the three happened, and that
- * distinction is the whole cue.
+ * this function, or — since the argument became a string, and since a second
+ * argument joined it — a binary that still expects the boolean, which is every
+ * build up to and including 206. There is no fallback: a buzz cannot say
+ * *which* of the three happened, and that distinction is the whole cue.
  */
-export function chime(kind: ChimeKind | ChimeCandidate): boolean {
+export function chime(
+  kind: ChimeKind | ChimeCandidate,
+  amplitude: number = CHIME_AMPLITUDE
+): boolean {
   try {
-    return native?.chime?.(kind) ?? false;
+    return native?.chime?.(kind, amplitude) ?? false;
   } catch {
     return false;
   }

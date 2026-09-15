@@ -159,8 +159,10 @@ public class AudioRouteModule: Module {
      sound. `chimeNotes` is the set of kinds, and an unknown one returns false
      rather than guessing — a chime nobody recognises is worse than silence.
      */
-    Function("chime") { (kind: String) -> Bool in
-      guard let id = self.chimeSound(kind: kind) else { return false }
+    Function("chime") { (kind: String, amplitude: Double) -> Bool in
+      guard let id = self.chimeSound(kind: kind, amplitude: amplitude) else {
+        return false
+      }
       AudioServicesPlaySystemSound(id)
       return true
     }
@@ -325,26 +327,109 @@ public class AudioRouteModule: Module {
   /**
    The rendered chimes, kept for the life of the process.
 
-   Keyed by kind. Rendering costs a few milliseconds and a file write, and
-   doing it per chime would put both on the path of a cue that has to land at
-   the moment somebody walks in.
+   **Keyed by kind *and* amplitude**, because amplitude is baked into the
+   samples — a system sound has no volume knob, so the file is the volume. In
+   the app that is one entry per kind and the key never varies; in the lab it
+   is one per row of the comparison, which is a handful of small files in the
+   temporary directory and is the price of hearing them one after another.
+
+   Rendering costs a few milliseconds and a file write, and doing it per chime
+   would put both on the path of a cue that has to land at the moment somebody
+   walks in.
    */
   private static var soundIds: [String: SystemSoundID] = [:]
 
-  /** The id for one kind, rendering and registering it on first use. */
-  private func chimeSound(kind: String) -> SystemSoundID? {
-    if let existing = Self.soundIds[kind] { return existing }
-    guard let url = Self.renderChime(kind: kind) else { return nil }
+  /** The id for one kind at one amplitude, rendering it on first use. */
+  private func chimeSound(kind: String, amplitude: Double) -> SystemSoundID? {
+    let key = Self.chimeKey(kind: kind, amplitude: amplitude)
+    if let existing = Self.soundIds[key] { return existing }
+    guard let url = Self.renderChime(kind: kind, amplitude: amplitude) else {
+      return nil
+    }
     var id: SystemSoundID = 0
     let status = AudioServicesCreateSystemSoundID(url as CFURL, &id)
     guard status == kAudioServicesNoError else { return nil }
-    Self.soundIds[kind] = id
+    Self.declareNotAUISound(id)
+    Self.soundIds[key] = id
     return id
+  }
+
+  /**
+   Takes the sound out of the *user interface sounds* class, which it is in by
+   default and does not belong in.
+
+   `kAudioServicesPropertyIsUISound` is 1 unless you say otherwise, and the
+   header is explicit about what that buys: the sound "will respect the 'Play
+   user interface sounds effects' check box … and be silent when the user turns
+   off UI sounds". Set to 0 and it "always be[s] heard … regardless of user's
+   setting".
+
+   **That setting is about keyboard clicks, and this is not a keyboard click.**
+   A presence chime is the app answering a question the person deliberately
+   asked — who just came in — and a cue that disappears because of a preference
+   nobody associates with this app is indistinguishable, from the inside, from
+   a cue that is broken. This app has already spent builds on exactly that
+   confusion once, with haptics during recording.
+
+   **It is a candidate explanation for *quiet*, not only for *absent*.** A
+   UI-class sound is levelled by the system rather than by the media volume, so
+   a phone whose ringer is low plays it low however loud the samples are. This
+   is the half of that which can be fixed from here; the other half is the
+   amplitude.
+
+   The status is deliberately ignored. A refusal here costs audibility, which
+   is the very thing being measured on a phone, and there is nothing sensible
+   to do about it at render time.
+   */
+  private static func declareNotAUISound(_ id: SystemSoundID) {
+    var sound = id
+    var off: UInt32 = 0
+    AudioServicesSetProperty(
+      kAudioServicesPropertyIsUISound,
+      UInt32(MemoryLayout<SystemSoundID>.size),
+      &sound,
+      UInt32(MemoryLayout<UInt32>.size),
+      &off
+    )
+  }
+
+  /**
+   One string for a kind at an amplitude, used as both cache key and filename.
+
+   Two decimal places, which is finer than an ear can tell apart and coarse
+   enough that a float's last bit cannot mint a second entry for the same
+   sound.
+   */
+  private static func chimeKey(kind: String, amplitude: Double) -> String {
+    "\(kind)-\(Int((clampAmplitude(amplitude) * 100).rounded()))"
+  }
+
+  /**
+   Amplitude as the renderer will actually use it.
+
+   A peak above 1.0 clips into a buzz rather than getting louder, and a
+   non-positive one is a silence that looks exactly like a broken cue — so the
+   argument is pinned into the range where it means what it says.
+   */
+  private static func clampAmplitude(_ raw: Double) -> Double {
+    guard raw.isFinite else { return chimeAmplitude }
+    return max(0.01, min(1.0, raw))
   }
 
   private static let chimeSampleRate = 44_100.0
   private static let chimeNoteSeconds = 0.09
-  /** Deliberately low. *Subtle* is in the request and is the easy part to lose. */
+  /**
+   The peak the app plays at, and what a non-finite argument falls back to.
+
+   **Chosen for *subtle*, which is in the request, and reported from a phone as
+   too quiet to notice** — so since 2026-09-15 the peak is an argument and this
+   is only where the dial starts. The lab sweeps it; when an ear has picked a
+   number this line is what changes, and the sweep goes with the candidates.
+
+   **It is the only lever there is.** `AudioServicesPlaySystemSound` takes no
+   volume and obeys no per-app gain — it plays the file at whatever level the
+   route is already at. Louder means louder samples, which is this.
+   */
   private static let chimeAmplitude = 0.18
 
   private static let noteE5 = 659.25
@@ -389,8 +474,9 @@ public class AudioRouteModule: Module {
    amplitude begins on a discontinuity, and the click that produces is the part
    a listener would notice.
    */
-  private static func renderChime(kind: String) -> URL? {
+  private static func renderChime(kind: String, amplitude: Double) -> URL? {
     guard let notes = chimeNotes[kind] else { return nil }
+    let peak = clampAmplitude(amplitude)
     let perNote = Int(chimeSampleRate * chimeNoteSeconds)
 
     var samples: [Int16] = []
@@ -400,7 +486,7 @@ public class AudioRouteModule: Module {
         let t = Double(frame) / chimeSampleRate
         let attack = min(1.0, t / 0.005)
         let decay = exp(-t * 18.0)
-        let value = sin(2.0 * Double.pi * note * t) * attack * decay * chimeAmplitude
+        let value = sin(2.0 * Double.pi * note * t) * attack * decay * peak
         samples.append(Int16(max(-1.0, min(1.0, value)) * 32_767.0))
       }
     }
@@ -433,7 +519,7 @@ public class AudioRouteModule: Module {
     }
 
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("chime-\(kind).wav")
+      .appendingPathComponent("chime-\(chimeKey(kind: kind, amplitude: peak)).wav")
     do {
       try data.write(to: url, options: .atomic)
     } catch {

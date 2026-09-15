@@ -2,10 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import {
   chime,
+  CHIME_AMPLITUDE,
   configureSession,
   routeSnapshot,
   startInput,
   stopInput,
+  type ChimeCandidate,
+  type ChimeKind,
   type TrialResult,
 } from '../../modules/audio-route';
 import { recordEvent } from '../audio/diagnostics';
@@ -47,6 +50,21 @@ import { colors, spacing, type } from './theme';
  * whose result lives only in somebody's memory is the failure mode the audio
  * work in this repository has hit more than once.
  */
+
+/**
+ * The peaks the chime is compared at, as strings because the chips are.
+ *
+ * **Geometric rather than even**, because loudness is: 0.18 to 0.35 is the
+ * same step to an ear as 0.35 to 0.7, where 0.18 → 0.28 → 0.38 would waste
+ * three of the five rows on a difference nobody can hear. The shipping value
+ * is in the list on purpose — a sweep without the current setting in it cannot
+ * say how much louder anything is.
+ *
+ * `1` is full scale for a sine and the loudest this can be made; if that is
+ * still too quiet the fault is the route or the ringer, not the file, which is
+ * what the readout below the buttons is for.
+ */
+const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
 
 /** One row of the matrix, and why it is in it. */
 interface Preset {
@@ -255,6 +273,32 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    */
   const [phase, setPhase] = useState('before');
 
+  /**
+   * The peak the next chime renders at, as the chip's own string.
+   *
+   * Starts at what the app ships, so the first tap is the sound somebody has
+   * already heard and everything after it is a comparison against that rather
+   * than against a memory.
+   */
+  const [peak, setPeak] = useState(String(CHIME_AMPLITUDE));
+
+  /**
+   * What the last chime did, which is the finding.
+   *
+   * **The route is captured at the moment of the tap** rather than rendered
+   * from whatever `result` happens to hold: `result` answers the last
+   * *configuration* call, and between that and the chime the route can have
+   * moved — a headset connecting is enough. A reading that is not taken at the
+   * sound is not evidence about the sound.
+   */
+  const [lastChime, setLastChime] = useState<{
+    kind: string;
+    peak: string;
+    played: boolean;
+    outputs: string;
+    through: string;
+  } | null>(null);
+
   const styles = useMemo(() => makeStyles(), []);
 
   const toggleOption = (name: string) =>
@@ -329,6 +373,36 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     setResult(trial);
     setPhase('released');
     recordEvent('lab release — session deactivated');
+  };
+
+  /**
+   * Plays one chime at the chosen peak and records where it went.
+   *
+   * **`played` is the native return and is not a claim about audibility.** It
+   * says the file was rendered and handed to the system sound server; a phone
+   * with the ringer down, or a session that has muted system sounds, answers
+   * true and makes no noise. False is narrower and more useful: the binary is
+   * older than this bundle and cannot play what was asked for, which during
+   * development is a Metro reload against an unbuilt native half.
+   */
+  const ring = (kind: ChimeKind | ChimeCandidate) => {
+    const played = chime(kind, Number(peak));
+    const here = routeSnapshot();
+    const outputs = here?.outputs.join(', ') ?? 'unreadable';
+    setLastChime({
+      kind,
+      peak,
+      played,
+      outputs,
+      through: through(here?.outputs),
+    });
+    recordEvent(
+      `lab CHIME ${kind} peak=${peak} played=${played} @${phase} · ` +
+        `out=${outputs} via=${through(here?.outputs)} ` +
+        `cat=${shortName(here?.category ?? '?')}/${shortName(here?.mode ?? '?')} ` +
+        `opts=${(here?.categoryOptions ?? ['unreadable']).join('+')} ` +
+        `haptics=${here?.allowsHapticsDuringRecording ?? 'unreadable'}`
+    );
   };
 
   const observe = (what: string) => {
@@ -458,63 +532,6 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         <Card>
           <Button label="Release session" variant="ghost" onPress={release} />
         </Card>
-        {/*
-          The presence chimes, on demand.
-
-          Here because the thing worth knowing about them cannot be asked of
-          two phones conveniently: whether a system sound survives the session
-          it is played under. Tap these after applying a configuration — under
-          `playAndRecord`/`videoChat` with the input capturing is the case that
-          matters, being the one iOS mutes system sounds for unless
-          `setAllowHapticsDuringRecording` has been asserted. Silence here is
-          the finding.
-
-          **Tap them with no session at all first.** That is the cheaper half
-          of the question and it is the half that was never answered: nobody
-          has heard these on a phone, so a silence under `playAndRecord` proves
-          nothing until a sound outside it has proved the path works. Idle
-          first, then configure, then capture.
-
-          **The three `nearby` rows are a comparison, not three features.** One
-          of them becomes the sound; the other two are deleted along with their
-          rows in `chimeNotes`. They are judged here rather than on a desk
-          because a phone speaker is the only room the cue ever plays in.
-        */}
-        <Card>
-          <Button
-            label="Chime — stepped in"
-            variant="ghost"
-            onPress={() => chime('in')}
-          />
-        </Card>
-        <Card>
-          <Button
-            label="Chime — stepped out"
-            variant="ghost"
-            onPress={() => chime('out')}
-          />
-        </Card>
-        <Card>
-          <Button
-            label="Nearby A — one note (E5)"
-            variant="ghost"
-            onPress={() => chime('nearby-a')}
-          />
-        </Card>
-        <Card>
-          <Button
-            label="Nearby B — flat pair (A5 A5)"
-            variant="ghost"
-            onPress={() => chime('nearby-b')}
-          />
-        </Card>
-        <Card>
-          <Button
-            label="Nearby C — flat pair, lower (C#5)"
-            variant="ghost"
-            onPress={() => chime('nearby-c')}
-          />
-        </Card>
       </View>
 
       <SectionLabel>What happened</SectionLabel>
@@ -584,8 +601,149 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         Sample rate is the objective one: 16 kHz or 8 kHz is the hands-free
         profile, 44.1 or 48 means A2DP held.
       </Text>
+
+      {/*
+        The chimes, which are a second experiment and not a step of the first.
+
+        They lived inside the `Run` list until 2026-09-15 and read as one —
+        five more buttons under the same heading as `Apply` and `Release`,
+        which made them look like part of the sweep rather than a separate
+        question that happens to want a session underneath it. They are their
+        own section now, below the readout, with their own dial and their own
+        verdict.
+
+        What they are still for: whether a system sound survives the session it
+        is played under. Tap them with no session at all first — that is the
+        cheap half and the one that proves the path works — then under an
+        applied configuration, then capturing, which is the case iOS mutes
+        system sounds for unless `setAllowHapticsDuringRecording` has been
+        asserted.
+      */}
+      <SectionLabel>Chimes</SectionLabel>
+      <Card>
+        <Text style={styles.body}>
+          A second experiment, not a step of the one above. It has two
+          questions: <Text style={styles.strong}>how loud</Text>, and{' '}
+          <Text style={styles.strong}>which note</Text> nearby gets.
+        </Text>
+        <Text style={styles.step}>1 · Tap one with no session at all</Text>
+        <Text style={styles.step}>2 · Apply a configuration above, tap again</Text>
+        <Text style={styles.step}>3 · Input ON, tap again — the silent case</Text>
+        <Text style={styles.note}>
+          Volume is baked into the sound, because a system sound has no gain
+          knob — asking for louder means rendering louder samples. Sweep the
+          peaks below and say which one is audible across a room without being
+          a doorbell.
+        </Text>
+        <Text style={styles.note}>
+          Where it went is read back under the buttons. Speaker is the
+          loudspeaker; Receiver is the earpiece, which is quiet by design and
+          is the first thing to rule out when a cue sounds faint.
+        </Text>
+        <Text style={styles.note}>
+          The three nearby rows are a comparison, not three features. One
+          becomes the sound and the other two are deleted; they are judged on a
+          phone because a phone speaker is the only room this cue plays in.
+        </Text>
+      </Card>
+
+      <SectionLabel>Peak</SectionLabel>
+      <Choice values={PEAKS} selected={peak} onSelect={setPeak} />
+      <Text style={styles.why}>
+        {peak === String(CHIME_AMPLITUDE)
+          ? `${peak} is what the app ships at today — the one reported as too quiet.`
+          : `${peak} against the shipping ${CHIME_AMPLITUDE}. Full scale is 1.`}
+      </Text>
+
+      <View style={styles.list}>
+        <Card>
+          <Button
+            label="Chime — stepped in"
+            variant="ghost"
+            onPress={() => ring('in')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Chime — stepped out"
+            variant="ghost"
+            onPress={() => ring('out')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby A — one note (E5)"
+            variant="ghost"
+            onPress={() => ring('nearby-a')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby B — flat pair (A5 A5)"
+            variant="ghost"
+            onPress={() => ring('nearby-b')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby C — flat pair, lower (C#5)"
+            variant="ghost"
+            onPress={() => ring('nearby-c')}
+          />
+        </Card>
+      </View>
+
+      <SectionLabel>Where the last chime went</SectionLabel>
+      <Card>
+        {lastChime == null ? (
+          <Text style={styles.body}>Nothing played yet.</Text>
+        ) : (
+          <View>
+            <Reading label="kind" value={lastChime.kind} />
+            <Reading label="peak" value={lastChime.peak} />
+            <Reading
+              label="native"
+              value={lastChime.played ? 'played' : 'refused — rebuild needed'}
+            />
+            <Reading label="output" value={lastChime.outputs} />
+            <Reading label="through" value={lastChime.through} />
+            {lastChime.through === 'earpiece' ? (
+              <Text style={styles.mismatch}>
+                The earpiece. That is the quiet one, and no amount of peak
+                fixes it — the route is what has to move.
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </Card>
+      <Text style={styles.note}>
+        Read after the sound, not before: a system sound plays through the
+        route the session is on at that moment, so the reading is only evidence
+        if it is taken then.
+      </Text>
     </Screen>
   );
+}
+
+/**
+ * Which speaker a route reading means, in the two words that matter here.
+ *
+ * **`Receiver` is the earpiece** — the small speaker held against an ear — and
+ * it is where `playAndRecord` puts the output when `defaultToSpeaker` is not
+ * set. It is quiet on purpose, being inches from an eardrum, so a cue playing
+ * through it is faint for a reason that has nothing to do with how loud the
+ * file is. Distinguishing the two is the whole point of this readout.
+ *
+ * The port types are iOS's own raw values, which `describe` in the Swift
+ * prefixes to the port name — so `Speaker(Speaker)` and
+ * `Receiver(Receiver)` are what actually arrive.
+ */
+function through(outputs: string[] | undefined): string {
+  if (outputs == null) return 'route unreadable';
+  if (outputs.some((o) => o.startsWith('Speaker'))) return 'loudspeaker';
+  if (outputs.some((o) => o.startsWith('Receiver'))) return 'earpiece';
+  if (outputs.length === 0) return 'no output port';
+  return outputs.join(', ');
 }
 
 function Reading({ label, value }: { label: string; value: string }) {
