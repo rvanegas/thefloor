@@ -38,8 +38,8 @@ const dark = {
    * a second saturated colour beside the floor's would read as a second alarm.
    *
    * Distinct from every other coloured thing on the palette on purpose —
-   * `silenced` is orange, `recording` and `danger` red, `success` green — so
-   * the blue is unclaimed and means this and nothing else.
+   * `silenced` is orange, `recording` and `danger` red, `waiting` rose,
+   * `success` green — so the blue is unclaimed and means this and nothing else.
    */
   nearby: '#7FBBE8',
   nearbyDim: '#1B2A36',
@@ -48,6 +48,27 @@ const dark = {
   recording: '#F04438',
   danger: '#F04438',
   success: '#32D583',
+  /**
+   * Something is waiting for you: the dab on a Home tab.
+   *
+   * **A red that is deliberately not `danger`'s**, and the difference is
+   * measured rather than eyeballed. `danger` is H 4 S 77 V 94; the two accents
+   * this has to sit beside are `floor` at S 64 V 100 and `nearby` at S 45 V 91,
+   * so saturation is what makes a red read as an alarm here, not hue. This is
+   * S 55 V 95 — the mean of the two accents — which puts it in their register
+   * and out of the alarm's.
+   *
+   * H 352 rather than red's 4, because `silenced` holds 20 and rose is the one
+   * direction out of red that is unclaimed. It is the palette's seventh hue
+   * family and the first added since the interface was designed; see STYLE.md
+   * § *The rules that are actually load-bearing*, rule 1, which had to be
+   * amended to admit it and says why.
+   *
+   * **Its whole job is to not mean error.** A request to answer and an answer
+   * come back are both good news arriving slightly inconveniently, and a mark
+   * in `danger`'s red would report a fault in an app that has none.
+   */
+  waiting: '#F26D7F',
   disabled: '#2A2E35',
 };
 
@@ -96,6 +117,18 @@ const light: Record<keyof typeof dark, string> = {
   recording: '#D92D20',
   danger: '#D92D20',
   success: '#067647',
+  /**
+   * The same hue at this palette's own register. Light `floor` is S 76 V 91 and
+   * light `nearby` S 54 V 78, both lower in value than their dark counterparts,
+   * so matching S 55 V 95 here would put a mark brighter than the accent it
+   * sits beside on a white card. S 65 V 82 instead, which is the same
+   * arithmetic against the same two neighbours.
+   *
+   * It carries no text — nothing is read *through* it, the label's covered
+   * corner being covered rather than tinted — so it is pinned by its neighbours
+   * rather than by contrast, exactly as `nearby` is.
+   */
+  waiting: '#D1495B',
   disabled: '#E4E7EC',
 };
 

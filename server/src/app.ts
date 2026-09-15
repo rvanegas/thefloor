@@ -3805,6 +3805,11 @@ export function buildApp(options: BuildOptions = {}): App {
       // those are is the client's judgement, made from this and three other
       // things, and a server deciding it would need to reproduce all of it.
       tried: accounts.tried(userId),
+      // The newest answer to any help question of theirs, so the Support tab
+      // can be marked without the help view being fetched — see
+      // `HomeView.helpAnsweredAt`. Composed on every home push, which is one
+      // indexed MAX over a table with a handful of rows per account.
+      helpAnsweredAt: help.lastAnsweredAt(userId),
       // contactsFor already returns the public shape, deliberately: an
       // outgoing request carries the address rather than a name, so a request
       // to a real account and one to an address without an account look the

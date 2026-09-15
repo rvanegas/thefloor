@@ -8,7 +8,7 @@ import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { ProfileView } from '../ProfileView';
-import { ContactsView } from '../ContactsView';
+import { ContactsView, answerableRequests } from '../ContactsView';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -1760,3 +1760,66 @@ describe('when somebody was last in the app', () => {
  * it is left out entirely when the server said nothing — which is what an
  * install meets between its release and the deploy that follows.
  */
+
+/**
+ * What counts as a request this reader can do something about.
+ *
+ * **Exported from `ContactsView` so that the tier's dab and this list cannot
+ * disagree**, the way `nearbyChannels` is exported for Home's bars. It is
+ * deliberately narrower than the *Requests* section above: that section is
+ * everything outstanding, in both directions, because its job is to say where
+ * things stand. A mark on a tab is a claim that tapping through will let you
+ * resolve something, and only the incoming half is that.
+ */
+describe('answerableRequests', () => {
+  const contact = (
+    id: string,
+    status: 'accepted' | 'incoming' | 'outgoing'
+  ) => ({ account: { id, displayName: id }, status });
+
+  const homeWith = (...contacts: ReturnType<typeof contact>[]) => ({
+    invites: [],
+    rejoinable: [],
+    contacts,
+  });
+
+  /** Nothing to answer, which is most accounts most of the time. */
+  it('is empty with no contacts at all, and before the snapshot arrives', () => {
+    expect(answerableRequests(null)).toEqual([]);
+    expect(answerableRequests(homeWith())).toEqual([]);
+  });
+
+  it('takes an incoming request', () => {
+    expect(answerableRequests(homeWith(contact('b', 'incoming')))).toHaveLength(
+      1
+    );
+  });
+
+  /**
+   * **The one that matters.** An outgoing request is one only the other person
+   * can answer, so counting it would put a mark on the switch that tapping
+   * through cannot resolve — and leave it there until somebody else acts.
+   */
+  it('leaves out a request only the other person can answer', () => {
+    expect(answerableRequests(homeWith(contact('b', 'outgoing')))).toEqual([]);
+  });
+
+  /** And somebody you already know is not a request at all. */
+  it('leaves out the people who are already contacts', () => {
+    expect(answerableRequests(homeWith(contact('a', 'accepted')))).toEqual([]);
+  });
+
+  /** The incoming ones out of a mixture, and nothing else. */
+  it('takes the incoming ones out of a mixture', () => {
+    expect(
+      answerableRequests(
+        homeWith(
+          contact('a', 'accepted'),
+          contact('b', 'incoming'),
+          contact('c', 'outgoing'),
+          contact('d', 'incoming')
+        )
+      ).map((entry) => entry.account.id)
+    ).toEqual(['b', 'd']);
+  });
+});

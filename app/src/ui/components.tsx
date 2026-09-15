@@ -612,6 +612,26 @@ export function Segmented<T extends string>({
      * has with its icons, for the same reason.
      */
     icon?: (color: ColorValue) => React.ReactNode;
+    /**
+     * That this tab has something waiting on it, in the words a screen reader
+     * gets: draws the dab, and is appended to the label in the announcement.
+     *
+     * **A string rather than a boolean, so that a mark cannot exist without
+     * words for it.** The dab lays over part of the label, which is the whole
+     * of how it reads — and a mark that obscures a word while announcing
+     * nothing is one that costs a screen reader the tab and gives it nothing
+     * back. Presence is what draws it, so the two cannot come apart.
+     *
+     * **It says that something is waiting, never how much.** Home's two marks
+     * are a request to answer and an answer come back; the first is already
+     * enumerated by the *Requests* section one tap away, and the second cannot
+     * be counted at all without the help screen gaining the unread marks it
+     * says at length it does not have. What a tab owes is *go and look*.
+     *
+     * Only Home passes it. The channel screen's six tabs share this control and
+     * hand it nothing, so nothing there changes.
+     */
+    badge?: string;
   }[];
   value: T;
   onChange: (value: T) => void;
@@ -636,6 +656,11 @@ export function Segmented<T extends string>({
                 key={option.value}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
+                // Spelled out only when there is a dab, so the six tabs that
+                // have none keep announcing their label and nothing else.
+                accessibilityLabel={
+                  option.badge ? `${option.label}, ${option.badge}` : undefined
+                }
                 onPress={() => onChange(option.value)}
                 style={({ pressed }) => [
                   styles.segment,
@@ -646,16 +671,28 @@ export function Segmented<T extends string>({
                 {option.icon ? (
                   <View style={styles.segmentIcon}>{option.icon(color)}</View>
                 ) : null}
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    option.icon && styles.segmentLabelUnderIcon,
-                    on && styles.segmentLabelOn,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {option.label}
-                </Text>
+                {/*
+                  The label wears its own box so the dab can be positioned
+                  against the *word* rather than against the segment. A segment
+                  is a third of the track and a label is as wide as it reads, so
+                  anchoring to the segment would leave the mark floating in
+                  whitespace on the short labels and touching the neighbour on
+                  the long ones. This way it follows the text and needs nothing
+                  measured.
+                */}
+                <View style={styles.segmentLabelBox}>
+                  <Text
+                    style={[
+                      styles.segmentLabel,
+                      option.icon && styles.segmentLabelUnderIcon,
+                      on && styles.segmentLabelOn,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {option.label}
+                  </Text>
+                  {option.badge ? <View style={styles.dab} /> : null}
+                </View>
               </Pressable>
             );
           })}
@@ -757,6 +794,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+  },
+  /**
+   * The box the dab is positioned against: the label's own bounds, which is
+   * what makes the mark follow the word. `position: 'relative'` is the RN
+   * default and is written out because the absolute child below depends on it.
+   */
+  segmentLabelBox: { position: 'relative' },
+  /**
+   * The dab: something is waiting on this tab.
+   *
+   * **A lozenge laid over the end of the word, not a dot beside it**, and the
+   * difference is the whole of what it says. A dot beside a label is a status
+   * light — a thing reporting, which you read and move on from. A shape
+   * slightly *in the way* of the label is a thing asking. Clipping the upper
+   * corner of the last glyph or two is as far as that goes: the word is still
+   * read at a glance, so it asks without insisting, which is the register this
+   * mark wants — attend to it, but it can wait a beat.
+   *
+   * 16 × 11 at `radius.pill`, which is larger than every mark in STYLE.md
+   * § *Dots, pills and rules* and deliberately so — those are all 8 to 10 and
+   * all of them sit beside the thing they are about. Two thirds of its width
+   * lies over the label and the rest overhangs; on a 375pt screen a segment is
+   * ~107 and a 14pt semibold label ~60, so it stays well inside the segment and
+   * never reaches the 3pt gap or its neighbour. Nothing in this control sets
+   * `overflow: 'hidden'`, which is what lets the overhang draw at all.
+   *
+   * Drawn after the `Text` so it lands above it. Under it would be a
+   * highlighter mark behind the word — legible, and reading as decoration on
+   * the label rather than as something arriving on the tab.
+   *
+   * The same on a selected segment as an unselected one: the dab is about what
+   * the tab holds, not about where you are standing.
+   */
+  dab: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 16,
+    height: 11,
+    borderRadius: radius.pill,
+    backgroundColor: colors.waiting,
   },
   segmentLabel: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
   /**

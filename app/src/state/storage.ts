@@ -66,6 +66,9 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.intro.tried.nearby',
   'thefloor.intro.tried.guest',
   'thefloor.intro.tried.player',
+  // What has been read of the help screen's answers — `helpSeen.ts`. Dropped
+  // with the rest, a fresh install having read nothing.
+  'thefloor.help.seenAnsweredAt',
   'thefloor.handover',
   'thefloor.seat.channel',
   'thefloor.invite',

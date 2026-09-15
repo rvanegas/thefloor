@@ -45,6 +45,7 @@ caused; the list carries the meaning.
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
+- **Dab** — The soft rose mark laid over the end of a Home tab's label: something is waiting on that tab. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -416,6 +417,41 @@ people: asking and being asked are one subject, and a request is not a
 channel. A request row is the one row on this list that opens nobody — an
 outgoing one is an address rather than a person — so it carries Accept,
 Decline or Withdraw on itself.
+
+## Dab
+
+**The mark on a Home tab that says something is waiting on it**: a soft rose
+lozenge, laid over the trailing end of the label so that it clips the upper
+corner of the last glyph or two. `styles.dab` in `ui/components.tsx`, drawn by
+`Segmented` for whichever options `HomeView` asks.
+
+**Its own word because it is not a dot**, and the difference is the whole of
+what it says. Every other mark in the interface — live, nearby, muted, speaking,
+recording — is 8 to 10 across and sits *beside* the thing it is about, which
+reads as a status light: a thing reporting, which you read and move on from. A
+shape slightly in the way of a word is a thing asking. So a dab means *attend to
+this, but it can wait a beat*, and clipping a corner rather than covering a
+letter is what keeps it at that volume. STYLE.md § *Dots, pills and rules* has
+the geometry.
+
+**Two things raise one, and they are not symmetrical.** On *Contacts* it means
+somebody has asked to be a contact and it is your turn — live state off the Home
+snapshot, so it arrives with the request and leaves when the request is answered,
+and nothing is remembered. On *Support* it means an answer to one of your *Help*
+questions has come back since this phone last opened that screen — which has to
+be remembered, an answered question staying answered for ever. One clears itself;
+the other is cleared by being read. `state/helpSeen.ts` argues it, and
+`decisions/2026-09-15-the-two-dabs-are-not-symmetrical.md` is why.
+
+**Never a count**, deliberately. An outgoing contact request is not in the
+Contacts count at all — only the other person can answer one, and a mark for it
+could not be cleared by tapping through — and the Support one cannot be counted
+without the *Help* screen gaining the unread marks it does not have. What a tab
+owes is *go and look*.
+
+Rose rather than red: it is good news arriving slightly inconveniently, not a
+fault. `waiting` in `theme.ts`, which is the palette's seventh hue and the only
+one added since the interface was designed.
 
 ## Display name
 

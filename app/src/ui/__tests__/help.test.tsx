@@ -205,3 +205,72 @@ describe('the help screen', () => {
     act(() => tree.unmount());
   });
 });
+
+/**
+ * What opening this screen does to the Support tab's dab.
+ *
+ * **The mark is cleared by being read, and this is where the reading happens.**
+ * It is the half the Contacts dab does not need: a request to answer stops
+ * being true when it is answered, and an answered question stays answered for
+ * ever, so something has to remember having seen it. See `state/helpSeen.ts`.
+ */
+describe('reading the answers clears the mark', () => {
+  const question = (id: string, answeredAt: number | null) => ({
+    id,
+    text: `question ${id}`,
+    askedAt: NOW - 1000,
+    answer: answeredAt == null ? null : 'an answer',
+    answeredAt,
+  });
+
+  const loading = (...questions: ReturnType<typeof question>[]) => {
+    mockApp.loadHelp = jest.fn(async () => ({
+      questions,
+      canAsk: true,
+      askBlocked: null,
+    }));
+  };
+
+  /**
+   * **The watermark comes off the rows, not off the clock**, which is the whole
+   * reason `noteAnswersSeen` is handed the questions rather than a number. An
+   * answer written between the fetch and this call would otherwise be marked
+   * read and be invisible for ever.
+   */
+  it('records the answers it just showed', async () => {
+    loading(question('a', NOW - 500), question('b', null));
+    const tree = render(<HelpView onBack={() => {}} />);
+    await settle();
+    expect(mockApp.helpSeen.noteAnswersSeen).toHaveBeenCalledWith([
+      question('a', NOW - 500),
+      question('b', null),
+    ]);
+    act(() => tree.unmount());
+  });
+
+  /** Including when there is nothing answered — the watermark rule decides. */
+  it('records an empty screenful rather than deciding for itself', async () => {
+    loading(question('a', null));
+    const tree = render(<HelpView onBack={() => {}} />);
+    await settle();
+    expect(mockApp.helpSeen.noteAnswersSeen).toHaveBeenCalledWith([
+      question('a', null),
+    ]);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And not when the fetch failed. A screen that showed an error and marked
+   * everything read would take the mark off the tab that was about to be the
+   * only sign anything was waiting.
+   */
+  it('records nothing when the answers could not be fetched', async () => {
+    mockApp.loadHelp = jest.fn(async () => {
+      throw new Error('offline');
+    });
+    const tree = render(<HelpView onBack={() => {}} />);
+    await settle();
+    expect(mockApp.helpSeen.noteAnswersSeen).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+});

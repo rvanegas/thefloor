@@ -1,11 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ContactView as Contact } from '../../../core/protocol';
+import type {
+  ContactView as Contact,
+  HomeView as HomeViewData,
+} from '../../../core/protocol';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import { Button, Card, Empty, Field, SectionLabel } from './components';
 import { colors, spacing, type } from './theme';
+
+/**
+ * The requests it is this reader's turn to do something about.
+ *
+ * **Incoming only, which is the entire reason this is a function and not a
+ * `filter` written twice.** The *Requests* section below is `status !==
+ * 'accepted'` — everything outstanding, in both directions — and that is right
+ * for a section whose job is to show you where things stand. It is wrong for a
+ * mark on a tab: an outgoing request is one only the other person can answer,
+ * so a dab drawn from those puts something on the switch that tapping through
+ * cannot resolve, and it stays there until somebody else acts. The one state
+ * this interface must never be in is asking for attention it has nothing to do
+ * with.
+ *
+ * Exported for `HomeView` to draw the dab from, the way `nearbyChannels` is
+ * exported from `ChannelsView` for the bars: what counts as something to do is
+ * this list's question, and the tier above it should not be answering it a
+ * second time.
+ *
+ * **Nothing here is remembered, and that is the point.** This is a view of the
+ * snapshot, so the mark arrives with the request over the socket and leaves
+ * when the request is accepted or declined. There is nothing to mark as seen,
+ * and so nothing that can be left showing a mark for something already dealt
+ * with — which is exactly what the Support tab's mark cannot manage, and why
+ * that one needs `state/helpSeen.ts` and this one does not.
+ */
+export function answerableRequests(home: HomeViewData | null): Contact[] {
+  return (home?.contacts ?? []).filter((entry) => entry.status === 'incoming');
+}
 
 /**
  * The people you know, and whether they are about — the body of the Contacts
@@ -97,6 +129,10 @@ export function ContactsView({
   // Everybody who is not a contact yet, in either direction. The accepted ones
   // are the list below; these are the ones there is still something to do
   // about.
+  //
+  // Wider than `answerableRequests` below, and legitimately: this section is
+  // what is outstanding, which includes what you are waiting on. The mark on
+  // the tab is what *you* can act on, which is the incoming half alone.
   const requests = (app.home?.contacts ?? []).filter(
     (entry) => entry.status !== 'accepted'
   );

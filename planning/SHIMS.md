@@ -43,6 +43,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 196 | `HomeView.tried` optionality | `core/protocol.ts`, `app/src/state/useIntroduction.ts` |
 | 196 | The keychain hand-up of the four tried rungs | `app/src/state/tried.ts`, `app/src/state/useIntroduction.ts` |
 | 198 | `thefloor.intro.arrival` read as the old latch | `app/src/state/useIntroduction.ts` |
+| 206 | `HomeView.helpAnsweredAt` optionality | `core/protocol.ts`, `app/src/state/helpSeen.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -446,3 +447,30 @@ effect, and `LEGACY_ARRIVAL_KEY` above it.
 Gate 198 on the same reasoning as 196 above: an install below the floor cannot
 run at all, so once the floor has passed the build this shipped in, every
 install still running has done the handover.
+
+---
+
+## Gate 206 — `HomeView.helpAnsweredAt` optionality
+
+When the newest answer to any of an account's help questions was written, added
+to Home's snapshot on 2026-09-15 so that the *Support* tab can wear a dab
+without the help view being fetched —
+`decisions/2026-09-15-the-two-dabs-are-not-symmetrical.md`. Optional because a
+server that predates it sends no such key, which is what an installed build
+meets between its release and the deploy that follows.
+
+Set unconditionally in `homeFor`, `server/src/app.ts`, from
+`Help.lastAnsweredAt`. The client-side tolerance is `answersWaiting` in
+`app/src/state/helpSeen.ts`, which takes `number | null | undefined` and reads
+every absent case as *nothing waiting* — the quiet direction, so an old server
+means no mark rather than a mark nobody can clear.
+
+**What must not be deleted with it**: the `undefined` arm of `answersWaiting`
+is the shim; the `null` arm is not. Null is what a current server sends for an
+account whose questions are all unanswered, which is most of them, and will go
+on sending for ever. Nor does this touch the `loaded` gate in `ListSwitch` —
+that is the half-second before the keychain answers, and it is needed against a
+current server exactly as much as against an old one.
+
+Gate 206 because build 205 is already tagged: the client that speaks this ships
+in the next upload.

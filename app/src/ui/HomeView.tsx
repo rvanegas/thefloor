@@ -8,11 +8,12 @@ import {
   View,
 } from "react-native";
 import { useApp } from "../state/AppProvider";
+import { answersWaiting } from "../state/helpSeen";
 import { Button, Card, IconButton, Screen, Segmented } from "./components";
 import { SettingsIcon } from "./icons";
 import { ChannelsView, nearbyChannels } from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
-import { ContactsView } from "./ContactsView";
+import { ContactsView, answerableRequests } from "./ContactsView";
 import { Introduction } from "./Introduction";
 import { ProfileView } from "./ProfileView";
 import type { List } from "./detail";
@@ -797,6 +798,25 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
   );
 }
 
+/**
+ * The switch, and the two marks it can wear.
+ *
+ * **Both dabs are read here rather than inside the bodies they are about**, for
+ * the reason every other hoisted thing on this screen is: a tab says what is
+ * behind it to somebody who is not looking at it, so the tier is the only place
+ * that can draw one. What each mark *means* is still the body's question —
+ * `answerableRequests` is `ContactsView`'s — and only the counting is done here.
+ *
+ * **The two are not symmetrical and the code should not pretend they are.**
+ * Contacts is live state: the mark arrives with the request and leaves when it
+ * is answered, and there is nothing to remember. Support is a fact that stays
+ * true for ever once written, so the mark is the difference between what the
+ * server holds and what this phone has read — `state/helpSeen.ts` argues it.
+ *
+ * A mark is drawn on the tab you are standing on as readily as on the other
+ * two. It is about what the tab holds, and Home opens on *Channels*, so the
+ * common case is a dab on a tab you are not looking at anyway.
+ */
 function ListSwitch({
   list,
   onList,
@@ -804,10 +824,29 @@ function ListSwitch({
   list: List;
   onList: (list: List) => void;
 }) {
+  const app = useApp();
+  const { seenAnsweredAt, loaded } = app.helpSeen;
+  const requests = answerableRequests(app.home).length;
+  // Nothing before the keychain has answered: `seenAnsweredAt` reads as never
+  // seen until it does, which would flash a dab on every cold start of an
+  // install that has read everything.
+  const answered = loaded && answersWaiting(app.home?.helpAnsweredAt, seenAnsweredAt);
+
   return (
     <Segmented
       options={[
-        { value: "contacts", label: "Contacts" },
+        {
+          value: "contacts",
+          label: "Contacts",
+          /*
+            The words rather than a number, which is what `badge` takes — see
+            `Segmented`. Plural unconditionally: a screen reader hearing
+            "requests waiting" and finding one is told nothing untrue, and the
+            alternative is this tier knowing how to count in English for the
+            sake of a case it cannot see.
+          */
+          badge: requests > 0 ? "requests waiting" : undefined,
+        },
         { value: "channels", label: "Channels" },
         /*
           Third and last, which is the whole of the claim being made about it.
@@ -817,7 +856,13 @@ function ListSwitch({
           the same reason its contents sat at the foot of the scroll before —
           reachable in one tap, and never in front of anything.
         */
-        { value: "support", label: "Support" },
+        {
+          value: "support",
+          label: "Support",
+          // "answered" rather than "an answer waiting": what is waiting is the
+          // reading of it, and the answer is already here.
+          badge: answered ? "answered" : undefined,
+        },
       ]}
       value={list}
       onChange={onList}

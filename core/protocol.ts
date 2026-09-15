@@ -783,6 +783,31 @@ export interface HomeView {
    * build up to 195 believed in the first place. See planning/SHIMS.md.
    */
   tried?: Tried;
+  /**
+   * When the newest answer to any of their help questions was written, or null
+   * when none has been.
+   *
+   * **Here so that Home can say an answer came back without fetching the help
+   * view.** `HelpView` reads `HelpView.questions` when it opens and holds
+   * nothing, which is right for a screen whose contents are written by hand at
+   * a moment no client can be told about — but it means the only way to learn
+   * an answer arrived was to go and look for it. One number on this snapshot is
+   * enough for the switch to mark the tab, and it is deliberately not enough
+   * for anything else: it cannot say which question, so nothing inside that
+   * screen gains an unread mark. See `ui/HomeView` and `state/helpSeen.ts`.
+   *
+   * **It is a fact about the database, not an event.** `bin/help publish`
+   * writes the row through `bin/db --write` and the server process is never
+   * told, so this changes under a client rather than being pushed to it: the
+   * mark appears on the next home snapshot. That is the same contract
+   * `bin/help` already states — "they see it when they next look" — one screen
+   * earlier.
+   *
+   * Optional for `tried`'s reason exactly: a server that predates the field
+   * sends no such key, and a client reads absence as nothing to say. See
+   * planning/SHIMS.md.
+   */
+  helpAnsweredAt?: number | null;
 }
 
 /**

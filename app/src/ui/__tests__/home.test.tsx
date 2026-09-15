@@ -1150,3 +1150,150 @@ describe('who invited them', () => {
  * Ending a contact, which is more than forgetting a name: it takes the
  * channels that held only the two of you, and it takes them for both.
  */
+
+/**
+ * The two dabs on the switch: something is waiting on this tab.
+ *
+ * **They are not symmetrical, and every test here is about one half of that.**
+ * A request to answer is live state on the Home snapshot, so the Contacts mark
+ * arrives with the request and leaves when it is answered — nothing is
+ * remembered. An answered question stays answered for ever, so the Support mark
+ * is the difference between what the server holds and what this phone has read.
+ * See `answerableRequests` in `ContactsView` and `state/helpSeen.ts`.
+ */
+describe('the dab on Home\'s tabs', () => {
+  /**
+   * The mark itself, found by the one colour it is drawn in. Counting nodes
+   * rather than reading a style off a named tab, because what a test about a
+   * mark wants to know is how many are on the screen — two tabs can wear one
+   * at once, and the bug worth catching is a mark on the wrong tab rather than
+   * a mark of the wrong shape, which `segmented.test.tsx` has.
+   */
+  const dabs = (tree: ReactTestRenderer) =>
+    tree.root.findAll(
+      (n) =>
+        typeof n.type === 'string' &&
+        n.props?.style?.backgroundColor === colors.waiting
+    );
+
+  const withContacts = (
+    contacts: Array<{
+      id: string;
+      displayName: string;
+      status: 'accepted' | 'incoming' | 'outgoing';
+    }>,
+    help: { answeredAt?: number | null } = {}
+  ) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: contacts.map(({ id, displayName, status }) => ({
+        account: { id, displayName },
+        status,
+      })),
+      ...('answeredAt' in help ? { helpAnsweredAt: help.answeredAt } : {}),
+    };
+  };
+
+  const home = () => render(<HomeView {...homeNav} />);
+
+  /** Somebody has asked, and it is this reader's turn. */
+  it('marks Contacts when somebody has asked to be a contact', () => {
+    withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }]);
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(1);
+    expect(findTab(tree, 'Contacts')!.props.accessibilityLabel).toBe(
+      'Contacts, requests waiting'
+    );
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The bug this pair exists for.** The *Requests* section inside Contacts is
+   * everything outstanding in both directions, which is right for a section
+   * saying where things stand. A mark drawn from that count would sit on the
+   * switch for a request only the other person can answer — unresolvable by
+   * tapping through, and gone only when somebody else acts.
+   */
+  it('leaves Contacts unmarked for a request only they can answer', () => {
+    withContacts([
+      { id: 'b', displayName: 'someone@example.com', status: 'outgoing' },
+    ]);
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    expect(findTab(tree, 'Contacts')!.props.accessibilityLabel).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And it clears itself, which is the whole of why this half remembers
+   * nothing: the mark is a view of the snapshot, so answering the request takes
+   * it off without anything being marked as seen.
+   */
+  it('leaves Contacts unmarked once everybody is a contact', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu', status: 'accepted' }]);
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /** An answer this phone has not read. */
+  it('marks Support when an answer has arrived that this phone has not read', () => {
+    withContacts([], { answeredAt: NOW });
+    mockApp.helpSeen.seenAnsweredAt = null;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(1);
+    expect(findTab(tree, 'Support')!.props.accessibilityLabel).toBe(
+      'Support, answered'
+    );
+    act(() => tree.unmount());
+  });
+
+  /** Read, and so nothing waiting — the state after the screen has been open. */
+  it('leaves Support unmarked once the answer has been read', () => {
+    withContacts([], { answeredAt: NOW });
+    mockApp.helpSeen.seenAnsweredAt = NOW;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Nothing before the keychain has answered. `seenAnsweredAt` reads as never
+   * seen until the read lands, so without this gate an install that has read
+   * everything flashes a dab on every cold start — on the one control the whole
+   * tier is navigated by.
+   */
+  it('leaves Support unmarked while the keychain has not answered', () => {
+    withContacts([], { answeredAt: NOW });
+    mockApp.helpSeen.seenAnsweredAt = null;
+    mockApp.helpSeen.loaded = false;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * A server that predates the field sends no such key, which is what an
+   * installed build meets between its release and the deploy after it. Silence
+   * is nothing to say rather than something waiting. See planning/SHIMS.md.
+   */
+  it('leaves Support unmarked by a server that has never heard of the field', () => {
+    withContacts([]);
+    mockApp.helpSeen.seenAnsweredAt = null;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /** Both at once is ordinary: two unrelated things can be waiting. */
+  it('marks both tabs when both have something waiting', () => {
+    withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }], {
+      answeredAt: NOW,
+    });
+    mockApp.helpSeen.seenAnsweredAt = null;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+});

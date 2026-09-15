@@ -58,6 +58,15 @@ const mockApp = {
     allow: jest.fn(async () => true),
   },
   /**
+   * Every help answer already read, so no tab in this file wears a dab. Nothing
+   * here is about the mark; the tier's own tests are. See `state/helpSeen.ts`.
+   */
+  helpSeen: {
+    seenAnsweredAt: Number.MAX_SAFE_INTEGER as number | null,
+    loaded: true,
+    noteAnswersSeen: jest.fn(),
+  },
+  /**
    * Nothing to introduce, for this file's reason above: every account here has
    * long since had a conversation, and a ladder drawn over Home would be a
    * card between these tests and the list they are about.

@@ -97,11 +97,25 @@ to one palette and not the other fails to compile.
 | `silenced` | being muted by somebody else's claim; also a warning |
 | `recording` | the recording dot |
 | `danger` | a destructive button, an error line |
+| `waiting` | the dab: something is waiting on this tab |
 | `success` | a status line that is good news |
 | `disabled` | the fill under a refused control |
 
 `recording` and `danger` are the same red and are two tokens on purpose: they
 mean different things and one of them may move.
+
+**`waiting` is a different red from both, and the difference is measured.**
+`danger` is H 4 S 77 V 94; the two accents a dab has to sit beside are `floor`
+at S 64 V 100 and `nearby` at S 45 V 91. **Saturation is what makes a red read
+as an alarm here, not hue** — so `waiting` takes the mean of the two accents,
+S 55 V 95, which puts it in their register and out of the alarm's. H 352 rather
+than red's 4, because `silenced` holds 20 and rose is the one direction out of
+red that is unclaimed. The light value is S 65 V 82, the same arithmetic against
+the same two neighbours at this palette's own lower register.
+
+Its whole job is **to not mean error**. A contact request and an answer come
+back are both good news arriving slightly inconveniently, and a mark in
+`danger`'s red reports a fault in an app that has none.
 
 ### The two palettes are not inversions
 
@@ -153,7 +167,10 @@ read.**
   intensities of one. Paler than the accent, because nothing is happening to
   you.
 - **Orange is being silenced by somebody else.** Warnings borrow it.
-- **Red is a recording, a destructive button, or an error.**
+- **Red is a recording, a destructive button, or an error** — and **rose is
+  something waiting on a tab**, which is the seventh hue and the newest. The
+  two are separated by saturation more than by hue: see § *The tokens*
+  on `waiting`, and rule 1 below, which had to be amended to admit it.
 - **Green appears on one status line.**
 - **Everything else is greyscale**, including every control that is merely
   available.
@@ -535,10 +552,29 @@ The small marks, and what a diameter means:
 | muted dot | 9, hollow, 1.5pt `textFaint` | you have closed your microphone |
 | speaking dot | 10, 1pt `border` → filled `floor` | this person is audible now |
 | recording dot | 8, solid `recording` (`textFaint` paused) | a recording is running |
+| dab | 16 × 11, `radius.pill`, solid `waiting` | something is waiting on this tab |
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
 bright colour.
+
+**The dab is the one mark that is not a dot, and it is deliberately in the
+way.** Every other row above sits *beside* the thing it is about and is 8 to 10
+across; this one is laid over the trailing end of a tab's label, clipping the
+upper corner of the last glyph or two. A dot beside a word is a status light — a
+thing reporting, which you read and move on from. A shape slightly in the way of
+the word is a thing asking. Clipping a corner is as far as that goes, so the
+label is still read at a glance and the mark asks without insisting: **attend to
+this, but it can wait a beat.**
+
+Positioned against the label's own box rather than the segment's, so it follows
+the word's width and needs nothing measured — `styles.dab` in `components.tsx`,
+and `Segmented`'s `badge`, which takes the words a screen reader is given rather
+than a boolean, a mark that obscures a word while announcing nothing being worse
+than none. Drawn on the selected tab as readily as an unselected one: it is
+about what the tab holds, not about where you are standing. **Never a count** —
+Home's two dabs are a request to answer and an answer come back, and neither
+number is one a tab can state honestly; see `state/helpSeen.ts`.
 
 **The recording pill** is a hairline `radius.pill` on `surface` — dot, word
 and clock. `surface` rather than `surfaceRaised`, because `surfaceRaised` is
@@ -811,8 +847,16 @@ rules.
 Seven things that look like tidying and are not:
 
 1. **Violet is the floor and nothing else.** Every other coloured thing on the
-   palette is claimed by exactly one meaning. Adding a sixteenth colour, or
-   reusing one of the six, is the change that costs the interface its legibility.
+   palette is claimed by exactly one meaning. Adding a colour, or reusing one of
+   the seven hues, is the change that costs the interface its legibility.
+   **`waiting` was the seventh, added 2026-09-15**, and it is the only hue added
+   since the interface was designed — so it is also the worked example of what
+   this rule costs. It was not a third token on red's hex, the way `recording`
+   and `danger` are; it is a rose nothing else holds, and it exists because a
+   mark that means *something is waiting for you* must not read as an error and
+   every other hue was spoken for. The bar is that high: a new hue needs a
+   meaning the palette cannot already say, and it is written down here when it
+   is spent.
 2. **`colors.*` is opaque and must stay opaque.** Do not resolve a scheme in
    JavaScript, do not add a theme context, and do not read
    `useColorScheme()` to pick a value. Fourteen `StyleSheet.create` blocks

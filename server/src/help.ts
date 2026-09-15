@@ -159,6 +159,32 @@ export class Help {
     }));
   }
 
+  /**
+   * When the most recently answered of their questions was answered, or null
+   * when none has been.
+   *
+   * **On Home's snapshot rather than on the help view, which is the whole
+   * point of it.** `forAccount` is read when the help screen opens, by which
+   * time somebody is already looking at the answer; this is read when Home is
+   * composed, so the switch can say there is one before they go. See
+   * `HomeView.helpAnsweredAt`.
+   *
+   * `answer IS NOT NULL` rather than `MAX(answered_at)`, for the reason
+   * `forAccount` reads the two columns together: they are written by hand and
+   * can come apart, and a timestamp beside no answer would put a mark on the
+   * tab for something the screen behind it does not show.
+   */
+  lastAnsweredAt(accountId: string): number | null {
+    const row = this.db
+      .prepare(
+        `SELECT MAX(answered_at) AS at FROM help_questions
+         WHERE account_id = ? AND answer IS NOT NULL`
+      )
+      .get(accountId) as unknown as { at: number | null } | undefined;
+    // MAX over no rows is one row holding null, not no rows.
+    return row?.at == null ? null : Number(row.at);
+  }
+
   /** How many of their questions are still waiting on an answer. */
   outstandingFor(accountId: string): number {
     const row = this.db

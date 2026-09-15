@@ -310,3 +310,108 @@ describe('drafting an answer', () => {
     expect((await read(token)).json().questions[0].answer).toBe('second, better');
   });
 });
+
+/**
+ * The one number Home is told about the answers, which is what puts a mark on
+ * the Support tab without the help view being fetched.
+ *
+ * **It can only say that something came back.** The screen itself has no unread
+ * count and is not getting one — there is one person with a script behind it —
+ * so what the snapshot carries is a watermark the client compares against what
+ * it last read. It cannot name the question, which is the property that keeps
+ * the tab honest. See `app/src/state/helpSeen.ts`.
+ *
+ * **It changes under a client rather than being pushed to one.** `bin/help
+ * publish` writes the row through `bin/db --write` and this process is never
+ * told, so the mark appears on the next home snapshot — the same contract
+ * `bin/help` already states, one screen earlier.
+ */
+describe('what Home is told about the answers', () => {
+  const home = (token: string) =>
+    app.fastify.inject({ method: 'GET', url: '/home', headers: auth(token) });
+
+  /** Nothing asked, nothing answered: null rather than zero or absent. */
+  it('is null for an account that has asked nothing', async () => {
+    const { token, account } = await signIn('quiet@example.com');
+    expect(app.help.lastAnsweredAt(account.id)).toBeNull();
+    expect((await home(token)).json().helpAnsweredAt).toBeNull();
+  });
+
+  /** And null while the question is still waiting, which is the ordinary case. */
+  it('is null while the question is unanswered', async () => {
+    const { token, account } = await signIn('waiting@example.com');
+    await ask(token, 'Why is my microphone off?');
+    expect(app.help.lastAnsweredAt(account.id)).toBeNull();
+    expect((await home(token)).json().helpAnsweredAt).toBeNull();
+  });
+
+  /** Answered, and the snapshot says when. */
+  it('is when the answer was written, once one is', async () => {
+    const { token, account } = await signIn('asker@example.com');
+    await ask(token, 'Why is my microphone off?');
+    const [question] = app.help.forAccount(account.id);
+
+    app.help.draft(question.id, 'Somebody else has the floor.', clock + 1000);
+    expect(app.help.publish(question.id, clock + 2000)).toBe('published');
+
+    expect(app.help.lastAnsweredAt(account.id)).toBe(clock + 2000);
+    expect((await home(token)).json().helpAnsweredAt).toBe(clock + 2000);
+  });
+
+  /**
+   * **A draft is not an answer**, here as everywhere else: a watermark that
+   * moved when somebody started typing would mark the tab for something the
+   * screen behind it does not show, and then clear when the real answer landed.
+   */
+  it('is null while an answer is only drafted', async () => {
+    const { token, account } = await signIn('drafted@example.com');
+    await ask(token, 'Why is my microphone off?');
+    const [question] = app.help.forAccount(account.id);
+
+    app.help.draft(question.id, 'nearly ready', clock + 1000);
+
+    expect(app.help.lastAnsweredAt(account.id)).toBeNull();
+    expect((await home(token)).json().helpAnsweredAt).toBeNull();
+  });
+
+  /**
+   * The newest of several, whatever order they were asked or answered in —
+   * `forAccount` sorts by `asked_at`, so the newest answer is not the first row
+   * and need not be the last.
+   */
+  it('is the newest answer when several have been written', async () => {
+    const { token, account } = await signIn('several@example.com');
+    await ask(token, 'first');
+    await ask(token, 'second');
+    const questions = app.help.forAccount(account.id);
+
+    for (const [at, question] of questions.entries()) {
+      app.help.draft(question.id, `answer ${at}`, clock + 1000);
+    }
+    // The second asked is answered first, so the newest answer belongs to the
+    // older question and the order of the rows cannot stand in for it.
+    expect(app.help.publish(questions[0]!.id, clock + 5000)).toBe('published');
+    expect(app.help.publish(questions[1]!.id, clock + 3000)).toBe('published');
+
+    expect(app.help.lastAnsweredAt(account.id)).toBe(clock + 5000);
+    expect((await home(token)).json().helpAnsweredAt).toBe(clock + 5000);
+  });
+
+  /**
+   * Nobody else's, ever — the same rule `forAccount` keeps. A watermark taken
+   * across the table would tell every account that an answer had been written
+   * for somebody else, and mark a tab behind which there is nothing.
+   */
+  it('says nothing about anybody else', async () => {
+    const asker = await signIn('asker@example.com');
+    const other = await signIn('other@example.com');
+    await ask(asker.token, 'Why is my microphone off?');
+    const [question] = app.help.forAccount(asker.account.id);
+
+    app.help.draft(question.id, 'Somebody else has the floor.', clock + 1000);
+    app.help.publish(question.id, clock + 2000);
+
+    expect(app.help.lastAnsweredAt(other.account.id)).toBeNull();
+    expect((await home(other.token)).json().helpAnsweredAt).toBeNull();
+  });
+});

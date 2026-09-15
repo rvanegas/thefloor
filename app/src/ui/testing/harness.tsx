@@ -152,6 +152,21 @@ export const mockApp = {
     allow: jest.fn(async () => true),
   },
   /**
+   * What this install has read of its own help answers, defaulting to
+   * everything: `loaded` true and the watermark far in the future, so the
+   * Support tab wears no dab. That is what every test but the dab ones wants —
+   * an account with no answered questions reaches the same state, and the
+   * default here also holds for one that has.
+   *
+   * A test about the mark sets `seenAnsweredAt` to null, or below the
+   * `helpAnsweredAt` it puts on the home snapshot. See `state/helpSeen.ts`.
+   */
+  helpSeen: {
+    seenAnsweredAt: Number.MAX_SAFE_INTEGER as number | null,
+    loaded: true,
+    noteAnswersSeen: jest.fn(),
+  },
+  /**
    * What the introduction is showing, defaulting to nothing — the state of
    * every account that has ever had a conversation, which is what every test
    * here but the introduction ones wants. A test that wants the ladder or the
@@ -648,6 +663,10 @@ export function resetHarness(): void {
   mockApp.notifications.ask = 'none';
   mockApp.notifications.permission = 'granted';
   mockApp.notifications.canPrompt = false;
+  // Everything read, and the keychain has answered — the state in which no tab
+  // wears a dab, which is what every test but the dab ones is about.
+  mockApp.helpSeen.seenAnsweredAt = Number.MAX_SAFE_INTEGER;
+  mockApp.helpSeen.loaded = true;
   mockApp.introduction = { show: 'none' };
   mockApp.dismissStep.mockClear();
   mockApp.status = 'open';

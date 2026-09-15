@@ -54,6 +54,11 @@ export function HelpView({ onBack }: { onBack: () => void }) {
         setQuestions(view.questions);
         setCanAsk(view.canAsk);
         setAskBlocked(view.askBlocked);
+        // The Support tab's dab goes here and nowhere else — the watermark is
+        // taken off the rows that just arrived rather than off the clock, so an
+        // answer written between this fetch and this line is not marked read.
+        // See `state/helpSeen.ts`.
+        app.helpSeen.noteAnswersSeen(view.questions);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {

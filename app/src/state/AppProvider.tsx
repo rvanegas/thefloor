@@ -22,6 +22,7 @@ import type {
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
+import { useHelpSeen, type HelpSeen } from './useHelpSeen';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { recordEvent } from '../audio/diagnostics';
@@ -620,6 +621,15 @@ interface AppValue extends AppState {
    */
   notifications: NotificationAsk;
   /**
+   * What this install has read of its own answered help questions, and how it
+   * records having read more.
+   *
+   * Here for `notifications`' reason: two screens share it. `HomeView` reads it
+   * against `home.helpAnsweredAt` to decide whether the Support tab wears a
+   * dab, and `HelpView` writes it on the way in. See `state/helpSeen.ts`.
+   */
+  helpSeen: HelpSeen;
+  /**
    * What a new account is shown above the two lists, until every rung of it
    * is done — the ladder, the single card, or nothing at all.
    *
@@ -1186,6 +1196,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recordEvent(introTrace);
   }, [introTrace]);
 
+  const helpSeen = useHelpSeen();
   const notifications = useNotificationAsk({
     token: state.token,
     somebody,
@@ -1478,6 +1489,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notificationTapped,
       clearNotificationTap: () => setNotificationTapped(false),
       notifications,
+      helpSeen,
       introduction,
       markTried,
       dismissStep,
@@ -1998,6 +2010,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tick,
       notificationTapped,
       notifications,
+      helpSeen,
       introduction,
       markTried,
       dismissStep,

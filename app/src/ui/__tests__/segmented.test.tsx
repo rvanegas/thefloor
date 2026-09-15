@@ -1,6 +1,7 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { Segmented, segmentRows } from '../components';
+import { colors } from '../theme';
 
 /**
  * How a set of tabs is laid out when there are more of them than a phone's
@@ -145,6 +146,145 @@ describe('Segmented', () => {
     );
     act(() => pressable[5]!.props.onPress());
     expect(onChange).toHaveBeenCalledWith('watch');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The dab: something is waiting on this tab.
+ *
+ * Drawn by `Segmented` and passed by `HomeView` alone — see `ListSwitch` there
+ * for the two things that raise one, and `state/helpSeen.ts` for why they are
+ * not symmetrical. What is tested here is the mark itself: that it appears only
+ * where it was asked for, that it is drawn where the eye is told it will be,
+ * and that a screen reader is told the tab has one at all, the mark being over
+ * a word it cannot see.
+ */
+describe('the dab on a tab', () => {
+  const marks = (tree: ReactTestRenderer) =>
+    tree.root.findAll(
+      (n) =>
+        typeof n.type === 'string' &&
+        n.props?.style?.backgroundColor === colors.waiting
+    );
+
+  /** Nothing anywhere until something asks: the six channel tabs have none. */
+  it('draws none where no option asks for one', () => {
+    const tree = render(
+      <Segmented
+        options={[
+          { value: 'contacts', label: 'Contacts' },
+          { value: 'channels', label: 'Channels' },
+          { value: 'support', label: 'Support' },
+        ]}
+        value="channels"
+        onChange={() => {}}
+      />
+    );
+    expect(marks(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  /** One mark, on the one option that asked, whatever the others hold. */
+  it('draws one on the option that asks, and only there', () => {
+    const tree = render(
+      <Segmented
+        options={[
+          { value: 'contacts', label: 'Contacts', badge: 'requests waiting' },
+          { value: 'channels', label: 'Channels' },
+          { value: 'support', label: 'Support' },
+        ]}
+        value="channels"
+        onChange={() => {}}
+      />
+    );
+    expect(marks(tree)).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  /** Both at once is an ordinary state: two things can be waiting. */
+  it('draws one on each option that asks', () => {
+    const tree = render(
+      <Segmented
+        options={[
+          { value: 'contacts', label: 'Contacts', badge: 'requests waiting' },
+          { value: 'channels', label: 'Channels' },
+          { value: 'support', label: 'Support', badge: 'answered' },
+        ]}
+        value="channels"
+        onChange={() => {}}
+      />
+    );
+    expect(marks(tree)).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The announcement, which is the half a dab cannot make for itself.** The
+   * mark lays over the end of the label, so a screen reader that is told only
+   * the label has lost part of a word and gained nothing. `badge` carries the
+   * words for exactly that reason — presence is what draws it, so the two
+   * cannot come apart.
+   */
+  it('says what is waiting, in the label a screen reader gets', () => {
+    const tree = render(
+      <Segmented
+        options={[
+          { value: 'contacts', label: 'Contacts', badge: 'requests waiting' },
+          { value: 'support', label: 'Support' },
+        ]}
+        value="contacts"
+        onChange={() => {}}
+      />
+    );
+    const labels = tree.root
+      .findAll(
+        (n) => typeof n.type === 'string' && n.props?.accessibilityRole === 'button'
+      )
+      .map((n) => n.props.accessibilityLabel);
+    expect(labels).toEqual(['Contacts, requests waiting', undefined]);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **Over the label, and overhanging it.** A negative offset on both axes is
+   * the whole of how this reads as laid on the word rather than parked beside
+   * it — see the note on `styles.dab`. A "tidying" that squares those to zero
+   * turns the mark into a status light and says something else.
+   */
+  it('overlaps the label rather than sitting beside it', () => {
+    const tree = render(
+      <Segmented
+        options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
+        value="contacts"
+        onChange={() => {}}
+      />
+    );
+    const style = marks(tree)[0]!.props.style;
+    expect(style.position).toBe('absolute');
+    expect(style.top).toBeLessThan(0);
+    expect(style.right).toBeLessThan(0);
+    // Larger than every mark in STYLE.md's dots table, all of which sit beside
+    // the thing they are about.
+    expect(style.width).toBeGreaterThan(10);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The same on the tab you are standing on as on the other two. The dab is
+   * about what a tab holds, not about where you are — and Home opens on
+   * *Channels*, so hiding it on the selected one would hide it exactly when
+   * somebody is on Contacts ignoring the request at the bottom of it.
+   */
+  it('is drawn on the selected tab as readily as an unselected one', () => {
+    const tree = render(
+      <Segmented
+        options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
+        value="contacts"
+        onChange={() => {}}
+      />
+    );
+    expect(marks(tree)).toHaveLength(1);
     act(() => tree.unmount());
   });
 });
