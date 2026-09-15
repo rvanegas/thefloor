@@ -50,6 +50,7 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.controlCards',
   'thefloor.tabsAtFoot',
   'thefloor.labs',
+  'thefloor.chimeAmplitude',
   'thefloor.notifications.launches',
   'thefloor.notifications.conversed',
   'thefloor.notifications.pitched',

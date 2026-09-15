@@ -40,6 +40,43 @@ export function isColorSchemePreference(
 }
 
 /**
+ * The peaks a channel chime may be rendered at, loudest last.
+ *
+ * **The audio lab's own row, and here rather than there because this is the
+ * end that has to refuse things.** `PEAKS` in `app/src/ui/AudioLabView.tsx`
+ * reads from this list, and `POST /me/settings` accepts nothing outside it —
+ * so the five somebody can choose from on the settings screen and the five the
+ * lab compares are one list by construction rather than by anybody
+ * remembering.
+ *
+ * **Geometric rather than even, because loudness is**: 0.18 to 0.35 is the
+ * same step to an ear as 0.35 to 0.7. The first is what the app shipped at
+ * before there was a choice, so it is in the list for the reason it is in the
+ * lab's — a ladder without the old value on it cannot say how much louder
+ * anything got. `1` is full scale for a sine and the loudest this can be made.
+ *
+ * A peak and not a gain: `AudioServicesPlaySystemSound` takes no volume
+ * argument, so the file *is* the loudness and asking for a louder chime means
+ * rendering louder samples. See `chime` in `app/modules/audio-route/index.ts`.
+ */
+export const CHIME_AMPLITUDES = [0.18, 0.35, 0.5, 0.7, 1] as const;
+
+/**
+ * Whether a number is one of the five.
+ *
+ * A closed set rather than a clamped range, on the same grounds
+ * `isColorSchemePreference` is a closed set: every value here has been
+ * listened to on a phone, and a client sending 0.42 is a client with a bug
+ * that would otherwise be stored and handed to that account's other devices.
+ */
+export function isChimeAmplitude(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    (CHIME_AMPLITUDES as readonly number[]).includes(value)
+  );
+}
+
+/**
  * Everything about this account that is a preference rather than a fact.
  *
  * Complete rather than partial on the way out — every field always present,
@@ -114,6 +151,30 @@ export interface AccountSettings {
    * something you asked, not something a handset knows.
    */
   labs: boolean;
+  /**
+   * How loud the channel chimes are, as the peak sample value their sound is
+   * rendered at.
+   *
+   * One of `CHIME_AMPLITUDES` and nothing else. **A number here where every
+   * other setting is a boolean or a word**, because it is the only one whose
+   * values are a ladder: there is no name for 0.35 that is not just a
+   * position on the row, and storing the position instead would be a second
+   * table to keep in step with the first.
+   *
+   * **The sounds are the room's, and the choice is the listener's.** A chime
+   * is made by each device about other people — never published into the media
+   * room, never in a recording — so this is answerable per person without
+   * anybody else in the channel being affected by the answer. See
+   * `usePresenceChime` and `chime.ts`.
+   *
+   * It follows the account rather than the phone on the plainest reading of
+   * the settings above: how loud you want to be told somebody arrived is
+   * something you have decided, not something a handset knows. What it cannot
+   * escape is the handset's own ringer and route — the chime goes out the
+   * alert path, whose level this app neither sets nor can read, so this is the
+   * loudest the file can be and not the loudest the phone will be.
+   */
+  chimeAmplitude: number;
 }
 
 /**
@@ -146,6 +207,11 @@ export interface AccountSettings {
  * choice it belonged to. See
  * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
  *
+ * **The chime's loudness is the one value here that is not a boolean**, and
+ * the rule above is about booleans rather than about defaults: its untouched
+ * case is the peak every build before the setting rendered at, which is the
+ * same principle — somebody who has said nothing gets the app as it was.
+ *
  * Labs defaults off because that is what the word means. Everything behind it
  * is unfinished by admission, and an experimental feature that arrives without
  * being asked for is not experimental — it has shipped.
@@ -155,4 +221,14 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   tapToLook: false,
   hideControlCards: false,
   labs: false,
+  /**
+   * The peak the app has always rendered at, which is `CHIME_AMPLITUDE` in
+   * `app/modules/audio-route/index.ts` and `chimeAmplitude` in
+   * `AudioRouteModule.swift`. Those three are kept equal deliberately, and
+   * `app/src/audio/__tests__/chimeAmplitude.test.ts` is the assertion about
+   * the two that are reachable from jest — the untouched case has to be the
+   * sound every build before this setting made, or shipping the setting
+   * changes the cue for everybody who never asked for anything.
+   */
+  chimeAmplitude: 0.18,
 };

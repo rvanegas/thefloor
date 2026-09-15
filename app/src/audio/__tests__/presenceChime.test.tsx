@@ -2,7 +2,11 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState } from '../../../../core/types';
+import { DEFAULT_ACCOUNT_SETTINGS } from '../../../../core/settings';
 import { usePresenceChime } from '../usePresenceChime';
+
+/** The peak these cases fire at, which is whatever an untouched account has. */
+const PEAK = DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude;
 
 const ME = 'acct_me';
 const THEM = 'acct_them';
@@ -48,10 +52,10 @@ const declareNearby = (
   at = NOW + 1_000
 ) => reduce(channel, { type: 'DECLARE_NEARBY', userId }, at);
 
-function mount(channel: ChannelState | null) {
+function mount(channel: ChannelState | null, amplitude = PEAK) {
   const fire = jest.fn();
   function Probe({ state }: { state: ChannelState | null }) {
-    usePresenceChime(state, ME, fire);
+    usePresenceChime(state, ME, amplitude, fire);
     return null;
   }
   let tree: ReactTestRenderer;
@@ -76,12 +80,32 @@ function mount(channel: ChannelState | null) {
  * the room. **Named rather than spelled inline** so that the assertions say
  * which event they mean; the kinds were `true` and `false` until 2026-09-15,
  * and a third of them cannot be a boolean.
+ *
+ * **The peak is the second argument since 2026-09-15**, when how loud a chime
+ * is became the listener's to choose: a cue played at a loudness other than
+ * the one the sounds were warmed at is a cold sound, so the value going in and
+ * the value coming out have to be the same one. See `chimeAmplitude` in
+ * core/settings.ts.
  */
-const rising = ['in'];
-const falling = ['out'];
-const edging = ['nearby'];
+const rising = ['in', PEAK];
+const falling = ['out', PEAK];
+const edging = ['nearby', PEAK];
 
 describe('the chime that says the room changed shape', () => {
+  /**
+   * **The loudness somebody chose reaches the sound**, which is the whole of
+   * what the setting on Floor Settings does: everything between that screen
+   * and `AudioServicesPlaySystemSound` passes a number along, and the one
+   * place it could be dropped without any test noticing is here.
+   */
+  it('fires at the loudness it was given', () => {
+    const view = mount(alone(), 0.7);
+
+    view.update(enter(alone(), THEM));
+    expect(view.fire.mock.calls).toEqual([['in', 0.7]]);
+    view.unmount();
+  });
+
   it('rises when somebody else steps in', () => {
     const view = mount(alone());
     expect(view.fire).not.toHaveBeenCalled();
@@ -199,7 +223,7 @@ describe('the chime that says the room changed shape', () => {
 
       view.update(declareNearby(together, THIRD));
       expect(view.fire).toHaveBeenCalledTimes(1);
-      expect(view.fire).not.toHaveBeenCalledWith('in');
+      expect(view.fire).not.toHaveBeenCalledWith('in', PEAK);
       view.unmount();
     });
 

@@ -8,6 +8,7 @@ import type {
 import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
+  isChimeAmplitude,
   isColorSchemePreference,
   type AccountSettings,
 } from '../../core/settings';
@@ -500,6 +501,13 @@ export class Accounts {
           ? DEFAULT_ACCOUNT_SETTINGS.hideControlCards
           : row.hide_control_cards === 1,
       labs: row.labs === null ? DEFAULT_ACCOUNT_SETTINGS.labs : row.labs === 1,
+      // Read against the list rather than passed through, which is
+      // `appearance`'s treatment above and is here for the same reason: a peak
+      // written by hand or left behind by a row that is retired from the
+      // ladder must not reach a phone as a loudness nobody has listened to.
+      chimeAmplitude: isChimeAmplitude(row.chime_amplitude)
+        ? row.chime_amplitude
+        : DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude,
     };
   }
 
@@ -544,6 +552,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET labs = ? WHERE id = ?')
         .run(changes.labs ? 1 : 0, accountId);
+    }
+    if (changes.chimeAmplitude !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET chime_amplitude = ? WHERE id = ?')
+        .run(changes.chimeAmplitude, accountId);
     }
     return this.settings(accountId);
   }

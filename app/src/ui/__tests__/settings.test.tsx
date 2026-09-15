@@ -10,6 +10,7 @@ import { SupportView } from "../SupportView";
 import { LeaderboardView } from "../LeaderboardView";
 import { SectionLabel } from "../components";
 import { Alert, StyleSheet } from "react-native";
+import { CHIME_AMPLITUDES } from "../../../../core/settings";
 import {
   NOW,
   findButton,
@@ -325,6 +326,78 @@ describe("the Labs setting", () => {
       styleFor(findButton(tree, "Off")!).backgroundColor,
     );
     act(() => tree.unmount());
+  });
+});
+
+/**
+ * How loud the channel chimes are, which is the one setting on this screen
+ * whose values are a ladder rather than a yes.
+ *
+ * **The five are the audio lab's five**, from `CHIME_AMPLITUDES` in
+ * core/settings.ts, and the words on the buttons are this screen's — a peak
+ * sample value is not a thing anybody chooses in. What the choice *does* to a
+ * sound is not assertable here, there being no audio stack under a render
+ * test; `presenceChime.test.tsx` is where the number is followed to the cue.
+ */
+describe("how loud the chimes are", () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  it("offers the five the audio lab offers, quietest first", async () => {
+    const tree = await openSettings();
+    const words = ["Quietest", "Quiet", "Middle", "Loud", "Loudest"];
+    for (const word of words) expect(findButton(tree, word)).toBeTruthy();
+    expect(CHIME_AMPLITUDES.length).toBe(words.length);
+    act(() => tree.unmount());
+  });
+
+  it("says what the sounds are, and what the phone still decides", async () => {
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(text).toContain("How loud the channel chimes are");
+    expect(text).toContain("steps in");
+    // The two things somebody would otherwise have to discover: it is never
+    // about you, and the ringer outranks this.
+    expect(text).toContain("never about yourself");
+    expect(text).toContain("ringer");
+    act(() => tree.unmount());
+  });
+
+  it("reports a change rather than keeping it", async () => {
+    const tree = await openSettings();
+    act(() => findButton(tree, "Loud")!.props.onPress());
+    expect(mockApp.setChimeAmplitude).toHaveBeenCalledWith(0.7);
+    expect(mockApp.setLabs).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Somebody who has never chosen has to see the rung they are actually on —
+   * an unlit row would read as a setting nothing has been done with, which is
+   * true of the account and not of the sound.
+   */
+  it("marks the rung in force", async () => {
+    const tree = await openSettings();
+    const styleFor = (node: ReactTestInstance) =>
+      StyleSheet.flatten(node.props.style({ pressed: false })) as {
+        backgroundColor?: unknown;
+      };
+    expect(styleFor(findButton(tree, "Quietest")!).backgroundColor).not.toBe(
+      styleFor(findButton(tree, "Loudest")!).backgroundColor,
+    );
+
+    mockApp.chimeAmplitude = 1;
+    const louder = await openSettings();
+    expect(styleFor(findButton(louder, "Loudest")!).backgroundColor).not.toBe(
+      styleFor(findButton(louder, "Quietest")!).backgroundColor,
+    );
+    act(() => tree.unmount());
+    act(() => louder.unmount());
   });
 });
 

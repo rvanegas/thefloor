@@ -598,8 +598,16 @@ public class AudioRouteModule: Module {
 
    **Chosen for *subtle*, which is in the request, and reported from a phone as
    too quiet to notice** — so since 2026-09-15 the peak is an argument and this
-   is only where the dial starts. The lab sweeps it; when an ear has picked a
-   number this line is what changes, and the sweep goes with the candidates.
+   is only where the dial starts. The lab sweeps it, and Floor Settings offers
+   the same five rungs to the person listening.
+
+   **So this is now the untouched case rather than the app's only loudness, and
+   it is written down three times**: here, as `CHIME_AMPLITUDE` in
+   `../index.ts`, and as `DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude` in
+   `core/settings.ts`, which is what a fresh account gets. Change one and
+   change all three — `chimeInfo` is what a running binary reports, and the
+   lab's *ships at* readout is how they are compared. Only the two JavaScript
+   copies are reachable from jest.
 
    **It is the only lever there is.** `AudioServicesPlaySystemSound` takes no
    volume and obeys no per-app gain — it plays the file at whatever level the

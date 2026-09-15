@@ -1,4 +1,5 @@
 import {
+  CHIME_AMPLITUDE,
   chime as playChime,
   prepareChime,
   type ChimeKind,
@@ -19,12 +20,16 @@ const KINDS: ChimeKind[] = ['in', 'out', 'nearby'];
  * once, normal twice*. The work is a few milliseconds and a file write; the
  * only question is whether it lands before the tap or on it.
  *
- * Called once from `usePresenceChime`'s mount. Three sounds, rendered once for
- * the life of the process, because the app only ever asks for one amplitude.
+ * Called from `usePresenceChime`, at mount and again whenever the chosen
+ * loudness changes. **Three sounds per peak, and the peak is why this takes an
+ * argument**: the native cache is keyed on it, so warming at 0.18 and playing
+ * at 0.5 is a cold sound with no margin — which is the shape of *quiet once,
+ * normal twice* all over again, arriving only for somebody who has just moved
+ * the setting.
  */
-export function warmChimes(): void {
+export function warmChimes(amplitude: number = CHIME_AMPLITUDE): void {
   for (const kind of KINDS) {
-    prepareChime(kind);
+    prepareChime(kind, amplitude);
   }
 }
 
@@ -61,21 +66,30 @@ export function warmChimes(): void {
  * something would be a cue that cannot say what it means — worse than
  * silence, because it would train somebody to check the screen every time.
  * Android and jest get nothing, exactly as `vibrate` degrades there.
+ *
+ * **How loud is the listener's, since 2026-09-15.** The peak is an argument
+ * all the way down — the file *is* the loudness on the alert path, which takes
+ * no gain — so a chosen amplitude is passed from Floor Settings through
+ * `usePresenceChime` to here, and `undefined` is the app's own default rather
+ * than silence. A phone whose binary predates the argument plays the sound at
+ * its baked-in peak instead of not playing: see `playFirstAccepted` in
+ * `../../modules/audio-route`, which is the one behaviour that must not be
+ * "simplified" away. See `chimeAmplitude` in core/settings.ts.
  */
 
 /** Somebody stepped in. */
-export function chimeIn(): void {
-  playChime('in');
+export function chimeIn(amplitude?: number): void {
+  playChime('in', amplitude);
 }
 
 /** Somebody stepped out, by a decision rather than a dropped connection. */
-export function chimeOut(): void {
-  playChime('out');
+export function chimeOut(amplitude?: number): void {
+  playChime('out', amplitude);
 }
 
 /** Somebody outside the room declared themselves nearby to it. */
-export function chimeNearby(): void {
-  playChime('nearby');
+export function chimeNearby(amplitude?: number): void {
+  playChime('nearby', amplitude);
 }
 
 /**
@@ -89,6 +103,6 @@ export function chimeNearby(): void {
  * one level down: `fire(true)` could only ever mean one of two things, and
  * there are three.
  */
-export function chime(kind: ChimeKind): void {
-  playChime(kind);
+export function chime(kind: ChimeKind, amplitude?: number): void {
+  playChime(kind, amplitude);
 }

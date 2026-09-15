@@ -140,6 +140,19 @@ export interface AccountRow {
    */
   labs: number | null;
   /**
+   * The peak the channel chimes are rendered at, or null for never having
+   * said — which reads as `DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude`, the peak
+   * every build before the setting played at.
+   *
+   * **A real rather than an integer**, the values being 0.18 through 1, and
+   * the only settings column here that is not a boolean. One of
+   * `CHIME_AMPLITUDES` in core/settings.ts and nothing else: the route
+   * refuses anything outside the list, and `settings` reads an unrecognised
+   * value as the default in case one arrives by hand — the same treatment
+   * `appearance` gets, for the same reason.
+   */
+  chime_amplitude: number | null;
+  /**
    * The name this person chose for themselves, without its at, or null when
    * they have chosen none — which is everybody until they do, a username being
    * optional and, for now, decorative.
@@ -446,7 +459,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   im_telegram  TEXT,
   im_signal    TEXT,
   -- What this person chose on the Home settings screen, null until they chose
-  -- anything. Four of the five settings there; the fifth is about the headset
+  -- anything. Five of the six settings there; the sixth is about the headset
   -- in somebody's ears rather than about them, and lives on the phone. It was
   -- five of six between 2026-09-12 and 2026-09-13, when the channel tabs had
   -- a column here.
@@ -461,6 +474,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- gets, so null, 0 and the default are the same answer in every one of
   -- them. See DEFAULT_ACCOUNT_SETTINGS in core/settings.ts.
   labs               INTEGER,
+  -- How loud the channel chimes are, as the peak their sound is rendered at,
+  -- null until somebody says. One of CHIME_AMPLITUDES in core/settings.ts; a
+  -- real rather than an integer, and the one setting here that is not a
+  -- boolean, because its values are a ladder and not a yes.
+  chime_amplitude    REAL,
   -- The name this person chose for themselves, without its at, and null until
   -- they choose one — which most never will, it being optional and doing
   -- nothing yet. Stored as typed; uniqueness is judged folded, by the
@@ -1504,6 +1522,11 @@ function migrate(db: Db): void {
   // arrived on 2026-09-06, days after both of them.
   if (!accountColumns.some((c) => c.name === 'labs')) {
     db.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
+  }
+  // One column, one guard, on the same reasoning again — this one arrived on
+  // 2026-09-15, with the chimes it governs.
+  if (!accountColumns.some((c) => c.name === 'chime_amplitude')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN chime_amplitude REAL');
   }
   /*
     Where the channel tabs went, added on 2026-09-12 and dropped on

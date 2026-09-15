@@ -16,6 +16,7 @@ import {
   type ChimePath,
   type TrialResult,
 } from '../../modules/audio-route';
+import { CHIME_AMPLITUDES } from '../../../core/settings';
 import { recordEvent } from '../audio/diagnostics';
 import { Button, Card, IconButton, Screen, SectionLabel } from './components';
 import { CloseIcon } from './icons';
@@ -59,17 +60,18 @@ import { colors, spacing, type } from './theme';
 /**
  * The peaks the chime is compared at, as strings because the chips are.
  *
- * **Geometric rather than even**, because loudness is: 0.18 to 0.35 is the
- * same step to an ear as 0.35 to 0.7, where 0.18 → 0.28 → 0.38 would waste
- * three of the five rows on a difference nobody can hear. The shipping value
- * is in the list on purpose — a sweep without the current setting in it cannot
- * say how much louder anything is.
+ * **`CHIME_AMPLITUDES` in core/settings.ts since 2026-09-15, where this was
+ * the list itself.** These five became a setting on Floor Settings, and the
+ * end that has to refuse a sixth is the server — so the list moved there and
+ * this reads it. The lab is still where they are listened to; it is no longer
+ * where they are decided. Why they are geometric rather than even, and why the
+ * shipping value is one of them, is written down there.
  *
  * `1` is full scale for a sine and the loudest this can be made; if that is
  * still too quiet the fault is the route or the ringer, not the file, which is
  * what the readout below the buttons is for.
  */
-const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
+const PEAKS = CHIME_AMPLITUDES.map(String);
 
 /**
  * The lead-ins the chime is compared at, in seconds, as strings because the

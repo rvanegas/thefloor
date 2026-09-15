@@ -22,6 +22,8 @@ import { describeChannel } from '../../core/naming';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
 import {
+  CHIME_AMPLITUDES,
+  isChimeAmplitude,
   isColorSchemePreference,
   type AccountSettings,
 } from '../../core/settings';
@@ -2267,14 +2269,14 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Writes the settings that belong to the account rather than to the phone.
    *
-   * Five of them: the colour scheme, whether a tap only looks, whether the
+   * Six of them: the colour scheme, whether a tap only looks, whether the
    * channel screen has dropped its control cards, where that screen's tabs
-   * are drawn, and labs. **A further setting on that screen was never here on
+   * are drawn, labs, and how loud the channel chimes are. **A further setting on that screen was never here on
    * purpose** — keeping the hands-free link steady was about the headset
    * somebody is wearing, so it stayed on the device and never reached this
    * server. See core/settings.ts.
    *
-   * Two of the five are accepted under their old names as well as their
+   * Two of the six are accepted under their old names as well as their
    * current ones, for as long as builds that know only the old names are
    * installed; settings-wire.ts is that whole arrangement.
    *
@@ -2339,6 +2341,17 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(400).send({ error: 'labs must be true or false.' });
       }
       changes.labs = body.labs;
+    }
+    // Refused rather than clamped, on the scheme's reasoning one screen up: a
+    // peak outside the ladder is a client bug, and storing it would hand this
+    // account's other phones a loudness nobody has ever listened to on one.
+    if (body?.chimeAmplitude !== undefined) {
+      if (!isChimeAmplitude(body.chimeAmplitude)) {
+        return reply.code(400).send({
+          error: `chimeAmplitude must be one of ${CHIME_AMPLITUDES.join(', ')}.`,
+        });
+      }
+      changes.chimeAmplitude = body.chimeAmplitude;
     }
 
     const settings = accounts.updateSettings(account.id, changes);

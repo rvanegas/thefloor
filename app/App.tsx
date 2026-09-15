@@ -237,8 +237,12 @@ function Root() {
    * interest in who else is. Two inverse chimes rather than a buzz, because
    * there are two things to tell apart — see `chime.ts`, which says why that
    * does not contradict the entry forbidding the silenced-speaker tone.
+   *
+   * **How loud is the account's**, from Floor Settings, and it is passed in
+   * rather than read down there because presence has no business importing the
+   * provider. See `chimeAmplitude` in core/settings.ts.
    */
-  usePresenceChime(live, me);
+  usePresenceChime(live, me, app.chimeAmplitude);
 
   /**
    * Says this device is being attended, which is all a client does about

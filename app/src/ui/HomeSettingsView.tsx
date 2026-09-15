@@ -13,6 +13,34 @@ import {
 import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
+import { CHIME_AMPLITUDES } from '../../../core/settings';
+
+/**
+ * A word for each rung of the chime ladder, quietest first.
+ *
+ * **Words rather than the numbers the audio lab shows**, because 0.35 is a
+ * peak sample value and nobody choosing how loud to be told somebody arrived
+ * is thinking in sample values. The lab shows the numbers on purpose — it is
+ * comparing them — and this is the same five values with the engineering taken
+ * off the front.
+ *
+ * **Typed over `CHIME_AMPLITUDES` so the two cannot drift**: a value added to
+ * or removed from that list fails to compile here until it has a word, which
+ * is the only way a settings screen and the list it is drawn from stay one
+ * list. See `chimeAmplitude` in core/settings.ts.
+ *
+ * Five full-width buttons rather than a row of chips, which is
+ * `NotificationLevelPicker`'s shape in ChannelSettingsView and is here for its
+ * reason: five words do not fit across a phone, and a row that truncates them
+ * turns a ladder into a puzzle.
+ */
+const LOUDNESS: Record<(typeof CHIME_AMPLITUDES)[number], string> = {
+  0.18: 'Quietest',
+  0.35: 'Quiet',
+  0.5: 'Middle',
+  0.7: 'Loud',
+  1: 'Loudest',
+};
 
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
@@ -285,6 +313,56 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           out is a wire change and a migration rather than a screen edit, and
           nothing reads it now.
         */}
+      </Card>
+
+      {/*
+        Its own section rather than a second card under Channels, though the
+        sound is a channel's: what that label covers is what a channel *screen*
+        looks like once you are on it, and a chime is the one thing in this app
+        that reaches somebody who is not looking at a screen at all. Above
+        *Getting started* because it is a setting somebody came here for.
+
+        **Only the file's loudness, which is the only loudness there is to
+        offer.** A chime goes out the alert path, whose level this app neither
+        sets nor can read — `AudioServicesPlaySystemSound` takes a sound id and
+        nothing else — so what this changes is how loudly the sound is
+        rendered, and the phone's own ringer and route still have the last
+        word. The muted line says so, because a control that appears to promise
+        more than it can do is worse than no control.
+
+        **The five are the audio lab's five**, from `CHIME_AMPLITUDES` in
+        core/settings.ts, which the lab's own row reads too. The lab is where
+        they were listened to on a phone; offering a sixth here would be
+        offering one nobody has heard.
+      */}
+      <SectionLabel>Sounds</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>How loud the channel chimes are</Text>
+        {CHIME_AMPLITUDES.map((value) => (
+          <Button
+            key={value}
+            label={LOUDNESS[value]}
+            variant={app.chimeAmplitude === value ? 'primary' : 'default'}
+            onPress={() => app.setChimeAmplitude(value)}
+          />
+        ))}
+        <Text style={type.muted}>
+          The short sounds a channel makes when somebody steps in, steps out,
+          or comes to its edge — two notes rising, the same two falling, and a
+          single note for the edge. You hear them about other people and never
+          about yourself, and they are not in anything recorded.
+        </Text>
+        <Text style={type.muted}>
+          Quietest is how it has always sounded. They play the way a text
+          message's sound does, which means your phone has the last word: the
+          ringer, the silent switch and whatever you are listening through can
+          each make the difference between two of these smaller than it looks
+          here.
+        </Text>
+        <Text style={type.muted}>
+          It follows your account rather than this phone, and it changes what
+          you hear rather than what anybody else in your channels does.
+        </Text>
       </Card>
 
       {/*

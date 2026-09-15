@@ -20,6 +20,7 @@
  * depending on which screen somebody happened to be at.
  */
 
+import { DEFAULT_ACCOUNT_SETTINGS } from '../../../core/settings';
 import type { ChimeKind } from '../../modules/audio-route';
 
 const NOTE_E5 = 659.25;
@@ -41,8 +42,14 @@ const KINDS: Record<ChimeKind, number[]> = {
   nearby: [NOTE_E5, NOTE_E5],
 };
 const NOTE_SECONDS = 0.09;
-/** Matches the native amplitude. *Subtle* is the requirement. */
-const PEAK = 0.18;
+/**
+ * Matches the native amplitude, and is the untouched case rather than the only
+ * one: *subtle* was the requirement, and since 2026-09-15 how subtle is the
+ * listener's to say. The number is `DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude`
+ * rather than a literal so a browser and a phone cannot start at different
+ * loudnesses. See core/settings.ts.
+ */
+const PEAK = DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude;
 
 let context: AudioContext | null = null;
 
@@ -70,7 +77,13 @@ function audio(): AudioContext | null {
   }
 }
 
-export function chime(kind: ChimeKind): void {
+/**
+ * **The peak is an argument here for the reason it is native-side**: it is a
+ * real gain in Web Audio rather than a rendered sample value, which is the one
+ * place the browser has the easier job — the same choice on the settings
+ * screen reaches both, and nothing has to be rendered twice to honour it.
+ */
+export function chime(kind: ChimeKind, amplitude: number = PEAK): void {
   try {
     const ctx = audio();
     if (!ctx) return;
@@ -89,7 +102,7 @@ export function chime(kind: ChimeKind): void {
       // note does not begin on a discontinuity, then an exponential decay.
       // `exponentialRampToValueAtTime` will not accept zero, hence the floor.
       gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(PEAK, at + 0.005);
+      gain.gain.linearRampToValueAtTime(amplitude, at + 0.005);
       gain.gain.exponentialRampToValueAtTime(0.0001, at + NOTE_SECONDS);
 
       oscillator.connect(gain).connect(ctx.destination);
@@ -103,14 +116,29 @@ export function chime(kind: ChimeKind): void {
   }
 }
 
-export function chimeIn(): void {
-  chime('in');
+/**
+ * Nothing to warm, and the export exists so the hook can call it.
+ *
+ * `usePresenceChime` warms the three sounds before any of them is wanted,
+ * because the native half renders a WAV and creates a system sound on the
+ * first play of each peak. Web Audio synthesises a note from nothing at the
+ * moment it is asked, so there is no file, no cache and no cold first cue —
+ * but a module that is imported for a function it does not export throws at
+ * the call, which is the whole of the cue on this platform. So it is here,
+ * empty, and takes the peak for the signature's sake rather than for a use.
+ */
+export function warmChimes(_amplitude?: number): void {
+  // Nothing to do: see above.
 }
 
-export function chimeOut(): void {
-  chime('out');
+export function chimeIn(amplitude?: number): void {
+  chime('in', amplitude);
 }
 
-export function chimeNearby(): void {
-  chime('nearby');
+export function chimeOut(amplitude?: number): void {
+  chime('out', amplitude);
+}
+
+export function chimeNearby(amplitude?: number): void {
+  chime('nearby', amplitude);
 }

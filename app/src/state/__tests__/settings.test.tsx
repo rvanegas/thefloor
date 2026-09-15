@@ -55,6 +55,7 @@ jest.mock('../../api/http', () => ({
         tapToLook: false,
         hideControlCards: false,
         labs: false,
+        chimeAmplitude: 0.18,
       };
     }),
   },
@@ -81,7 +82,8 @@ function Settings() {
   return (
     <Text>
       {app.appearance}/{app.tapToLook ? 'open' : 'tap'}/
-      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}
+      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}/
+      {app.chimeAmplitude}
     </Text>
   );
 }
@@ -105,6 +107,7 @@ function hello(settings: {
   tapToLook: boolean;
   hideControlCards: boolean;
   labs: boolean;
+  chimeAmplitude: number;
 } | null): void {
   handlers.onHello?.(
     { id: 'acct_me', displayName: 'Me' },
@@ -157,9 +160,13 @@ describe('the settings that follow the account', () => {
     // All of them read as "only 'true' turns it on", every one defaulting
     // off since 2026-09-07.
     mockStored['thefloor.labs'] = 'true';
+    // The one read as a number, and read through the same guard the server
+    // uses: a cold start can hear a chime before hello arrives, so the cached
+    // peak is what it plays at.
+    mockStored['thefloor.chimeAmplitude'] = '0.7';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap/bare/labs');
+    expect(textOf(tree)).toContain('light/tap/bare/labs/0.7');
 
     await act(async () =>
       hello({
@@ -167,14 +174,16 @@ describe('the settings that follow the account', () => {
         tapToLook: true,
         hideControlCards: false,
         labs: false,
+        chimeAmplitude: 0.35,
       })
     );
-    expect(textOf(tree)).toContain('dark/open/cards/plain');
+    expect(textOf(tree)).toContain('dark/open/cards/plain/0.35');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
     expect(mockStored['thefloor.tapToLook']).toBe('true');
     expect(mockStored['thefloor.hideControlCards']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
+    expect(mockStored['thefloor.chimeAmplitude']).toBe('0.35');
   });
 
   /**
@@ -201,6 +210,7 @@ describe('the settings that follow the account', () => {
         tapToLook: true,
         hideControlCards: true,
         labs: false,
+        chimeAmplitude: 0.18,
       })
     );
     expect(mockStored['thefloor.tapToLook']).toBe('true');
@@ -227,6 +237,7 @@ describe('the settings that follow the account', () => {
         tapToLook: false,
         hideControlCards: false,
         labs: false,
+        chimeAmplitude: 0.18,
       })
     );
     await act(async () =>
@@ -235,9 +246,10 @@ describe('the settings that follow the account', () => {
         tapToLook: true,
         hideControlCards: true,
         labs: true,
+        chimeAmplitude: 0.7,
       })
     );
-    expect(textOf(tree)).toContain('light/open/bare/labs');
+    expect(textOf(tree)).toContain('light/open/bare/labs/0.7');
   });
 
   /**
@@ -252,6 +264,7 @@ describe('the settings that follow the account', () => {
         tapToLook: false,
         hideControlCards: false,
         labs: false,
+        chimeAmplitude: 0.18,
       })
     );
 
@@ -279,6 +292,18 @@ describe('the settings that follow the account', () => {
       { hideControlCards: true },
       { labs: true },
     ]);
+
+    // The one setting here that is a number rather than a yes, sent under its
+    // own name like the four above it.
+    await act(async () => latest!.setChimeAmplitude(0.5));
+    expect(textOf(tree)).toContain('dark/open/bare/labs/0.5');
+    expect(mockSaved).toEqual([
+      { appearance: 'dark' },
+      { tapToLook: true },
+      { hideControlCards: true },
+      { labs: true },
+      { chimeAmplitude: 0.5 },
+    ]);
   });
 
   /**
@@ -296,6 +321,7 @@ describe('the settings that follow the account', () => {
         tapToLook: true,
         hideControlCards: true,
         labs: true,
+        chimeAmplitude: 0.18,
       })
     );
     await act(async () => {
@@ -306,6 +332,7 @@ describe('the settings that follow the account', () => {
     expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBeUndefined();
     expect(mockStored['thefloor.labs']).toBeUndefined();
+    expect(mockStored['thefloor.chimeAmplitude']).toBeUndefined();
     // Including the one no build writes any more: a phone that had the tabs
     // above its footer on 2026-09-12 still has the key, and nothing but this
     // path and *forget this phone* will ever clear it. See

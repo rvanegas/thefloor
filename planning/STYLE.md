@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button, IconButton, Field, Segmented, FooterAction |
+| *Controls* | Button, IconButton, Field, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes |
@@ -339,6 +339,17 @@ component** — `{ paddingVertical: spacing(0.5), paddingHorizontal: spacing(1),
 minHeight: 0 }`, via the `style` prop. ChannelView's `cardPing` and
 ProfileView's `reachAction` are the same numbers deliberately. Anything that
 needs to be less than a button is a `ghost` at those numbers, not a new fill.
+
+**A choice of more than three goes down the page rather than across it.** Two
+or three `Button`s at `flex: 1` in a `choices` row is what every yes-or-no and
+the three schemes on Floor Settings use, and it stops working at four: a
+phone's card is about 280pt inside its padding, so a fifth of it is 45pt and
+any word longer than *Loud* truncates — a ladder whose rungs are half-spelt is
+a puzzle. Beyond three, stack full-width buttons, one per rung, the `primary`
+fill marking the one in force. ChannelSettingsView's `NotificationLevelPicker`
+is the pattern (four, with a `sublabel` each) and the chime loudness on Floor
+Settings is the second (five, bare). It is the same arithmetic § *The pinned
+footer* makes about five slots in 620.
 
 ### IconButton
 

@@ -1,14 +1,19 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
-import { DEFAULT_ACCOUNT_SETTINGS } from '../../core/settings';
+import {
+  CHIME_AMPLITUDES,
+  DEFAULT_ACCOUNT_SETTINGS,
+} from '../../core/settings';
 
 /**
  * The settings that belong to a person rather than to a phone.
  *
- * All five on the Floor Settings screen: the colour scheme, whether a tap on a
+ * All six on the Floor Settings screen: the colour scheme, whether a tap on a
  * channel steps into it, whether the channel screen repeats its footer's
- * controls as cards, where that screen's tabs are drawn, and whether the
- * experimental features are visible at all. There was one more — holding the
+ * controls as cards, where that screen's tabs are drawn, whether the
+ * experimental features are visible at all, and how loud the channel chimes
+ * are — the last being the only one that is a number rather than a yes, and
+ * the only one refused against a list. There was one more — holding the
  * hands-free link steady — which was about the headset somebody was wearing
  * and never reached this server, and the last test here is what survives it:
  * it is easy to add a field to a route and hard to notice one that has
@@ -77,6 +82,7 @@ describe('the settings that follow the account', () => {
       tapToLook: false,
       hideControlCards: false,
       labs: false,
+      chimeAmplitude: 0.18,
       // The two old names as well, which is what stops a build already on a
       // phone reading this answer as both of its channel settings having been
       // turned over. See settings-wire.ts.
@@ -99,6 +105,7 @@ describe('the settings that follow the account', () => {
       tapToLook: true,
       hideControlCards: false,
       labs: false,
+      chimeAmplitude: 0.18,
     });
 
     await save(alice.token, { tapToLook: false, hideControlCards: true });
@@ -107,6 +114,7 @@ describe('the settings that follow the account', () => {
       tapToLook: false,
       hideControlCards: true,
       labs: false,
+      chimeAmplitude: 0.18,
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -115,6 +123,7 @@ describe('the settings that follow the account', () => {
       tapToLook: false,
       hideControlCards: true,
       labs: false,
+      chimeAmplitude: 0.18,
     });
   });
 
@@ -130,11 +139,13 @@ describe('the settings that follow the account', () => {
       appearance: 'dark',
       tapToLook: true,
       hideControlCards: true,
+      chimeAmplitude: 0.7,
     });
     await save(alice.token, {
       appearance: 'system',
       tapToLook: false,
       hideControlCards: false,
+      chimeAmplitude: DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude,
     });
     expect(app.accounts.settings(alice.account.id)).toEqual(
       DEFAULT_ACCOUNT_SETTINGS
@@ -143,6 +154,10 @@ describe('the settings that follow the account', () => {
     expect(row.appearance).toBe('system');
     expect(row.tap_to_look).toBe(0);
     expect(row.hide_control_cards).toBe(0);
+    // The quietest rung chosen on purpose, which is not the same fact as
+    // never having opened the screen — and the column is where the difference
+    // is kept.
+    expect(row.chime_amplitude).toBe(DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude);
   });
 
   it('refuses a scheme it could not render, and changes nothing', async () => {
@@ -166,6 +181,58 @@ describe('the settings that follow the account', () => {
     expect(response.statusCode).toBe(400);
     expect(app.accounts.settings(alice.account.id).hideControlCards).toBe(
       false
+    );
+  });
+
+  /**
+   * **A closed ladder rather than a range, and this is where that is
+   * enforced.** Every value on it has been listened to on a phone in the
+   * audio lab; 0.42 has not, and neither has 1.5, which the native renderer
+   * would clamp — leaving the settings screen showing a loudness the sound
+   * does not have. See `CHIME_AMPLITUDES` in core/settings.ts.
+   */
+  it('refuses a chime loudness that is not one of the five', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    await save(alice.token, { chimeAmplitude: 0.5 });
+
+    for (const bad of [0.42, 1.5, 0, -1, '0.5', true, null]) {
+      const response = await save(alice.token, { chimeAmplitude: bad });
+      expect(response.statusCode).toBe(400);
+    }
+    expect(app.accounts.settings(alice.account.id).chimeAmplitude).toBe(0.5);
+  });
+
+  /**
+   * The one setting here stored as a real rather than as a flag, so the round
+   * trip through SQLite is worth asserting once: 0.35 read back as 0 would be
+   * a chime nobody can hear, and read back as a null would be one nobody
+   * asked for.
+   */
+  it('keeps a chosen loudness through the column it is stored in', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    expect(app.accounts.byId(alice.account.id)!.chime_amplitude).toBeNull();
+
+    for (const peak of CHIME_AMPLITUDES) {
+      const response = await save(alice.token, { chimeAmplitude: peak });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().chimeAmplitude).toBe(peak);
+      expect(app.accounts.byId(alice.account.id)!.chime_amplitude).toBe(peak);
+    }
+  });
+
+  /**
+   * A peak that was on the ladder when it was written and is not now — which
+   * is the only way one gets into the column, the route refusing everything
+   * else. It reads as the default rather than being handed on, which is
+   * `appearance`'s treatment of a scheme this server does not know.
+   */
+  it('reads a loudness it does not recognise as the default', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    app.db
+      .prepare('UPDATE accounts SET chime_amplitude = ? WHERE id = ?')
+      .run(0.42, alice.account.id);
+    expect(app.accounts.settings(alice.account.id).chimeAmplitude).toBe(
+      DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude
     );
   });
 
@@ -258,6 +325,7 @@ describe('the settings that follow the account', () => {
       'appearance',
       // The two names builds already installed know, which go out beside the
       // current ones until the compatibility floor has passed them.
+      'chimeAmplitude',
       'controlCards',
       'hideControlCards',
       'labs',
@@ -283,6 +351,7 @@ describe('the settings that follow the account', () => {
       tapToLook: true,
       hideControlCards: true,
       labs: false,
+      chimeAmplitude: 0.18,
     });
 
     await save(alice.token, { tapToStepIn: true });
