@@ -14,6 +14,7 @@ import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import { CHIME_AMPLITUDES } from '../../../core/settings';
+import { chimeIn, warmChimes } from '../audio/chime';
 
 /**
  * A word for each rung of the chime ladder, quietest first.
@@ -343,14 +344,38 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             key={value}
             label={LOUDNESS[value]}
             variant={app.chimeAmplitude === value ? 'primary' : 'default'}
-            onPress={() => app.setChimeAmplitude(value)}
+            onPress={() => {
+              app.setChimeAmplitude(value);
+              /*
+                The tap is the demonstration, because the words are not one.
+                *Quiet* and *Middle* are a ladder nobody can hear by reading,
+                and the alternative to sounding one here is choosing a rung and
+                waiting for somebody else to walk into a channel to find out
+                what it was. The arrival chime rather than a fourth sound made
+                for this screen: an example that is not the thing it is an
+                example of would be teaching the wrong loudness.
+
+                **Warmed at this peak first, and that is not tidying.** The
+                native renderer caches a sound per peak, so the first play at a
+                rung nobody has chosen before is the one that renders as it
+                plays — the *quiet once, normal twice* shape `warmChimes`
+                exists for, and it would land on exactly the tap whose whole
+                job is to be listened to. `usePresenceChime`'s own effect warms
+                at the new peak too, but it runs after this render and so after
+                this sound. See `warmChimes` in ../audio/chime.
+              */
+              warmChimes(value);
+              chimeIn(value);
+            }}
           />
         ))}
         <Text style={type.muted}>
           The short sounds a channel makes when somebody steps in, steps out,
           or comes to its edge — two notes rising, the same two falling, and a
           single note for the edge. You hear them about other people and never
-          about yourself, and they are not in anything recorded.
+          about yourself, and they are not in anything recorded. Tapping a
+          loudness plays the arrival sound at it, so you can hear the rung you
+          are choosing.
         </Text>
         <Text style={type.muted}>
           Quietest is how it has always sounded. They play the way a text

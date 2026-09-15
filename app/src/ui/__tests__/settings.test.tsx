@@ -11,6 +11,7 @@ import { LeaderboardView } from "../LeaderboardView";
 import { SectionLabel } from "../components";
 import { Alert, StyleSheet } from "react-native";
 import { CHIME_AMPLITUDES } from "../../../../core/settings";
+import { chimeIn, warmChimes } from "../../audio/chime";
 import {
   NOW,
   findButton,
@@ -35,6 +36,17 @@ jest.mock("../../api/upload", () => require("../testing/harness").uploadMock());
 jest.mock("../../state/AppProvider", () =>
   require("../testing/harness").appProviderMock(),
 );
+/**
+ * The fourth, and the only one that is not a harness factory: the chime is a
+ * native sound with nothing under it in jest, and this screen now plays one on
+ * a tap. Mocked here so the tap can be *asserted* rather than merely survived
+ * — what the rung does to a sound is unassertable, but which sound it asks for
+ * and at what peak is the whole of what this screen decides.
+ */
+jest.mock("../../audio/chime", () => ({
+  chimeIn: jest.fn(),
+  warmChimes: jest.fn(),
+}));
 
 /**
  * Settings and what is reached from it: the three preferences, the privacy
@@ -340,6 +352,13 @@ describe("the Labs setting", () => {
  * test; `presenceChime.test.tsx` is where the number is followed to the cue.
  */
 describe("how loud the chimes are", () => {
+  // The chime mocks are this file's rather than the harness's, so nothing
+  // resets them; two taps in two tests would otherwise be one call log.
+  beforeEach(() => {
+    (chimeIn as jest.Mock).mockClear();
+    (warmChimes as jest.Mock).mockClear();
+  });
+
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -373,6 +392,32 @@ describe("how loud the chimes are", () => {
     act(() => findButton(tree, "Loud")!.props.onPress());
     expect(mockApp.setChimeAmplitude).toHaveBeenCalledWith(0.7);
     expect(mockApp.setLabs).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The tap is the only place in the app where a chime is heard on purpose
+   * rather than because somebody moved, and it is what makes the five words
+   * mean anything. **At the peak just chosen, not the one in force**: the
+   * provider is mocked here and `app.chimeAmplitude` does not move, which is
+   * the same race a real render has — the state is not the argument.
+   */
+  it("sounds the arrival chime at the rung just tapped", async () => {
+    const tree = await openSettings();
+    act(() => findButton(tree, "Loud")!.props.onPress());
+    expect(chimeIn).toHaveBeenCalledWith(0.7);
+    // Warmed at that peak first: the native cache is keyed on it, so an
+    // unwarmed example is the one play that renders as it sounds.
+    expect(warmChimes).toHaveBeenCalledWith(0.7);
+    expect((warmChimes as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (chimeIn as jest.Mock).mock.invocationCallOrder[0],
+    );
+    act(() => tree.unmount());
+  });
+
+  it("says that a tap is an example you can hear", async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("plays the arrival sound");
     act(() => tree.unmount());
   });
 
