@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ChannelState, UserId } from '../../../core/types';
-import { chime } from './chime';
+import { chime, type ChimeKind } from './chime';
 
 /**
  * Sounds a chime in the room this device is standing in when somebody arrives
@@ -24,11 +24,17 @@ import { chime } from './chime';
  * **Takes `live`**, the channel this device is present in, so "only the people
  * in the room hear it" needs no guard: `liveChannelHere` has already tested
  * `present.includes(me)`.
+ *
+ * **Three sounds since 2026-09-15, where there were two.** A declaration from
+ * outside used to fire the arrival chime, which made *stepped in* and *stepped
+ * to the edge* the same event to every ear in the room. They are not the same
+ * event — one of them can speak — so `nearby` is now its own kind rather than
+ * a second caller of `in`.
  */
 export function usePresenceChime(
   channel: ChannelState | null,
   me: UserId,
-  fire: (rising: boolean) => void = chime
+  fire: (kind: ChimeKind) => void = chime
 ): void {
   /**
    * What the room looked like last time, or null before the first look.
@@ -100,6 +106,7 @@ export function usePresenceChime(
      */
     let rising = false;
     let falling = false;
+    let edging = false;
 
     for (const id of present) {
       if (id === me || before.present.includes(id)) continue;
@@ -148,23 +155,38 @@ export function usePresenceChime(
     for (const id of nearby) {
       if (id === me || before.nearby.includes(id)) continue;
       /**
-       * **A declaration from outside is an arrival; one from inside is not.**
+       * **A declaration from outside is its own event; one from inside is
+       * not.**
        *
        * Mirrors `server/src/channels.ts`, which makes the same distinction
        * before announcing: somebody present who taps *Be nearby* is stepping
-       * out to the rung below, and their departure is already sounding as the
-       * falling chime above. Only somebody who was not in the room has
-       * arrived at it.
+       * out to the rung below, and that is a departure — it sounds as the
+       * falling chime above and must not sound twice. Only somebody who was
+       * not in the room has arrived at its edge.
+       *
+       * **It is `nearby` and not `in`, which is the 2026-09-15 correction.**
+       * Arriving at the edge of a room is not arriving in it: the one can
+       * speak and the other cannot, and a cue that collapses them tells
+       * everybody present to expect a voice that is not coming.
        *
        * Keyed on the id *appearing* in the map and never on its value: the
        * stamp is restamped in place when somebody taps the lit rung, and a
        * renewal is not an arrival.
        */
       if (before.present.includes(id)) continue;
-      rising = true;
+      edging = true;
     }
 
-    if (rising) fire(true);
-    if (falling) fire(false);
+    /**
+     * **At most one of each, and in this order.**
+     *
+     * The order is the order the room would narrate them in, and it is fixed
+     * rather than incidental: a snapshot in which somebody steps in while
+     * somebody else steps to the edge has to sound the same way every time, or
+     * the pair of sounds is a coin toss rather than a sentence.
+     */
+    if (rising) fire('in');
+    if (falling) fire('out');
+    if (edging) fire('nearby');
   }, [channelId, presentKey, nearbyKey, me, fire]);
 }

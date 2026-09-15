@@ -1,4 +1,9 @@
-import { chime as playChime } from '../../modules/audio-route';
+import {
+  chime as playChime,
+  type ChimeKind,
+} from '../../modules/audio-route';
+
+export type { ChimeKind };
 
 /**
  * The two sounds a room makes when its shape changes.
@@ -22,6 +27,12 @@ import { chime as playChime } from '../../modules/audio-route';
  * second sound is audibly the first one backwards and nobody has to be taught
  * which is which.
  *
+ * **And a third, which is neither.** Being nearby is not being in the room,
+ * and it is not leaving one; it is the rung between, so it gets a single note
+ * rather than a pair going either way. Until 2026-09-15 there was no such
+ * sound and a declaration rang `in` — the one failure mode worse than an
+ * inaudible cue, which is an audible cue that names the wrong thing.
+ *
  * **No fallback, deliberately**, where `buzz` has one. `expo-haptics` could
  * produce *something* on a phone whose native half is too old, and that
  * something would be a cue that cannot say what it means — worse than
@@ -29,25 +40,32 @@ import { chime as playChime } from '../../modules/audio-route';
  * Android and jest get nothing, exactly as `vibrate` degrades there.
  */
 
-/** Somebody stepped in, or declared themselves nearby from outside. */
+/** Somebody stepped in. */
 export function chimeIn(): void {
-  playChime(true);
+  playChime('in');
 }
 
 /** Somebody stepped out, by a decision rather than a dropped connection. */
 export function chimeOut(): void {
-  playChime(false);
+  playChime('out');
+}
+
+/** Somebody outside the room declared themselves nearby to it. */
+export function chimeNearby(): void {
+  playChime('nearby');
 }
 
 /**
- * One function over both, which is what the hook holds and the tests replace.
+ * One function over all three, which is what the hook holds and the tests
+ * replace.
  *
- * A single injectable `fire` keeps the two sounds together at the call site —
- * a hook taking two callbacks invites a caller to wire them the wrong way
+ * A single injectable `fire` keeps the sounds together at the call site — a
+ * hook taking three callbacks invites a caller to wire them the wrong way
  * round, and a chime pair wired backwards is a bug nothing but an ear would
- * catch.
+ * catch. **A named kind rather than the boolean it was** for the same reason
+ * one level down: `fire(true)` could only ever mean one of two things, and
+ * there are three.
  */
-export function chime(rising: boolean): void {
-  if (rising) chimeIn();
-  else chimeOut();
+export function chime(kind: ChimeKind): void {
+  playChime(kind);
 }

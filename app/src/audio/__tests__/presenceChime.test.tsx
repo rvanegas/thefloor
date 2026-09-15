@@ -69,9 +69,17 @@ function mount(channel: ChannelState | null) {
   };
 }
 
-/** Rising is an arrival, falling a departure. */
-const rising = [true];
-const falling = [false];
+/**
+ * One call's arguments, per kind.
+ *
+ * Rising is an arrival, falling a departure, edging a declaration from outside
+ * the room. **Named rather than spelled inline** so that the assertions say
+ * which event they mean; the kinds were `true` and `false` until 2026-09-15,
+ * and a third of them cannot be a boolean.
+ */
+const rising = ['in'];
+const falling = ['out'];
+const edging = ['nearby'];
 
 describe('the chime that says the room changed shape', () => {
   it('rises when somebody else steps in', () => {
@@ -166,15 +174,32 @@ describe('the chime that says the room changed shape', () => {
     });
   });
 
-  describe('a declaration from outside is an arrival', () => {
-    it('rises when somebody declares themselves nearby from outside', () => {
+  describe('a declaration from outside is its own event', () => {
+    it('edges when somebody declares themselves nearby from outside', () => {
       // They were never in the room, so nothing is leaving `present` — the
       // only signal is the id appearing in `declaredNearbyAt`.
+      //
+      // It is the `nearby` kind and not `in`, which is the whole of the
+      // 2026-09-15 correction: arriving at the edge of a room is not arriving
+      // in it, and the two sounded identical until there was a third chime.
       const together = enter(alone(), THEM);
       const view = mount(together);
 
       view.update(declareNearby(together, THIRD));
-      expect(view.fire.mock.calls).toEqual([rising]);
+      expect(view.fire.mock.calls).toEqual([edging]);
+      view.unmount();
+    });
+
+    it('does not also ring the arrival chime for a declaration', () => {
+      // The regression this file exists to prevent from coming back: one
+      // event, one sound. A declaration that fired both would be a room told
+      // to expect a voice that cannot speak.
+      const together = enter(alone(), THEM);
+      const view = mount(together);
+
+      view.update(declareNearby(together, THIRD));
+      expect(view.fire).toHaveBeenCalledTimes(1);
+      expect(view.fire).not.toHaveBeenCalledWith('in');
       view.unmount();
     });
 

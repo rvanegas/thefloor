@@ -468,19 +468,51 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           matters, being the one iOS mutes system sounds for unless
           `setAllowHapticsDuringRecording` has been asserted. Silence here is
           the finding.
+
+          **Tap them with no session at all first.** That is the cheaper half
+          of the question and it is the half that was never answered: nobody
+          has heard these on a phone, so a silence under `playAndRecord` proves
+          nothing until a sound outside it has proved the path works. Idle
+          first, then configure, then capture.
+
+          **The three `nearby` rows are a comparison, not three features.** One
+          of them becomes the sound; the other two are deleted along with their
+          rows in `chimeNotes`. They are judged here rather than on a desk
+          because a phone speaker is the only room the cue ever plays in.
         */}
         <Card>
           <Button
             label="Chime — stepped in"
             variant="ghost"
-            onPress={() => chime(true)}
+            onPress={() => chime('in')}
           />
         </Card>
         <Card>
           <Button
             label="Chime — stepped out"
             variant="ghost"
-            onPress={() => chime(false)}
+            onPress={() => chime('out')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby A — one note (E5)"
+            variant="ghost"
+            onPress={() => chime('nearby-a')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby B — flat pair (A5 A5)"
+            variant="ghost"
+            onPress={() => chime('nearby-b')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Nearby C — flat pair, lower (C#5)"
+            variant="ghost"
+            onPress={() => chime('nearby-c')}
           />
         </Card>
       </View>

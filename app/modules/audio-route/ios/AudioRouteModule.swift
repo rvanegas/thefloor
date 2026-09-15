@@ -127,7 +127,7 @@ public class AudioRouteModule: Module {
     }
 
     /**
-     The arrival and departure chime: two notes, in one order or the other.
+     The presence chimes: two notes rising, the same two falling, or one alone.
 
      **A system sound for the same reason `vibrate` is one.** The argument
      above against `CHHapticEngine` — that it is an engine started next to a
@@ -149,11 +149,18 @@ public class AudioRouteModule: Module {
      asset in the repository and no decode at chime time.
      `AudioServicesCreateSystemSoundID` wants a file, so each kind is rendered
      once into the temporary directory and its id kept for the life of the
-     process. Two sounds, so two ids; `soundIds` is only ever touched from the
+     process. One id per kind; `soundIds` is only ever touched from the
      JavaScript thread, which is the only thread that calls this.
+
+     **A string rather than the `Bool` it was until 2026-09-15**, because there
+     turned out to be three of these and not two. A third direction cannot be
+     added to a bit, and the bit was already lying: a nearby declaration fired
+     the rising chime, so *stepped in* and *stepped to the edge* made the same
+     sound. `chimeNotes` is the set of kinds, and an unknown one returns false
+     rather than guessing — a chime nobody recognises is worse than silence.
      */
-    Function("chime") { (rising: Bool) -> Bool in
-      guard let id = self.chimeSound(rising: rising) else { return false }
+    Function("chime") { (kind: String) -> Bool in
+      guard let id = self.chimeSound(kind: kind) else { return false }
       AudioServicesPlaySystemSound(id)
       return true
     }
@@ -316,22 +323,22 @@ public class AudioRouteModule: Module {
   }
 
   /**
-   The two rendered chimes, kept for the life of the process.
+   The rendered chimes, kept for the life of the process.
 
-   Keyed by the one bit there is. Rendering costs a few milliseconds and a file
-   write, and doing it per chime would put both on the path of a cue that has
-   to land at the moment somebody walks in.
+   Keyed by kind. Rendering costs a few milliseconds and a file write, and
+   doing it per chime would put both on the path of a cue that has to land at
+   the moment somebody walks in.
    */
-  private static var soundIds: [Bool: SystemSoundID] = [:]
+  private static var soundIds: [String: SystemSoundID] = [:]
 
-  /** The id for one direction, rendering and registering it on first use. */
-  private func chimeSound(rising: Bool) -> SystemSoundID? {
-    if let existing = Self.soundIds[rising] { return existing }
-    guard let url = Self.renderChime(rising: rising) else { return nil }
+  /** The id for one kind, rendering and registering it on first use. */
+  private func chimeSound(kind: String) -> SystemSoundID? {
+    if let existing = Self.soundIds[kind] { return existing }
+    guard let url = Self.renderChime(kind: kind) else { return nil }
     var id: SystemSoundID = 0
     let status = AudioServicesCreateSystemSoundID(url as CFURL, &id)
     guard status == kAudioServicesNoError else { return nil }
-    Self.soundIds[rising] = id
+    Self.soundIds[kind] = id
     return id
   }
 
@@ -340,21 +347,50 @@ public class AudioRouteModule: Module {
   /** Deliberately low. *Subtle* is in the request and is the easy part to lose. */
   private static let chimeAmplitude = 0.18
 
-  /**
-   Two notes, in one order or the other, as a 16-bit mono WAV on disk.
+  private static let noteE5 = 659.25
+  private static let noteA5 = 880.0
+  private static let noteCS5 = 554.37
 
-   **The two sounds are the same two notes reversed**, which is what makes them
+  /**
+   What each kind is made of, which is the whole difference between them.
+
+   **`in` and `out` are the same two notes reversed**, which is what makes them
    a pair rather than two unrelated beeps: E5 then A5 going in, A5 then E5
    coming out. Somebody hears the second one once and already knows what it
    means, because it is audibly the first one backwards.
+
+   **`nearby` is neither, and must not be either.** Stepping to the edge of a
+   room is not arriving in it, and until this table existed it *sounded* like
+   arriving — `usePresenceChime` fired the rising chime for a declaration, so
+   the two were indistinguishable to everybody in the room. A single note is
+   the shape that says *half of that pair* without anybody being taught it.
+
+   **The three `nearby-*` rows are candidates, and are temporary.** They are
+   here so the choice can be made through a phone's speaker, which is the only
+   room the sound has to work in; a tone picked on desk speakers is picked in
+   the wrong one. `nearby` is the alias the app plays, and it points at the
+   winner. When the ear has chosen, the losers go and this paragraph goes with
+   them.
+   */
+  private static let chimeNotes: [String: [Double]] = [
+    "in": [noteE5, noteA5],
+    "out": [noteA5, noteE5],
+    "nearby": [noteE5],
+    "nearby-a": [noteE5],
+    "nearby-b": [noteA5, noteA5],
+    "nearby-c": [noteCS5, noteCS5],
+  ]
+
+  /**
+   One kind, as a 16-bit mono WAV on disk.
 
    Each note is a sine under a 5ms attack and an exponential decay — struck
    rather than switched on. The attack is not a nicety: a sine starting at full
    amplitude begins on a discontinuity, and the click that produces is the part
    a listener would notice.
    */
-  private static func renderChime(rising: Bool) -> URL? {
-    let notes: [Double] = rising ? [659.25, 880.0] : [880.0, 659.25]
+  private static func renderChime(kind: String) -> URL? {
+    guard let notes = chimeNotes[kind] else { return nil }
     let perNote = Int(chimeSampleRate * chimeNoteSeconds)
 
     var samples: [Int16] = []
@@ -397,7 +433,7 @@ public class AudioRouteModule: Module {
     }
 
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent(rising ? "chime-in.wav" : "chime-out.wav")
+      .appendingPathComponent("chime-\(kind).wav")
     do {
       try data.write(to: url, options: .atomic)
     } catch {

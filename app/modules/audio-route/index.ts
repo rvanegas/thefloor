@@ -83,8 +83,13 @@ interface NativeAudioRoute {
    * ordinary case rather than a reload hazard: every build already installed
    * predates this function, so `undefined` is what a phone that has not
    * updated actually returns.
+   *
+   * **A string since 2026-09-15, where build 205 shipped a `boolean`.** A
+   * bundle calling this against that binary throws on the argument type and is
+   * caught below into the same `false` an absent module gives — which is the
+   * right answer, since a binary that predates the third kind cannot play it.
    */
-  chime?(rising: boolean): boolean;
+  chime?(kind: string): boolean;
   /**
    * The lab's three. Optional on the type because a Metro reload can leave a
    * new bundle talking to a binary built before they existed, and the lab says
@@ -237,7 +242,26 @@ export function vibrate(): boolean {
 }
 
 /**
- * The presence chime: two notes rising, or the same two falling.
+ * Which of the presence chimes to play.
+ *
+ * **Three, not two, since 2026-09-15.** `nearby` was the missing one, and its
+ * absence was not silence but a wrong sound: a declaration from outside fired
+ * `in`, so a room heard somebody arrive who had only stepped to the edge.
+ */
+export type ChimeKind = 'in' | 'out' | 'nearby';
+
+/**
+ * The shapes `nearby` is being chosen from, which only the audio lab passes.
+ *
+ * **Temporary, and deliberately not part of `ChimeKind`.** A candidate is not
+ * a thing the app plays — it is a thing an ear compares, on the phone, which
+ * is the only speaker whose verdict counts. `nearby` aliases the winner in
+ * `AudioRouteModule.swift`; when it is picked these go, and so does this type.
+ */
+export type ChimeCandidate = 'nearby-a' | 'nearby-b' | 'nearby-c';
+
+/**
+ * The presence chime: two notes rising, the same two falling, or one alone.
  *
  * Rendered in the native half and played as a *system sound*, which is the
  * same delivery `vibrate` uses and is chosen for the same reason — it starts
@@ -248,15 +272,16 @@ export function vibrate(): boolean {
  * `setAllowHapticsDuringRecording` governs it, and without that it is silent
  * for exactly as long as anybody is capturing.
  *
- * @param rising true for an arrival, false for a departure.
- * @returns whether it played. False means no module or a native half older
- * than this function, which is Android, jest, and every build released so far.
- * There is no fallback: a buzz cannot say *which* of the two happened, and
- * that distinction is the whole cue.
+ * @param kind which of the three, or a lab candidate for `nearby`.
+ * @returns whether it played. False means no module, a native half older than
+ * this function, or — since the argument became a string — a binary that still
+ * expects the boolean, which is every build up to and including 205. There is
+ * no fallback: a buzz cannot say *which* of the three happened, and that
+ * distinction is the whole cue.
  */
-export function chime(rising: boolean): boolean {
+export function chime(kind: ChimeKind | ChimeCandidate): boolean {
   try {
-    return native?.chime?.(rising) ?? false;
+    return native?.chime?.(kind) ?? false;
   } catch {
     return false;
   }
