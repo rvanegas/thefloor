@@ -479,6 +479,58 @@ describe("showing the checklist again", () => {
 });
 
 /**
+ * The button that draws every dab, so that the mark can be looked at.
+ *
+ * **Behind the same `debug` grant as *Forget this phone*, and for the same
+ * reason**: it is an instrument, it is useless to somebody using the app, and
+ * a switch that makes the interface ask for attention it does not want is one
+ * that costs these marks the only thing they trade on. It exists because the
+ * two states that draw a dab are a nuisance to arrange — a second account has
+ * to ask to be a contact, an answer has to be published by hand — so the mark
+ * itself was the part nobody could put on a screen.
+ *
+ * What it does to Home is in `home.test.tsx`; this is the gate and the toggle.
+ */
+describe("showing every dab", () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  it("is not offered to an account without diagnostics", async () => {
+    mockApp.debug = false;
+    const tree = await openSettings();
+    expect(findButton(tree, "Show every dab")).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it("turns the override on", async () => {
+    mockApp.debug = true;
+    const tree = await openSettings();
+    act(() => findButton(tree, "Show every dab")!.props.onPress());
+    expect(mockApp.forceDabs).toHaveBeenCalledWith(true);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And off again from the same button, which is the whole of why it is a
+   * toggle: a control that could only switch marks on would leave somebody
+   * looking at them until they relaunched.
+   */
+  it("turns it off again, saying so on the label", async () => {
+    mockApp.debug = true;
+    mockApp.forcedDabs = true;
+    const tree = await openSettings();
+    act(() => findButton(tree, "Stop showing every dab")!.props.onPress());
+    expect(mockApp.forceDabs).toHaveBeenCalledWith(false);
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Whether a tap on a channel arrives or only looks.
  *
  * The setting itself is a phone preference held in the provider; what this

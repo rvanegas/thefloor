@@ -831,6 +831,21 @@ function ListSwitch({
   // seen until it does, which would flash a dab on every cold start of an
   // install that has read everything.
   const answered = loaded && answersWaiting(app.home?.helpAnsweredAt, seenAnsweredAt);
+  /*
+    The debug preview, which is an `||` here and nothing anywhere else.
+
+    **It forces the drawing and not the states behind it**, which is the whole
+    of why it is read at this line. Both real conditions are still computed and
+    still right, so turning it off is exactly turning it off; and the screens
+    behind the two tabs say what they always said, because nothing was written
+    to make the marks appear. What is being looked at is the app with both marks
+    on it, rather than a mock of it. See `forcedDabs` in `state/AppProvider`.
+
+    The words are the real words for the same reason — a preview that announced
+    something a screen reader never hears would be a preview of the wrong thing,
+    and these marks are half announcement.
+  */
+  const forced = app.forcedDabs;
 
   return (
     <Segmented
@@ -845,7 +860,7 @@ function ListSwitch({
             alternative is this tier knowing how to count in English for the
             sake of a case it cannot see.
           */
-          badge: requests > 0 ? "requests waiting" : undefined,
+          badge: forced || requests > 0 ? "requests waiting" : undefined,
         },
         { value: "channels", label: "Channels" },
         /*
@@ -861,7 +876,7 @@ function ListSwitch({
           label: "Support",
           // "answered" rather than "an answer waiting": what is waiting is the
           // reading of it, and the answer is already here.
-          badge: answered ? "answered" : undefined,
+          badge: forced || answered ? "answered" : undefined,
         },
       ]}
       value={list}

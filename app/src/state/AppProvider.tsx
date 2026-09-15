@@ -630,6 +630,32 @@ interface AppValue extends AppState {
    */
   helpSeen: HelpSeen;
   /**
+   * Whether every dab is being drawn on purpose, for looking at.
+   *
+   * **A debug-only override, off unless somebody with the `debug` grant has
+   * just turned it on from settings.** The two marks are drawn from states that
+   * are a nuisance to arrange — a second account has to ask to be a contact,
+   * and a help answer has to be published by hand through `bin/help` — so the
+   * one thing nobody could do easily was look at the mark itself, which is the
+   * half that is a design decision. See `HomeSettingsView` and `ui/HomeView`.
+   *
+   * **An override rather than faked state**, deliberately. Writing a contact
+   * request into the snapshot or a watermark into the keychain would light the
+   * dabs and also change what the screens below them say, so what is on show is
+   * no longer the app. This changes one thing: whether the mark is drawn.
+   *
+   * In memory, so it is gone at the next launch. Persisting it would leave a
+   * phone wearing marks for nothing, found weeks later by somebody who does not
+   * know what turned them on — and the cost of that is the one thing these
+   * marks trade on, which is being believed.
+   */
+  forcedDabs: boolean;
+  /**
+   * Turns that override on or off — the button in `HomeSettingsView`'s
+   * Diagnostics card, and nothing else.
+   */
+  forceDabs: (on: boolean) => void;
+  /**
    * What a new account is shown above the two lists, until every rung of it
    * is done — the ladder, the single card, or nothing at all.
    *
@@ -1197,6 +1223,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [introTrace]);
 
   const helpSeen = useHelpSeen();
+  // The debug preview of the two dabs. Here rather than in `HomeView` because
+  // it is switched on from the settings screen and read by the tier behind it,
+  // which is the same reason `helpSeen` is here.
+  const [forcedDabs, setForcedDabs] = useState(false);
   const notifications = useNotificationAsk({
     token: state.token,
     somebody,
@@ -1490,6 +1520,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearNotificationTap: () => setNotificationTapped(false),
       notifications,
       helpSeen,
+      forcedDabs,
+      forceDabs: setForcedDabs,
       introduction,
       markTried,
       dismissStep,
@@ -2011,6 +2043,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notificationTapped,
       notifications,
       helpSeen,
+      forcedDabs,
       introduction,
       markTried,
       dismissStep,

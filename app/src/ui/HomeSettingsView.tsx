@@ -442,6 +442,41 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             this, and neither does deleting the app.
           </Text>
         </Card>
+
+        {/*
+          The same argument as the card above, for the other thing that cannot
+          be looked at on demand.
+
+          A dab is drawn when somebody has asked to be a contact or when a help
+          question has been answered, and both are a nuisance to arrange: the
+          first wants a second account to send a request from, the second wants
+          an answer published by hand with `bin/help`. So the mark that is a
+          design decision — 16x11 laid over the end of a word, in the seventh
+          hue the palette gained for it — was the part nobody could put on a
+          screen and look at. See STYLE.md § *Dots, pills and rules*.
+
+          **It forces the marks and nothing under them**, which is what makes it
+          worth having rather than a way of lying to yourself: the screens
+          behind those tabs say exactly what they said before, because nothing
+          was written to bring the marks on. See `forcedDabs` in
+          `state/AppProvider`, which is also why this is gone at the next
+          launch — a phone left wearing marks for nothing teaches whoever finds
+          it to stop believing them.
+        */}
+        <Card style={styles.stack}>
+          <Text style={type.heading}>Show every dab</Text>
+          <Button
+            label={app.forcedDabs ? 'Stop showing every dab' : 'Show every dab'}
+            variant={app.forcedDabs ? 'primary' : 'default'}
+            onPress={() => app.forceDabs(!app.forcedDabs)}
+          />
+          <Text style={type.muted}>
+            Puts a mark on both Home tabs that can wear one, whether or not
+            anything is waiting, so the mark itself can be looked at. It
+            changes nothing else, and it is off again the next time the app
+            starts.
+          </Text>
+        </Card>
         </>
       ) : null}
 

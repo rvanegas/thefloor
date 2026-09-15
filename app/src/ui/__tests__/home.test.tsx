@@ -1296,4 +1296,42 @@ describe('the dab on Home\'s tabs', () => {
     expect(dabs(tree)).toHaveLength(2);
     act(() => tree.unmount());
   });
+
+  /**
+   * The debug override, from the Diagnostics card in settings: both marks on
+   * an account with nothing whatsoever waiting.
+   *
+   * It exists because the two real states are a nuisance to arrange — a second
+   * account has to send a request, an answer has to be published by hand — so
+   * the mark itself was the part nobody could put on a screen and look at.
+   * **The words are the real words**, which is the half of this that could
+   * silently rot: a preview announcing something a screen reader never hears
+   * would be a preview of the wrong thing.
+   */
+  it('draws both dabs when the debug override is on', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu', status: 'accepted' }]);
+    mockApp.forcedDabs = true;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(2);
+    expect(findTab(tree, 'Contacts')!.props.accessibilityLabel).toBe(
+      'Contacts, requests waiting'
+    );
+    expect(findTab(tree, 'Support')!.props.accessibilityLabel).toBe(
+      'Support, answered'
+    );
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And it forces the drawing alone. The two conditions are still computed and
+   * still right underneath, so turning it off is exactly turning it off — which
+   * is what the override buys over writing a contact request into the snapshot.
+   */
+  it('leaves the tabs as they were once the override is off', () => {
+    withContacts([{ id: 'a', displayName: 'Dana Chu', status: 'accepted' }]);
+    mockApp.forcedDabs = false;
+    const tree = home();
+    expect(dabs(tree)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
 });

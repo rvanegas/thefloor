@@ -173,6 +173,14 @@ export const mockApp = {
     noteAnswersSeen: jest.fn(),
   },
   /**
+   * The debug override that draws both dabs whether or not anything is
+   * waiting, off — which is every test but the two that are about it, and the
+   * state of every account that has not been handed the `debug` grant. See
+   * `forcedDabs` in `state/AppProvider`.
+   */
+  forcedDabs: false,
+  forceDabs: jest.fn(),
+  /**
    * What the introduction is showing, defaulting to nothing — the state of
    * every account that has ever had a conversation, which is what every test
    * here but the introduction ones wants. A test that wants the ladder or the
@@ -678,6 +686,8 @@ export function resetHarness(): void {
   // wears a dab, which is what every test but the dab ones is about.
   mockApp.helpSeen.seenAnsweredAt = Number.MAX_SAFE_INTEGER;
   mockApp.helpSeen.loaded = true;
+  mockApp.forcedDabs = false;
+  mockApp.forceDabs.mockClear();
   mockApp.introduction = { show: 'none' };
   mockApp.dismissStep.mockClear();
   mockApp.status = 'open';
