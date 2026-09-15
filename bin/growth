@@ -857,7 +857,7 @@ report_groups() {
 .print '── Rooms with more than one day in them · LAST 30 DAYS ONLY ────'
 .print ''
 -- **This is the conversion, and it is the one number this script exists to
--- report** — planning/MARKETING.md calls it level 10: a group is a channel
+-- report** — planning/MARKETING.md calls it level 11: a group is a channel
 -- that had a conversation, and then had another one on a different day. One
 -- conversation is a trial; the second is the habit starting.
 --

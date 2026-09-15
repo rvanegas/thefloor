@@ -125,7 +125,7 @@ limitation before a commenter does, and the slow-growth admission pre-empts
 the most common objection in § *The objections*.
 
 **The question in the fourth paragraph is deliberate and is the real reason to
-post.** MARKETING.md § *The funnel* names level 9 as one of the three leaky
+post.** MARKETING.md § *The funnel* names level 10 as one of the three leaky
 ones, and ROADMAP item 3 is *settle whether ping is enough on its own*. Asking
 it in public is cheaper than any other way of finding out.
 

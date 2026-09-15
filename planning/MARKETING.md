@@ -12,6 +12,11 @@ the end. What is here is the reasoning that decides whether a given tactic is
 on the thesis, because almost every ordinary growth tactic in this category is
 not, and the reason is always the same one.
 
+**Revised 2026-09-15 for Early Cohorts**, which changes what a cold install
+arrives into and is accepted here as a bounded, temporary exception to *no
+strangers* — the mechanism is § *The cohort, which is scaffolding and not an
+asset* and the terms are in § *What marketing may not do*.
+
 **Read it before spending money, before adding any measurement, and before
 writing copy aimed at anybody who has not already been recommended this app.**
 Its § *What marketing may not do* is the half that will be argued with, and it
@@ -22,22 +27,26 @@ rather than invented here.
 
 - **The unit of acquisition is a group** — the one claim everything else is a
   consequence of.
-- **What is already built** — the assets inventory, and the one most apps in
-  this category have to buy.
+- **What is already built** — the assets inventory, the one most apps in
+  this category have to buy, and the getting-started cohort, which is
+  scaffolding rather than an asset and is off as this is written.
 - **Who else is on the field** — the competitors, sorted by which claim each
   contests, and the two things that changes for the copy.
 - **The funnel is upside down** — the guest page and the invite page are the
   top of it; the listing is the middle.
-- **The funnel, level by level** — the thirteen levels, what each one loses
-  people to, and which of them are even visible today.
+- **The funnel, level by level** — the fourteen levels, what each one loses
+  people to, and which of them are even visible today. **Level 4 is the
+  cohort's, only placed accounts are eligible for it, and its insertion moved
+  every number below it down by one on 2026-09-15.**
 - **Measurement, which is now a choice** — what `bin/growth` already answers,
-  what is still unmeasured, what first-party analytics can buy, and what
-  third-party would cost.
+  what is still unmeasured, what first-party analytics can buy, what
+  third-party would cost, and the three reports a cohort contaminates.
 - **Paid, since it is on the table** — what money can and cannot buy here,
   ranked, with the kill rule, the Apple Ads keyword list and what a tap costs.
 - **Organic, ranked** — where the effort actually goes.
 - **What marketing may not do** — the constraints, applied to this file's
-  subject rather than to the product's.
+  subject rather than to the product's, including the one bounded exception to
+  *no strangers* and the rule that it may not be advertised.
 - **The sequence** — what to do first, and what each step is waiting on.
 
 ---
@@ -66,6 +75,13 @@ consequences plainly before any of them is argued:
 - **Density beats count, and it is not close.** One whole book club, band,
   family or standing four-a-side is worth more than fifty scattered downloads,
   because fifty scattered downloads are worth approximately nothing.
+
+**None of that is changed by the getting-started cohort**, added 2026-09-15 and
+described below. A cohort gives an arrival somewhere to be, which is not the
+same as giving them their three people, and this file's unit is unmoved: the
+conversion is still a group having its second conversation, and a cohort is
+still not that group. What it changes is the *arithmetic* of a cold install,
+and § *Paid* is where that is argued.
 
 **The useful test for any proposal is: what does this do for the second and
 third person?** A tactic that reaches one person well and gives them no reason
@@ -101,6 +117,38 @@ to be worth naming as marketing assets rather than as features.
 - **The web app at `/open`**, which means "try it" does not require an install
   on a desktop.
 
+### The cohort, which is scaffolding and not an asset
+
+**Added 2026-09-15**, when *Early Cohorts* shipped —
+`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md` is the argument
+and the ending. An account that arrives with nobody here is placed, at signup,
+into one channel with up to three others who arrived around the same time and a
+**cohort host**. It is listed here because it changes the cold-start arithmetic
+this whole file is about — it is the whole of § *The funnel*'s level 4, the only
+level above the group half at which somebody hears the product work — and it is
+listed *separately* from the assets above because **it is temporary by
+construction and the rest are not.** Nothing in the plan below may be built on
+its continuing to exist.
+
+**It is off as this is written.** `COHORT_HOST_IDENTIFIERS` is empty,
+`bin/cohorts` reports none, and it may not be switched on until a build drawing
+the explanatory card is downloadable — that is builds 206 and later, against a
+`released` of 127. **So it is not yet true of anybody, and § *The sequence*
+orders the switch rather than assuming it.**
+
+**The reason it does not relax *no strangers* is structural, not a promise.**
+Every other channel in the application grows by invitation, and the server
+refuses an invitation to anybody who is not already an accepted contact of the
+person making it — `create` and INVITE both, `channels.ts`. A cohort is made by
+the server instead, so **no pair in one is a contact, and no pair became one
+involuntarily**: the contact graph is untouched by placement, and it is the
+contact graph rather than the roster that everything reachable is gated on. The
+consequence worth stating plainly, because it is the objection a reader will
+arrive with: **nobody in a cohort can ping you.** The ping is refused between
+non-contacts like everything else, so being placed with four people does not
+hand any of them the permission the product runs on. What they can do is talk
+in one room, which somebody has to open, and which anybody can leave.
+
 **Imagery was the gap in this inventory and is now half closed.** On
 2026-09-14 two screenshots joined the landing page — `server/public/home.webp`
 and `floor.webp`, 52 KB the pair — chosen because they are the two where the
@@ -130,7 +178,7 @@ than no image**, and nothing about that is visible without knowing the
 constant.
 
 The same principle carries to video, and is why the format there is a
-comparison rather than a demo — § *The sequence* item 7.
+comparison rather than a demo — § *The sequence* item 8.
 
 ## Who else is on the field
 
@@ -245,12 +293,23 @@ is growth work, and is more valuable than any external channel on this list.
 
 ## The funnel, level by level
 
-**Thirteen levels, and the shape of the thing is not a funnel but a loop** —
+**Fourteen levels, and the shape of the thing is not a funnel but a loop** —
 the bottom returns to the top, and that return is the only reason any of this
 works at scale. What follows is the standing definition; § *Measurement* says
 which are visible today and what it would take to see the rest.
 
-**It forks at level 4.** Above that the unit is a person and the levels are the
+**The numbers moved on 2026-09-15 and old citations are off by one.** Level 4,
+*heard it work*, was inserted for the getting-started cohort, and everything
+below it shifted down: what was 4 is 5, the conversion that was 10 is **11**,
+and the recommendation that was 12 is **13**. Anything written before that date
+— LAUNCH.md, a decision, a commit message, a comment in `bin/` — is on the old
+numbering unless it has been corrected. **Renumbered rather than called 3½**,
+because a funnel with a fraction in it invites every later addition to be a
+fraction too, and the levels are cited often enough that they should read as
+the ordinary integers they are. Two files were corrected in the same commit;
+the archive was not.
+
+**It forks at level 5.** Above that the unit is a person and the levels are the
 ordinary ones any app has. Below it the unit is a *group*, and every level is
 about two or more people at once — which is why an install-shaped funnel
 mismeasures this product so badly. Half of the levels below cannot be
@@ -264,6 +323,51 @@ attributed to an individual at all.
 | 1 | **Page view** — landing `/`, invite page, guest page, or the store product page | Copy that describes a different app, or no imagery to look at |
 | 2 | **Install or account** | The store page did not make the thesis land, or the App Store detour lost the invitation |
 | 3 | **Notification permission granted** | Asked at the worst moment in the worst climate — PROPOSITION.md says the central loop does not close without it |
+| 4 | **Heard it work** — audio exchanged in a getting-started cohort. **Only for accounts placed in one**; an invited arrival skips it, being past level 5 already | The room stayed silent: nobody opened it, or nobody answered when they did |
+
+**Level 4 is the cohort's, and it is the last level anybody can reach alone.**
+Added 2026-09-15. It belongs in the personal half because the unit is still one
+person and no relationship exists yet — which is exactly why it sits above the
+fork rather than among the group levels.
+
+**What it is worth is that it is the only level below 5 that is about the
+product rather than about the store.** Levels 0 through 3 are impression, page,
+install, permission — none of which is the app doing the thing it is for. An
+arrival who has heard a voice come out of this app has evidence for the ask at
+level 5 that no screenshot supplies. **It is also the one step where the app
+can help itself**, since the host is a person who can answer, and a cohort
+nobody opens fails here rather than later.
+
+**It is not a promotion and nothing below inherits it.** Reaching 4 says
+somebody has heard the product work; it says nothing about their having anyone
+to use it with, which is what every level from 5 down is about.
+
+**It is not on everybody's path, and this is the part that will be misread.**
+Only an account that was *placed* in a cohort can reach it — which is somebody
+who arrived with nobody, while the hosts are set. **An invited arrival never
+reaches 4 and has lost nothing**, because the invite link made them a contact of
+the person who sent it before they had an account: they are past level 5
+already, which is the thing level 4 exists to make reachable. **So the funnel
+forks twice, and the first fork is above the group half.** One path runs
+0–1–2–3–5 and is what a recommendation looks like; the other runs 0–1–2–3–4–5
+and is what a cold arrival looks like while this feature is on, with 4 the only
+thing standing between that arrival and an empty app.
+
+**Which fixes the denominator, and it is not *all arrivals*.** The share
+reaching 4 is over *placed* accounts — `bin/cohorts` counts exactly those — and
+anybody who compares it against every signup will read the invited half as a
+failure at a level they were never eligible for and were better off skipping.
+**A falling level 4 share is only bad news if placements are flat**; if it is
+falling because fewer arrivals need placing, that is § *The ending has no
+number* arriving, which is the outcome this whole feature is built to work
+itself out of.
+
+**And it is the one level that can be deleted.** Unset the hosts and nobody can
+reach 4 again; the level stays in this table describing something that used to
+happen, the way any level would if the surface it measures went away. **It does
+not renumber back** — the numbers below it are cited in too many places to move
+twice, and a gap that has to be explained once is cheaper than a shift
+everything downstream has to be re-read for.
 
 **Level 3 is the unusual one and it is load-bearing.** In almost every app it
 is a nice-to-have measured out of habit. Here a decline silently breaks the
@@ -276,49 +380,93 @@ the work it would measure.
 
 | # | Level | Lost here because |
 | --- | --- | --- |
-| 4 | **First mutual contact** | Nobody to ask, or the ask is awkward to make |
-| 5 | **Three mutual contacts** — the threshold the proposition names | Recruiting the second and third person is a different, harder act than recruiting the first |
-| 6 | **A channel with three or more members** | The reason to make one is not obvious from an empty app |
-| 7 | **First conversation** — two people present, audio exchanged | The empty room; nobody was there when they looked |
-| 8 | **First ping sent** | The answer to the empty room is not discoverable at the moment it is needed |
-| 9 | **Ping answered — somebody arrives** | The habit imported from telephony: ping, then put the phone out of reach, where a banner cannot fetch you |
-| 10 | **Second conversation, on a separate day** | **This is the conversion.** Below it the group exists; above it, it does not |
-| 11 | **Habit** — conversation in two of the last four weeks | Nothing here will ever nag them back, by design |
-| 12 | **Recommendation** — an invite link sent, and redeemed | Sending one requires a username and a reason, and nothing rewards it |
+| 5 | **First mutual contact** | Nobody to ask, or the ask is awkward to make |
+| 6 | **Three mutual contacts** — the threshold the proposition names | Recruiting the second and third person is a different, harder act than recruiting the first |
+| 7 | **A channel with three or more members, all of them the user's own contacts** | The reason to make one is not obvious from an empty app |
+| 8 | **First conversation** — two people present, audio exchanged, in such a channel | The empty room; nobody was there when they looked |
+| 9 | **First ping sent** | The answer to the empty room is not discoverable at the moment it is needed |
+| 10 | **Ping answered — somebody arrives** | The habit imported from telephony: ping, then put the phone out of reach, where a banner cannot fetch you |
+| 11 | **Second conversation, on a separate day** | **This is the conversion.** Below it the group exists; above it, it does not |
+| 12 | **Habit** — conversation in two of the last four weeks | Nothing here will ever nag them back, by design |
+| 13 | **Recommendation** — an invite link sent, and redeemed | Sending one requires a username and a reason, and nothing rewards it |
 
-**Level 10 is the conversion and everything above it is raw material.** A
+**Level 11 is the conversion and everything above it is raw material.** A
 dashboard that stops at level 2 is measuring the top third of a funnel whose
 economics live in the bottom third.
+
+**A getting-started cohort counts at none of the levels in this table, and the
+wording above is written to say so.** Added 2026-09-15. Levels 7 through 12 are
+about a channel of the user's *own contacts*, and a cohort is the one channel in
+the application that is nobody's: the server made it, no pair in it is a
+contact, and nobody in it can ping anybody. **So talking in a cohort is not a
+first conversation and two cohort days are not the conversion** — counting them
+would credit the app for a room nobody chose to be in, and would quietly report
+the growth hack as the growth.
+
+**Its level is 4, in the personal half above**, which is where an act somebody
+can complete alone belongs. The distinction is the whole of it: level 4 says the
+product has been *heard to work*, and every level from 5 down says somebody has
+people to work it with. **An account placed the hour it signs up can reach 4
+that afternoon and is no closer to level 5 than it was**, because the four
+people in the room with it are not candidates for it — nobody in this
+application becomes a contact by having been put somewhere.
+
+**This is a definition, not a discount.** The feature is worth having precisely
+because it does something the group levels do not measure; a funnel that
+absorbed it would stop being able to tell whether it worked. § *Cohorts
+contaminate three of those four* is the same rule stated against the reports
+that would otherwise break it.
 
 ### The three levels worth all the attention
 
 Named separately because the levels are not equally leaky, and the leaks are
 not where an install-shaped intuition puts them.
 
-- **5, the third contact.** Levels 4 and 5 look like the same act repeated and
+- **6, the third contact.** Levels 5 and 6 look like the same act repeated and
   are not. The first contact is somebody the user was already talking to about
   the app; the second and third require going and asking people who have heard
   nothing. This is where density is won or lost, and it is the level the
   recommender's tooling — username, Copy Invite Link, the link surviving a
   paste — exists to serve.
-- **9, the ping answered.** This is the central loop closing, and the
+- **10, the ping answered.** This is the central loop closing, and the
   proposition already documents the failure mode as *observed, and not a bug in
   anything*: somebody pings and then puts the phone away as though a call were
-  coming. It is the leading indicator for 10, and it is the one level where the
+  coming. It is the leading indicator for 11, and it is the one level where the
   fix is copy rather than product — ROADMAP item 2 is exactly this.
-- **12, the recommendation**, because it is the return leg. Levels 0 through 11
-  are a cost; 12 is the only one that pays for another pass through 0. **An app
-  with a strong 12 does not need most of this file.**
+- **13, the recommendation**, because it is the return leg. Levels 0 through 12
+  are a cost; 13 is the only one that pays for another pass through 0. **An app
+  with a strong 13 does not need most of this file.**
 
 ### What the shape implies
 
-**Paid spending enters at level 0 and has to survive twelve levels to be worth
-anything**, which is the quantitative version of the argument that CPI
-evaporates. A referral enters at level 1 *already past level 4* — the invite
+**Paid spending enters at level 0 and has to survive thirteen levels to be
+worth anything**, which is the quantitative version of the argument that CPI
+evaporates. A referral enters at level 1 *already past level 5* — the invite
 link makes the pair contacts outright — which is the quantitative version of
 the claim that the invite page, not the listing, is the top of the funnel.
 
-**And a guest link enters at level 7.** Somebody opening one is hearing
+**And a cold install now enters at 4 rather than at 5, while cohorts are on.** A
+placement puts somebody in a room of five and advances them no distance into the
+group half: no contact made, nobody they can ping, not one of levels 5 through
+12 reached. What it buys is the level above — **the app can be heard working
+before anybody has been asked for anything**, which is the one thing an empty
+install could never offer and the only reason to buy a cold install at all.
+
+**So the cohort's job is to make level 5 askable, not to skip it.** Every
+other arrival faces *first mutual contact* from an app they have never seen
+working; this one faces it having heard what the app is for. **Nothing is
+ticked off on their behalf** — the four people in the room are not candidates
+for level 5, since nobody here becomes a contact by having been put somewhere.
+
+**And the bet is a long one, because 4 is where it pays.** A cohort that talks
+happily for a month and produces no contact of the user's own has produced
+nothing this file counts, and that is the right verdict rather than a harsh one:
+the room was somebody else's, the server made it, and it ends when the hosts are
+unset. **Nothing predicts the 4-to-5 rate and nothing measures it yet** — it is
+the number the whole hack stands or falls on, and it is a level 5 number, not a
+level 7 one.
+
+**And a guest link enters at level 8.** Somebody opening one is hearing
 friends before they have an account, which is why the proposition calls it
 better than most viral primitives: it delivers the experience before the
 signup and skips the six levels that lose the most people.
@@ -352,7 +500,7 @@ cost.**
 
 - **First-party, server-side.** The server already sees every event in the
   funnel below level 3 — contacts forming, channels created, presence, pings
-  sent and answered, invites redeemed. Levels 4 through 12 are entirely
+  sent and answered, invites redeemed. Levels 5 through 13 are entirely
   derivable from tables that exist or from small additions to them. **No SDK,
   no client code, no data leaving the box**, and the privacy page changes from
   *there is no third-party analytics* to *there is no third-party analytics,
@@ -385,9 +533,9 @@ the listing links to it.
    nothing added to the app, and covers levels 0 through 2.
 2. **Apple Search Ads attribution**, inside the same boundary.
 3. **Server-side facts already in SQLite** — accounts, mutual pairs, channels,
-   membership, presence and the usage tables. Most of levels 4 through 11 are
+   membership, presence and the usage tables. Most of levels 5 through 12 are
    already there, unqueried.
-4. **Invite pin redemptions**, which are level 12 exactly, recorded because the
+4. **Invite pin redemptions**, which are level 13 exactly, recorded because the
    feature needs them to be.
 
 **Corrected 2026-09-14.** This section originally proposed writing
@@ -414,8 +562,8 @@ do not have to agree:
 
 Seven reports: `classes`, `weeks`, `months`, `depth`, `roots`, `islands`,
 `defects`. Read-only, run from outside the application, exactly the discipline
-`usage.ts` argues for. **It serves level 12 of § *The funnel* completely, and
-levels 4 and 5 obliquely** — islands are a better answer than the
+`usage.ts` argues for. **It serves level 13 of § *The funnel* completely, and
+levels 5 and 6 obliquely** — islands are a better answer than the
 pairs-per-account distribution this file originally asked for.
 
 **And it states its own limits**, which are worth repeating because they bound
@@ -429,12 +577,12 @@ and erased accounts and the two App Review accounts are excluded throughout.
 once as temp views, each report being the question it asks.
 
 - **`pairs`** — mutual contacts per person as a distribution rather than a
-  mean, which is levels 4 and 5. The mean would hide the thing worth knowing:
+  mean, which is levels 5 and 6. The mean would hide the thing worth knowing:
   an average of four is compatible with half of everybody having none.
 - **`channels`** — rooms by how many people are in them, and made per month.
-  Level 6, and full history, since channels are not swept.
-- **`talking`** — two people in a room together, by week. Levels 7 and 11.
-- **`groups`** — rooms used on more than one day. **This is level 10, the
+  Level 7, and full history, since channels are not swept.
+- **`talking`** — two people in a room together, by week. Levels 8 and 12.
+- **`groups`** — rooms used on more than one day. **This is level 11, the
   conversion**, and the reason the other three are there.
 
 **The memory is thirty days and that bounds two of the four.** The only durable
@@ -445,9 +593,57 @@ and reads as one that did not convert. Which makes a low number ambiguous and a
 high number trustworthy, the right way round for a figure nobody should be able
 to talk themselves into.
 
+### Cohorts contaminate three of those four, and the fix is a column
+
+**Added 2026-09-15.** The group half above was written on 2026-09-14, one day
+before `channels.cohort` existed, so **none of it knows a cohort from a
+group.** Switch the hosts on and `channels`, `talking` and `groups` begin
+counting rooms the server made out of strangers alongside rooms people built:
+
+- **`groups` is the damage**, because it is level 11 and level 11 is the
+  conversion. A cohort chatting on two separate days scores exactly as a book
+  club does, and § *The unit of acquisition is a group* says it is not one —
+  the proposition's group is three to five *specific people already known*. A
+  cohort is by definition none of that.
+- **The host is in every cohort**, so that contamination is not evenly spread;
+  it accumulates on one account's conversations.
+- **`pairs` is unaffected**, since placement makes no contacts. That is the
+  same structural fact as § *The cohort*: the contact graph does not hear about
+  any of this.
+
+**So the reports need `channels.cohort` split out before a single number from
+them is read against a campaign** — and *split*, not deleted, because the funnel
+now has a level that wants exactly the discarded half. Two rows rather than one:
+the funnel's own rows, which count channels of the user's contacts and are the
+only figures § *The funnel* is defined over; and the cohort rows, which are
+level 4 and are worth their own reading. An exclusion would have thrown away
+the evidence for the step this file has just added.
+
+**Level 4 is already measured, which none of the other gaps are.**
+`bin/cohorts` reports `entered` per cohort, from `everPresent` — a cohort at
+five seats and zero entered is a room nobody opened — so the newest level in
+the funnel is the one needing no instrumentation at all. What that script does
+not report is what happened next, and next is level 5, which `bin/growth`'s
+`pairs` already holds.
+
+**The kill rule survives untouched, and that is not luck.** § *The shape of the
+spend* judges a campaign by *first circle* and *onward*, which come from
+`invited_by`, and a placement writes no such row. The one number paid spending
+is judged on is the one number cohorts cannot inflate.
+
+**The ending has no number, and it should have one.** The decision ends this
+feature at *growth that no longer needs seeding* and leaves it there, which is
+the right condition and not yet a threshold anybody could act on. The natural
+gauge is already built: the **onward** share of arrivals in `bin/growth`'s
+`classes` and `weeks`, onward being growth that seeded itself by definition.
+**What that share has to reach is Rodrigo's call and is deliberately not
+invented here**; what this file asserts is only that the switch deserves a
+figure rather than an impression, since the person who turns it off is not
+necessarily the person who turned it on.
+
 ### What is still not measured
 
-**Levels 8 and 9 — the ping sent, and the ping answered.** `lastPingedAt` in
+**Levels 9 and 10 — the ping sent, and the ping answered.** `lastPingedAt` in
 `channels.ts` is an in-memory Map for rate limiting; nothing writes a ping to
 disk. So the moment somebody asks for company, and the moment it works, are
 both invisible — and § *The three levels worth all the attention* names the
@@ -467,7 +663,7 @@ notification permission outcome as a field on an existing request rather than a
 pipeline. **Amend `/privacy` in the same commit as either.**
 
 **Installs are deliberately not at the top of that report.** They are in App
-Store Connect, they are level 2 of thirteen, and putting them beside the right
+Store Connect, they are level 2 of fourteen, and putting them beside the right
 numbers invites somebody to optimise for them.
 
 ## Paid, since it is on the table
@@ -506,8 +702,8 @@ for the thing that compounds.
 **3. Nothing else, for now**, and specifically not broad-interest
 cost-per-install campaigns on any network. **Measurement is no longer the
 objection** — first-party counting will show what a campaign delivered as far
-down as level 10. The objection is the unit: broad CPI buys level-2 events
-that reliably fail to reach level 5, and better measurement of a campaign that
+down as level 11. The objection is the unit: broad CPI buys level-2 events
+that reliably fail to reach level 6, and better measurement of a campaign that
 buys the wrong thing tells you precisely how much was wasted rather than
 saving any of it. Revisit this when § *The funnel* shows a healthy 5 and 12,
 because a leaky funnel does not get fixed by putting more in at the top.
@@ -625,6 +821,29 @@ is a guess, and it is precisely the number the first campaign exists to find
 out. It is recorded here so that nobody budgets against the two-dollar figure,
 which is real and is the wrong unit.
 
+**Cohorts move that guess, and they are the reason to spend at all.** The
+recruitment rate above was estimated against an install that opens an empty
+app. A bought install now lands in a room with four people in it, one of whom
+answers — which is the difference between a product somebody can judge and a
+product somebody cannot. **It does not follow that the cost per seeded group
+falls**, and this file will not pretend otherwise: **what a bought install now
+reaches is level 4, and what it is bought for is level 13**, with the whole
+group half in between and the 4-to-5 step unmeasured. What can be said is that the
+twenty-to-thirty-dollar figure was computed against a cold start that no longer
+exists, so it is now wrong in an unknown direction.
+
+**The host is the ceiling, not the cost per tap, and this is the constraint
+nobody has costed.** Every cohort accumulates on one host's Home — the decision
+names that as a real cost, not yet paid — and the promise the whole feature
+makes is *one of whom is there to answer*. At roughly a dollar a tap and
+something like half of taps installing, the $25-a-day test below is on the order
+of a dozen installs a day, three cohorts a day, and **something like eighty
+cohorts over four weeks, all on one Home, each expecting a human being.** That
+is not a budget question and no amount of money fixes it. **So size the campaign
+to what the host can answer, or name the second host first** —
+`COHORT_HOST_IDENTIFIERS` is an ordered list precisely so that a second is
+configuration rather than code.
+
 **Which sizes the test.** Tier 1 volume is small enough that the spend may be
 hard to place at all, which § *Paid* already counts as a feature. Something
 like **$20–30 a day for four weeks**, six to eight hundred dollars, then **three
@@ -654,7 +873,7 @@ one, which is the scattered-install failure made visible for once. Installs
 will look fine throughout and mean nothing.
 
 **The lag is part of the rule and has to be budgeted for.** Recruiting the
-second and third person is level 5 and is slower than arriving; a read taken
+second and third person is level 6 and is slower than arriving; a read taken
 the week the spend ends is taken before the only number that matters has had
 time to move.
 
@@ -747,6 +966,39 @@ file's subject:
   contacts, no address-book upload, no *people you may know*, no public
   channels to browse. **Growth that requires relaxing this is growth that
   dismantles the product.**
+
+  **The getting-started cohort is the one exception, it is named as an
+  exception, and it is temporary.** Recorded 2026-09-15 rather than left to be
+  discovered as a contradiction between this file and the shipped app. What it
+  does not do is the load-bearing half: **it forms no contact, so it connects
+  nobody to anybody in the sense this rule means.** No directory, no search, no
+  suggestion, nobody findable, and — because every gate in the server is on the
+  contact graph rather than on the roster — **nobody in it can ping you.**
+  § *The cohort, which is scaffolding and not an asset* has the mechanism. It
+  happens once, at signup, only to somebody who arrives with nobody, and
+  **emptying `COHORT_HOST_IDENTIFIERS` ends it in one restart.** Two pending
+  tasks would narrow it further still — `cohorts-are-opt-in` and
+  `cohorts-are-only-for-users-who-enabled-notifications`, both stubs as this is
+  written, and the first would remove the involuntary half altogether.
+
+  **The rule is not suspended and nothing else inherits this.** A bounded
+  exception with a written ending is not a precedent for the next tactic that
+  would like one: suggested contacts, address-book upload and browsable
+  channels remain forbidden, and each fails on the test this exception passes —
+  they make the app a place to *find* people. This one makes it a place where
+  four arrivals can see what the app is before they go and get their own.
+
+- **The cohort may not be advertised, and this one is new.** Nothing in any
+  creative, Custom Product Page, store field, landing page or community post
+  may offer being put in a room with other people — no *meet people*, no *join
+  a community*, no *you won't be alone*. Three reasons, and the first is
+  sufficient: it sells an application nobody here wants to have built, and
+  would bring the readers a directory would have brought. Second, it is
+  scheduled to be switched off, and copy outlives the feature it describes.
+  Third, LISTING.md's rule that every claim be checkable in the shipped build
+  cuts against advertising something gated on an environment variable that is
+  empty today. **The cohort is what the app does when somebody arrives alone,
+  not a reason given to them for arriving.**
 - **No alarm a sender can choose** — which forbids advertising one, above.
 - **Not chat** — which forbids positioning against messengers. The app supplies
   the room and the thread supplies the *when*; copy that claims to replace the
@@ -780,7 +1032,7 @@ What to do, in order, and what each is waiting on.
    deploy.
 3. **Instrument the ping, and the notification permission.** `bin/growth`
    now covers arrivals, the contact graph, channels and the conversion at
-   level 10 — done 2026-09-14. What is left are the two things no table holds:
+   level 11 — done 2026-09-14. What is left are the two things no table holds:
    a ping and its answer, which is the leakiest point in the funnel, and
    whether the permission was ever granted. Both are small. **Amend `/privacy`
    in the same commit as either**, since the page is a live public claim and
@@ -789,9 +1041,20 @@ What to do, in order, and what each is waiting on.
    hand — `assets/store/` holds the five, three of them serving the landing
    page, including the lock screen that carries the central claim. What does
    not exist is anything *composed* rather than captured: a Product Hunt
-   gallery, a social card, an Instagram frame. Blocks 6 and 7 and nothing
+   gallery, a social card, an Instagram frame. Blocks 7 and 8 and nothing
    above them.
-5. **Apple Search Ads**, small, on the complaint keywords. First among paid
+5. **Switch the cohorts on, and split them out of `bin/growth`.** Added
+   2026-09-15, and it sits here because **it is what paid spending lands
+   into.** Three things in order: release a build of 206 or later, so the card
+   that explains the channel is on the phone the placement happens to — the
+   ordering is in `server/.env.example` and is not negotiable, since an older
+   build shows the room and no reason for it; name the host or hosts in
+   `COHORT_HOST_IDENTIFIERS`; and split `channels.cohort` out of `channels`,
+   `talking` and `groups` before those numbers are read against anything, per
+   § *Cohorts contaminate three of those four*. The last is small and is much
+   worse to do afterwards, when a campaign's result is already mixed into the
+   baseline.
+6. **Apple Search Ads**, small, on the complaint keywords. First among paid
    because its attribution needs nothing installed and the intent is already
    present.
 
@@ -799,13 +1062,18 @@ What to do, in order, and what each is waiting on.
    § *The shape of the spend* judges a campaign by what grows *underneath* the
    roots it buys — first circle and onward — and `bin/growth`'s `classes`,
    `weeks` and `roots` already report exactly that. Item 3 tells you *why* a
-   funnel leaks at level 9; it is not needed to tell whether a campaign
+   funnel leaks at level 10; it is not needed to tell whether a campaign
    worked. **So this is unblocked now.**
 
-   **What it is genuinely waiting on is 2**, and that ordering is not
-   negotiable: Search Ads sends people to the App Store product page, so
-   buying traffic before the listing is right pays to show strangers a
-   description that still does not mention the invite link.
+   **What it is genuinely waiting on is 2 and 5**, and neither ordering is
+   negotiable. Search Ads sends people to the App Store product page, so buying
+   traffic before the listing is right pays to show strangers a description
+   that still does not mention the invite link. And **5 is what the traffic
+   arrives into**: a campaign bought while the cohorts are off is a campaign
+   spent on the empty app this file spends its whole argument saying not to buy
+   — every tap landing on two empty lists and a ladder that says *go and get
+   somebody*. Buying the alone arrival is defensible exactly when there is
+   something for them to arrive at.
 
    **The buy itself is now specified** — § *The keyword list, in three tiers*
    holds the terms, the negatives and the campaign structure, and § *What a
@@ -814,9 +1082,9 @@ What to do, in order, and what each is waiting on.
    Custom Product Pages, which are the only creative lever Apple Ads has, and
    the brand-defence negatives against flooring, which cost nothing and are
    pure waste until they exist.
-6. **The launch surfaces**, once 4 exists, because a Product Hunt post without
+7. **The launch surfaces**, once 4 exists, because a Product Hunt post without
    imagery is a post that was not made.
-7. **Group-affinity social**, last, because it is the most expensive to do
+8. **Group-affinity social**, last, because it is the most expensive to do
    well and the hardest to read. **Video belongs here rather than earlier**,
    and the format that works is a comparison rather than a demo — two phones,
    one ringing and one not — because that is the only way to make a non-event
