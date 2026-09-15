@@ -4,6 +4,7 @@ import {
   chime,
   CHIME_AMPLITUDE,
   CHIME_LEAD,
+  chimeArity,
   chimeInfo,
   configureSession,
   prepareChime,
@@ -374,6 +375,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     peak: string;
     lead: string;
     path: string;
+    arity: number | null;
     played: boolean;
     outputs: string;
     through: string;
@@ -479,6 +481,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
       peak,
       lead,
       path,
+      arity: chimeArity(),
       played,
       outputs,
       through: through(here?.outputs),
@@ -884,6 +887,16 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
             <Reading label="lead" value={`${lastChime.lead}s`} />
             <Reading label="path" value={lastChime.path} />
             <Reading
+              label="signature"
+              value={
+                lastChime.arity == null
+                  ? 'none accepted'
+                  : lastChime.arity === 4
+                    ? '4 args — this bundle'
+                    : `${lastChime.arity} args — older binary`
+              }
+            />
+            <Reading
               label="native"
               value={
                 lastChime.played
@@ -908,6 +921,14 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         Read after the sound, not before: a system sound plays through the
         route the session is on at that moment, so the reading is only evidence
         if it is taken then.
+      </Text>
+      <Text style={styles.note}>
+        Signature is the one to check when a change appears to have done
+        nothing. Fewer than 4 args means the binary is older than this bundle
+        and is playing the sound with the later arguments baked in — so the lead
+        and path above are what these chips asked for and not what was heard.
+        The call steps down rather than throwing, which it used to do, turning
+        every signature change into a silence of its own.
       </Text>
     </Screen>
   );

@@ -417,23 +417,85 @@ export function chimeInfo(): ChimeInfo | null {
  * @param via which path to play it down. `system` is the alert path with no
  * gain, which is what the app ships; `player` is the media path at full gain.
  * The lab is the only caller that passes the second.
- * @returns whether it played. False means no module, a native half older than
- * this function, or — since the argument became a string, and since a second
- * argument joined it — a binary that still expects the boolean, which is every
- * build up to and including 206. There is no fallback: a buzz cannot say
- * *which* of the three happened, and that distinction is the whole cue.
+ * @returns whether it played. False means no module, or a native half with no
+ * `chime` at all.
+ *
+ * **It no longer means "the binary is older than this bundle", and that change
+ * is the point.** An Expo `Function` throws when it receives more arguments
+ * than it declares — `validateArgumentsNumber` in `expo-modules-core`, on
+ * `received > argumentsCount` — and the catch here turned that into `false`
+ * and exact silence. `chime`'s signature moved four times on 2026-09-15 while
+ * a quiet chime was being chased, and each move produced a *fresh* silence in
+ * any bundle running ahead of its binary, arriving in the middle of debugging
+ * the original fault and looking exactly like it.
+ *
+ * So the call negotiates down: four arguments, then three, then two, then one,
+ * keeping the first form the binary accepts. An older binary plays the sound
+ * with the later arguments baked in rather than not playing at all, and
+ * `chimeArity` says which form was taken so a lab is not reading a lead or a
+ * path off its chips that the sound never had. See planning/SHIMS.md.
  */
+let acceptedArity: number | null = null;
+
+/**
+ * Calls the first form a binary will accept, and says which one that was.
+ *
+ * Exported so it can be tested, which the rest of this module cannot be: `load`
+ * returns null off iOS, so under jest there is no native half to negotiate
+ * with and the one piece of logic here that can silently swallow a cue would
+ * have no coverage at all.
+ *
+ * **Only an argument-count refusal is worth stepping down for**, but the
+ * exception carries no type worth matching on from here, so every throw is
+ * retried. A fault that is not about the count throws on every form, the loop
+ * runs out, and the answer is the same `false` it would otherwise have been —
+ * at the cost of three more calls on a path that is already failing.
+ */
+export function playFirstAccepted(
+  play: (...args: unknown[]) => boolean,
+  forms: unknown[][]
+): { played: boolean; arity: number | null } {
+  for (const args of forms) {
+    try {
+      return { played: play(...args), arity: args.length };
+    } catch {
+      // Wrong count for this binary; try the next form down.
+    }
+  }
+  return { played: false, arity: null };
+}
+
 export function chime(
   kind: ChimeKind | ChimeCandidate,
   amplitude: number = CHIME_AMPLITUDE,
   lead: number = CHIME_LEAD,
   via: ChimePath = 'system'
 ): boolean {
-  try {
-    return native?.chime?.(kind, amplitude, lead, via) ?? false;
-  } catch {
-    return false;
-  }
+  const play = native?.chime;
+  if (play == null) return false;
+  // Richest first, and every shorter call is the same sound with a later
+  // argument left at whatever that binary bakes in.
+  const result = playFirstAccepted(play as (...a: unknown[]) => boolean, [
+    [kind, amplitude, lead, via],
+    [kind, amplitude, lead],
+    [kind, amplitude],
+    [kind],
+  ]);
+  acceptedArity = result.arity;
+  return result.played;
+}
+
+/**
+ * How many arguments the binary's `chime` turned out to take, or null before
+ * one has been played or if none of the forms was accepted.
+ *
+ * **Four means this bundle's own signature; fewer means an older binary** that
+ * is playing the sound with the later arguments baked in — so a lab reading a
+ * lead or a path off its own chips is reading something the sound did not
+ * have. The lab prints it for that reason.
+ */
+export function chimeArity(): number | null {
+  return acceptedArity;
 }
 
 /**

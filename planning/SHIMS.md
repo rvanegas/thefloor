@@ -474,3 +474,32 @@ current server exactly as much as against an old one.
 
 Gate 206 because build 205 is already tagged: the client that speaks this ships
 in the next upload.
+
+## `chime` negotiates its own argument count
+
+**Gate: none. This one is not waiting for a floor**, and is the only entry here
+that is not — it is listed because it is exactly the shape of thing this file
+exists to keep track of, and because deleting it would be silent.
+
+`modules/audio-route/index.ts` calls the native `chime` with four arguments,
+then three, then two, then one, keeping the first form the binary accepts.
+
+**What it protects is development, not installs.** An Expo `Function` throws
+when it receives more arguments than it declares —
+`validateArgumentsNumber` in `expo-modules-core`, on `received > argumentsCount`
+— and the caller's `catch` turned that into `false`, which is exact silence.
+On 2026-09-15 `chime`'s signature moved four times in a day while a quiet chime
+was being chased, and each move silenced any bundle running ahead of its binary:
+a new symptom, arriving mid-investigation, wearing the face of the one being
+investigated. A JavaScript reload does not rebuild native code, so this is the
+normal state of a working session, not an edge case.
+
+**So it goes when the signature stops moving, and not before.** There is no
+build number that frees it — the thing it shims is the gap between a Metro
+bundle and the binary under it, which has no floor. `chimeArity()` reports which
+form was taken and the lab prints it, so a reading taken off chips the sound
+never had is visible rather than assumed.
+
+Covered by `app/src/audio/__tests__/chimeArity.test.ts`, which is the only jest
+coverage this module has: `load()` returns null off iOS, so everything else in
+it is a null check under test.
