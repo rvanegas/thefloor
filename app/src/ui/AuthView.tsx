@@ -17,8 +17,7 @@ import { colors, spacing, type } from './theme';
  * replaced by typing here or on the Contact screen.
  */
 export function AuthView() {
-  const { requestCode, verify, lastError, clearError, signedInBefore } =
-    useApp();
+  const { requestCode, verify, lastError, clearError, signedInHere } = useApp();
   const [step, setStep] = useState<'identify' | 'verify'>('identify');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
@@ -155,14 +154,21 @@ export function AuthView() {
               where it can also be turned off; asking them again at the door
               would be asking a question whose answer we already hold.
 
-              `signedInBefore` is a guess and is the only signal there is:
+              `signedInHere` is a guess and is the only signal there is:
               nothing here can know whether this address has an account,
               because `/auth/request-code` answers identically either way so
               that sign-in cannot be used to ask which addresses exist — and by
               the time the server could say, the code has been spent. What the
-              app can know is whether this install has ever held a session. It
-              is wrong in two directions, both of which cost one checkbox; see
-              `SIGNED_IN_BEFORE_KEY` in state/AppProvider.tsx.
+              app can know is the address that last signed in on this install,
+              and whether the one being typed is it. **So the question it
+              answers is about the person and not merely about the handset**: a
+              phone that has held somebody else's account offers the box to the
+              next person to sign up on it, which a bare "somebody has signed
+              in here" flag did not. What it still cannot see is a second
+              device, which has no record and asks again — harmless, this being
+              a grant and never a withdrawal. See `LAST_IDENTIFIER_KEY` in
+              state/AppProvider.tsx, which carries what keeping that address
+              costs.
 
               **It is on this step rather than the first, and inline rather
               than a step of its own.** This is the step that creates the
@@ -175,7 +181,7 @@ export function AuthView() {
               Clear by default, and nothing pre-ticks it: an opt-in that
               arrives ticked is not one.
             */}
-            {signedInBefore ? null : (
+            {signedInHere(identifier) ? null : (
               <Checkbox
                 label="Email me occasionally about The Floor — how to use it, and what is new."
                 checked={marketingEmail}

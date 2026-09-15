@@ -62,25 +62,50 @@ import {
 
 const TOKEN_KEY = 'thefloor.token';
 /**
- * Whether anybody has ever been signed in on this install.
+ * The address most recently signed in on this install.
  *
- * Written the first time a session exists here — a fresh sign-in, or a token
- * restored at boot — and **never removed**, which is the whole of what makes
- * it useful: signing out does not make somebody a new user, and this is the
- * only signal the sign-in screen has about which kind of person is looking at
- * it. The server cannot tell it: `/auth/request-code` deliberately answers the
+ * Written when a sign-in succeeds and **never removed** except by *Forget this
+ * phone*: signing out does not make somebody a new user, and this is the only
+ * signal the sign-in screen has about which kind of person is looking at it.
+ * The server cannot tell it — `/auth/request-code` deliberately answers the
  * same whether or not an address has an account, so that sign-in cannot be
  * used to ask which addresses exist, and by the time the answer is knowable
  * the code has already been spent.
  *
- * So it is a guess, and it is wrong in two directions that both cost the same
- * small thing — a checkbox shown once too often, or once too few. A returning
- * person on a new phone is offered the marketing opt-in again; somebody
- * signing up on a phone that has held another account is not asked, and finds
- * the same setting on Floor Settings. Neither can grant or revoke anything by
- * itself, which is what makes a guess affordable here and would not elsewhere.
+ * **One address rather than a list, and the most recent one.** What it buys
+ * over a bare "somebody has signed in here" flag is the phone that has held
+ * two accounts: a person signing up on a friend's handset types an address
+ * this key does not match and is offered the opt-in, where a flag would have
+ * taken them for a returning user and asked nothing. A list would extend that
+ * to every account a device has ever held, which is more addresses at rest for
+ * a case that is rarer than the one this covers.
+ *
+ * **It is the one piece of data this app keeps on a device that identifies a
+ * person**, so it is worth knowing where it sits: the keychain on iOS, which
+ * outlives deleting the app, and `localStorage` in a browser. Plaintext, and
+ * deliberately — it is somebody's own address on somebody's own device, which
+ * is no secret from them, and hashing would only have obscured it from the one
+ * reader it could never be hidden from anyway. *Forget this phone* is what
+ * clears it; see `INSTALL_KEYS`.
+ *
+ * **What it cannot do is the reason it is affordable.** It decides whether one
+ * checkbox is drawn. A second phone has no record of any address and so asks
+ * again, which is harmless: that box is a grant and never a withdrawal, so
+ * ticking it twice keeps the first date and leaving it clear takes nothing
+ * away. See `marketingEmail` in core/settings.ts.
  */
-const SIGNED_IN_BEFORE_KEY = 'thefloor.signedInBefore';
+const LAST_IDENTIFIER_KEY = 'thefloor.lastIdentifier';
+
+/**
+ * Whether two addresses name the same person, matched the way the server
+ * matches them — trimmed, and case-insensitively, since `byIdentifier` looks
+ * up `COLLATE NOCASE`. `sameIdentifier` in server/src/accounts.ts is the same
+ * rule; a stricter one here would re-ask somebody who typed their own address
+ * with a capital letter this time.
+ */
+function sameIdentifier(x: string, y: string): boolean {
+  return x.trim().toLowerCase() === y.trim().toLowerCase();
+}
 /**
  * Whether a tap on a channel walks into it, or only opens it — cached from
  * what the server last said this account had chosen.
@@ -688,15 +713,20 @@ interface AppValue extends AppState {
   marketingEmail: boolean;
   setMarketingEmail: (value: boolean) => void;
   /**
-   * Whether anybody has ever been signed in on this install.
+   * Whether this address is the one that last signed in on this install.
    *
    * Read by the sign-in screen and by nothing else: the marketing opt-in is
    * offered to somebody signing up and not to somebody coming back, who has
    * answered it once already and has it on Floor Settings. **A guess, and the
-   * only one available** — see `SIGNED_IN_BEFORE_KEY`, which carries why the
-   * server cannot answer this and why being wrong about it is affordable.
+   * only one available** — see `LAST_IDENTIFIER_KEY`, which carries why the
+   * server cannot answer this, what it costs to keep, and why being wrong
+   * about it is affordable.
+   *
+   * A predicate rather than the address itself, so that the one place holding
+   * somebody's address stays this file: a screen that could read it could draw
+   * it, and nothing should.
    */
-  signedInBefore: boolean;
+  signedInHere: (identifier: string) => boolean;
   /**
    * Whether this install should be asked to turn notifications on, and what it
    * takes to do it.
@@ -902,23 +932,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     DEFAULT_ACCOUNT_SETTINGS.marketingEmail
   );
   /**
-   * Whether this install has ever held a session, read once at start.
+   * The address last signed in here, read once at start.
    *
-   * False until the read comes back, which is the right way round for what
+   * Null until the read comes back, which is the right way round for what
    * reads it: the sign-in screen shows the opt-in to somebody it takes for
    * new, and a box appearing a frame late on a returning person's screen is a
    * smaller wrong than one that flickers away under a thumb.
    */
-  const [signedInBefore, setSignedInBefore] = useState(false);
+  const [lastIdentifier, setLastIdentifier] = useState<string | null>(null);
   useEffect(() => {
     void (async () => {
-      if (await storage.get(SIGNED_IN_BEFORE_KEY)) setSignedInBefore(true);
+      const stored = await storage.get(LAST_IDENTIFIER_KEY);
+      if (stored) setLastIdentifier(stored);
     })();
   }, []);
-  /** Idempotent, and called from both places a session begins. */
-  const markSignedIn = useCallback(() => {
-    setSignedInBefore(true);
-    void storage.set(SIGNED_IN_BEFORE_KEY, 'true');
+  /** Called where a sign-in succeeds, which is the one place the address is known. */
+  const rememberIdentifier = useCallback((identifier: string) => {
+    const trimmed = identifier.trim();
+    setLastIdentifier(trimmed);
+    void storage.set(LAST_IDENTIFIER_KEY, trimmed);
   }, []);
   /**
    * Takes the account's settings as the server states them, whichever device
@@ -1207,11 +1239,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const home = await api.home(token);
         if (cancelled) return;
         setState((s) => ({ ...s, ready: true, token, home }));
-        // A restored session is a session this install has held, which is what
-        // the key means; it is written here as well as at sign-in so that an
-        // install from before the key existed stops looking new the first time
-        // it starts up.
-        markSignedIn();
         connect(token);
       } catch (error) {
         // An expired or revoked token should land on sign-in, not an error.
@@ -1741,7 +1768,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      signedInBefore,
+      signedInHere: (identifier) =>
+        lastIdentifier !== null && sameIdentifier(identifier, lastIdentifier),
       marketingEmail,
       setMarketingEmail: (value) => {
         setMarketingEmailState(value);
@@ -1764,7 +1792,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           marketingEmail
         );
         await storage.set(TOKEN_KEY, token);
-        markSignedIn();
+        rememberIdentifier(identifier);
         setState((s) => ({ ...s, token, me: account, lastError: null }));
         connect(token);
       },
@@ -2227,8 +2255,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       labs,
       chimeAmplitude,
       marketingEmail,
-      signedInBefore,
-      markSignedIn,
+      lastIdentifier,
+      rememberIdentifier,
       forgetSettings,
       expiry,
     ]

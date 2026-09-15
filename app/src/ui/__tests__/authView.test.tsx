@@ -55,9 +55,9 @@ const mockApp = {
   ),
   lastError: null as string | null,
   clearError: jest.fn(),
-  // The default is somebody the app has never seen sign in, which is the
-  // person the opt-in is for. Individual tests set it the other way.
-  signedInBefore: false,
+  // Nobody has signed in on this install, which is the state the opt-in is
+  // drawn for. Individual tests give it an address to recognise.
+  signedInHere: jest.fn((_identifier: string) => false),
 };
 
 jest.mock('../../state/AppProvider', () => ({
@@ -130,8 +130,8 @@ function render(): ReactTestRenderer {
 
 beforeEach(() => {
   embedded.value = false;
-  mockApp.signedInBefore = false;
   jest.clearAllMocks();
+  mockApp.signedInHere.mockReturnValue(false);
 });
 
 describe('the embedded-browser notice', () => {
@@ -212,13 +212,29 @@ describe('the marketing email opt-in', () => {
    * The rule the box exists under: a person coming back has answered this
    * once, and has it on Floor Settings where it can also be turned off.
    */
-  it('is not offered on an install that has been signed in before', async () => {
-    mockApp.signedInBefore = true;
+  it('is not offered to the address that last signed in here', async () => {
+    mockApp.signedInHere.mockImplementation(
+      (identifier: string) => identifier === 'anna.k@example.com'
+    );
     const tree = render();
     await reachTheCodeStep(tree);
+    expect(mockApp.signedInHere).toHaveBeenCalledWith('anna.k@example.com');
     expect(findCheckbox(tree)).toBeUndefined();
     // The step it is missing from is still the step: nothing else moved.
     expect(findButton(tree, 'Sign in')).toBeDefined();
+  });
+
+  /**
+   * The case one address buys over a bare "somebody signed in here" flag: a
+   * handset that has held another account is a new person's handset too.
+   */
+  it('is offered to a different address on a phone that has held one', async () => {
+    mockApp.signedInHere.mockImplementation(
+      (identifier: string) => identifier === 'somebody.else@example.com'
+    );
+    const tree = render();
+    await reachTheCodeStep(tree);
+    expect(findCheckbox(tree)).toBeDefined();
   });
 
   it('is offered with the code, and starts clear', async () => {

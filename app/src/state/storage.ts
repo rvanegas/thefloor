@@ -72,13 +72,13 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.help.seenAnsweredAt',
   'thefloor.cohort.dismissed',
   'thefloor.handover',
-  // Whether this install has ever held a session — `AppProvider`. Listed here
-  // like everything else, and so cleared by *Forget this phone*, which is the
-  // one place it should be: that control exists to make a phone look like a
-  // fresh install, and a key whose whole job is to say this install is not
-  // fresh would be the one thing left contradicting it. Signing out does not
-  // touch it, deliberately.
-  'thefloor.signedInBefore',
+  // The address last signed in here — `AppProvider`. **The only key in this
+  // list that names a person**, which is why it is worth saying twice that it
+  // is cleared by *Forget this phone*: that control exists to make a handset
+  // look like a fresh install, and this is the one thing that would otherwise
+  // still know who used it. Signing out does not touch it, deliberately —
+  // signing out is not becoming somebody else.
+  'thefloor.lastIdentifier',
   'thefloor.seat.channel',
   'thefloor.invite',
   'thefloor.train',

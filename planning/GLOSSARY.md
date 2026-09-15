@@ -724,11 +724,17 @@ the permission may be withdrawn.
 **Whether somebody is new is a guess, and deliberately so.**
 `/auth/request-code` answers identically whether or not an address has an
 account, so that sign-in cannot be used to ask which addresses exist — which
-means nothing at the door can know. What the app knows is whether *this
-install* has ever been signed in. It is wrong in two directions and each costs
-one checkbox: a returning person on a new phone is asked again, and somebody
-signing up on a phone that has held another account is not asked and finds the
-switch on Floor Settings. See `SIGNED_IN_BEFORE_KEY`.
+means nothing at the door can know. What the app keeps instead is **the address
+that last signed in on this install**, and the box is drawn unless the one
+being typed is it. So a phone that has held somebody else's account still
+offers the opt-in to the next person to sign up on it.
+
+It is wrong in one direction, and cheaply: a second device has no record and
+asks again, which takes nothing away — the box is a grant and never a
+withdrawal, so ticking it twice keeps the first date and leaving it clear
+changes nothing. **It is also the only thing this app stores on a device that
+names a person**, in the keychain on a phone and in `localStorage` in a
+browser, and *Forget this phone* is what clears it. See `LAST_IDENTIFIER_KEY`.
 
 The date rather than a 1, on the reasoning the four `tried_` columns are
 stamps. Granting again while it holds keeps the original date; withdrawing
