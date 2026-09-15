@@ -24,6 +24,8 @@ rather than invented here.
   consequence of.
 - **What is already built** — the assets inventory, and the one most apps in
   this category have to buy.
+- **Who else is on the field** — the competitors, sorted by which claim each
+  contests, and the two things that changes for the copy.
 - **The funnel is upside down** — the guest page and the invite page are the
   top of it; the listing is the middle.
 - **The funnel, level by level** — the thirteen levels, what each one loses
@@ -129,6 +131,89 @@ constant.
 
 The same principle carries to video, and is why the format there is a
 comparison rather than a demo — § *The sequence* item 7.
+
+## Who else is on the field
+
+**Added 2026-09-14.** LAUNCH.md names three competitors and concedes the fight
+in the right direction — *this app loses a feature comparison to Discord, Zello
+and the platform walkie-talkies, all of which have more of everything; it wins
+the argument about what the ring is for.* That judgement stands. What follows
+is only who is actually on the field now, because two of the entries below
+postdate that sentence and one of them is a company that ran the same diagnosis
+this one did.
+
+**The useful sort is not by feature but by which claim each contests**, since
+the app makes three and they are defended separately.
+
+**1. The room you drop into — contesting *nothing rings*.**
+
+- **Discord**, still the nearest true thing said, and LAUNCH.md § *The
+  objections* already holds the answer: the difference is not features but who
+  is in it. A server is a place you join; this has no directory, no search and
+  no strangers, everybody agreed twice, and the floor is enforced on the audio
+  because there are no moderators by design.
+- **WhatsApp group voice chats**, which are not in LAUNCH.md and are the entry
+  worth the most attention. WhatsApp shipped join-when-you-like group voice —
+  no ring — into a surface that already contains every contact the target
+  reader has. It concedes the exact affordance the thesis is built on, for
+  free, inside the network effect this app has to build by hand. **This is the
+  competitor that matters**, and the honest answer to it is the contact graph
+  and the floor, not the absence of a ring.
+- **Telegram voice chats**, the same shape with less reach here.
+
+**2. Voice with a waiting state — contesting *voice has no later*.**
+
+- **Clubhouse**, which did not die and is the instructive case. After cutting
+  past half its staff it **pivoted its core product from live drop-in rooms to
+  asynchronous voice messaging** — a company arriving at PROPOSITION.md §
+  *What the ring actually buys* from the opposite end of the same problem.
+- **Airchat**, threaded asynchronous voice posts with automatic transcription,
+  still running. Its transcription bet is the one the recordings half of this
+  app makes. It is a public network rather than a closed graph, so it contests
+  the thesis at the second scale and not at the first.
+- **Marco Polo**, asynchronous messages to people you actually know. The most
+  commercially proven version of *voice with a later*, and the answer a great
+  many ordinary people have already given to this problem.
+
+**3. The floor mechanic — contesting *who speaks*.** Zello, Voxer, the Apple
+Watch walkie-talkie. LAUNCH.md objection 2 remains correct and remains the
+answer: those are half-duplex by design, and the floor here is a claim for
+finishing a thought inside an open conversation rather than the standing mode.
+
+### The two things this changes for the copy
+
+**Nobody occupies the square, and that is the positioning.** The combination —
+mutual-consent contact graph, no ring by construction, open conversation with a
+server-enforced floor — has no direct competitor. Discord has the rooms without
+the graph, Marco Polo the graph without synchrony, Zello a floor that is the
+wrong shape. The copy should never assert this, because asserting it invites
+the grid; it should be *true*, so that a reader who goes looking finds nothing
+closer.
+
+**But the incumbent is a default, not a company.** The thing most readers have
+to be argued out of is *just send a voice note* or *just text them*.
+PROPOSITION.md already knows this — *texting won on intrusiveness, not on
+convenience* — but files it as evidence for the thesis rather than as the
+competitor. It is both, and it is the one holding the market. **Copy that
+answers only Discord and Zello is answering the objections of people who
+already agree**, which is a smaller audience than it feels like from inside the
+argument.
+
+**Nothing here changes the naming rule.** LISTING.md and DESCRIPTION.md both
+forbid naming any competitor in store copy — a 4.1 exposure, and positioning
+rather than describing — and § *What marketing may not do* forbids positioning
+against messengers at all. Naming one in a comment thread where somebody else
+raised it stays fine and expected. The place this section is spent is the
+objections, not the listing.
+
+**The outstanding edit is LAUNCH.md's.** Its objections section predates
+WhatsApp group voice being ubiquitous and predates Clubhouse's pivot, and has
+no paragraph for either. That is standing launch copy and changing it is a
+separate decision from recording this.
+
+**These two are perishable and were checked on 2026-09-14**, by search rather
+than from a product page; a session acting on either after some months should
+check again rather than trust this paragraph.
 
 ## The funnel is upside down
 
