@@ -14,24 +14,15 @@ would not recover either.
 
 ## What was settled, on 2026-09-15
 
-`journalctl` on the box retains back to 2026-08-09, so the original incident was
-still there to measure, which nobody had done. On 2026-08-24 the top token
-opened `/ws` 491 times; **451 of the 490 gaps between those opens were nine or
-ten seconds**, the reconnect backoff's cap, dead on, for about seventy-five
-minutes.
+The phone half is answered and has moved to
+decisions/2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md,
+which carries the histogram and what it proves. In one line: the journal
+retained the 2026-08-24 window all along, 451 of the 490 gaps between that
+token's 491 opens were nine or ten seconds — the backoff cap, dead on — and the
+mechanism that fit was the mechanism. It has not recurred on any native device.
 
-That is the observation this entry was opened for, and it is stronger than the
-entry hoped for. A socket that opens successfully resets `reconnectAttempt` to
-zero, so the next gap would be half a second. Hundreds of consecutive gaps *at
-the cap* mean the client counted no successful opens at all — while the server
-logged and accepted every one of the 491. **The discrepancy is the bug**: an
-open socket the client had disowned, exactly as the stale-socket fault
-predicted. The mechanism that fit was the mechanism.
-
-It has not recurred. The same query across September finds seven gaps in the
-nine-to-ten-second band in total, scattered over a fortnight, with no runs; and
-no native device has exceeded seventeen opens in a day since the fix. On the
-platform this was diagnosed on, it is over.
+**The evidence lives there and not here**, because this file deletes itself when
+the rest is done.
 
 ## What is outstanding: the web app, at twenty seconds
 
@@ -98,9 +89,9 @@ lines to `client=web`:
 `ageMs` clustering near 19,500 also confirms the socket is opening and being
 killed rather than failing to open, which is the one step still inferred above.
 
-**Then close this entry**, moving the 2026-08-24 account to decisions/ — the
-histogram is the evidence that a diagnosis was right, and it should not be left
-in a backlog file that deletes itself.
+**Then delete this file.** Nothing needs moving to decisions/ first — the
+2026-08-24 account is already there, and what is left here is only the web
+fault and the read that settles it.
 
 ## Two things found alongside, neither of them this
 

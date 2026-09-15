@@ -155,7 +155,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 549 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 542 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -463,31 +463,24 @@ and before believing a restart is free.**
 
 ### Credentials
 
-Eight, deliberately separate, so no single leak is worse than it has to be: the
-self-issued **LiveKit** key that mints join tokens for any room,
-**`thefloor-egress`** (PutObject only), **`thefloor-server`** (SES plus
-recordings `GetObject`, and the configuration-set trap that scopes an SES policy
-wrongly everywhere else), the **APNs `.p8`**, the **App Store Connect key** and
-its Admin-role requirement, the **Ko-fi verification token**, and the
-**AssemblyAI key** — the only one that spends money per use, and the only one
-whose presence changes what `/privacy` claims. Where each lives, what it can do
-and what losing it costs are in planning/CREDENTIALS.md.
+**Which ones there are, where each lives, what it can do and what losing it
+costs is planning/CREDENTIALS.md, entire.** This file used to name them as
+well, and the duplicate went stale twice — saying eight while naming seven and
+while the list held nine. So it now keeps no names and no numeral: a count in
+two places is a count that disagrees with itself, and the list is the half that
+is right.
 
-**Read that before touching any credential, `bin/provision`,
-`bin/provision-livekit`, `bin/env-pull`/`bin/env-push`, or `server/.env`.** Moved there on 2026-08-15 when this
-file hit its limit a second time: it is needed by somebody provisioning,
-rotating a key or debugging an auth failure, and by nobody writing app or core
-code.
+**Read it before touching any credential, `bin/provision`,
+`bin/provision-livekit`, `bin/env-pull`/`bin/env-push`, or `server/.env`** —
+and before assuming a credential this project *issues* rather than holds is out
+of scope, since the session token is in there too. Its § *What to read, and
+when* is a row per credential, so that costs a row rather than the file.
 
 One rule from it stays here, because it bites somebody who is merely deploying:
 **both `.p8` keys live outside the synced tree**, under `~/.config/thefloor`,
 because `bin/deploy` rsyncs with `--delete` — a key inside the tree is one a
 later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes, both
 deliberately.
-
-`server/.env` on the box holds all of it, mode 600, and is excluded from the
-sync so a deploy cannot overwrite it — `server/.env.example` documents every
-line, secret and setting alike.
 
 ### `APNS_ENV` is the setting that will cost you an afternoon
 
