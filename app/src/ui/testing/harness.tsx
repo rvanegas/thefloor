@@ -455,7 +455,7 @@ export function findTab(
  * The two ways into a channel used to sit at the foot of the same scroll as
  * the roster; they are one tap away now, and a test that names a button there
  * has to take that tap. It throws rather than returning quietly when the tab
- * is missing: a test that went on looking at the roster would pass for the
+ * is missing: a test that went on looking at the members tab would pass for the
  * wrong reason the day a control moved back.
  */
 export function showInvites(tree: ReactTestRenderer): void {
@@ -463,8 +463,8 @@ export function showInvites(tree: ReactTestRenderer): void {
 }
 
 /** The tab you land on, for a test that has to look at two in one render. */
-export function showRoster(tree: ReactTestRenderer): void {
-  showTab(tree, 'Roster');
+export function showMembers(tree: ReactTestRenderer): void {
+  showTab(tree, 'Members');
 }
 
 /** The notepad and the channel clipboard. */

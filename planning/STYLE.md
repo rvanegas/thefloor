@@ -790,7 +790,7 @@ rules.
 - **44pt minimum targets.** `IconButton` is 44 square; `FooterAction` sets a
   44 floor even though its disc already clears it.
 - **State goes in `accessibilityState`, not in the label.** A segment
-  announces "Roster, selected, button" rather than carrying the word
+  announces "Members, selected, button" rather than carrying the word
   "selected" in its text.
 - **`selected` rather than `disabled` for the rung you are on**, so a screen
   reader says which of the three you are standing on rather than that two

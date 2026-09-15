@@ -92,7 +92,7 @@ describe('Channel, watching together', () => {
    * roster instead.
    */
   function open() {
-    const tree = openOnRoster();
+    const tree = openOnMembers();
     showWatch(tree);
     return tree;
   }
@@ -102,7 +102,7 @@ describe('Channel, watching together', () => {
    * the card: the party-muted line, which is a claim about the roster, and
    * the gate, which is about the tab not being offered at all.
    */
-  function openOnRoster() {
+  function openOnMembers() {
     return render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
@@ -252,7 +252,7 @@ describe('Channel, watching together', () => {
     // the rest of the prose under the transport, which is now failure and
     // nothing else. What survives is the refusal itself, and the word under
     // the glyph saying what is being refused.
-    const tree = openOnRoster();
+    const tree = openOnMembers();
     showRecordings(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     expect(textOf(tree)).not.toContain('Stop the watch party to record');
@@ -374,7 +374,7 @@ describe('Channel, watching together', () => {
     // be heard right now. It is not on the watch tab at all, where the control
     // is — the same separation the card and the roster had when both were on
     // one scroll.
-    const tree = openOnRoster();
+    const tree = openOnMembers();
     const text = textOf(tree);
     expect(text).toContain('Party-muted');
     expect(text.match(/Party-muted/g)).toHaveLength(1);
@@ -383,7 +383,7 @@ describe('Channel, watching together', () => {
 
   it('says nothing about party-muting when the room is not muted', () => {
     showChannel(watching());
-    const tree = openOnRoster();
+    const tree = openOnMembers();
     expect(textOf(tree)).not.toContain('Party-muted');
     act(() => tree.unmount());
   });
@@ -531,7 +531,7 @@ describe('Channel, watching together', () => {
   it('is not on the screen at all without Labs', () => {
     mockApp.labs = false;
     showChannel(channelOf());
-    const tree = openOnRoster();
+    const tree = openOnMembers();
     // The tab itself, first: since the card became one there is a way to hide
     // it that leaves the word *Watch* on the screen with nothing behind it,
     // which would be the gate failing in the one place somebody reads it.

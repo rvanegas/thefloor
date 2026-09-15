@@ -242,14 +242,14 @@ describe('the rungs that are done inside a channel', () => {
     // The list is not offered at all while there is a room to go to.
     expect(findButton(tree, 'Open Channels')).toBeUndefined();
 
-    // The bar along the bottom is on the roster, and Claim is in it.
+    // The bar along the bottom is on the members tab, and Claim is in it.
     act(() => findButton(tree, 'Open the channel')?.props.onPress());
     // The other two name their tab, in the word the tab bar uses.
     act(() => findButton(tree, 'Open Invite')?.props.onPress());
     act(() => findButton(tree, 'Open Player')?.props.onPress());
 
     expect(opened).toEqual([
-      ['sess_1', 'roster'],
+      ['sess_1', 'members'],
       ['sess_1', 'invites'],
       ['sess_1', 'player'],
     ]);

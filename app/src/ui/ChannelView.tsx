@@ -74,12 +74,12 @@ import {
   FloorIcon,
   HomeIcon,
   InviteIcon,
+  MembersIcon,
   MicIcon,
   NotepadIcon,
   PauseIcon,
   PlayerIcon,
   RecordingsIcon,
-  RosterIcon,
   SettingsIcon,
   StepIcon,
   StopIcon,
@@ -132,7 +132,7 @@ const SKIP_MS = 15_000;
  * that loses its final entry leaves every other tab exactly where it was.
  */
 export type ChannelTab =
-  | 'roster'
+  | 'members'
   | 'notepad'
   | 'invites'
   | 'player'
@@ -422,7 +422,7 @@ export function ChannelView({
    * about to stand in, and the roster is what that person came for. Everything
    * else is deliberate and worth one tap.
    */
-  const [tab, setTab] = useState<ChannelTab>(asked ?? 'roster');
+  const [tab, setTab] = useState<ChannelTab>(asked ?? 'members');
   /**
    * Follows a caller that names a tab while this screen is already up.
    *
@@ -1092,9 +1092,9 @@ export function ChannelView({
     icon: (color: ColorValue) => React.ReactNode;
   }[] = [
     {
-      value: 'roster',
-      label: 'Roster',
-      icon: (color) => <RosterIcon color={color} />,
+      value: 'members',
+      label: 'Members',
+      icon: (color) => <MembersIcon color={color} />,
     },
     {
       value: 'notepad',
@@ -1136,7 +1136,7 @@ export function ChannelView({
    * is gone because the thing it was about is over, and the roster is what the
    * screen is for.
    */
-  const shown: ChannelTab = tabs.some((t) => t.value === tab) ? tab : 'roster';
+  const shown: ChannelTab = tabs.some((t) => t.value === tab) ? tab : 'members';
 
   /**
    * Mints a follower link and hands it to the share sheet.
@@ -1666,7 +1666,7 @@ export function ChannelView({
 
   return (
     <Screen header={header} footer={footer} contentStyle={styles.container}>
-        {shown === 'roster' ? (
+        {shown === 'members' ? (
           <>
         <View style={styles.presence}>
           {/*
@@ -1675,7 +1675,7 @@ export function ChannelView({
             was the smallest type on it — a line of muted grey under the title,
             below which four cards described what the channel was doing.
           */}
-          <View style={styles.roster}>
+          <View style={styles.members}>
             {view.participants.map((participant) => (
               <ParticipantCard
                 key={participant.id}
@@ -3963,7 +3963,7 @@ const styles = StyleSheet.create({
    * rather than with the window.
    */
   tabsHeader: { marginTop: 0, marginBottom: 0 },
-  roster: { gap: spacing(1), marginTop: spacing(1) },
+  members: { gap: spacing(1), marginTop: spacing(1) },
   guestActions: { flexDirection: 'row', gap: spacing(1), flexWrap: 'wrap' },
   participantCard: {
     backgroundColor: colors.surface,

@@ -12,7 +12,7 @@
  * unpublish are — `speaking.ts` § `onAudioGone` carries the argument. What
  * replaces the missing reports is the snapshot's `speakingWhileWithheld`,
  * which is the withheld speaker's own device saying what no other device can
- * see; that half is tested in `ui/__tests__/channelRoster.test.tsx`.
+ * see; that half is tested in `ui/__tests__/channelMembers.test.tsx`.
  */
 
 import React from 'react';

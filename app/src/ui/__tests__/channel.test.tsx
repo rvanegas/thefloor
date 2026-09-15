@@ -36,7 +36,7 @@ import {
   showNotepad,
   showPlayer,
   showRecordings,
-  showRoster,
+  showMembers,
   showWatch,
   textOf,
   uploads,
@@ -461,7 +461,7 @@ describe('Channel', () => {
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes
     // in an empty room".
-    showRoster(tree);
+    showMembers(tree);
     // The way in is the footer's rung and nothing else since 2026-09-13 — the
     // card that used to say "Step in" in full was the same act with a
     // sentence under it.
@@ -1340,7 +1340,7 @@ describe('Channel', () => {
       restated: what this asserts is the order they are offered in, and the
       labels are the whole of what somebody chooses between.
 
-      Roster first because it is what the screen is for and what you land on.
+      Members first because it is what the screen is for and what you land on.
       Then the people: what they have written down, and how somebody who is
       not here gets in. Then the three things the channel carries, with Watch
       last because it is the one tab that can be absent — see the type in
@@ -1353,7 +1353,7 @@ describe('Channel', () => {
         .findAll((node) => node.type === Segmented)[0]!
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
-      'Roster',
+      'Members',
       'Notepad',
       'Invite',
       'Player',
@@ -1513,8 +1513,8 @@ describe('Channel', () => {
 
     // And the bar wins from there: nothing new is being asked for, so the
     // rerender does not put the screen back.
-    showRoster(tree);
-    expect(shown()).toBe('roster');
+    showMembers(tree);
+    expect(shown()).toBe('members');
     act(() =>
       tree.update(<ChannelView
           channelId="sess_1"
@@ -1524,7 +1524,7 @@ describe('Channel', () => {
           onExit={() => {}}
         />)
     );
-    expect(shown()).toBe('roster');
+    expect(shown()).toBe('members');
     act(() => tree.unmount());
   });
 
@@ -1607,7 +1607,7 @@ describe('Channel', () => {
 
     // And back, because a tab somebody cannot leave is a screen they are
     // stuck on.
-    showRoster(tree);
+    showMembers(tree);
     expect(textOf(tree)).toContain('Dana Chu');
     act(() => tree.unmount());
   });
@@ -3024,7 +3024,7 @@ describe('Channel', () => {
 
     edit();
     act(() => field().props.onChangeText('typed, then away'));
-    showRoster(tree);
+    showMembers(tree);
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
       description: 'typed, then away',
@@ -3035,7 +3035,7 @@ describe('Channel', () => {
     mockApp.act.mockClear();
     showNotepad(tree);
     edit();
-    showRoster(tree);
+    showMembers(tree);
     expect(mockApp.act).not.toHaveBeenCalledWith(
       'sess_1',
       expect.objectContaining({ type: 'SET_DESCRIPTION' })

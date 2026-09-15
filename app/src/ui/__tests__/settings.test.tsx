@@ -232,7 +232,7 @@ describe("Home settings", () => {
   Those cards are deleted for everybody now, so the setting governed nothing
   and the screen no longer offers it. What it used to hide is asserted on the
   channel screen instead, which is where it always was: see
-  `a channel screen that does not repeat its footer` in channelRoster.test.tsx.
+  `a channel screen that does not repeat its footer` in channelMembers.test.tsx.
   The wire field and the column survive, unread — see
   decisions/2026-09-13-the-cards-a-footer-made-redundant.md.
 */

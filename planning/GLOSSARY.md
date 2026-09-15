@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Roster, Notepad, Invite, Player, Recordings, Watch
+- **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The two-note sound a device makes when somebody *else* steps in or out of the channel you are in: rising for arriving, the same notes falling for leaving
 - **Chip in** — The donation link, on Home's *Support* tab
@@ -206,7 +206,7 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *Roster*, *Notepad*, *Invite*, *Player*, *Recordings*, *Watch*.
+draws: *Members*, *Notepad*, *Invite*, *Player*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -224,6 +224,20 @@ named after them. It is a card again on the tab it moved to, as of
 it: the tab is the heading where a tab holds one thing.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
+
+**The first is *Members*, and was *Roster* until 2026-09-14.** *Roster* was
+the only tab named after a thing rather than after the people or the object it
+holds, and it was a word this app used nowhere a user could see it — the
+vocabulary a screen teaches should be the vocabulary the rest of the app
+answers in, and *member* is a word the guest-facing half already says out loud.
+
+**It is named for what the channel is made of, not for everything drawn on
+it.** The tab lists *guests* and whoever is *knocking* as well as members, so
+the name is narrower than the contents — deliberately, on the grounds that a
+guest is a visitor to a membership rather than a second kind of it, and that
+the heading somebody reads before a list of people should say whose room it is.
+*Roster* was neutral about that and said nothing at all; see *member*, which is
+the term this now spends on a second thing.
 
 **The third is *Invite*, and was *Invite links* until 2026-09-13.** The old
 name was the plural of a term this glossary already spends on something else —
@@ -601,6 +615,12 @@ something true without claiming a contact. See *contact*.
 
 Inside the codebase the same people are *participants*. The two are the same
 set; which word is used says who is being spoken to. See *participant*.
+
+**Since 2026-09-14 it is also the first *channel tab*'s name**, where it is
+read more loosely than this entry defines it: that tab draws guests and knocks
+beside the members. The word is doing signage there rather than picking out a
+set, and a guard that must distinguish the two still asks `isParticipant`. See
+*channel tabs*.
 
 ## Nearby / Stepped out
 

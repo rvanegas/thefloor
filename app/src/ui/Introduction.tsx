@@ -274,7 +274,7 @@ function actionFor(
     // tab of their own and there is nothing nearer to send somebody to.
     case 'floor':
     case 'nearby':
-      return inChannel('roster', 'Open the channel');
+      return inChannel('members', 'Open the channel');
     case 'guest':
       return inChannel('invites', 'Open Invite');
     case 'player':
