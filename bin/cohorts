@@ -1,0 +1,165 @@
+#!/bin/bash
+#
+# The getting-started channels, and who is in each.
+#
+#   bin/cohorts                against the deployed server
+#   bin/cohorts --local        the development database on this machine
+#
+# Read-only, always. This is a report on a growth hack, not a lever for it:
+# placement happens at signup, the off switch is emptying
+# COHORT_HOST_IDENTIFIERS on the box, and editing anything here is bin/db
+# --write. See planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md.
+#
+# A *getting-started channel* is the one channel a new account with nobody here
+# is placed into — up to four such arrivals plus a *cohort host*. What marks
+# one is `channels.cohort`, the number in its name, and not the name itself: a
+# member can rename it from its settings screen, so the `name` column here is
+# worth reading as "what they call it now" rather than as the marker.
+#
+# ── The cohorts ────────────────────────────────────────────────────────────
+#
+# `seats` is `cohort_seats`, and it is the column that repays reading twice:
+# seats *spent*, not places occupied, the host's included. Leaving does not
+# give one back, so a closed cohort stays closed. `members` is who is in it
+# now. The two therefore disagree in both directions and neither is wrong —
+# below `seats` means somebody left, above it means a member brought somebody
+# of their own in, which is the act this channel most wants to lead to.
+#
+# `open` is 1 for the cohort the next arrival would be placed into: standing,
+# and with seats left. At most one should ever be 1. The seat limit is read
+# from this checkout's COHORT_SIZE, so it is the number the deployed server
+# enforces only while the two agree.
+#
+# `entered` is how many members have ever walked into the channel, and is the
+# question this whole feature is asking — a cohort at five seats and zero
+# entered is a room nobody opened. It comes from `everPresent` in the state
+# blob, which is scoped to current members: somebody who entered and then left
+# the channel is in neither number.
+#
+# `recordings` excludes deleted ones. `ended` and `deleted` are blank for a
+# channel that is neither, which is the ordinary case.
+#
+# ── The members ────────────────────────────────────────────────────────────
+#
+# One row per person in a cohort, host first. `role` marks the host, taken
+# from the channel's `initiator_id` — which is who it was opened with — rather
+# than from COHORT_HOST_IDENTIFIERS, since that list lives in server/.env on
+# the box and this script never reads it.
+#
+# `joined` is when the account was created and `days_ago` is since it was last
+# seen, blank for somebody who has never connected — the same columns
+# bin/people carries, for the same reason: a cohort of accounts that have not
+# come back is the finding.
+#
+# Two kinds of row are not ordinary people, and both can be placed in a cohort
+# like anybody else, since they sign up knowing nobody: the App Review accounts
+# `appreview@` and `appreview2@` are Apple's (planning/DEMO-ACCOUNT.md), and an
+# `erased:acct_…` identifier is a tombstone rather than somebody who left.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+
+local_mode=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# Out of `export const COHORT_SIZE = 5;`, so the `open` column moves if that
+# does. Interpolated into SQL below, hence the numeric test; 5 if the line is
+# ever written some other way.
+size=$(sed -n 's/^export const COHORT_SIZE = \([0-9]*\).*/\1/p' \
+  "$ROOT/core/constants.ts" || true)
+[[ "$size" =~ ^[0-9]+$ ]] || size=5
+
+sql="
+-- One row per member of a cohort. \`participants\` is a JSON array of account
+-- ids, so this needs json1 — present in every SQLite this runs against, and
+-- the failure if it ever is not is a plain \`no such function: json_each\`
+-- rather than a wrong number.
+CREATE TEMP VIEW member AS
+  SELECT c.cohort AS n,
+         c.id AS channel_id,
+         j.value AS account_id,
+         c.initiator_id = j.value AS is_host,
+         EXISTS (SELECT 1
+                   FROM json_each(json_extract(c.state, '\$.everPresent')) e
+                  WHERE e.value = j.value) AS entered
+    FROM channels c, json_each(c.participants) j
+   WHERE c.cohort IS NOT NULL;
+
+SELECT c.cohort AS n,
+       c.name,
+       date(c.created_at / 1000, 'unixepoch') AS opened,
+       c.cohort_seats AS seats,
+       (SELECT COUNT(*) FROM member m WHERE m.channel_id = c.id) AS members,
+       (SELECT COUNT(*) FROM member m
+         WHERE m.channel_id = c.id AND m.entered) AS entered,
+       (SELECT COUNT(*) FROM recordings r
+         WHERE r.channel_id = c.id AND r.deleted_at IS NULL) AS recordings,
+       (c.ended_at IS NULL AND c.deleted_at IS NULL
+         AND c.cohort_seats < $size) AS open,
+       CASE WHEN c.ended_at IS NULL THEN ''
+            ELSE date(c.ended_at / 1000, 'unixepoch') END AS ended,
+       CASE WHEN c.deleted_at IS NULL THEN ''
+            ELSE date(c.deleted_at / 1000, 'unixepoch') END AS deleted
+FROM channels c
+WHERE c.cohort IS NOT NULL
+ORDER BY c.cohort;
+
+.print ''
+SELECT m.n,
+       a.identifier,
+       a.display_name AS name,
+       CASE WHEN m.is_host THEN 'host' ELSE '' END AS role,
+       m.entered,
+       date(a.created_at / 1000, 'unixepoch') AS joined,
+       CASE WHEN a.last_seen_at IS NULL THEN ''
+            ELSE ROUND((unixepoch() * 1000 - a.last_seen_at) / 86400000.0, 1)
+       END AS days_ago
+FROM member m
+JOIN accounts a ON a.id = m.account_id
+ORDER BY m.n, m.is_host DESC, a.created_at;
+
+.print ''
+SELECT COUNT(*) AS cohorts,
+       SUM(ended_at IS NULL AND deleted_at IS NULL) AS standing,
+       SUM(cohort_seats) AS seats_spent,
+       -- Distinct, because the host sits in every one of them.
+       (SELECT COUNT(DISTINCT account_id) FROM member) AS people,
+       (SELECT COUNT(DISTINCT account_id) FROM member WHERE entered) AS entered
+FROM channels
+WHERE cohort IS NOT NULL;
+"
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else.
+opts=(-readonly -header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  echo "→ local · cohort closes at $size seats"
+  exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
+fi
+
+echo "→ production · cohort closes at $size seats"
+# Over stdin rather than interpolated into the remote shell, for the reason
+# bin/db spells out: $, backticks and backslashes are all live in that position
+# and these queries contain them.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
+  <<<"$sql"
