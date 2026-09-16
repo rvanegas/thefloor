@@ -1560,6 +1560,32 @@ export function buildApp(options: BuildOptions = {}): App {
             }
           },
         });
+        /**
+         * `/app/` with a trailing slash, which the not-found handler above
+         * never sees.
+         *
+         * The train root is a real directory on disk, so `@fastify/send`
+         * stats it and tries to 301 to the slashed form — finds the slash
+         * already there, has nothing to redirect to, and returns **403**.
+         * That reaches the plugin as an error rather than as a directory, so
+         * the `callNotFound()` on its directory branch never runs and the
+         * shell is never reached. `index: false` is what puts it on that
+         * path; the plugin has no option that changes it.
+         *
+         * Registering the route covers both spellings — Fastify's
+         * `prefixTrailingSlash` defaults to `both`, so this is `/app` and
+         * `/app/` — and it goes through `shell` rather than the file on disk
+         * so that the no-store header and the 503 for an unbuilt bundle
+         * apply at this door too. Serving the app rather than redirecting to
+         * the unslashed form is safe because the export references
+         * everything absolutely and prefixed, so it runs identically from
+         * either URL.
+         *
+         * A directory *inside* the bundle — `/app/_expo/` — still 403s, and
+         * that is left alone: refusing to list a bundle's insides is the
+         * right answer, and nobody types one.
+         */
+        scope.get('/', shell);
         scope.setNotFoundHandler(shell);
       },
       { prefix: train.prefix }
