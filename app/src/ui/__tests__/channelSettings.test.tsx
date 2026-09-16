@@ -27,7 +27,7 @@ jest.mock('../../state/AppProvider', () =>
  * assertion here is about the branch where it did not: a rename that was
  * queued is not a rename that was saved, and a confirmed Leave that never
  * left the app is not a reason to walk off the screen. The whole account is
- * in planning/OFFLINE.md.
+ * in planning/decisions/2026-09-16-being-offline-is-one-state.md.
  */
 
 let tree: ReactTestRenderer;

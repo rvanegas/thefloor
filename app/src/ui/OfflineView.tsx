@@ -20,7 +20,7 @@ import { colors, spacing, type } from './theme';
  * is no moment where the actions are gone and nothing has said it. Generic
  * rather than itemised — naming them needs a human-readable label per action
  * type, which is a table that rots, and the retry that `send`'s return value
- * now enables covers the case anybody actually hits. See planning/OFFLINE.md.
+ * now enables covers the case anybody actually hits. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
  *
  * **No button, which is the departure from `UpdateRequiredView`.** That wall is
  * terminal and offers the one action that ends it; this one comes down by

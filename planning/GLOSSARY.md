@@ -1100,7 +1100,7 @@ second or so; above it, the old doubling backoff resumes.
 
 `AppState.offline` in the code, reported by `Realtime` through `onOffline`,
 rendered by `OfflineView`. Distinct from `ConnectionStatus`, which cycles
-while retrying and is not sticky. See planning/OFFLINE.md.
+while retrying and is not sticky. See decisions/2026-09-16-being-offline-is-one-state.md.
 
 ## Ping
 

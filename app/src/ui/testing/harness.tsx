@@ -286,7 +286,7 @@ export const mockApp = {
   // not.** `act` answers whether the action reached the socket, and a mock
   // returning `undefined` would put every screen into the queued branch —
   // which is the honest reading of `undefined` and the wrong default for a
-  // fixture. See AppProvider's `act` and planning/OFFLINE.md.
+  // fixture. See AppProvider's `act` and planning/decisions/2026-09-16-being-offline-is-one-state.md.
   act: jest.fn(() => true),
   clearError: jest.fn(),
   removeContact: jest.fn(async () => {}),

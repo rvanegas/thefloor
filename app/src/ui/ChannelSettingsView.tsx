@@ -122,7 +122,7 @@ export function ChannelSettingsView({
    * and since the connection is usually back within a second or two, that
    * retry is what would have made the rename land. Leaving it stale costs an
    * extra `SET_NAME` when the first one did in fact arrive, which the reducer
-   * answers with the same state. See planning/OFFLINE.md.
+   * answers with the same state. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
    */
   const persist = () => {
     if (!mayEdit) return;
@@ -148,8 +148,8 @@ export function ChannelSettingsView({
    * nothing to catch even when the send succeeded. Do not add an in-flight
    * state here to make the two screens match: there is no flight to be in
    * until `channel.action` is acknowledged, which is the half of
-   * planning/backlog/ § *A channel action that never lands* that OFFLINE.md
-   * deliberately left there.
+   * planning/backlog/ § *A channel action that never lands* that the offline
+   * work deliberately left there.
    *
    * What a write that never *left* costs is now handled, in `persist`.
    */

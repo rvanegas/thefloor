@@ -378,7 +378,7 @@ interface AppState {
    * `closed` several times a second while the client is retrying. This is the
    * sticky one: true from `OFFLINE_AFTER_MS` after the drop until an open
    * succeeds, and what `Root` renders the wall from. See socket.ts and
-   * planning/OFFLINE.md.
+   * planning/decisions/2026-09-16-being-offline-is-one-state.md.
    */
   offline: boolean;
   lastError: string | null;
@@ -557,7 +557,7 @@ interface AppValue extends AppState {
    * **A screen that records the action as done must check this.** `false`
    * means it was queued or deferred, so nothing has happened yet and may
    * never; the caller's own record of "saved" is what otherwise stops it ever
-   * being retried. See `ChannelSettingsView.persist` and planning/OFFLINE.md.
+   * being retried. See `ChannelSettingsView.persist` and planning/decisions/2026-09-16-being-offline-is-one-state.md.
    */
   act: (channelId: string, action: ClientAction) => boolean;
   /**

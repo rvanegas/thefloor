@@ -102,7 +102,7 @@ it('does not replay an action that has gone stale', () => {
   // discards this is the app going offline rather than a filter in
   // `flushQueued` reading each entry's own age. The two are the same event on
   // purpose: the wall that goes up here is the only notice these actions ever
-  // get. See planning/OFFLINE.md.
+  // get. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
   jest.advanceTimersByTime(11_000);
   socket.finishHandshake();
 

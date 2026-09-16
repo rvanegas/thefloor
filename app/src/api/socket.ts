@@ -141,7 +141,7 @@ const RECONNECT_MAX_MS = 10_000;
  *
  * Expiry is global rather than per-action, so crossing this is one event:
  * the queue is cleared, and the app is offline, and those are the same
- * sentence. See planning/OFFLINE.md.
+ * sentence. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
  */
 export const OFFLINE_AFTER_MS = 10_000;
 

@@ -28,13 +28,15 @@ snapshot, so a lost `SET_NAME` shows as the old name still being there —
 visible, but unexplained, and indistinguishable from having mistyped.
 
 The full fix is an acknowledgement for `channel.action`, which is a wire change
-and needs the two-step deploy. **The rest is now OFFLINE.md's**, which treats
-this as one symptom of the app having no word for being offline and covers the
-premature `saved.current` under `send` returning whether it wrote. What stays
-here is the acknowledgement, which is the only part that also catches an online
-refusal, and which that design leaves optional rather than urgent.
+and needs the two-step deploy. **The rest was built on 2026-09-16** —
+`decisions/2026-09-16-being-offline-is-one-state.md` treats it as one symptom
+of the app having no word for being offline, and the premature `saved.current`
+is gone, `send` now returning whether it wrote. What stays here is the
+acknowledgement, which is the only part that also catches an online refusal,
+and which that work leaves optional rather than urgent.
 
 Noted 2026-08-17, from asking why only one of the two settings screens has a
-"Saving…" state. Re-read against the tree on 2026-09-15 and still holds; re-read
-again 2026-09-16, when the comparand turned out to be stale and the rest became
-OFFLINE.md. `app/src/ui/ChannelSettingsView.tsx`, `app/src/api/socket.ts`.
+"Saving…" state. Re-read against the tree on 2026-09-15 and still holds;
+re-read again 2026-09-16, when the comparand turned out to be stale and
+everything but the acknowledgement was built.
+`app/src/ui/ChannelSettingsView.tsx`, `app/src/api/socket.ts`.
