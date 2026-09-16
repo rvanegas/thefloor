@@ -22,6 +22,7 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
+import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { NoDetailView, Panes } from './src/ui/Panes';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
@@ -509,6 +510,37 @@ function Root() {
         <ActivityIndicator color={colors.textMuted} />
       </View>
     );
+  }
+
+  /**
+   * The wall, which is every screen at once because none of them work.
+   *
+   * **Above the token check, so it applies signed out too.** Auth needs the
+   * server as much as anything else does, and `AuthView` was additionally the
+   * only screen in the app that rendered `lastError` — leaving it reachable
+   * here would have made the sign-in form the one place an outage was visible,
+   * which is how this whole state came to be missing in the first place.
+   *
+   * **Below `app.expired`**, because that wall is terminal and this one is
+   * not: an install below the floor is not going to be fixed by the network
+   * coming back, and offering it a screen that says *trying again* would be a
+   * promise nothing can keep. Below `!ready` for the ordinary reason, that
+   * there is nothing to say about a connection before the app has decided
+   * whether it has a session at all.
+   *
+   * The roster is the last snapshot that arrived, and it is passed only when
+   * the media room is still up — that being the case where somebody can hear
+   * voices, and would otherwise be looking at a screen that cannot name them.
+   * See `OfflineView`.
+   */
+  if (app.offline) {
+    const roster =
+      live && audio.status === 'connected'
+        ? (app.channelViews[live.id]?.participants ?? []).map(
+            (participant) => participant.displayName
+          )
+        : null;
+    return <OfflineView roster={roster} />;
   }
 
   if (!token) return <AuthView />;

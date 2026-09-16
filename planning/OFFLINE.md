@@ -1,7 +1,9 @@
 # Being offline is one state, and the app currently has no word for it
 
-**A design for unbuilt work.** It goes when the work ships, with whatever
-survives moving to `decisions/`. Written 2026-09-16, from reviewing
+**A design, now built and not yet landed.** It goes when the work ships, with
+whatever survives moving to `decisions/` — including § *One thing the design
+did not anticipate*, which is the only part of this that could not have been
+written in advance. Written 2026-09-16, from reviewing
 `backlog/a-channel-action-that-never-lands-says-nothing-and-the-screen-believes-it-anyway.md`,
 which turned out to be one symptom of this rather than a defect of its own.
 
@@ -50,7 +52,7 @@ the idle case, which is the one a user watches happen.
 **`QUEUE_TTL_MS` is not a queue constant. It is the definition of being
 offline.** Everything falls onto one state machine once it is read that way:
 
-- **t=0.** The socket closes. Actions taken from here are queued.
+- **t=0.** There is no usable socket. Actions taken from here are queued.
 - **0 → TTL.** The window in which reconnecting still saves something. Retry
   hard *because* there is something to save: a fixed short interval, ~1s, with
   jitter. Say nothing beyond the existing 2.5s "Reconnecting…", since most
@@ -78,6 +80,21 @@ exactly.
 their own doubling. A flat one-second pace synchronises every phone onto the
 same tick, so a restart brings them all back in lockstep against a server that
 has just finished starting. Randomise each in-window interval by ±25%.
+
+## One thing the design did not anticipate, found in the building
+
+**The clock cannot start on `onclose` alone.** A handshake that never
+completes fires no close, and the first connection of a launch with no network
+is exactly that — so a client started that way would retry behind a spinner
+indefinitely, never expiring the queue and never saying why. The existing test
+*does not replay an action that has gone stale* turned out to set up precisely
+this shape and was what caught it.
+
+So the condition is **not having a socket** rather than losing one, and
+`beginOutage` is called from `open` as well as from `onclose`, stamping once
+per gap. Whichever of the two arrives first owns the clock; a reconnect
+attempt is inside the same outage as the close that prompted it, which is why
+it has to be idempotent rather than merely guarded.
 
 ## What the wall is
 

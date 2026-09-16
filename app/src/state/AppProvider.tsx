@@ -371,6 +371,16 @@ interface AppState {
    */
   recordingAsked: string | null;
   status: ConnectionStatus;
+  /**
+   * Whether the socket has been gone long enough to stop calling it a blip.
+   *
+   * **Not derivable from `status`**, which cycles through `connecting` and
+   * `closed` several times a second while the client is retrying. This is the
+   * sticky one: true from `OFFLINE_AFTER_MS` after the drop until an open
+   * succeeds, and what `Root` renders the wall from. See socket.ts and
+   * planning/OFFLINE.md.
+   */
+  offline: boolean;
   lastError: string | null;
 }
 
@@ -541,7 +551,15 @@ interface AppValue extends AppState {
   startChannel: (contactIds: string[]) => Promise<string>;
   watchChannel: (channelId: string) => void;
   leaveChannelView: (channelId: string) => void;
-  act: (channelId: string, action: ClientAction) => void;
+  /**
+   * Dispatches a channel action, returning whether it reached the socket.
+   *
+   * **A screen that records the action as done must check this.** `false`
+   * means it was queued or deferred, so nothing has happened yet and may
+   * never; the caller's own record of "saved" is what otherwise stops it ever
+   * being retried. See `ChannelSettingsView.persist` and planning/OFFLINE.md.
+   */
+  act: (channelId: string, action: ClientAction) => boolean;
   /**
    * Records that somebody arrived in one of the channels this device is nearby
    * in.
@@ -1017,6 +1035,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     nearbyIn: [],
     nearbyArrival: {},
     status: 'closed',
+    offline: false,
     lastError: null,
   });
 
@@ -1169,6 +1188,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             s.standingIn === channelId ? s : { ...s, standingIn: channelId }
           ),
         onStatus: (status) => setState((s) => ({ ...s, status })),
+        onOffline: (offline) =>
+          setState((s) => (s.offline === offline ? s : { ...s, offline })),
         onError: (message) => setState((s) => ({ ...s, lastError: message })),
       });
       realtime.watchHome();
@@ -1533,6 +1554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         nearbyIn: [],
         nearbyArrival: {},
         status: 'closed',
+        offline: false,
         lastError:
           'You were signed out. Sign in again with a fresh code by email.',
       });
@@ -1770,6 +1792,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           nearbyIn: [],
           nearbyArrival: {},
           status: 'closed',
+          offline: false,
           lastError: null,
         });
         // Best effort: the local channel is already gone either way. The
@@ -1823,6 +1846,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           nearbyIn: [],
           nearbyArrival: {},
           status: 'closed',
+          offline: false,
           lastError: null,
         });
       },
@@ -2074,7 +2098,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 realtime.act(channelId, action);
               }, RECORD_PUBLISH_WAIT_MS),
             };
-            return;
+            // Held, not sent — the same answer as queued as far as any caller
+            // is concerned: nothing may be concluded yet.
+            return false;
           }
         }
         // Nothing to wait for any more: a run being stopped, or a channel
@@ -2134,7 +2160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             };
           });
         }
-        realtime.act(channelId, action);
+        return realtime.act(channelId, action);
       },
 
       noteNearbyArrival: (channelId, who) => {

@@ -136,7 +136,7 @@ describe('asking to record', () => {
 
   it('waits for a published microphone before asking', async () => {
     await act(async () => latest!.reportMicPublished(false));
-    await act(async () => latest!.act('chan_a', { type: 'START_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'START_RECORDING' }));
 
     // Nothing on the wire yet, and the screen already says it was asked for:
     // the optimistic flag is what opens the microphone this is waiting on, so
@@ -152,7 +152,7 @@ describe('asking to record', () => {
 
   it('asks at once when a microphone is already published', async () => {
     await act(async () => latest!.reportMicPublished(true));
-    await act(async () => latest!.act('chan_a', { type: 'START_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'START_RECORDING' }));
 
     // The ordinary case, and the one that must not be made slower: alone in a
     // quiet channel with nothing else playing, the device is already open.
@@ -161,7 +161,7 @@ describe('asking to record', () => {
 
   it('asks anyway when no microphone ever arrives', async () => {
     await act(async () => latest!.reportMicPublished(false));
-    await act(async () => latest!.act('chan_a', { type: 'START_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'START_RECORDING' }));
     expect(sent()).toHaveLength(0);
 
     // A device with no input publishes nothing, ever. Losing the request would
@@ -175,7 +175,7 @@ describe('asking to record', () => {
 
   it('sends once when the microphone arrives and the wait then expires', async () => {
     await act(async () => latest!.reportMicPublished(false));
-    await act(async () => latest!.act('chan_a', { type: 'START_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'START_RECORDING' }));
     await act(async () => latest!.reportMicPublished(true));
     await act(async () => {
       jest.advanceTimersByTime(5_000);
@@ -188,8 +188,8 @@ describe('asking to record', () => {
 
   it('drops a held request when the run is stopped before it goes', async () => {
     await act(async () => latest!.reportMicPublished(false));
-    await act(async () => latest!.act('chan_a', { type: 'START_RECORDING' }));
-    await act(async () => latest!.act('chan_a', { type: 'STOP_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'START_RECORDING' }));
+    await act(async () => void latest!.act('chan_a', { type: 'STOP_RECORDING' }));
     await act(async () => {
       jest.advanceTimersByTime(5_000);
     });

@@ -112,29 +112,46 @@ export function ChannelSettingsView({
    *
    * An empty name is a real value here, unlike a display name: it is how a
    * channel goes back to being listed by who is in it.
+   *
+   * **`saved.current` moves only when the action reached the socket**, which
+   * is the correction of 2026-09-16. It used to be written on the line after
+   * the dispatch, unconditionally — so a rename taken while the socket was
+   * down was recorded as saved, and then `done` found `name` equal to
+   * `saved.current.name` and dispatched nothing. The premature write was not
+   * merely an inaccurate record: it was the thing that suppressed the retry,
+   * and since the connection is usually back within a second or two, that
+   * retry is what would have made the rename land. Leaving it stale costs an
+   * extra `SET_NAME` when the first one did in fact arrive, which the reducer
+   * answers with the same state. See planning/OFFLINE.md.
    */
   const persist = () => {
     if (!mayEdit) return;
     if (name !== saved.current.name) {
-      app.act(channel.id, { type: 'SET_NAME', name });
-      saved.current.name = name;
+      if (app.act(channel.id, { type: 'SET_NAME', name })) {
+        saved.current.name = name;
+      }
     }
   };
 
   /**
-   * Synchronous, and so the button has no "Saving…" state where
-   * `HomeSettingsView`'s does. That is not an oversight and not a difference in
-   * taste: a profile is an awaited HTTP call that can report a failure and
-   * refuse to close, and `app.act` is a fire-and-forget dispatch down the
-   * socket with nothing to await.
+   * Synchronous, and so the button has no "Saving…" state where `ProfileView`'s
+   * does. That is not an oversight and not a difference in taste: a profile is
+   * an awaited HTTP call that can report a failure and refuse to close, and
+   * `app.act` is a dispatch down the socket with nothing to await.
    *
-   * What it costs is that a write which never lands is not reported either —
-   * `socket.send` drops a queued action past ten seconds, and a *refused* one
-   * comes back as a snapshot with no error. `persist` above has already
-   * recorded it as saved by then. Known, and planning/backlog/ § *A channel
-   * action that never lands* has the full account; do not add an
-   * in-flight state here to make the two screens match, because there is no
-   * flight to be in until `channel.action` is acknowledged.
+   * **It named `HomeSettingsView` until 2026-09-16 and had been wrong since
+   * 2026-08-29**, when the awaited save and the "Saving…" label left with the
+   * name and bio fields for the profile. Home has no form on it at all now.
+   *
+   * What is still true is that a *refused* action comes back as a snapshot
+   * with no error — a reducer guard returns the state unchanged — so there is
+   * nothing to catch even when the send succeeded. Do not add an in-flight
+   * state here to make the two screens match: there is no flight to be in
+   * until `channel.action` is acknowledged, which is the half of
+   * planning/backlog/ § *A channel action that never lands* that OFFLINE.md
+   * deliberately left there.
+   *
+   * What a write that never *left* costs is now handled, in `persist`.
    */
   const done = () => {
     persist();
@@ -162,9 +179,14 @@ export function ChannelSettingsView({
         {
           text: 'Leave',
           style: 'destructive',
+          // **Only leave the screen if the action left the app.** Queued, this
+          // used to navigate you out as though you had gone — and you were
+          // still a member, which the next snapshot said out loud by putting
+          // the channel back on your home screen. Staying put is the honest
+          // answer, and the wall is what explains it: past
+          // `OFFLINE_AFTER_MS` this screen is not the one you are looking at.
           onPress: () => {
-            app.act(channel.id, { type: 'LEAVE_CHANNEL' });
-            onLeft();
+            if (app.act(channel.id, { type: 'LEAVE_CHANNEL' })) onLeft();
           },
         },
       ]
@@ -206,9 +228,12 @@ export function ChannelSettingsView({
                 {
                   text: 'Delete',
                   style: 'destructive',
+                  // Gated as leaving is, and it matters more here: this is a
+                  // confirmed, permanent, unrecoverable action, and queued it
+                  // used to take you back to a home screen with the channel
+                  // still on it.
                   onPress: () => {
-                    app.act(channel.id, { type: 'DELETE_CHANNEL' });
-                    onLeft();
+                    if (app.act(channel.id, { type: 'DELETE_CHANNEL' })) onLeft();
                   },
                 },
               ]

@@ -170,7 +170,7 @@ describe('another device takes the room', () => {
     // which nothing but entering can establish. A snapshot cannot: it reports
     // the account, and the account is present whichever device holds it.
     await act(async () => push(present('chan_a')));
-    await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
+    await act(async () => void latest!.act('chan_a', { type: 'ENTER' }));
     acted.length = 0;
   });
 
@@ -207,7 +207,7 @@ describe('another device takes the room', () => {
     await act(async () => displace());
     expect(textOf(tree)).toContain('live:nowhere');
 
-    await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
+    await act(async () => void latest!.act('chan_a', { type: 'ENTER' }));
 
     expect(textOf(tree)).toContain('live:chan_a');
     expect(acted).toContainEqual({
@@ -220,7 +220,7 @@ describe('another device takes the room', () => {
   it('is not undone by some other action', async () => {
     await act(async () => displace());
 
-    await act(async () => latest!.act('chan_a', { type: 'CLAIM_FLOOR' }));
+    await act(async () => void latest!.act('chan_a', { type: 'CLAIM_FLOOR' }));
 
     expect(textOf(tree)).toContain('live:nowhere');
   });
@@ -237,7 +237,7 @@ describe('another device takes the room', () => {
 
   /** Stepping out here gives the room up rather than handing it anywhere. */
   it('stops standing here when this device steps out', async () => {
-    await act(async () => latest!.act('chan_a', { type: 'STEP_OUT' }));
+    await act(async () => void latest!.act('chan_a', { type: 'STEP_OUT' }));
 
     expect(textOf(tree)).toContain('live:nowhere');
   });
@@ -287,7 +287,7 @@ describe('a second device that only opens the channel', () => {
 
   it('takes the room by stepping in, which is the whole gesture', async () => {
     await act(async () => push(present('chan_a')));
-    await act(async () => latest!.act('chan_a', { type: 'ENTER' }));
+    await act(async () => void latest!.act('chan_a', { type: 'ENTER' }));
 
     expect(textOf(tree)).toContain('live:chan_a');
     expect(acted).toContainEqual({

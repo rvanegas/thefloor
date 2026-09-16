@@ -67,6 +67,7 @@ caused; the list carries the meaning.
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
+- **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -1074,6 +1075,32 @@ could not have been watching a screen for it. It names a channel all the same,
 because becoming contacts creates the pair's channel in the same breath, and
 the three things this system keys on a channel — the recipient's level, the
 collapse key, the thread — all want a real id.
+
+## Offline
+
+**A state, not a description of the network.** The app is *offline* when its
+websocket to the server has been gone for `OFFLINE_AFTER_MS` — ten seconds —
+and not before: a socket drops on every foreground and on any change of
+network, and an outage that resolves itself was never worth a word. Below that
+threshold the app is *disconnected*, which is ordinary and mostly invisible.
+
+**It is about the control socket alone.** The LiveKit room is an unrelated
+connection and may be perfectly healthy — STATES.md § *Audio Connected* — so
+being offline does not mean the conversation has stopped. It means nothing can
+be *changed*: every control in this app is a `channel.action` down the socket,
+the microphone included, so *offline* and *nothing works* are the same
+sentence even while you can still hear the room. The wall says so in two
+different ways depending on whether the room is up, and blocks in both.
+
+**Crossing the threshold is one event with two halves**: the queue of actions
+taken during the gap is discarded, and the app declares itself offline. They
+are deliberately the same moment, because the screen that goes up is the only
+notice those actions ever get. Below the threshold the client retries every
+second or so; above it, the old doubling backoff resumes.
+
+`AppState.offline` in the code, reported by `Realtime` through `onOffline`,
+rendered by `OfflineView`. Distinct from `ConnectionStatus`, which cycles
+while retrying and is not sticky. See planning/OFFLINE.md.
 
 ## Ping
 

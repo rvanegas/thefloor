@@ -199,6 +199,7 @@ export const mockApp = {
    */
   installPrompt: null as (() => void) | null,
   status: 'open' as 'open' | 'connecting' | 'closed',
+  offline: false,
   lastError: null,
   serverNow: () => NOW,
   reportAttentive: jest.fn(),
@@ -281,7 +282,12 @@ export const mockApp = {
   revokeGuestLink: jest.fn(async () => {}),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
-  act: jest.fn(),
+  // **Returns `true` by default: the socket is up unless a test says it is
+  // not.** `act` answers whether the action reached the socket, and a mock
+  // returning `undefined` would put every screen into the queued branch —
+  // which is the honest reading of `undefined` and the wrong default for a
+  // fixture. See AppProvider's `act` and planning/OFFLINE.md.
+  act: jest.fn(() => true),
   clearError: jest.fn(),
   removeContact: jest.fn(async () => {}),
   setEmailShown: jest.fn(async () => {}),

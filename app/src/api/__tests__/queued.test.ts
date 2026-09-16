@@ -97,11 +97,72 @@ it('does not replay an action that has gone stale', () => {
   realtime.act('chan_1', { type: 'CLAIM_FLOOR' });
   // Longer than any reconnect that was going to succeed. Claiming the floor a
   // minute late would take it in a conversation that has moved on.
+  //
+  // **Expiry is global rather than per-action since 2026-09-16**, so what
+  // discards this is the app going offline rather than a filter in
+  // `flushQueued` reading each entry's own age. The two are the same event on
+  // purpose: the wall that goes up here is the only notice these actions ever
+  // get. See planning/OFFLINE.md.
   jest.advanceTimersByTime(11_000);
   socket.finishHandshake();
 
   const actions = messagesOf(socket).filter((m) => m.type === 'channel.action');
   expect(actions).toHaveLength(0);
+});
+
+it('reports offline once the window has run out, and back on reconnect', () => {
+  jest.useFakeTimers();
+  const { Realtime } = load();
+  const realtime = new Realtime();
+  opened.push(realtime);
+  const seen: boolean[] = [];
+  realtime.connect('token', { onOffline: (offline) => seen.push(offline) });
+  const socket = FakeSocket.live[0]!;
+
+  // Inside the window nothing is said: the socket drops on every foreground,
+  // and an outage that resolves itself was never worth a screen.
+  jest.advanceTimersByTime(9_000);
+  expect(seen).toEqual([]);
+
+  jest.advanceTimersByTime(2_000);
+  expect(seen).toEqual([true]);
+
+  socket.finishHandshake();
+  expect(seen).toEqual([true, false]);
+});
+
+it('says whether an action reached the socket', () => {
+  const { realtime, socket } = connect();
+
+  // Queued, not written — the handshake has not finished. `false` is what
+  // stops a screen recording this as done.
+  expect(realtime.act('chan_1', { type: 'CLAIM_FLOOR' })).toBe(false);
+
+  socket.finishHandshake();
+  expect(realtime.act('chan_1', { type: 'RELEASE_FLOOR' })).toBe(true);
+});
+
+it('retries inside the window faster than the backoff would', () => {
+  jest.useFakeTimers();
+  const { socket } = connect();
+  socket.finishHandshake();
+  socket.close();
+
+  // Every attempt fails the moment it is made, which is what a server that is
+  // still restarting looks like. Stepped rather than advanced in one jump
+  // because the retry loop is driven by each attempt's own close.
+  for (let elapsed = 0; elapsed < 8_000; elapsed += 100) {
+    jest.advanceTimersByTime(100);
+    const newest = FakeSocket.live[FakeSocket.live.length - 1]!;
+    if (newest.readyState === CONNECTING) newest.close();
+  }
+
+  // The old schedule reached its fourth attempt at 7.5s and its fifth at
+  // 15.5s, so a server back at eight seconds was met by a client that had
+  // already discarded the queue and would not knock again for another seven.
+  // A fixed second inside the window — 0.75 to 1.25 with jitter — is at least
+  // six attempts in the same span.
+  expect(FakeSocket.live.length).toBeGreaterThanOrEqual(6);
 });
 
 it('restores what it was watching before replaying anything', () => {
