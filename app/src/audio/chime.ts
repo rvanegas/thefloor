@@ -20,12 +20,11 @@ const KINDS: ChimeKind[] = ['in', 'out', 'nearby'];
  * once, normal twice*. The work is a few milliseconds and a file write; the
  * only question is whether it lands before the tap or on it.
  *
- * Called from `usePresenceChime`, at mount and again whenever the chosen
- * loudness changes. **Three sounds per peak, and the peak is why this takes an
- * argument**: the native cache is keyed on it, so warming at 0.18 and playing
- * at 0.5 is a cold sound with no margin — which is the shape of *quiet once,
- * normal twice* all over again, arriving only for somebody who has just moved
- * the setting.
+ * Called from `usePresenceChime`, at mount. **The native cache is keyed on the
+ * peak**, so warming at one number and playing at another is a cold sound with
+ * no margin — which is why this still takes the argument that the ladder
+ * needed, now that there is one peak and both ends of it are
+ * `CHIME_AMPLITUDE`. The lab is the only caller that passes anything else.
  */
 export function warmChimes(amplitude: number = CHIME_AMPLITUDE): void {
   for (const kind of KINDS) {
@@ -67,14 +66,15 @@ export function warmChimes(amplitude: number = CHIME_AMPLITUDE): void {
  * silence, because it would train somebody to check the screen every time.
  * Android and jest get nothing, exactly as `vibrate` degrades there.
  *
- * **How loud is the listener's, since 2026-09-15.** The peak is an argument
- * all the way down — the file *is* the loudness on the alert path, which takes
- * no gain — so a chosen amplitude is passed from Floor Settings through
- * `usePresenceChime` to here, and `undefined` is the app's own default rather
- * than silence. A phone whose binary predates the argument plays the sound at
- * its baked-in peak instead of not playing: see `playFirstAccepted` in
- * `../../modules/audio-route`, which is the one behaviour that must not be
- * "simplified" away. See `chimeAmplitude` in core/settings.ts.
+ * **How loud is a constant, and was a setting for one day.** The peak is an
+ * argument all the way down — the file *is* the loudness on the alert path,
+ * which takes no gain — but nothing above this passes one any more:
+ * `undefined` here means `CHIME_AMPLITUDE`, the top rung of the ladder that was
+ * offered and withdrawn, and the loudest the renderer will accept. A phone whose binary predates the argument plays
+ * the sound at its baked-in peak instead of not playing: see
+ * `playFirstAccepted` in `../../modules/audio-route`, which is the one
+ * behaviour that must not be "simplified" away. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 
 /** Somebody stepped in. */

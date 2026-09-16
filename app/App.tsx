@@ -238,11 +238,11 @@ function Root() {
    * there are two things to tell apart — see `chime.ts`, which says why that
    * does not contradict the entry forbidding the silenced-speaker tone.
    *
-   * **How loud is the account's**, from Floor Settings, and it is passed in
-   * rather than read down there because presence has no business importing the
-   * provider. See `chimeAmplitude` in core/settings.ts.
+   * **How loud is a constant**, `CHIME_AMPLITUDE` in the audio-route module.
+   * It was the account's for one day and the peak came through here; see
+   * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
    */
-  usePresenceChime(live, me, app.chimeAmplitude);
+  usePresenceChime(live, me);
 
   /**
    * Says this device is being attended, which is all a client does about

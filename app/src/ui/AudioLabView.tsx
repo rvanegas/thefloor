@@ -16,7 +16,6 @@ import {
   type ChimePath,
   type TrialResult,
 } from '../../modules/audio-route';
-import { CHIME_AMPLITUDES } from '../../../core/settings';
 import { recordEvent } from '../audio/diagnostics';
 import { Button, Card, IconButton, Screen, SectionLabel } from './components';
 import { CloseIcon } from './icons';
@@ -60,18 +59,23 @@ import { colors, spacing, type } from './theme';
 /**
  * The peaks the chime is compared at, as strings because the chips are.
  *
- * **`CHIME_AMPLITUDES` in core/settings.ts since 2026-09-15, where this was
- * the list itself.** These five became a setting on Floor Settings, and the
- * end that has to refuse a sixth is the server — so the list moved there and
- * this reads it. The lab is still where they are listened to; it is no longer
- * where they are decided. Why they are geometric rather than even, and why the
- * shipping value is one of them, is written down there.
+ * **The lab's own list again, as it was before 2026-09-15.** For one day these
+ * five were `CHIME_AMPLITUDES` in core/settings.ts, because a setting on Floor
+ * Settings offered them and the server had to refuse a sixth; the setting went
+ * the same day and took the shared list with it. Nothing outside this file
+ * needs them now — the app plays at `CHIME_AMPLITUDE` and this is where any
+ * other number is heard. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  *
- * `1` is full scale for a sine and the loudest this can be made; if that is
- * still too quiet the fault is the route or the ringer, not the file, which is
- * what the readout below the buttons is for.
+ * **Geometric rather than even, because loudness is**: 0.18 to 0.35 is the
+ * same step to an ear as 0.35 to 0.7. 0.18 is what the app shipped at before
+ * the chime was made louder, and it is on the row for that reason — a ladder
+ * without the old value on it cannot say how much louder anything got. `1` is
+ * full scale for a sine and the loudest this can be made; if that is still too
+ * quiet the fault is the route or the ringer, not the file, which is what the
+ * readout below the buttons is for.
  */
-const PEAKS = CHIME_AMPLITUDES.map(String);
+const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
 
 /**
  * The lead-ins the chime is compared at, in seconds, as strings because the
@@ -841,7 +845,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
       <Choice values={PEAKS} selected={peak} onSelect={setPeak} />
       <Text style={styles.why}>
         {peak === String(CHIME_AMPLITUDE)
-          ? `${peak} is what the app ships at today — the one reported as too quiet.`
+          ? `${peak} is what the app ships at today — full scale, and the ceiling the renderer clamps to.`
           : `${peak} against the shipping ${CHIME_AMPLITUDE}. Full scale is 1.`}
       </Text>
 

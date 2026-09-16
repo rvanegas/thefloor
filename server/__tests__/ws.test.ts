@@ -315,7 +315,6 @@ describe('websocket', () => {
       tapToLook: false,
       hideControlCards: false,
       labs: false,
-      chimeAmplitude: 0.18,
       marketingEmail: false,
       // The two names builds already installed know, sent beside the current
       // ones so that a phone that has not been updated reads a hello from this
@@ -333,9 +332,8 @@ describe('websocket', () => {
         appearance: 'dark',
         tapToLook: true,
         hideControlCards: true,
-          labs: true,
-          chimeAmplitude: 0.18,
-          marketingEmail: false,
+        labs: true,
+        marketingEmail: false,
       },
     });
     const later = new Client(token, baseUrl);
@@ -345,7 +343,6 @@ describe('websocket', () => {
       tapToLook: true,
       hideControlCards: true,
       labs: true,
-      chimeAmplitude: 0.18,
       marketingEmail: false,
       tapToStepIn: false,
       controlCards: false,
@@ -391,7 +388,6 @@ describe('websocket', () => {
         tapToLook: false,
         hideControlCards: false,
           labs: false,
-          chimeAmplitude: 0.18,
           marketingEmail: false,
         // Both names here too, and that is the point of putting the
         // translation in one function: a client that learnt one shape from the

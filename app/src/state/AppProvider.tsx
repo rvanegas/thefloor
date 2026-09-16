@@ -56,7 +56,6 @@ import {
 import { takeInvite } from '../ui/handover';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
-  isChimeAmplitude,
   type AccountSettings,
 } from '../../../core/settings';
 
@@ -176,17 +175,14 @@ const DEAD_TABS_AT_FOOT_KEY = 'thefloor.tabsAtFoot';
 const LABS_KEY = 'thefloor.labs';
 
 /**
- * The peak the channel chimes are rendered at, cached from the account the way
- * every key above is.
- *
- * **Cached because the first chime can beat `hello`.** Somebody who opens the
- * app into a channel they were already in can hear an arrival before the
- * socket has said what this account chose, and a cue at the wrong loudness is
- * the one thing this setting exists to prevent. An unparseable or absent value
- * reads as the default, which is what every build before the setting played
- * at. See `chimeAmplitude` in core/settings.ts.
+ * Where the chosen loudness used to be cached, written by builds 211 and
+ * earlier and read by nothing since 2026-09-15 — the chime has one loudness
+ * again, `CHIME_AMPLITUDE` in the audio-route module. Kept on
+ * `DEAD_TABS_AT_FOOT_KEY`'s terms above: only so the two paths that empty this
+ * install can empty it too. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  */
-const CHIME_AMPLITUDE_KEY = 'thefloor.chimeAmplitude';
+const DEAD_CHIME_AMPLITUDE_KEY = 'thefloor.chimeAmplitude';
 
 /**
  * How long `START_RECORDING` waits for a microphone before asking anyway.
@@ -682,19 +678,6 @@ interface AppValue extends AppState {
   labs: boolean;
   setLabs: (value: boolean) => void;
   /**
-   * How loud the channel chimes are, as the peak their sound is rendered at.
-   *
-   * One of `CHIME_AMPLITUDES` and nothing else, and an account setting on the
-   * reasoning the three above it are: how loud you want to be told somebody
-   * arrived is a thing you decided, not a property of the handset you decided
-   * it on. Read by `usePresenceChime` in `App`, which both warms and plays at
-   * it — the native renderer's cache is keyed on the peak, so a chime warmed
-   * at one and played at another is a cold sound and arrives half-formed. See
-   * `chimeAmplitude` in core/settings.ts.
-   */
-  chimeAmplitude: number;
-  setChimeAmplitude: (value: number) => void;
-  /**
    * Whether this account has said we may write to them about the application
    * rather than only to sign them in.
    *
@@ -910,23 +893,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if ((await storage.get(LABS_KEY)) === 'true') setLabsState(true);
     })();
   }, []);
-  /**
-   * The same shape again, and read through `isChimeAmplitude` rather than
-   * compared to a string: the cache is a number written as text, and the only
-   * values worth restoring are the ones somebody can have chosen. Anything
-   * else — a stale peak from a ladder that has changed, a half-written key —
-   * leaves the default standing, which is the sound every build before this
-   * setting made.
-   */
-  const [chimeAmplitude, setChimeAmplitudeState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude
-  );
-  useEffect(() => {
-    void (async () => {
-      const cached = Number(await storage.get(CHIME_AMPLITUDE_KEY));
-      if (isChimeAmplitude(cached)) setChimeAmplitudeState(cached);
-    })();
-  }, []);
   /** No cache and no effect; the interface entry above says why. */
   const [marketingEmail, setMarketingEmailState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.marketingEmail
@@ -986,8 +952,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(LEGACY_CONTROL_CARDS_KEY);
     setLabsState(settings.labs);
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
-    setChimeAmplitudeState(settings.chimeAmplitude);
-    void storage.set(CHIME_AMPLITUDE_KEY, String(settings.chimeAmplitude));
     setMarketingEmailState(settings.marketingEmail);
   }, []);
   /**
@@ -1012,8 +976,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(DEAD_TABS_AT_FOOT_KEY);
     setLabsState(DEFAULT_ACCOUNT_SETTINGS.labs);
     void storage.remove(LABS_KEY);
-    setChimeAmplitudeState(DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude);
-    void storage.remove(CHIME_AMPLITUDE_KEY);
+    void storage.remove(DEAD_CHIME_AMPLITUDE_KEY);
     setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
   }, []);
   /**
@@ -1761,17 +1724,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      chimeAmplitude,
-      setChimeAmplitude: (value) => {
-        setChimeAmplitudeState(value);
-        void storage.set(CHIME_AMPLITUDE_KEY, String(value));
-        if (state.token) {
-          void api
-            .saveSettings(state.token, { chimeAmplitude: value })
-            .catch(() => {});
-        }
-      },
-
       signedInHere: (identifier) =>
         lastIdentifier !== null && sameIdentifier(identifier, lastIdentifier),
       marketingEmail,
@@ -2257,7 +2209,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tapToLook,
       hideControlCards,
       labs,
-      chimeAmplitude,
       marketingEmail,
       lastIdentifier,
       rememberIdentifier,

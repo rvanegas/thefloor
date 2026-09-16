@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { DEFAULT_ACCOUNT_SETTINGS } from '../../../core/settings';
 import type { ChannelState, UserId } from '../../../core/types';
 import { chime, warmChimes, type ChimeKind } from './chime';
 
@@ -26,13 +25,12 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  * in the room hear it" needs no guard: `liveChannelHere` has already tested
  * `present.includes(me)`.
  *
- * **Takes the loudness the listener chose**, and warms at it as well as
- * plays at it: the native renderer caches a sound per peak, so a chime warmed
- * at one peak and played at another is a cold sound with no margin. It is an
- * argument rather than something read from the provider here, because this
- * file is above the screens and knows nothing about settings — `App` passes
- * `chimeAmplitude` in, and the default is the app's own for the tests and for
- * the web. See `chimeAmplitude` in core/settings.ts.
+ * **It takes no loudness, and did for one day.** A ladder of five peaks was an
+ * account setting on 2026-09-15 and was withdrawn the same day, a phone having
+ * heard all five as much the same; `warmChimes` and `chime` fall back to
+ * `CHIME_AMPLITUDE` and the two agree by construction, which is what the
+ * native renderer's per-peak cache needs. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  *
  * **Three sounds since 2026-09-15, where there were two.** A declaration from
  * outside used to fire the arrival chime, which made *stepped in* and *stepped
@@ -43,8 +41,7 @@ import { chime, warmChimes, type ChimeKind } from './chime';
 export function usePresenceChime(
   channel: ChannelState | null,
   me: UserId,
-  amplitude: number = DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude,
-  fire: (kind: ChimeKind, amplitude: number) => void = chime
+  fire: (kind: ChimeKind) => void = chime
 ): void {
   /**
    * What the room looked like last time, or null before the first look.
@@ -70,8 +67,8 @@ export function usePresenceChime(
    * is neither.
    */
   useEffect(() => {
-    warmChimes(amplitude);
-  }, [amplitude]);
+    warmChimes();
+  }, []);
 
   const channelId = channel?.id ?? null;
   // Joined into strings so the effect re-runs when the room changes shape and
@@ -97,17 +94,6 @@ export function usePresenceChime(
   declared.current = channel?.declaredNearbyAt ?? {};
   const lastPresentAt = useRef<Partial<Record<UserId, number>>>({});
   lastPresentAt.current = channel?.lastPresentAt ?? {};
-  /**
-   * The chosen peak, held the same way and for a related reason: a loudness
-   * somebody has just moved on a settings screen is not a change in the shape
-   * of the room, and putting it in the dependency list would re-run the
-   * comparison below for it. Harmless today — a re-run with an unchanged
-   * roster sounds nothing — but the thing this effect is *for* is deciding
-   * whether a sound is owed, and a setting has no opinion about that. Read at
-   * the moment of playing, which is the only moment it matters.
-   */
-  const peak = useRef(amplitude);
-  peak.current = amplitude;
 
   useEffect(() => {
     if (channelId === null) {
@@ -218,8 +204,8 @@ export function usePresenceChime(
      * somebody else steps to the edge has to sound the same way every time, or
      * the pair of sounds is a coin toss rather than a sentence.
      */
-    if (rising) fire('in', peak.current);
-    if (falling) fire('out', peak.current);
-    if (edging) fire('nearby', peak.current);
+    if (rising) fire('in');
+    if (falling) fire('out');
+    if (edging) fire('nearby');
   }, [channelId, presentKey, nearbyKey, me, fire]);
 }

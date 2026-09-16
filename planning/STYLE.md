@@ -350,9 +350,10 @@ phone's card is about 280pt inside its padding, so a fifth of it is 45pt and
 any word longer than *Loud* truncates — a ladder whose rungs are half-spelt is
 a puzzle. Beyond three, stack full-width buttons, one per rung, the `primary`
 fill marking the one in force. ChannelSettingsView's `NotificationLevelPicker`
-is the pattern (four, with a `sublabel` each) and the chime loudness on Floor
-Settings is the second (five, bare). It is the same arithmetic § *The pinned
-footer* makes about five slots in 620.
+is the pattern, and the only one left (four, with a `sublabel` each): the chime
+loudness on Floor Settings was the second — five, bare — for the day that
+setting existed, and the arithmetic above is what decided its shape. It is the
+same arithmetic § *The pinned footer* makes about five slots in 620.
 
 ### IconButton
 

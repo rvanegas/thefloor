@@ -298,8 +298,26 @@ export type ChimeCandidate =
  * It is here rather than in `../../src/audio/chime.ts` because the lab imports
  * from this module directly, and a volume sweep wants the starting point in
  * the same file as the function it varies.
+ *
+ * **1, the top of the ladder, and a constant rather than a choice.** It
+ * shipped at 0.18 and was reported from a phone as too quiet to notice; for
+ * one day on 2026-09-15 it was an account setting offering five peaks, and
+ * the ladder was taken back out because a phone heard all five as much the
+ * same — the alert path takes no gain, so the distance the file spans is not
+ * the distance an ear gets. Given that, the rung to stand on is the loudest
+ * one: nothing is bought by leaving headroom in a file whose level the phone
+ * is going to decide anyway.
+ *
+ * **It is also the ceiling, and the Swift is what enforces that.** `1` is full
+ * scale for a sine; `clampAmplitude` pins every request into `[0.01, 1]` and
+ * the chime's cache key is computed from the clamped value, so a larger number
+ * here would not be louder, would not be a distinct sound, and would not
+ * complain. Louder than this is not an amplitude question — it is the path
+ * (`ChimePath`) or the waveform. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md, and
+ * `AudioLabView` for the sweep, which still varies this by hand.
  */
-export const CHIME_AMPLITUDE = 0.18;
+export const CHIME_AMPLITUDE = 1;
 
 /**
  * The silence every chime opens with, mirroring `chimeLeadSeconds` in the

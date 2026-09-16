@@ -22,8 +22,6 @@ import { describeChannel } from '../../core/naming';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
 import {
-  CHIME_AMPLITUDES,
-  isChimeAmplitude,
   isColorSchemePreference,
   type AccountSettings,
 } from '../../core/settings';
@@ -2308,14 +2306,19 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Writes the settings that belong to the account rather than to the phone.
    *
-   * Six of them: the colour scheme, whether a tap only looks, whether the
-   * channel screen has dropped its control cards, where that screen's tabs
-   * are drawn, labs, and how loud the channel chimes are. **A further setting on that screen was never here on
+   * Five of them: the colour scheme, whether a tap only looks, whether the
+   * channel screen has dropped its control cards, labs, and whether we may
+   * write to this person about the application. **A further setting on that
+   * screen was never here on
    * purpose** — keeping the hands-free link steady was about the headset
    * somebody is wearing, so it stayed on the device and never reached this
    * server. See core/settings.ts.
    *
-   * Two of the six are accepted under their old names as well as their
+   * Two others were here and are not: where the channel tabs are drawn, and
+   * how loud the chimes are. Both are still sent by installed builds and both
+   * are ignored rather than refused — see the two comments in the body.
+   *
+   * Two of the five are accepted under their old names as well as their
    * current ones, for as long as builds that know only the old names are
    * installed; settings-wire.ts is that whole arrangement.
    *
@@ -2394,17 +2397,14 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.marketingEmail = body.marketingEmail;
     }
-    // Refused rather than clamped, on the scheme's reasoning one screen up: a
-    // peak outside the ladder is a client bug, and storing it would hand this
-    // account's other phones a loudness nobody has ever listened to on one.
-    if (body?.chimeAmplitude !== undefined) {
-      if (!isChimeAmplitude(body.chimeAmplitude)) {
-        return reply.code(400).send({
-          error: `chimeAmplitude must be one of ${CHIME_AMPLITUDES.join(', ')}.`,
-        });
-      }
-      changes.chimeAmplitude = body.chimeAmplitude;
-    }
+    // `chimeAmplitude` is not read here and, like `tabsAtFoot` above, is
+    // deliberately not refused either. Build 211 and earlier carry the
+    // loudness ladder and send a peak when somebody taps a rung; this endpoint
+    // is partial, so a field it does not know is one it leaves alone. Those
+    // builds keep playing at whatever they last stored locally until they
+    // update, which is the honest degradation — the chime has one loudness
+    // again for everybody else. See
+    // planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
 
     const settings = accounts.updateSettings(account.id, changes, now());
     if (!settings) return reply.code(404).send({ error: 'No such account.' });

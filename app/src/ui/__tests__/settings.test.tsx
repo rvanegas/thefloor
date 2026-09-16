@@ -10,7 +10,6 @@ import { SupportView } from "../SupportView";
 import { LeaderboardView } from "../LeaderboardView";
 import { SectionLabel } from "../components";
 import { Alert, StyleSheet } from "react-native";
-import { CHIME_AMPLITUDES } from "../../../../core/settings";
 import { chimeIn, warmChimes } from "../../audio/chime";
 import {
   NOW,
@@ -38,10 +37,10 @@ jest.mock("../../state/AppProvider", () =>
 );
 /**
  * The fourth, and the only one that is not a harness factory: the chime is a
- * native sound with nothing under it in jest, and this screen now plays one on
- * a tap. Mocked here so the tap can be *asserted* rather than merely survived
- * — what the rung does to a sound is unassertable, but which sound it asks for
- * and at what peak is the whole of what this screen decides.
+ * native sound with nothing under it in jest, and this screen played one on a
+ * tap for the day the loudness ladder was on it. **Kept after the ladder
+ * went**, because the assertion that is left is that this screen makes no
+ * noise at all — which needs something to watch.
  */
 jest.mock("../../audio/chime", () => ({
   chimeIn: jest.fn(),
@@ -342,107 +341,29 @@ describe("the Labs setting", () => {
 });
 
 /**
- * How loud the channel chimes are, which is the one setting on this screen
- * whose values are a ladder rather than a yes.
+ * The chimes have no setting on this screen, and had one for a day.
  *
- * **The five are the audio lab's five**, from `CHIME_AMPLITUDES` in
- * core/settings.ts, and the words on the buttons are this screen's — a peak
- * sample value is not a thing anybody chooses in. What the choice *does* to a
- * sound is not assertable here, there being no audio stack under a render
- * test; `presenceChime.test.tsx` is where the number is followed to the cue.
+ * A *Sounds* section offered five rungs on 2026-09-15 and was withdrawn the
+ * same day: a phone heard all five as much the same, the alert path taking no
+ * gain, so the app plays at one constant — `CHIME_AMPLITUDE` in the
+ * audio-route module. This is the assertion that the screen went with it, and
+ * that nothing on it makes a noise. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 describe("how loud the chimes are", () => {
-  // The chime mocks are this file's rather than the harness's, so nothing
-  // resets them; two taps in two tests would otherwise be one call log.
-  beforeEach(() => {
-    (chimeIn as jest.Mock).mockClear();
-    (warmChimes as jest.Mock).mockClear();
-  });
-
-  const openSettings = async () => {
+  it("offers no loudness and sounds nothing", async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
     });
-    return tree;
-  };
-
-  it("offers the five the audio lab offers, quietest first", async () => {
-    const tree = await openSettings();
-    const words = ["Quietest", "Quiet", "Middle", "Loud", "Loudest"];
-    for (const word of words) expect(findButton(tree, word)).toBeTruthy();
-    expect(CHIME_AMPLITUDES.length).toBe(words.length);
-    act(() => tree.unmount());
-  });
-
-  it("says what the sounds are, and what the phone still decides", async () => {
-    const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain("How loud the channel chimes are");
-    expect(text).toContain("steps in");
-    // The two things somebody would otherwise have to discover: it is never
-    // about you, and the ringer outranks this.
-    expect(text).toContain("never about yourself");
-    expect(text).toContain("ringer");
+    expect(text).not.toContain("How loud the channel chimes are");
+    for (const word of ["Quietest", "Quiet", "Middle", "Loud", "Loudest"]) {
+      expect(findButton(tree, word)).toBeFalsy();
+    }
+    expect(chimeIn).not.toHaveBeenCalled();
+    expect(warmChimes).not.toHaveBeenCalled();
     act(() => tree.unmount());
-  });
-
-  it("reports a change rather than keeping it", async () => {
-    const tree = await openSettings();
-    act(() => findButton(tree, "Loud")!.props.onPress());
-    expect(mockApp.setChimeAmplitude).toHaveBeenCalledWith(0.7);
-    expect(mockApp.setLabs).not.toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  /**
-   * The tap is the only place in the app where a chime is heard on purpose
-   * rather than because somebody moved, and it is what makes the five words
-   * mean anything. **At the peak just chosen, not the one in force**: the
-   * provider is mocked here and `app.chimeAmplitude` does not move, which is
-   * the same race a real render has — the state is not the argument.
-   */
-  it("sounds the arrival chime at the rung just tapped", async () => {
-    const tree = await openSettings();
-    act(() => findButton(tree, "Loud")!.props.onPress());
-    expect(chimeIn).toHaveBeenCalledWith(0.7);
-    // Warmed at that peak first: the native cache is keyed on it, so an
-    // unwarmed example is the one play that renders as it sounds.
-    expect(warmChimes).toHaveBeenCalledWith(0.7);
-    expect((warmChimes as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-      (chimeIn as jest.Mock).mock.invocationCallOrder[0],
-    );
-    act(() => tree.unmount());
-  });
-
-  it("says that a tap is an example you can hear", async () => {
-    const tree = await openSettings();
-    expect(textOf(tree)).toContain("plays the arrival sound");
-    act(() => tree.unmount());
-  });
-
-  /**
-   * Somebody who has never chosen has to see the rung they are actually on —
-   * an unlit row would read as a setting nothing has been done with, which is
-   * true of the account and not of the sound.
-   */
-  it("marks the rung in force", async () => {
-    const tree = await openSettings();
-    const styleFor = (node: ReactTestInstance) =>
-      StyleSheet.flatten(node.props.style({ pressed: false })) as {
-        backgroundColor?: unknown;
-      };
-    expect(styleFor(findButton(tree, "Quietest")!).backgroundColor).not.toBe(
-      styleFor(findButton(tree, "Loudest")!).backgroundColor,
-    );
-
-    mockApp.chimeAmplitude = 1;
-    const louder = await openSettings();
-    expect(styleFor(findButton(louder, "Loudest")!).backgroundColor).not.toBe(
-      styleFor(findButton(louder, "Quietest")!).backgroundColor,
-    );
-    act(() => tree.unmount());
-    act(() => louder.unmount());
   });
 });
 

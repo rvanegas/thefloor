@@ -596,24 +596,29 @@ public class AudioRouteModule: Module {
   /**
    The peak the app plays at, and what a non-finite argument falls back to.
 
-   **Chosen for *subtle*, which is in the request, and reported from a phone as
-   too quiet to notice** — so since 2026-09-15 the peak is an argument and this
-   is only where the dial starts. The lab sweeps it, and Floor Settings offers
-   the same five rungs to the person listening.
+   **0.18 was chosen for *subtle*, which is in the request, and reported from a
+   phone as too quiet to notice.** For one day on 2026-09-15 the answer was a
+   ladder of five peaks somebody could choose from; the ladder went the same
+   day, because a phone heard all five as much the same and five words that do
+   not reliably differ are worse than one number that is simply louder. The
+   peak stayed an argument — the lab still sweeps it — and 1 is where it starts
+   and where every ordinary call leaves it, the ladder's top rung being the
+   only one worth standing on once the rungs are known to be hard to tell
+   apart. It is also the ceiling `clampAmplitude` enforces: full scale for a
+   sine, above which a peak clips into a buzz rather than getting louder.
 
-   **So this is now the untouched case rather than the app's only loudness, and
-   it is written down three times**: here, as `CHIME_AMPLITUDE` in
-   `../index.ts`, and as `DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude` in
-   `core/settings.ts`, which is what a fresh account gets. Change one and
-   change all three — `chimeInfo` is what a running binary reports, and the
-   lab's *ships at* readout is how they are compared. Only the two JavaScript
-   copies are reachable from jest.
+   **It is written down twice**: here, and as `CHIME_AMPLITUDE` in
+   `../index.ts`, which is what every ordinary call passes. Change one and
+   change the other — `chimeInfo` is what a running binary reports, and the
+   lab's *ships at* readout is how they are compared. Only the JavaScript copy
+   is reachable from jest. See
+   `planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md`.
 
    **It is the only lever there is.** `AudioServicesPlaySystemSound` takes no
    volume and obeys no per-app gain — it plays the file at whatever level the
    route is already at. Louder means louder samples, which is this.
    */
-  private static let chimeAmplitude = 0.18
+  private static let chimeAmplitude = 1.0
 
   private static let noteE5 = 659.25
   private static let noteA5 = 880.0

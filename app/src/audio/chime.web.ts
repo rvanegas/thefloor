@@ -20,8 +20,7 @@
  * depending on which screen somebody happened to be at.
  */
 
-import { DEFAULT_ACCOUNT_SETTINGS } from '../../../core/settings';
-import type { ChimeKind } from '../../modules/audio-route';
+import { CHIME_AMPLITUDE, type ChimeKind } from '../../modules/audio-route';
 
 const NOTE_E5 = 659.25;
 const NOTE_A5 = 880.0;
@@ -43,13 +42,15 @@ const KINDS: Record<ChimeKind, number[]> = {
 };
 const NOTE_SECONDS = 0.09;
 /**
- * Matches the native amplitude, and is the untouched case rather than the only
- * one: *subtle* was the requirement, and since 2026-09-15 how subtle is the
- * listener's to say. The number is `DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude`
- * rather than a literal so a browser and a phone cannot start at different
- * loudnesses. See core/settings.ts.
+ * Matches the native amplitude, and is the only one: *subtle* was the
+ * requirement, it was reported as too quiet to notice, and for one day on
+ * 2026-09-15 how subtle was the listener's to say. The number is
+ * `CHIME_AMPLITUDE` rather than a literal so a browser and a phone cannot
+ * sound at different loudnesses — here it is a real gain on the media path,
+ * where on a phone it is the peak the samples are rendered at. See
+ * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  */
-const PEAK = DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude;
+const PEAK = CHIME_AMPLITUDE;
 
 let context: AudioContext | null = null;
 

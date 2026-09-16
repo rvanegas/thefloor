@@ -40,7 +40,7 @@ caused; the list carries the meaning.
 - **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for declaring themselves nearby
-- **Chime loudness** — How loud those sounds are, chosen on *Floor Settings* from the audio lab's five rungs; the peak the file is rendered at, since the alert path has no gain
+- **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, since the alert path has no gain
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -321,15 +321,21 @@ the rule that decided the whole design — **never heard by the person it is
 about**. You know you walked in. See
 `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
 
-**How loud is the listener's, since 2026-09-15.** *Floor Settings* offers the
-five rungs the audio lab compares — quietest, quiet, middle, loud, loudest,
-geometric because loudness is — and the quietest is what every build before the
-setting played at. It is the **peak the file is rendered at** and not a volume
-control: `AudioServicesPlaySystemSound` takes no gain, so louder means louder
-samples, and the phone's ringer, silent switch and output route still outrank
-all five. It follows the account, and it changes what *you* hear and nothing
-anybody else in the channel does. See `chimeAmplitude` in core/settings.ts,
-which is also the list the lab's own row is drawn from.
+**How loud is one number, and was the listener's for one day.** It is the
+**peak the file is rendered at** and not a volume control:
+`AudioServicesPlaySystemSound` takes no gain, so louder means louder samples,
+and the phone's ringer, silent switch and output route outrank it. On
+2026-09-15 *Floor Settings* offered five rungs — quietest through loudest,
+geometric because loudness is — and the ladder was withdrawn the same day,
+because a phone heard all five as much the same and five words that do not
+reliably differ are worse than one number that is simply louder. The number is
+`CHIME_AMPLITUDE` in `app/modules/audio-route/index.ts` and `chimeAmplitude` in
+`AudioRouteModule.swift`, kept equal, and it is the ladder's **top** rung —
+full scale for a sine, and the ceiling the renderer clamps to, so there is no
+larger number to reach for. Louder than this is the path or the waveform, not
+the peak. The audio lab still
+sweeps the five, which is where any other number is heard. See
+`decisions/2026-09-15-the-chime-has-one-loudness-again.md`.
 
 **Only a departure somebody chose.** Of the four ways to stop being present,
 two are clocks running out — a connection past its grace, an attention window
@@ -524,7 +530,7 @@ you are on to be inferred from what is on it.
 What is on it belongs to the account rather than to the phone, so it follows
 somebody to a second device: the colour scheme, whether a tap on a channel
 looks or steps in, whether the channel screen repeats its footer's controls as
-cards, *Labs*, and how loud the **chimes** are. Below those sit the things
+cards, and *Labs*. Below those sit the things
 about this install and this account — notifications, the policies, chipping in,
 signing out, and deleting the account. See core/settings.ts, which is where the
 ones that travel are defined.

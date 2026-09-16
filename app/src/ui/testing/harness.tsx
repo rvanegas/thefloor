@@ -315,14 +315,6 @@ export const mockApp = {
   setLabs: jest.fn((value: boolean) => {
     mockApp.labs = value;
   }),
-  // The peak the chimes are rendered at, as an untouched account has it — the
-  // quietest of the five, and what every build before the setting played at.
-  // A number rather than a flag, so a test that means to move it says which
-  // rung. See `chimeAmplitude` in core/settings.ts.
-  chimeAmplitude: DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude,
-  setChimeAmplitude: jest.fn((value: number) => {
-    mockApp.chimeAmplitude = value;
-  }),
 };
 
 // The views are rendered without a native audio stack: @livekit/react-native
@@ -704,8 +696,6 @@ export function resetHarness(): void {
   mockApp.tapToLook = false;
   mockApp.hideControlCards = false;
   mockApp.labs = false;
-  mockApp.chimeAmplitude = DEFAULT_ACCOUNT_SETTINGS.chimeAmplitude;
-  mockApp.setChimeAmplitude.mockClear();
   mockApp.debug = false;
   mockApp.loadHelp = emptyHelp();
   mockApp.askHelp = takesQuestion();
