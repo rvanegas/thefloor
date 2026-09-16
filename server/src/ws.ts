@@ -540,8 +540,12 @@ export function registerWebsocket(deps: {
    * disowned, a silence budget the client cannot meet, a proxy cutting an idle
    * stream — and the journal held the same evidence for all of them: a row of
    * `incoming request` lines and nothing else. See
+   * decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md.
+   * The entry that asked for this line —
    * backlog/why-one-phone-could-not-hold-a-socket-is-diagnosed-not-observed.md,
-   * where a mechanism that fit had to stand in for one that was seen.
+   * where a mechanism that fit had to stand in for one that was seen — was
+   * settled by it and deleted the day after it landed; that decision is where
+   * its argument went.
    *
    * The two numbers are what separate those faults.
    *

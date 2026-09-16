@@ -374,11 +374,13 @@ whole value, so `redact: ['req.url']` takes `build`, `client` and `device` with
 it — which the build census and the socket diagnostics both read. A custom
 serializer that strips `token=` and restates the other four default fields
 keeps them. See
-backlog/why-one-phone-could-not-hold-a-socket-is-diagnosed-not-observed.md,
-where the queries that depend on those fields are.
+backlog/session-tokens-are-in-the-journal-in-plaintext.md, which is the
+outstanding work, and
+decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
+for what reads those fields.
 
 **Clearing the back catalogue is a separate decision, and not an obvious one.**
-Vacuuming the journal would also destroy the reconnect history that entry rests
+Vacuuming the journal would also destroy the reconnect history those two rest
 on — the evidence a diagnosis was right, which is not recoverable once gone. The
 alternative that keeps it is signing out the affected sessions, which makes what
 is written there worthless without deleting it.
