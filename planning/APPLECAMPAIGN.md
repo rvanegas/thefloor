@@ -107,10 +107,26 @@ rather than after.
 cohorts cannot legitimately be switched on yet — the ordering in
 `server/.env.example` is not negotiable, an older build showing the room and no
 reason for it. **What is missing is a release rather than a build**: `build/206`
-through `build/211` are tagged already, so this waits on moving `released`, not
+through `build/212` are tagged already, so this waits on moving `released`, not
 on `bin/upload-ios`. (MARKETING.md § *The cohort* states this against a
 `released` of 127, which has since moved; the figure there is stale and the ref
 is the authority.)
+
+**The next release is 212**, decided 2026-09-15, which clears this outright:
+212 is past 206, so the card and the room ship together and the placement
+ordering is satisfied by the release rather than waived. Nothing else here
+waits on which build it is.
+
+**One thing does not ship in it, and it is worth knowing before step 9.**
+`build/212` was tagged six commits before the funnel instrumentation landed,
+so the *server* half of that work deploys whenever the box is next deployed
+and the *app* half does not exist on any released phone. In practice: `pings`
+— levels 9 and 10 — starts recording on the deploy, because a ping is
+something the server does. `notify` — level 3 — does not, because the answer
+is something only the app can report, and no released build sends it. **It
+will read *nobody has said* for the whole population throughout this
+campaign**, which is the honest answer and is exactly the row that invites the
+wrong reading. Do not report it as a refusal rate. It needs a build after 212.
 
 Past that there is a ceiling MARKETING.md § *What a tap costs* names and nobody
 has costed. At roughly a dollar a tap and half of taps installing, $25 a day is
@@ -166,7 +182,7 @@ learning budget rather than an investment — revenue per install is
 approximately zero, there is no ROAS to clear, and the only honest question
 this money answers is **whether the complaint terms convert at all.**
 
-## The open question, which is Rodrigo's
+## The open question, which was Rodrigo's — leaning against
 
 **Bidding on competitors' app names.** MARKETING.md § *What paid may not do*
 leaves it deliberately unsettled and says to ask rather than assume. Apple
@@ -178,8 +194,26 @@ Against that, it buys somebody mid-decision about a *different* product, which
 is persuasion rather than intent — the distinction this whole argument turns
 on.
 
-**It needs deciding before the keyword set is final**, since it is part of
-round one or of nothing.
+**Rodrigo leans against, 2026-09-15.** So **round one carries no competitor
+names**, and since it is part of round one or of nothing, that is the working
+answer unless he says otherwise before the campaign is set up.
+
+Recorded as a lean rather than as a rule, which is the honest shape of it and
+also the useful one. The argument against was always the stronger half — it is
+the distinction the whole file turns on, and a campaign built to buy intent
+should not open by buying persuasion. But it is a judgement about one channel
+rather than a constraint derived from the proposition, and **it is the cheapest
+thing here to reverse**: adding exact-match terms to a live campaign is a text
+field, not a rebuild. So it is settled for round one and open for round two,
+where the Discovery campaign will have said something about which searches
+actually convert.
+
+**What would reopen it before then:** Tier 1 failing to place the spend at all.
+§ *The keyword list* already expects these twenty terms to be thin, and if
+four weeks cannot spend $20 a day against them, the question stops being
+*should we buy persuasion* and becomes *is there any intent here to buy* —
+which is a different question, and the competitor names are the nearest place
+an answer lives.
 
 ## The order, in one list
 
@@ -190,7 +224,9 @@ round one or of nothing.
 4. ~~Split `channels.cohort` out of `bin/growth`.~~ Done 2026-09-15.
 5. Release a build of 206 or later — 206 through 211 are already uploaded, so
    this is `released` moving — then name the host or hosts.
-6. Decide the competitor-name question.
+6. ~~Decide the competitor-name question.~~ Leaning against, 2026-09-15:
+   round one carries no competitor names. Reversible at any time; see the
+   section above for what would reopen it.
 7. Set up the campaign: Tier 1 exact, the three negative sets, the account-level
    flooring negatives, daily cap sized to the host.
 8. Four weeks of spend, then three to four weeks of silence.

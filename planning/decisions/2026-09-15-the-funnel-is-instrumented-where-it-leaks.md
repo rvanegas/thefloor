@@ -103,6 +103,24 @@ named one.
 **`PRIVACY_UPDATED` did not move**, which looks like an oversight and is not:
 the substance changed on 15 September 2026 and the page already said so.
 
+## When each half starts answering, which is not the same day
+
+Worth writing down because the two halves of this reach reality by different
+routes, and the slower one is the level the file calls most valuable.
+
+**`pings` starts on the next deploy.** A ping is something the server does,
+and the record is written where the decision is made, so levels 9 and 10 are
+live the moment the box has this.
+
+**`notify` starts on a build after 212.** `build/212` was tagged six commits
+before this landed and is the next release, decided 2026-09-15 — so the header
+is on no released phone, and `accounts.notifications` is null for the whole
+population until a later build is released and spreads. **A deploy does not
+help**: level 3 is an answer only the app can give. Until then the `notify`
+report reads *nobody has said* for everybody, which is honest and is exactly
+the row that invites being read as a refusal rate. It is why the fourth answer
+is a fourth answer and not a fourth state.
+
 ## What it is worth
 
 Level 10 is one of the three levels MARKETING.md says are worth all the

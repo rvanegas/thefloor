@@ -687,6 +687,16 @@ web client omits it deliberately, a browser having no such permission to
 report. Read the shares against the three that answered while that row is
 large.
 
+**And it will be the whole population for a while, which is the thing to hold
+on to.** `build/212` was tagged before this shipped and is the next release,
+so no phone in anybody's hands sends the header: the column is null for
+everyone until a build after 212 is released and has spread. The server half
+needs only a deploy — `pings` starts recording on one — but level 3 is an
+answer only the app can give. **Until then *nobody has said* is the honest
+reading and a refusal rate read off it would be invented**, which is precisely
+the misreading the fourth answer exists to prevent and precisely the one a
+large fourth row invites.
+
 **And guests are invisible throughout, still.** No account, so no contact edge
 and no `pair` span: a member and four guests talking for an hour leave nothing
 in any report. **This one is structural rather than missing** — it would take
@@ -937,7 +947,12 @@ supplement to the organic work below rather than as the engine.
   persuasion rather than intent, and this file spends its whole argument on the
   difference. **Ask rather than assume** — the rule as written reads as a
   blanket refusal and extending or narrowing it is Rodrigo's call, not a
-  session's.
+  session's. **Asked and answered for the first campaign, 2026-09-15: he leans
+  against, so round one carries no competitor names.** That is a lean about
+  one campaign rather than a rule added here, which is why this item still
+  says the question is open — the standing answer is still *ask*, and the next
+  campaign gets to ask again. APPLECAMPAIGN.md § *The open question* holds the
+  reasoning and what would reopen it.
 - **No claim that is not checkable in the shipped build**, on the listing's own
   rule. Open channels and alarm-by-permission are not built and may not be
   advertised.

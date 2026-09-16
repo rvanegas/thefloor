@@ -1039,6 +1039,13 @@ report_notify() {
 -- not against everybody** while that row is large, or a population nobody has
 -- heard from reads as a population that refused.
 --
+-- **Expect that row to be everybody at first.** The header shipped after
+-- `build/212` was tagged, and 212 is the release that follows it — so until a
+-- later build is released and spreads, no phone in anybody's hands sends this
+-- and the whole column is null. A deploy does not fix it; only the app can
+-- answer. Until then this report says nothing, honestly, rather than
+-- something reassuring.
+--
 -- `with_an_address` is `device_tokens`, and the two disagreeing is worth
 -- looking at: `granted` and no address is an install that has permission and
 -- has not registered, and anything but `granted` with an address is a
