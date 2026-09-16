@@ -102,3 +102,30 @@ is spent.
 **No count, no push, and no marks inside `HelpView`.** Also no second placement:
 `thefloor.tabsAtFoot` is a dead key in `AppProvider` and the switch has exactly
 one home, so the dab has one geometry to be right in.
+
+## What it closed, and why the push was never the answer
+
+`backlog/an-answered-help-question-reaches-nobody.md`, deleted on 2026-09-16,
+which had held since the Help screen shipped on 2026-09-10: writing an answer
+with `bin/help` changed a row and reached no phone, so the only way somebody
+learned you had replied was by opening the screen again. The Support dab is
+what closed it. Not instantly — the mark arrives on the next home snapshot, per
+§ *Support has to remember* above — but the asker no longer has to keep looking
+to find out.
+
+**The entry assumed the fix would be a push, and that is the half worth
+keeping.** It would need a notification level of its own: the machinery in
+`channel_notification_levels` is per channel, and a support reply belongs to no
+channel. It would also need a preference somebody can find *before* the first
+one arrives rather than after, because a support reply that wakes a phone at
+midnight and cannot be turned off is worse than no notification at all. A dab
+needs neither — it asks and waits, which is exactly the register an answered
+question wants. So the push is not deferred work that the dab postponed; it is
+the more expensive answer to a question the cheaper one already answers.
+
+One thing the dab still does not do, and the entry was right about: **nothing
+records whether an answer was ever seen.** The watermark is
+`thefloor.help.seenAnsweredAt` on the device, so the person answering cannot
+tell. `bin/help list --all` is the read on the other side — how long each
+question waited — and a question old enough that the asker has given up looking
+is still one to answer by email, where arrival is not in doubt.
