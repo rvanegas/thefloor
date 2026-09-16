@@ -1,0 +1,21 @@
+A channel makes a sound when somebody steps in and a different one when they step out, heard by everybody there except the person it is about. Somebody saying they are nearby has a note of its own.
+
+Tapping a notification opens the channel it is about.
+
+Home's Contacts tab wears a mark when somebody has asked to be your contact, and Support wears one when an answer to a question you asked has come back.
+
+A channel's first tab is called Members.
+
+Record works in a channel where you are the only one present, as long as a microphone is open or a track is playing. Record automatically starts a run in the same case.
+
+Ping is offered only while you are in a channel or nearby it.
+
+Show the checklist again is on Floor Settings, under Getting started, where every account can reach it. The getting-started list stays on Home while you are standing in a channel.
+
+Floor Settings has an Email section, On or Off, for occasional email about how to use The Floor and what has changed in it. Signing up offers the same choice as a checkbox beside your display name. Sign-in codes arrive either way.
+
+Somebody who arrives with nobody here is put into one channel, Getting Started Cohort and a number, with up to three other people who joined around the same time and one of the people who run The Floor. It happens when notifications are turned on, once, and nobody in it becomes a contact.
+
+An invitation in the Channels list says who asked you in.
+
+The channel screen no longer carries a card about your microphone. An Audio card appears only when the connection needs attention.
