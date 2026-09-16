@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { api } from '../api/http';
+import { notificationPermission } from '../api/notify';
 import {
   askForPush,
   onNotificationTap,
@@ -588,6 +589,71 @@ describe('the permission this install holds', () => {
     mockDevice.isDevice = false;
     await expect(permissionState()).resolves.toBe('denied');
     expect(permissions).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Level 3 of planning/MARKETING.md's funnel, which this module is the only
+   * source of: the server knows a device token exists, which is the granted
+   * case, and has no way at all to tell a refusal from a dialog nobody has
+   * been shown. What is asserted here is the reporting and not the answer —
+   * the three above already own that.
+   */
+  describe('what it reports to the server', () => {
+    it('notes each of the three answers as it reads them', async () => {
+      permissions.mockResolvedValue({ granted: false, canAskAgain: true });
+      await permissionState();
+      expect(notificationPermission()).toBe('undetermined');
+
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+      await permissionState();
+      expect(notificationPermission()).toBe('granted');
+
+      permissions.mockResolvedValue({ granted: false, canAskAgain: false });
+      await permissionState();
+      expect(notificationPermission()).toBe('denied');
+    });
+
+    /**
+     * A browser and a simulator both read as `denied`, correctly — there is
+     * nothing to grant. Reporting it would file a population that was never
+     * eligible as one that refused.
+     *
+     * In a fresh copy of both modules, because what is being asserted is that
+     * nothing was ever written: the value is module state by design — one
+     * reading, held between the place that takes it and the place that sends
+     * it — so a test sharing it with the ones above would be reading their
+     * answer rather than the absence of this one.
+     */
+    it('reports nothing at all where no token can exist', async () => {
+      mockDevice.isDevice = false;
+      // `require` inside the sync form, as shareWeb.test.ts does: the async
+      // variant needs dynamic import, which this runner is not started with.
+      let fresh!: typeof import('../push');
+      let held!: typeof import('../api/notify');
+      jest.isolateModules(() => {
+        fresh = require('../push');
+        held = require('../api/notify');
+      });
+
+      await fresh.permissionState();
+
+      expect(held.notificationPermission()).toBeNull();
+    });
+
+    /**
+     * `denied` is this function's contract for a platform that threw, not an
+     * observation — so it is not reported, and the last real answer stands.
+     * Overwriting it would turn one failed call into a refusal nobody made.
+     */
+    it('keeps the last real answer when the platform throws', async () => {
+      permissions.mockResolvedValue({ granted: true, canAskAgain: false });
+      await permissionState();
+
+      permissions.mockRejectedValue(new Error('no such API'));
+      await expect(permissionState()).resolves.toBe('denied');
+
+      expect(notificationPermission()).toBe('granted');
+    });
   });
 
   it('spends the dialog and registers what it is given', async () => {

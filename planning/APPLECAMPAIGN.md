@@ -125,12 +125,26 @@ disappointment. For the full $25 a day, **name a second host in
 `COHORT_HOST_IDENTIFIERS` first**; it is an ordered list precisely so that is
 configuration rather than code.
 
-### One thing to do before the spend rather than after
+### One thing to do before the spend rather than after — done
 
 **Split `channels.cohort` out of `channels`, `talking` and `groups` in
 `bin/growth`**, per MARKETING.md § *Cohorts contaminate three of those four*.
 It is small now and much worse once a campaign's results are already mixed into
 the baseline it would have been measured against.
+
+**Done on 2026-09-15.** All three reports read the column; the funnel's rows
+exclude cohorts and each report carries a separate cohort block. So the
+baseline this campaign will be read against is already clean, which was the
+whole reason for doing it first.
+
+Two further things were built the same day and are not blockers for this
+campaign, but change what step 9 can read: **`pings`** (levels 9 and 10, a
+durable record of somebody asking for company and of it working) and
+**`notify`** (level 3, whether the app can reach anybody at all). Neither is
+in the kill rule — see below, which is unchanged — but the second is worth a
+look before the money moves, since a bought install that cannot be reached is
+a bought install that will not recruit anybody. See MARKETING.md § *What is
+still not measured, which since 2026-09-15 is guests alone*.
 
 ## The kill rule, written before the money
 
@@ -173,7 +187,7 @@ round one or of nothing.
 2. Settle the category question.
 3. The submission carrying subtitle, keywords and description — the invite-link
    sentence being the one that matters.
-4. Split `channels.cohort` out of `bin/growth`.
+4. ~~Split `channels.cohort` out of `bin/growth`.~~ Done 2026-09-15.
 5. Release a build of 206 or later — 206 through 211 are already uploaded, so
    this is `released` moving — then name the host or hosts.
 6. Decide the competitor-name question.
@@ -181,4 +195,5 @@ round one or of nothing.
    flooring negatives, daily cap sized to the host.
 8. Four weeks of spend, then three to four weeks of silence.
 9. Read `bin/growth` — `classes`, `weeks`, `roots`. Write the verdict into
-   `decisions/` and delete this file.
+   `decisions/` and delete this file. `notify` and `pings` are worth reading
+   alongside, and are not the verdict: the kill rule is the three above.

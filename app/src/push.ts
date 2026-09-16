@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
 import { api } from './api/http';
+import { noteNotificationPermission } from './api/notify';
 import type { Permission } from './state/notificationAsk';
 
 /**
@@ -317,12 +318,26 @@ async function ensureChannels(): Promise<void> {
  * anybody.
  */
 export async function permissionState(): Promise<Permission> {
+  // **Reported to the server from here and from nowhere else**, which is why
+  // the note sits inside the guard rather than around the call: the three
+  // returns below are the real answer and the one above is "there is no such
+  // permission here", which is not a refusal and must not be counted as one.
+  // See noteNotificationPermission, and level 3 in planning/MARKETING.md.
   if (!mayHoldToken()) return 'denied';
   try {
     const existing = await Notifications.getPermissionsAsync();
-    if (existing.granted) return 'granted';
-    return existing.canAskAgain ? 'undetermined' : 'denied';
+    const state: Permission = existing.granted
+      ? 'granted'
+      : existing.canAskAgain
+        ? 'undetermined'
+        : 'denied';
+    noteNotificationPermission(state);
+    return state;
   } catch {
+    // Not noted. A platform that threw has told us nothing about the
+    // permission, and `denied` here is this function's contract rather than
+    // an observation — sending it would put a refusal on the record that
+    // nobody made.
     return 'denied';
   }
 }

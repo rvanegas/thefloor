@@ -21,6 +21,8 @@ import {
   ATTENTION_BUILD,
   claimedClient,
   claimedBuild,
+  claimedNotifyState,
+  type NotifyState,
   heartbeatTimeoutFor,
   type ClientKind,
 } from './release';
@@ -86,6 +88,15 @@ interface Connection {
    * the census, which counts native installs alone.
    */
   client: ClientKind;
+  /**
+   * Whether the app may reach this person when it is not running, as it said
+   * at connect, or null from a client that does not report it — every build
+   * before the field, and the web client, which has nothing true to say.
+   *
+   * Held rather than re-read for `build`'s reason and one more: nothing on a
+   * live socket can update it, so a second reading would be the same reading.
+   */
+  notify: NotifyState | null;
   /**
    * Which copy of the app this socket belongs to, as that copy names itself,
    * or null from a client too old to have an opinion.
@@ -995,7 +1006,15 @@ export function registerWebsocket(deps: {
       // Mirrored as a query parameter for the same reason `build` is: neither
       // React Native's WebSocket nor the browser's carries custom headers.
       client: claimedClient(url.searchParams.get('client')),
-      // A query parameter for the third time and the same reason. Unlike the
+      // And the fourth, for the third time the same reason. Read once at
+      // connect and never again on this socket: a permission granted in
+      // Settings while the process was suspended is re-read by the app on
+      // foreground, but it has no way to tell a live socket about it, so a
+      // write per message would restate the value this one carries. The next
+      // HTTP request picks the change up, which is `requireAccount`'s half of
+      // the same instrumentation. Level 3; see NOTIFY_HEADER.
+      notify: claimedNotifyState(url.searchParams.get('notify')),
+      // A query parameter for the fifth time and the same reason. Unlike the
       // other two this one is never mirrored as a header, because nothing but
       // this socket has a use for it: displacement is about live connections,
       // and an HTTP call is not one.
@@ -1012,6 +1031,13 @@ export function registerWebsocket(deps: {
       // Having the app open is exactly this: a live socket. Stamped as it opens
       // so somebody who connects and says nothing still counts as here.
       heard(connection, now());
+      // Level 3, written where the socket is the only thing that speaks:
+      // somebody sitting in a channel for an hour makes almost no HTTP calls,
+      // which is the gap `BUILD_HEADER` was mirrored here to close and the
+      // same gap this falls into. Native only, for `markSeen`'s reason above.
+      if (connection.notify !== null && connection.client !== 'web') {
+        accounts.markNotifications(connection.userId, connection.notify, now());
+      }
       // The arrival itself, to whoever has this account as a contact. Without
       // it their Home learns nothing until something unrelated happens to push
       // one, which is how "in the app now" used to mean "as of whenever your

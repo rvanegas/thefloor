@@ -3220,6 +3220,19 @@ export class ChannelRegistry {
     // the button beside it is direct evidence that whatever this channel last
     // put on their lock screen has been dealt with. See `lastAnnouncedAt`.
     this.consume(after.id, [...steppedIn, ...declaredNearby]);
+    // And the meter's half of the same statement: an arrival is the answer to
+    // whatever ping is still open for that person here. Both edges again, for
+    // `consume`'s reason — tapping *Be nearby* is going, and a ping that got
+    // somebody onto the rung beside the room worked.
+    //
+    // Members only. `roomOccupants` includes guests and a guest cannot be
+    // pinged, so their ids would match nothing; passing them would be a query
+    // per guest per arrival for a row that cannot exist. `steppedIn` is taken
+    // from `after.present`, which holds both.
+    for (const id of [...steppedIn, ...declaredNearby]) {
+      if (isGuestId(id)) continue;
+      this.usage.answerPing(after.id, id, PING_INTERVAL_MS);
+    }
     // The mark on a Home row, recorded here because here is where somebody
     // becomes present — every route in passes through this transition, so no
     // route can be forgotten. Last one wins, which is what supersedes an
@@ -3808,6 +3821,18 @@ export class ChannelRegistry {
     // would otherwise be shown against it.
     if (trimmed) this.pingedWith.set(key, { by: senderId, text: trimmed });
     else this.pingedWith.delete(key);
+
+    // The durable half, and the only thing in this method that outlives the
+    // process. `lastPingedAt` above is the limit and is forgiven by a restart;
+    // this is the record, and is written here rather than a rung higher so
+    // that nothing refused ever reaches it. See UsageMeter.recordPing, and
+    // planning/MARKETING.md § *The funnel, level by level* level 9.
+    this.usage.recordPing({
+      channelId,
+      senderId,
+      targetId,
+      withText: trimmed.length > 0,
+    });
 
     this.push.notify(
       [targetId],

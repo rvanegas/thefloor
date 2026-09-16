@@ -260,6 +260,13 @@ application collects little.</p>
   server can ask your device’s notification service to show you one. It
   identifies an installation, not a person, and it is discarded when you sign
   out or when that service reports it as dead.</li>
+  <li><strong>Whether you have allowed notifications</strong> — allowed,
+  refused, or not yet asked — and when that last changed. One word, kept
+  because this application is people reaching each other and an app that
+  cannot reach you barely works; knowing how often that is the case is the
+  only way to tell a product that is being ignored from one that is being
+  silenced. It is never shown to another user, and nothing in the application
+  behaves differently because of it.</li>
   <li><strong>When you were last connected</strong>, shown to your contacts so
   they can tell whether it is a reasonable moment to talk.</li>
   <li><strong>Questions you ask from the Help screen</strong>, and the answers
@@ -273,6 +280,14 @@ application collects little.</p>
   days and then deleted, so there is no long-run history of anybody. It exists
   to size and pay for the server, it is never shown to another user, and nothing
   in the application behaves differently because of it.</li>
+  <li><strong>That somebody asked you to come to a channel, and whether you
+  came.</strong> When one person pings another, the server keeps who asked,
+  who was asked, which channel, when, and whether there were words with it —
+  <em>never the words themselves</em>. It is kept for ${USAGE_RETENTION_DAYS}
+  days and then deleted, alongside the line above and for the same reason:
+  asking somebody to come is the thing this application is for, and whether it
+  works is the one thing worth knowing about it. It is never shown to another
+  user, and it changes nothing about what anybody sees.</li>
 </ul>
 
 <h2>Live audio is not recorded</h2>
@@ -290,11 +305,14 @@ else’s purposes, and nothing is used to profile you or to decide what you are
 shown. Your address book is never read — the contacts in The Floor are people
 who have accepted a request inside it.</p>
 
-<p>What is measured is the one thing above: how much of this server’s time and
-bandwidth went on each account, kept for ${USAGE_RETENTION_DAYS} days. It records
-durations and sizes, never content — not what was said, not what was played,
-not what any recording contains. There is no record of which screens you
-opened, what you tapped, or how long you spent looking at anything.</p>
+<p>What is measured is the three things listed above, all of them counted by
+this server and sent nowhere: how much of its time and bandwidth went on each
+account, whether you have allowed notifications, and whether a ping brought
+somebody. The first and the last are kept for ${USAGE_RETENTION_DAYS} days and
+then deleted. All of it records durations, sizes and outcomes, never content —
+not what was said, not what was played, not the words written with a ping, not
+what any recording contains. There is no record of which screens you opened,
+what you tapped, or how long you spent looking at anything.</p>
 
 <h2>Deleting things</h2>
 <p>Deleting a recording or a channel marks it immediately: it disappears for

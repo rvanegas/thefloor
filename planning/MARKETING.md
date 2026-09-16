@@ -35,6 +35,8 @@ rather than invented here.
 - **Measurement, which is now a choice** — what `bin/growth` already answers,
   what is still unmeasured, what first-party analytics can buy, what
   third-party would cost, and the three reports a cohort contaminates.
+  **Two of the three gaps were closed on 2026-09-15** and the cohort split is
+  done; the section is marked where it describes what was true before that.
 - **Paid, since it is on the table** — what money can and cannot buy here,
   ranked, with the kill rule, the Apple Ads keyword list and what a tap costs.
 - **Organic, ranked** — where the effort actually goes.
@@ -625,7 +627,15 @@ only figures § *The funnel* is defined over; and the cohort rows, which are
 level 4 and are worth their own reading. An exclusion would throw away the
 evidence for the step this file has added.
 
-**Level 4 is already measured, which none of the other gaps are.**
+**Done on 2026-09-15**, on those terms: all three reports read
+`channels.cohort`, the funnel's rows exclude cohorts, and each carries a
+separate cohort block beneath it. The one in `groups` is labelled as not a
+conversion, since that is the whole point of having split it. Doing it before
+the campaign rather than after was the reason it was worth doing at all — it
+is small now and much worse once a campaign's results are already mixed into
+the baseline they would have been measured against.
+
+**Level 4 was already measured when none of the other gaps were.**
 `bin/cohorts` reports `entered` per cohort, from `everPresent` — a cohort at
 five seats and zero entered is a room nobody opened — so the newest level in
 the funnel is the one needing no instrumentation at all. What that script does
@@ -647,26 +657,48 @@ invented here**; what this file asserts is only that the switch deserves a
 figure rather than an impression, since the person who turns it off is not
 necessarily the person who turned it on.
 
-### What is still not measured
+### What is still not measured, which since 2026-09-15 is guests alone
 
-**Levels 9 and 10 — the ping sent, and the ping answered.** `lastPingedAt` in
-`channels.ts` is an in-memory Map for rate limiting; nothing writes a ping to
-disk. So the moment somebody asks for company, and the moment it works, are
-both invisible — and § *The three levels worth all the attention* names the
-second as one of the three leakiest points in the whole funnel. **There is
-nothing to query: measuring it means instrumenting it first.**
+This section named three gaps and gave a direction. Two of the three were
+built that day, on exactly the terms the direction set — first-party,
+server-side, no SDK, nothing leaving the box — and the third is not the same
+kind of thing. The decision is
+`decisions/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
 
-**Level 3, whether notifications are allowed.** The box knows a device token
-exists, not whether the permission the product runs on was ever granted.
+**Levels 9 and 10 — the ping sent, and the ping answered — are the `pings`
+report.** A `pings` table, written by `UsageMeter` after `ChannelRegistry` has
+decided to send one, holding who asked, who was asked, which channel, when,
+whether there were words, and when the target next arrived inside the window
+the ping opened. `lastPingedAt` in `channels.ts` is untouched and is still
+only the rate limiter — a restart forgives it, which is right for a limit and
+was useless as a record. **The words themselves are not stored**, only whether
+there were any, which is enough to ask whether a written ping is answered more
+often and is the most this could hold and still be describable on `/privacy`.
+Swept at `USAGE_RETENTION_MS` with the rest of the meter, so it is a
+thirty-day window like `talking` and `groups`, and the number to read is the
+rate.
 
-**And guests are invisible throughout.** No account, so no contact edge and no
-`pair` span: a member and four guests talking for an hour leave nothing in any
-report.
+**Level 3 is the `notify` report**, over `accounts.notifications` — the three
+answers the app already flattens to, carried as one header on requests that
+were already being made and mirrored as `?notify=` on the websocket, exactly
+as the build number is. Written only when it changes. **Absent is a fourth
+answer and not a fourth state**: every build before this one omits it, and the
+web client omits it deliberately, a browser having no such permission to
+report. Read the shares against the three that answered while that row is
+large.
 
-*Direction.* Two small pieces of instrumentation, in the order they matter — a
-durable record of a ping and of somebody arriving after one, and the
-notification permission outcome as a field on an existing request rather than a
-pipeline. **Amend `/privacy` in the same commit as either.**
+**And guests are invisible throughout, still.** No account, so no contact edge
+and no `pair` span: a member and four guests talking for an hour leave nothing
+in any report. **This one is structural rather than missing** — it would take
+giving a guest an identity that outlives their link, which is a product
+decision about what a guest *is* and not a piece of instrumentation. It is not
+in the direction above and was never going to be closed by it.
+
+**`/privacy` was amended in the same commit**, as the direction required, and
+the page now names three measurements where it named one. The sentence it
+spends is still *there is no third-party analytics* — nothing was installed,
+nothing leaves the box — which is § *The line worth drawing* holding rather
+than being tested.
 
 **Installs are deliberately not at the top of that report.** They are in App
 Store Connect, they are level 2 of fourteen, and putting them beside the right

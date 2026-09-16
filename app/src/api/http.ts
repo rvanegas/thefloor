@@ -17,6 +17,7 @@ import type {
 } from '../../../core/transcript';
 import { appBuild, BUILD_HEADER, CLIENT_HEADER, CLIENT_KIND } from './build';
 import { API_URL } from './config';
+import { notificationPermission, NOTIFY_HEADER } from './notify';
 import type { HealthReport } from './expiry';
 import { deviceRegion } from './region';
 
@@ -83,6 +84,14 @@ async function request<T>(
         // Sent only by the web client. Native leaves it off entirely, because
         // the server reads absence as native — see CLIENT_KIND in build.ts.
         ...(CLIENT_KIND === null ? {} : { [CLIENT_HEADER]: CLIENT_KIND }),
+        // Whether this install can be reached when the app is shut. Omitted
+        // rather than sent empty when nothing has read it yet, and never sent
+        // at all by a client that cannot hold a token — the server reads
+        // absence as "nobody has said", which is what both cases are. Level 3
+        // of the funnel; see notify.ts.
+        ...(notificationPermission() === null
+          ? {}
+          : { [NOTIFY_HEADER]: notificationPermission()! }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });

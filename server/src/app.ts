@@ -64,6 +64,8 @@ import {
 } from '../../core/transcript';
 import {
   BUILD_HEADER,
+  NOTIFY_HEADER,
+  claimedNotifyState,
   CLIENT_HEADER,
   claimedBuild,
   claimedClient,
@@ -764,6 +766,15 @@ export function buildApp(options: BuildOptions = {}): App {
       claimed,
       client
     );
+    // Whether the app on this phone may reach them, on the same terms as the
+    // build above: a header on a request already being made, written only
+    // when it changes, and native only. A browser reports nothing and would
+    // have nothing true to report; see NOTIFY_HEADER. Level 3.
+    const notify =
+      client === 'native'
+        ? claimedNotifyState(request.headers[NOTIFY_HEADER])
+        : null;
+    if (notify !== null) accounts.markNotifications(account.id, notify, now());
     return account;
   }
 

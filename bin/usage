@@ -13,7 +13,10 @@
 # would ever want to edit by hand and the sweep owns the deleting.
 #
 # These queries are the entire read interface to `usage_spans` and
-# `usage_bytes`. Nothing in the server reads them — no endpoint, no field on
+# `usage_bytes`. **The meter's third table, `pings`, is not read here** — it
+# measures whether asking somebody to come worked, which is a funnel question
+# and not a cost one, and `bin/growth pings` is the report for it.
+# Nothing in the server reads any of them — no endpoint, no field on
 # the wire, no screen — which is deliberate and is what keeps the meter
 # instrumentation rather than a feature. The reasoning is in
 # planning/decisions/DECISIONS.md § "The meter is two tables and a script".

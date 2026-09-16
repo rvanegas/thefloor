@@ -118,6 +118,8 @@ caused; the list carries the meaning.
 - **Mix** — The single file a finished recording becomes, made from its *stems*
 - **Mute (four things, one word)** — The word does four jobs and only the first is the user's; they are separated in the entry
 - **Notification kinds — invited / arrived / accepted / pinged** — The four things this server sends to a phone; only *pinged* is words somebody wrote, and only *accepted* is about a person rather than a room
+- **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
+- **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
 - **Protocol** — `core/protocol.ts` — the wire
@@ -1097,6 +1099,17 @@ window is open, anybody in the channel who opens that person's profile sees
 lock screen used to hold the only copy. That makes a ping's words a small
 disclosure to the room rather than a private message, which is why the sender's
 name travels with them — see `ChannelView.pingedWith`.
+
+**And since 2026-09-15 a ping is also a row**, in `pings`: who asked, who was
+asked, which channel, when, whether there were words — **never the words
+themselves** — and when the target next arrived inside the window it opened.
+Levels 9 and 10 of MARKETING.md's funnel, the second of which that file calls
+one of the three leakiest points in the whole thing. It is instrumentation and
+changes nothing: `lastPingedAt` is still the only authority on whether a ping
+may be sent, the record is written after it has decided, and nothing in the
+application reads the table. Swept at `USAGE_RETENTION_MS` with the rest of
+the meter, and described on `/privacy`. See
+`decisions/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
 
 ## Present
 

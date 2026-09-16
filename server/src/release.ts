@@ -157,6 +157,63 @@ export function claimedBuild(
 }
 
 /**
+ * Whether the caller can be reached when it is not running, when it says.
+ *
+ * **Level 3 of planning/MARKETING.md § *The funnel, level by level*, and the
+ * only level of the personal half this box can see for itself.** Impression,
+ * page view and install all happen at Apple; this one happens on a phone the
+ * server is already talking to, and until now the server knew only that a
+ * device token existed — which is the *granted* case and says nothing
+ * whatever about the two that matter. A permission nobody granted is the one
+ * failure that breaks this product silently, an invitation nobody was shown
+ * being an invitation nobody declined, and it is attributed to the app rather
+ * than to the setting.
+ *
+ * A header rather than a pipeline, on the same terms as `BUILD_HEADER`
+ * directly above and for the same two reasons: it is one field on requests
+ * that were already being made, and a client sitting in a channel makes
+ * almost no HTTP calls, so the websocket mirrors it as `?notify=` exactly as
+ * the build is mirrored.
+ *
+ * **Absent is a fourth answer and not a fourth state.** Every build shipped
+ * before this field omits it, so silence has to mean *unknown*; the column it
+ * feeds is null for those and the reports count them separately rather than
+ * guessing. The web client omits it too, deliberately — a browser has no such
+ * permission to grant, and reporting its `denied` would file a population
+ * that was never eligible as a population that refused.
+ */
+export const NOTIFY_HEADER = 'x-thefloor-notify';
+
+/**
+ * The three answers, which are the app's three and not iOS's several.
+ *
+ * `Permission` in app/src/state/notificationAsk.ts is the source of this
+ * vocabulary and the place the flattening is argued: restricted by a profile,
+ * refused at the dialog and revoked in Settings are all `denied`, because
+ * the app's move is the same in every one of them.
+ */
+export type NotifyState = 'granted' | 'undetermined' | 'denied';
+
+/**
+ * **Never refuses, and anything unrecognised is no claim at all**, which is
+ * `claimedBuild`'s contract rather than `claimedClient`'s — and the
+ * difference is the point. A garbled build can safely be read as *old*
+ * because every silent client is genuinely old. There is no such safe default
+ * here: reading a garbled value as any of the three would invent an answer
+ * about somebody's phone, and the whole value of this field is that its three
+ * answers are true. Null goes in the *unknown* row with the builds that
+ * predate it.
+ */
+export function claimedNotifyState(
+  raw: string | string[] | null | undefined
+): NotifyState | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === 'granted' || value === 'undetermined' || value === 'denied'
+    ? value
+    : null;
+}
+
+/**
  * How long this connection may be silent before it is treated as dead.
  *
  * **Keyed on what the client says it is, because the cadence is a property of

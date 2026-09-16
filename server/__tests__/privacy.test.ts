@@ -53,9 +53,20 @@ describe('The privacy policy', () => {
     // than quietly outlived.
     expect(page).toContain('no third-party analytics');
     expect(page).toContain('nothing is used to profile you');
-    // And the thing that replaced it has to be stated, not merely not-denied.
+    // And the things that replaced it have to be stated, not merely
+    // not-denied. Three of them since 2026-09-15, when the funnel
+    // instrumentation added the two the meter never held: whether the app
+    // can reach somebody, and whether asking somebody to come worked. Each
+    // is listed in *What is stored* and named again in the paragraph that
+    // bounds what measurement means here.
     expect(page).toContain('How much the server carried for you');
-    expect(page).toContain('durations and sizes, never content');
+    expect(page).toContain('Whether you have allowed notifications');
+    expect(page).toContain('asked you to come to a channel, and whether you came');
+    expect(page).toContain('durations, sizes and outcomes, never content');
+    // The one exclusion inside the new bullet that a reader would most want,
+    // and the one the column was deliberately built without: a ping says
+    // whether there were words with it and never what they were.
+    expect(page).toContain('never the words themselves');
     // Deleting is a mark swept later, and saying so is the point.
     expect(page).toContain('7 days later');
     // And the meter's horizon is a published promise, so it has to be the one

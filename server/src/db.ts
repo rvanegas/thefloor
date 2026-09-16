@@ -27,6 +27,21 @@ export interface AccountRow {
    */
   last_build: number | null;
   /**
+   * Whether the app may reach this person when it is not running, as their
+   * client last reported: `'granted'`, `'undetermined'` or `'denied'`.
+   *
+   * **Null is a fourth answer and means nobody has said** — a build that
+   * predates the header, or the web client, which omits it because a browser
+   * has no such permission to report. Not the same fact as a row in
+   * `device_tokens`: an address proves *granted*, and no address proves
+   * nothing at all, which is why the two answers worth knowing were invisible
+   * until this column existed. Level 3 of planning/MARKETING.md's funnel; see
+   * `NOTIFY_HEADER` in release.ts.
+   */
+  notifications: string | null;
+  /** When that answer last changed. Null while `notifications` is. */
+  notifications_at: number | null;
+  /**
    * Forces the donate link visible (1) or hidden (0), overriding what the
    * device's region suggests. Null — the default for everyone — means decide
    * automatically. See region.ts for why the automatic answer needs an
@@ -409,6 +424,36 @@ export interface UsageBytesRow {
   at: number;
 }
 
+/**
+ * One ping, and whether it worked.
+ *
+ * The third of the meter's tables and the only one that is about an
+ * intention rather than a cost: somebody asked a particular person to come,
+ * and either they came or they did not. Levels 9 and 10 of
+ * planning/MARKETING.md § *The funnel, level by level*.
+ */
+export interface PingRow {
+  id: string;
+  channel_id: string;
+  /** Who asked. */
+  sender_id: string;
+  /** Who was asked. Always an account: a guest cannot be pinged. */
+  target_id: string;
+  sent_at: number;
+  /**
+   * 1 when the sender wrote a line with it, 0 for the plain form. **Never the
+   * line itself** — see the schema, which says why the column stops here.
+   */
+  with_text: number;
+  /**
+   * When the target arrived, if they did so inside the window this ping
+   * opened. Null is the ordinary state of a ping that has just been sent as
+   * well as the permanent state of one nobody answered, so a rate read over
+   * this column wants pings old enough to have closed.
+   */
+  answered_at: number | null;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   id           TEXT PRIMARY KEY,
@@ -422,6 +467,25 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- connected since the app began saying — which, indefinitely, has to be read
   -- as "something at or below the first build that sends it". See release.ts.
   last_build   INTEGER,
+  -- Whether the app on their phone may reach them when it is not running:
+  -- granted, undetermined or denied, as the client last reported it. Null
+  -- means nobody has said — a build that predates the header, or a browser,
+  -- which has no such permission to report.
+  --
+  -- Level 3 of planning/MARKETING.md and the only level of the personal half
+  -- this box can see. It is not the same fact as holding a device token: a
+  -- token proves granted and its absence proves nothing, which left the two
+  -- answers that matter indistinguishable from each other and from silence.
+  --
+  -- A property of the *install* written on the *account*, exactly as
+  -- last_build is, and it inherits that column's one flaw honestly: a tablet
+  -- and a phone disagreeing means the last one to speak wins. Native only,
+  -- for the reason beside last_build. See NOTIFY_HEADER in release.ts.
+  notifications    TEXT,
+  -- When that answer was last written. Distinct from last_seen_at, which
+  -- moves on every heartbeat: this one moves only when the answer changes,
+  -- so the gap between them is how long the answer has stood.
+  notifications_at INTEGER,
   -- Overrides the guess about whether this person may see the donate link.
   -- Null means decide from what their device reports, which is what everybody
   -- gets until somebody says otherwise; 1 forces it visible and 0 forces it
@@ -987,6 +1051,62 @@ CREATE TABLE IF NOT EXISTS usage_bytes (
 );
 CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
 
+-- Every ping sent, and whether going to the room was the answer to it.
+--
+-- **The one funnel step nothing else in this box records.** lastPingedAt in
+-- channels.ts is an in-memory Map that exists to rate-limit, and a restart
+-- forgives it — which is right for a limit and useless as a record. So the
+-- moment somebody asks for company, and the moment it works, were both
+-- invisible; planning/MARKETING.md § *The three levels worth all the
+-- attention* names the second as one of the three leakiest points in the
+-- whole funnel, which made it the worst thing in the application to be unable
+-- to count. Levels 9 and 10 of § *The funnel, level by level*.
+--
+-- Instrumentation on usage_spans' terms and not a feature, which is why
+-- UsageMeter owns it rather than ChannelRegistry: nothing in code reads it,
+-- there is no endpoint and no field on the wire, and bin/growth runs the
+-- queries from outside. The rate-limiting Map is untouched and stays the
+-- authority on whether a ping may be sent — this table is written after that
+-- decision and never consulted before it.
+--
+-- **Not a span, though it looks like one.** Sent and answered are two
+-- timestamps and the temptation is a usage_spans row of kind 'ping'. It
+-- would be wrong in the one way that matters: an unanswered ping is the
+-- interesting case and would sit there as a null ended_at, which that
+-- table's sweep deliberately leaves alone as the signature of a leak. The
+-- most ordinary outcome here must not look like a defect there.
+--
+-- **The words are not here, and their absence is the design.** with_text
+-- says only whether there were any, which is enough to ask whether a written
+-- ping is answered more often and carries none of what was written. What
+-- somebody said to summon a friend is conversation content; /privacy says
+-- what this table holds and could not say it of the sentence.
+--
+-- No foreign keys, swept at USAGE_RETENTION_MS, and cleared by deleteAccount
+-- on either side — all three for the reasons usage_spans states above. So
+-- this is a thirty-day window exactly as talking and groups are, and the
+-- number to read from it is a rate rather than a total.
+CREATE TABLE IF NOT EXISTS pings (
+  id         TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  sender_id  TEXT NOT NULL,
+  target_id  TEXT NOT NULL,
+  sent_at    INTEGER NOT NULL,
+  -- 1 when the sender wrote something, 0 for the plain form. Never the words.
+  with_text  INTEGER NOT NULL,
+  -- When the target next became present or declared themselves nearby, inside
+  -- the window this ping opened. Null means they did not, which is the whole
+  -- point of the column — and a null on a ping sent minutes ago means only
+  -- that the window is still open. See UsageMeter.answerPing.
+  answered_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS pings_sent ON pings(sent_at);
+-- The lookup answerPing makes on every arrival: the open ping for this person
+-- in this channel. Partial, so it indexes the pings still waiting rather than
+-- every ping ever sent.
+CREATE INDEX IF NOT EXISTS pings_open
+  ON pings(channel_id, target_id) WHERE answered_at IS NULL;
+
 -- What a recording says, once somebody has paid to find out.
 --
 -- Three tables, all hanging off one recording and dying with it: a recording
@@ -1456,6 +1576,17 @@ function migrate(db: Db): void {
   // column exists to stop being manufactured.
   if (!accountColumns.some((c) => c.name === 'last_build')) {
     db.exec('ALTER TABLE accounts ADD COLUMN last_build INTEGER');
+  }
+  // Null for everyone, and the null is load-bearing in the same way
+  // `last_build`'s is: it says nobody has reported, which is true of every
+  // account until a build that sends the header has spread. **Not backfilled
+  // from `device_tokens`**, tempting as that is — an address proves the
+  // permission was granted at the moment it was minted and says nothing about
+  // now, and writing `granted` from one would manufacture the reassurance
+  // this column exists to replace. Everyone's fills in on their next request.
+  if (!accountColumns.some((c) => c.name === 'notifications')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN notifications TEXT');
+    db.exec('ALTER TABLE accounts ADD COLUMN notifications_at INTEGER');
   }
   // Left null for everyone, which is the value that means "decide from the
   // device". Backfilling it either way would be asserting something about

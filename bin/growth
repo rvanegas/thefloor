@@ -109,19 +109,52 @@
 # ambiguous and a high number trustworthy, the right way round for a figure
 # nobody should be able to talk themselves into.
 #
+# ── Cohorts are split out of three of those four, added 2026-09-15 ──────────
+#
+# A *getting-started channel* is the one channel in this application that is
+# nobody's: the server made it, out of people who are not contacts of each
+# other, and nobody in it can ping anybody. So it is not a room anybody made
+# and it must not be counted as one — `channels`, `talking` and `groups` each
+# read `channels.cohort` and report the two apart.
+#
+# **Split rather than excluded**, which is the part worth keeping: the funnel
+# has a level that wants the discarded half. A cohort is level 4 — the app has
+# been *heard to work* — and every level from 5 down is about having people to
+# work it with. An exclusion would throw away the evidence for the step.
+#
+# **`groups` is where this mattered.** It is level 11, the conversion, and a
+# cohort chatting on two separate days scored exactly as a book club did.
+# `pairs` is unaffected, placement making no contacts, and so is the class
+# walk: a placement writes no `invited_by`, which is why the kill rule a
+# campaign is judged on is the one number cohorts cannot inflate.
+#
+# ── The two levels that used to be unmeasurable, added 2026-09-15 ───────────
+#
+# This section said they could not be measured and that instrumenting them was
+# not a to-do here. They have since been instrumented, so it is now a pointer
+# to the two reports that read them.
+#
+#   * **The ping, sent and answered** — `pings`, over the table of the same
+#     name, which UsageMeter writes after ChannelRegistry has decided to send
+#     one. `lastPingedAt` in channels.ts is still an in-memory Map and is still
+#     only the rate limiter; a restart forgives it, which is right for a limit
+#     and was useless as a record. Levels 9 and 10, the second of which
+#     MARKETING.md names as one of the three leakiest points in the funnel. A
+#     thirty-day window, `pings` being swept with the rest of the meter.
+#   * **Whether notifications are allowed** — `notify`, over
+#     `accounts.notifications`, which is what the client last reported. Not the
+#     same fact as holding a device token: an address proves *granted* and its
+#     absence proves nothing, so the two answers that matter were invisible.
+#     Level 3. Full history, this one being a column on the account rather than
+#     a swept row.
+#
 # ── What still cannot be measured, and why it is not a to-do here ───────────
 #
-#   * **The ping, sent or answered.** `lastPingedAt` in channels.ts is an
-#     in-memory Map for rate limiting and nothing writes a ping to disk. So the
-#     step where somebody asks for company, and the step where it works, are
-#     both invisible — and MARKETING.md names the second of those as one of the
-#     three leakiest points in the funnel. Measuring it means instrumenting it
-#     first; there is nothing here to query.
-#   * **Whether notifications are allowed.** The box knows a device token
-#     exists, not whether the person ever granted the permission the whole
-#     product runs on.
 #   * **Guests.** No account, so no contact edge and no `pair` span. A member
 #     and four guests talking for an hour leave nothing in any report here.
+#     The one gap of the three MARKETING.md named that is structural rather
+#     than missing: it would take giving a guest an identity that outlives
+#     their link, which is a product decision and not instrumentation.
 #
 # ── What these numbers are not ──────────────────────────────────────────────
 #
@@ -162,7 +195,11 @@ PRAGMA temp_store = MEMORY;
 -- Every row in `accounts`, tombstones and reviewers included. Nothing counts
 -- these directly; they are here because the walk has to pass through them.
 CREATE TEMP VIEW everyone AS
-  SELECT id, identifier, display_name, created_at, last_seen_at, invited_by
+  SELECT id, identifier, display_name, created_at, last_seen_at, invited_by,
+         -- Level 3, and the only column here that is not about arrival: what
+         -- the client last said about being reachable, and when it changed.
+         -- Null means nobody has said. See the `notify` report.
+         notifications, notifications_at
     FROM accounts;
 
 -- The people a report here is about.
@@ -290,8 +327,17 @@ CREATE TEMP VIEW membership AS
 -- reads as `members = 1`, which is the honest number: there is one person in
 -- it. A channel of reviewers alone reads as 0 and is excluded below, which is
 -- the whole reason the count is a join rather than `json_array_length`.
+--
+-- **`cohort` is the marker and every report below has to read it.** It is the
+-- getting-started channel's number, and null for a room somebody made. The
+-- two are not the same kind of thing and must never be added up: a cohort is
+-- the one channel in the application that is nobody's — the server made it,
+-- no pair in it is a contact, and nobody in it can ping anybody. See
+-- planning/MARKETING.md § *Cohorts contaminate three of those four*, which is
+-- where the rule that they are split rather than excluded comes from. The
+-- funnel has a level that wants the discarded half.
 CREATE TEMP VIEW room AS
-  SELECT c.id, c.created_at, c.name, c.ended_at,
+  SELECT c.id, c.created_at, c.name, c.ended_at, c.cohort,
          (SELECT COUNT(*)
             FROM membership m JOIN person p ON p.id = m.account_id
            WHERE m.channel_id = c.id) AS members
@@ -805,6 +851,7 @@ SELECT CASE WHEN members <= 1 THEN '1 alone in it'
        CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct
   FROM room
  WHERE members > 0
+   AND cohort IS NULL
  GROUP BY size
  ORDER BY size;
 
@@ -821,8 +868,31 @@ SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch') AS month,
        ) AS to_date
   FROM room
  WHERE members > 0
+   AND cohort IS NULL
  GROUP BY month
  ORDER BY month;
+
+.print ''
+.print '   and the cohorts, which are none of the above ─────────────────'
+.print ''
+-- **Split out rather than dropped**, which is the rule in MARKETING.md
+-- § *Cohorts contaminate three of those four*: the rows above are the
+-- funnel's, counting channels of somebody's own contacts, and these are
+-- level 4's. A cohort is not a channel anybody made — the server made it, out
+-- of strangers, and nobody in it is a contact of anybody else in it — so
+-- adding the two would report the growth hack as the growth.
+--
+-- `seats_spent` is `cohort_seats`, which counts places sold and not people
+-- present: a cohort closes when its seats are gone and stays closed if
+-- somebody leaves. `bin/cohorts` is the report that is really about these,
+-- and it carries `entered`, which is level 4 itself.
+SELECT COUNT(*) AS cohorts,
+       SUM(members) AS people_in_them,
+       SUM(cohort_seats) AS seats_spent,
+       date(MIN(r.created_at) / 1000, 'unixepoch') AS first,
+       date(MAX(r.created_at) / 1000, 'unixepoch') AS newest
+  FROM room r JOIN channels c ON c.id = r.id
+ WHERE r.cohort IS NOT NULL;
 SQL
 }
 
@@ -841,11 +911,39 @@ report_talking() {
 -- day, at least two people in it at once. Counting spans instead would make a
 -- pair who stepped out and back in look like two conversations, and counting
 -- minutes would make one long silence beat six real exchanges.
-SELECT date(started_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
-       COUNT(DISTINCT channel_id || ' ' || day) AS channel_days,
-       COUNT(DISTINCT channel_id) AS channels,
-       COUNT(DISTINCT id) AS people
-  FROM together_end
+--
+-- **Cohorts are not in these rows.** Talking in a room the server made out of
+-- strangers is not two people who know each other finding a moment, and
+-- MARKETING.md § *Cohorts contaminate three of those four* is why they are
+-- split out rather than left in. They have their own block below.
+SELECT date(t.started_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
+       COUNT(DISTINCT t.channel_id || ' ' || t.day) AS channel_days,
+       COUNT(DISTINCT t.channel_id) AS channels,
+       COUNT(DISTINCT t.id) AS people
+  FROM together_end t JOIN room r ON r.id = t.channel_id
+ WHERE r.cohort IS NULL
+ GROUP BY week
+ ORDER BY week;
+
+.print ''
+.print '   and the same in the cohorts — level 4, not level 8 ──────────'
+.print ''
+-- **Level 4, and deliberately a separate table.** Somebody who has heard
+-- audio come out of this application has evidence no screenshot supplies, and
+-- that is worth counting; what it is not is a conversation between people who
+-- know each other, which is what every row above is. A cohort that talks
+-- happily for a month and produces no contact of the user's own has produced
+-- nothing the funnel counts, and that is the right verdict rather than a
+-- harsh one.
+--
+-- **The host is in every cohort**, so `people` here is not a count of
+-- arrivals who heard it work — it is that plus one, the same one, every week.
+SELECT date(t.started_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
+       COUNT(DISTINCT t.channel_id || ' ' || t.day) AS channel_days,
+       COUNT(DISTINCT t.channel_id) AS cohorts,
+       COUNT(DISTINCT t.id) AS people
+  FROM together_end t JOIN room r ON r.id = t.channel_id
+ WHERE r.cohort IS NOT NULL
  GROUP BY week
  ORDER BY week;
 SQL
@@ -866,12 +964,22 @@ report_groups() {
 -- as a group that did not convert. So a low number is ambiguous and a high one
 -- is not, which is the right way round for a number nobody should be able to
 -- talk themselves into.
+--
+-- **A cohort is not one of these, and this is where that mattered most.**
+-- `groups` is level 11 and level 11 is the conversion, so a cohort chatting
+-- on two separate days scoring exactly as a book club does was the one piece
+-- of contamination worth fixing before any campaign money moved: the
+-- proposition's group is three to five *specific people already known*, and a
+-- cohort is by definition none of that. MARKETING.md § *Cohorts contaminate
+-- three of those four*. They are counted below instead, and not as a
+-- conversion.
 SELECT COALESCE(r.name, '(unnamed)') AS channel,
        r.members,
        COUNT(DISTINCT t.day) AS days,
        MIN(t.day) AS first_day,
        MAX(t.day) AS last_day
   FROM together t JOIN room r ON r.id = t.channel_id
+ WHERE r.cohort IS NULL
  GROUP BY t.channel_id
 HAVING days > 1
  ORDER BY days DESC, last_day DESC;
@@ -888,11 +996,174 @@ SELECT COUNT(*) AS active,
        CAST(ROUND(100.0 * SUM(days > 1) / COUNT(*)) AS INT) AS pct
   FROM (SELECT t.channel_id, r.members, COUNT(DISTINCT t.day) AS days
           FROM together t JOIN room r ON r.id = t.channel_id
+         WHERE r.cohort IS NULL
+         GROUP BY t.channel_id);
+
+.print ''
+.print '   the cohorts, counted apart — this is not a conversion ───────'
+.print ''
+-- Here so that the number is visible rather than merely excluded: a cohort
+-- that came back on a second day is a room that worked, and it is worth
+-- knowing how many did. It is still not level 11. Nobody chose to be in it,
+-- and `pairs` — which is unaffected by any of this, placement making no
+-- contacts — is where to look for whether it led anywhere.
+SELECT COUNT(*) AS active,
+       SUM(days > 1) AS came_back,
+       CAST(ROUND(100.0 * SUM(days > 1) / COUNT(*)) AS INT) AS pct
+  FROM (SELECT t.channel_id, COUNT(DISTINCT t.day) AS days
+          FROM together t JOIN room r ON r.id = t.channel_id
+         WHERE r.cohort IS NOT NULL
          GROUP BY t.channel_id);
 SQL
 }
 
-report_names=(classes weeks months depth roots islands pairs channels talking groups defects)
+report_notify() {
+  cat <<'SQL'
+.print ''
+.print '── Whether the app can reach people at all · LEVEL 3 ───────────'
+.print ''
+-- **The level MARKETING.md says to instrument if only one ever is**, and
+-- since 2026-09-15 it is instrumented: `accounts.notifications` is what the
+-- client last reported, in the app's own three answers.
+--
+-- **It is not the same question as holding a device token**, which is the
+-- whole reason the column exists. An address proves `granted` and its absence
+-- proves nothing at all, so before this the two answers that matter — refused,
+-- and never asked — were indistinguishable from each other and from silence.
+--
+-- **Nobody has said** is the fourth row and is not a state of anybody's
+-- phone. It is
+-- an account that has not made a request from a build that reports, which is
+-- every account until the first such build has spread, plus anybody who only
+-- ever opens the web client. **Read the shares against the reported three and
+-- not against everybody** while that row is large, or a population nobody has
+-- heard from reads as a population that refused.
+--
+-- `with_an_address` is `device_tokens`, and the two disagreeing is worth
+-- looking at: `granted` and no address is an install that has permission and
+-- has not registered, and anything but `granted` with an address is a
+-- permission revoked in Settings since the token was minted.
+--
+-- Numbered so the rows sort into the order they mean rather than
+-- alphabetically, which is the convention every classification in this file
+-- uses. Granted first, because it is the one the product needs.
+SELECT CASE p.notifications
+            WHEN 'granted' THEN '1 granted'
+            WHEN 'undetermined' THEN '2 not yet asked'
+            WHEN 'denied' THEN '3 refused'
+            ELSE '4 nobody has said' END AS answer,
+       COUNT(*) AS people,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct,
+       SUM(EXISTS (SELECT 1 FROM device_tokens d WHERE d.account_id = p.id))
+         AS with_an_address,
+       date(MIN(p.notifications_at) / 1000, 'unixepoch') AS first_said,
+       date(MAX(p.notifications_at) / 1000, 'unixepoch') AS last_said
+  FROM person p
+ GROUP BY answer
+ ORDER BY answer;
+
+.print ''
+.print '   the same among people who have somebody to be reached by'
+.print ''
+-- The denominator that means something. A permission is about being reachable
+-- *by somebody*, and an account with no contact, no invitation and no channel
+-- has nobody to be unreachable from — the app does not even ask them. So a
+-- refusal rate over everybody understates the problem and a fall in it can be
+-- nothing but arrivals who have not got anywhere yet.
+--
+-- `somebody` here is an accepted contact, which is the durable half of what
+-- `worthAsking` reads on the phone; the other two halves are a pending
+-- invitation and a channel, and a person with either almost always has this.
+SELECT CASE p.notifications
+            WHEN 'granted' THEN '1 granted'
+            WHEN 'undetermined' THEN '2 not yet asked'
+            WHEN 'denied' THEN '3 refused'
+            ELSE '4 nobody has said' END AS answer,
+       COUNT(*) AS people,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct
+  FROM person p
+ WHERE EXISTS (SELECT 1 FROM link l WHERE l.x = p.id)
+ GROUP BY answer
+ ORDER BY answer;
+SQL
+}
+
+report_pings() {
+  cat <<'SQL'
+.print ''
+.print '── Asking for company, and whether it worked · LAST 30 DAYS ────'
+.print ''
+-- **Levels 9 and 10**, and the second of them is one of the three levels
+-- MARKETING.md says are worth all the attention: the central loop closing.
+-- The failure mode it exists to watch is already documented as observed and
+-- not a bug in anything — somebody pings and then puts the phone away as
+-- though a call were coming, where a banner cannot fetch them.
+--
+-- **A thirty-day window, like `talking` and `groups`**, because `pings` is
+-- swept at USAGE_RETENTION_MS with the rest of the meter. The rate is what to
+-- read; the totals are bounded by the sweep and by nothing else.
+--
+-- **`answered` counts an arrival inside the window the ping opened**, which
+-- is PING_INTERVAL_MS and not the rest of time. Somebody who wanders in the
+-- next day has not answered anything, and counting them would turn this into
+-- a slow restatement of level 8.
+--
+-- **The last row is always short.** A ping sent in the last few minutes has
+-- an open window and no answer yet, which reads here as unanswered.
+SELECT date(sent_at / 1000, 'unixepoch', '-6 days', 'weekday 1') AS week,
+       COUNT(*) AS sent,
+       SUM(answered_at IS NOT NULL) AS answered,
+       CAST(ROUND(100.0 * SUM(answered_at IS NOT NULL) / COUNT(*)) AS INT)
+         AS pct,
+       COUNT(DISTINCT sender_id) AS askers,
+       COUNT(DISTINCT target_id) AS asked,
+       COUNT(DISTINCT channel_id) AS channels
+  FROM pings
+ GROUP BY week
+ ORDER BY week;
+
+.print ''
+.print '   with words and without ───────────────────────────────────────'
+.print ''
+-- The one thing the row can say about a ping's content, and the only thing
+-- worth knowing: whether writing a line makes any difference to whether
+-- anybody comes. **The words themselves are not stored** — see the schema on
+-- `pings`, and /privacy, which describes this table.
+--
+-- Expect this to be ambiguous for a long time. The volumes are small and
+-- somebody who bothers to write a line is probably asking harder, so a gap
+-- here is as likely to be about the asker as about the words.
+SELECT CASE WHEN with_text = 1 THEN '1 with words'
+            ELSE '2 the plain form' END AS ping,
+       COUNT(*) AS sent,
+       SUM(answered_at IS NOT NULL) AS answered,
+       CAST(ROUND(100.0 * SUM(answered_at IS NOT NULL) / COUNT(*)) AS INT)
+         AS pct
+  FROM pings
+ GROUP BY ping
+ ORDER BY ping;
+
+.print ''
+.print '   how long the ones that worked took ───────────────────────────'
+.print ''
+-- A ping answered in ten seconds and one answered in four minutes are both
+-- level 10 and are not the same event: the first is somebody with the phone
+-- in their hand, the second is the notification doing the work. Only answered
+-- pings are in here, so this says nothing about the rate — read it beside the
+-- first table, never instead of it.
+SELECT CASE WHEN answered_at - sent_at < 30000 THEN '1 under 30s'
+            WHEN answered_at - sent_at < 120000 THEN '2 under 2m'
+            ELSE '3 later, inside the window' END AS came,
+       COUNT(*) AS pings,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS pct
+  FROM pings
+ WHERE answered_at IS NOT NULL
+ GROUP BY came
+ ORDER BY came;
+SQL
+}
+
+report_names=(classes weeks months depth roots islands pairs channels talking groups notify pings defects)
 
 list_reports() {
   cat <<'TXT'
@@ -906,6 +1177,8 @@ pairs     mutual contacts per person, as a distribution rather than a mean
 channels  rooms by how many people are in them, and made per month
 talking   two people in a room together, by week — last 30 days only
 groups    rooms that were used on more than one day — the conversion
+notify    whether the app can reach people at all — level 3
+pings     asking for company and whether it worked — levels 9 and 10
 defects   edges naming nobody, self-invites, cycles, contacts with the gone
 TXT
 }

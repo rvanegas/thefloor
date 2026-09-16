@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { ClientKind } from './release';
+import type { ClientKind, NotifyState } from './release';
 import type {
   LeaderboardEntry,
   ProfileView,
@@ -937,6 +937,37 @@ export class Accounts {
           WHERE id = ?`
       )
       .run(now, build, id);
+  }
+
+  /**
+   * Records whether this person's app may reach them, when their client says.
+   *
+   * **Written only when the answer changes**, which is the whole shape of it
+   * and the reason `notifications_at` is worth having: an unconditional
+   * UPDATE would be a write per authenticated request for a value that moves
+   * perhaps twice in an install's life, and the stamp would then say when
+   * somebody last made a request rather than when they last changed their
+   * mind. `last_seen_at` beside it already answers the first question.
+   *
+   * Level 3 of planning/MARKETING.md § *The funnel, level by level*, which
+   * calls it the one number to instrument if only one ever is: a permission
+   * nobody granted breaks the product silently, and the failure is attributed
+   * to the app rather than to the setting.
+   *
+   * Null is not a report and writes nothing. It is what a build predating the
+   * header sends and what the web client sends deliberately, and in both
+   * cases the honest column is the one that was already there — overwriting a
+   * phone's real answer with a browser's silence would lose the only
+   * measurement this exists for. Native-only filtering is the caller's, for
+   * `last_build`'s reason.
+   */
+  markNotifications(id: string, state: NotifyState, now: number): void {
+    this.db
+      .prepare(
+        `UPDATE accounts SET notifications = ?, notifications_at = ?
+          WHERE id = ? AND (notifications IS NULL OR notifications <> ?)`
+      )
+      .run(state, now, id, state);
   }
 
   /**

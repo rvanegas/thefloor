@@ -642,3 +642,49 @@ it('does not overwrite a session that has since been heard from', () => {
   });
   db.close();
 });
+
+/**
+ * The funnel instrumentation of 2026-09-15, which adds a column and a table
+ * to a database that has neither.
+ *
+ * Worth its own test for one reason: **the honest value is null, and the
+ * tempting one is not.** `device_tokens` is right there, and an address does
+ * prove the permission was granted — at the moment the token was minted, and
+ * about nothing since. Backfilling `granted` from one would manufacture
+ * exactly the reassurance the column exists to replace, and would do it
+ * silently, on the deploy, for the whole existing population.
+ */
+it('adds the notification answer empty, and never guesses it from an address', () => {
+  const path = join(dir, 'funnel.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_SESSION_STAMPS);
+  seedSessions(old);
+  old.close();
+
+  const db = openDb(path);
+  // The address exists, which under the tempting reading is evidence.
+  db.prepare(
+    `INSERT INTO device_tokens (token, account_id, platform, created_at, last_seen_at)
+     VALUES (?,?,?,?,?)`
+  ).run('apns-old', 'acct_old', 'ios', 1, 1);
+
+  const answers = db
+    .prepare('SELECT id, notifications, notifications_at FROM accounts ORDER BY id')
+    .all() as Array<{
+    id: string;
+    notifications: string | null;
+    notifications_at: number | null;
+  }>;
+  expect(answers).toEqual([
+    { id: 'acct_new', notifications: null, notifications_at: null },
+    { id: 'acct_old', notifications: null, notifications_at: null },
+    { id: 'acct_quiet', notifications: null, notifications_at: null },
+  ]);
+
+  // And the meter's third table is there, empty, on a database that was
+  // written before it existed.
+  expect(
+    db.prepare('SELECT COUNT(*) AS n FROM pings').get() as { n: number }
+  ).toEqual({ n: 0 });
+  db.close();
+});

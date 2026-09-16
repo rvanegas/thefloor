@@ -13,6 +13,7 @@ import type {
 import type { AccountSettings } from '../../../core/settings';
 import { appBuild, CLIENT_KIND } from './build';
 import { DEVICE_ID } from './device';
+import { notificationPermission } from './notify';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
 
@@ -206,6 +207,13 @@ export class Realtime {
         // implementation this app runs on carries custom headers. Omitted by
         // native, whose absence the server reads as native.
         (CLIENT_KIND === null ? '' : `&client=${CLIENT_KIND}`) +
+        // Mirrored for the reason the build is, and it matters more here:
+        // somebody sitting in a channel makes almost no HTTP calls, so the
+        // header alone would go stale for exactly the people using the app.
+        // Read at connect and not afterwards — see the server's Connection.
+        (notificationPermission() === null
+          ? ''
+          : `&notify=${notificationPermission()}`) +
         // Which copy of the app this is, so the server can displace the
         // account's *other* devices without displacing this one when it
         // reconnects. It cannot use the token for that any more: two browser
