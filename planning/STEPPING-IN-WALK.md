@@ -14,7 +14,7 @@ was written against is gone.
 - **Promotion was removed the same day** — a nearby phone offers a step in
   rather than taking one, `decisions/2026-09-08-the-arrival-is-offered.md`.
   What was the riskiest step here is now the cheapest and is not an audio test
-  at all. Steps 5 to 7 are the offer, and § *One thing you can barely
+  at all. Steps 5 to 7 are the arrival, and § *One thing you can barely
   test on a phone* is where the word *promotion* still means something else.
 - **Presence became the media connection**, same day again:
   `decisions/2026-09-08-present-is-the-media-connection.md`. The roster is now
@@ -30,12 +30,21 @@ was written against is gone.
   *Step in*, *Step out* or *Be nearby* card any longer, and no button by any
   of those names — **every step below that names one means the footer's rung**,
   which is labelled *In*, *Nearby* or *Out*. The rung you are standing on is
-  the lit one. What survives in the body is the arrival offer in step 5,
+  the lit one. What survived in the body was the arrival offer in step 5,
   which was never one of these, and the microphone card, which kept its
   sentences and lost its button. Step 12 is the one to read twice: it was
   written against a two-slot footer that flipped its words, and the point it
   is making — that no slot ever moves — is now made by three slots that never
   change their words at all.
+
+- **And the arrival card went on 2026-09-15**, by the same argument one step
+  further: `decisions/2026-09-15-the-arrival-is-a-line.md`. **Step 5 no longer
+  has a card or two buttons** — an arrival is one muted line under the roster,
+  *Dana Chu just stepped in.*, and the way in is the *In* rung like every other
+  act on the screen. There is nothing to dismiss, so the half of step 5 that
+  was about *Stay nearby* is gone rather than reworded. Everything the step was
+  really testing — that A's audio does not move, that the line survives the
+  background, that it goes when B leaves — is unchanged and is still the point.
 
 **The suite is green and that is evidence about the reducer, the hook and the
 socket. It is no evidence about what a phone does with an audio session.**
@@ -227,52 +236,55 @@ steps in.
 
 1. A does **not** step in. Nothing about A's audio changes — a podcast keeps
    playing, a headset stays in stereo at 48000, and the log carries
-   `nearby arrival offered` and no `capturing` line at all. **The absence is the
+   `nearby arrival noticed` and no `capturing` line at all. **The absence is the
    assertion**, and it is the whole point of the reversal.
-2. A card appears on A's screen naming B — *Dana stepped in.* — with **Step
-   in** and **Stay nearby**.
-3. **Step in** works from there: A becomes audible, B hears them, and A hears B.
-   That is the ordinary claim, already tested as step 1, and what is being
-   checked here is only that the button is wired to it.
-4. **Stay nearby** puts the card away and leaves A nearby. B steps out and back
-   in; the card comes back. An offer answered is not a declaration ended.
-5. **The footer agrees with the card the whole time.** While the offer is up, A
-   is still nearby, so the last two slots read *Step out* and *Step in* — the
-   two moves off that rung. *Stay nearby* must not change them, and answering
-   the offer must change both at once.
+2. A line appears under A's roster naming B — *Dana Chu just stepped in.* —
+   muted, alongside the party-muted and other-device sentences and in the same
+   voice. No heading, no card, no buttons.
+3. **The *In* rung works from there**: A becomes audible, B hears them, and A
+   hears B. That is the ordinary claim, already tested as step 1, and the rung
+   is the only way in this screen has ever needed.
+4. **Nothing dismisses the line, and nothing should.** It is filtered against
+   the roster: leave it up, have B step out, and it goes by itself; B steps
+   back in and it returns. A line that says a true thing is not a question, so
+   there is no *put it away* to test.
+5. **The footer agrees with the line the whole time.** While it is up, A is
+   still nearby — the *Nearby* rung lit, *In* and *Out* live beside it. The
+   line must not change what any of the three says, and stepping in must change
+   the roster and the footer at once.
 
-**What a failure looks like.** No card at all is the declaration not being this
-device's (`nearbyIn`), or the channel screen not being open — the offer is drawn
-on the screen of the channel declared in. A card naming somebody who has since
-left is the roster filter not working; leave B stepped out for a moment and the
-card should go by itself.
+**What a failure looks like.** No line at all is the declaration not being this
+device's (`nearbyIn`), or the channel screen not being open — it is drawn on the
+screen of the channel declared in. A line naming somebody who has since left is
+the roster filter not working; leave B stepped out for a moment and it should go
+by itself.
 
 ### 6. Somebody already there raises no offer
 
 **The common case, not a corner.** B steps in first and starts talking. *Then*
 A declares nearby.
 
-**What settles it.** A stays nearby, with no card. A hears nothing — and,
+**What settles it.** A stays nearby, with no line. A hears nothing — and,
 correctly, **sees nobody speaking**: the speaking indicator is the visual
 accompaniment to audio and the two are absent together, since `audio.speaking`
 is the room's active speakers and there is no subscription. The roster still
 shows B as present, which is honest — it says B is there, not that A can hear
 them.
 
-**The next arrival raises the offer, and B can be their own.** The rule is a
+**The next arrival raises the line, and B can be their own.** The rule is a
 diff against the roster last seen, not a headcount, so B stepping out and back
 in is an arrival and a third person is not needed. Run it that way if there are
 only two of you.
 
-### 7. The offer waits at the foreground
+### 7. The line waits at the foreground
 
 A declares nearby, then switches to another app — do not lock the phone. B steps
 in. Bring The Floor forward.
 
-**What settles it.** The card is there when A comes forward, naming B. **The
+**What settles it.** The line is there when A comes forward, naming B. **The
 arrival is not consumed by the background**: the roster is not recorded while
 the phone is away, so the comparison happens against what A last saw on screen.
-A card that never appears means it was consumed — the arrival counted as *seen*
+A line that never appears means it was consumed — the arrival counted as *seen*
 while nobody could act on it.
 
 The old reason for this rule was iOS refusing a backgrounded app a *new*
@@ -402,7 +414,7 @@ now, and the rule is what survived the pair.
 Stepping out of *Nearby* takes the same path, which is worth one extra tap
 here: be nearby, tap *Out*, and the screen behaves exactly as it does from
 inside the room. **Nearby** never closes the screen either way, because that
-is where the offer in step 5 gets drawn.
+is where the line in step 5 gets drawn.
 
 ### 15. Android, if there is a build
 

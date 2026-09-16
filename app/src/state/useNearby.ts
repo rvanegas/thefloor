@@ -8,6 +8,12 @@ import { somebodyArrived, whoArrived } from './nearby';
  * Notices somebody arriving in a channel this device is standing nearby, and
  * reports it. **It takes no action on the room and no claim on the audio.**
  *
+ * What the report becomes is a sentence rather than a question, since
+ * 2026-09-15: one muted line under that channel's roster. The card with *Step
+ * in* and *Stay nearby* it fed for a week is
+ * `decisions/2026-09-15-the-arrival-is-a-line.md`. Nothing here changed with
+ * it — what is detected, and when, is the same either way.
+ *
  * The rule and its reasoning are in `nearby.ts`; this is the wiring. Three
  * conditions, and each is doing work:
  *
@@ -15,20 +21,20 @@ import { somebodyArrived, whoArrived } from './nearby';
  *   where the action is sent, and it is why the *inferred* kind reports
  *   nothing: somebody filed under `waiting` because their socket went is
  *   somebody whose app is not running to notice anything. A second device
- *   watching that person's channel must not put an offer in front of a wait
+ *   watching that person's channel must not put a line in front of a wait
  *   their other phone is in the middle of.
  * - **The server agrees.** `waiting` is read back from the snapshot rather than
  *   assumed from `nearbyIn`, so a declaration the server refused, or one that
- *   has since lapsed to *Stepped out*, offers nothing.
+ *   has since lapsed to *Stepped out*, says nothing.
  * - **The foreground.** Kept after promotion was removed, and for a reason
  *   that outlived it. It was iOS refusing a backgrounded app a *new*
  *   microphone — measured on build 146, four minutes with no engine start —
- *   and an offer needs no microphone. What it still buys is the second half of
+ *   and a line needs no microphone. What it still buys is the second half of
  *   that behaviour: **the arrival is not consumed by the background.** The
  *   roster is not recorded while the phone is away, so coming forward compares
- *   against the last thing actually seen on screen and the offer is there when
+ *   against the last thing actually seen on screen and the line is there when
  *   somebody looks. Recording it anyway would count the new person as *seen*
- *   and the offer would never appear. In the background others see *Nearby*
+ *   and the line would never appear. In the background others see *Nearby*
  *   and may ping, and the arrival notification is what reaches somebody who is
  *   not looking — that, rather than this hook, is the half that does the
  *   reaching.
@@ -37,13 +43,13 @@ import { somebodyArrived, whoArrived } from './nearby';
  * exclusive and nearby is not — you may be within reach of several rooms at
  * once, and the wire says so with a bit per channel rather than an id. This
  * used to take a single view and a single id, so a second declaration stopped
- * the first from ever raising an offer: the room went on showing *Nearby* on
+ * the first from ever saying so: the room went on showing *Nearby* on
  * Home, the push still arrived, and the one thing being nearby is *for* — a
  * step in under the thumb when somebody walks in — silently did not happen.
  *
  * **It reads the snapshots of the channels declared in, not the screen in
  * front.** An arrival comes over the ordinary websocket in channel state,
- * which a nearby phone is still receiving. Where an offer is *drawn* is
+ * which a nearby phone is still receiving. Where the line is *drawn* is
  * `ChannelView`, which is that channel's screen.
  */
 export function useNearby(
@@ -103,8 +109,8 @@ export function useNearby(
       if (!somebodyArrived(before, channel.present, me)) continue;
       // Worth a line in the audio log even though no audio moves: this is the
       // moment the design used to open a microphone, and a walk that finds the
-      // offer missing needs to know whether the arrival was seen at all.
-      recordEvent('nearby arrival offered');
+      // line missing needs to know whether the arrival was seen at all.
+      recordEvent('nearby arrival noticed');
       onArrival(channelId, whoArrived(before, channel.present, me));
     }
     // `views` rather than any one room: a snapshot arrives for anything that

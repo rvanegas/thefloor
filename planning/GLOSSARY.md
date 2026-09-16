@@ -65,7 +65,7 @@ caused; the list carries the meaning.
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it offers you a step in when somebody arrives rather than taking one; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
+- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
@@ -900,12 +900,23 @@ rung you are on, in that order. See
 `decisions/2026-09-09-presence-is-a-ladder.md`.
 
 **Nearby never enters a room by itself.** When somebody steps into a channel a
-declared-nearby phone is standing in, it says who arrived and **offers** a step
-in — a card with *Step in* and *Stay nearby*, `nearbyArrival` in the code.
-Answering the offer is not answering the declaration: *Stay nearby* leaves you
-nearby and the next arrival offers again. Promotion, where the phone stepped
-itself in, was built and removed on 2026-09-08 without ever running on a
-device; see `decisions/2026-09-08-the-arrival-is-offered.md`.
+declared-nearby phone is standing in, it **says so and does nothing** — one
+muted line under the roster, *Dana Chu just stepped in.*, `nearbyArrival` in
+the code. The way in is the *In* rung, like every other act on that screen.
+
+**It was a card with *Step in* and *Stay nearby* between 2026-09-08 and
+2026-09-15**, and those two names are retired: the buttons were the footer's
+rung and a control that only put the card away, and four of the card's five
+parts were said elsewhere on the same screen at the same moment. **The one
+word that survived is *just*** — the roster gives a clock to your own row and
+not to anybody else's, so *Present* alone cannot tell a second ago from an
+hour ago. See `decisions/2026-09-15-the-arrival-is-a-line.md`.
+
+**Nothing about the arrival is answered, then.** The line is filtered against
+the roster rather than dismissed or expired, so it goes when the person who
+arrived leaves. Promotion, where the phone stepped itself in, was built and
+removed on 2026-09-08 without ever running on a device; see
+`decisions/2026-09-08-the-arrival-is-offered.md`.
 
 **Nothing else about it changed, and that is the point.** It is not kept alive,
 it lapses to *Stepped out* after the same window, and it is carried by the same

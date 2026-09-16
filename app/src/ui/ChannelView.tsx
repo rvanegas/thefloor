@@ -773,7 +773,7 @@ export function ChannelView({
    * Read off `waiting` rather than off `app.nearbyIn`, because the three ways
    * into *Nearby* are one state and the roster does not distinguish them: two
    * are declared and one is inferred from a socket that went. What
-   * `app.nearbyIn` decides is narrower — whether an arrival raises an offer
+   * `app.nearbyIn` decides is narrower — whether an arrival is said at all
    * on *this device* — and it reaches this screen as `arrived` below rather
    * than as this flag. See `state/useNearby.ts`.
    */
@@ -786,7 +786,7 @@ export function ChannelView({
    * everything that ends the declaration; it is keyed by channel because a
    * device may be nearby in several at once, so this screen takes its own
    * room's entry and no other. The presence filter is this screen's, for the
-   * reason in the card below.
+   * reason in the line below.
    */
   const arrived = (app.nearbyArrival[channel.id] ?? []).filter((id) =>
     channel.present.includes(id)
@@ -1621,9 +1621,9 @@ export function ChannelView({
         **Short forms, deliberately.** The long forms — "Step in", "Be
         nearby", "Step out" — are acts, and belonged on a control with a
         sentence under it; the cards that had them are gone as of 2026-09-13,
-        and the arrival offer still says "Step in" and "Stay nearby" because
-        it is a question rather than a rung. A roster card still says
-        *Present* and *Stepped out* about other people. These are the same
+        and the arrival card that said "Step in" and "Stay nearby" went on
+        2026-09-15, so no long form is left on this screen at all. A roster
+        card still says *Present* and *Stepped out* about other people. These are the same
         three rungs at 11pt in a fifth of a phone, and the long forms truncate
         there.
       */}
@@ -1827,6 +1827,47 @@ export function ChannelView({
           ) : null}
 
           {/*
+            **The arrival, which was a card until 2026-09-15.**
+
+            It carried a heading, the sentence below, *Step in*, *Stay nearby*
+            and an explanation. Four of those five were said elsewhere on this
+            screen at the same moment: the sentence by the roster row directly
+            above, which already says *Present*; *Step in* by the `In` rung,
+            which sends the same `ENTER`; the explanation by your own roster
+            row saying *Nearby* and by the lit bell; and the event itself by
+            the notification, which since 2026-09-08 reaches a nearby phone
+            with the app open deliberately — `reachesInApp` in server/push.ts,
+            "exactly the person asking to be told". The fifth, *Stay nearby*,
+            answered nothing in the room: its only effect was to put the card
+            away, a control that existed because the card did.
+
+            What was not said anywhere is the only thing left here: **the
+            roster gives a clock to you and not to them.** Your own row reads
+            *Nearby a few seconds*; theirs reads *Present* whether they walked
+            in a second ago or an hour ago. *Just* is that difference, and it
+            is one line.
+
+            So the arrival is a claim about the room, like the two above it, and
+            the answer is the rung — which is where every other act on this
+            screen already lives. See
+            `decisions/2026-09-15-the-arrival-is-a-line.md`, and
+            `2026-09-13-the-cards-a-footer-made-redundant.md`, which is the
+            same argument made about the card this one sat beneath.
+
+            **Still filtered against the roster rather than expired on a
+            clock**, which is what it always was: somebody who arrived and has
+            since left is no longer news, and `channel.present` already says
+            so — a line that outlived the arrival would be the screen
+            contradicting the list directly above it. Nothing dismisses it,
+            because a sentence that is true is not a question.
+          */}
+          {iAmNearby && arrived.length > 0 ? (
+            <Text style={type.muted}>
+              {`${describeChannel(arrived.map(nameOf))} just stepped in.`}
+            </Text>
+          ) : null}
+
+          {/*
             Under the roster and above everything else, because somebody at
             the door is waiting on an answer from this screen and nothing else
             here is. Both lists are usually empty and render nothing at all.
@@ -1909,53 +1950,6 @@ export function ChannelView({
             </Text>
           ) : null}
         </View>
-
-        {/*
-          **The offer**, which is what an arrival does since 2026-09-08.
-
-          Until that afternoon this was not a card at all: a nearby phone
-          stepped itself in when somebody arrived, opening a microphone nobody
-          had touched the phone for. That is
-          `decisions/2026-09-08-the-arrival-is-offered.md`, and what replaced it
-          is this — the same detection, `state/nearby.ts`, drawn as a thing to
-          tap rather than performed.
-
-          **It was never behind `controlCards`**, and that is why it is still
-          here now the three cards that setting governed are not. Those were
-          the footer's controls repeated in the body; this is not a repeated
-          control but the answer to a question the app has just asked. Its
-          *Step in* coincides with a footer rung, and its *Stay nearby* is on
-          no bar and no other card — dismissing an offer is not a rung, and
-          the pair is the question, not two shortcuts.
-
-          **It is filtered against the roster rather than expired on a clock.**
-          Somebody who arrived and has since left is no longer a reason to step
-          in, and `channel.present` already says so — an offer that outlived the
-          arrival would be the screen contradicting the list directly above it.
-        */}
-        {iAmNearby && arrived.length > 0 ? (
-          <>
-            <SectionLabel>Somebody arrived</SectionLabel>
-            <Card style={styles.stack}>
-              <Text style={type.body}>
-                {`${describeChannel(arrived.map(nameOf))} stepped in.`}
-              </Text>
-              <Button
-                label="Step in"
-                variant="primary"
-                onPress={() => act({ type: 'ENTER' })}
-              />
-              <Button
-                label="Stay nearby"
-                onPress={() => app.dismissNearbyArrival(channel.id)}
-              />
-              <Text style={type.muted}>
-                You are nearby, so you cannot hear them yet. Stepping in opens
-                your microphone and stops whatever else this phone is playing.
-              </Text>
-            </Card>
-          </>
-        ) : null}
 
         {/*
           **What is left of *Your microphone*, which is no longer about the

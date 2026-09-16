@@ -1338,6 +1338,64 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The arrival, which was a card with two buttons until 2026-09-15 and had
+   * no test at all. It is one line now, and the reason it is one line is that
+   * everything else on the card was already on the screen — so what these two
+   * pin is the line's presence and the buttons' absence together.
+   */
+  it('says an arrival in a line, and offers no buttons for it', () => {
+    mockApp.nearbyIn = ['sess_1'];
+    mockApp.nearbyArrival = { sess_1: [THEM] };
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    const text = textOf(tree);
+    // *Just* is the whole of what this line carries that the roster does not:
+    // the roster row above says only *Present*, of somebody who walked in a
+    // second ago and of somebody who has been there an hour alike.
+    expect(text).toContain('Dana Chu just stepped in.');
+    // The heading said less than the sentence under it, and both buttons were
+    // elsewhere: *Step in* is the `In` rung, and *Stay nearby* only put the
+    // card away.
+    expect(text).not.toContain('Somebody arrived');
+    expect(findButton(tree, 'Step in')).toBeUndefined();
+    expect(findButton(tree, 'Stay nearby')).toBeUndefined();
+    // The answer is the rung, which is where every other act here lives.
+    expect(findButton(tree, 'In')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('drops the arrival line when the person who arrived has left', () => {
+    mockApp.nearbyIn = ['sess_1'];
+    mockApp.nearbyArrival = { sess_1: [THEM] };
+    // Nothing clears `nearbyArrival` on a departure, deliberately: the line is
+    // filtered against the roster rather than expired on a clock, so a line
+    // outliving the arrival cannot contradict the list directly above it.
+    showChannel(
+      channelOf((c) => {
+        const nearby = reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW);
+        return reduce(nearby, { type: 'STEP_OUT', userId: THEM }, NOW + 1_000);
+      })
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(textOf(tree)).not.toContain('just stepped in.');
+    act(() => tree.unmount());
+  });
+
   it('orders each tab by what somebody in a conversation reaches for', () => {
     /*
       Roughly by how often it is wanted, and pinned here because the order is

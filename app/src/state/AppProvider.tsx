@@ -303,9 +303,9 @@ interface AppState {
    * **Its own fact, beside `standingIn` and for the same reason.** Being in
    * `waiting` is the account's, and a snapshot says it whether the wait was
    * declared here, declared on another phone, or merely inferred from a socket
-   * that went. Only a declaration made *here* raises an offer on this device
-   * when somebody arrives — see `useNearby` — because a wait somebody's other
-   * phone is in the middle of is not this screen's to answer.
+   * that went. Only a declaration made *here* says so on this device when
+   * somebody arrives — see `useNearby` — because a wait somebody's other
+   * phone is in the middle of is not this screen's to narrate.
    *
    * **A set rather than one id, since 2026-09-12, because nearby is not
    * exclusive and this was the one place that assumed it was.** `standingIn`
@@ -316,8 +316,9 @@ interface AppState {
    * declaring in a second channel silently forgot the first. The server went
    * on listing both waits, Home went on pinning both bars, and the absent
    * phone went on buzzing when somebody walked into the forgotten one; the
-   * only thing that stopped happening was the offer, which is the whole of
-   * what being nearby does for the person who declared it.
+   * only thing that stopped happening was the arrival being said at all,
+   * which is the whole of what being nearby does for the person who declared
+   * it.
    *
    * Entries are cleared by anything that ends *that* declaration: entering,
    * stepping out, leaving. Being displaced and signing out clear the lot. Not
@@ -326,28 +327,31 @@ interface AppState {
    */
   nearbyIn: string[];
   /**
-   * Who has just stepped into each channel this device is nearby in and has
-   * not been answered yet, keyed by channel.
+   * Who has just stepped into each channel this device is nearby in, keyed by
+   * channel.
    *
-   * **The offer, which is all that is left of promotion.** Until 2026-09-08
-   * an arrival stepped this phone in by itself; it now says who arrived and
-   * puts a *Step in* under the thumb instead. `state/nearby.ts` carries the
-   * rule and `decisions/2026-09-08-the-arrival-is-offered.md` the reversal.
+   * **All that is left of promotion.** Until 2026-09-08 an arrival stepped
+   * this phone in by itself; it then put a *Step in* under the thumb, and
+   * since 2026-09-15 it says one line under the roster and nothing more.
+   * `state/nearby.ts` carries the rule,
+   * `decisions/2026-09-08-the-arrival-is-offered.md` the reversal and
+   * `decisions/2026-09-15-the-arrival-is-a-line.md` the card's deletion —
+   * every button on it was somewhere else on the same screen.
    *
    * **Keyed rather than single, for the reason `nearbyIn` is a set**: two
    * rooms you are within reach of can each receive somebody, and one slot
-   * meant the second arrival overwrote the first — an offer disappearing off
-   * a screen nobody had answered. Each channel's screen draws its own.
+   * meant the second arrival overwrote the first — a room going quietly
+   * unmentioned. Each channel's screen draws its own.
    *
-   * The array accumulates while an offer stands, so two people arriving in
-   * quick succession are one offer naming both rather than a card that
-   * forgets the first. It is not filtered here: whether somebody named is
-   * still in the room is a question about the roster the screen is already
-   * drawing, and `ChannelView` answers it there rather than this provider
-   * keeping a second copy of presence.
+   * The array accumulates, so two people arriving in quick succession are one
+   * line naming both rather than a line that forgets the first. It is not
+   * filtered here: whether somebody named is still in the room is a question
+   * about the roster the screen is already drawing, and `ChannelView` answers
+   * it there rather than this provider keeping a second copy of presence.
    *
-   * An entry is cleared by whatever clears its channel from `nearbyIn`, since
-   * an offer outside a declaration is an offer about nothing.
+   * **Nothing dismisses an entry**, there being nothing to answer since the
+   * card went; one is cleared by whatever clears its channel from `nearbyIn`,
+   * since an arrival outside a declaration is news about nothing.
    */
   nearbyArrival: Record<string, string[]>;
   /**
@@ -543,21 +547,11 @@ interface AppValue extends AppState {
    * in.
    *
    * Called by `useNearby`, which does the noticing and nothing else. It is
-   * here rather than in that hook's own state because the offer is drawn on a
+   * here rather than in that hook's own state because the line is drawn on a
    * screen the hook does not own, and because everything that ends a
    * declaration already clears its neighbour `nearbyIn` in this file.
    */
   noteNearbyArrival: (channelId: string, who: string[]) => void;
-  /**
-   * Puts one channel's offer away without stepping in — the *Stay nearby* half
-   * of it.
-   *
-   * Answering an offer is not the same as ending the declaration: you remain
-   * nearby, and the next arrival offers again. **It names the channel**, since
-   * a second room you are nearby in may have an offer standing of its own and
-   * this tap says nothing about that one.
-   */
-  dismissNearbyArrival: (channelId: string) => void;
   /**
    * Tells this provider whether a microphone track is published right now.
    *
@@ -2105,9 +2099,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // of them there — and this has exactly one.
         //
         // Every other action that ends the wait clears it, including `ENTER`,
-        // which is what answering an offer sends: the declaration is over the
-        // moment it is answered, and leaving this set would let a second
-        // arrival raise an offer again against a room this phone is now
+        // which is what stepping in from the rung sends: the declaration is
+        // over the moment you are in the room, and leaving this set would let a
+        // second arrival be announced as news against a room this phone is now
         // standing in.
         //
         // **All of it is per channel, and that is the correction of
@@ -2147,8 +2141,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState((s) => {
           // Only for a channel this device is actually nearby in, and only
           // while it still is: a snapshot can outrun the action that ended the
-          // declaration, and an offer raised after that would be answered by a
-          // button on a screen that no longer has one.
+          // declaration, and a line raised after that would be reporting an
+          // arrival into a room this phone has already left or entered.
           if (!s.nearbyIn.includes(channelId)) return s;
           const standing = s.nearbyArrival[channelId];
           return {
@@ -2160,16 +2154,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 : who,
             },
           };
-        });
-      },
-
-      // **Named**, because there may be an offer standing in another room and
-      // dismissing this one is not an answer to that one.
-      dismissNearbyArrival: (channelId) => {
-        setState((s) => {
-          if (!(channelId in s.nearbyArrival)) return s;
-          const { [channelId]: _gone, ...rest } = s.nearbyArrival;
-          return { ...s, nearbyArrival: rest };
         });
       },
 

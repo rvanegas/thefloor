@@ -590,7 +590,7 @@ symptom to watch for — when the exceptions to a setting outnumber what it
 governs, what it governs has gone.
 
 **What survives has no second home** — and on 2026-09-15 that came down to
-one sentence and one card, neither of them about a control.
+two sentences and one card, none of them about a control.
 
 The surviving card is *Audio*, and it is drawn **only when the audio is not
 working**: connecting, dropped, refused, unconfigured, failed. A conversation
@@ -600,8 +600,20 @@ interrupting somebody with. Every healthy state draws nothing at all, which
 is the property to keep — see `describeAudio`, which returns null rather than
 a reassurance.
 
-The surviving sentence is that the room is held on another phone, under the
-roster rather than on a card, there being no card it could belong to.
+The surviving sentences are both under the roster rather than on a card,
+there being no card either could belong to: that the room is held on another
+phone, and — since later the same day — that somebody **just** stepped in
+while you are nearby.
+
+**The second of those replaced a card, and the replacement is the rule
+applied twice.** The arrival had a heading, a sentence, *Step in*, *Stay
+nearby* and an explanation; the roster said the sentence, the `In` rung was
+*Step in*, the lit bell and your own row said the explanation, and *Stay
+nearby* only removed the card. What had no second home was one word — *just*
+— because a roster row carries a clock for you and none for anybody else.
+See `decisions/2026-09-15-the-arrival-is-a-line.md`. **A card whose only
+irreducible part is an adverb is a sentence**, which is the general form of
+the test.
 
 **Two things left that afternoon and are worth naming, since both look like
 they should have stayed.** *Your microphone*'s explanations went for the
