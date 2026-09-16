@@ -40,6 +40,10 @@ rather than invented here.
 - **Paid, since it is on the table** — what money can and cannot buy here,
   ranked, with the kill rule, the Apple Ads keyword list and what a tap costs.
 - **Organic, ranked** — where the effort actually goes.
+- **The email list, which is consent collected and not yet spent** — the
+  permission the app already collects, what the checkbox's own words let it
+  carry, and the unsubscribe link that has to ship in the same commit as
+  whatever first sends.
 - **What marketing may not do** — the constraints, applied to this file's
   subject rather than to the product's, including the one bounded exception to
   *no strangers* and the rule that it may not be advertised.
@@ -1001,6 +1005,74 @@ anything. This is the slowest channel and the one that compounds.
 every channel above lands on. Both are cheap to improve and both are currently
 carrying a sentence that describes a different app — see ROADMAP item 6.
 
+## The email list, which is consent collected and not yet spent
+
+**There is a marketing permission, it is already being collected, and nothing
+has ever been sent under it.** The sign-in screen carries a checkbox, Floor
+Settings § Email answers it in both directions afterwards, and the answer is
+`accounts.marketing_email_at` — a timestamp saying when permission was first
+given, or NULL. `SesMailer` has exactly two send paths, `sendCode` and
+`sendInvite`, both of them transactional, and neither reads that column.
+Nothing exports a list and no template exists. So this is an asset the rest of
+this file does not otherwise name, it grows on every signup, and it has never
+been spent.
+
+**What it may carry is fixed by the words the permission was asked for in** —
+*Email me occasionally about The Floor — how to use it, and what is new.* That
+sentence is the whole scope: the subject is the app, never the recipient's own
+room. It is deliberately compatible with § *What marketing may not do*'s first
+constraint, and the line between them is the subject rather than the medium.
+*Here is what the ladder is for* is on the thesis; *your channel misses you* is
+the forbidden thing wearing an envelope, and so is a digest of what happened
+while somebody was away.
+
+**Nothing may be sent until there is an unsubscribe link, and the two ship in
+the same commit.** CAN-SPAM and its equivalents require one on every message
+sent under a permission like this, and it is the only exit that works for the
+person who deleted the app or never opens the screen the toggle is on — the
+in-app control covers only people who still have the app. Whatever sends the
+first mail is where the link attaches, so they are one piece of work or the
+first send goes out with no way off the list. Three things it has to get
+right:
+
+- **It needs a token that names an account and signs nobody in**, and a route
+  that clears `marketing_email_at` without a session. `server/web/` is the
+  precedent for an unauthenticated browser-facing page.
+- **`watch_tokens` is not the shape to reuse**, though it is the one that
+  looks nearest. Its `channel_id` is `NOT NULL` and cascades with the channel,
+  and half of what the token says is *which channel* — that is the point of
+  the table, and what keeps it from being a session credential. It expires, too.
+  An unsubscribe link names an account and nothing else, and has to work
+  whenever the mail is opened, which is not inside any TTL worth setting.
+  Reuse the technique — 32 random bytes, `sha256` at rest,
+  `insertWithUniqueKey` — in a table of its own.
+- **Amend `/privacy` in the same commit**, on the same reasoning § *The
+  sequence* item 3 carries: the page is a live public claim and the listing
+  links to it.
+
+**And the withdrawal has to outrank the grant, which today it does not.**
+`Accounts.establish` stamps `marketing_email_at` whenever it is NULL and the
+client sends `marketingEmail: true`. That is right for the other half of the
+case and is reasoned where it stands: the sign-in box is read before anybody
+is identified, so it starts clear on every device and cannot be shown an
+answer already given — treating a clear box as a no would make every sign-in
+on a second phone revoke what the first one granted. What it cannot do is tell
+*never asked* from *asked and left*. So somebody who turns the setting off and
+later signs in on a new device with the box ticked is silently back on the
+list. That is harmless while nothing sends; the moment an unsubscribe link
+exists it is precisely the failure the link exists to prevent, since an
+unsubscribe a later sign-in quietly reverses is not one. The fix is a recorded
+withdrawal — an `unsubscribed_at`, or a suppression row — rather than a NULL
+that reads as silence.
+
+**This has no number in § *The sequence*, deliberately.** Nobody has decided to
+send anything, and until somebody does, the honest position is that consent has
+been collected and not acted on — a safe state to sit in and not one to send
+from. The gate is the link and the withdrawal above, both small, and both much
+worse to retrofit once a first send has already gone out.
+`backlog/marketing-email-has-no-unsubscribe-link.md` is the same statement made
+from the other end.
+
 ## What marketing may not do
 
 PROPOSITION.md § *What this proposition forbids* is a list of product
@@ -1011,10 +1083,12 @@ file's subject:
 - **No re-engagement notification, ever** — which forbids lifecycle
   marketing outright. No push campaign, no streak, no digest, no *your channel
   misses you*, and no email of that shape either. The server can send mail
-  (`mail.ts`) and it is for invitations and account business, not for
-  marketing. **This one costs real growth and is not negotiable**, because the
+  (`mail.ts`) and today it sends only invitations and account business.
+  **This one costs real growth and is not negotiable**, because the
   permission is the thing the product runs on and item 1 of the roadmap spends
-  its credibility on exactly this promise.
+  its credibility on exactly this promise. **It is not a ban on the mail the
+  sign-in checkbox asks for** — § *The email list* bounds that one, and the
+  line between them is the subject rather than the medium.
 - **No strangers and no directory** — which forbids every tactic whose
   mechanism is connecting people who do not know each other. No suggested
   contacts, no address-book upload, no *people you may know*, no public
