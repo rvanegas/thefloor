@@ -1199,20 +1199,57 @@ export function useSessionAudio(
     /**
      * The transport's own account of itself, which nothing else records.
      *
-     * `Disconnected` is already handled below and is the only one this app
-     * acts on. These are the states it passes *through* — a signal reconnect,
-     * a subscription the SFU could not deliver — each of which can leave a
-     * room that reports healthy and carries no audio. That combination is what
-     * `c2f5039` described in 2026-08-11 as "subscribed to the new track,
-     * reporting healthy, and silent", and it has never had a line in any log.
+     * **`Reconnecting` is a status change and no longer only a log line**,
+     * since 2026-09-16. These were all log-only on the grounds that acting on
+     * one would be a change to how this app reconnects, and that the decision
+     * wanted the evidence they produce first. The evidence arrived as a
+     * screenshot of `OfflineView` telling somebody in airplane mode *You can
+     * still hear the room*, with "Fake" written across it. It was reading
+     * `status === 'connected'`, which was still true because `Disconnected`
+     * was the only thing that had ever cleared it — and livekit-client fires
+     * that only once its own retries are exhausted, which its default policy
+     * spreads over some forty-five seconds. The socket gives up after
+     * `OFFLINE_AFTER_MS`, ten. Those two numbers are the whole bug: for the
+     * half-minute between them the app was certain of an audio connection
+     * that, with the radio off, had not survived the first second.
      *
-     * Log-only. Acting on any of them is a change to how this app reconnects,
-     * and that decision wants the evidence these produce first.
+     * **It is not a change to how this app reconnects**, which is what the old
+     * comment was protecting. Nothing here schedules anything — livekit-client
+     * is still the one retrying, `Disconnected` is still where our own backoff
+     * takes over, and `Reconnected` puts the status back. What changes is what
+     * the screen may claim while that plays out. `'reconnecting'` already
+     * meant "connected once, dropped, and trying again" and was documented
+     * that way; it was being entered at the moment the trying *stopped*.
+     *
+     * **`SignalReconnecting` stays log-only, and that distinction is the
+     * point.** livekit-client documents it as the signal channel alone going
+     * quiet — "isn't noticeable to users most of the time" — with media still
+     * flowing, and promises a further `Reconnecting` if media fails too.
+     * Acting on it would replace this lie with its mirror image, telling
+     * somebody the room was gone while they could hear it.
+     *
+     * The subscription failure stays log-only for the original reason: one the
+     * SFU could not deliver leaves a room that reports healthy and carries no
+     * audio — what `c2f5039` described in 2026-08-11 as "subscribed to the new
+     * track, reporting healthy, and silent" — and nothing here can yet tell
+     * that from a room where nobody is talking.
      */
     room
-      .on(RoomEvent.Reconnecting, () => recordEvent('room reconnecting'))
+      .on(RoomEvent.Reconnecting, () => {
+        recordEvent('room reconnecting');
+        // Cleared for the reason `Disconnected` clears them: both are the
+        // SFU's account of a moment that has passed, and a speaking indicator
+        // frozen mid-sentence is its own small lie.
+        update({ status: 'reconnecting', speaking: [], failing: [] });
+      })
       .on(RoomEvent.SignalReconnecting, () => recordEvent('room signal reconnecting'))
-      .on(RoomEvent.Reconnected, () => recordEvent('room reconnected'))
+      .on(RoomEvent.Reconnected, () => {
+        recordEvent('room reconnected');
+        // Only the status goes back. `micOpen`/`micPublished` are not restated
+        // because this path publishes nothing — the room that came back is the
+        // one that left, carrying whatever it carried before.
+        update({ status: 'connected', message: null });
+      })
       .on(RoomEvent.TrackSubscriptionFailed, (sid, participant) =>
         recordEvent(`sub failed ${participant.identity} ${sid}`)
       )
@@ -1570,6 +1607,15 @@ export function useSessionAudio(
       // would evict whichever device is actually carrying the conversation,
       // once per trip through the app switcher.
       if (state.status === 'displaced') return;
+      // Since 2026-09-16 `reconnecting` also covers livekit-client's own
+      // internal retries, so this can now fire on a room that has not given up
+      // yet — and it takes the attempt off it. Deliberate, and the same trade
+      // this effect already makes everywhere else: somebody who has just come
+      // back to the app may be on a different network entirely, and a fresh
+      // connect is never worse than the tail of a backoff earned on the old
+      // one. The teardown goes through the ordinary cleanup, so there is no
+      // second dead room left behind.
+
       // The second path to a rebuild, and the one that leaves no other trace:
       // it fires on a room that has already given up, so there is no
       // `Disconnected` next to it to explain the `connect` that follows.

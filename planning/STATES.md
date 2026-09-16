@@ -703,6 +703,25 @@ what the socket had done all along under a comment reading "Nothing else does."
 dead connection had been rendering with the same words as a channel nobody has
 joined.
 
+**And it was entered some forty-five seconds late, until 2026-09-16.** The only
+event that cleared `'connected'` was `RoomEvent.Disconnected`, which
+livekit-client fires only once its *own* retries are spent — its default policy
+spreads ten attempts over about forty-five seconds. The socket, meanwhile,
+calls itself offline after `OFFLINE_AFTER_MS`, ten. **So the two readings this
+section is about disagreed by half a minute in the one direction nothing was
+checking**, and `OfflineView` — which picks its words from exactly this pair —
+spent that half-minute telling somebody in airplane mode *You can still hear
+the room*. It arrived back as a screenshot with "Fake" written across it.
+
+`RoomEvent.Reconnecting` now sets the status, so the word is entered when the
+trying starts rather than when it stops. **`SignalReconnecting` deliberately
+does not**: livekit-client documents that one as the signal channel alone
+dropping with media still flowing, and acting on it would say the room was gone
+to somebody who could hear it. The events are otherwise still log-only, and the
+distinction between the two is the load-bearing part — see the comment in
+`useSessionAudio.ts` and
+planning/decisions/2026-09-16-the-room-is-gone-before-livekit-says-so.md.
+
 ---
 
 ## Audio Output Selection

@@ -34,6 +34,12 @@ jest.mock('livekit-client', () => {
     ActiveSpeakersChanged: 'activeSpeakersChanged',
     ParticipantDisconnected: 'participantDisconnected',
     Disconnected: 'disconnected',
+    // The real enum's values, which are what the SDK emits. These three are
+    // the difference between "the SDK has given up" and "the SDK is trying",
+    // and the app used to be able to see only the first.
+    Reconnecting: 'reconnecting',
+    SignalReconnecting: 'signalReconnecting',
+    Reconnected: 'reconnected',
   };
 
   class Room {
@@ -215,5 +221,86 @@ describe('a room that drops', () => {
     // Leaving a channel must not start a reconnect loop against a room nobody
     // is in: the retry timer is cleared by the same cleanup that disconnects.
     expect(mockRooms).toHaveLength(1);
+  });
+});
+
+/**
+ * **The half-minute this app used to spend certain of a dead connection.**
+ *
+ * Reported by a user as a screenshot of `OfflineView` — airplane mode on,
+ * "Fake" written across *You can still hear the room*. `Disconnected` was the
+ * only event that had ever cleared `connected`, and livekit-client fires it
+ * only once its own retries are spent, which its default policy spreads over
+ * some forty-five seconds; the socket calls itself offline after ten. Between
+ * the two the app told people the conversation was still reaching them.
+ *
+ * So these assert on the moment rather than the eventual state: the status has
+ * to change on the event, with no clock advanced at all.
+ */
+describe('a room whose transport is still trying', () => {
+  beforeEach(() => {
+    mockRooms.length = 0;
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('says so at once, rather than when the SDK gives up', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe />);
+    });
+    await settle();
+    expect(latest.status).toBe('connected');
+
+    await act(async () => {
+      mockRooms[0].fire('reconnecting');
+    });
+
+    // No timer advanced between the event and this line, which is the whole
+    // assertion: `OfflineView` reads this on the render straight after.
+    expect(latest.status).toBe('reconnecting');
+
+    // And it is still the SDK's attempt, not ours — nothing was rebuilt.
+    expect(mockRooms).toHaveLength(1);
+
+    await act(async () => {
+      mockRooms[0].fire('reconnected');
+    });
+    expect(latest.status).toBe('connected');
+    expect(mockRooms).toHaveLength(1);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * The mirror-image lie, which is the reason this is two events and not one.
+   * livekit-client documents `SignalReconnecting` as the signal channel alone
+   * dropping, media still flowing, "not noticeable to users most of the time".
+   * Acting on it would tell somebody the room was gone while they could hear
+   * it — and would then have to be undone by a `Reconnected` that may be a
+   * good few seconds away.
+   */
+  it('stays connected when only the signal channel dropped', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe />);
+    });
+    await settle();
+    expect(latest.status).toBe('connected');
+
+    await act(async () => {
+      mockRooms[0].fire('signalReconnecting');
+    });
+
+    expect(latest.status).toBe('connected');
+
+    await act(async () => {
+      tree.unmount();
+    });
   });
 });
