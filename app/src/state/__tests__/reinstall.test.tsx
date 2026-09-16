@@ -55,6 +55,9 @@ function Probe({ report }: { report: (ask: string) => void }) {
     token: 'auth',
     somebody: true,
     conversing: false,
+    // This file is about what a reinstall forgets, and the cohort gate is no
+    // part of it: `somebody` above already carries the reason to ask.
+    cohortEligible: false,
     onRegistered: () => {},
   });
   report(ask);

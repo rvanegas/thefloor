@@ -864,7 +864,23 @@ export class ChannelRegistry {
      * a signup that may not have happened yet. Resolved at every use for the
      * same reason; see `cohortHosts`.
      */
-    private cohortHostIdentifiers: readonly string[] = []
+    private cohortHostIdentifiers: readonly string[] = [],
+    /**
+     * Whether an account can be reached by notification, which is the fifth
+     * thing `placeInCohort` refuses on.
+     *
+     * **A predicate rather than the `Devices` table**, so this class does not
+     * learn about push at all. The reason is the one the composition root
+     * already applies in the other direction — `Accounts` must not learn about
+     * `ChannelRegistry` — and it is worth more here: a cohort is a channel, the
+     * gate is about reachability, and wiring the two together inside this class
+     * would make every test of a channel need a device.
+     *
+     * Absent means *reachable*, deliberately. A registry built without this
+     * behaves the way it did before the gate existed, which is what keeps the
+     * several dozen tests that construct one directly saying what they meant.
+     */
+    private reachable: (userId: string) => boolean = () => true
   ) {
     this.usage = new UsageMeter(db, () => this.now());
     this.guests = new Guests(db);
@@ -1291,6 +1307,36 @@ export class ChannelRegistry {
   }
 
   /**
+   * Whether a cohort is what this account is waiting for, notifications aside.
+   *
+   * `placeInCohort`'s gate with the reachability half taken off: true for
+   * somebody who would be placed the moment they became reachable, and false
+   * for everybody the feature was never going to put anywhere — hosts, people
+   * already in one, people who arrived into a working group, and everybody at
+   * all when the feature is switched off.
+   *
+   * **It exists so the app can say the true thing at the moment it asks about
+   * notifications.** Home carries it as `cohortEligible`; see `homeFor`. The
+   * app's ask policy otherwise refuses to raise the question for an account
+   * with nobody, which under this gate is a deadlock — the placement is the
+   * only thing that would have given a lone arrival somebody, and it is now
+   * waiting on the permission that will never be asked for. This breaks it,
+   * and does so by handing over a fact rather than by loosening the policy.
+   *
+   * **A predicate and not a placement.** Nothing here writes, so Home may ask
+   * it on every snapshot; the seat is spent by `placeInCohort` alone.
+   */
+  wouldPlaceInCohort(userId: string): boolean {
+    const hosts = this.cohortHosts();
+    if (hosts.length === 0) return false;
+    if (hosts.includes(userId)) return false;
+    if (this.cohortOf(userId)) return false;
+    return (
+      this.accounts.reachableFrom(userId, COHORT_REACH_FLOOR) < COHORT_REACH_FLOOR
+    );
+  }
+
+  /**
    * Puts a new account in a *getting-started channel*, opening one if the
    * current one is full.
    *
@@ -1306,6 +1352,12 @@ export class ChannelRegistry {
    * restart; the channels already made are left alone, being ordinary channels
    * with people in them by then. Nothing about switching it off needs code.
    *
+   * **Called when an account first becomes reachable, not when it signs up.**
+   * That moved on 2026-09-15 along with the last refusal below, and the two
+   * are the same change: a gate on notifications applied at signup would
+   * refuse everybody, nobody having been asked yet. See
+   * decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
+   *
    * Returns null, and does nothing at all, when:
    * - **no host is configured** — which is the off switch, and is the state
    *   the feature ships in;
@@ -1315,7 +1367,12 @@ export class ChannelRegistry {
    * - **they can already reach `COHORT_REACH_FLOOR` people** — see
    *   `Accounts.reachableFrom`. Somebody who signed up on an invitation into a
    *   working group of contacts has what a cohort would have given them, and
-   *   the exception is not justified for them.
+   *   the exception is not justified for them;
+   * - **they cannot be reached by notification** — see `reachable`. A cohort
+   *   is five seats spent once each, and the whole of what it offers is that
+   *   somebody may speak into it later; a member who cannot be told that
+   *   happened is a seat that can never answer. It is also the one refusal
+   *   here that the person can undo, which is why the app can say so.
    *
    * **Nobody is told.** `create` pushes to its invitees; this deliberately
    * does not. A placement is not somebody waiting for you in a room, and four
@@ -1325,14 +1382,10 @@ export class ChannelRegistry {
    * that is the whole of it.
    */
   placeInCohort(userId: string): { channelId: string } | null {
-    const hosts = this.cohortHosts();
-    if (hosts.length === 0) return null;
-    if (hosts.includes(userId)) return null;
-    if (this.cohortOf(userId)) return null;
-    if (this.accounts.reachableFrom(userId, COHORT_REACH_FLOOR) >= COHORT_REACH_FLOOR) {
-      return null;
-    }
+    if (!this.wouldPlaceInCohort(userId)) return null;
+    if (!this.reachable(userId)) return null;
 
+    const hosts = this.cohortHosts();
     const { state, next } = this.openCohort();
     // The first host is the host until there is a reason to rotate, and the
     // list is ordered so that reason is configuration rather than a change

@@ -71,6 +71,31 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
       <View style={styles.stack}>
         <Text style={type.title}>Being reachable</Text>
 
+        {/*
+          First, and only for the one reader it is true of: somebody who
+          arrived with nobody here. For them this permission is not a promise
+          about conversations they already have — it is the thing that fetches
+          them a room, since a *getting-started channel* is given to people who
+          can be told it went live. See `HomeView.cohortEligible`.
+
+          Above the general argument rather than below it, because for this
+          reader it *is* the argument; the three cards under it then say what
+          will be sent and how loud, which are still the right next questions.
+        */}
+        {notifications.cohortEligible ? (
+          <Card style={styles.card}>
+            <Text style={type.body}>
+              You arrived without anybody here. Turn these on and we will put
+              you in a channel with a few other people who joined around the
+              same time, and one of us, so there is somebody to talk to.
+            </Text>
+            <Text style={type.muted}>
+              It is one channel, it happens once, and you can leave it whenever
+              you like. Nobody in it becomes a contact.
+            </Text>
+          </Card>
+        ) : null}
+
         <Card style={styles.card}>
           <Text style={type.body}>
             The Floor is people talking, not messages waiting. Somebody walks

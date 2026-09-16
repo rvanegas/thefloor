@@ -42,6 +42,46 @@ describe('whether the moment has come', () => {
       worthAsking({ somebody: true, conversed: true, launches: 1 })
     ).toBe(true);
   });
+
+  /**
+   * The deadlock the server's placement gate would otherwise close.
+   *
+   * A *getting-started channel* goes to somebody who can be told the room went
+   * live, and the placement is the only thing that would ever have given a
+   * lone arrival somebody. So `somebody` alone would refuse to ask this
+   * person, and the refusal is what keeps them alone. Here the permission is
+   * not a word about a hypothetical — it is what fetches them the room.
+   */
+  it('asks somebody with nobody when a cohort is waiting on the permission', () => {
+    expect(
+      worthAsking({
+        somebody: false,
+        conversed: false,
+        launches: 2,
+        cohortEligible: true,
+      })
+    ).toBe(true);
+  });
+
+  it('still carries no dialog on the launch that installed the app', () => {
+    // A second reason to ask, not a licence to ask sooner: the worst moment
+    // for the one dialog iOS grants is still the first ten seconds.
+    expect(
+      worthAsking({
+        somebody: false,
+        conversed: false,
+        launches: 1,
+        cohortEligible: true,
+      })
+    ).toBe(false);
+  });
+
+  it('reads a server that has never heard of the field as no reason', () => {
+    // Absent is false, which is what every build before this one believed.
+    expect(
+      worthAsking({ somebody: false, conversed: true, launches: 9 })
+    ).toBe(false);
+  });
 });
 
 describe('what is due', () => {

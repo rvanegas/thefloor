@@ -1399,6 +1399,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     token: state.token,
     somebody,
     conversing,
+    // Absent on a server older than the field, which reads as false and is the
+    // behaviour every build before this one had — see `HomeView.cohortEligible`
+    // and planning/SHIMS.md.
+    cohortEligible: state.home?.cohortEligible ?? false,
     // The same ref the sign-in registration writes, so a token granted from
     // the explanation is the one sign-out later revokes.
     onRegistered: useCallback((token: string) => {

@@ -64,6 +64,17 @@ export interface NotificationAsk {
    */
   canPrompt: boolean;
   /**
+   * Whether a *getting-started channel* is waiting on this permission —
+   * `HomeView.cohortEligible`, passed straight through.
+   *
+   * Here so the explanation can say the concrete thing to the one reader it is
+   * concretely true for. Everybody else is being asked about conversations
+   * they already have; this reader is being asked about the four people and a
+   * host they do not have yet, and saying so is both the honest pitch and the
+   * strongest one there is.
+   */
+  cohortEligible: boolean;
+  /**
    * That the explanation is now on screen, however it got there. Records the
    * day, so the banner does not come back tomorrow having just been read.
    */
@@ -98,10 +109,12 @@ export function useNotificationAsk(state: {
   somebody: boolean;
   /** You are, or have just been, in a channel alongside somebody else. */
   conversing: boolean;
+  /** A cohort is waiting on this permission — `HomeView.cohortEligible`. */
+  cohortEligible: boolean;
   /** Told when a device token is registered, so the caller can hold it. */
   onRegistered: (deviceToken: string) => void;
 }): NotificationAsk {
-  const { token, somebody, conversing, onRegistered } = state;
+  const { token, somebody, conversing, cohortEligible, onRegistered } = state;
 
   const [permission, setPermission] = useState<Permission>('granted');
   const [launches, setLaunches] = useState(0);
@@ -223,7 +236,7 @@ export function useNotificationAsk(state: {
     if (!mayHoldToken()) return 'none';
     return askDue(Date.now(), {
       permission,
-      ready: worthAsking({ somebody, conversed, launches }),
+      ready: worthAsking({ somebody, conversed, launches, cohortEligible }),
       pitched,
       nudgedAt,
     });
@@ -232,12 +245,23 @@ export function useNotificationAsk(state: {
     // foreground, a snapshot, a tap — rather than on a timer. Nothing here is
     // urgent enough to hold a timer open for, and every path that could show
     // it re-renders on the way.
-  }, [token, loaded, permission, somebody, conversed, launches, pitched, nudgedAt]);
+  }, [
+    token,
+    loaded,
+    permission,
+    somebody,
+    conversed,
+    launches,
+    pitched,
+    nudgedAt,
+    cohortEligible,
+  ]);
 
   return {
     ask,
     permission,
     canPrompt: permission === 'undetermined',
+    cohortEligible,
     noteShown,
     allow,
   };

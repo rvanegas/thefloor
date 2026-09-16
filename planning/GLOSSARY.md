@@ -50,7 +50,8 @@ caused; the list carries the meaning.
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Getting-started channel** — The one channel a new account with nobody here is put into, named *Getting Started Cohort <n>*: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding
+- **Getting-started channel** — The one channel a new account with nobody here is put into, named *Getting Started Cohort <n>*: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has turned notifications on, at the moment they do
+- **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
 - **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
@@ -125,7 +126,7 @@ caused; the list carries the meaning.
 - **Restore** — Reviving every unended channel from its state blob at startup
 - **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
-- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. What a *getting-started channel* is gated on, and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
+- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
@@ -550,6 +551,16 @@ there is no search for people and nothing suggests anybody to anybody.
 **Only for somebody who arrives with nobody.** An account that signs up on an
 invitation which already puts it within *reach* of four people is not placed
 in one; they have what it would have given them. See `COHORT_REACH_FLOOR`.
+
+**And only for somebody who has turned notifications on**, since 2026-09-15.
+The whole of what the channel offers is that somebody may speak into it later,
+so a member who cannot be told that happened is a *cohort seat* — spent once,
+never returned — that can never answer. The placement therefore waits: it
+happens on the registration that brings an account its first device token,
+which is `POST /devices` and not the signup, and an account that never turns
+them on is never placed. *Cohort-eligible* is the server's name for somebody
+waiting on exactly that and nothing else. See
+`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
 
 **It is a growth hack and it ends.** It seeds activity while there is not
 enough to seed itself, and when growth no longer needs it, emptying
@@ -1936,14 +1947,16 @@ present including guests** — `roomOccupants`, `inRoom` — as against
 
 How many people somebody can get to by walking contacts, counting themselves,
 and **counting pending rows as edges**. `Accounts.reachableFrom(userId, limit)`.
-What decides whether a new account is given a *getting-started channel*: below
-`COHORT_REACH_FLOOR`, which is four, they are; at it or above, they are not.
+One of the two things that decide whether a new account is given a
+*getting-started channel*: below `COHORT_REACH_FLOOR`, which is four, they may
+be; at it or above, they are not. The other is whether they have turned
+notifications on, and both have to hold.
 
 **Not an *island*, and the difference is the whole reason it has its own
 word.** An island walks accepted edges alone and is right to — it is a claim
-about who has agreed to be reachable to whom. Reach is asked at the moment of
-signup, when `resolveInvitesFor` has just written the invitation that brought
-somebody here as a *pending* row and nothing has been accepted yet. Walking
+about who has agreed to be reachable to whom. Reach is asked about an arrival
+whose invitation `resolveInvitesFor` has written as a *pending* row, with
+nothing accepted yet and possibly nothing ever accepted. Walking
 accepted edges there would measure every invited arrival as an island of one
 and hand a cohort to precisely the people the gate exists to exclude. What it
 is asking for is the island somebody is *about* to be on — what `bin/growth`

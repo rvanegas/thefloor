@@ -808,6 +808,30 @@ export interface HomeView {
    * planning/SHIMS.md.
    */
   helpAnsweredAt?: number | null;
+  /**
+   * Whether a *getting-started channel* is waiting on this account turning
+   * notifications on, and nothing else.
+   *
+   * True for somebody the server would place the moment it had an address to
+   * reach them at — so false for everybody already in one, everybody who
+   * arrived into a working group of contacts, every *cohort host*, and
+   * everybody at all while the feature is switched off. See
+   * `ChannelRegistry.wouldPlaceInCohort`.
+   *
+   * **It is on Home because it is the only thing that can unlock the ask.**
+   * The app declines to raise the notification question for an account with
+   * nobody, correctly — a dialog about being reachable is a dialog about
+   * nothing when nobody could reach you. Under the placement gate that reading
+   * stops being true for exactly this population: the permission *is* what
+   * gets them somebody, so the app needs to be told that, and told it as a
+   * fact rather than by having the policy loosened underneath it. See
+   * `app/src/state/notificationAsk.ts`.
+   *
+   * Optional for `tried`'s reason exactly: a server that predates the field
+   * sends no such key, and a client reads absence as false — which is the
+   * behaviour of every build before this one. See planning/SHIMS.md.
+   */
+  cohortEligible?: boolean;
 }
 
 /**

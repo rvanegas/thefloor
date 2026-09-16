@@ -75,6 +75,21 @@ export const LAUNCHES_BEFORE_ASKING = 2;
  * or a channel. With none of those there is nobody who could notify you, and
  * a dialog about being reachable is a dialog about nothing — which is exactly
  * the ten-seconds-after-install ask this replaced.
+ *
+ * **`cohortEligible` is the one case where that last sentence is false, and it
+ * is why this is not simply `somebody`.** Added 2026-09-15 with the placement
+ * gate: a *getting-started channel* is now given to somebody who can be told
+ * the room went live, so for an arrival with nobody the permission is not a
+ * word about a hypothetical — it is the thing that fetches them four people
+ * and a host. Refusing to ask would be refusing them the feature, and a
+ * deadlock besides, the placement being the only thing that would ever have
+ * made `somebody` true for them.
+ *
+ * So it is a second way of having a reason rather than a bypass: it still
+ * waits out `LAUNCHES_BEFORE_ASKING`, so the install itself carries no dialog,
+ * and it is a fact the server states rather than a guess the app makes. See
+ * `HomeView.cohortEligible`, and `explanation` for the different thing this
+ * case has to be told.
  */
 export function worthAsking(state: {
   /** Contacts, invitations and channels — anybody at all who could reach you. */
@@ -83,8 +98,10 @@ export function worthAsking(state: {
   conversed: boolean;
   /** Cold launches of this install that got as far as being signed in. */
   launches: number;
+  /** A cohort is waiting on this permission — `HomeView.cohortEligible`. */
+  cohortEligible?: boolean;
 }): boolean {
-  if (!state.somebody) return false;
+  if (!state.somebody && !state.cohortEligible) return false;
   return state.conversed || state.launches >= LAUNCHES_BEFORE_ASKING;
 }
 

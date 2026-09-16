@@ -86,6 +86,24 @@ export class Devices {
       .run(token, accountId, platform, now, now, sessionHash ?? null);
   }
 
+  /**
+   * Whether this account can be reached at all — one address is enough.
+   *
+   * Asked by the composition root immediately before `register`, to tell an
+   * account's **first** address from the hundredth refresh of one it has held
+   * for weeks. That distinction is what a *getting-started channel* is now
+   * placed on: becoming reachable is an event, and `register` running on every
+   * launch is not. See `placeInCohort`.
+   *
+   * **A count would be the wrong question.** Nothing wants to know how many
+   * devices somebody holds, so this stops at the first row.
+   */
+  hasToken(accountId: string): boolean {
+    return !!this.db
+      .prepare('SELECT 1 FROM device_tokens WHERE account_id = ? LIMIT 1')
+      .get(accountId);
+  }
+
   /** Every address these people can be reached at. */
   tokensFor(accountIds: string[]): string[] {
     if (accountIds.length === 0) return [];

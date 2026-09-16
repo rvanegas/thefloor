@@ -6,9 +6,15 @@
 #   bin/cohorts --local        the development database on this machine
 #
 # Read-only, always. This is a report on a growth hack, not a lever for it:
-# placement happens at signup, the off switch is emptying
-# COHORT_HOST_IDENTIFIERS on the box, and editing anything here is bin/db
-# --write. See planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md.
+# placement happens when an account turns notifications on, the off switch is
+# emptying COHORT_HOST_IDENTIFIERS on the box, and editing anything here is
+# bin/db --write. See planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md
+# and 2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
+#
+# **A signup is no longer a placement, so the two counts differ on purpose.**
+# An account that never turns notifications on is never placed and appears in
+# no cohort here; `bin/growth` is where every account is. A gap between them is
+# the gate working rather than a report missing rows.
 #
 # A *getting-started channel* is the one channel a new account with nobody here
 # is placed into — up to four such arrivals plus a *cohort host*. What marks

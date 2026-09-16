@@ -115,8 +115,8 @@ to be worth naming as marketing assets rather than as features.
 
 *Early Cohorts* —
 `decisions/2026-09-15-a-new-account-does-not-arrive-alone.md` is the argument
-and the ending. An account that arrives with nobody here is placed, at signup,
-into one channel with up to three others who arrived around the same time and a
+and the ending. An account that arrives with nobody here is placed into one
+channel with up to three others who arrived around the same time and a
 **cohort host**. It is listed here because it changes the cold-start arithmetic
 this whole file is about — it is the whole of § *The funnel*'s level 4, the only
 level above the group half at which somebody hears the product work — and it is
@@ -129,6 +129,19 @@ its continuing to exist.
 the explanatory card is downloadable — that is builds 206 and later, against a
 `released` of 127. **So it is not yet true of anybody, and § *The sequence*
 orders the switch rather than assuming it.**
+
+**The placement waits for notifications, which narrows who it reaches and is
+worth knowing before counting on it.** Since 2026-09-15 a seat goes only to
+somebody who has turned notifications on, and it is spent at the moment they
+do rather than at signup —
+`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`. The
+reasoning is the funnel's own: the channel's whole offer is that somebody may
+speak into it later, and a member who cannot be told that happened is a seat
+that can never answer. **For the arithmetic here it cuts both ways.** Fewer
+arrivals are placed, so the cohort seeds more slowly than an unconditional
+placement would; but every account that *is* placed is reachable, which is the
+precondition for level 4 meaning anything at all. A room of five where two
+phones are silent was never going to produce the thing level 4 counts.
 
 **The reason it does not relax *no strangers* is structural, not a promise.**
 Every other channel in the application grows by invitation, and the server
@@ -313,12 +326,23 @@ attributed to an individual at all.
 | 1 | **Page view** — landing `/`, invite page, guest page, or the store product page | Copy that describes a different app, or no imagery to look at |
 | 2 | **Install or account** | The store page did not make the thesis land, or the App Store detour lost the invitation |
 | 3 | **Notification permission granted** | Asked at the worst moment in the worst climate — PROPOSITION.md says the central loop does not close without it |
-| 4 | **Heard it work** — audio exchanged in a getting-started cohort. **Only for accounts placed in one**; an invited arrival skips it, being past level 5 already | The room stayed silent: nobody opened it, or nobody answered when they did |
+| 4 | **Heard it work** — audio exchanged in a getting-started cohort. **Only for accounts placed in one**, which since 2026-09-15 means only accounts that reached level 3; an invited arrival skips it, being past level 5 already | The room stayed silent: nobody opened it, or nobody answered when they did |
 
 **Level 4 is the cohort's, and it is the last level anybody can reach alone.**
 It belongs in the personal half because the unit is still one person and no
 relationship exists yet — which is exactly why it sits above the fork rather
 than among the group levels.
+
+**3 now gates 4, which it did not when this table was first drawn.** The two
+levels sat in this order because that is the order they tended to happen in;
+since 2026-09-15 the placement is *made* on the permission being granted, so
+nobody reaches 4 without 3 and the adjacency is a mechanism rather than a
+coincidence. Two consequences for reading the numbers. A level 3 that falls
+takes level 4 down with it a beat later, and the second drop is not a separate
+problem to go and solve. And the 3 → 4 conversion is now the cleanest
+measurement in the personal half: everybody in the denominator is reachable by
+construction, so a room that stays silent is telling you something about the
+room rather than about who could hear it.
 
 **What it is worth is that it is the only level below 5 that is about the
 product rather than about the store.** Levels 0 through 3 are impression, page,

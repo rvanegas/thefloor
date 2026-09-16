@@ -169,9 +169,14 @@ who is speaking, what the channel is, or who is in it.</p>
 <p>The Floor is no use to somebody who arrives with nobody here, so a new
 account that signs up without an invitation is put into one channel — <em>Getting
 Started Cohort</em>, and a number — with up to three other people who joined
-around the same time, and one of the people who run The Floor. It happens once,
-at sign-up, and it never happens again. Somebody who arrives on an invitation
-from people who are already here is not put in one.</p>
+around the same time, and one of the people who run The Floor. It happens once
+and it never happens again. Somebody who arrives on an invitation from people
+who are already here is not put in one.</p>
+<p><strong>It happens when you turn notifications on, and not before.</strong>
+The whole of what that channel offers is that somebody may speak into it later,
+which is no use to a phone that cannot be told it happened — so the place is
+held until there is somewhere to reach you. If you never turn them on you are
+never put in one, and nothing else about your account changes.</p>
 <p>The people in that channel see your display name, which is what anybody in
 a channel with you sees. They are not shown your email address, they are not
 shown any handle on your profile, and <strong>none of them become your

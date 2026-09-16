@@ -233,12 +233,23 @@ describe('The privacy policy', () => {
         mkdtempSync(join(tmpdir(), 'thefloor-privacy-')),
         'test.db'
       );
+      // Signing up and then turning notifications on, because the second is
+      // what places anybody — the seat goes to somebody who can be told the
+      // room went live. See cohorts.test.ts, which is that gate's own subject;
+      // here it is only the way to get a cohort to exist.
       const signUp = async (identifier: string) => {
         const code = app.accounts.issueCode(identifier, Date.now())!;
-        await app.fastify.inject({
+        const verified = await app.fastify.inject({
           method: 'POST',
           url: '/auth/verify',
           payload: { identifier, code },
+        });
+        const { token } = verified.json() as { token: string };
+        await app.fastify.inject({
+          method: 'POST',
+          url: '/devices',
+          headers: { authorization: `Bearer ${token}` },
+          payload: { token: `apns-${identifier}`, platform: 'ios' },
         });
       };
 

@@ -21,6 +21,12 @@ arrived around the same time and one **cohort host**, an account named by
 sign-in address in `COHORT_HOST_IDENTIFIERS`. Five people, one of whom is
 there to answer.
 
+> **Amended the same day**: the placement is no longer made at signup and is
+> no longer made for everybody. A seat goes to somebody who has turned
+> notifications on, at the moment they do — see
+> `2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`, which carries
+> the reasoning and the deadlock it had to avoid. Everything else below stands.
+
 It is an ordinary channel. It can be renamed, written in, recorded in, and
 left from its settings screen, and nothing about it is special to any other
 part of the server. What marks it is two columns — `channels.cohort` and
@@ -114,10 +120,10 @@ records. The roster gains a name.
   to any code. Every cohort accumulates on that host's Home, which is a real
   cost and is the reason the list exists; it has not been paid yet.
 - **A vacated seat is never refilled.** See above.
-- **Somebody who leaves is not placed again.** It happens once, at signup, and
-  leaving is a decision rather than an accident to be corrected.
+- **Somebody who leaves is not placed again.** It happens once, and leaving is
+  a decision rather than an accident to be corrected.
 - **Somebody placed and then invited into a large island keeps their cohort.**
-  Placement is decided on what was true at signup and is not revisited.
+  Placement is decided on what was true when it happened and is not revisited.
 - **The marker is not derived from the name.** A member can rename the channel
   from its settings screen, and a feature that stopped recognising its own
   channel because somebody retitled it would have a trapdoor in it.

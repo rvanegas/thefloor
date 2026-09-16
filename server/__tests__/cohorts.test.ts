@@ -52,7 +52,25 @@ afterEach(async () => {
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
-async function signIn(identifier: string, displayName = 'Someone') {
+/**
+ * An account, reachable by default — which is what a placement now waits for.
+ *
+ * **Notifications on unless a test says otherwise**, because since 2026-09-15
+ * signing in no longer places anybody: the seat goes to somebody who can be
+ * told the room went live, and `POST /devices` is where that becomes true. A
+ * helper that stopped at `/auth/verify` would leave every test below asserting
+ * about an account the feature is still waiting on, which is a different
+ * subject from the one each of them is about.
+ *
+ * Pass `{ notifications: false }` to get the arrival who has refused, or not
+ * yet been asked. That is the gate's own subject and it is tested explicitly
+ * rather than by omission.
+ */
+async function signIn(
+  identifier: string,
+  displayName = 'Someone',
+  options: { notifications?: boolean } = {}
+) {
   const code = app.accounts.issueCode(identifier, clock)!;
   const verified = await app.fastify.inject({
     method: 'POST',
@@ -66,7 +84,29 @@ async function signIn(identifier: string, displayName = 'Someone') {
   };
   // Carried along because half of what a contact route takes is an address,
   // and the account body does not include one.
-  return { ...body, identifier };
+  const user = { ...body, identifier };
+  if (options.notifications !== false) await enableNotifications(user);
+  return user;
+}
+
+/**
+ * Turning notifications on, as the app does it: one address, registered.
+ *
+ * The route rather than a write, because the placement hangs off the route —
+ * `POST /devices` is what notices an account's first address, and a test that
+ * inserted the row would be exercising neither half.
+ */
+async function enableNotifications(user: {
+  token: string;
+  identifier: string;
+}) {
+  const registered = await app.fastify.inject({
+    method: 'POST',
+    url: '/devices',
+    headers: auth(user.token),
+    payload: { token: `apns-${user.identifier}`, platform: 'ios' },
+  });
+  expect(registered.statusCode).toBe(200);
 }
 
 /**
@@ -259,6 +299,113 @@ describe('who is left out', () => {
     // Nothing yet: the host is not their own arrival, and a cohort of one
     // person who is the host is not a cohort.
     expect(cohortsOf(host.account.id)).toEqual([]);
+  });
+
+  it('leaves out somebody who cannot be told the room went live', async () => {
+    await signIn(HOST, 'Rochelle');
+    const unreachable = await signIn('quiet@example.com', 'Someone', {
+      notifications: false,
+    });
+
+    // Signing up is no longer the moment. A seat is spent once and the whole
+    // of what it offers is that somebody may speak into it later, so it does
+    // not go to a phone that could never hear about it.
+    expect(cohortOf(unreachable.account.id)).toBeNull();
+  });
+});
+
+describe('the seat waits for the permission rather than the signup', () => {
+  it('places on the registration that brings the first address', async () => {
+    await signIn(HOST, 'Rochelle');
+    const arrival = await signIn('later@example.com', 'Someone', {
+      notifications: false,
+    });
+    expect(cohortOf(arrival.account.id)).toBeNull();
+
+    // The permission granted days later, through the route the app uses. This
+    // is the deadlock the app half exists to avoid — nothing else would ever
+    // have given this account somebody.
+    clock += 3 * 24 * 60 * 60 * 1_000;
+    await enableNotifications(arrival);
+
+    expect(cohortOf(arrival.account.id)).toBe('Getting Started Cohort 1');
+  });
+
+  it('does not place twice when the same phone registers again', async () => {
+    await signIn(HOST, 'Rochelle');
+    const arrival = await signIn('again@example.com');
+    expect(cohortsOf(arrival.account.id)).toEqual(['Getting Started Cohort 1']);
+
+    // Every launch re-registers the address it already holds. The placement
+    // hangs off an account's *first* one, so the rest are bookkeeping.
+    await enableNotifications(arrival);
+    await enableNotifications(arrival);
+
+    expect(cohortsOf(arrival.account.id)).toEqual(['Getting Started Cohort 1']);
+    expect(cohortChannelOf(arrival.account.id)!.participants).toHaveLength(2);
+  });
+
+  it('spends no seat on the arrival who never turns them on', async () => {
+    await signIn(HOST, 'Rochelle');
+    await signIn('quiet@example.com', 'Someone', { notifications: false });
+
+    // The cohort that arrival would have opened does not exist, so the next
+    // person who can be reached gets seat one rather than seat two.
+    const reachable = await signIn('loud@example.com');
+    expect(cohortOf(reachable.account.id)).toBe('Getting Started Cohort 1');
+    expect(cohortChannelOf(reachable.account.id)!.participants).toHaveLength(2);
+  });
+});
+
+describe('what Home says about it', () => {
+  /** `HomeView.cohortEligible`, which is what unlocks the app's ask. */
+  const eligible = (user: User) =>
+    app.fastify
+      .inject({ method: 'GET', url: '/home', headers: auth(user.token) })
+      .then((reply) => (reply.json() as { cohortEligible?: boolean }).cohortEligible);
+
+  it('is true for an arrival who is waiting on nothing else', async () => {
+    await signIn(HOST, 'Rochelle');
+    const arrival = await signIn('waiting@example.com', 'Someone', {
+      notifications: false,
+    });
+    expect(await eligible(arrival)).toBe(true);
+  });
+
+  it('is false once the seat has been taken', async () => {
+    await signIn(HOST, 'Rochelle');
+    const arrival = await signIn('placed@example.com');
+    // Placed already: there is nothing further this permission would fetch
+    // them, so the app goes back to asking for everybody else's reason.
+    expect(await eligible(arrival)).toBe(false);
+  });
+
+  it('is false for somebody who arrived into a group, and for the host', async () => {
+    const host = await signIn(HOST, 'Rochelle');
+    const hub = await signIn('hub@example.com');
+    for (let n = 0; n < COHORT_REACH_FLOOR; n += 1) {
+      const spoke = await signIn(`spoke${n}@example.com`);
+      await connect(hub, spoke);
+    }
+    const joined = await signIn('joined@example.com', 'Someone', {
+      notifications: false,
+    });
+    await connect(hub, joined);
+
+    expect(await eligible(joined)).toBe(false);
+    expect(await eligible(host)).toBe(false);
+  });
+
+  it('is false for everybody while the feature is switched off', async () => {
+    app.channels.stop();
+    await app.fastify.close();
+    app = build({ hosts: [] });
+    await app.fastify.listen({ port: 0, host: '127.0.0.1' });
+
+    const arrival = await signIn('nohost@example.com', 'Someone', {
+      notifications: false,
+    });
+    expect(await eligible(arrival)).toBe(false);
   });
 });
 

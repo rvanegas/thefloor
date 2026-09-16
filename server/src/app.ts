@@ -615,7 +615,13 @@ export function buildApp(options: BuildOptions = {}): App {
     options.store,
     options.mixWaitMs,
     options.trackRoot,
-    options.cohortHosts ?? []
+    options.cohortHosts ?? [],
+    // Whether somebody can be told that a room they are in went live, which is
+    // the whole of what a cohort seat is worth. `ChannelRegistry` is given the
+    // question rather than the table for the reason every other wiring here
+    // has: the composition root is the only layer allowed to know that push
+    // and channels are both in this process.
+    (userId) => devices.tokensFor([userId]).length > 0
   );
 
   // Reads the stems through the same gate the export does, and spends money,
@@ -674,6 +680,15 @@ export function buildApp(options: BuildOptions = {}): App {
   // ships in. Idempotent, so the reading that matters is the second boot's,
   // which should place nobody; logged either way, since silence would be
   // indistinguishable from the pass having been skipped.
+  //
+  // **It now also passes over anybody unreachable**, on the gate added
+  // 2026-09-15, and that needs no code here — `cohortCandidates` was always a
+  // candidate list and `placeInCohort` has always been the verdict. Which
+  // means this pass is no longer only for accounts predating the feature: an
+  // account that turned notifications on while the server was down is picked
+  // up by it too, since the registration that would have placed them reached
+  // a process that is gone. That is a second reason for the sweep and not a
+  // second mechanism.
   const seeded = channels.backfillCohorts(accounts.cohortCandidates());
   fastify.log.info({ placed: seeded }, 'cohorts backfilled');
 
@@ -825,26 +840,15 @@ export function buildApp(options: BuildOptions = {}): App {
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
 
-    // A brand-new account with nobody here is put in a *getting-started
-    // channel*. Here rather than inside `establish`, because `Accounts` must
-    // not learn about `ChannelRegistry` — this is the composition root, which
-    // is where every `ensurePairChannel` call site already lives.
-    //
-    // **`created` rather than an inference.** It is the one moment the answer
-    // is knowable; see `Accounts.establish`.
-    //
-    // Not allowed to cost a signup. Placement is a courtesy and a failed one
-    // is a channel somebody does not have, where a throw here is a 500 on a
-    // sign-in that has already spent its code — the account exists and the
-    // token has been issued, so the caller would be told to try again with a
-    // code that no longer works.
-    if (result.created) {
-      try {
-        channels.placeInCohort(result.account.id);
-      } catch (error) {
-        fastify.log.error({ err: error }, 'cohort placement failed');
-      }
-    }
+    // **No cohort placement here, since 2026-09-15.** It used to happen on
+    // `result.created`, which was the one moment a brand-new account was
+    // knowable and looked like the obvious place for it. It is now the one
+    // moment the *other* half of the gate cannot yet be true: a seat goes to
+    // somebody who can be told the room went live, and nobody has been asked
+    // about notifications ten seconds into an install — the app deliberately
+    // does not ask there. Placing is now `POST /devices`'s job, on the
+    // registration that brings an account its first address. See
+    // decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
 
     // Nothing is revoked and nothing is forgotten here, which is the whole of
     // what changed on 2026-08-24. Signing in used to end every other session
@@ -943,6 +947,12 @@ export function buildApp(options: BuildOptions = {}): App {
     // be withheld from the device that is looking at it rather than from the
     // person, and nothing else can establish it. See `device_tokens` in db.ts.
     const session = request.headers.authorization?.slice(7);
+
+    // Asked before the write, because afterwards it is always true. This is
+    // the arrival of an account's first address rather than the hundredth
+    // refresh of one — see `Devices.hasToken`.
+    const first = !devices.hasToken(account.id);
+
     devices.register(
       token,
       account.id,
@@ -950,6 +960,24 @@ export function buildApp(options: BuildOptions = {}): App {
       now(),
       session ? sha256(session) : undefined
     );
+
+    // Becoming reachable is what a *getting-started channel* waits for, and
+    // this is the moment it happens. Only on the first address: placement is
+    // idempotent anyway, but this request runs on every launch for the rest of
+    // the account's life and the question is about an event, not a state.
+    //
+    // Not allowed to cost the registration, for the reason the signup path
+    // gave when it held this call: placement is a courtesy, and a throw here
+    // would fail the one request that makes somebody reachable — leaving them
+    // both unplaced and unnotifiable, which is worse in both halves.
+    if (first) {
+      try {
+        channels.placeInCohort(account.id);
+      } catch (error) {
+        fastify.log.error({ err: error }, 'cohort placement failed');
+      }
+    }
+
     return { ok: true };
   });
 
@@ -3905,6 +3933,12 @@ export function buildApp(options: BuildOptions = {}): App {
       // `HomeView.helpAnsweredAt`. Composed on every home push, which is one
       // indexed MAX over a table with a handful of rows per account.
       helpAnsweredAt: help.lastAnsweredAt(userId),
+      // Whether a cohort is waiting on this account's notifications, which is
+      // what lets the app ask about them at all for somebody who has nobody —
+      // see `HomeView.cohortEligible`. A predicate over the open cohorts and
+      // a bounded reach walk, both of which Home already pays for in other
+      // forms, and false outright while the feature is off.
+      cohortEligible: channels.wouldPlaceInCohort(userId),
       // contactsFor already returns the public shape, deliberately: an
       // outgoing request carries the address rather than a name, so a request
       // to a real account and one to an address without an account look the

@@ -44,6 +44,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 196 | The keychain hand-up of the four tried rungs | `app/src/state/tried.ts`, `app/src/state/useIntroduction.ts` |
 | 198 | `thefloor.intro.arrival` read as the old latch | `app/src/state/useIntroduction.ts` |
 | 206 | `HomeView.helpAnsweredAt` optionality | `core/protocol.ts`, `app/src/state/helpSeen.ts` |
+| 212 | `HomeView.cohortEligible` optionality | `core/protocol.ts`, `app/src/state/AppProvider.tsx`, `app/src/state/notificationAsk.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -503,3 +504,27 @@ never had is visible rather than assumed.
 Covered by `app/src/audio/__tests__/chimeArity.test.ts`, which is the only jest
 coverage this module has: `load()` returns null off iOS, so everything else in
 it is a null check under test.
+
+## Gate 212 — `HomeView.cohortEligible` optionality
+
+Whether a *getting-started channel* is waiting on this account turning
+notifications on, added to Home's snapshot on 2026-09-15 alongside the
+placement gate —
+`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
+Optional because a server that predates it sends no such key, which is what an
+installed build meets between its release and the deploy that follows.
+
+Set unconditionally in `homeFor`, `server/src/app.ts`, from
+`ChannelRegistry.wouldPlaceInCohort`. The client-side tolerance is the `?? false`
+in `AppProvider.tsx`, where absent reads as *no cohort is waiting* — the quiet
+direction, and the behaviour of every build before this one: the notification
+question then falls back to needing `somebody`, exactly as it did.
+
+**What the deletion is not.** Removing the optionality means removing the
+`?? false` and the `?` in the interface, and nothing else. The parameter on
+`worthAsking` stays: it is not a shim but the second reason this policy has,
+and a build that dropped it would refuse to ask a lone arrival about the one
+permission that would fetch them a room.
+
+Gate 212 because `build/211` is already tagged: the client that speaks this
+ships in the next upload.
