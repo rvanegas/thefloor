@@ -131,8 +131,8 @@ export function ChannelSettingsView({
    * What it costs is that a write which never lands is not reported either —
    * `socket.send` drops a queued action past ten seconds, and a *refused* one
    * comes back as a snapshot with no error. `persist` above has already
-   * recorded it as saved by then. Known, and BACKLOG.md's known defects has the
-   * full account under "A channel action that never lands"; do not add an
+   * recorded it as saved by then. Known, and planning/backlog/ § *A channel
+   * action that never lands* has the full account; do not add an
    * in-flight state here to make the two screens match, because there is no
    * flight to be in until `channel.action` is acknowledged.
    */

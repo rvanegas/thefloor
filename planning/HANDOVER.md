@@ -243,14 +243,15 @@ a conversation, and no amount of draining will help.
 
 ## Three things worth doing regardless
 
-- **Swallow a 404 from `deleteRoom`.** BACKLOG.md's known defect 6: `closeRoom`
-  raises `requested room does not exist` at `level: 50` once per revived
-  channel at every boot. That is noise at exactly the moment stage 1 makes the
-  boot log worth reading. `server/src/media.ts`.
+- **Swallow a 404 from `deleteRoom`.** backlog/ § *`closeRoom` fails for every
+  revived channel at boot*: it raises `requested room does not exist` at
+  `level: 50` once per revived channel at every boot. That is noise at exactly
+  the moment stage 1 makes the boot log worth reading. `server/src/media.ts`.
 - **Add `PRAGMA busy_timeout`** in `server/src/db.ts`, before any second
   process exists. WAL is on, but two writers without it will throw.
 - **Stop `ChannelSettingsView.persist` recording a write before it lands.**
-  BACKLOG.md's known defect 9, the half that needs no wire change.
+  backlog/ § *A channel action that never lands says nothing*, the half that
+  needs no wire change.
 
 ---
 

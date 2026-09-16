@@ -40,11 +40,15 @@ find "..."` says which file a quoted reference means. The slug is implemented
 once, in `bin/note`; `bin/note check` runs in the test suite and is what stops
 this file's prose and the directory drifting apart.
 
-**Two files are lists rather than entries.** `known-defects.md` and
-`untested-behaviour.md` each hold a numbered list of small things, ordered
-deliberately — the second by how likely each is to be wrong. They stay whole
-because the ordering is the content and because a three-line defect is not an
-entry; add to the list inside rather than making a file per line.
+**One file is a list rather than entries.** `untested-behaviour.md` holds a
+numbered list of small things ordered by how likely each is to be wrong. It
+stays whole because that ordering is the content; add to the list inside rather
+than making a file per line.
+
+`known-defects.md` was the other, and was exploded into its nine entries on
+2026-09-15 — `2026-09-15-known-defects-becomes-nine-files.md` has why. **A
+defect is an item like any other**, so it gets a file, and there is no longer a
+list to append one to.
 
 **The ordering this file had is gone.** It used to read *roughly by size, the
 substantial pieces first*, with a hand-maintained `## Contents` preserving it.
