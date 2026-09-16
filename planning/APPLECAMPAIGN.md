@@ -4,7 +4,14 @@
 temporary by construction.** MARKETING.md holds the argument about what may be
 spent and why; it names campaigns as downstream of itself, in § *The sequence*
 item 6. This is that item, specified to the point where somebody can open
-Apple Ads and type. **Delete it when the campaign has been run and read**,
+Apple Ads and type.
+
+**`APPLECAMPAIGN_round1-search-exact.md` is its sibling and the other half**:
+this file is the plan and the argument, read before deciding; that one is what
+was actually typed into Apple Ads, read with the browser open. Both go when
+the campaign is read.
+
+**Delete it when the campaign has been run and read**,
 moving what survives into `decisions/` — which will be the answer to the one
 question it exists to ask, and the kill rule's verdict, and nothing else.
 
@@ -378,6 +385,19 @@ rather than this file. **Exact match on every one**, which in Apple Ads means
 entering them in the Exact field rather than Broad — broad match is Search
 Match wearing a different hat and lands you in the same polluted searches.
 
+**Apple defaults keywords to broad and negatives to exact, which is the
+inverse of both**, and the inversion is not an accident: those defaults
+maximise volume and spend, where this campaign buys a readable answer. Change
+both. **Match type is fixed at creation** — there is no editing it in place,
+so a keyword entered broad has to be added again as exact and the original
+paused or deleted.
+
+**The cost of exact is honest and worth stating**: thirty-odd low-volume terms
+may serve almost nothing. That is the thinness § *The keyword list* already
+expects, and it is interpretability bought with volume — the right trade for
+round one, and the reason broad reach is deferred to round two's Discovery
+campaign with everything here as an exact negative.
+
 **Ad group A — Tier 1, the complaint terms.** Somebody here has the complaint
 and does not know anything answers it.
 
@@ -436,6 +456,16 @@ campaign goes live, not after the first invoice.**
   replaces it is a standing obligation: **this set goes into every campaign
   this account ever runs**, round two's Discovery campaign included, where it
   matters more than here because Search Match will be on.
+
+**Broad, not exact — and `floor` is the one that must never be shortened.**
+A broad negative blocks the whole family, which is the point; an exact one
+blocks a literal string and is close to no protection. It is also the sharper
+instrument, which is why Apple defaults them the other way. The brand-defence
+terms are `the floor uninterrupted` and `the floor voice chat`; the flooring
+negatives are `flooring`, a different token, and `floor plan`, which
+broad-matches only when both words are present. **A bare `floor` broad
+negative kills the brand defence outright** — and it is exactly what somebody
+tidying this list would write.
 
 **All four sets go in at campaign level, not ad-group level.** Both ad groups
 inherit them, which is what you want — nothing in the pollution is specific to
@@ -535,6 +565,9 @@ when there is a Discovery campaign beside it.
 - **All four negative sets entered at campaign level**, flooring included —
   there is no account level, whatever MARKETING.md says.
 - **An end date four weeks out**, so step 8 enforces itself.
+- **Match type exact on every keyword**, which is not the default, and
+  **Search Match off on each ad group**, which re-defaults on there even when
+  the campaign is set to Manage Bids.
 - **Search Match is off.** It defaults on; check it after saving, because it
   is the setting that quietly rewrites what you bought.
 - **The negatives saved**, all four sets, the flooring one at account level.
