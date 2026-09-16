@@ -39,9 +39,36 @@ The alternatives failed on facts rather than on judgement:
 
 ## The buy
 
-One exact-match campaign. **Tier 1 only** — the twenty complaint terms in
-MARKETING.md § *The keyword list, in three tiers*, which is the list rather
-than this file. Tiers 2 and 3 are not in round one.
+One exact-match campaign, **Tiers 1 and 2** — the twenty complaint terms and
+the twelve group affinities in MARKETING.md § *The keyword list, in three
+tiers*, which is the list rather than this file. Thirty-two terms. **Tier 3 is
+not in round one.**
+
+**Tier 1 alone was the answer until 2026-09-15**, and this file asserted it
+without arguing it, which is what the question *why not Tier 2* exposed. The
+argument for excluding it was never about the thesis. By this file's own test
+Tier 2 is the *more* on-thesis half: MARKETING.md says those terms buy
+somebody who already has the other three people, **which is the whole test
+applied to everything else here**, where Tier 1 buys one person with a
+complaint who must then do level 6 — the hardest step in the funnel and the
+one § *The three levels worth all the attention* names. The exclusion was a
+budget argument, the same one § *Two deviations* makes against Discovery:
+splitting thin money halves the signal.
+
+**The budget argument is answered by structure rather than by money**, which
+is why both tiers can go in. An ad group per tier keeps them readable apart —
+see step 7 — so round one still answers *do the complaint terms convert* and
+now also asks whether buying an intact group does better, which is a question
+worth the same four weeks.
+
+**Tier 3 stays out**, and its exclusion is argued rather than assumed.
+MARKETING.md caps it hard for two stated reasons — contested by subscription
+apps with real revenue per user, so the most expensive terms on the list, and
+it buys *an individual with nobody to talk to*. There is a third that decides
+it for round one: that is precisely the shape of the failure the kill rule
+watches for. Money spent there would swell **alone** with nothing underneath
+it, and the read afterwards could not separate *the complaint terms did not
+convert* from *we spent the budget on terms that were never going to*.
 
 The three negative sets from that section go in with it, and they matter more
 than the keywords, because Search Match finds the pollution before it finds the
@@ -223,12 +250,22 @@ field, not a rebuild. So it is settled for round one and open for round two,
 where the Discovery campaign will have said something about which searches
 actually convert.
 
-**What would reopen it before then:** Tier 1 failing to place the spend at all.
-§ *The keyword list* already expects these twenty terms to be thin, and if
-four weeks cannot spend $20 a day against them, the question stops being
-*should we buy persuasion* and becomes *is there any intent here to buy* —
-which is a different question, and the competitor names are the nearest place
-an answer lives.
+**What would reopen it before then — revised 2026-09-15, and the first version
+had this wrong.** It said Tier 1 failing to place the spend was the trigger,
+on the reasoning that unplaceable money makes the question *is there any
+intent here to buy*. The reasoning holds; the conclusion skipped a step.
+**Tier 2 was the answer to that trigger all along** — cheaper, already on the
+list, needing no decision reversed, and buying people who have the group
+rather than people mid-decision about a rival. It is now in round one outright
+(§ *The buy*), so the cheap answer has been spent in advance.
+
+What is left behind it is thin and should stay behind Discovery's evidence:
+**Tier 3**, which MARKETING.md caps hard and expects not to pay, and
+competitor names. Neither is a round-one lever. **If thirty-two terms across
+both tiers cannot place $20 a day for four weeks, that is a finding about the
+category rather than a prompt to widen** — and the honest next move is the
+Discovery campaign § *Two deviations* defers, which exists precisely to find
+the terms nobody here thought of.
 
 ## The order, in one list
 
@@ -317,20 +354,32 @@ finds Ring and how `intercom app` finds helpdesk software, and the negatives
 below exist to survive it rather than to invite it. Discovery is round two and
 is where Search Match belongs, on purpose and on its own budget.
 
-**Ad group:** one, holding Tier 1 only. Tiers 2 and 3 are not in round one —
-§ *The buy*. An ad group per tier is what MARKETING.md specifies and is right
-once there is more than one tier; with one tier it is one ad group, and adding
-the others later is adding ad groups rather than rebuilding.
+**Ad groups: two, one per tier, and this is load-bearing rather than tidy.**
+MARKETING.md § *The keyword list* specifies an ad group per tier *so each tier
+reads separately*, and with both tiers buying at once that is the whole thing
+keeping round one answerable. Pooled in one ad group, thirty-two terms return
+one number and the question *do the complaint terms convert* has no answer in
+it — Tier 2 converting well would read as Tier 1 working. Split, the same
+money answers two questions instead of blurring one.
+
+    Ad group A — Tier 1, the complaint terms       20 terms
+    Ad group B — Tier 2, the group affinities      12 terms
+
+Tier 3 is not here; § *The buy* says why. Adding it later is adding an ad
+group rather than rebuilding, which is the point of the structure.
 
 **Default product page**, since there are no Custom Product Pages — § *Two
 deviations*, where that is recorded as a real cost rather than an oversight.
 
-### The keywords: Tier 1, exact match, all twenty
+### The keywords: thirty-two, exact match, split by ad group
 
 From MARKETING.md § *The keyword list, in three tiers*, which is the list
 rather than this file. **Exact match on every one**, which in Apple Ads means
 entering them in the Exact field rather than Broad — broad match is Search
 Match wearing a different hat and lands you in the same polluted searches.
+
+**Ad group A — Tier 1, the complaint terms.** Somebody here has the complaint
+and does not know anything answers it.
 
     intercom app              voice chat with friends
     home intercom app         voice channel app
@@ -343,7 +392,19 @@ Match wearing a different hat and lands you in the same polluted searches.
     voice chat app            hands free talk app
     group voice chat          always on voice chat
 
-Plus the two brand-defence terms from the same section:
+**Ad group B — Tier 2, the group affinities.** Somebody here already has the
+other three people, which is the thing Tier 1's arrivals still have to go and
+do.
+
+    family voice chat         gaming voice chat
+    family group call         voice chat for gaming
+    group audio chat          dnd voice chat
+    small group chat app      band practice app
+    long distance voice chat  book club app
+                              talk to friends app
+                              keep in touch with friends app
+
+Plus the two brand-defence terms from the same section, in ad group A:
 `the floor uninterrupted` and `the floor voice chat`. **Never the bare app
 name** — that is what the account-level negatives below are for, and bidding
 it would be paying to collide with flooring.
@@ -368,6 +429,30 @@ campaign goes live, not after the first invoice.**
   anybody remembering to. This is the one item here that costs nothing and
   refuses to have somebody else's category charged to this one.
 
+**They do less work here than MARKETING.md implies, and are still worth
+entering.** That section's claim — *the negatives matter more than the
+keywords* — is written about Search Match, which finds the pollution before it
+finds the term. With Search Match off and every keyword exact, the ad is
+eligible for the terms bought and their close variants, so most of the
+pollution never gets a chance. What is left is exactly the close variants:
+Apple counts plurals, misspellings and minor reorderings as exact, which is
+enough for `no ring call` to reach Ring-adjacent phrasing. So enter them —
+they cost nothing, they cover the variants, and the account-level set carries
+into every campaign after this one — but do not read a low spend on polluted
+terms as the negatives having earned it. Search Match being off did most of
+that work.
+
+**Two additions Tier 2 brings, which are this file's rather than
+MARKETING.md's.** Both are close-variant risks introduced by terms that were
+not in round one when that list was written, and both are optional:
+
+- `do not disturb`, against `dnd voice chat`. *DND* is Dungeons & Dragons in
+  the term as intended and Do Not Disturb to half the people typing it, and
+  the second group is looking for a setting rather than an app.
+- `ebook`, `audiobook`, `reading list`, against `book club app`. The close
+  variants of that one lean toward reading apps rather than toward people who
+  meet to talk about a book.
+
 ### The daily cap, which is sized to a person and not to a budget
 
 **$20–25 a day is the budget; the cap is what the host can answer.**
@@ -379,9 +464,17 @@ weeks, every one of them a room where a human being is supposed to answer.**
 So: **start at $20, on one host, and raise it only after watching what a day
 of it actually produces in `bin/cohorts`.** For the full $25, name a second
 host in `COHORT_HOST_IDENTIFIERS` first — an ordered list precisely so that is
-configuration rather than code. Tier 1 is thin enough that the spend may not
-place at all, which § *The keyword list* already expects and which here is the
-feature rather than the disappointment.
+configuration rather than code.
+
+**Tier 2 makes this tighter rather than looser, which is the one cost of
+adding it.** Tier 1 alone is thin enough that the spend may not place at all,
+which § *The keyword list* expects and which here was the feature rather than
+the disappointment — the ceiling is a person, not money, and unplaceable money
+was the ceiling protecting itself. Twelve more terms, on affinities with more
+traffic behind them than complaints have, is the half of this campaign most
+likely to actually place the budget. **So the cap is more load-bearing now,
+not less**: hold $20 until a day of it has been watched, and treat the second
+host as the thing that buys the right to $25.
 
 **Bids:** start at Apple's suggested maximum CPT and leave them. Round one is
 asking whether these terms convert, not what they clear at, and a week spent
@@ -392,6 +485,8 @@ tuning bids on twenty low-volume exact terms is a week of noise.
 - **Search Results is the only placement ticked.** The first choice and the
   one that makes the rest of this apply; Product Pages in particular is the
   competitor question wearing a different hat.
+- **Two ad groups, one per tier**, not thirty-two terms in one. This is what
+  keeps round one's question answerable; see the section above.
 - **Search Match is off.** It defaults on; check it after saving, because it
   is the setting that quietly rewrites what you bought.
 - **The negatives saved**, all four sets, the flooring one at account level.
