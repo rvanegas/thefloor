@@ -1039,12 +1039,13 @@ report_notify() {
 -- not against everybody** while that row is large, or a population nobody has
 -- heard from reads as a population that refused.
 --
--- **Expect that row to be everybody at first.** The header shipped after
--- `build/212` was tagged, and 212 is the release that follows it — so until a
--- later build is released and spreads, no phone in anybody's hands sends this
--- and the whole column is null. A deploy does not fix it; only the app can
--- answer. Until then this report says nothing, honestly, rather than
--- something reassuring.
+-- **Expect that row to be everybody at first, then to drain.** The header
+-- shipped after `build/212` was tagged, so `build/213` is the first release
+-- that answers this at all — a deploy does not help, only the app can answer.
+-- After 213 the row empties as installs update, which is weeks and not a day.
+-- **A falling fourth row moves the other three by arithmetic alone**, so a
+-- rise in `granted` while it is still large is people reporting rather than
+-- people granting.
 --
 -- `with_an_address` is `device_tokens`, and the two disagreeing is worth
 -- looking at: `granted` and no address is an install that has permission and

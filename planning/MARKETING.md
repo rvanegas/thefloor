@@ -687,15 +687,15 @@ web client omits it deliberately, a browser having no such permission to
 report. Read the shares against the three that answered while that row is
 large.
 
-**And it will be the whole population for a while, which is the thing to hold
-on to.** `build/212` was tagged before this shipped and is the next release,
-so no phone in anybody's hands sends the header: the column is null for
-everyone until a build after 212 is released and has spread. The server half
-needs only a deploy — `pings` starts recording on one — but level 3 is an
-answer only the app can give. **Until then *nobody has said* is the honest
-reading and a refusal rate read off it would be invented**, which is precisely
-the misreading the fourth answer exists to prevent and precisely the one a
-large fourth row invites.
+**And it starts as the whole population, which is the thing to hold on to.**
+`build/212` was tagged before this shipped, so the first release that answers
+level 3 at all is 213 — the submission was cancelled and rebuilt for exactly
+that reason. The server half needs only a deploy, and `pings` starts
+recording on one; level 3 is an answer only the app can give. **After 213 the
+fourth row empties as installs update, over weeks rather than on the release
+day**, so read the three answers against each other and not against everybody
+until it is small. A refusal rate taken off a large fourth row is invented,
+which is the misreading the fourth answer exists to prevent.
 
 **And guests are invisible throughout, still.** No account, so no contact edge
 and no `pair` span: a member and four guests talking for an hour leave nothing

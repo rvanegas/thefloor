@@ -112,14 +112,22 @@ routes, and the slower one is the level the file calls most valuable.
 and the record is written where the decision is made, so levels 9 and 10 are
 live the moment the box has this.
 
-**`notify` starts on a build after 212.** `build/212` was tagged six commits
-before this landed and is the next release, decided 2026-09-15 — so the header
-is on no released phone, and `accounts.notifications` is null for the whole
-population until a later build is released and spreads. **A deploy does not
-help**: level 3 is an answer only the app can give. Until then the `notify`
-report reads *nobody has said* for everybody, which is honest and is exactly
-the row that invites being read as a refusal rate. It is why the fourth answer
-is a fourth answer and not a fourth state.
+**`notify` starts on build 213.** `build/212` was tagged six commits before
+this landed, so it carries no header; **the 212 submission was cancelled and
+rebuilt rather than released as it was**, which is the decision this section
+exists to record. Releasing 212 would have been the shorter road — a ref
+moving against an upload, a submission, an approval and a release — and it
+would have left level 3 dark for the whole Apple Search Ads campaign. That is
+the level MARKETING.md says to instrument if only one ever is, and a campaign
+read without it cannot tell an app nobody wants from an app nobody can be
+reached by. 213 is also past the 206 the cohort card needs, so one release
+does both jobs.
+
+**A deploy does not help**, which is the asymmetry worth remembering: level 3
+is an answer only the app can give. And even after 213 the column fills as
+installs update, so the fourth row drains over weeks — **a falling fourth row
+moves the other three by arithmetic alone**, and a rise in `granted` while it
+is large is people reporting rather than people granting.
 
 ## What it is worth
 
