@@ -78,6 +78,20 @@ describe('Channel', () => {
    * Identity comparison is safe: `colors` builds one value per key at import
    * and every style holds that same object.
    */
+  /**
+   * Every label drawn in the colour reserved for a microphone somebody else
+   * has shut — which since 2026-09-15 is the whole of what says so. See
+   * `colors.silenced`, and the footer's `tone`.
+   */
+  const silencedLabels = (tree: ReactTestRenderer) =>
+    tree.root
+      .findAll(
+        (node) =>
+          node.type === Text &&
+          StyleSheet.flatten(node.props.style)?.color === colors.silenced
+      )
+      .map((node) => labelOf(node).trim());
+
   const dangerLines = (tree: ReactTestRenderer) =>
     tree.root
       .findAll(
@@ -245,9 +259,13 @@ describe('Channel', () => {
       disabled: false,
       selected: false,
     });
-    // And no microphone, which is the other half of this test: nothing on
-    // that card is true of somebody who has not stepped in.
+    // And nothing about the audio, which is the other half of this test:
+    // somebody who has not stepped in has no session for a card to report
+    // on. The idle status that would otherwise draw *Audio* is exactly what
+    // an onlooker's session is, which is why this is gated on presence
+    // rather than on the status alone.
     expect(text).not.toContain('Your microphone');
+    expect(text).not.toContain('Audio not connected');
     expect(findButton(tree, 'Mute yourself')).toBeUndefined();
     // The floor is somebody else's business until you are in the room, so the
     // footer's claim is refused. Which of the several reasons it is refused
@@ -519,10 +537,22 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('says plainly that a silenced user is still being recorded', () => {
-    // Being unheard is easily mistaken for being unrecorded, and someone might
-    // speak freely on that assumption. The capture is complete; only the export
-    // omits them.
+  it('does not tell a silenced user they are still being recorded', () => {
+    /*
+      It said so until 2026-09-15, on the reading that being unheard is easily
+      mistaken for being unrecorded. Both halves of that turned out to be
+      about the recorder rather than about the person: the ungated stem does
+      reach the bucket, and every way out of it — the mix, one speaker's stem,
+      the transcript — is gated by the same function in server/src/export.ts,
+      deliberately so that it cannot be right in one place and wrong in
+      another. So nobody can hear the remark and nobody can obtain it, and a
+      warning saying otherwise described an internal of the capture in words
+      that read as a warning about being overheard.
+
+      The accurate version is on the privacy page, which is where a fact about
+      what is retained and for how long belongs. This asserts the absence so
+      that restoring the sentence is a decision rather than an accident.
+    */
     let channel = channelOf((s) =>
       reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW)
     );
@@ -536,8 +566,11 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     const text = textOf(tree);
-    expect(text).toContain('still being recorded');
-    expect(text).toContain('left out of the mix anybody can play or share');
+    expect(text).not.toContain('still being recorded');
+    expect(text).not.toContain('left out of the mix anybody can play or share');
+    // The recording itself is still announced, and in the one place that
+    // cannot scroll away.
+    expect(text).toContain('Recording');
     act(() => tree.unmount());
   });
 
@@ -719,10 +752,19 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     const text = textOf(tree);
-    // Whose claim it is comes off the roster card; that it has cut you comes
-    // off the microphone, in words on its card and in red on the footer's.
+    /*
+      Whose claim it is comes off the roster card, and that it has cut you
+      comes off the footer alone — the microphone's tint, and the Claim it
+      refuses. It was said in words as well until 2026-09-15, on a card headed
+      *Your microphone*; the card went when the last of its sentences did.
+
+      This is the state that lost the most, so it is the one worth asserting:
+      what is left has to be enough to tell somebody their microphone is shut
+      and that they did not shut it.
+    */
     expect(text).toContain('has the floor');
-    expect(text).toContain("Silenced by Dana Chu's floor claim.");
+    expect(text).not.toContain("Silenced by Dana Chu's floor claim.");
+    expect(silencedLabels(tree)).toEqual(['Mute']);
     expect(findButton(tree, 'Claim')!.props.accessibilityState.disabled).toBe(
       true
     );
@@ -1048,9 +1090,11 @@ describe('Channel', () => {
     // *others*, and two adjacent rows both beginning "Waiting" meant opposite
     // things — one person who has not come, one who has and is still there.
     expect(text).toContain('Invited');
-    // The holder is named wherever the claim bites.
+    // The holder is named where the claim is a fact about a person, which is
+    // the roster and, since 2026-09-15, nowhere else — the sentence naming
+    // them on the microphone card went with the card.
     expect(text).toContain('Miro Okafor Present  · has the floor');
-    expect(text).toContain("Silenced by Miro Okafor's floor claim.");
+    expect(text).not.toContain("Silenced by Miro Okafor's floor claim.");
     act(() => tree.unmount());
   });
 
@@ -1363,21 +1407,27 @@ describe('Channel', () => {
 
     /*
       The roster's own, which is what is true of the conversation right now.
-      **One, since 2026-09-13**, and what is left of it is a readout.
+      **One, and only when something is wrong**, which is the state of it
+      since 2026-09-15.
 
       There were four. *The floor* went first: what its card held was the
       state of the floor in a sentence, and the roster above it says the same
       thing about the people it is about. *Step in* and *Step out* followed
       the same afternoon, being the footer's three rungs with sentences under
-      them. *Your microphone* is the survivor and lost its button — the bar
-      greys without ever saying which of four reasons it is, and that sentence
-      is the card.
+      them. *Your microphone* survived that round and lost its button, on the
+      grounds that the bar greys without saying which of four reasons it is.
 
-      What is under this heading is therefore not a control, which is why the
-      heading is still here at all: a section of readout is a thing to read,
-      and the setting that used to be able to hide it was about repetition.
+      Then the sentences went too. Three of the four were said again by the
+      footer's tint and the roster's `· muted` and `· has the floor`, and the
+      fourth explained a control rather than reporting the room. What was
+      left was the connection — which nothing else on this screen has a word
+      for — and it is worth a card only when it is not working.
+
+      So this heading is *Audio* and it is here because the harness's session
+      is idle. A connected one draws nothing, which is asserted on its own in
+      channelMembers.test.tsx.
     */
-    expect(sections()).toEqual(['Your microphone']);
+    expect(sections()).toEqual(['Audio']);
 
     // What the channel has written down, at two speeds — and in that order
     // since 2026-09-13: the clipboard, which is minutes old and is what
@@ -3141,7 +3191,7 @@ describe('Channel', () => {
     // going to write a description.
     expect(textOf(tree)).toContain('Channel Settings');
     act(() => findButton(tree, 'Close')!.props.onPress());
-    expect(textOf(tree)).toContain('Your microphone');
+    expect(textOf(tree)).toContain('Audio');
     act(() => tree.unmount());
   });
 

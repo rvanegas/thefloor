@@ -569,9 +569,17 @@ control:
 - **If the sentence goes, the card goes.** A heading and a button are not an
   explanation; they are the footer at the wrong size and in the wrong place.
 - **If the button goes and the sentence stays, keep the card and drop the
-  button.** That is a readout, and a readout is not a repetition of anything —
-  *Your microphone* is the survivor of the four on exactly this ground, since
-  the bar greys without ever saying which of four reasons it is.
+  button.** That is a readout, and a readout is not a repetition of anything.
+  *Your microphone* was the survivor of the four on exactly this ground.
+
+**And then ask the same question of the sentence, which is the step that was
+missed.** Adopted 2026-09-15, when *Your microphone* went too. A sentence
+earns the card only while it is the *only* thing saying what it says, and the
+rest of the screen goes on changing after the card is settled. Three of that
+card's four explained a state the footer had learnt to tint and the roster
+had learnt to suffix — `· muted`, `· has the floor` — so the card was the
+third place, not the first. A readout is not exempt from the rule that made
+it a readout.
 
 **A readout must not be gated on a preference about repetition.** This is what
 the rule costs and it is worth saying on its own: `hideControlCards` hid the
@@ -581,11 +589,34 @@ given a card of its own for a while to escape exactly this, which is the
 symptom to watch for — when the exceptions to a setting outnumber what it
 governs, what it governs has gone.
 
-**What survives has no second home.** Two sentences on the channel screen are
-there because nothing else can say them: that a silenced microphone is still
-being captured, and that the room is held on another phone. The second is
-under the roster rather than on a card, there being no card left it could
-belong to.
+**What survives has no second home** — and on 2026-09-15 that came down to
+one sentence and one card, neither of them about a control.
+
+The surviving card is *Audio*, and it is drawn **only when the audio is not
+working**: connecting, dropped, refused, unconfigured, failed. A conversation
+that has silently stopped arriving is the one thing neither the bar nor the
+roster has a word for, and it is also the one thing on this screen worth
+interrupting somebody with. Every healthy state draws nothing at all, which
+is the property to keep — see `describeAudio`, which returns null rather than
+a reassurance.
+
+The surviving sentence is that the room is held on another phone, under the
+roster rather than on a card, there being no card it could belong to.
+
+**Two things left that afternoon and are worth naming, since both look like
+they should have stayed.** *Your microphone*'s explanations went for the
+reason above. The notice that a silenced microphone is still being captured
+went on its own argument: it was accurate about the bytes and misleading
+about the situation, since every path out of the bucket applies the floor,
+so nobody can hear the remark and nobody can obtain it. A fact about what is
+retained belongs on the privacy page, and that is where the accurate version
+of it is.
+
+**The audio diagnostic panel took its own card back the same day**, and this
+time for a reason that will not reverse: *Audio* is absent whenever the
+audio is fine, and a panel for diagnosing the audio that appears only
+alongside a fault is no use to somebody working out why no fault is visible.
+It is drawn for the account that has `debug` set, not for a state.
 
 **A third arrived on 2026-09-15 and is the rule working rather than an
 exception to it.** The *getting-started* card — why you are in a channel with

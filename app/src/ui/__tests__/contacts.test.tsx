@@ -648,7 +648,10 @@ describe('reading somebody else’s profile', () => {
     expect(mockApp.act).not.toHaveBeenCalled();
 
     await act(async () => findButton(tree, 'Close')!.props.onPress());
-    expect(textOf(tree)).toContain('Your microphone');
+    // Back on the channel screen, asserted on the roster rather than on a
+    // card: this is a test about navigation, and the cards under the roster
+    // come and go with what the channel is doing.
+    expect(textOf(tree)).toContain('Me (you) Present');
     act(() => tree.unmount());
   });
 

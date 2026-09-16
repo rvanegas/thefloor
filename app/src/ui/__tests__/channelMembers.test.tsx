@@ -1292,32 +1292,53 @@ describe('being alone in a channel', () => {
     );
   };
 
-  it('says the microphone is closed, and why', () => {
+  /*
+    This block asserted four sentences until 2026-09-15, and now asserts their
+    absence. They were the *Your microphone* card describing a working
+    connection: closed until somebody else is here, and why; open, and that
+    self-mute costs no floor eligibility; and the audio line saying the first
+    of those a second time.
+
+    All of it was true and none of it was needed. A channel you are alone in
+    with the audio connected is the app working exactly as intended, and a
+    card explaining that to you every time is the screen apologising for
+    something that has not happened. What a person alone in a channel needs
+    is on the roster — one name, theirs — and in the footer, which is lit.
+
+    The closed microphone is the case that looks like a loss and is not. It
+    is housekeeping the app does so that a channel nobody is listening to
+    does not hold the speakers, and it reverses itself the moment anybody
+    arrives; nobody was ever going to act on being told.
+  */
+  it('says nothing at all while the audio is working', () => {
     const tree = renderAlone(false);
     const text = textOf(tree);
-    expect(text).toContain('Closed until somebody else is here');
-    expect(text).toContain('your other apps keep the speakers');
-    expect(text).not.toContain('Open. Self-mute never affects');
+    expect(text).not.toContain('Closed until somebody else is here');
+    expect(text).not.toContain('your other apps keep the speakers');
+    expect(text).not.toContain('microphone closed until somebody else is here');
+    // No heading either: the card is the only thing under it, so an empty
+    // card would be an empty section.
+    expect(text).not.toContain('Audio');
     act(() => tree.unmount());
   });
 
-  it('says so in the audio line too, rather than only waiting', () => {
-    expect(textOf(renderAlone(false))).toContain(
-      'microphone closed until somebody else is here'
-    );
-  });
-
-  it('goes back to plain open copy once it is capturing', () => {
+  it('says nothing once it is capturing, either', () => {
     const tree = renderAlone(true);
     const text = textOf(tree);
-    expect(text).toContain('Open. Self-mute never affects floor eligibility.');
-    expect(text).not.toContain('Closed until somebody else is here');
+    expect(text).not.toContain('Open. Self-mute never affects floor eligibility.');
+    expect(text).not.toContain('Audio');
     act(() => tree.unmount());
   });
 
-  it('still reports self-mute ahead of it, that being a choice', () => {
-    // Muting yourself while alone is a decision; the microphone being closed
-    // is housekeeping. The decision is what a person needs told back.
+  /**
+   * The one thing a connected session still draws, and it is not the card.
+   *
+   * Muting yourself while alone is a decision rather than housekeeping, and
+   * it is the decision that is reported back — on your own roster row, where
+   * everybody else's mute is reported, and in the footer's tint. The card
+   * said it in a third place until 2026-09-15.
+   */
+  it('reports self-mute on the roster rather than in a card', () => {
     showChannel(
       channelOf((s) =>
         reduce(s, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
@@ -1331,8 +1352,34 @@ describe('being alone in a channel', () => {
         onExit={() => {}}
       />
     );
-    expect(textOf(tree)).toContain('Muted by you.');
-    expect(textOf(tree)).not.toContain('Closed until somebody else is here');
+    const text = textOf(tree);
+    expect(text).toContain('Me (you) Present  · muted');
+    expect(text).not.toContain('Muted by you.');
+    expect(text).not.toContain('Audio');
+    expect(findButton(tree, 'Unmute')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And what the card is for, which no other part of this screen can say.
+   *
+   * A connection that has died mid-conversation is the one thing the roster
+   * and the footer are both silent about — they go on describing a room that
+   * is no longer reaching this phone.
+   */
+  it('says so when the connection is the thing that is wrong', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, status: 'reconnecting' as const }}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Audio');
+    expect(text).toContain('Audio dropped — reconnecting…');
     act(() => tree.unmount());
   });
 });
@@ -1531,9 +1578,12 @@ describe('a channel screen that does not repeat its footer', () => {
   it('drops the buttons the footer already offers', () => {
     const tree = showBare();
     const text = textOf(tree);
-    // The microphone keeps its card and loses its button: what is left is the
-    // sentence saying why the bar's Mute is the colour it is.
-    expect(text).toContain('Your microphone');
+    // The microphone kept its card and lost its button on 2026-09-13, and
+    // lost the card on 2026-09-15 when its last sentence was counted against
+    // the footer's tint and the roster's `· muted`. What stands where it
+    // stood is *Audio*, which is about the connection and is drawn only when
+    // the connection is not working — here, an idle session in the harness.
+    expect(text).not.toContain('Your microphone');
     expect(text).not.toContain('Mute yourself');
     // The two departures kept nothing, being buttons and sentences about
     // buttons. The footer's three rungs say "In", "Nearby" and "Out" rather
@@ -1627,16 +1677,24 @@ describe('a channel screen that does not repeat its footer', () => {
   });
 
   /**
-   * Being unheard is not being unrecorded, and that sentence lives in the
-   * microphone card — the half of it that survived the button.
+   * Being unheard is not being unrecorded — which was said on the microphone
+   * card until 2026-09-15 and is now said nowhere in the app.
    *
-   * It had a second home under the roster for as long as the card could be
-   * switched off, since it is a notice rather than an explanation of a
-   * control and the settings screen promised it stayed. The card can no
-   * longer be switched off, so the copy has gone and the test below asserts
-   * it is said once.
+   * The sentence was accurate about the bytes and misleading about the
+   * situation. A silenced person's stem does reach the bucket ungated, and
+   * every path out of the bucket gates it: the mix, one speaker's stem and
+   * the transcript all call the same function in server/src/export.ts, so
+   * that the floor cannot be applied in one place and forgotten in another.
+   * Nobody can hear the remark and nobody can obtain it. What the warning
+   * described was the inside of the recorder, and what it was read as was a
+   * warning about being overheard.
+   *
+   * The fact it was making is on the privacy page, in terms of what is kept
+   * rather than of what is captured. These two assert the absence, so that
+   * putting it back is a decision somebody makes rather than a revert that
+   * slips through.
    */
-  it('still says a silenced microphone is being recorded', () => {
+  it('does not warn a silenced microphone that it is being recorded', () => {
     const tree = showBare(
       channelOf((c) =>
         reduce(
@@ -1646,12 +1704,12 @@ describe('a channel screen that does not repeat its footer', () => {
         )
       )
     );
-    expect(textOf(tree)).toContain('You are still being recorded');
+    expect(textOf(tree)).not.toContain('You are still being recorded');
     act(() => tree.unmount());
   });
 
-  it('says it exactly once', () => {
-    showChannel(
+  it('still says a recording is running, in the header that cannot scroll away', () => {
+    const tree = showBare(
       channelOf((c) =>
         reduce(
           reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
@@ -1660,10 +1718,7 @@ describe('a channel screen that does not repeat its footer', () => {
         )
       )
     );
-    const tree = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    expect(textOf(tree).split('You are still being recorded')).toHaveLength(2);
+    expect(textOf(tree)).toContain('Recording');
     act(() => tree.unmount());
   });
 
@@ -1695,16 +1750,48 @@ describe('a channel screen that does not repeat its footer', () => {
    * repeated controls may take it away from the one account in a position to
    * be reading it.
    *
-   * It had a card and a heading of its own — *Audio session* — for the case
-   * where the setting switched the microphone card off underneath it. The
-   * microphone card is now unconditional, so the panel is back inside it and
-   * that second card is gone.
+   * **Its own card again since 2026-09-15**, which is the third arrangement
+   * and the one that follows from what it is. It had a card and a heading of
+   * its own — *Audio session* — for the case where a setting switched the
+   * microphone card off underneath it; when that stopped being possible it
+   * was folded into the microphone's. Now the microphone card is gone
+   * altogether and the panel would otherwise hang off *Audio*, which is a
+   * card about a connection that is failing and is absent whenever one is
+   * not. A panel that appeared only alongside a fault is no use to somebody
+   * diagnosing why there is no fault visible.
+   *
+   * So it is drawn for the account rather than for the state, under a
+   * heading that says which of the two it is.
    */
-  it('keeps the audio diagnostic panel, inside the microphone card', () => {
+  it('keeps the audio diagnostic panel, in a card of its own', () => {
     mockApp.debug = true;
     const tree = showBare();
-    expect(textOf(tree)).toContain('Your microphone');
-    expect(textOf(tree)).not.toContain('Audio session');
+    expect(textOf(tree)).not.toContain('Your microphone');
+    expect(textOf(tree)).toContain('Audio diagnostics');
+    expect(
+      tree.root.findAll((node) => node.type === AudioDebugPanel)
+    ).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And it does not need a fault to be there, which is the whole of why it
+   * was moved out. The session here is connected, so the *Audio* card is
+   * absent; the panel is not.
+   */
+  it('draws the panel on a connection that is working', () => {
+    mockApp.debug = true;
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={{ ...AUDIO, status: 'connected' as const }}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('Audio diagnostics');
+    expect(textOf(tree)).not.toContain('Audio not connected');
     expect(
       tree.root.findAll((node) => node.type === AudioDebugPanel)
     ).toHaveLength(1);

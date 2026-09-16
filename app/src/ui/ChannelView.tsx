@@ -844,8 +844,11 @@ export function ChannelView({
       - **Step in**, deleted. Three buttons, all three of them footer rungs.
         Its one sentence with no second home — you are in this channel on
         another device — is now drawn under the roster unconditionally.
-      - **Your microphone**, kept, minus its button. What is left says *why*
-        the microphone is shut, which the bar greys without ever saying.
+      - **Your microphone**, kept that day minus its button, and deleted on
+        2026-09-15 when the sentence that had justified keeping it was
+        counted against the footer's tint and the roster's suffixes. What
+        stands in its place is *Audio*, which is not about the microphone
+        and is drawn only when the connection is failing.
       - **The floor**, which went the same way first: the Claim/Release button
         on 2026-08-31, the countdown to the holder's roster card on
         2026-09-12, the rest on 2026-09-13.
@@ -1002,6 +1005,11 @@ export function ChannelView({
   const cooldown = cooldownRemainingMs(channel.floor, channel.present, me, now);
   const claimRemaining = floorRemainingMs(channel.floor, now);
   const recordingLive = isRecordingActive(channel.recording);
+  /**
+   * What is wrong with the audio, in words, or null while nothing is — which
+   * is also whether the *Audio* card is drawn at all. See `describeAudio`.
+   */
+  const audioNote = describeAudio(audio);
   // Leaving is ordinary until you are the last one, at which point the same
   // tap destroys the channel. Nothing else in the interface would say so.
   const lastMember = channel.participants.length === 1;
@@ -1950,104 +1958,83 @@ export function ChannelView({
         ) : null}
 
         {/*
-          **A readout, and since 2026-09-13 nothing else.** The button that
-          used to head this card was the footer's Mute exactly — the same
-          label, the same action, and the same `canSetSelfMute` guard
-          character for character — so it has gone the way the floor's
-          Claim/Release went on 2026-08-31, leaving behind the half a footer
-          cannot carry.
+          **What is left of *Your microphone*, which is no longer about the
+          microphone.** The card carried a sentence saying why the microphone
+          was in the state it was in, and on 2026-09-15 that sentence was
+          counted against what the rest of the screen already says. Three of
+          its states were said twice — the footer tints Mute and accents
+          Release, and your own roster card carries `· muted` and `· has the
+          floor` — and the others were explanations of a control rather than
+          facts about the room. STYLE.md's seventh load-bearing rule is the
+          one that settles it: when the sentence goes the card goes.
 
-          That half is *why* the microphone is in the state it is in. The bar
-          greys and tints, and neither says which of the four reasons it is:
-          somebody else's floor claim, your own hand, a device with no input,
-          or a room with nobody in it to hear you yet. `iAmSilenced` is said
-          nowhere else on this screen at all — a roster card's `· muted` reads
-          `selfMuted`, so somebody force-muted by a claim is drawn there as a
-          plain *Present*, which is the one sentence here with no second home.
+          What could not be said anywhere else was never the microphone. It
+          was the *connection*, and only when the connection is not working:
+          a conversation that has silently stopped arriving is the one thing
+          this screen exists to not let happen, and neither the bar nor the
+          roster has a word for it. So `describeAudio` returns null while the
+          audio is connected and there is no card at all, which is every
+          ordinary moment in a channel.
 
-          **So it is no longer behind a setting.** `hideControlCards` governed
-          the controls this screen repeated from the footer, and there is no
-          longer a control here to repeat; a readout was never what it was
-          for, which is the argument the diagnostic panel's own card was
-          making from the other side until it was folded back in below. The
-          fallback copies went with it: nothing on this tab is drawn twice any
-          more, so nothing needs a second site to be drawn at instead.
+          **Not drawn to somebody who has not stepped in**, as the card it
+          replaces was not. There is no session to report on, and the one
+          status that is true of an onlooker — the audio having moved to
+          another device — is already a sentence under the roster, said
+          there in terms of the room rather than of the transport.
 
-          Absent rather than disabled when you have not stepped in. The
-          microphone is not open, muting it changes nothing anybody can hear,
-          and the session this describes has not been asked for.
+          The recording warning went the same day and on its own argument.
+          It said that being silenced is not being unrecorded, which is true
+          of the bytes — a silenced stem reaches the bucket ungated, see
+          server/src/export.ts — and false of everything a person can reach:
+          the mix, a single speaker's stem and the transcript are all gated
+          from the same function, deliberately so it cannot be right in one
+          place and wrong in another. What the sentence described was the
+          inside of the recorder, and it was read as a warning about being
+          overheard. The accurate version of it is on the privacy page,
+          which is where a fact about retention belongs.
         */}
-        {iAmPresent ? (
+        {iAmPresent && audioNote !== null ? (
           <>
-            <SectionLabel>Your microphone</SectionLabel>
+            <SectionLabel>Audio</SectionLabel>
             <Card style={styles.stack}>
-              <Text style={type.muted}>
-                {noInput
-                  ? 'This device has no microphone, so nothing is published. You can still hear everybody.'
-                  : iAmSilenced
-                  ? `Silenced by ${holderName}'s floor claim.`
-                  : iHoldFloor
-                    ? 'Open while you hold the floor — release it to mute yourself.'
-                    : iAmSelfMuted
-                      ? 'Muted by you. This is separate from the floor and costs you nothing.'
-                      : audio.micOpen
-                        ? 'Open. Self-mute never affects floor eligibility.'
-                        : // Closed because nobody is here to hear it, which is
-                          // worth saying: a microphone the screen calls open and is
-                          // not is exactly the kind of silence this codebase keeps
-                          // apologising for elsewhere.
-                          'Closed until somebody else is here — so your other apps keep the speakers.'}
-              </Text>
-              {recordingLive && iAmSilenced ? (
-                // Being unheard is not the same as being unrecorded, and it would
-                // be easy to assume otherwise. Say it plainly rather than let
-                // someone speak freely on that assumption.
-                //
-                // The one place it is said, again. It had a copy under the
-                // roster for as long as this card could be switched off, and
-                // that copy went when the switch stopped reaching this card.
-                <Text style={styles.warning}>
-                  You are still being recorded. Nobody can hear you, but your
-                  microphone is captured; it is left out of the mix anybody can play or share,
-                  not out of the capture.
-                </Text>
-              ) : null}
-              <Text style={audioTone(audio.status)}>{describeAudio(audio)}</Text>
-              {/*
-                Shown only to an account with the `debug` column set, which is
-                nobody by default — see server/src/db.ts. Under the microphone
-                because that is the control whose effects it explains, and the
-                place the panel it replaces lived.
+              <Text style={audioTone(audio.status)}>{audioNote}</Text>
+            </Card>
+          </>
+        ) : null}
 
-                Unlike that one, this is not temporary and does not need deleting
-                before the next upload: it is invisible to every account that has
-                not been switched on, and switching one off is an `UPDATE` and a
-                reconnect. DECISIONS.md § *How the diagnostic panel comes out, and
-                what would trigger it* says who decides and names every piece.
+        {/*
+          Its own card since 2026-09-15, having been a panel at the foot of
+          the microphone's. It outlived that card for the reason it was never
+          really part of it: the panel is an asked-versus-actual comparison
+          against the audio session, which is a different subject from
+          whether anybody can hear you, and it is drawn for an account rather
+          than for a state.
 
-                It had a card of its own from the day this one could be
-                switched off, for the case where the setting would otherwise
-                have taken the panel away from the one account in a position
-                to be debugging its audio. That case no longer exists, and the
-                card went with it.
-              */}
-              {/*
-                Not on web, whatever the column says. The panel is an
-                asked-versus-actual comparison against `AVAudioSession` — the
-                category, the mode, the route, the engine's mute mode — and a
-                browser has none of those to compare. `useSessionAudio.web.ts`
-                reports `asked` as permanently null by construction, so the
-                panel would render a column of blanks and invite somebody to
-                debug the wrong layer. See planning/decisions/DECISIONS.md §
-                *The web app is a secondary interface*.
-              */}
-              {app.debug && Platform.OS !== 'web' ? (
-                <AudioDebugPanel
-                  asked={audio.asked}
-                  onReconnect={audio.reconnect}
-                  onResubscribe={audio.resubscribe}
-                />
-              ) : null}
+          Shown only to an account with the `debug` column set, which is
+          nobody by default — see server/src/db.ts. Not temporary and does
+          not need deleting before the next upload: it is invisible to every
+          account that has not been switched on, and switching one off is an
+          `UPDATE` and a reconnect. DECISIONS.md § *How the diagnostic panel
+          comes out, and what would trigger it* says who decides and names
+          every piece.
+
+          Not on web, whatever the column says. The comparison is against
+          `AVAudioSession` — the category, the mode, the route, the engine's
+          mute mode — and a browser has none of those. `useSessionAudio.web.ts`
+          reports `asked` as permanently null by construction, so the panel
+          would render a column of blanks and invite somebody to debug the
+          wrong layer. See planning/decisions/DECISIONS.md § *The web app is a
+          secondary interface*.
+        */}
+        {iAmPresent && app.debug && Platform.OS !== 'web' ? (
+          <>
+            <SectionLabel>Audio diagnostics</SectionLabel>
+            <Card style={styles.stack}>
+              <AudioDebugPanel
+                asked={audio.asked}
+                onReconnect={audio.reconnect}
+                onResubscribe={audio.resubscribe}
+              />
             </Card>
           </>
         ) : null}
@@ -3917,8 +3904,26 @@ function InviteList({
   );
 }
 
-/** Plain-language audio state, so a silent channel is never a mystery. */
-function describeAudio(audio: SessionAudio): string {
+/**
+ * Plain-language audio state when there is something wrong with it, and null
+ * when there is not.
+ *
+ * **Null is the whole of the change of 2026-09-15.** This used to describe
+ * every state including the healthy ones, on a card headed *Your microphone*
+ * that was drawn whenever you were present. Three of the healthy sentences
+ * were the footer and the roster said again, and the fourth — audio connected,
+ * microphone closed until somebody else is here — was an explanation of a
+ * control rather than a report on the transport. What is left is the half
+ * nothing else on the screen can say: the conversation is not arriving, or
+ * never started, or was refused.
+ *
+ * So the ordinary moment in a channel draws no card at all, which is the
+ * property to preserve if a state is ever added here. **A new case returns a
+ * sentence only if a person who is not debugging this application would want
+ * to know it**; anything else belongs in the diagnostics panel, which has its
+ * own card and its own audience.
+ */
+function describeAudio(audio: SessionAudio): string | null {
   switch (audio.status) {
     case 'idle':
       return 'Audio not connected.';
@@ -3936,11 +3941,12 @@ function describeAudio(audio: SessionAudio): string {
     // and this says it about the audio.
     case 'displaced':
       return 'Audio moved to your other device.';
+    // Nothing to say. The three sentences this used to pick between reported
+    // a working connection, whether anybody else was audible, and whether the
+    // microphone was open — the first needs no saying, and the other two are
+    // the roster and the footer's job. See the note above.
     case 'connected':
-      if (audio.othersAudible > 0) return 'Audio connected.';
-      return audio.micOpen
-        ? 'Audio connected — waiting for anyone else to be audible.'
-        : 'Audio connected — microphone closed until somebody else is here.';
+      return null;
     case 'denied':
       return audio.message ?? 'Microphone access refused.';
     case 'unavailable':
