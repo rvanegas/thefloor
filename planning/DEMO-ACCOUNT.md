@@ -8,7 +8,7 @@ when the app was approved and it became clear that deleting them would leave the
 next submission with a sign-in that fails. RELEASING.md is the wider release
 checklist and points here.
 
-Two real accounts and one real channel live on production. They are demo data
+Two real accounts and their channels live on production. They are demo data
 and hold nothing that matters, which is deliberate: **the sign-in code is
 published in the review notes, so anyone who reads them can sign in.**
 
@@ -24,9 +24,16 @@ deploy removes.
 
 | | |
 | --- | --- |
-| `App Review` | the demo account; the address and code go in the review notes |
+| `Johnny Tahoe` | the demo account; the address and code go in the review notes |
 | `Sam Rivera` | its contact, and the reason is structural |
-| one channel | between the two of them |
+| three channels | between the two of them, `Weekly Convo` among them |
+
+**The demo account's display name is not load-bearing and has already changed
+once** — it read `App Review` until some point before 2026-09-15, and this table
+said so for as long. What identifies the account is `REVIEW_IDENTIFIER`, and
+nothing in the review notes or APPREVIEWSCRIPT.md names the demo account by
+display name, which is why the drift cost nothing. Sam's name does appear in the
+notes; that one is worth keeping as it is.
 
 The second account looks redundant and is not. `ChannelRegistry.create` refuses
 an invitee who is not already an accepted contact — `channels.ts`, the
@@ -97,8 +104,12 @@ Both stored tokens were found dead on 2026-08-16, two days after issue and 88
 days before they expire, so something revoked them rather than time doing it;
 a sign-out is the likeliest cause and `POST /auth/sign-out` revoking the token
 it is called with is documented below. `curl -H "authorization: Bearer $TOKEN"
-https://thefloor.rvanegas.co/home` answers 200 or 401 and settles it. A dead
-token is recoverable **only while the bypass is still configured** — sign in
+https://thefloor.rvanegas.co/home` answers 200 or 401 and settles it. **Every
+token in that file was dead again on 2026-09-15**, including one minted after
+the revoking rule was removed, so assume they are dead and check rather than the
+other way round; backlog/ § *The second demo account has no credential left* has
+the reading. A dead token is recoverable **only while the bypass is still
+configured** — sign in
 again with `REVIEW_IDENTIFIER`/`REVIEW_CODE`, or with the flip below for Sam,
 and write the new tokens into the file. That is why this step comes before
 step 3 and not after.
