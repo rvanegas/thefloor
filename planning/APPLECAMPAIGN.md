@@ -256,15 +256,55 @@ an answer lives.
 
 Everything above is a terminal or a decision. This is Apple Ads Advanced,
 `ads.apple.com`, and it is written out because the file's premise is that
-somebody can open it and type — and because four of these settings are the
-difference between a test and a donation.
+somebody can open it and type — and because a handful of these settings are
+the difference between a test and a donation. The placement is the first of
+them and was missing from this section until 2026-09-15, which is how a
+write-up meant to be typed from can still put the wrong thing first.
 
-**Advanced, not Basic.** Basic is the one Apple pushes: you give it a budget
-and it chooses the terms. That is the opposite of this campaign, whose whole
-question is *do the complaint terms convert* — a product Apple picks the
-keywords for cannot answer it, and it cannot hold negatives either. If the
-interface is offering a single budget box and no keyword list, it is the wrong
-one.
+**Advanced, not Basic**, which is settled before any of this by which product
+you opened. Basic is the one Apple pushes: you give it a budget and it chooses
+the terms. That is the opposite of this campaign, whose whole question is *do
+the complaint terms convert* — a product Apple picks the keywords for cannot
+answer it, and it cannot hold negatives either. If the interface is offering a
+single budget box and no keyword list, it is the wrong one. The screen below
+exists only in Advanced, so arriving at it is the confirmation.
+
+### The placement, which is the first choice and the one that decides the rest
+
+**Search Results, and nothing else.** Campaign Settings asks this before
+budget, before keywords, before anything — *Select where ads will run* — and
+offers four: Today Tab, Search Tab, Search Results, Product Pages.
+
+**It is not a distribution question.** It decides whether the rest of this
+section applies at all: Search Results is the only placement bought by what
+somebody typed, and so the only one where twenty exact-match terms and three
+negative sets have anywhere to go. Choose another and the apparatus below is
+inert.
+
+The other three, against this file's own test:
+
+- **Today Tab** — the App Store front page, seen by people who came to browse.
+  No search, no term, no intent; it buys impressions from somebody who is not
+  looking for anything. That is the broad awareness spend MARKETING.md
+  § *Paid* item 3 answers with the word *no*.
+- **Search Tab** — shown *as somebody begins a search*, before they have typed.
+  Close enough to be tempting and wrong for the reason that matters: nobody has
+  expressed a complaint yet, so it targets an audience rather than an intent.
+  It is also where a thin budget goes fastest, everybody who taps search being
+  eligible.
+- **Product Pages** — the *You Might Also Like* strip at the foot of **other
+  apps'** pages. **This is the competitor-adjacency play in placement form**,
+  and it is ruled out by the same decision that ruled out bidding on
+  competitors' names — § *The open question*. It buys somebody mid-decision
+  about a different product, which is persuasion rather than intent; taking it
+  after declining the keywords would be the same purchase through a different
+  door. Worth noticing that two unrelated screens reach the same answer from
+  one principle.
+
+**Round two may revisit it, and on the same terms as everything else deferred
+there.** Product Pages is the one of the three that could ever be argued for,
+and only if the competitor question is reopened first — in that order, never
+by taking the placement as a way around the question.
 
 ### One campaign, one ad group
 
@@ -349,6 +389,9 @@ tuning bids on twenty low-volume exact terms is a week of noise.
 
 ### Before you leave the browser
 
+- **Search Results is the only placement ticked.** The first choice and the
+  one that makes the rest of this apply; Product Pages in particular is the
+  competitor question wearing a different hat.
 - **Search Match is off.** It defaults on; check it after saving, because it
   is the setting that quietly rewrites what you bought.
 - **The negatives saved**, all four sets, the flooring one at account level.
