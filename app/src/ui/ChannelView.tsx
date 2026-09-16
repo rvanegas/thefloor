@@ -49,6 +49,7 @@ import {
   canPasteClip,
   canClearClip,
   canInviteGuest,
+  canAskGuestJoin,
   canManageGuest,
   canEditChannel,
   hasTheRoom,
@@ -1931,13 +1932,34 @@ export function ChannelView({
               speaking={speakingHere(guest.id)}
               failing={failingHere(guest.id)}
               manageable={canManageGuest(channel, me, guest.id)}
+              askable={canAskGuestJoin(channel, me, guest.id)}
               asked={guest.asks?.[me]}
+              invited={guest.invites?.[me]}
+              // The third rung's guard, and it is the server's own: `INVITE`
+              // refuses anybody who is not a contact, so the control is drawn
+              // from the same fact rather than from the ask having been
+              // accepted — which would be a second way to know one thing, and
+              // wrong for the guest who was already a contact when they
+              // arrived.
+              addable={
+                !!guest.accountId &&
+                (app.home?.contacts ?? []).some(
+                  (entry) =>
+                    entry.account.id === guest.accountId &&
+                    entry.status === 'accepted'
+                )
+              }
               onSpeech={(maySpeak) =>
                 act({ type: 'SET_GUEST_SPEECH', guestId: guest.id, maySpeak })
               }
               onEject={() => act({ type: 'EJECT_GUEST', guestId: guest.id })}
               onAskContact={() =>
                 act({ type: 'ASK_GUEST_CONTACT', guestId: guest.id })
+              }
+              onAskJoin={() => act({ type: 'ASK_GUEST_JOIN', guestId: guest.id })}
+              onAddToChannel={() =>
+                guest.accountId &&
+                act({ type: 'INVITE', contactId: guest.accountId })
               }
             />
           ))}
@@ -3215,10 +3237,15 @@ function GuestCard({
   speaking,
   failing,
   manageable,
+  askable,
   asked,
+  invited,
+  addable,
   onSpeech,
   onEject,
   onAskContact,
+  onAskJoin,
+  onAddToChannel,
 }: {
   guest: Guest;
   muted: boolean;
@@ -3249,10 +3276,26 @@ function GuestCard({
    * a card that read "Asked" because somebody else had would be answering a
    * question this one has not put.
    */
-  asked: 'asking' | 'refused' | undefined;
+  asked: 'asking' | 'refused' | 'accepted' | undefined;
+  /**
+   * `canAskGuestJoin` — `manageable` and the seat having no account behind it.
+   * Its own guard rather than a `&&` here, so that the control and the reducer
+   * are reading the same line.
+   */
+  askable: boolean;
+  /** Whether *this* member has asked them onto The Floor, per `asked`. */
+  invited: 'asking' | 'refused' | undefined;
+  /**
+   * Whether the account behind this seat is an accepted contact of the reader,
+   * which is what `INVITE` requires and therefore what the third control is
+   * drawn from.
+   */
+  addable: boolean;
   onSpeech: (maySpeak: boolean) => void;
   onEject: () => void;
   onAskContact: () => void;
+  onAskJoin: () => void;
+  onAddToChannel: () => void;
 }) {
   const status = failing
     ? 'Not receiving you'
@@ -3306,12 +3349,52 @@ function GuestCard({
               ? 'Asked'
               : asked === 'refused'
                 ? 'They said no'
-                : 'Add contact'
+                : asked === 'accepted'
+                  ? 'Contact'
+                  : 'Add contact'
           }
           variant="ghost"
           disabled={!manageable || !!asked}
           onPress={onAskContact}
         />
+        {/*
+          **The weakest ask, and the only one that asks for nothing.** Offered
+          to a seat with nobody behind it, because that is the only seat it
+          means anything to: what it produces is an account, which an
+          identified guest already has. `canAskGuestJoin` is the guard, so the
+          control disappearing and the reducer refusing are the same line read
+          twice rather than two rules.
+        */}
+        {guest.accountId ? null : (
+          <Button
+            label={
+              invited === 'asking'
+                ? 'Asked'
+                : invited === 'refused'
+                  ? 'They said no'
+                  : 'Ask them to join'
+            }
+            variant="ghost"
+            disabled={!askable || !!invited}
+            onPress={onAskJoin}
+          />
+        )}
+        {/*
+          **The third rung, and the only one that is a membership.** Drawn only
+          once they are a contact, which is what `INVITE` refuses without —
+          and it is an ordinary invitation from here on: the same action, the
+          same guard, the same roster cap. Accepting a contact ask stopped
+          carrying this on 2026-09-16; a guest without a membership is the
+          common case rather than a conversion that failed.
+        */}
+        {addable ? (
+          <Button
+            label="Add to channel"
+            variant="ghost"
+            disabled={!manageable}
+            onPress={onAddToChannel}
+          />
+        ) : null}
         <Button
           label="Remove"
           variant="ghost"

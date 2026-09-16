@@ -1,5 +1,6 @@
 import {
   canAnswerKnock,
+  canAskGuestJoin,
   canClaimFloor,
   canInviteGuest,
   canManageGuest,
@@ -542,6 +543,177 @@ describe('asking a guest to be a contact', () => {
     // A member has no seat to refuse from.
     expect(act(state, { type: 'REFUSE_CONTACT', userId: ALICE, askerId: ALICE }))
       .toBe(state);
+  });
+});
+
+describe('accepting a contact ask, which leaves a guest a guest', () => {
+  /**
+   * **The whole of the 2026-09-16 change is in this block.** Accepting used to
+   * take the guest out of `guests` and put an account into `participants` in
+   * one breath, so there was no such state as *a contact who is still a
+   * guest* — which is the state most people who follow a guest link are meant
+   * to end up in.
+   */
+  const asked = () =>
+    act(withGuest(), { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA });
+
+  it('records the answer and leaves the seat exactly where it was', () => {
+    const state = act(asked(), {
+      type: 'GUEST_ACCEPTED_CONTACT',
+      guestId: DANA,
+      askerId: ALICE,
+    });
+    expect(state.guests[DANA]?.asks).toEqual({ [ALICE]: 'accepted' });
+    // The three facts this design is about, none of which acceptance touches.
+    expect(isGuest(state, DANA)).toBe(true);
+    expect(state.participants).not.toContain(DANA);
+    expect(state.guests[DANA]?.name).toBe('Dana');
+  });
+
+  it('accepts nothing that was not asked, and does not reopen a refusal', () => {
+    const state = asked();
+    expect(
+      act(state, { type: 'GUEST_ACCEPTED_CONTACT', guestId: DANA, askerId: BOB })
+    ).toBe(state);
+
+    const refused = act(state, {
+      type: 'REFUSE_CONTACT',
+      userId: DANA,
+      askerId: ALICE,
+    });
+    expect(
+      act(refused, {
+        type: 'GUEST_ACCEPTED_CONTACT',
+        guestId: DANA,
+        askerId: ALICE,
+      })
+    ).toBe(refused);
+  });
+
+  it('survives the reconnection that rebuilds the guest from their row', () => {
+    // The seat's row has no column for an ask or its answer, so a straight
+    // replacement would erase this — and a guest page reconnects on any blip
+    // and on every deploy. The same hazard `asks` already had.
+    const state = act(asked(), {
+      type: 'GUEST_ACCEPTED_CONTACT',
+      guestId: DANA,
+      askerId: ALICE,
+    });
+    const back = act(state, {
+      type: 'GUEST_ENTERED',
+      guest: guest({ accountId: 'user-dana' }),
+    });
+    expect(back.guests[DANA]?.asks).toEqual({ [ALICE]: 'accepted' });
+  });
+});
+
+describe('asking a guest onto The Floor, which asks for nothing else', () => {
+  /**
+   * The weakest of the three asks: an account, no contact, no membership. It
+   * exists because until 2026-09-16 the only door into an account from inside
+   * a room was the contact ask, which priced an arrival at a relationship.
+   */
+  it('records the ask, separately from a contact ask by the same member', () => {
+    let state = act(withGuest(), {
+      type: 'ASK_GUEST_JOIN',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(state.guests[DANA]?.invites).toEqual({ [ALICE]: 'asking' });
+    expect(state.guests[DANA]?.asks).toBeUndefined();
+
+    state = act(state, { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA });
+    expect(state.guests[DANA]?.invites).toEqual({ [ALICE]: 'asking' });
+    expect(state.guests[DANA]?.asks).toEqual({ [ALICE]: 'asking' });
+  });
+
+  it('reads a guest who has never been asked as nobody having asked', () => {
+    expect(withGuest().guests[DANA]?.invites).toBeUndefined();
+  });
+
+  it('refuses a seat that already has an account', () => {
+    // `canAskGuestJoin`, which is the guard the app draws the control from:
+    // an identified seat has answered this, and asking again would be putting
+    // a settled question.
+    const state = withGuest({ accountId: 'user-dana' });
+    expect(canAskGuestJoin(state, ALICE, DANA)).toBe(false);
+    expect(act(state, { type: 'ASK_GUEST_JOIN', userId: ALICE, guestId: DANA }))
+      .toBe(state);
+  });
+
+  it('will not ask twice, or ask again after being told no', () => {
+    let state = act(withGuest(), {
+      type: 'ASK_GUEST_JOIN',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(act(state, { type: 'ASK_GUEST_JOIN', userId: ALICE, guestId: DANA }))
+      .toBe(state);
+
+    state = act(state, { type: 'REFUSE_JOIN', userId: DANA, askerId: ALICE });
+    expect(state.guests[DANA]?.invites).toEqual({ [ALICE]: 'refused' });
+    expect(act(state, { type: 'ASK_GUEST_JOIN', userId: ALICE, guestId: DANA }))
+      .toBe(state);
+  });
+
+  it('refuses a member out of the room, and a guest asking at all', () => {
+    const state = withGuest();
+    expect(act(state, { type: 'ASK_GUEST_JOIN', userId: BOB, guestId: DANA }))
+      .toBe(state);
+    expect(act(state, { type: 'ASK_GUEST_JOIN', userId: DANA, guestId: DANA }))
+      .toBe(state);
+  });
+
+  it('refusing one member’s ask says nothing about the other question', () => {
+    let state = withGuest();
+    state = act(state, { type: 'ASK_GUEST_JOIN', userId: ALICE, guestId: DANA });
+    state = act(state, { type: 'ASK_GUEST_CONTACT', userId: ALICE, guestId: DANA });
+    state = act(state, { type: 'REFUSE_JOIN', userId: DANA, askerId: ALICE });
+
+    expect(state.guests[DANA]?.invites).toEqual({ [ALICE]: 'refused' });
+    expect(state.guests[DANA]?.asks).toEqual({ [ALICE]: 'asking' });
+  });
+
+  it('lets nobody refuse an ask that was never made, or refuse for a guest', () => {
+    const state = act(withGuest(), {
+      type: 'ASK_GUEST_JOIN',
+      userId: ALICE,
+      guestId: DANA,
+    });
+    expect(act(state, { type: 'REFUSE_JOIN', userId: DANA, askerId: BOB }))
+      .toBe(state);
+    expect(act(state, { type: 'REFUSE_JOIN', userId: ALICE, askerId: ALICE }))
+      .toBe(state);
+  });
+});
+
+describe('a seat that turns out to have an account behind it', () => {
+  it('gains the account and nothing else', () => {
+    const state = act(withGuest(), {
+      type: 'GUEST_IDENTIFIED',
+      guestId: DANA,
+      accountId: 'user-dana',
+    });
+    expect(state.guests[DANA]?.accountId).toBe('user-dana');
+    // Being known confers nothing: the wall is `participants`, unchanged.
+    expect(state.participants).not.toContain('user-dana');
+    expect(isGuest(state, DANA)).toBe(true);
+    expect(canClaimFloor(state, DANA, T0 + 3_000)).toBe(false);
+  });
+
+  it('is a no-op for a seat that is gone, or already theirs', () => {
+    const state = act(withGuest(), {
+      type: 'GUEST_IDENTIFIED',
+      guestId: DANA,
+      accountId: 'user-dana',
+    });
+    expect(
+      act(state, { type: 'GUEST_IDENTIFIED', guestId: DANA, accountId: 'user-dana' })
+    ).toBe(state);
+    const empty = alone();
+    expect(
+      act(empty, { type: 'GUEST_IDENTIFIED', guestId: DANA, accountId: 'user-dana' })
+    ).toBe(empty);
   });
 });
 

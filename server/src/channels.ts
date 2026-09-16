@@ -52,6 +52,7 @@ import type {
   PlaybackTrack,
   ChannelAction,
   ChannelState,
+  Guest,
 } from '../../core/types';
 import type {
   GuestView,
@@ -301,6 +302,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_GUEST_SPEECH',
   'EJECT_GUEST',
   'ASK_GUEST_CONTACT',
+  'ASK_GUEST_JOIN',
 ]);
 
 /**
@@ -1646,6 +1648,14 @@ export class ChannelRegistry {
           )
         );
       }
+      // **The third rung, and the moment a seat stops being one.** Somebody
+      // asked into a channel they were sitting in as a guest is now a member
+      // of it, and one person holding a seat and a membership in one channel
+      // is two people to everything that counts — the roster, the recording's
+      // stems, the usage spans, the floor. This is the only place the seat
+      // closes on the way up: until 2026-09-16 it was `acceptGuestAsk`, which
+      // was doing this invitation's job as well as its own.
+      if (invited.ok) this.closeSeatFor(channelId, contactId);
       return invited;
     }
 
@@ -5297,69 +5307,125 @@ export class ChannelRegistry {
   }
 
   /**
-   * A guest accepts a member's ask, and stops being a guest.
+   * The identity check every acceptance below makes, and it is the same one.
    *
    * **Authenticated three ways, and all three are cheap.** The caller's own
    * token says which account (the route's `requireAccount`); the seat's secret
    * says which guest, checked the way a reconnection checks it — against
    * ejection and expiry as well as the hash — and the seat's `account_id` says
    * the two are the same person, so a seat and an account cannot be presented
-   * as each other's. The ask itself is the fourth thing, and the only one that
-   * is about consent rather than identity: nothing here can be reached without
-   * a member having asked first.
+   * as each other's.
    *
-   * Four effects in order, and the order is the same one every other
-   * acceptance uses: the contact, the pair's own channel, the invitation into
-   * the channel they met in, and then the seat, which has nothing left to do.
+   * **A seat with an account must match, and one without is claimed here.**
+   * The door is not the only moment somebody turns out to have an account: an
+   * unidentified guest makes one from inside the room to answer either ask,
+   * and by then they have proved both halves — this seat's secret and a token
+   * — so there is nobody else the seat could belong to. A seat that already
+   * names somebody else is a different person's, and no amount of holding the
+   * secret makes the two the same.
+   *
+   * The claim is written to the row *and* raised into the live channel, which
+   * it did not have to be until 2026-09-16: the seat used to close in the same
+   * breath, so nothing was left to be wrong. Now the seat stands, and a room
+   * still calling a signed-in person `Guest 3` until their next reconnection
+   * would be the state and the database disagreeing about who is in it.
+   */
+  private claimSeat(
+    accountId: string,
+    guestId: string,
+    secret: string
+  ):
+    | { ok: true; session: GuestSessionRow; channel: ChannelState; guest: Guest }
+    | Refused {
+    const session = this.guests.reconnect(guestId, secret, this.now());
+    if (!session || (session.account_id && session.account_id !== accountId)) {
+      return { ok: false, error: 'This session has ended.', code: 'forbidden' };
+    }
+    const channel = this.channels.get(session.channel_id);
+    const guest = channel?.guests[guestId];
+    if (!channel || !guest) {
+      return { ok: false, error: 'This session has ended.', code: 'forbidden' };
+    }
+    this.guests.claim(guestId, accountId);
+    this.apply(channel.id, '', {
+      type: 'GUEST_IDENTIFIED',
+      guestId,
+      accountId,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    return { ok: true, session, channel, guest };
+  }
+
+  /**
+   * **Whoever asked brought them here, when they made the account to answer.**
+   *
+   * A guest who signs up inside a room has no invitation behind them —
+   * `pending_invites` keys on an address nobody wrote to — so without this the
+   * one arrival that is most plainly somebody's doing is the one nothing is
+   * credited for.
+   *
+   * *New* is the whole of the test, and it is read off the clock rather than
+   * trusted to the flow: the account has to have been created after this seat
+   * was admitted, which is true exactly when it was made inside this visit —
+   * the sign-up needs an emailed code, so an account made before the knock
+   * cannot share a millisecond with it. A member of two years who opens a
+   * guest link and gets asked is not somebody the asker brought to this app,
+   * and back-dating an inviter onto them would make the standings a claim
+   * about who happened to tap first.
+   *
+   * `creditInviter` owns the rest — it refuses an account that already has an
+   * inviter, and an edge that would close a loop.
+   *
+   * **Called from both asks since 2026-09-16, which is what makes the rule
+   * sayable in one line: the credit goes to whoever asked the question that
+   * was being answered when the account was made.** It used to be the contact
+   * ask or nothing, because the contact ask was the only door.
+   */
+  private creditArrival(
+    accountId: string,
+    askerId: string,
+    session: GuestSessionRow
+  ): void {
+    const account = this.accounts.byId(accountId);
+    if (account && account.created_at > session.admitted_at) {
+      this.accounts.creditInviter(accountId, askerId);
+    }
+  }
+
+  /**
+   * A guest accepts a member's ask to be a contact — **and stays a guest.**
+   *
+   * **The second rung of three, and until 2026-09-16 it was the last two at
+   * once.** Accepting used to write the contact, dispatch the `INVITE` on the
+   * asker's behalf and close the seat, so answering *will you be my contact?*
+   * was also answering *will you join this channel?* and there was no way to
+   * say yes to one. Being in somebody's contacts and belonging to their
+   * channel are two facts; this writes the first and leaves the second to
+   * `INVITE`, which is a member's to make and a second tap.
+   *
+   * So what is left here is the contact, the pair's own channel, and the
+   * record of the answer. The seat is untouched: they are still in the room,
+   * still hearing everybody, still refused everything `isParticipant` guards.
+   * Nothing navigates and nothing is handed over, there being no longer any
+   * moment at which this person's client changes.
    */
   acceptGuestAsk(
     accountId: string,
     guestId: string,
     secret: string,
     askerId: string
-  ): { ok: true; channelId: string | null } | Refused {
-    const session = this.guests.reconnect(guestId, secret, this.now());
-    // **A seat with an account must match, and one without is claimed here.**
-    // The door is not the only moment somebody turns out to have an account:
-    // an unidentified guest who accepts makes one from inside the room, and by
-    // then they have proved both halves — this seat's secret and a token — so
-    // there is nobody else the seat could belong to. A seat that already names
-    // somebody else is a different person's, and no amount of holding the
-    // secret makes the two the same.
-    if (!session || (session.account_id && session.account_id !== accountId)) {
-      return { ok: false, error: 'This session has ended.', code: 'forbidden' };
-    }
-    const channel = this.channels.get(session.channel_id);
-    const guest = channel?.guests[guestId];
-    if (!channel || !guest || guest.asks?.[askerId] !== 'asking') {
+  ): { ok: true } | Refused {
+    const claimed = this.claimSeat(accountId, guestId, secret);
+    if (!claimed.ok) return claimed;
+    const { session, channel, guest } = claimed;
+    if (guest.asks?.[askerId] !== 'asking') {
       return { ok: false, error: 'Nobody asked.', code: 'not_found' };
     }
-    this.guests.claim(guestId, accountId);
-
-    // **Whoever asked brought them here, when they made the account to answer.**
-    // A guest who signs up on the guest page to accept has no invitation
-    // behind them — `pending_invites` keys on an address nobody wrote to — so
-    // without this the one arrival that is most plainly somebody's doing is
-    // the one nothing is credited for.
-    //
-    // *New* is the whole of the test, and it is read off the clock rather
-    // than trusted to the flow: the account has to have been created after
-    // this seat was admitted, which is true exactly when it was made inside
-    // this visit — the sign-up needs an emailed code, so an account made
-    // before the knock cannot share a millisecond with it. A member of two
-    // years who opens a guest link and gets asked is not somebody the asker
-    // brought to this app, and back-dating an inviter onto them would make
-    // the standings a claim about who happened to tap first. `creditInviter` refuses the rest — an account that
-    // already has an inviter, and a cycle.
-    const account = this.accounts.byId(accountId);
-    if (account && account.created_at > session.admitted_at) {
-      this.accounts.creditInviter(accountId, askerId);
-    }
+    this.creditArrival(accountId, askerId, session);
 
     // Already contacts is an ordinary way to arrive here: somebody may open a
     // link into a channel a contact of theirs is in, and be asked by a member
     // who does not know them from the one who does. Nothing to write, and the
-    // invitation below is the whole of what they came for.
+    // answer below is the whole of what is left.
     if (!this.accounts.areContacts(accountId, askerId)) {
       // The asker is the requester, here as everywhere: whoever reached out is
       // the nearest thing the pair has to an initiator, and `ensurePairChannel`
@@ -5376,31 +5442,88 @@ export class ChannelRegistry {
       this.ensurePairChannel(askerId, accountId);
     }
 
-    // On the asker's behalf, and through `dispatch` rather than the reducer, so
-    // that being contacts, the roster's size, and their being in the room are
-    // all re-checked by the code that owns those rules rather than restated
-    // here. A refusal is not a failure: the channel may have emptied or the
-    // asker stepped out while somebody was reading their email, and what they
-    // came for — the contact — has already happened.
-    // The wire form, which is what `dispatch` takes and translates — the same
-    // shape the socket hands it. Cast for the same reason every other call
-    // here is: the reducer's INVITE names an invitee and this one names a
-    // contact, that difference being precisely the check `dispatch` makes.
-    const invited = this.dispatch(channel.id, askerId, {
-      type: 'INVITE',
-      contactId: accountId,
-    } as unknown as Omit<ChannelAction, 'userId'> & {
-      type: ChannelAction['type'];
-    }, { announce: false });
+    // The card reads what came of the ask rather than disappearing with the
+    // guest, which is the state that could not exist before this change.
+    this.apply(channel.id, '', {
+      type: 'GUEST_ACCEPTED_CONTACT',
+      guestId,
+      askerId,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
 
-    // The seat is finished either way: they are a member now, or they are not
-    // getting in through this door on this visit. Their page is leaving, and
-    // one person holding a seat and a membership in one channel would be two
-    // people to everything that counts.
-    this.guests.close(guestId, this.now());
-    this.guestGone(channel.id, guestId);
+    return { ok: true };
+  }
 
-    return { ok: true, channelId: invited.ok ? channel.id : null };
+  /**
+   * A guest accepts a member's ask that they make an account here — **and
+   * that is the whole of it.**
+   *
+   * The first rung, and the one that asks for nothing. No contact, no
+   * membership, no second question: the seat gains an account behind it, the
+   * room starts calling them by their own name, and the rest of the
+   * application becomes reachable. What the asker gets is somebody on The
+   * Floor, which is the point of having this separate from the ask above.
+   *
+   * The account itself is made by `POST /auth/verify` before this is called,
+   * exactly as it is for anybody else — `establish` creates one on first sight
+   * of an address. By the time this runs the caller holds a token, so there is
+   * nothing here about addresses or codes.
+   */
+  acceptGuestJoin(
+    accountId: string,
+    guestId: string,
+    secret: string,
+    askerId: string
+  ): { ok: true } | Refused {
+    const claimed = this.claimSeat(accountId, guestId, secret);
+    if (!claimed.ok) return claimed;
+    const { session, guest } = claimed;
+    if (guest.invites?.[askerId] !== 'asking') {
+      return { ok: false, error: 'Nobody asked.', code: 'not_found' };
+    }
+    this.creditArrival(accountId, askerId, session);
+    // **Nothing marks this accepted, deliberately.** What acceptance produces
+    // is the seat's `accountId`, which every reader can already see; a second
+    // record saying they said yes would be one more thing to keep in step with
+    // it. `Guest.invites` says so at more length.
+    return { ok: true };
+  }
+
+  /**
+   * Ends whatever seat this account was holding in this channel.
+   *
+   * **`Guests.close` rather than `eject`**, which is that method's own
+   * argument: ejecting revokes the link somebody came through, and nobody is
+   * being thrown out here — the link is very often one other people are also
+   * holding.
+   *
+   * A no-op for the ordinary invitation, which is how most people are asked
+   * into a channel: nobody in `guests` has their id behind them, and nothing
+   * happens.
+   */
+  private closeSeatFor(channelId: string, accountId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+    for (const guest of Object.values(channel.guests)) {
+      if (guest.accountId !== accountId) continue;
+      this.guests.close(guest.id, this.now());
+      this.guestGone(channelId, guest.id);
+    }
+  }
+
+  /**
+   * Whether the seat a guest held was closed because they became a member.
+   *
+   * What `pushGuest` asks when a view has gone missing, so that somebody who
+   * has just been asked into the channel is not told they are *no longer in
+   * this channel* — which is the one reading of that sentence that is exactly
+   * backwards. Derived rather than remembered: a closed seat's row survives,
+   * so the account behind it is still readable, and whether that account is a
+   * participant is the question itself.
+   */
+  seatPromoted(channelId: string, guestId: string): boolean {
+    const accountId = this.guests.byId(guestId)?.account_id;
+    const channel = this.channels.get(channelId);
+    return !!accountId && !!channel && isParticipant(channel, accountId);
   }
 
   /** A guest's socket has gone, or their grace has run out. */
@@ -5494,6 +5617,13 @@ export class ChannelRegistry {
       // and a page that kept showing them would be asking again on somebody
       // else's behalf.
       asks: Object.entries(guest.asks ?? {})
+        .filter(([, state]) => state === 'asking')
+        .map(([askerId]) => ({ askerId, from: this.displayName(askerId) })),
+      // The other question, on the same terms, and separate because it is a
+      // different one: a member may have put either, both or neither. An
+      // accepted one is gone from here the way a refused one is — what it
+      // produced is `you.accountId`, which the page already has.
+      invites: Object.entries(guest.invites ?? {})
         .filter(([, state]) => state === 'asking')
         .map(([askerId]) => ({ askerId, from: this.displayName(askerId) })),
       recording: channel.recording.status === 'recording',

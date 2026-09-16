@@ -1295,6 +1295,29 @@ export function canManageGuest(
 }
 
 /**
+ * Whether `userId` may ask `guestId` to make an account here.
+ *
+ * `canManageGuest` and one thing more: the seat must not already have one.
+ * Stated as its own guard rather than left to the reducer, because the app
+ * draws a control from it — and a control and a guard that disagree is the
+ * one arrangement this codebase does not allow.
+ *
+ * **It does not ask whether they were asked already.** Two members may each
+ * ask, as they may each ask for a contact, and each is owed their own answer;
+ * what is refused twice is the *same* member asking twice, which the reducer
+ * settles by returning the same object.
+ */
+export function canAskGuestJoin(
+  state: ChannelState,
+  userId: UserId,
+  guestId: GuestId
+): boolean {
+  return (
+    canManageGuest(state, userId, guestId) && !state.guests[guestId]?.accountId
+  );
+}
+
+/**
  * The actions a guest may perform.
  *
  * A second lock rather than the only one: what refuses a guest everything else
@@ -1315,6 +1338,7 @@ export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
   'CLEAR_CLIP',
   'REQUEST_SPEECH',
   'REFUSE_CONTACT',
+  'REFUSE_JOIN',
   'SET_GUEST_NAME',
 ]);
 
@@ -1484,12 +1508,19 @@ export function reduce(
     // stumbled, and a guest page reconnects on any blip and on every deploy.
     // The member's card would flip back to offering an ask they had already
     // made, and the prompt in front of the guest would vanish mid-answer.
-    const asks = state.guests[action.guest.id]?.asks;
+    //
+    // `invites` and `asks` both, for one reason: the seat's row holds neither.
+    const held = state.guests[action.guest.id];
+    const carried: Guest = {
+      ...action.guest,
+      ...(held?.asks ? { asks: held.asks } : {}),
+      ...(held?.invites ? { invites: held.invites } : {}),
+    };
     return {
       ...state,
       guests: {
         ...state.guests,
-        [action.guest.id]: asks ? { ...action.guest, asks } : action.guest,
+        [action.guest.id]: carried,
       },
       // Keyed on arrival rather than on admission, so a reconnection puts the
       // microphone back as they left it rather than as they were let in.
@@ -1497,6 +1528,37 @@ export function reduce(
       // Arriving is proof of a live connection, as it is for a member.
       disconnectedAt: without(state.disconnectedAt, action.guest.id),
       lastActiveAt: now,
+    };
+  }
+
+  if (action.type === 'GUEST_IDENTIFIED') {
+    const guest = state.guests[action.guestId];
+    if (!guest || guest.accountId === action.accountId) return state;
+    return {
+      ...state,
+      guests: {
+        ...state.guests,
+        [action.guestId]: { ...guest, accountId: action.accountId },
+      },
+    };
+  }
+
+  if (action.type === 'GUEST_ACCEPTED_CONTACT') {
+    const guest = state.guests[action.guestId];
+    // Only a live ask can be accepted. A refusal that has been answered is
+    // not reopened by this, and an acceptance nobody asked for is not a thing
+    // the server can raise — it checks the same condition before writing the
+    // row, and this is the reducer saying so itself.
+    if (guest?.asks?.[action.askerId] !== 'asking') return state;
+    return {
+      ...state,
+      guests: {
+        ...state.guests,
+        [action.guestId]: {
+          ...guest,
+          asks: { ...guest.asks, [action.askerId]: 'accepted' },
+        },
+      },
     };
   }
 
@@ -1739,6 +1801,45 @@ export function reduce(
           [action.guestId]: {
             ...guest,
             asks: { ...asks, [action.userId]: 'asking' },
+          },
+        },
+      };
+    }
+
+    case 'ASK_GUEST_JOIN': {
+      if (!canAskGuestJoin(state, action.userId, action.guestId)) return state;
+      const guest = state.guests[action.guestId];
+      const invites = guest.invites ?? {};
+      // Asking twice is not a second question, and asking again after a
+      // refusal is not a way to have it re-answered — the same rule the
+      // contact ask above makes, for the same reason.
+      if (invites[action.userId]) return state;
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.guestId]: {
+            ...guest,
+            invites: { ...invites, [action.userId]: 'asking' },
+          },
+        },
+      };
+    }
+
+    case 'REFUSE_JOIN': {
+      const guest = state.guests[action.userId];
+      // Members are refused by GUEST_ACTIONS, as `REFUSE_CONTACT` is, and the
+      // reducer says so itself rather than relying on that.
+      if (!guest) return state;
+      const invites = guest.invites ?? {};
+      if (invites[action.askerId] !== 'asking') return state;
+      return {
+        ...state,
+        guests: {
+          ...state.guests,
+          [action.userId]: {
+            ...guest,
+            invites: { ...invites, [action.askerId]: 'refused' },
           },
         },
       };

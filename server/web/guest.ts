@@ -493,6 +493,14 @@ async function handle(message: GuestServerMessage): Promise<void> {
       }
       return;
 
+    case 'joined':
+      // **The seat ended upwards**: a member asked the account behind it into
+      // the channel, so this page is the wrong client rather than an unwelcome
+      // one. `handOverToChannel` forgets the seat as the refusal below does —
+      // it is just as over — and the reconnection loop must not retry it.
+      await handOverToChannel();
+      return;
+
     case 'refused':
       // Whatever ended it — a refusal at the door, an ejection, the last
       // member leaving — the seat is over. Forgetting it here is what stops
@@ -578,6 +586,11 @@ function render(next: GuestView): void {
   // nothing: a seat with no account behind it would be sent to a sign-in it
   // did not ask for, and a box with no web app has nowhere to send anybody.
   $('home-link').hidden = !next.you.accountId || !hasWebApp;
+  // The same first condition and not the second: whether this box serves a web
+  // app says nothing about whether this phone has the native one. What no
+  // condition can cover is whether the app is installed at all, iOS giving a
+  // page no way to ask — see the markup, and planning/UNIVERSAL-LINKS.md.
+  $('app-link').hidden = !next.you.accountId;
 
   // Seeded rather than bound: retyping over somebody mid-edit is the one way
   // a field like this can be annoying, and a snapshot arrives on every change
@@ -592,47 +605,85 @@ function render(next: GuestView): void {
 }
 
 /**
- * The asks, and the one control that is not addressed to the room.
+ * The two asks, and the only controls here not addressed to the room.
  *
- * Everything else on this page is a message to the channel. This is a message
- * to an account — accepting makes somebody a contact and a member — so it goes
- * over HTTP with a token, and the seat's own secret goes with it so the server
- * can bind the two.
+ * Everything else on this page is a message to the channel. These are messages
+ * to an account — one makes somebody a contact, the other makes them a user of
+ * The Floor — so each goes over HTTP with a token, and the seat's own secret
+ * goes with it so the server can bind the two.
+ *
+ * **Neither makes anybody a member of this channel**, which the first one did
+ * until 2026-09-16. Being asked in is a member's act, and it reaches this page
+ * as `joined`.
  */
-let signingInFor: string | null = null;
+type SignIn = { askerId: string; kind: 'contact' | 'join' };
+let signingInFor: SignIn | null = null;
 let codeSentTo: string | null = null;
 
 function renderAsks(next: GuestView): void {
   const asks = $('asks');
-  asks.hidden = next.asks.length === 0;
-  if (next.asks.length === 0) {
+  asks.hidden = next.asks.length === 0 && next.invites.length === 0;
+  if (asks.hidden) {
     closeSignIn();
     return;
   }
 
-  const list = $('ask-list');
+  $('ask-block').hidden = next.asks.length === 0;
+  fillAsks(
+    'ask-list',
+    next.asks,
+    (from) => `${from} would like to add you as a contact.`,
+    { kind: 'contact', identified: !!next.you.accountId }
+  );
+
+  $('invite-block').hidden = next.invites.length === 0;
+  fillAsks(
+    'invite-list',
+    next.invites,
+    (from) => `${from} thinks you should be on The Floor.`,
+    { kind: 'join', identified: !!next.you.accountId }
+  );
+}
+
+/**
+ * One list of asks, drawn the same way whichever question it is.
+ *
+ * The only difference between the two is the sentence and what accepting
+ * posts to; the shape — a line, an accept whose label says whether an account
+ * is needed, and a refusal that is kept rather than swallowed — is the same,
+ * and writing it twice is how the two would drift.
+ */
+function fillAsks(
+  id: string,
+  items: GuestView['asks'],
+  say: (from: string) => string,
+  how: { kind: SignIn['kind']; identified: boolean }
+): void {
+  const list = $(id);
   list.textContent = '';
-  for (const ask of next.asks) {
+  for (const ask of items) {
     const line = document.createElement('li');
     const said = document.createElement('p');
-    said.textContent = `${ask.from} would like to add you as a contact.`;
+    said.textContent = say(ask.from);
     line.append(said);
 
     const accept = document.createElement('button');
     // The whole difference the account makes, said in the label: one tap for
     // somebody already signed in, and an address and a code for anybody else.
-    accept.textContent = next.you.accountId
-      ? 'Accept'
-      : 'Accept — sign in here';
+    accept.textContent = how.identified ? 'Accept' : 'Accept — sign in here';
     accept.addEventListener('click', () => {
-      if (next.you.accountId) void acceptAsk(ask.askerId);
-      else openSignIn(ask.askerId, ask.from);
+      if (how.identified) void sendAccept({ askerId: ask.askerId, kind: how.kind });
+      else openSignIn({ askerId: ask.askerId, kind: how.kind }, ask.from);
     });
 
     const decline = document.createElement('button');
     decline.textContent = 'No thanks';
     decline.addEventListener('click', () => {
-      act({ type: 'REFUSE_CONTACT', askerId: ask.askerId });
+      act(
+        how.kind === 'contact'
+          ? { type: 'REFUSE_CONTACT', askerId: ask.askerId }
+          : { type: 'REFUSE_JOIN', askerId: ask.askerId }
+      );
     });
 
     line.append(accept, decline);
@@ -640,8 +691,8 @@ function renderAsks(next: GuestView): void {
   }
 }
 
-function openSignIn(askerId: string, from: string): void {
-  signingInFor = askerId;
+function openSignIn(who: SignIn, from: string): void {
+  signingInFor = who;
   codeSentTo = null;
   $('sign-in').hidden = false;
   $('sign-in-address').hidden = false;
@@ -649,10 +700,15 @@ function openSignIn(askerId: string, from: string): void {
   $('sign-in-error').hidden = true;
   ($('sign-in-button') as HTMLButtonElement).textContent = 'Send me a code';
   // Said plainly, because signing in is a bigger thing than the tap that led
-  // here and nobody should discover afterwards what they have made.
+  // here and nobody should discover afterwards what they have made. **And it
+  // says what each ask does not do**, membership of this channel being the
+  // thing both of them used to carry and neither does.
   $('sign-in-note').textContent =
-    `Accepting makes you and ${from} contacts, which needs an account. ` +
-    'You stay in this conversation the whole time.';
+    (who.kind === 'contact'
+      ? `Accepting makes you and ${from} contacts, which needs an account. `
+      : 'Accepting makes you an account here, and nothing else. ') +
+    'You stay in this conversation the whole time, and you stay a guest of ' +
+    'this channel.';
 }
 
 function closeSignIn(): void {
@@ -668,24 +724,37 @@ function signInTrouble(text: string): void {
 }
 
 /**
- * Sends the acceptance, and hands the tab over to the app.
+ * Sends an acceptance, and stays exactly where it is.
  *
  * The seat is the second half of the credential, so this cannot be replayed
- * from anywhere but the page holding it. **No `STEP_OUT` on the way out**: the
- * server has already taken the seat out of the room by the time this answers,
- * so sending one would be a guest action from somebody who is no longer a
- * guest — refused, and drawn as an error across a page that is leaving.
+ * from anywhere but the page holding it.
+ *
+ * **It used to hand the tab over to the app, and the removal is the point of
+ * the 2026-09-16 change.** Accepting a contact ask wrote a membership too, so
+ * this page had become the wrong client the moment the route answered: it
+ * released the microphone, dropped the room, wrote the channel into
+ * `sessionStorage` and navigated. None of that is true any more. Accepting
+ * makes somebody a contact, or an account holder, and leaves them sitting in
+ * the same room hearing the same conversation — so there is nothing to release
+ * and nowhere to go.
+ *
+ * What the page does show is the next view, which arrives on its own: the ask
+ * leaves `asks`, and a seat that has just been identified comes back with an
+ * `accountId` and its account's name.
  */
-async function acceptAsk(askerId: string): Promise<void> {
+async function sendAccept(who: SignIn): Promise<void> {
   const seat = storedSeat();
   const token = storedToken();
   if (!seat || !token) {
     signInTrouble('This page has lost its seat. Reload and try again.');
     return;
   }
-  let answer: { channelId?: string | null; url?: string | null; error?: string };
+  const route =
+    who.kind === 'contact'
+      ? '/contacts/guest-ask/accept'
+      : '/contacts/guest-invite/accept';
   try {
-    const response = await fetch('/contacts/guest-ask/accept', {
+    const response = await fetch(route, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -694,14 +763,10 @@ async function acceptAsk(askerId: string): Promise<void> {
       body: JSON.stringify({
         guestId: seat.guestId,
         secret: seat.secret,
-        askerId,
+        askerId: who.askerId,
       }),
     });
-    answer = (await response.json()) as {
-      channelId?: string | null;
-      url?: string | null;
-      error?: string;
-    };
+    const answer = (await response.json()) as { error?: string };
     if (!response.ok) {
       signInTrouble(answer.error ?? 'That would not go through.');
       return;
@@ -710,40 +775,42 @@ async function acceptAsk(askerId: string): Promise<void> {
     signInTrouble('The network would not carry that. Try again.');
     return;
   }
+  closeSignIn();
+}
 
-  // **The microphone is released here rather than left to the navigation.**
-  // `room.disconnect()` drops the connection, and a browser is entitled to
-  // leave a capture that is already open running — so a page that merely went
-  // away could still be holding the device when the app asked for it a second
-  // later, and both of them would be. `setMicrophone(false)` unpublishes and
-  // stops the track, which is what actually hands it back.
-  //
-  // Awaited, because the point of it is to have finished before the next view
-  // asks. A page being torn down is not a place to fire and forget.
+/**
+ * A member has asked the account behind this seat into the channel.
+ *
+ * **The one way out of this room that is not a refusal**, and the only place
+ * the hand-over that used to live in the acceptance still belongs: the seat is
+ * over because the person is a member now, so this page *is* the wrong client
+ * and the app is where the rest of it happens.
+ *
+ * The microphone is released here rather than left to the navigation.
+ * `room.disconnect()` drops the connection, and a browser is entitled to leave
+ * a capture that is already open running — so a page that merely went away
+ * could still be holding the device when the app asked for it a second later,
+ * and both of them would be. `setMicrophone(false)` unpublishes and stops the
+ * track, which is what actually hands it back. Awaited, because the point of
+ * it is to have finished before the next view asks.
+ */
+async function handOverToChannel(): Promise<void> {
+  const channelId = view?.channelId ?? null;
   await setMicrophone(false);
   keepSeat(null);
   await room?.disconnect();
 
-  // **Where the app is, is the server's answer and not this page's guess.**
-  // The two trains ship separately and a box quite normally serves one and
-  // 503s the other — so a hardcoded `/app` handed somebody a JSON error body,
-  // which a phone browser offers to save as a file. Whoever tapped Accept had
-  // become a contact and a member and was shown a download.
-  //
-  // Null when there is no web app on this box at all. Said rather than
-  // navigated into: the seat is closed by now, so there is no room to stay in
-  // and nothing to do but tell them what happened and where they already are.
   // **Which channel travels with them, out of the address.** The app has no
   // address that names a room, so the one thing this walk has to carry goes in
   // the storage both documents share — with `enter`, because they were audible
   // in there a second ago and being asked to step back in would be the app
   // forgetting what it had just watched them do. Written before the navigation
   // and taken by the app on boot; see `app/src/ui/handover.ts`.
-  if (answer.channelId) {
+  if (channelId) {
     try {
       sessionStorage.setItem(
         HANDOVER_KEY,
-        JSON.stringify({ channelId: answer.channelId, enter: true })
+        JSON.stringify({ channelId, enter: true })
       );
     } catch {
       // Storage blocked. They land on the channel list, which is a place they
@@ -751,15 +818,21 @@ async function acceptAsk(askerId: string): Promise<void> {
     }
   }
 
-  if (answer.url) {
+  // **Where the app is, is the server's answer and not this page's guess.**
+  // The two trains ship separately and a box quite normally serves one and
+  // 503s the other — so a hardcoded `/app` handed somebody a JSON error body,
+  // which a phone browser offers to save as a file. `/open` is the one place
+  // that question is answered; `data-app` is only whether to go at all, a box
+  // with no web app having nowhere to send anybody.
+  if (hasWebApp) {
     // `replace` rather than `assign`: the seat behind this page is closed, so
     // Back would return to a room that no longer exists and a socket that will
     // be refused. Nothing here is worth keeping in the history of the tab.
-    location.replace(answer.url);
+    location.replace('/open');
     return;
   }
   $('refused-reason').textContent =
-    'You are contacts now, and a member of this channel. Open The Floor on your phone to join it.';
+    'You are a member of this channel now. Open The Floor to join it.';
   show('refused');
 }
 
@@ -807,8 +880,8 @@ $('sign-in-cancel').addEventListener('click', () => {
  */
 $('sign-in').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const askerId = signingInFor;
-  if (!askerId) return;
+  const who = signingInFor;
+  if (!who) return;
   const button = $('sign-in-button') as HTMLButtonElement;
   const address = ($('email-field') as HTMLInputElement).value.trim();
   const code = ($('code-field') as HTMLInputElement).value.trim();
@@ -852,12 +925,28 @@ $('sign-in').addEventListener('submit', async (event) => {
       return;
     }
     keepToken(answer.token);
-    await acceptAsk(askerId);
+    await sendAccept(who);
   } catch {
     signInTrouble('The network would not carry that. Try again.');
   } finally {
     button.disabled = false;
   }
+});
+
+/**
+ * The app, if this phone has it.
+ *
+ * A custom scheme rather than an `https://` address, and that is not a
+ * preference: a universal link does not fire from a tap on a page already on
+ * the domain it claims, so this would be `thefloor://` even if there were an
+ * AASA. `expo.scheme` in `app.json` is the other half, and no build made
+ * before it was added registers this.
+ *
+ * Nothing is reported either way. A browser that has no app for the scheme
+ * says so itself, and a page that tried to guess would be guessing.
+ */
+$('open-app-button').addEventListener('click', () => {
+  location.href = 'thefloor://';
 });
 
 $('unmute-page').addEventListener('click', () => {

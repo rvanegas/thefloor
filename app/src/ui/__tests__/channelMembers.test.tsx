@@ -197,6 +197,70 @@ describe('Channel, with a guest in it', () => {
     act(() => refused.unmount());
   });
 
+  it('offers The Floor to a seat with nobody behind it, and to no other', () => {
+    // The weakest of the three asks, added 2026-09-16: an account, and nothing
+    // else asked of them. It means something only to a seat that has no
+    // account, which is why the control is not drawn for one that has.
+    showChannel(withGuest());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    act(() => findButton(tree, 'Ask them to join')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'ASK_GUEST_JOIN',
+      guestId: DANA_GUEST,
+    });
+    act(() => tree.unmount());
+
+    // Asked once is asked; a refusal is its own thing to be told, and neither
+    // says anything about the contact ask.
+    showChannel(withGuest({ invites: { [ME]: 'refused' } }));
+    const refused = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(findButton(refused, 'They said no')!.props.disabled).toBe(true);
+    expect(findButton(refused, 'Add contact')).toBeTruthy();
+    act(() => refused.unmount());
+
+    // And an identified seat has answered this question already.
+    showChannel(withGuest({ accountId: THEM }));
+    const known = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(findButton(known, 'Ask them to join')).toBeUndefined();
+    act(() => known.unmount());
+  });
+
+  it('adds a guest to the channel only once they are a contact', () => {
+    // **The third rung, and the point of the 2026-09-16 change.** Accepting a
+    // contact ask used to carry a membership with it; it does not, so being
+    // asked in is a second act and this is the control that makes it. Drawn
+    // from the same fact `INVITE` is refused without.
+    showChannel(withGuest({ accountId: THEM }));
+    const stranger = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(findButton(stranger, 'Add to channel')).toBeUndefined();
+    act(() => stranger.unmount());
+
+    knowing(THEM);
+    showChannel(withGuest({ accountId: THEM, asks: { [ME]: 'accepted' } }));
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    // The contact ask has been answered, and the card says so rather than
+    // offering it again — a state that could not exist before, acceptance
+    // having taken the guest off the screen.
+    expect(findButton(tree, 'Contact')!.props.disabled).toBe(true);
+
+    act(() => findButton(tree, 'Add to channel')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'INVITE',
+      contactId: THEM,
+    });
+    act(() => tree.unmount());
+  });
+
   it('shares a link, and says the sharing is not the letting in', async () => {
     // Awaited inside `act`, unlike most of this file: minting is a round trip
     // and the share sheet is a second one, so a synchronous tap leaves two

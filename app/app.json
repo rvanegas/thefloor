@@ -3,6 +3,7 @@
     "name": "The Floor",
     "slug": "thefloor",
     "version": "1.5.2",
+    "scheme": "thefloor",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

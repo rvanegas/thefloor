@@ -211,14 +211,26 @@
       <button id="mute-button" hidden>Mute</button>
 
       <!--
-        One block per member who has asked to keep this guest. Accepting is an
-        account's act, so for somebody already signed in it is one tap, and for
-        anybody else it opens the sign-in below — in this page, in this room,
-        with the conversation still audible throughout.
+        The two asks a member can put to a guest, and they are different
+        questions. *Keep in touch* asks for a relationship; *join The Floor*
+        asks for nothing and offers an account. Both are an account's act, so
+        for somebody already signed in each is one tap, and for anybody else
+        each opens the sign-in below — in this page, in this room, with the
+        conversation still audible throughout.
+
+        Neither carries a membership of this channel. Being asked in is a
+        member's own act and arrives as this page being told it has ended,
+        which is what `joined` is for.
       -->
       <section id="asks" hidden>
-        <h2>Somebody wants to keep in touch</h2>
-        <ul id="ask-list"></ul>
+        <div id="ask-block" hidden>
+          <h2>Somebody wants to keep in touch</h2>
+          <ul id="ask-list"></ul>
+        </div>
+        <div id="invite-block" hidden>
+          <h2>Somebody has asked you onto The Floor</h2>
+          <ul id="invite-list"></ul>
+        </div>
         <form id="sign-in" hidden>
           <p class="muted" id="sign-in-note"></p>
           <div id="sign-in-address">
@@ -280,6 +292,24 @@
         <p id="home-link" hidden>
           <a href="/open">Go to The Floor</a> — this channel is on your home
           screen while your seat lasts.
+        </p>
+        <!--
+          **An offer rather than a promise, and worded like one.** iOS gives a
+          page no way to ask whether an app is installed, so this is a custom
+          scheme that either opens The Floor or does nothing visible — and on
+          a phone whose install predates the scheme, or has no app at all, the
+          browser says the address is invalid. A universal link is what would
+          make that graceful, and planning/UNIVERSAL-LINKS.md is the account of
+          why there is not one.
+
+          Shown only to an identified seat, which is the nearest thing to a
+          filter there is: somebody with an account is overwhelmingly somebody
+          with the app, and offering it to an anonymous guest would be offering
+          a sign-in they did not ask for through a door that may not open.
+        -->
+        <p id="app-link" hidden>
+          <button id="open-app-button" type="button">Open the app</button>
+          — if you have The Floor installed.
         </p>
         <button id="leave-button">Leave</button>
       </section>

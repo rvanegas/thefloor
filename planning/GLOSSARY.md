@@ -52,8 +52,9 @@ caused; the list carries the meaning.
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Getting-started channel** — The one channel a new account with nobody here is put into, named *Getting Started Cohort <n>*: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has turned notifications on, at the moment they do
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
-- **Guest** — Somebody in a channel with no account here, admitted by a member through a *guest link*
-- **Guest link** — A link a member shares that lets somebody open a channel in a browser without an account
+- **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link*; with or without an account here
+- **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
+- **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists and the *Support* tab, not one thing
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
@@ -64,7 +65,7 @@ caused; the list carries the meaning.
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
-- **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*
+- **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
@@ -584,20 +585,55 @@ be dismissed, per install, and dismissing it changes nothing about the channel.
 
 ## Guest
 
-Somebody in a channel with no account here, admitted by a member through a
-*guest link*. They can listen; they can speak only if a member turns their
-microphone on; they cannot record and cannot reach anything else of yours.
+Somebody holding a *seat* in a channel they are not a member of, admitted
+through a *guest link*. They can listen; they can speak only if a member turns
+their microphone on; they cannot record and cannot reach anything else of
+yours.
+
+**Not "somebody with no account here"**, which is what this said until
+2026-09-16 and what the code said with it. A seat may carry an account — that
+has been true since 2026-08-30, when following a link while signed in stopped
+making somebody a stranger — and since the three asks came apart it may carry
+somebody who is a *contact* of a member in the room and still a guest of the
+channel. **Having an account and belonging to a channel are two facts**, and
+conflating them is what the ladder below exists to stop.
 
 A guest is *in the room* but is not a *participant* — every rule in this system
 is written so that a guest is refused by default and granted things one at a
-time, in writing. See *participant*, *member*, and *seat*.
+time, in writing. Being known confers none of it. See *participant*, *member*,
+*seat*, and *the three asks*.
 
 ## Guest link
 
-A link a member shares that lets somebody open a channel in a browser without
-an account. It is not self-propagating: anybody holding it can *knock*, and
-only somebody already in the room can open the door. It stops working once the
-channel is empty of members.
+A link a member shares that lets somebody open a channel in a browser. It is
+not self-propagating: anybody holding it can *knock*, and only somebody already
+in the room can open the door. It stops working once the channel is empty of
+members.
+
+**With or without an account**, and it is the ordinary way an existing user
+meets a channel they do not belong to — there being no other door into one.
+Following it while signed in makes you a guest *of the channel*, not a guest of
+the app: the room shows your own name, and you are refused exactly what any
+guest is.
+
+## The three asks
+
+What a member may put to a guest, from inside the room. **Three questions, each
+one tap, and none of them implies the next** — which is the change of
+2026-09-16, the first two having been one act until then.
+
+- ***Ask them to join*** — will you make an account here? It asks for nothing
+  else: not a contact, not a membership. Offered only to a seat with nobody
+  behind it, that being the only seat it means anything to.
+- ***Add contact*** — will you be my contact? Accepting writes the contacts
+  row and the pair's own channel, and **leaves them a guest of this one**. It
+  used to carry the membership with it, so answering this was answering both.
+- ***Add to channel*** — an ordinary *invitation*, against the account behind
+  the seat, offered once they are a contact. **This is where the seat ends**:
+  you stop being a guest at the moment you become a member.
+
+**Stopping at the second rung is the common case rather than a conversion that
+failed.** A guest without a membership is what a guest link is for.
 
 ## Help
 
@@ -1254,7 +1290,14 @@ opens the guest page, and it expires on its own if unused.
 Distinct from *membership* in almost every way that matters — a seat has no
 roster, no recordings and no history of the channel, only when it was admitted.
 Distinct also from being *present*: a seat outlives the visit, which is what
-lets a guest come back.
+lets a guest come back. **And distinct from having an account**, which a seat
+may or may not have behind it; the two are what *guest* used to run together.
+
+**A seat ends in one of two directions.** Downwards, when it is ejected,
+expires, or goes with the last member out. Upwards, when the account behind it
+is asked into the channel — one person holding a seat and a membership in one
+channel would be two people to the roster, the stems and the usage spans, so
+*add to channel* closes it.
 
 ## Self-mute
 

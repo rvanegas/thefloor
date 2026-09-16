@@ -1343,7 +1343,7 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * A guest accepts a member's ask, and walks into the channel as themselves.
+   * A guest accepts a member's ask to be a contact — and stays where they are.
    *
    * **Over HTTP rather than the guest socket**, and that is the whole reason
    * this route exists: everything else a guest does is addressed to the room
@@ -1352,9 +1352,12 @@ export function buildApp(options: BuildOptions = {}): App {
    * token for who they are, and the seat's own secret for where they are
    * sitting — and binding the two is what makes the acceptance mean anything.
    *
-   * Answers with the channel to open, or null when only the contact stood: the
-   * room may have emptied, or the asker stepped out, while somebody was
-   * reading their email.
+   * **It used to answer with a channel to open, and no longer answers with
+   * anything.** Accepting wrote a membership as well as a contact until
+   * 2026-09-16, so the page had somewhere to go the moment it returned; now
+   * the seat stands and nothing about where this person is has changed. Being
+   * asked into the channel is a second act by a member — an ordinary `INVITE`
+   * — and the hand-over went with it.
    */
   fastify.post('/contacts/guest-ask/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -1378,26 +1381,46 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }
     // Both, as every contact mutation does: one of them has a new contact and
-    // possibly somebody new in a channel they are sitting in, and the other has
-    // a Home with a contact and a channel on it that were not there before.
+    // the pair's own channel, and the other has a Home with a contact and a
+    // channel on it that were not there before.
     homeNotifier.notify([account.id, body.askerId]);
-    // The door rather than a train. This route knew which trains existed and
-    // could have picked one — but so did three other places, and each of them
-    // getting it right separately is what produced two 503s in two days. It
-    // names the destination and `/open` decides how to get there, including
-    // what to say when there is no web app at all.
-    return {
-      ok: true,
-      channelId: result.channelId,
-      // **The door and nothing else.** This named the channel and carried
-      // `?enter=1` until 2026-09-04; both now travel in this tab's
-      // `sessionStorage`, written by the page that is leaving and taken by the
-      // app when it boots. The reason they were audible in that room a second
-      // ago is unchanged — landing outside it and being asked to step in would
-      // be the app forgetting what it had just watched them do — but an
-      // address is no longer where this application says which room.
-      url: '/open',
-    };
+    return { ok: true };
+  });
+
+  /**
+   * A guest accepts a member's ask that they make an account here.
+   *
+   * The weakest of the three asks and the shortest route of the three: by the
+   * time this is called the account exists and the caller holds a token for it
+   * — `POST /auth/verify` made it, as it does for anybody — so all that is
+   * left is to bind it to the seat and credit whoever asked.
+   *
+   * **Nothing is notified.** No contact was written and no channel changed, so
+   * there is no Home anywhere that reads differently; the one thing that did
+   * change is the seat, and the room is told by the ordinary push of the view.
+   */
+  fastify.post('/contacts/guest-invite/accept', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as
+      | { guestId?: string; secret?: string; askerId?: string }
+      | undefined;
+    if (!body?.guestId || !body.secret || !body.askerId) {
+      return reply
+        .code(400)
+        .send({ error: 'guestId, secret and askerId are required' });
+    }
+
+    const result = channels.acceptGuestJoin(
+      account.id,
+      body.guestId,
+      body.secret,
+      body.askerId
+    );
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
   });
 
   /**

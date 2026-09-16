@@ -45,11 +45,19 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 198 | `thefloor.intro.arrival` read as the old latch | `app/src/state/useIntroduction.ts` |
 | 206 | `HomeView.helpAnsweredAt` optionality | `core/protocol.ts`, `app/src/state/helpSeen.ts` |
 | 212 | `HomeView.cohortEligible` optionality | `core/protocol.ts`, `app/src/state/AppProvider.tsx`, `app/src/state/notificationAsk.ts` |
+| 215 | `Guest.asks` / `Guest.invites` optionality, and `'accepted'` | `core/types.ts`, `app/src/ui/ChannelView.tsx` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
 `ChannelView.pingableAt` and `ChannelView.notificationLevel` — went in the same
 commit, so nothing above is free today.
+
+`Guest.invites` is the same shape as `Guest.asks` before it and gated the same
+way: both are optional on the wire so that a client which knows about them can
+meet a server which does not, and `'accepted'` is a value an older app renders
+as an unlabelled ask. 215 is the build in `app.json` at the moment this landed,
+which is the next one to be uploaded and therefore the first that speaks these
+fields.
 
 `mediaRoom` has no gate because the client half that would fix one has not
 shipped. It is here rather than omitted because it is a wire field whose

@@ -333,6 +333,7 @@ describe('admission', () => {
       'you',
       'others',
       'asks',
+      'invites',
       'recording',
       'clip',
       'serverNow',
@@ -653,10 +654,12 @@ describe('being asked to be a contact', () => {
     expect(view.asks).toEqual([{ askerId: alice.account.id, from: 'Alice' }]);
   });
 
-  it('makes a contact and a member of somebody signing in from the room', async () => {
-    // The whole of it, for a guest who had no account when they knocked: they
-    // sign in where they are standing, and the seat and the token together are
-    // what the acceptance is made of.
+  it('makes a contact of somebody signing in from the room, and no more', async () => {
+    // **The whole of the 2026-09-16 change is this test.** It used to be
+    // called *makes a contact and a member*, and asserted that the seat was
+    // finished and the account was in `participants` — accepting wrote both in
+    // one breath. Being in somebody's contacts and belonging to their channel
+    // are two facts now, and this is the first of them on its own.
     const { alice, guest, member, channelId, admission } = await asked();
     const dana = await signIn('dana@example.com', 'Dana');
 
@@ -666,22 +669,56 @@ describe('being asked to be a contact', () => {
       askerId: alice.account.id,
     });
     expect(answer.statusCode).toBe(200);
-    // **The door, and nothing about where inside the app to go.** Which bundle
-    // this browser should get is one question with one place that answers it —
-    // see open.test.ts. Which *room* used to be here too, as `/open/c/<id>`
-    // with `?enter=1` on the end; since 2026-09-04 no address in this
-    // application carries an id, so the channel is handed to the app in this
-    // tab's `sessionStorage` by the page that is leaving. It is still returned
-    // as `channelId`, which is what the guest page writes there.
-    expect(answer.json()).toEqual({ ok: true, channelId, url: '/open' });
+    // **Nothing to go to, which is the change.** This answered with a channel
+    // and `/open` while acceptance carried a membership; now nothing about
+    // where this person is has changed, so there is nowhere to hand them.
+    expect(answer.json()).toEqual({ ok: true });
 
     // Contacts, both ways, and the pair's own standing channel with them.
     expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(true);
-    // A member of the channel they met in, and no longer a guest of it.
+
+    // And still a guest of the channel they met in: in the room, out of the
+    // roster, holding the seat they arrived on.
+    const state = app.channels.get(channelId)!;
+    expect(state.participants).not.toContain(dana.account.id);
+    expect(state.guests[admission.guestId]?.asks).toEqual({
+      [alice.account.id]: 'accepted',
+    });
+    // The seat gained the account in the live channel rather than only in the
+    // row, which did not matter while it closed in the same breath.
+    expect(state.guests[admission.guestId]?.accountId).toBe(dana.account.id);
+    expect(
+      app.channels.guests.reconnect(admission.guestId, admission.secret, clock)
+    ).toBeDefined();
+    guest.close();
+    member.close();
+  });
+
+  it('is followed by a second act, which is what makes them a member', async () => {
+    // The third rung. An ordinary `INVITE`, made by the member, against the
+    // account behind the seat — and the seat ends here rather than at the
+    // acceptance above.
+    const { alice, guest, member, channelId, admission } = await asked();
+    const dana = await signIn('dana@example.com', 'Dana');
+    await accept(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+
+    member.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'INVITE', contactId: dana.account.id },
+    });
+    // The page is told, and told the one thing that is true: not that it has
+    // been turned out, but that the room is now somewhere it belongs.
+    await guest.next('joined');
+
     const state = app.channels.get(channelId)!;
     expect(state.participants).toContain(dana.account.id);
     expect(state.guests).toEqual({});
-    // The seat is finished, so the page cannot come back as somebody else.
+    // One person cannot hold a seat and a membership in one channel.
     expect(
       app.channels.guests.reconnect(admission.guestId, admission.secret, clock)
     ).toBeUndefined();
@@ -828,6 +865,133 @@ describe('being asked to be a contact', () => {
     // from — the ask is answered by a page that no longer has a room.
     expect(answer.statusCode).toBe(403);
     expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(false);
+    guest.close();
+    member.close();
+  });
+});
+
+describe('being asked onto The Floor, which asks for nothing else', () => {
+  /**
+   * The first rung, added 2026-09-16. Until then the only door into an account
+   * from inside a room was the contact ask, which priced an arrival at a
+   * relationship — so a member who simply wanted somebody here had to ask to
+   * be their contact to offer it.
+   */
+  async function invited(name = 'Dana') {
+    const room = await admitted(name);
+    room.member.send({
+      type: 'channel.action',
+      channelId: room.channelId,
+      action: { type: 'ASK_GUEST_JOIN', guestId: room.admission.guestId },
+    });
+    const view = await room.guest.next('guest', (m) => m.view.invites.length > 0);
+    return { ...room, view: view.view };
+  }
+
+  const acceptJoin = (
+    token: string,
+    payload: { guestId: string; secret: string; askerId: string }
+  ) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/guest-invite/accept',
+      headers: auth(token),
+      payload,
+    });
+
+  it('reaches the guest as its own question, not the other one', async () => {
+    const { view, alice } = await invited();
+    expect(view.invites).toEqual([{ askerId: alice.account.id, from: 'Alice' }]);
+    expect(view.asks).toEqual([]);
+  });
+
+  it('binds the account to the seat and writes nothing else', async () => {
+    const { alice, guest, member, channelId, admission } = await invited();
+    const dana = await signIn('dana@example.com', 'Dana');
+
+    const answer = await acceptJoin(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    expect(answer.statusCode).toBe(200);
+    expect(answer.json()).toEqual({ ok: true });
+
+    // An account behind the seat, and the room calling them by it.
+    const state = app.channels.get(channelId)!;
+    expect(state.guests[admission.guestId]?.accountId).toBe(dana.account.id);
+    // **And nothing else, which is the point of this ask.** Not a contact,
+    // not a member, not a seat that has ended.
+    expect(app.accounts.areContacts(alice.account.id, dana.account.id)).toBe(false);
+    expect(state.participants).not.toContain(dana.account.id);
+    expect(
+      app.channels.guests.reconnect(admission.guestId, admission.secret, clock)
+    ).toBeDefined();
+    guest.close();
+    member.close();
+  });
+
+  it('credits the asker with an arrival made to answer it', async () => {
+    // The rule in one line: the credit goes to whoever asked the question that
+    // was being answered when the account was made. It used to be the contact
+    // ask or nothing, that having been the only door.
+    const { alice, guest, member, admission } = await invited();
+    clock += 60_000;
+    const dana = await signIn('dana@example.com', 'Dana');
+    await acceptJoin(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    expect(app.accounts.byId(dana.account.id)?.invited_by).toBe(alice.account.id);
+    guest.close();
+    member.close();
+  });
+
+  it('credits nobody for somebody who was already here', async () => {
+    // Read off the clock rather than trusted to the flow: an account made
+    // before the knock cannot have been made to answer it.
+    const dana = await signIn('dana@example.com', 'Dana');
+    clock += 60_000;
+    const { alice, guest, member, admission } = await invited();
+    await acceptJoin(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    expect(app.accounts.byId(dana.account.id)?.invited_by).toBeNull();
+    guest.close();
+    member.close();
+  });
+
+  it('refuses an ask nobody made, and a seat that is not the caller\u2019s', async () => {
+    const { alice, guest, member, admission } = await invited();
+    const dana = await signIn('dana@example.com', 'Dana');
+    const eve = await signIn('eve@example.com', 'Eve');
+
+    // A seat that already names somebody else is a different person's, and no
+    // amount of holding the secret makes the two the same.
+    await acceptJoin(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    const stolen = await acceptJoin(eve.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: alice.account.id,
+    });
+    expect(stolen.statusCode).toBe(403);
+
+    // And an ask that was never put is not answerable. 400 rather than 404:
+    // `statusFor` folds `not_found` in with `invalid`, this server declining
+    // to tell an unauthenticated-ish caller which of the two it was.
+    const nobody = await acceptJoin(dana.token, {
+      guestId: admission.guestId,
+      secret: admission.secret,
+      askerId: eve.account.id,
+    });
+    expect(nobody.statusCode).toBe(400);
     guest.close();
     member.close();
   });

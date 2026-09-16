@@ -14,7 +14,14 @@ export type UserId = string;
 export type GuestId = string;
 
 /**
- * Somebody in the room with no account, admitted by a member.
+ * Somebody holding a seat in a channel they are not a member of.
+ *
+ * **Not "somebody with no account"**, which is what this said until
+ * 2026-09-16 and what `GLOSSARY.md` said with it. A seat may carry an account
+ * — see `accountId` — and since the three asks came apart it may carry a
+ * *contact of somebody in the room* and still be a seat. Having an account
+ * and belonging to a channel are two facts, and this type is about the second
+ * one only.
  *
  * Held beside `participants` rather than in it, which is the decision the rest
  * of the guest design follows from: every guard is written in terms of
@@ -68,7 +75,7 @@ export interface Guest {
    */
   request: 'none' | 'asking' | 'refused';
   /**
-   * Which members have asked to keep them, and what came of each ask.
+   * Which members have asked to keep them as a contact, and what came of each.
    *
    * Being in a channel together is permission to ask somebody to be a contact
    * — the rule `POST /contacts/:id/request` already enforces between members —
@@ -80,14 +87,41 @@ export interface Guest {
    * `request` above: a question answered no is a different thing to be told
    * than one nobody has answered.
    *
-   * There is no `'accepted'`. Accepting takes the guest out of `guests` and
-   * puts an account into `participants`, so the card is gone rather than
-   * relabelled — and the acceptance itself is not a reducer action, needing an
-   * account, which core has never heard of.
+   * **`'accepted'` exists since 2026-09-16, and its existence is the whole of
+   * this change.** It used to be impossible: accepting wrote the contact *and*
+   * the membership in one breath, so the guest left `guests` and the card was
+   * gone rather than relabelled. Being somebody's contact and belonging to
+   * their channel are now two acts, and this is the state between them — a
+   * seat held by somebody the asker knows. The acceptance is still not a
+   * reducer action, needing an account, which core has never heard of; the
+   * server writes this value the way it writes `accountId`.
    *
    * Optional for the wire's sake; read as `guest.asks ?? {}`.
    */
-  asks?: Record<UserId, 'asking' | 'refused'>;
+  asks?: Record<UserId, 'asking' | 'refused' | 'accepted'>;
+  /**
+   * Which members have asked them to make an account here, and what came of it.
+   *
+   * **The weaker ask, and the reason it is a second map rather than a second
+   * state on `asks`.** A member may want somebody on The Floor without asking
+   * to be their contact and without asking them into this channel — an
+   * arrival is worth something on its own, and pricing it at a relationship
+   * is what the single ask was doing. The two are answered separately, so a
+   * guest may hold one, both, or neither from the same member.
+   *
+   * Offered only against a seat with no `accountId`: an identified seat has
+   * answered this already, and a control that asked again would be putting a
+   * question that has been settled.
+   *
+   * There is no `'accepted'` here, and the asymmetry with `asks` above is not
+   * an oversight. What acceptance produces is `accountId`, which every reader
+   * can see — so a state saying *they said yes* would be a second way to know
+   * one thing, and the two could disagree. The map holds the question; the
+   * account is the answer.
+   *
+   * Optional for the wire's sake; read as `guest.invites ?? {}`.
+   */
+  invites?: Record<UserId, 'asking' | 'refused'>;
 }
 
 /**
@@ -820,6 +854,32 @@ export type ChannelAction =
    */
   | { type: 'GUEST_ENTERED'; guest: Guest }
   /**
+   * A seat turns out to belong to an account, mid-visit. Raised by the server,
+   * which is the only thing that can check a token.
+   *
+   * **Two ways in, and they are the first two rungs of the ladder**: an
+   * anonymous guest accepts a member's ask to make an account, or accepts a
+   * contact ask and signs in on the way to answering it. Either way the seat
+   * gains a name behind it and nothing else — no membership, no contact, none
+   * of the guards in this file reading differently. `accountId`'s own comment
+   * is the argument for why being known confers nothing.
+   *
+   * Separate from the acceptance below because they are separate facts: a
+   * seat may be identified with no ask outstanding at all.
+   */
+  | { type: 'GUEST_IDENTIFIED'; guestId: GuestId; accountId: UserId }
+  /**
+   * A guest says yes to one member's contact ask. Raised by the server, after
+   * the row is written, for the reason the ask itself says: a contact is
+   * something an account has.
+   *
+   * **This used to have nowhere to be recorded.** Acceptance took the guest
+   * out of `guests` in the same breath, so there was no card left to relabel.
+   * Now it is the third rung and the seat stands: the card reads what came of
+   * the ask, and the member has a second control to offer if they want to.
+   */
+  | { type: 'GUEST_ACCEPTED_CONTACT'; guestId: GuestId; askerId: UserId }
+  /**
    * A guest is out of the room, for a reason nobody has to distinguish here:
    * ejected by a member, expired with their connection, or gone with the last
    * member. A guest leaving of their own accord sends `STEP_OUT` instead, like
@@ -854,9 +914,12 @@ export type ChannelAction =
    * A member asks a guest to be a contact.
    *
    * The record of the asking, and nothing more: what an acceptance *does* —
-   * a contacts row, a channel invitation — happens at a route with an
-   * authenticated account behind it, since a contact is something an account
-   * has and a seat is not one.
+   * a contacts row — happens at a route with an authenticated account behind
+   * it, since a contact is something an account has and a seat is not one.
+   *
+   * **It no longer carries a membership with it**, which it did until
+   * 2026-09-16. Being asked into the channel is `INVITE`, a second act by a
+   * second tap, and the seat stands in between. See `Guest.asks`.
    *
    * Guarded by `canManageGuest`, which is the same entitlement rather than a
    * new one: being a member, in the room with them.
@@ -869,6 +932,32 @@ export type ChannelAction =
    * answer and a silence. Says nothing about anybody else's ask.
    */
   | { type: 'REFUSE_CONTACT'; userId: UserId; askerId: UserId }
+  /**
+   * A member asks an anonymous guest to make an account here.
+   *
+   * **The weakest of the three asks, and the only one that asks for nothing.**
+   * It offers an account and takes no relationship: not a contact, not a
+   * membership, not a second question afterwards. What a member gets out of
+   * it is somebody on The Floor, which is worth having on its own — and until
+   * this existed, the only door into an account from inside a room was the
+   * contact ask, which priced an arrival at a relationship.
+   *
+   * The record of the asking, as its sibling above is. What acceptance *does*
+   * is make an account and claim the seat with it, at a route, for the same
+   * reason: core has never heard of an account.
+   *
+   * Guarded by `canManageGuest` like the contact ask, plus the seat having no
+   * account — an identified guest has answered this, and asking again would
+   * be putting a settled question.
+   */
+  | { type: 'ASK_GUEST_JOIN'; userId: UserId; guestId: GuestId }
+  /**
+   * A guest says no to one member's ask that they make an account.
+   *
+   * Kept for the reason `REFUSE_CONTACT` is kept, and separately from it: a
+   * member may have asked both, and one answer is not the other.
+   */
+  | { type: 'REFUSE_JOIN'; userId: UserId; askerId: UserId }
   /**
    * A guest changes what the room calls them.
    *

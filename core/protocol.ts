@@ -1067,6 +1067,17 @@ export interface GuestView {
    */
   asks: Array<{ askerId: string; from: string }>;
   /**
+   * Members who have asked them to make an account here, waiting on an answer.
+   *
+   * Separate from `asks` above because they are separate questions: a member
+   * may have put one, the other or both, and a page that merged them would be
+   * asking for a relationship on behalf of somebody who asked for an arrival.
+   *
+   * Empty for a seat that already has an account, which is the state that
+   * answers this. Refused asks are absent, as they are above.
+   */
+  invites: Array<{ askerId: string; from: string }>;
+  /**
    * Whether a recording is capturing right now, and therefore capturing them.
    *
    * On screen continuously while it is true, which is half of what makes this
@@ -1086,6 +1097,8 @@ export type GuestAction =
   | { type: 'REQUEST_SPEECH' }
   /** Says no to one member's ask, which is a different thing from silence. */
   | { type: 'REFUSE_CONTACT'; askerId: string }
+  /** Says no to one member's ask that they make an account here. */
+  | { type: 'REFUSE_JOIN'; askerId: string }
   /** Changes what the room calls them. Always available. */
   | { type: 'SET_GUEST_NAME'; name: string }
   | { type: 'PASTE_CLIP'; text: string }
@@ -1147,6 +1160,20 @@ export type GuestServerMessage =
     }
   /** A member said no, or removed you. */
   | { type: 'refused'; reason: string }
+  /**
+   * The seat has ended because you are a member of this channel now.
+   *
+   * **The one way out of a room that is not a refusal**, and the reason it is
+   * its own message: a member has asked the account behind this seat into the
+   * channel, so the page is not being turned away — it is being told that the
+   * thing it was a guest of is now somewhere it belongs. What it does with
+   * that is offer the way in, which is `/open` like every other hand-over.
+   *
+   * It carries nothing. Which channel is not news to a page that has been
+   * sitting in it, and an address that named one would be this application
+   * putting an id in a URL, which it stopped doing on 2026-09-04.
+   */
+  | { type: 'joined' }
   | { type: 'guest'; view: GuestView }
   /**
    * Your publish grant changed, so the page must open or close the
@@ -1311,7 +1338,15 @@ export type ClientAction =
    * made at a route rather than here, since a seat is not something a contact
    * can be a contact of.
    */
-  | { type: 'ASK_GUEST_CONTACT'; guestId: string };
+  | { type: 'ASK_GUEST_CONTACT'; guestId: string }
+  /**
+   * Asks a guest to make an account here, and asks nothing else of them.
+   *
+   * The record of the asking, as its sibling above is. Offered only against a
+   * seat with no account behind it — `canAskGuestJoin` is the guard, and is
+   * what the control is drawn from so that the two cannot disagree.
+   */
+  | { type: 'ASK_GUEST_JOIN'; guestId: string };
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */

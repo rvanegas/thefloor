@@ -371,6 +371,15 @@ things that this file keeps apart:
   of its devices is doing it is settled by `displaceOtherSessions` telling the
   others they are not. See disagreement 12.
 
+- **A seat**, which is none of the four above and is worth naming here because
+  it looks like two of them. Somebody holding one is *in the room* — audible,
+  countable, in `roomOccupants` — and is in `participants`, `present` and
+  `everPresent` nowhere. **Since 2026-09-16 a seat may belong to an account
+  that is a contact of somebody in the room and still be a seat**, so neither
+  being known nor being somebody's contact is evidence of membership; the one
+  act that converts it is `INVITE`, which closes the seat in the same breath.
+  See GLOSSARY.md § *the three asks*.
+
 - **Watching** — `Connection.watchingChannels` on the server,
   `Realtime.watchedChannel` and the mounted `ChannelView` in the app. Whether
   snapshots are being sent to you. **Watching is not being there**, and since

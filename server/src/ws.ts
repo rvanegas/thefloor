@@ -773,10 +773,20 @@ export function registerWebsocket(deps: {
     if (!connection.channelId || !connection.guestId) return;
     const view = channels.guestView(connection.channelId, connection.guestId);
     if (!view) {
-      sendGuest(connection, {
-        type: 'refused',
-        reason: 'You are no longer in this channel.',
-      });
+      // **One of the ways a seat ends is upwards**, since 2026-09-16: a member
+      // asks the account behind it into the channel, and the seat closes
+      // because the person is now a member of the room they were sitting in.
+      // Telling them they are *no longer in this channel* is the one reading
+      // of that sentence which is exactly backwards, so the promotion is asked
+      // about first and answered with what actually happened.
+      if (channels.seatPromoted(connection.channelId, connection.guestId)) {
+        sendGuest(connection, { type: 'joined' });
+      } else {
+        sendGuest(connection, {
+          type: 'refused',
+          reason: 'You are no longer in this channel.',
+        });
+      }
       connection.socket.close();
       return;
     }
