@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import { ApiError, reportSignedOut } from './http';
+import { MAX_TRACK_BYTES } from '../../../core/constants';
 
 /**
  * Picking an audio file and giving it to the channel, from a browser.
@@ -20,8 +21,8 @@ export type UploadHooks = {
   onProgress?: (percent: number | null) => void;
 };
 
-/** Kept in step with MAX_TRACK_BYTES on the server, as the native file is. */
-export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
+/** Re-exported so this module stays the one place the uploader reaches for. */
+export { MAX_TRACK_BYTES };
 
 export function percentOf(sent: number, expected: number): number | null {
   if (!(expected > 0)) return null;
@@ -73,8 +74,8 @@ function pickFile(): Promise<File | null> {
  * is not four lines.
  *
  * **`fetch` reports no upload progress.** There is no callback and no stream
- * for the request body in any shipping browser, so a hundred megabytes over a
- * domestic upstream would be minutes of a screen saying nothing — which is
+ * for the request body in any shipping browser, so two hundred megabytes over
+ * a domestic upstream would be minutes of a screen saying nothing — which is
  * exactly the case the native file went to `createUploadTask` for, and the
  * same argument applies here. `XMLHttpRequest` has `upload.onprogress`, and
  * having it is worth using the older API.
@@ -90,7 +91,7 @@ export async function pickAndUploadTrack(
   const file = await pickFile();
   if (!file) return { cancelled: true };
 
-  // Checked here as well as on the server, because failing after pushing a
+  // Checked here as well as on the server, because failing after pushing two
   // hundred megabytes is a poor way to find out.
   if (file.size > MAX_TRACK_BYTES) {
     throw new ApiError(

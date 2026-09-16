@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from './config';
 import { ApiError, reportSignedOut } from './http';
+import { MAX_TRACK_BYTES } from '../../../core/constants';
 
 /**
  * Loads the document picker only when somebody actually picks something.
@@ -61,7 +62,7 @@ export type UploadHooks = {
  *
  * `createUploadTask` rather than `uploadAsync`, which is the same request with
  * the same defaults — `BACKGROUND` session, binary body — plus the two things
- * a hundred megabytes over a phone connection needs: a progress callback and
+ * two hundred megabytes over a phone connection needs: a progress callback and
  * something to cancel. An upload that has stalled is indistinguishable from a
  * slow one without the first, and unescapable without the second, and both of
  * those have been met.
@@ -71,8 +72,8 @@ export type UploadHooks = {
  * query string, and the server asks the file itself how long it is.
  */
 
-/** Kept in step with MAX_TRACK_BYTES on the server. */
-export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
+/** Re-exported so this module stays the one place the uploader reaches for. */
+export { MAX_TRACK_BYTES };
 
 export async function pickAndUploadTrack(
   token: string,
@@ -94,7 +95,7 @@ export async function pickAndUploadTrack(
   const asset = picked.assets[0];
   if (!asset) return { cancelled: true };
 
-  // Checked here as well as on the server, because failing after pushing a
+  // Checked here as well as on the server, because failing after pushing two
   // hundred megabytes over a phone connection is a poor way to find out.
   if (asset.size !== undefined && asset.size > MAX_TRACK_BYTES) {
     throw new ApiError(

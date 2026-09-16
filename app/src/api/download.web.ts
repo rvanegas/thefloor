@@ -12,9 +12,10 @@ import { ApiError, reportSignedOut } from './http';
  * anchor with an object URL.
  *
  * The cost is that the whole file is in memory for the moment it takes. At the
- * 100 MB ceiling that is acceptable and worth knowing; the native client
- * streams to disk instead, which a browser will not do without the File System
- * Access API and a permission prompt that is not worth it here.
+ * 200 MB ceiling that is tolerable and worth knowing — it was half that until
+ * 2026-09-16, so this is the side of the app the raise costs most; the native
+ * client streams to disk instead, which a browser will not do without the File
+ * System Access API and a permission prompt that is not worth it here.
  *
  * There is no share sheet on the web, so a download *is* the share: the file
  * lands wherever the browser puts downloads and the person does the rest.

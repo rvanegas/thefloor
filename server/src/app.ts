@@ -12,7 +12,10 @@ import type {
   PublicAccount,
   RecordingView,
 } from '../../core/protocol';
-import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  MAX_TRACK_BYTES,
+} from '../../core/constants';
 import {
   IM_SERVICES,
   IM_SERVICE_NAMES,
@@ -295,13 +298,10 @@ export interface App {
 }
 
 /**
- * The largest track anyone may upload.
- *
- * It is held on the server's own disk for the length of one channel, so the
- * ceiling is about not filling the box rather than about bandwidth. An hour of
- * ordinary MP3 is comfortably inside it.
+ * The largest track anyone may upload, from core so that the refusal the
+ * client makes for itself and the `bodyLimit` here are one number.
  */
-export const MAX_TRACK_BYTES = 100 * 1024 * 1024;
+export { MAX_TRACK_BYTES } from '../../core/constants';
 
 /**
  * What to call a track's bytes when handing them back.

@@ -289,7 +289,7 @@ export function ChannelView({
    * Its own flag rather than a fourth field on `upload`: the two can run at
    * once — somebody may take a copy of what is on while replacing it — and
    * sharing has no progress and nothing to cancel, since the file is already
-   * on the server and is at most the hundred megabytes the upload allowed.
+   * on the server and is at most the two hundred megabytes the upload allowed.
    */
   const [trackSharing, setTrackSharing] = useState(false);
   // What the clipboard section is saying about itself, if anything. Refusals

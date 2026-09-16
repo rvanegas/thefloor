@@ -481,7 +481,7 @@ export const FAST_HEARTBEAT_BUILD = 110;
  * phones is some forty kilobytes on a transition, which is nothing; ten times
  * that would not be.
  *
- * Characters rather than bytes, like every other cap in this file, so that the
+ * Characters rather than bytes, like every other cap on text here, so that the
  * reducer can check it without an encoder and both ends compute the same
  * number.
  *
@@ -514,3 +514,30 @@ export const MAX_CLIP_LENGTH = 8_000;
  * `push.ts` re-exports it, so the import that reads it has not changed.
  */
 export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
+
+/**
+ * The largest track anyone may upload.
+ *
+ * It is held on the server's own disk for the length of one channel, so the
+ * ceiling is about not filling the box rather than about bandwidth. Two hours
+ * of ordinary MP3 is comfortably inside it. **Two hundred megabytes since
+ * 2026-09-16**, doubled from the hundred it shipped at.
+ *
+ * What bounds it is not one upload but the sum: every channel holding a track
+ * holds its own copy under the track root until the channel ends, and nothing
+ * caps how many channels do that at once. So the figure to weigh before
+ * raising it again is this times the concurrent channels the box is expected
+ * to carry, against that box's disk — see planning/INFRASTRUCTURE.md for what
+ * the box is.
+ *
+ * Shared with the client because both halves of the app refuse an over-large
+ * file themselves and say the figure in the refusal — failing after pushing
+ * two hundred megabytes over a phone connection is a poor way to find out, and
+ * a stated limit that disagrees with what the server accepts is worse than
+ * none. The server's `bodyLimit` on the track route is this same number, which
+ * is the one that is actually enforced.
+ *
+ * **Bytes rather than characters**, unlike the text caps above: this bounds a
+ * file nobody decodes, and the check is `size` against a number on both ends.
+ */
+export const MAX_TRACK_BYTES = 200 * 1024 * 1024;
