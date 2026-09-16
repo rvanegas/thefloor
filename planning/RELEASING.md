@@ -384,12 +384,32 @@ there and goes on being true survives them.
    opens a reviewSubmission and puts the version on it. Then it prints the page
    to press Submit on, because that PATCH is the irreversible half and
    everything before it is editable. `--dry-run` says what it would do;
-   `--status` reports what App Store Connect holds and writes nothing.
+   `--status` reports what App Store Connect holds and writes nothing at all,
+   here or to Apple; `--sync-released` is that report plus step 8's offer.
 7. **Press Submit**, having read the page and the list below.
 8. **Days later, on approval: move `released`, then `bin/deploy-web --stable`
    in the same sitting.** In that order and not the other one — `--stable` is
    cut from `released`, so run before the ref moves it re-ships the *previous*
    release and says nothing is wrong.
+
+   **`bin/submit-ios --status` is the second opinion on step 8, and
+   `--sync-released` is the same report with permission to act.** Both have
+   both halves on screen — the build Apple says is READY_FOR_SALE, and where
+   `released` actually points — which nothing else does, so they are the only
+   thing that can see the two disagree, and both say so. Only
+   `--sync-released` may do anything about it: on a terminal it asks, and `y`
+   runs `git tag -f released build/<n>` and reminds you `--stable` comes next.
+
+   **The split is the point.** `--status` is what you run to find out where
+   things stand, including from a script, and a command that might move a ref
+   while answering that question is not one you can run to look — so the
+   report is free and the prompt is named. Spelling the flag is half the
+   asking and the `y` is the other half; neither a pipe nor a bare `--status`
+   is somebody asking, and both just print the command.
+
+   Both also say when `released` is *correctly* behind: a version in
+   PENDING_DEVELOPER_RELEASE is approved and not yet released, and the ref is
+   supposed to lag until you press the button.
 
 And the thing that is not a command: **walk the app on a device first, in the
 order a stranger would, with nothing skipped.** Answering the 2.1 rejection

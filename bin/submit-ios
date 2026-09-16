@@ -7,6 +7,7 @@
 //   bin/submit-ios --whats-new FILE   set "What's New" from a file, all locales
 //   bin/submit-ios --dry-run          say what it would do and write nothing
 //   bin/submit-ios --status           report what App Store Connect holds, stop
+//   bin/submit-ios --sync-released    the same, and offer to move `released`
 //
 // This is step two of four. **upload** puts a build in TestFlight, **submit**
 // puts an uploaded build in front of App Review, Apple **approves**, and
@@ -44,6 +45,19 @@
 // per submission rather than a setting to be defaulted, so it is left to the
 // page too.
 //
+// Both reporting flags compare the build Apple says is downloadable against
+// what the local `released` ref points at, and say when the two disagree.
+// Nothing else knows about that drift — `released` is git's record of a state
+// Apple holds — and `bin/deploy-web --stable` is cut from it, so a stale ref
+// re-ships the previous release and says nothing is wrong.
+//
+// **Only `--sync-released` may act on it**, and that is the whole reason there
+// are two spellings of one report. `--status` is a word that promises to read
+// and not to write, it is what a session reaches for to find out where things
+// stand, and a command that might move a ref while answering that question is
+// not one you can run to look. So the report is free and the prompt is named:
+// the flag *is* the asking, and a run spelled `--status` cannot write anything.
+//
 // The key is the App Store Connect one bin/upload-ios uploads with, read the
 // same way from the same directory, for the same reason: it belongs to the team
 // rather than to a person and does not expire when nobody is signed in to
@@ -63,16 +77,22 @@ const HOST = 'https://api.appstoreconnect.apple.com';
 // ---------------------------------------------------------------- arguments
 
 const argv = process.argv.slice(2);
-const opts = { dryRun: false, status: false, build: null, whatsNew: null };
+const opts = {
+  dryRun: false, status: false, syncReleased: false, build: null, whatsNew: null,
+};
 while (argv.length) {
   const arg = argv.shift();
   if (arg === '--dry-run') opts.dryRun = true;
   else if (arg === '--status') opts.status = true;
+  // --sync-released is --status plus permission to ask. It reports the same
+  // thing either way; the flag buys the prompt, so that a run spelled --status
+  // cannot write anything and the promise in its name holds.
+  else if (arg === '--sync-released') { opts.status = true; opts.syncReleased = true; }
   else if (arg === '--build') opts.build = argv.shift();
   else if (arg === '--whats-new') opts.whatsNew = argv.shift();
   else if (arg === '--help' || arg === '-h') {
     console.log(fs.readFileSync(__filename, 'utf8').split('\n')
-      .slice(1, 10).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      .slice(1, 11).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
     process.exit(0);
   } else die(`unknown argument ${arg}`);
 }
@@ -401,11 +421,20 @@ function finish(appId, versionId, submissionId) {
   }
 }
 
+
 // --status exists because the UI is a poor witness to what state a submission
-// is in, and the API answers in a second. Read-only, always.
+// is in, and the API answers in a second. Read-only, always — of Apple, and of
+// this checkout. `offer` below is false unless somebody spelled
+// --sync-released, which is the only way anything here writes.
 async function status(appId, versions) {
+  const rows = [];
   for (const v of versions) {
     const attached = (await api('GET', `/v1/appStoreVersions/${v.id}/build`)).data;
+    rows.push({
+      version: v.attributes.versionString,
+      state: v.attributes.appStoreState,
+      build: attached?.attributes.version ?? null,
+    });
     console.log(`  ${v.attributes.versionString.padEnd(8)}`
       + `${v.attributes.appStoreState.padEnd(24)}`
       + `build ${attached?.attributes.version ?? '—'}`);
@@ -425,6 +454,140 @@ async function status(appId, versions) {
   console.log('  WAITING_FOR_REVIEW with a fresh date is what a submission that');
   console.log('  worked looks like. UNRESOLVED_ISSUES with an old one is a');
   console.log('  rejection nobody has answered yet.');
+
+  await reconcileReleased(rows, opts.syncReleased);
+}
+
+// ----------------------------------------------------------- the released ref
+
+// `released` says which build is downloadable, and what is downloadable is a
+// state Apple holds rather than anything a ref can derive — so the two drift
+// silently, and nothing in git knows it. The cost is not abstract:
+// `bin/deploy-web --stable` is cut from `released`, so a stale ref re-ships the
+// *previous* release and reports success. This is the one command with both
+// halves on screen at once, so it is the one place that can say they disagree.
+//
+// **It offers rather than moves, and only under --sync-released.** Moving
+// `released` is the record that a build is in people's hands, and deciding that
+// is a person's — the same seam the Submit button is on, and the same rule as
+// landing and deploying. Both the flag and the "y" are the asking; without the
+// flag, or without a terminal to ask at, it prints the command and writes
+// nothing, because a script is not somebody asking either.
+async function reconcileReleased(rows, offer) {
+  // Every version that ever shipped stays READY_FOR_SALE — the list above is
+  // seven of them — so "the downloadable one" is the newest of those, and the
+  // newest is chosen by build number rather than by the order Apple listed
+  // them in. Taking the first row would be right today and silently wrong the
+  // day that ordering changes.
+  const live = rows
+    .filter((r) => r.state === 'READY_FOR_SALE')
+    .sort((a, b) => Number(b.build || 0) - Number(a.build || 0))[0];
+  const here = (git('describe', '--tags', 'released') || '')
+    .match(/^build\/(\d+)/)?.[1] || null;
+
+  // Approved and not yet released: the one state in which `released` is
+  // *correctly* behind, and the moment before somebody presses the button.
+  const pending = rows.find((r) => r.state === 'PENDING_DEVELOPER_RELEASE');
+  if (pending) {
+    console.log('');
+    console.log(`  ${pending.version} (build ${pending.build ?? '—'}) is approved and waiting for you`);
+    console.log('  to release it. released is meant to be behind until you do — it');
+    console.log('  moves on release, not on approval.');
+  }
+
+  if (!live) {
+    if (here) {
+      console.log('');
+      console.log(`  Nothing is READY_FOR_SALE; released points at build/${here},`);
+      console.log('  which is whatever was downloadable before. Left alone.');
+    }
+    return;
+  }
+  if (!live.build) {
+    console.log('');
+    console.log(`  ${live.version} is READY_FOR_SALE with no build attached, which`);
+    console.log('  Apple should not allow — released cannot be reconciled from it.');
+    return;
+  }
+  if (here === live.build) {
+    console.log('');
+    console.log(`  released points at build/${here}, which is what App Store Connect`);
+    console.log(`  says is downloadable (${live.version}). In sync.`);
+    return;
+  }
+
+  console.log('');
+  console.log('  ⚠ released is out of sync with what is downloadable.');
+  console.log(`      App Store Connect:  ${live.version} is READY_FOR_SALE, build ${live.build}`);
+  console.log(`      this checkout:      released → ${here ? `build/${here}` : 'no such ref'}`);
+
+  // Only the machine that ran bin/upload-ios has the build tag, and tags are
+  // not pushed automatically — so on any other checkout the target of the move
+  // simply is not here, and saying that is more use than failing at git.
+  if (!git('rev-parse', '--verify', `refs/tags/build/${live.build}`)) {
+    console.log('');
+    console.log(`  There is no build/${live.build} tag in this checkout, so there is`);
+    console.log('  nothing to point released at. bin/upload-ios writes that tag on');
+    console.log('  the machine that uploaded, and tags are not pushed automatically.');
+    return;
+  }
+
+  const command = `git tag -f released build/${live.build}`;
+  if (!offer) {
+    console.log('');
+    console.log(`  To reconcile:  ${command}`);
+    console.log('  — or bin/submit-ios --sync-released, which asks first and then');
+    console.log('  runs exactly that. Either way bin/deploy-web --stable comes');
+    console.log('  after, never before: it is cut from released, so running it');
+    console.log('  first re-ships the previous release and says nothing is wrong.');
+    return;
+  }
+  if (!(process.stdin.isTTY && process.stdout.isTTY)) {
+    console.log('');
+    console.log(`  Nothing to ask with — no terminal. To reconcile:  ${command}`);
+    return;
+  }
+
+  console.log('');
+  const answer = await ask(`  Move released to build/${live.build}? [y/N] `);
+  if (!/^y(es)?$/i.test(answer.trim())) {
+    console.log(`  Left alone. The command, when you mean it:  ${command}`);
+    return;
+  }
+
+  // `git tag -f`, and the target spelled as the tag name: released is a
+  // lightweight ref pointing at the build/<n> *tag object*, which is what
+  // `git describe` reads back. `-a` makes a second annotated tag instead, and
+  // spelling the target `build/<n>^{}` peels to the commit and loses the
+  // description — both look like they worked.
+  if (git('tag', '-f', 'released', `build/${live.build}`) === null) {
+    die(`${command} failed`, 'Nothing was moved.');
+  }
+  console.log(`  released → ${git('describe', '--tags', 'released')}`);
+  console.log('');
+  console.log('  Next, in this order: bin/deploy-web --stable, which is cut from');
+  console.log('  released and would have re-shipped the previous release a moment');
+  console.log('  ago. The ref stays local; there is nothing to push.');
+}
+
+function git(...args) {
+  try {
+    return execFileSync('git', args, {
+      cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function ask(question) {
+  const rl = require('readline').createInterface({
+    input: process.stdin, output: process.stdout,
+  });
+  return new Promise((resolve) => rl.question(question, (answer) => {
+    rl.close();
+    resolve(answer);
+  }));
 }
 
 main();
