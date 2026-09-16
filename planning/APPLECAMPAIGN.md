@@ -423,11 +423,23 @@ campaign goes live, not after the first invoice.**
   `baby monitor`.
 - **Against two-way radio and toys**: `radio`, `frs`, `gmrs`, `ham`, `toy`,
   `kids`, `long range`.
-- **Account-level, against flooring**: `flooring`, `floor plan`, `laminate`,
-  `tile`, `carpet`, `hardwood`. **Account level rather than campaign level**,
-  deliberately, so that round two and everything after inherit them without
-  anybody remembering to. This is the one item here that costs nothing and
-  refuses to have somebody else's category charged to this one.
+- **Against flooring**: `flooring`, `floor plan`, `laminate`, `tile`,
+  `carpet`, `hardwood`. This is the one item here that costs nothing and is
+  not a growth bet at all — it refuses to have somebody else's category
+  charged to this one.
+
+  **MARKETING.md calls these *account-level negatives* and there is no such
+  thing**, which is worth correcting where somebody is about to look for the
+  setting. Apple Ads Advanced holds negative keywords at campaign level and at
+  ad-group level, and nowhere above campaign. So the intent behind the phrase —
+  *entered once, inherited by everything after* — is not available, and what
+  replaces it is a standing obligation: **this set goes into every campaign
+  this account ever runs**, round two's Discovery campaign included, where it
+  matters more than here because Search Match will be on.
+
+**All four sets go in at campaign level, not ad-group level.** Both ad groups
+inherit them, which is what you want — nothing in the pollution is specific to
+a tier — and it is one list to maintain rather than two that can drift.
 
 **They do less work here than MARKETING.md implies, and are still worth
 entering.** That section's claim — *the negatives matter more than the
@@ -476,17 +488,53 @@ likely to actually place the budget. **So the cap is more load-bearing now,
 not less**: hold $20 until a day of it has been watched, and treat the second
 host as the thing that buys the right to $25.
 
-**Bids:** start at Apple's suggested maximum CPT and leave them. Round one is
-asking whether these terms convert, not what they clear at, and a week spent
-tuning bids on twenty low-volume exact terms is a week of noise.
+### The bid strategy, which is where Search Match comes back in disguise
+
+**Manage Bids, never Maximize Conversions.** Campaign Settings offers the two
+side by side and the automated one is the friendlier-looking box. Its own
+description carries the reason to refuse it: *this is an automated bid strategy
+and **Search Match is required***.
+
+**So choosing it turns Search Match on and there is no separate switch to turn
+it off again.** That is the setting this section already names as the one that
+quietly rewrites what you bought, and it is the whole premise of round one —
+thirty-two exact terms, chosen to answer one question, with the negatives as
+insurance rather than as the thing holding the campaign together. Maximize
+Conversions would undo that decision without ever presenting it as a decision.
+It is the single easiest way to spend this budget on something other than what
+it was for.
+
+**Bids, once Manage Bids is chosen:** start at Apple's suggested maximum CPT
+per ad group and leave them. Round one is asking whether these terms convert,
+not what they clear at, and a week spent tuning bids on thirty-two low-volume
+exact terms is a week of noise.
+
+### Dates, and letting the schedule enforce itself
+
+**Set an end date four weeks out.** It is optional in the interface and worth
+using: step 8 is four weeks of spend and then three to four weeks of silence,
+and § *The kill rule* is explicit that a read taken the week the money stops is
+taken before the only number that matters has moved. An end date makes the
+four weeks a fact rather than something to remember on a busy day, and the
+silence afterwards is then the default rather than a discipline.
+
+**Name the campaign for the reader you will be in eight weeks**, not for the
+one creating it — something that still says which round and which placement
+when there is a Discovery campaign beside it.
 
 ### Before you leave the browser
 
 - **Search Results is the only placement ticked.** The first choice and the
   one that makes the rest of this apply; Product Pages in particular is the
   competitor question wearing a different hat.
+- **Manage Bids, not Maximize Conversions.** The automated one requires
+  Search Match, which is the campaign's central decision undone by a radio
+  button. Check this first; it is the most expensive thing on the screen.
 - **Two ad groups, one per tier**, not thirty-two terms in one. This is what
   keeps round one's question answerable; see the section above.
+- **All four negative sets entered at campaign level**, flooring included —
+  there is no account level, whatever MARKETING.md says.
+- **An end date four weeks out**, so step 8 enforces itself.
 - **Search Match is off.** It defaults on; check it after saving, because it
   is the setting that quietly rewrites what you bought.
 - **The negatives saved**, all four sets, the flooring one at account level.

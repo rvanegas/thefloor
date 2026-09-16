@@ -798,7 +798,11 @@ to pay.
 categories with far more ad money in them than this one. Brand defence buys
 `the floor uninterrupted` and `the floor voice chat`, never the bare name, and
 `flooring`, `floor plan`, `laminate`, `tile`, `carpet` and `hardwood` are
-account-level negatives. This is the one item here that is not a growth bet: it
+negatives on every campaign. **This said *account-level negatives* until
+2026-09-15 and there is no such level** — Apple Ads Advanced holds them at
+campaign and ad-group level and nowhere above, so *entered once and inherited*
+is not available and the set has to be repeated per campaign. It matters most
+in a Discovery campaign, where Search Match is on and the collision is live. This is the one item here that is not a growth bet: it
 is stopping somebody else's category from being charged to this one.
 
 **The negatives matter more than the keywords, because three of the best terms
