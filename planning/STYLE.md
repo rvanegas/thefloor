@@ -36,7 +36,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
-| *The lock screen card* | the one surface outside the app, and the palette it transcribes |
+| *The lock screen card* | the one surface outside the app, and what it transcribes |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
 | *The rules that are actually load-bearing* | the seven things to not break |
 
@@ -939,43 +939,70 @@ rules.
 
 The one piece of this interface that renders outside the app: a Live Activity,
 up whenever this device is standing in a channel, drawn by the widget
-extension in `app/targets/lock-screen/`. It carries a name, a line about the
-microphone, one button and a tap.
+extension in `app/targets/lock-screen/`. It carries a name, two buttons and a
+tap.
 
 **Its palette is a transcription, not an import.** A widget extension is a
 separate process with no JavaScript in it, so `theme.ts` cannot reach it and
 the hex values are copied into `LockScreenLiveActivity.swift` by hand. That is
 a duplicate, and duplicates drift: **change one, change both, in the same
 commit.** Only the tokens the card actually spends are transcribed — `text`,
-`textMuted`, `textFaint`, `disabled`, `surfaceRaised` and `floor` — and adding
-a colour there means adding it here first and deciding what it is for, exactly
-as for any other surface. Both palettes are carried, chosen on the system's
-colour scheme, for the reason every other surface carries both.
+`textFaint`, `disabled`, `surfaceRaised` and `floor` — and adding a colour
+there means adding it here first and deciding what it is for, exactly as for
+any other surface. Both palettes are carried, chosen on the system's colour
+scheme, for the reason every other surface carries both.
 
-**The words are transcribed too.** "Your microphone is muted" and "Your
-microphone is open" are the footer's own hints, copied. Two surfaces describing
-one microphone must not describe it in two vocabularies.
+**The microphone glyph is transcribed too**, since 2026-09-17, and for the same
+reason: `MicShape` is `lucide/mic` and `lucide/mic-off` written out as a
+SwiftUI `Path` on the same 24-unit box and the same 2-unit stroke that
+`icons.tsx` draws them on. **Not an SF Symbol that resembles them** — an icon
+is the part of a surface that is read without being read, so a second
+microphone shape would be the most visible drift of the three. The SVG's arcs
+become `addRelativeArc` sweeps, a signed delta rather than the flag pair, since
+`addArc(clockwise:)` has its sense flipped by SwiftUI's y-down space and a
+wrong guess draws the long way round.
 
-Three rules that look like details and are not:
+**What is no longer transcribed is the sentence.** The card carried the
+footer's hint — "Your microphone is muted" / "…is open" — under the channel
+name until 2026-09-17, and it said what the glyph beside it already said. Two
+statements of one fact on a surface with room for about six words; the glyph is
+the half that survives.
 
-- **The button shows three states as two.** Its label flips between *Mute* and
-  *Unmute* on the same derivation the footer icon uses — *you are not being
-  heard*, which folds in a device with no input — rather than on the reducer's
-  `selfMuted`. GLOSSARY.md § *Mute (four things, one word)* is the entry that
-  separates them.
+Four rules that look like details and are not:
+
+- **Both controls are visible, and the card is still a tap.** *Open* is a
+  `Link` to the same deep link `widgetURL` carries. It is not a second way in
+  so much as the first one made legible — *the whole card is a button* is a
+  convention somebody has to already know, and the reader who most needs a way
+  back is the one who has used the app least.
+- **The microphone button shows three states as two, in a glyph and not a
+  word.** It strikes through on the same derivation the footer icon uses —
+  *you are not being heard*, which folds in a device with no input — rather
+  than on the reducer's `selfMuted`. GLOSSARY.md § *Mute (four things, one
+  word)* is the entry that separates them. The word it used to carry is now
+  only its `accessibilityLabel`, which is § *Accessibility*'s rule that a
+  glyph's label is the word it replaced.
 - **Refused is grey, with no sentence saying why**, which is the named
   exception in § *Words on controls*. There is no room for a sentence on a
-  lock screen and being refused here is ordinary rather than an error, so the
-  card's other control stands in for one: tapping it opens the app at the
-  channel, where every reason is already stated in its own place.
+  lock screen and being refused here is ordinary rather than an error, so
+  *Open* stands in for one: it opens the app at the channel, where every
+  reason is already stated in its own place.
 - **Being silenced does not grey it.** Somebody silenced by another's claim may
   still set their own mute, and it is what they are left with when the claim
   ends. The footer keeps the control live and spends `silenced` orange on it;
   the card has no colour to spend and simply stays live.
 
-Below iOS 17 there is no button at all — `Button(intent:)` is what lets a tap
-act without opening the app, and there is no earlier spelling of it. The card
-states the microphone instead, in the same grey.
+Below iOS 17 the microphone is not a button — `Button(intent:)` is what lets a
+tap act without opening the app, and there is no earlier spelling of it. The
+card shows the glyph in the same grey, and *Open*, which needs no intent, is
+the only control that does anything.
+
+**The Dynamic Island carries the same two controls**, in the same order, in the
+expanded `.bottom` region with the name above them. They were in `.leading` and
+`.trailing` until 2026-09-17, which is where an island puts an icon and a badge
+rather than a pair of buttons — and the leading one was a third microphone,
+drawing what the button opposite it already drew. Compact and minimal stay a
+single `floor`-tinted glyph.
 
 ---
 

@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
  * The card on the lock screen, and the two controls on it.
  *
  * A Live Activity rather than a notification, and the choice was forced rather
- * than preferred. The design is *Mute/Unmute, greyed when unavailable, plus a
+ * than preferred. The design is *a mute button, greyed when unavailable, plus a
  * tap that opens the channel* — and `UNNotificationAction` has no disabled
  * state. Expressing "you cannot unmute right now" through a notification means
  * swapping the category to one without the button, so the control **vanishes**

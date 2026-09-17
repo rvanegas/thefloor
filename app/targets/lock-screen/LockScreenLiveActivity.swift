@@ -4,7 +4,7 @@ import SwiftUI
 import WidgetKit
 
 /**
- The card itself: a name, a state, a Mute button, and a tap that opens.
+ The card itself: a name, an Open button, a microphone, and a tap that opens.
 
  **Colours are copied from `app/src/ui/theme.ts` rather than shared with it.**
  A widget extension is a separate process with no JavaScript in it, so there is
@@ -20,9 +20,6 @@ import WidgetKit
 private enum Palette {
   static func text(_ dark: Bool) -> Color {
     dark ? Color(hex: 0xF2F4F7) : Color(hex: 0x12151A)
-  }
-  static func muted(_ dark: Bool) -> Color {
-    dark ? Color(hex: 0x98A2B3) : Color(hex: 0x5A6474)
   }
   /** The label of a refused control. */
   static func faint(_ dark: Bool) -> Color {
@@ -52,6 +49,104 @@ extension Color {
   }
 }
 
+/**
+ The microphone, open or muted, transcribed from `app/src/ui/icons.tsx`.
+
+ **The same glyph as the footer's, not an SF Symbol that resembles it.** The
+ card's whole vocabulary is the screen's — the palette above, the words that
+ used to be here — and an icon is the part somebody reads without reading, so a
+ second microphone shape would be the loudest of the three drifts. `lucide/mic`
+ and `lucide/mic-off`, on the same 24-unit box and the same 2-unit stroke; the
+ SVG's arcs are written here as sweeps, since a `Path` has no arc flags.
+ `MicIcon` in `icons.tsx` is the other copy — change one, change both.
+
+ `addRelativeArc` rather than `addArc(clockwise:)` deliberately: a sweep is a
+ signed delta and cannot be read backwards, where the flag's sense is flipped
+ by SwiftUI's y-down space and a wrong guess draws the long way round.
+ */
+@available(iOS 16.1, *)
+private struct MicShape: Shape {
+  let muted: Bool
+
+  func path(in rect: CGRect) -> Path {
+    let s = min(rect.width, rect.height) / 24
+    func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+      CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+    }
+    var p = Path()
+
+    // The stem, which both states share.
+    p.move(to: pt(12, 19))
+    p.addLine(to: pt(12, 22))
+
+    if muted {
+      // The body's upper half, cut short where the strike crosses it.
+      p.move(to: pt(15, 9.34))
+      p.addLine(to: pt(15, 5))
+      p.addRelativeArc(
+        center: pt(12, 5), radius: 3 * s,
+        startAngle: .degrees(0), delta: .degrees(-153.6)
+      )
+      // The cradle, likewise in two pieces with the strike between them.
+      p.move(to: pt(16.95, 16.95))
+      p.addRelativeArc(
+        center: pt(12, 12), radius: 7 * s,
+        startAngle: .degrees(45), delta: .degrees(135)
+      )
+      p.addLine(to: pt(5, 10))
+      p.move(to: pt(18.89, 13.23))
+      p.addRelativeArc(
+        center: pt(12, 12), radius: 7 * s,
+        startAngle: .degrees(10.12), delta: .degrees(-10.12)
+      )
+      p.addLine(to: pt(19, 10))
+      // The strike itself.
+      p.move(to: pt(2, 2))
+      p.addLine(to: pt(22, 22))
+      // The body's lower half.
+      p.move(to: pt(9, 9))
+      p.addLine(to: pt(9, 12))
+      p.addRelativeArc(
+        center: pt(12, 12), radius: 3 * s,
+        startAngle: .degrees(180), delta: .degrees(-135)
+      )
+    } else {
+      p.move(to: pt(19, 10))
+      p.addLine(to: pt(19, 12))
+      p.addRelativeArc(
+        center: pt(12, 12), radius: 7 * s,
+        startAngle: .degrees(0), delta: .degrees(180)
+      )
+      p.addLine(to: pt(5, 10))
+      p.addPath(
+        Path(
+          roundedRect: CGRect(
+            origin: pt(9, 2), size: CGSize(width: 6 * s, height: 13 * s)
+          ),
+          cornerRadius: 3 * s
+        )
+      )
+    }
+    return p
+  }
+}
+
+@available(iOS 16.1, *)
+private struct MicGlyph: View {
+  let muted: Bool
+  let color: Color
+  var size: CGFloat = 22
+
+  var body: some View {
+    MicShape(muted: muted)
+      .stroke(
+        color,
+        style: StrokeStyle(lineWidth: 2 * size / 24, lineCap: .round, lineJoin: .round)
+      )
+      .frame(width: size, height: size)
+  }
+}
+
 @available(iOS 16.1, *)
 struct LockScreenCard: View {
   let state: FloorActivityAttributes.ContentState
@@ -61,86 +156,123 @@ struct LockScreenCard: View {
   private var dark: Bool { scheme == .dark }
 
   var body: some View {
-    HStack(alignment: .center, spacing: 12) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(state.channelName)
-          .font(.headline)
-          .foregroundColor(Palette.text(dark))
-          .lineLimit(1)
-        /**
-         The footer's own hints, word for word.
+    HStack(alignment: .center, spacing: 10) {
+      /**
+       The name, and nothing under it.
 
-         Two surfaces describing one microphone should not describe it in two
-         vocabularies. `ui/ChannelView.tsx` is where these strings live for the
-         screen, and copying them is the same transcription the palette above
-         is — with the same rule about changing both.
-         */
-        Text(state.muted ? "Your microphone is muted" : "Your microphone is open")
-          .font(.caption)
-          .foregroundColor(Palette.muted(dark))
-          .lineLimit(1)
-      }
-      Spacer(minLength: 0)
+       **The card used to carry the footer's hint — "Your microphone is muted"
+       — and it was saying what the glyph beside it already says.** Two
+       statements of one fact, on a surface with room for about six words, is
+       the cost; the glyph is the half that is read without being read. The
+       sentence stays in the app, where a struck-through microphone has a
+       reason beside it and here it has none.
+       */
+      Text(state.channelName)
+        .font(.headline)
+        .foregroundColor(Palette.text(dark))
+        .lineLimit(1)
+      Spacer(minLength: 8)
+      OpenControl(channelId: channelId, dark: dark)
       MuteControl(state: state, dark: dark)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
     /**
-     The card's other control, and the reason the button above needs no
+     The card's other control, and the reason the button beside it needs no
      explanation when it is grey.
 
-     Tapping anywhere that is not the button opens the app at this channel. A
+     Tapping anywhere that is not a button opens the app at this channel. A
      disabled control on this surface carries no sentence saying why — there is
      no room for one, and being refused here is the ordinary condition rather
      than an error — so *go and look* is the affordance that stands in for it.
      See `planning/STYLE.md`, which carries that as a named exception.
+
+     **The whole card stays tappable even though *Open* is now written on it.**
+     The button is not a second way in so much as the first one made visible:
+     the tap was always here, and nobody new could see it.
      */
     .widgetURL(URL(string: "thefloor://channel/\(channelId)"))
   }
 }
 
 /**
- Mute, Unmute, or grey.
+ The way in, spelled out.
+
+ A `Link` rather than a second `widgetURL` — a card has one of those, and it is
+ the tap on everything else. Both go to the same place; this one is here
+ because *the whole card is a button* is a convention somebody has to already
+ know, and the people who most need a way back into the app are the ones who
+ have used it least.
+
+ **It opens on every iOS the card runs on**, unlike the microphone beside it,
+ since a link needs no `Button(intent:)`. On 16.x it is the only control the
+ card has that does anything.
+ */
+@available(iOS 16.1, *)
+private struct OpenControl: View {
+  let channelId: String
+  let dark: Bool
+
+  var body: some View {
+    Link(destination: URL(string: "thefloor://channel/\(channelId)")!) {
+      Text("Open")
+        .font(.subheadline.weight(.medium))
+        .foregroundColor(Palette.text(dark))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Palette.raised(dark))
+        .clipShape(Capsule())
+    }
+  }
+}
+
+/**
+ Mute, unmute, or grey — as a glyph, with the word left to the screen reader.
+
+ **The button carries no text**, since 2026-09-17. It read *Mute* or *Unmute*,
+ which is the footer's word for the same control; on a card with a channel name
+ and a way in to fit as well, the word was the most expensive thing on it and
+ the least informative — a struck-through microphone is the one piece of this
+ vocabulary everybody already has.
 
  **The button exists only on iOS 17.** `Button(intent:)` is what lets a tap act
  without opening the app, and there is no earlier spelling of it — a 16.x card
- falls back to stating the microphone rather than offering to change it, which
+ falls back to showing the microphone rather than offering to change it, which
  is worth more than a button that would have to open the app to work and would
- therefore be the card's other control wearing a different label.
+ therefore be *Open* beside it wearing a different glyph.
  */
 @available(iOS 16.1, *)
 private struct MuteControl: View {
   let state: FloorActivityAttributes.ContentState
   let dark: Bool
 
+  /** What the glyph would have said. The screen reader still gets it. */
   private var label: String { state.muted ? "Unmute" : "Mute" }
 
   var body: some View {
     if #available(iOS 17.0, *) {
       Button(intent: ToggleMuteIntent(muted: !state.muted)) {
-        Text(label)
-          .font(.subheadline.weight(.medium))
-          .foregroundColor(
-            state.canToggle ? Palette.text(dark) : Palette.faint(dark)
-          )
-          .padding(.horizontal, 14)
-          .padding(.vertical, 8)
-          .background(
-            state.canToggle ? Palette.raised(dark) : Palette.disabled(dark)
-          )
-          .clipShape(Capsule())
+        glyph(enabled: state.canToggle)
       }
       .buttonStyle(.plain)
       .disabled(!state.canToggle)
+      .accessibilityLabel(label)
     } else {
-      Text(label)
-        .font(.subheadline.weight(.medium))
-        .foregroundColor(Palette.faint(dark))
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Palette.disabled(dark))
-        .clipShape(Capsule())
+      glyph(enabled: false)
+        .accessibilityLabel(
+          state.muted ? "Your microphone is muted" : "Your microphone is open"
+        )
     }
+  }
+
+  private func glyph(enabled: Bool) -> some View {
+    MicGlyph(
+      muted: state.muted,
+      color: enabled ? Palette.text(dark) : Palette.faint(dark)
+    )
+    .padding(9)
+    .background(enabled ? Palette.raised(dark) : Palette.disabled(dark))
+    .clipShape(Circle())
   }
 }
 
@@ -155,26 +287,33 @@ struct LockScreenLiveActivity: Widget {
       .activityBackgroundTint(nil)
     } dynamicIsland: { context in
       DynamicIsland {
-        DynamicIslandExpandedRegion(.leading) {
-          Image(systemName: context.state.muted ? "mic.slash.fill" : "mic.fill")
-            .foregroundColor(Palette.floor)
-        }
         DynamicIslandExpandedRegion(.center) {
           Text(context.state.channelName)
             .font(.headline)
             .lineLimit(1)
         }
-        DynamicIslandExpandedRegion(.trailing) {
-          MuteControl(state: context.state, dark: true)
+        /**
+         The two controls, in the card's order, in the region wide enough for
+         them.
+
+         They were leading and trailing, which is where an expanded island puts
+         an icon and a badge rather than a pair of buttons — and the leading
+         one was a *third* microphone, stating what the trailing button already
+         drew. The name gets the middle, the controls get the row under it.
+         */
+        DynamicIslandExpandedRegion(.bottom) {
+          HStack(spacing: 10) {
+            OpenControl(channelId: context.attributes.channelId, dark: true)
+            Spacer(minLength: 8)
+            MuteControl(state: context.state, dark: true)
+          }
         }
       } compactLeading: {
-        Image(systemName: context.state.muted ? "mic.slash.fill" : "mic.fill")
-          .foregroundColor(Palette.floor)
+        MicGlyph(muted: context.state.muted, color: Palette.floor, size: 16)
       } compactTrailing: {
         EmptyView()
       } minimal: {
-        Image(systemName: context.state.muted ? "mic.slash.fill" : "mic.fill")
-          .foregroundColor(Palette.floor)
+        MicGlyph(muted: context.state.muted, color: Palette.floor, size: 16)
       }
       .widgetURL(URL(string: "thefloor://channel/\(context.attributes.channelId)"))
     }

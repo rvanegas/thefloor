@@ -28,9 +28,10 @@ import AppIntents
  The extension's copy never runs. If it ever did, it would do nothing, which is
  the correct nothing.
 
- **It carries what was asked for, not a toggle.** The button says Mute or
- Unmute, and a card can be a moment stale — a toggle would invert whatever the
- app had meanwhile become, so the tap means the word that was on it.
+ **It carries what was asked for, not a toggle.** The button draws an open
+ microphone or a struck-through one, and a card can be a moment stale — a
+ toggle would invert whatever the app had meanwhile become, so the tap means
+ the state the glyph was showing.
  */
 @available(iOS 17.0, *)
 struct ToggleMuteIntent: LiveActivityIntent {

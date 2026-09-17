@@ -65,7 +65,7 @@ caused; the list carries the meaning.
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
-- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel, carrying the channel's name, whether you are being heard, a Mute/Unmute button that greys rather than disappears when it is refused, and a tap that opens the app at that channel. iOS only, 16.1 and later, and the button 17 and later
+- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone button 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
@@ -786,8 +786,8 @@ Live Activity, up for exactly as long as this device is standing in a channel,
 drawn by the widget extension in `app/targets/lock-screen/`. Built 2026-09-17;
 `decisions/2026-09-17-the-lock-screen-carries-two-controls.md` is the entry.
 
-**Two controls, and the count is the design.** A Mute/Unmute button, and a tap
-on the card that opens the app at that channel. Nothing else was put on it, and
+**Two controls, and the count is the design.** A mute button, and a way into
+the channel. Nothing else was put on it, and
 in particular **there is no way to claim the floor from it** — claiming means
 opening a microphone, which iOS refuses to a backgrounded app, and the card
 would be offering something it could not deliver. That refusal is what
@@ -799,12 +799,23 @@ is worth keeping: a self-muted member still needs the microphone, so the audio
 session is already `CALL` and stays there. The card changes a track, never a
 category.
 
-The word on the button follows *you are not being heard* — the footer icon's
-meaning, three causes — rather than the reducer's `selfMuted`. See *Mute (four
-things, one word)*, which is the entry a reader should check before narrowing
-it. When the button is refused it goes grey and **says nothing about why**; the
-tap is how you find out, and STYLE.md carries that as a named exception to its
-rule that a disabled control is accompanied by a reason.
+**Both are drawn the way the app draws them, not the way iOS would.** The mute
+button is `MicIcon`'s own glyph — lucide `mic` / `mic-off`, transcribed into a
+SwiftUI path beside the transcribed palette — and it carries no word at all,
+the word surviving only as its accessibility label. It strikes through on *you
+are not being heard*, the footer icon's meaning with its three causes, rather
+than on the reducer's `selfMuted`; see *Mute (four things, one word)*, which is
+the entry a reader should check before narrowing it. When the button is refused
+it goes grey and **says nothing about why**.
+
+The second control is a button reading *Open*, added 2026-09-17 alongside the
+card-wide tap rather than in place of it: the tap has always been the card's
+way in, and *the whole card is a button* is a convention somebody has to have
+been taught. It is also what stands in for the sentence a greyed mute button
+cannot carry — open the app and every reason is stated in its own place — and
+STYLE.md carries that as a named exception to its rule that a disabled control
+is accompanied by a reason. `decisions/2026-09-17-the-lock-screen-card-shows-its-controls.md`
+is the entry.
 
 **Not the same thing as Android's notification.** `modules/call-service` puts a
 foreground-service notification on an Android lock screen, and that exists to
