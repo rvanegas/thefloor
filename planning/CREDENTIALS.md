@@ -344,43 +344,54 @@ A **session token** is a credential like anything above: it authenticates every
 call and every socket its holder makes, for ninety days, and nothing else is
 needed to act as that person. It is not on the list because the project does
 not store it — it mints it. That is also why it was never held to the list's
-standards, and since 2026-09-15 there is a known place it is written down in
-clear.
+standards, and between 2026-08-09 and 2026-09-17 there was a known place it was
+written down in clear.
 
-**Every `/ws` connection puts a live token in the journal.**
-`server/src/index.ts` passes a bare `logger: true`, so Fastify's default `req`
-serializer logs `request.url` — and `/ws` is the one route that takes a
-credential as a query parameter, because neither React Native's WebSocket nor
-the browser's carries custom headers (`ws.ts`, and the same reason `build` and
-`device` are parameters). Watch tokens arrive the same way. The journal on the
-box retains from 2026-08-09, so it holds every token any client has connected
-with since, most of them still valid.
+**The journal was signing the reader in, and since 2026-09-17 it is not.**
+`server/src/log-url.ts` sanitises every address before pino writes it, installed
+as the `req` serializer where `app.ts` used to pass a bare `logger: true` —
+which gave Fastify's default serializer, which logs `request.url` verbatim.
+decisions/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md is the whole
+account. **Read that before changing anything about logging**, and add to the
+allowlist in `log-url.ts` rather than around it.
 
-**The `Authorization` header is not affected.** Fastify's default serializer
-logs no headers at all — `method`, `url`, `host`, `remoteAddress`,
-`remotePort` and nothing else — so this is one parameter on one route rather
-than a general leak.
+**It was five addresses, not one**, which is worth carrying here because this
+file said "one" for two days and the fix that the sentence implied would have
+left four of them running. `/ws` takes `token` and `/gws` takes `secret` and
+`link`, as query parameters, because neither React Native's WebSocket nor the
+browser's carries custom headers — the same reason `build` and `device` are
+parameters. `/g/:token`, `/i/:username/:pin`, `/devices/:token` and
+`/channels/:id/guest-links/:token` carry one in the **path**, where a
+query-parameter strip cannot reach. `/ws` has accepted `Authorization: Bearer`
+all along (`ws.ts:976`); the parameter is what the two clients can send, not
+what the route can accept.
+
+**The `Authorization` header was never affected.** Fastify's default serializer
+logs no headers at all — `method`, `url`, `version`, `host`, `remoteAddress`,
+`remotePort` and nothing else. **Five fields beside `url`, not four**: this file
+said four, and `version` is the one a count made by hand drops.
 
 **Reading it needs root on the box, which is the same bar as `server/.env`**,
-and that is the reason this is a defect rather than an emergency. What makes it
-worth fixing anyway is where a journal goes that a mode-600 file does not: it is
+and that is the reason this was a defect rather than an emergency. What made it
+worth fixing is where a journal goes that a mode-600 file does not: it is
 greppable, long-lived, and routinely pasted into a terminal by somebody
 debugging something else. A live token reached a transcript that way on
 2026-09-15, from a query about reconnect cadence that had nothing to do with
 credentials.
 
-**The fix is a `req` serializer, not `redact`.** Pino's `redact` replaces a
-whole value, so `redact: ['req.url']` takes `build`, `client` and `device` with
-it — which the build census and the socket diagnostics both read. A custom
-serializer that strips `token=` and restates the other four default fields
-keeps them. See
-backlog/session-tokens-are-in-the-journal-in-plaintext.md, which is the
-outstanding work, and
+**`redact` was the wrong instrument, and that part was always right.** Pino's
+`redact` replaces a whole value, so `redact: ['req.url']` takes `build`,
+`client`, `device` and `notify` with it — which the build census and
 decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
-for what reads those fields.
+both read off that same URL.
 
-**Clearing the back catalogue is a separate decision, and not an obvious one.**
-Vacuuming the journal would also destroy the reconnect history those two rest
-on — the evidence a diagnosis was right, which is not recoverable once gone. The
-alternative that keeps it is signing out the affected sessions, which makes what
-is written there worthless without deleting it.
+**The back catalogue is untouched and is still a decision.** Every credential
+written before 2026-09-17 is still in the journal; the database stores only a
+`token_hash`, so that is the one place on the box the plaintext exists.
+Vacuuming destroys the reconnect history those diagnoses rest on. Revoking
+instead has no one-call form — `POST /auth/sign-out-others` is per-account and
+authenticates with the caller's own token — so it means `bin/db --write` over
+the `tokens` table. backlog/session-tokens-are-in-the-journal-in-plaintext.md
+is that choice, and
+backlog/nothing-expires-the-journal-and-something-should.md is the separate
+fact that nothing expires the journal at all.

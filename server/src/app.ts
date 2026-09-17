@@ -38,6 +38,7 @@ import {
 import { Accounts, UsernameTakenError } from './accounts';
 import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
+import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
@@ -365,7 +366,16 @@ export function buildApp(options: BuildOptions = {}): App {
     options.kofi?.verificationToken
   );
   const help = new Help(db);
-  const fastify = Fastify({ logger: options.logger ?? false });
+  // The `req` serializer is the whole of what keeps credentials out of the
+  // journal — several addresses here carry one in the URL, and Fastify's
+  // default serializer logs `request.url` verbatim. See log-url.ts for which
+  // and why it is a serializer rather than pino's `redact`. Fastify merges
+  // this over its own defaults, so `err` and `res` are untouched.
+  const fastify = Fastify({
+    logger: options.logger
+      ? { serializers: { req: logSafeRequest } }
+      : false,
+  });
 
   // Several endpoints take no body, and a client that still declares
   // application/json would otherwise be rejected before reaching any handler.
