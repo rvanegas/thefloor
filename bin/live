@@ -32,14 +32,17 @@
 #     playout fix. A person silenced by somebody else's floor claim *does*
 #     still count: their track is unmuted and carrying audio, and the floor
 #     withholds it by unsubscribing their listeners rather than by muting them.
-#     Nothing in this system measures audio level, so "how long they have been
-#     speaking" is answerable only as "how long their microphone has been
-#     transmitting".
-#   * **The floor is not recorded anywhere durable.** It dies with the process
-#     — a restart drops it — and the only floor history on disk is
-#     `recordings.floor_timeline`, written per recording run and only while one
-#     is running. If turn-taking is what you want counted, that is a change to
-#     the meter rather than a query somebody has not written yet.
+#     The server measures no audio level — a withheld speaker's own device
+#     reports that it is talking, and nothing writes it down — so "how long
+#     they have been speaking" is answerable only as "how long their microphone
+#     has been transmitting".
+#   * **The floor is recorded, since 2026-09-17, and this report does not show
+#     it.** A `floor` span opens on the claim and closes on the release, from
+#     the transition rather than the poll, so its edges are exact where every
+#     column here is sampled. It is collected for one question — whether the
+#     claim delay produces the turn-taking it was designed to produce — and
+#     nothing in the application reads it, this script included. The floor
+#     itself still dies with the process, `durableOf` dropping it as before.
 #   * **Every edge is good to within fifteen seconds**, the poll interval
 #     (USAGE_POLL_INTERVAL_MS), so a channel that emptied moments ago is still
 #     listed and a microphone opened and closed inside one window never

@@ -345,12 +345,21 @@ describe('a channel across a restart', () => {
 });
 
 describe('what is written, and what is not', () => {
-  it('writes nothing for a transition that changes only volatile state', async () => {
+  it('writes nothing durable for a transition that changes only volatile state', async () => {
     // The whole justification for writing inside commit() rather than on a
     // timer. These are real transitions — each one produces a new state, runs
     // the media plane and pushes a snapshot to every watcher — and not one of
     // them changes anything that ought to survive a restart, so not one of
-    // them touches the disk.
+    // them rewrites the channel's row.
+    //
+    // **The meter is the one thing that does write here, since 2026-09-17**,
+    // and it is not a counter-example: a `floor` span is instrumentation about
+    // a conversation rather than state the channel is restored from, which is
+    // the distinction this test is named for. So the channel row is compared
+    // directly instead of counting writes to the whole connection — a stronger
+    // statement of the same thing, and one that does not break every time
+    // something else starts measuring. The spans it does write are asserted at
+    // the end, so a meter that ran away here would still be caught.
     //
     // Note this has to be driven by actions rather than by ticks. A tick
     // during a live claim returns the *same* state object, so commit() never
@@ -361,10 +370,12 @@ describe('what is written, and what is not', () => {
     const { alice, bob, channelId } = await pair(app);
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
 
-    const changes = () =>
-      (app.db.prepare('SELECT total_changes() AS n').get() as { n: number }).n;
+    const row = () =>
+      JSON.stringify(
+        app.db.prepare('SELECT * FROM channels WHERE id = ?').get(channelId)
+      );
 
-    const before = changes();
+    const before = row();
     for (let i = 0; i < 5; i += 1) {
       app.channels.dispatch(channelId, alice.account.id, {
         type: 'SET_SELF_MUTE',
@@ -377,10 +388,18 @@ describe('what is written, and what is not', () => {
       clock += 61_000;
       app.channels.tick();
     }
-    expect(changes()).toBe(before);
+    expect(row()).toBe(before);
 
     // And those really were transitions, not no-ops the reducer refused.
     expect(app.channels.get(channelId)!.floor.lastClaimedAt).not.toEqual({});
+
+    // Five claims, five releases, and nothing left open: what the meter wrote
+    // while the durable projection wrote nothing.
+    const floor = app.db
+      .prepare('SELECT ended_at FROM usage_spans WHERE kind = ?')
+      .all('floor') as Array<{ ended_at: number | null }>;
+    expect(floor).toHaveLength(5);
+    expect(floor.every((span) => span.ended_at !== null)).toBe(true);
     await shutdown(app);
   });
 

@@ -376,6 +376,21 @@ export interface UsageSpanRow {
    * `'participant'` — one WebRTC connection to the SFU, whoever holds it.
    *   The only kind that counts the shared-track participant, and so the only
    *   one whose `account_id` is sometimes an identity rather than an account.
+   * `'floor'` — one claim, from the moment it landed to the moment it ended.
+   *   Not a cost, unlike every other kind: the floor costs this box nothing
+   *   and is metered because it is recoverable nowhere else. `durableOf` drops
+   *   it on purpose, and the only other floor history on disk is
+   *   `recordings.floor_timeline`, which exists only for conversations
+   *   somebody chose to record — a sample selected by exactly the judgement
+   *   the figure would be used to examine.
+   *
+   *   The holder is always an account: `canClaimFloor` is members-only, so
+   *   unlike `'participant'` this kind never carries a bare identity.
+   *
+   *   **The floor only, never a party mute.** `isWithheld` combines the two
+   *   and `applySilenceToMedia` fires on both, so the obvious hook
+   *   over-collects: a watch party muting the room is not somebody taking a
+   *   turn. Keyed on `floor.holder` alone.
    */
   kind: string;
   /** Null on a span that belongs to the channel rather than to a person. */
@@ -1046,7 +1061,14 @@ CREATE INDEX IF NOT EXISTS recordings_participants
 -- that nothing identifying remains.
 CREATE TABLE IF NOT EXISTS usage_spans (
   id           TEXT PRIMARY KEY,
-  -- 'mic' | 'listen' | 'playback' | 'egress' | 'pair' | 'participant'
+  -- 'mic' | 'listen' | 'playback' | 'egress' | 'pair' | 'participant' | 'floor'
+  --
+  -- 'floor' is the one kind that is not a cost. Everything else here says what
+  -- this box carried; a floor span says what somebody did in a conversation,
+  -- which is why it is called out rather than left to blend in. It is here to
+  -- answer one question — whether the claim delay produces the turn-taking it
+  -- was designed to produce — and the rule above binds it exactly as it binds
+  -- the rest: nothing in the application reads it. See UsageSpanRow.kind.
   kind         TEXT NOT NULL,
   -- Null on a channel-level span, and on 'participant' it is an identity
   -- rather than an account whenever the shared-track participant holds it.

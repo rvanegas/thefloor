@@ -454,6 +454,75 @@ describe('recording minutes', () => {
   });
 });
 
+/**
+ * The floor, which is the one kind here that is not a cost.
+ *
+ * These guard the two things that make it worth collecting at all: that the
+ * edges are the claim's own rather than a poll's, and that it counts claims
+ * rather than silence — a party mute withholds everybody by the same mechanism
+ * and is not a turn.
+ */
+describe('floor minutes', () => {
+  const WATCH_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
+  it('open on the claim and close on the release, at the transition', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.id, { type: 'CLAIM_FLOOR' });
+
+    const [claim] = spans('floor');
+    expect(spans('floor')).toHaveLength(1);
+    expect(claim.account_id).toBe(alice.id);
+    expect(claim.channel_id).toBe(channelId);
+    expect(claim.source).toBe('state');
+    expect(claim.ended_at).toBeNull();
+
+    // Nothing is polled: no fifteen seconds pass and the release is exact.
+    clock += 4_000;
+    app.channels.dispatch(channelId, alice.id, { type: 'RELEASE_FLOOR' });
+    expect(minutesOf('floor')).toBe(4_000);
+    expect(spans('floor')[0].ended_at).toBe(T0 + 4_000);
+  });
+
+  it('close one and open the next when the floor changes hands', async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.id, { type: 'CLAIM_FLOOR' });
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.id, { type: 'RELEASE_FLOOR' });
+    app.channels.dispatch(channelId, bob.id, { type: 'CLAIM_FLOOR' });
+    clock += 5_000;
+
+    expect(spans('floor')).toHaveLength(2);
+    expect(minutesOf('floor', alice.id)).toBe(10_000);
+    expect(minutesOf('floor', bob.id)).toBe(5_000);
+  });
+
+  it('close when the holder leaves, the reducer having released it', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.id, { type: 'CLAIM_FLOOR' });
+    clock += 30_000;
+    app.channels.dispatch(channelId, alice.id, { type: 'STEP_OUT' });
+
+    // The claim is force-released on departure, so there is no exit that
+    // leaves this open for closeStrays to zero.
+    expect(spans('floor')[0].ended_at).toBe(T0 + 30_000);
+    expect(minutesOf('floor')).toBe(30_000);
+  });
+
+  it('ignore a party mute, which withholds everybody and is not a turn', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.id, {
+      type: 'START_WATCH',
+      url: WATCH_URL,
+    } as never);
+    app.channels.dispatch(channelId, alice.id, {
+      type: 'SET_WATCH_MUTE',
+      muted: true,
+    } as never);
+
+    expect(spans('floor')).toHaveLength(0);
+  });
+});
+
 describe('pair minutes', () => {
   it('are canonically ordered, whoever arrived first', async () => {
     const { alice, bob, channelId } = await channelOfTwo();

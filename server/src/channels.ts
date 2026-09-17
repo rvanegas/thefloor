@@ -4854,7 +4854,8 @@ export class ChannelRegistry {
    * Everything here is something this process is the authority for. Playback
    * is published by its own participant and egress by its own jobs, so the
    * transition *is* the truth and there is nothing to ask anybody. Pairs are a
-   * fact about presence, which is this server's to know.
+   * fact about presence, which is this server's to know. The floor is the same
+   * kind of thing and more so: it exists only here, so there is nobody to ask.
    *
    * The microphone is the one stream a phone publishes, and it is metered from
    * the room instead — see `meterRoom`.
@@ -4906,6 +4907,53 @@ export class ChannelRegistry {
         }
       }
       this.usage.closeOthers(['pair'], after.id, keep);
+    }
+
+    // **One span per claim, and the only kind here that is not a cost.**
+    //
+    // The floor costs this box nothing — it is subscriptions, not streams —
+    // and is metered because it survives nowhere else. `durableOf` drops it at
+    // every restart on purpose, and `recordings.floor_timeline` covers only
+    // the conversations somebody chose to record, which is a sample selected
+    // by the very judgement the figure exists to examine. What it is for is
+    // stated once, in the schema: whether the claim delay produces the
+    // turn-taking it was designed to produce. Nothing in the application reads
+    // it, exactly as nothing reads the rest.
+    //
+    // **From the transition, never from a poll.** A turn is often shorter than
+    // USAGE_POLL_INTERVAL_MS, so sampling would be the whole error rather than
+    // noise across a month — `mic`'s fifteen-second edges cannot be made to
+    // answer this. The reducer's committed state is also what the clients were
+    // told, so these edges are the ones the app drew.
+    //
+    // **`floor.holder` alone, not `isWithheld`.** `applySilenceToMedia` reacts
+    // to a party mute as well, that being the other way somebody is withheld;
+    // a room muted for a film is not somebody taking a turn, and keying on the
+    // silence mechanism would count it as one.
+    //
+    // A holder who leaves, or whose channel ends, has the claim force-released
+    // by the reducer — see `releaseFloor`'s callers in core/channel.ts — so
+    // every claim reaches this with a matching release and there is no exit
+    // that leaks an open span. The one that dies with the process is closed by
+    // `closeStrays` at the next boot, which is right rather than lossy: the
+    // floor does not survive the restart either.
+    if (before.floor.holder !== after.floor.holder) {
+      const keep = new Set<string>();
+      if (after.floor.holder !== null) {
+        // Always an account, unlike `participant`: `canClaimFloor` is
+        // members-only since 2026-08-30, so a guest never reaches this.
+        const span = {
+          kind: 'floor',
+          channelId: after.id,
+          accountId: after.floor.holder,
+        };
+        this.usage.openSpan({ ...span, source: 'state' });
+        keep.add(this.usage.keyOf(span));
+      }
+      // A claim passing straight from one holder to another closes the first
+      // and opens the second in one statement, which is what restating rather
+      // than diffing buys here as it does above.
+      this.usage.closeOthers(['floor'], after.id, keep);
     }
   }
 
