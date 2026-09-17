@@ -342,15 +342,22 @@ export function ChannelSettingsView({
 
       {/*
         The system's own output picker, not a control of ours: iOS knows what is
-        connected and we do not — nothing in the audio stack tells JavaScript
-        what outputs exist.
+        connected and we do not — nothing in this stack enumerates the outputs
+        that are available, only the route currently in use.
 
         Here rather than on the channel screen because it is not part of holding
-        a conversation. The default should be right by itself — the loudspeaker
-        rather than the earpiece, yielding to headphones — and this is for the
-        times it is not, so that being in the wrong ear is fixable by the person
-        it is happening to instead of by a release. If it goes untouched, that
-        is evidence the default works and it should come out again.
+        a conversation.
+
+        **What it is for is reaching another device** — a Bluetooth speaker
+        across a room, a car, an AirPlay receiver. That is a want the default
+        cannot infer, and the sheet serves it well.
+
+        **What it cannot do is choose between the earpiece and the loudspeaker**,
+        established 2026-09-03: `AVRoutePickerView` lists destinations, and the
+        two built-in ports are not separate entries in it. It was added for
+        exactly that job and was never able to do it, which is why the sublabel
+        promises neither. Recovery from the earpiece is automatic instead — see
+        `audio/routeRecovery.ts`.
       */}
       {Platform.OS === 'ios' ? (
         <>
@@ -358,7 +365,7 @@ export function ChannelSettingsView({
           <Card style={styles.stack}>
             <Button
               label="Choose where sound comes out"
-              sublabel="Speaker, earpiece, headphones or anything paired"
+              sublabel="Headphones, AirPlay, or anything paired"
               onPress={() => {
                 void showRoutePicker();
               }}

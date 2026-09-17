@@ -33,3 +33,30 @@ able to help, and the probation was therefore measuring something the control
 could not have passed. Recovery from the earpiece is now automatic instead:
 `src/audio/routeRecovery.ts` restates the configuration when iOS drops the
 output to the receiver, which is what that job actually required.
+
+**The probation has no instrument, established 2026-09-17.** Its test is "if
+nobody reaches for the picker after a few weeks of real use" — and nothing
+counts the presses. `onPress` raises the sheet and does nothing else. The
+pipeline that looks like the answer is not one: `recordEvent` drains to
+`POST /diagnostics`, which refuses any account without the `debug` column and
+writes to the journal rather than a table, so it would measure the author and
+rotate the evidence away inside a day. Measuring ordinary use means the meter's
+shape instead — a table nothing in the server reads, swept at
+`USAGE_RETENTION_MS`, cleared by `deleteAccount`, read by a script in `bin/`,
+as `pings` is. Two traps come with it: the thirty-day window happens to match
+"a few weeks", and **the clock restarts at whatever build ships the counter** —
+every install below it reports zero presses for the same reason old builds are
+`silentBuilds`, so silence is not evidence until the population has moved.
+
+So the entry's two halves now stand like this. The **recovery** half is closed:
+it was never possible and is `routeRecovery.ts`'s job now, automatically. The
+**another-device** half is open and unmeasured, and it is the only question a
+counter would answer — not "is the default right", which recovery took, but
+"does anybody want the audio somewhere else". Whether to pay for that counter,
+keep the control unmeasured, or remove it on the argument that Control Centre
+already offers the same sheet, is undecided and is the author's call.
+
+The code no longer argues the retired half: `routePicker.ts`, the comment in
+`ChannelSettingsView`, and STATES.md § *Audio Output Selection* were reconciled
+on 2026-09-17, and the button's sublabel stopped promising a choice between the
+earpiece and the speaker that the sheet has never offered.

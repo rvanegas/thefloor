@@ -726,22 +726,41 @@ planning/decisions/2026-09-16-the-room-is-gone-before-livekit-says-so.md.
 
 ## Audio Output Selection
 
-**There is no such state**, and the absence is deliberate rather than an
-oversight.
+**Nobody chooses the output**, and that absence is deliberate. But the route is
+no longer unreadable, and this section said it was until 2026-09-17.
 
-**Name in source.** None. `app/src/audio/routePicker.ts:21` shows iOS's own
-`AVRoutePickerView` and hands the entire question to the system.
+**Name in source.** `RecoveryState` in `app/src/audio/routeRecovery.ts` — per
+episode, not per connection, and it is state *about* the output rather than a
+choice of one. `app/src/audio/routePicker.ts:21` still hands the choosing
+entirely to iOS's `AVRoutePickerView`.
 
-**Conditions.** Nothing in this stack tells JavaScript what the route is.
+**Conditions.** Nothing here enumerates the outputs that are *available*:
 `AudioSession.getAudioOutputs` offers iOS only `"default"` and
-`"force_speaker"`; `enumerateDevices` returns the built-in microphone and no
-outputs at all; no package here surfaces the current route, and there is no
-route-change event to subscribe to.
+`"force_speaker"`, and `enumerateDevices` returns the built-in microphone and
+no outputs at all. **The route in use is another matter.** The local
+`audio-route` module returns a `RouteSnapshot` — output and input ports, sample
+rate, category, mode, options — and `onRouteChange` publishes one on every
+change iOS makes; `useSessionAudio.ts:1898` is subscribed to it, which is what
+drives the recovery reducer.
 
-**Where the sources disagree.** They cannot, there being only one. The cost is
-that **routing failures are undiagnosable from inside the app** — item 7 was
-found by ear and settled by reasoning, and no log line could have reported it.
-Anything that wants to verify a route has to be a person with the phone.
+**Where the sources disagree.** iOS's route and what this app last asked for can
+differ, which is the whole reason the reducer exists: `playAndRecord` defaults
+to the receiver, `defaultToSpeaker` converts that default, and iOS re-picks on
+every device arriving or leaving without any state of ours moving. `Receiver`
+in the outputs while the session wants `CALL` is that disagreement, and
+re-asserting the configuration is the correction — bounded at `MAX_REASSERTS`,
+because re-asserting is itself a route change.
+
+**What is still true is that the picker cannot settle it.**
+`AVRoutePickerView` lists destinations; the built-in receiver and the built-in
+speaker are not separate entries, so no control currently in the app can move
+audio from the earpiece to the loudspeaker on the phone in somebody's hand.
+That is why the correction is automatic.
+
+**The cost that remains** is that nothing measures a route on an ordinary
+account: `recordEvent` drains to `POST /diagnostics`, which is gated on the
+`debug` column and lands in the journal. Item 7 was found by ear, and a report
+from somebody without that flag still arrives as a sentence rather than a log.
 
 ---
 
