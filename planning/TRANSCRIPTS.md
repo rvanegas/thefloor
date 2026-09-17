@@ -136,8 +136,9 @@ are inside a played track or what any of them are called.
 
 **What somebody has the right to play is theirs**, and is a question about the
 recording rather than about transcribing it — the copy already exists.
-BACKLOG.md § *Playing media into a channel is a copyright surface nobody has
-addressed* is where that sits.
+`decisions/2026-09-16-nothing-here-knows-what-a-track-is.md` is where that
+sits, and it is settled: responsibility follows knowledge, and nothing here has
+any.
 
 ---
 
