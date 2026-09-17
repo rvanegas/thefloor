@@ -863,8 +863,8 @@ export function useSessionAudio(
    *
    * `UIBackgroundModes: ["audio"]` grants a backgrounded process the right to
    * go on playing, and no right at all to open a microphone — that is what
-   * CallKit and PushKit are for, and BACKLOG.md § *Notifications do not ring*
-   * records that this app has neither. So a session that is already
+   * CallKit and PushKit are for, and TASKS.md § *Genuine ringing, added last,
+   * for emergencies only* records that this app has neither and why. So a session that is already
    * `playAndRecord` survives being backgrounded, and one that asks to become
    * `playAndRecord` from the background is refused.
    *

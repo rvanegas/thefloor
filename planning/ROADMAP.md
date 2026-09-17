@@ -73,12 +73,14 @@ but a sentence saying what will happen to you because of it.
 without being told by a friend, and a person who pings somebody unreachable
 learns it before waiting rather than after.
 
-**Adjacent, and not this:** BACKLOG.md § *Notifications do not ring — they are
-alerts* catalogues the larger delivery machinery — PushKit, CallKit, Time
-Sensitive. **Most of that list is off-thesis and should stay unbuilt.** Time
-Sensitive in particular is precisely the escalation the proposition forbids a
-sender to claim, and its presence in a backlog as "smaller things left on the
-table" is the pressure this document exists to resist. See § *What decides
+**Adjacent, and not this:** TASKS.md § *Genuine ringing, added last, for
+emergencies only* catalogues the larger delivery machinery — PushKit, CallKit,
+Time Sensitive. **Most of that list is off-thesis and stays unbuilt until the
+end.** Time Sensitive in particular is precisely the escalation the proposition
+forbids a sender to claim, and it was listed in the backlog entry that task
+replaced as one of the "smaller things left on the table" — the pressure this
+document exists to resist. The task now rules it out by name; it is a ring
+granted by a recipient to one person or it is nothing. See § *What decides
 anything not on this list*, first constraint.
 
 ## 2. Teach the habit at the empty channel
