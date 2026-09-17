@@ -58,6 +58,7 @@ caused; the list carries the meaning.
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists and the *Support* tab, not one thing
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
+- **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
 - **Invite pin** — The six digits at the end of an invite link, good once
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
@@ -690,6 +691,21 @@ An ask to join a channel, from whoever actually asked rather than from whoever
 created the channel. It outlives the moment it was sent, so a card says how
 many people are in the channel now rather than claiming somebody is still
 waiting.
+
+## Invitation email
+
+**The message that goes out when a *contact request* names an address with no
+account**, carrying the sender's *invite link* when they have a username and
+the door into the web app when they do not. Not an *invitation* in the sense
+above: that one asks somebody into a channel and reaches a person who is
+already here, where this one reaches somebody who is not, and is the only thing
+in the application that spends money on a stranger.
+
+Which is why it is the only ask with a price on it. **Twenty per sender per
+twenty-four hours** — `INVITE_MAX_SENDS` — counted at the attempt and never
+refunded, so withdrawing the request does not buy the quota back. A request to
+an address that *does* have an account is a push notification rather than a
+message, costs nothing, and is not counted.
 
 ## Invite link
 

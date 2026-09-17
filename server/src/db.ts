@@ -701,6 +701,37 @@ CREATE TABLE IF NOT EXISTS invite_guesses (
   window_start INTEGER NOT NULL
 );
 
+-- What bounds the mail an invitation sends.
+--
+-- A contact request to an address with no account sends real email, billed to
+-- this SES identity and attributable to this domain's reputation, and the only
+-- thing that ever stood between one account and an arbitrary number of
+-- strangers was the duplicate check in pending_invites — which is per address,
+-- and expires with the row at INVITE_TTL_MS.
+--
+-- **Per requester, and a flow rather than a stock.** A cap on how many
+-- invitations are outstanding would bound this table and not the billing:
+-- withdrawing a request is behind an ordinary session, so a sender frees a slot
+-- whenever they like, and send-withdraw-send holds the stock at one while the
+-- mail is unbounded. What costs money is the sending, so the sending is what is
+-- counted.
+--
+-- **Counted at the attempt, and never given back.** A row withdrawn because the
+-- mailer threw does not return the quota: that undo exists so a sender can
+-- correct a mistake, and a refund would make a provoked failure the way around
+-- this table. Only a request that never reaches the mailer at all — a
+-- duplicate, or a server with no mailer configured — goes uncounted.
+--
+-- The window is fixed rather than sliding, as invite_guesses' is, and for the
+-- same reason: the first send opens it and the count runs until it lapses. That
+-- permits two windows' worth across a boundary, which is still a rate nobody
+-- legitimate approaches.
+CREATE TABLE IF NOT EXISTS invite_sends (
+  requester_id TEXT PRIMARY KEY REFERENCES accounts(id),
+  sent         INTEGER NOT NULL DEFAULT 0,
+  window_start INTEGER NOT NULL
+);
+
 -- Money somebody gave, voluntarily, toward keeping this running. Nothing is
 -- unlocked by it: an account that has never given a penny behaves identically
 -- to one that has, which is what keeps this table off every read path in the

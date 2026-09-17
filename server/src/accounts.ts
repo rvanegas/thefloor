@@ -166,6 +166,30 @@ export const INVITE_MAX_GUESSES = 10;
 export const INVITE_GUESS_WINDOW_MS = 60 * 60 * 1000;
 
 /**
+ * How many strangers one account may mail, and over what.
+ *
+ * An invitation to an address with no account sends real email, so this is the
+ * same concern `OTP_RESEND_INTERVAL_MS` carries — with the difference that a
+ * code goes to one address that asked for it and an invitation goes to any
+ * address its sender can type. The duplicate check in `pending_invites` bounds
+ * repeats to one person; nothing bounded the number of people.
+ *
+ * Twenty a day, on what the app has a reason to produce: the one legitimate
+ * burst is somebody who has just arrived typing in their friends, a dozen or
+ * so addresses in a sitting, and twenty clears that with room. Above it is a
+ * rate no onboarding reaches. An account costs a round trip through an emailed
+ * code to create, so scaling past this means minting accounts, which is
+ * throttled already.
+ *
+ * A day rather than `INVITE_GUESS_WINDOW_MS`' hour, because the two are not
+ * the same attack: a pin search is a burst that wants killing in minutes,
+ * where this is a sustained flow billed per message, and an hourly cap that
+ * permits twenty-four bursts a day bounds the wrong thing.
+ */
+export const INVITE_MAX_SENDS = 20;
+export const INVITE_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Why a pin did not open anything.
  *
  * Told apart on purpose, unlike the sign-in code's deliberately uniform
@@ -277,6 +301,12 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM invite_guesses WHERE window_start <= ?')
       .run(now - INVITE_GUESS_WINDOW_MS);
+    // Same housekeeping, same reasoning: a lapsed window is already spent as
+    // far as `spendInviteSend` is concerned, which treats a missing row and an
+    // expired one identically.
+    this.db
+      .prepare('DELETE FROM invite_sends WHERE window_start <= ?')
+      .run(now - INVITE_SEND_WINDOW_MS);
     return {
       codes: Number(codes),
       invites: Number(invites) + Number(pins),
@@ -2179,6 +2209,51 @@ export class Accounts {
       .run(ownerId);
   }
 
+  /**
+   * Spends one invitation from this account's daily budget, and says whether
+   * there was one to spend.
+   *
+   * **Ask once, at the moment of sending, and do not ask again.** This both
+   * decides and counts, so there is no window between a check and an increment
+   * for a second request to arrive in, and no second reading of the rule to
+   * drift from the first. `false` means the mail must not go.
+   *
+   * Public where `countInviteGuess` is private, and that asymmetry is real: a
+   * guess is counted by the redemption path in this class, where the sending of
+   * an invitation is the route's own business — this class never learns whether
+   * the message went.
+   *
+   * **Nothing gives it back.** The route undoes the `pending_invites` row when
+   * a send fails, and deliberately does not undo this; see db.ts for why a
+   * refund would be the way around the table.
+   */
+  spendInviteSend(requesterId: string, now: number): boolean {
+    const row = this.db
+      .prepare('SELECT * FROM invite_sends WHERE requester_id = ?')
+      .get(requesterId) as { sent: number; window_start: number } | undefined;
+    if (!row || now - row.window_start >= INVITE_SEND_WINDOW_MS) {
+      this.db
+        .prepare(
+          `INSERT INTO invite_sends (requester_id, sent, window_start)
+           VALUES (?, 1, ?)
+           ON CONFLICT(requester_id) DO UPDATE
+             SET sent = 1, window_start = excluded.window_start`
+        )
+        .run(requesterId, now);
+      return true;
+    }
+    // The window is not extended by a refusal. It was opened by the first send
+    // and lapses that long after it, so somebody who hits the cap waits out
+    // what is left rather than restarting the clock every time they try.
+    if (row.sent >= INVITE_MAX_SENDS) return false;
+    this.db
+      .prepare(
+        'UPDATE invite_sends SET sent = sent + 1 WHERE requester_id = ?'
+      )
+      .run(requesterId);
+    return true;
+  }
+
   /** Whether this account is still answering pins at all. */
   private inviteLocked(ownerId: string, now: number): boolean {
     const row = this.db
@@ -2379,6 +2454,11 @@ export class Accounts {
       .run(accountId);
     this.db
       .prepare('DELETE FROM invite_guesses WHERE owner_id = ?')
+      .run(accountId);
+    // And the budget, which is a foreign key onto this account: leaving it
+    // would refuse the deletion outright rather than merely orphan a row.
+    this.db
+      .prepare('DELETE FROM invite_sends WHERE requester_id = ?')
       .run(accountId);
     // Both directions: the addresses they were showing, and the ones they were
     // being shown. The first is the account's own to take with it; the second

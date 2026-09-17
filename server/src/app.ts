@@ -1108,6 +1108,32 @@ export function buildApp(options: BuildOptions = {}): App {
           .code(503)
           .send({ error: 'Invitations are temporarily unavailable.' });
       }
+      // **The budget is spent here, after the duplicate check and before the
+      // message.** A second invitation to the same address never reaches this
+      // line — `requestContact` has already refused it — so asking again
+      // costs nothing, and a server with no mailer has refused above rather
+      // than charging for a message it cannot send. What is left is exactly
+      // the set of requests that are about to put mail on the wire.
+      //
+      // Nothing below gives it back. The row is withdrawn when a send fails
+      // and the count is not, deliberately: see db.ts on why a refund would
+      // make a provoked failure the way around this.
+      if (!accounts.spendInviteSend(account.id, now())) {
+        accounts.withdrawRequest(account.id, body.identifier);
+        request.log.warn(
+          { accountId: account.id },
+          'invitation refused: daily budget spent'
+        );
+        // Said plainly, unlike the rest of this route. What it discloses is the
+        // sender's own rate back to them, and there is no address-existence
+        // question in it — the vagueness elsewhere protects the recipient,
+        // and there is nothing to protect somebody from about their own
+        // sending.
+        return reply.code(429).send({
+          error:
+            'You have sent as many invitations as you can today. Try again tomorrow.',
+        });
+      }
       // **Every invitation carries a link, and which link depends on the
       // sender.** With a username it is theirs, and following it accepts this
       // request on the recipient's behalf the moment they sign in. Without
