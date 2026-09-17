@@ -1,6 +1,6 @@
 # The output picker is on probation
 
-`ChannelSettingsView` raises iOS's own route picker — an `AVRoutePickerView`
+`HomeSettingsView` raises iOS's own route picker — an `AVRoutePickerView`
 via `AudioSession.showAudioRoutePicker`, not a control of ours, because nothing
 in this stack tells JavaScript what outputs exist.
 
@@ -56,7 +56,15 @@ counter would answer — not "is the default right", which recovery took, but
 keep the control unmeasured, or remove it on the argument that Control Centre
 already offers the same sheet, is undecided and is the author's call.
 
-The code no longer argues the retired half: `routePicker.ts`, the comment in
-`ChannelSettingsView`, and STATES.md § *Audio Output Selection* were reconciled
+The code no longer argues the retired half: `routePicker.ts`, the comment on
+the card, and STATES.md § *Audio Output Selection* were reconciled
 on 2026-09-17, and the button's sublabel stopped promising a choice between the
 earpiece and the speaker that the sheet has never offered.
+
+**It moved to Floor Settings on 2026-09-17**, having been on Channel Settings
+since it was added. Nothing about it is per channel — the sheet is the same
+sheet and the route it sets outlives the channel it was set from — so the test
+that puts the name and the recording setting there does not reach it. Nothing
+above changes: what is on probation is the control, not where it is drawn, and
+a control that is now findable without being in a channel is if anything easier
+to measure than one that was not.

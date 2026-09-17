@@ -2562,28 +2562,13 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('opens the system output picker from settings', async () => {
-    // Ours to place, not ours to build: iOS knows what is connected and this
-    // app cannot — nothing in the audio stack tells JavaScript what outputs
-    // exist. So the button raises the system sheet and nothing more.
-    const { AudioSession } = require('@livekit/react-native');
-    AudioSession.showAudioRoutePicker.mockClear();
-
-    showChannel(channelOf());
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    act(() => findButton(tree, 'Settings')!.props.onPress());
-
-    const picker = findButton(tree, 'Choose where sound comes out');
-    expect(picker).toBeDefined();
-    await act(async () => picker!.props.onPress());
-    expect(AudioSession.showAudioRoutePicker).toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
+  /*
+    `it('opens the system output picker from settings')` was here and went on
+    2026-09-17, with the card. *Audio output* sat on Channel Settings and was
+    never about a channel — the route it sets outlives the channel it was set
+    from — so it is on Floor Settings now, and so is its test: see
+    `describe("the output picker")` in settings.test.tsx.
+  */
 
   it('lists the recordings made in it, which is where they now live', async () => {
     // They were on Home, which put every conversation anyone had ever recorded

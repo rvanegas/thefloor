@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_NAME_LENGTH,
@@ -12,7 +12,6 @@ import {
   type NotificationLevel,
 } from '../../../core/notifications';
 import type { ChannelState } from '../../../core/types';
-import { showRoutePicker } from '../audio/routePicker';
 import { type GuestLinkSummary } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import {
@@ -341,48 +340,14 @@ export function ChannelSettingsView({
       </Card>
 
       {/*
-        The system's own output picker, not a control of ours: iOS knows what is
-        connected and we do not — nothing in this stack enumerates the outputs
-        that are available, only the route currently in use.
-
-        Here rather than on the channel screen because it is not part of holding
-        a conversation.
-
-        **What it is for is reaching another device** — a Bluetooth speaker
-        across a room, a car, an AirPlay receiver. That is a want the default
-        cannot infer, and the sheet serves it well.
-
-        **What it cannot do is choose between the earpiece and the loudspeaker**,
-        established 2026-09-03: `AVRoutePickerView` lists destinations, and the
-        two built-in ports are not separate entries in it. It was added for
-        exactly that job and was never able to do it, which is why the sublabel
-        promises neither. Recovery from the earpiece is automatic instead — see
-        `audio/routeRecovery.ts`.
-      */}
-      {Platform.OS === 'ios' ? (
-        <>
-          <SectionLabel>Audio output</SectionLabel>
-          <Card style={styles.stack}>
-            <Button
-              label="Choose where sound comes out"
-              sublabel="Headphones, AirPlay, or anything paired"
-              onPress={() => {
-                void showRoutePicker();
-              }}
-            />
-          </Card>
-        </>
-      ) : null}
-
-      {/*
         Whose phone this channel may ring, and how loudly. One person's own
         answer about one channel — nobody else on the roster is told, and
         nothing about the conversation changes.
 
-        Here rather than on the channel screen for the reason the audio picker
-        is: it is about the channel and not about the conversation going on
-        inside it. And per channel rather than in Settings because that is the
-        scope at which the question has an answer — the same amount of traffic
+        Here rather than on the channel screen because it is about the channel
+        and not about the conversation going on inside it. And per channel
+        rather than on Floor Settings because that is the scope at which the
+        question has an answer — the same amount of traffic
         is welcome from the conversation somebody is waiting on and unwelcome
         from the one they joined for completeness.
       */}
@@ -393,8 +358,8 @@ export function ChannelSettingsView({
 
       {/*
         Every door onto this channel that has ever been opened, and the state
-        of each. Here rather than on the channel screen for the reason the
-        audio picker is: it is about the channel rather than about the
+        of each. Here rather than on the channel screen on the same terms as
+        the section above: it is about the channel rather than about the
         conversation, and it is read when somebody has a reason to wonder who
         can get in.
       */}

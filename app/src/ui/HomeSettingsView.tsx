@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
+import { showRoutePicker } from '../audio/routePicker';
 import { useApp } from '../state/AppProvider';
 import { forgetInstall } from '../state/storage';
 import {
@@ -38,6 +39,12 @@ import type { ColorSchemePreference } from './appearance';
  * core/micNeeded.ts. If a phone-scoped setting is ever added back, say so on
  * the card again: a screen where some settings sync and others do not is only
  * honest if it admits which is which.
+ *
+ * **Audio output is the near miss and is not an exception**, moved here from
+ * Channel Settings on 2026-09-17. It acts on this phone and on no other, so it
+ * looks like the second scope the paragraph above warns about — but it stores
+ * nothing at all. It is a door onto a system sheet, so there is no value to
+ * sync and none to fail to, and the card has nothing to admit.
  *
  * One of the two settings screens, one per scope, each reached from the screen
  * whose scope it is: this one from Home, ChannelSettingsView from a channel.
@@ -347,6 +354,53 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           it, and this is the way to get it back.
         </Text>
       </Card>
+
+      {/*
+        The system's own output picker, not a control of ours: iOS knows what is
+        connected and we do not — nothing in this stack enumerates the outputs
+        that are available, only the route currently in use.
+
+        **Here rather than on Channel Settings, since 2026-09-17.** It sat there
+        for as long as it has existed, under the reasoning that it was about the
+        channel rather than about the conversation going on inside it — which is
+        the right test for the name, the recording setting, the notification
+        level and the guest links, and is the wrong one here, because where
+        sound comes out of this phone is not about a channel at all. Nothing
+        about it is per channel: the sheet it raises is the same sheet, the
+        route it sets outlives the channel it was set from and applies to the
+        next one, and a person wanting their car stereo does not want it for one
+        conversation. Having to be *in* a channel to reach a setting that is not
+        about channels is how somebody came to look for it on this screen first.
+
+        **What it is for is reaching another device** — a Bluetooth speaker
+        across a room, a car, an AirPlay receiver. That is a want the default
+        cannot infer, and the sheet serves it well.
+
+        **What it cannot do is choose between the earpiece and the loudspeaker**,
+        established 2026-09-03: `AVRoutePickerView` lists destinations, and the
+        two built-in ports are not separate entries in it. It was added for
+        exactly that job and was never able to do it, which is why the sublabel
+        promises neither. Recovery from the earpiece is automatic instead — see
+        `audio/routeRecovery.ts`.
+
+        iOS only, as it always was: `showRoutePicker` returns without doing
+        anything anywhere else, and a control that does nothing is worse than no
+        control.
+      */}
+      {Platform.OS === 'ios' ? (
+        <>
+          <SectionLabel>Audio output</SectionLabel>
+          <Card style={styles.stack}>
+            <Button
+              label="Choose where sound comes out"
+              sublabel="Headphones, AirPlay, or anything paired"
+              onPress={() => {
+                void showRoutePicker();
+              }}
+            />
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Under the settings that change what the app does and above appearance,

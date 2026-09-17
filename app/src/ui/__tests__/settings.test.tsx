@@ -341,6 +341,37 @@ describe("the Labs setting", () => {
 });
 
 /**
+ * Where sound comes out, which is this phone's business and not a channel's.
+ *
+ * **On this screen since 2026-09-17**, having been on Channel Settings since
+ * it was built. Nothing about it was ever per channel: the sheet is the system
+ * sheet, and the route it sets is still in force in the next channel and after
+ * the app is closed.
+ *
+ * Ours to place, not ours to build: iOS knows what is connected and this app
+ * cannot — nothing in the audio stack tells JavaScript what outputs exist. So
+ * the button raises the system sheet and nothing more, which is the whole of
+ * what there is to assert.
+ */
+describe("the output picker", () => {
+  it("opens the system output picker", async () => {
+    const { AudioSession } = require("@livekit/react-native");
+    AudioSession.showAudioRoutePicker.mockClear();
+
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+
+    const picker = findButton(tree, "Choose where sound comes out");
+    expect(picker).toBeDefined();
+    await act(async () => picker!.props.onPress());
+    expect(AudioSession.showAudioRoutePicker).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * The chimes have no setting on this screen, and had one for a day.
  *
  * A *Sounds* section offered five rungs on 2026-09-15 and was withdrawn the

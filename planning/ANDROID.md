@@ -439,7 +439,7 @@ on routing questions nobody could measure; Android is back in that position.
 
 `routePicker.ts` is the one with a real Android answer that was not taken:
 `AudioSession.getAudioOutputs()` + `selectAudioOutput(deviceId)`, a list rather
-than a system sheet. So `ChannelSettingsView.tsx`'s "Audio output" card needs a
+than a system sheet. So `HomeSettingsView.tsx`'s "Audio output" card needs a
 *different control*, not the same one with its guard removed. Unbuilt.
 
 ---
