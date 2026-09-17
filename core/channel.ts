@@ -2038,7 +2038,12 @@ export function reduce(
       if (!canStartRecording(state, action.userId)) return state;
       return {
         ...state,
-        recording: startRecording(state.recording, action.runId, now),
+        recording: startRecording(
+          state.recording,
+          action.runId,
+          now,
+          action.automatic === true
+        ),
       };
     }
 

@@ -24,9 +24,10 @@ import { CHIME_AMPLITUDE, type ChimeKind } from '../../modules/audio-route';
 
 const NOTE_E5 = 659.25;
 const NOTE_A5 = 880.0;
+const NOTE_CS5 = 554.37;
 
 /**
- * The three kinds, as note sequences.
+ * The four kinds, as note sequences.
  *
  * `nearby` is the same note twice where the others move — the rung between
  * being in a room and being out of it, sounding like neither direction. E5
@@ -39,6 +40,7 @@ const KINDS: Record<ChimeKind, number[]> = {
   in: [NOTE_E5, NOTE_A5],
   out: [NOTE_A5, NOTE_E5],
   nearby: [NOTE_E5, NOTE_E5],
+  recording: [NOTE_CS5, NOTE_E5, NOTE_A5],
 };
 const NOTE_SECONDS = 0.09;
 /**
@@ -142,4 +144,8 @@ export function chimeOut(amplitude?: number): void {
 
 export function chimeNearby(amplitude?: number): void {
   chime('nearby', amplitude);
+}
+
+export function chimeRecording(amplitude?: number): void {
+  chime('recording', amplitude);
 }

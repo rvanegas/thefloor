@@ -17,13 +17,25 @@ it is cheaper to answer before there are recordings of other people than after.
 
 - A persistent red dot and "Recording" label in the Channel view, visible to
   both parties whenever capture is running.
+- **An audible chime on every present device when a run somebody started
+  begins**, since 2026-09-17 — three notes rising, heard by the starter too.
+  This is the one thing on this list that reaches somebody who is not looking
+  at a screen, which a conversation app is full of. Two limits belong in the
+  review rather than in a footnote: a run the channel started by itself
+  (`autoRecord`) makes no sound, so the runs with no audible notice are exactly
+  the ones nobody initiated; and the chime is local to each device rather than
+  published into the media room, so it is **not** in the stem or the exported
+  file and the artifact carries no evidence that notice was given. See
+  `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
 - Either party may stop the recording at any time, except the silenced party
   during an active claim.
 - A silenced speaker is told explicitly that they are still being captured.
 - Recording is never automatic; someone has to start it.
 
-So notice is given. Whether notice is *consent* is the open question, and in
-several US states it is not.
+So notice is given, and since 2026-09-17 some of it is audible. Whether notice
+is *consent* is the open question, and in several US states it is not — nothing
+above moves that, and the chime in particular should not be mistaken for an
+answer to it. What it changed is the modality, not the standing.
 
 ### What makes it sharper than the spec anticipated
 

@@ -654,6 +654,12 @@ public class AudioRouteModule: Module {
     "in": [noteE5, noteA5],
     "out": [noteA5, noteE5],
     "nearby": [noteE5, noteE5],
+    // Three where every other kind is one or two, which is the point: the
+    // presence chimes are about who is in the room and this one is about what
+    // the room is doing to everything said in it. A rising triad, so it is not
+    // mistakable for `in` at the far end of a corridor. See
+    // planning/decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
+    "recording": [noteCS5, noteE5, noteA5],
     "nearby-a": [noteE5],
     "nearby-b": [noteA5, noteA5],
     "nearby-c": [noteCS5, noteCS5],

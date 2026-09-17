@@ -597,6 +597,18 @@ before 2026-09-07 and could not between then and 2026-09-14; what is refused is
 a room where every microphone is shut and nothing is playing, a run there
 having nothing to put in the file. The run stops the moment nobody is present.
 
+**`automatic` is how the run began, and is the one field here that no layer
+computes.** True exactly for a run the server's `autoRecord` latch started,
+false for every client-originated one — the wire's `START_RECORDING` carries no
+such field, so it cannot be claimed from a phone. It is on the state rather
+than only on the action because the layer that reads it is every *other*
+device: `useRecordingChime` sounds an audible notice when a hand-started run
+begins and stays quiet for an automatic one, and a snapshot is all a device has
+to tell them apart by. It is set at each start and cleared by
+`initialRecordingState`, so it never describes the run before last. Nothing is
+persisted — a rehydrated channel gets `initialRecordingState()`, and a restart
+has emptied every room anyway.
+
 **The bound on a solo run is the attention clock, not the recording rules.**
 `expireInattentive` keeps a present person only while `subscribeable`, and a
 room of one is not — so a phone that stops reporting attention is stepped out

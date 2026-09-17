@@ -8,6 +8,7 @@ import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useChannelLink } from './src/state/useChannelLink';
 import { useLockScreen } from './src/state/useLockScreen';
 import { usePresenceChime } from './src/audio/usePresenceChime';
+import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
@@ -266,6 +267,17 @@ function Root() {
    * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
    */
   usePresenceChime(live, me);
+
+  /**
+   * Told, out loud, that a recording somebody started has begun.
+   *
+   * Here rather than in `ChannelView` for the reason every cue above it is:
+   * the person the red dot never reached is the person not looking at the
+   * channel, and that is the whole of what this adds. Only hand-started runs
+   * sound — see `useRecordingChime`, which carries what that leaves standing
+   * and why it is deliberate.
+   */
+  useRecordingChime(live);
 
   /**
    * Says this device is being attended, which is all a client does about

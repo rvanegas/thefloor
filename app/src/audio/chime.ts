@@ -7,11 +7,11 @@ import {
 
 export type { ChimeKind };
 
-/** The three the app can actually play, which is what there is to warm. */
-const KINDS: ChimeKind[] = ['in', 'out', 'nearby'];
+/** The four the app can actually play, which is what there is to warm. */
+const KINDS: ChimeKind[] = ['in', 'out', 'nearby', 'recording'];
 
 /**
- * Renders all three and hands them to the system sound server, ahead of time.
+ * Renders all four and hands them to the system sound server, ahead of time.
  *
  * **A chime that renders at the moment it is needed is a chime that arrives
  * late or half-formed.** The first play of a given sound writes a WAV, creates
@@ -93,6 +93,21 @@ export function chimeNearby(amplitude?: number): void {
 }
 
 /**
+ * A recording somebody started has begun.
+ *
+ * **The one chime that is not about presence**, and the only one the person
+ * who caused it hears. The other three are a room telling you about somebody
+ * else; this is a room telling everybody in it, the starter included, that
+ * what they say from here is being kept. Withholding it from the starter would
+ * save them nothing — they pressed the button — and would cost the one thing
+ * this is for, which is that both parties can be said to have been told in the
+ * same way at the same moment.
+ */
+export function chimeRecording(amplitude?: number): void {
+  playChime('recording', amplitude);
+}
+
+/**
  * One function over all three, which is what the hook holds and the tests
  * replace.
  *
@@ -101,7 +116,8 @@ export function chimeNearby(amplitude?: number): void {
  * round, and a chime pair wired backwards is a bug nothing but an ear would
  * catch. **A named kind rather than the boolean it was** for the same reason
  * one level down: `fire(true)` could only ever mean one of two things, and
- * there are three.
+ * there are three. There are four now, and the fourth is not a presence chime
+ * — `useRecordingChime` holds this same function for it.
  */
 export function chime(kind: ChimeKind, amplitude?: number): void {
   playChime(kind, amplitude);

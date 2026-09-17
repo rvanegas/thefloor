@@ -401,6 +401,26 @@ describe('automatic recording', () => {
     expect(autoRecordStarter(muted)).toBeNull();
   });
 
+  it('marks a run it would start as automatic, and a hand-started one not', () => {
+    // The bit exists for the app's audible notice and for nothing else: a run
+    // somebody pressed Record for announces itself to the room, and one the
+    // channel began by itself does not. `server/src/channels.ts` is the only
+    // caller that sets it, so the default here is what every client start
+    // gets.
+    expect(reduce(joined(), start(A), T0).recording.automatic).toBe(false);
+    const auto = reduce(
+      on(joined()),
+      { type: 'START_RECORDING', userId: A, runId: RUN, automatic: true },
+      T0
+    );
+    expect(auto.recording.automatic).toBe(true);
+    // And it does not outlive the run it described.
+    expect(
+      reduce(auto, { type: 'STOP_RECORDING', userId: A }, T0 + 1_000).recording
+        .automatic
+    ).toBe(false);
+  });
+
   it('names nobody once a run is going', () => {
     expect(autoRecordStarter(reduce(on(joined()), start(A), T0))).toBeNull();
   });

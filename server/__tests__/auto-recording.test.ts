@@ -113,6 +113,11 @@ describe('a channel that records itself', () => {
       .prepare('SELECT channel_id FROM recordings WHERE id = ?')
       .get(recording.runId) as { channel_id: string } | undefined;
     expect(row?.channel_id).toBe(channelId);
+
+    // **The run says it started itself**, which is what keeps the chime quiet
+    // on every phone in the room: nobody pressed anything, so there is no
+    // moment of notice to announce. See `useRecordingChime` in the app.
+    expect(recording.automatic).toBe(true);
   });
 
   it('does nothing at all when the setting is off', async () => {

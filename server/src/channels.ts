@@ -3421,6 +3421,10 @@ export class ChannelRegistry {
     this.autoRecorded.add(state.id);
     this.apply(state.id, starter, {
       type: 'START_RECORDING',
+      // The one caller that sets this, and the reason it exists: a run nobody
+      // pressed anything for makes no sound in anybody's room. See the
+      // `automatic` field in `core/types.ts`.
+      automatic: true,
       runId: newId('rec'),
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
   }

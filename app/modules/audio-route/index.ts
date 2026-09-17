@@ -263,13 +263,28 @@ export function vibrate(): boolean {
 }
 
 /**
- * Which of the presence chimes to play.
+ * Which chime to play.
  *
  * **Three, not two, since 2026-09-15.** `nearby` was the missing one, and its
  * absence was not silence but a wrong sound: a declaration from outside fired
  * `in`, so a room heard somebody arrive who had only stepped to the edge.
+ *
+ * **And four since 2026-09-17, where the fourth is not a presence chime at
+ * all.** `recording` says a run somebody started has begun — an audible notice
+ * to everybody in the room, where until then the notice was a red dot and
+ * therefore reached only whoever was looking at the screen. It is in the same
+ * type because it is the same renderer and the same alert path, and it is
+ * three notes rather than two because it is not answering the question the
+ * other three answer. See
+ * planning/decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
+ *
+ * **A phone whose native half predates it plays nothing**: `chimeNotes` in
+ * `AudioRouteModule.swift` returns false for a kind it does not know, which is
+ * the deliberate behaviour there — a chime nobody recognises is worse than
+ * silence. So an install below the build that adds this keeps exactly today's
+ * notice rather than acquiring a wrong sound.
  */
-export type ChimeKind = 'in' | 'out' | 'nearby';
+export type ChimeKind = 'in' | 'out' | 'nearby' | 'recording';
 
 /**
  * The shapes `nearby` is being chosen from, which only the audio lab passes.

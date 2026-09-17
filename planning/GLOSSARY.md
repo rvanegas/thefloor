@@ -39,8 +39,9 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
-- **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for declaring themselves nearby
+- **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for declaring themselves nearby — and see *recording chime*, the fourth, which is about the room rather than about who is in it
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, since the alert path has no gain
+- **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -309,7 +310,8 @@ you talk to them in.
 
 ## Chime
 
-**The sound a device makes when the room changes shape.** Two notes rising when
+**The sound a device makes when the room changes shape, or when a recording
+begins.** Two notes rising when
 somebody steps in, the same two falling when somebody steps out — the second is
 audibly the first one backwards, which is what lets the difference be carried by
 a sound nobody was taught.
@@ -322,11 +324,29 @@ event, because one of them can speak and the other cannot. A cue that collapses
 them tells a room to expect a voice that is not coming, which is the one failure
 worse than a cue nobody hears.
 
+**A fourth since 2026-09-17, and it is not a presence chime.** Three notes
+rising — C#5, E5, A5 — when a **recording** somebody started begins. The other
+three answer *who is in this room*; this one answers *what is being done with
+what I say in it*, which is why it is three notes where they are one or two and
+why it is nobody's arrival. **Everybody present hears it, the starter
+included**, which is the one place it breaks the rule below: the sound is not
+information for the person who pressed Record, it is the moment both parties
+were told, and a notice one party is exempt from is a weaker thing to have
+given. **A run the channel started by itself is silent** — `autoRecord` means
+nobody pressed anything, so there is no moment of notice to announce, and that
+scope is deliberate rather than settled. What it is *for* is
+`backlog/two-party-consent-has-not-been-reviewed.md`: until it existed the
+notice that a run was underway was a red dot, which reaches whoever is looking
+at a screen and nobody else. It does not answer that question and must not be
+read as answering it. See
+`decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
+
 **It is not in the media room**, and that is the distinction the word has to
 hold. Nothing is published into LiveKit; each device makes its own sound about
 other people, so it is absent from recordings, absent from transcripts, and —
-the rule that decided the whole design — **never heard by the person it is
-about**. You know you walked in. See
+the rule that decided the whole design — for the three presence kinds, **never heard by the person it is
+about**. You know you walked in; the recording chime is the exception and says
+why above. See
 `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
 
 **How loud is one number, and was the listener's for one day.** It is the
@@ -353,7 +373,7 @@ Distinct from the **buzz** (`app/src/audio/cue.ts`), which is the vibration
 motor and tells *you* something about yourself without words. The two share a
 delivery mechanism — an iOS system sound, chosen because it starts no engine
 and writes no audio session — and nothing else. `usePresenceChime` is the
-schedule, `chime.ts` the sound, and `AudioRouteModule.swift` renders it —
+schedule for the three and `useRecordingChime` for the fourth, `chime.ts` the sound, and `AudioRouteModule.swift` renders it —
 `chimeNotes` there is the table of kinds, and `chime.web.ts` mirrors it row for
 row so the same event does not sound like a different one depending on which
 screen somebody is at.

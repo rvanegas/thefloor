@@ -14,6 +14,7 @@ export function initialRecordingState(): RecordingState {
     accumulatedMs: 0,
     segmentStartedAt: null,
     failure: null,
+    automatic: false,
   };
 }
 
@@ -65,10 +66,22 @@ export function canPauseOrStopRecording(
   return !isSilenced(floor, userId);
 }
 
+/**
+ * `automatic` says how the run began, and is carried for the whole of it.
+ *
+ * A run started by hand announces itself to everybody present; one the channel
+ * started by itself does not. That is a decision about notice rather than
+ * about recording, and the reasoning is in
+ * `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md` —
+ * what belongs here is only that the bit is set once, at the start, and read
+ * from the snapshot rather than inferred. It defaults to false because by hand
+ * is what a start is unless the server's latch says otherwise.
+ */
 export function startRecording(
   recording: RecordingState,
   runId: string,
-  now: number
+  now: number,
+  automatic = false
 ): RecordingState {
   return {
     status: 'recording',
@@ -79,6 +92,7 @@ export function startRecording(
     // Starting again clears whatever went wrong last time, so a stale reason
     // cannot outlive the recording it belonged to.
     failure: null,
+    automatic,
   };
 }
 

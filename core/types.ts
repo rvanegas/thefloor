@@ -195,6 +195,21 @@ export interface RecordingState {
    * speaking on the strength of that indicator.
    */
   failure: string | null;
+  /**
+   * Whether this run began by itself rather than because somebody pressed
+   * Record.
+   *
+   * **It is on the state rather than only on the action because the people who
+   * need the answer are not the one who acted.** Both starts commit the same
+   * `START_RECORDING`, so a snapshot is all any device has to go on, and what
+   * reads this is `useRecordingChime` — the audible notice that a run has
+   * begun, which a hand-started run gets and an automatic one does not. See
+   * `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
+   *
+   * False while idle, and set at the start of every run, so it can never
+   * describe the run before last.
+   */
+  automatic: boolean;
 }
 
 /**
@@ -756,7 +771,18 @@ export type ChannelAction =
    */
   | { type: 'SET_SELF_MUTE'; userId: UserId; muted: boolean; target?: UserId }
   /** `runId` is minted by the server; a client cannot name one. */
-  | { type: 'START_RECORDING'; userId: UserId; runId: string }
+  | {
+      type: 'START_RECORDING';
+      userId: UserId;
+      runId: string;
+      /**
+       * Set by the server's `autoRecord` latch and by nothing else. Absent is
+       * *by hand*, which is what every client-originated start is: the wire
+       * form carries no such field, so a client cannot claim a run was
+       * automatic and mute the chime on somebody else's phone.
+       */
+      automatic?: boolean;
+    }
   | { type: 'PAUSE_RECORDING'; userId: UserId }
   | { type: 'RESUME_RECORDING'; userId: UserId }
   | { type: 'STOP_RECORDING'; userId: UserId }
