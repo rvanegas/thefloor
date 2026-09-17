@@ -164,8 +164,14 @@ struct LockScreenCard: View {
    is comfortable there is small here. Both controls take it, so the pair keeps
    its proportions — a glyph that grew while the word beside it did not would
    read as two sizes rather than one.
+
+   **A half rather than a whole doubling, and both ends were seen.** At 1 the
+   microphone was a 22pt glyph in a 40pt disc, small on a card read across the
+   width of the screen; at 2 the pair crowded the name it sits beside and read
+   as a toolbar rather than a card. This is the middle, and it is a judgement
+   about this surface rather than a number derived from anything.
    */
-  private static let scale: CGFloat = 2
+  private static let scale: CGFloat = 1.5
 
   var body: some View {
     HStack(alignment: .center, spacing: 10) {
