@@ -178,8 +178,15 @@ function withWidgetTarget(config) {
         INFOPLIST_FILE: `"${TARGET}/${TARGET}-Info.plist"`,
         GENERATE_INFOPLIST_FILE: 'NO',
         CODE_SIGN_STYLE: 'Automatic',
-        CURRENT_PROJECT_VERSION: appSettings.CURRENT_PROJECT_VERSION ?? '"1"',
-        MARKETING_VERSION: appSettings.MARKETING_VERSION ?? '"1.0"',
+        // **Read from the Expo config, not from the app target.** Expo writes
+        // the version and build number literally into the app's own
+        // `Info.plist` and leaves the pbxproj at Xcode's template defaults of
+        // `1.0` and `1` — so copying the app's build settings copied those
+        // defaults, and every upload drew a 90473 CFBundleVersion mismatch
+        // warning with the widget reporting `1.0 (1)` inside a `1.5.3 (222)`
+        // app. Apple accepted it; crash reports did not agree with it.
+        CURRENT_PROJECT_VERSION: `"${cfg.ios.buildNumber}"`,
+        MARKETING_VERSION: `"${cfg.version}"`,
         // **The one setting that silently produces an unsignable archive.**
         // `prebuild --clean` drops `DEVELOPMENT_TEAM` from the app target —
         // planning/RELEASING.md carries that trap — and an extension without
