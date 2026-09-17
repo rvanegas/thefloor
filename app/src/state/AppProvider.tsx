@@ -1630,10 +1630,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * Not while expired, which is the same reasoning as the disconnect above:
    * the foreground that re-asks `/healthz` must not also undo the answer it is
    * about to get.
+   *
+   * **Since 2026-09-16 it watches the departure as well as the return**, for
+   * the web, where react-native-web maps this listener onto
+   * `visibilitychange`. A phone going into the background is suspended by iOS
+   * and needs nothing said to it; a tab going hidden is not, and that
+   * asymmetry is the whole of the reconnect loop the web client was in.
    */
   useEffect(() => {
     const subscription = NativeAppState.addEventListener('change', (next) => {
-      if (next === 'active' && !expiry.expired) realtime.resume();
+      if (next === 'active') {
+        if (!expiry.expired) realtime.resume();
+        return;
+      }
+      // And the other half, on the web only, where the browser will not do it
+      // for us: a hidden tab keeps its socket and stops being able to prove it
+      // is there, which the server reads as death every twenty seconds for as
+      // long as the tab is open. `Realtime.suspend` carries the mechanism.
+      //
+      // **Unless this device is in a room**, which is `standingIn` here and
+      // `channelHasAudio` in core/ — stepped in is always capturing, self-
+      // muted or not, which is the line the phone draws with its audio
+      // background mode. A tab holding a conversation is not a tab nobody is
+      // looking at. (The listening half of that predicate belongs to the
+      // guest page, which has no members in it; see `web/guest.ts`.)
+      if (next === 'background' && Platform.OS === 'web' && !standing.current) {
+        realtime.suspend();
+      }
     });
     return () => subscription.remove();
   }, [realtime, expiry.expired]);

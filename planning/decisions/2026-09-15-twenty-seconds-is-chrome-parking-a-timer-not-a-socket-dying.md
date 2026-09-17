@@ -6,7 +6,9 @@ settled on 2026-09-15 with the `socket closed` line that entry asked for —
 2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md
 is the phone half, and the line itself. **The remaining fault is real, is not
 fixed, and is now specified rather than suspected**; the work is
-backlog/a-web-client-cannot-promise-a-cadence-its-browser-will-not-keep.md.
+backlog/a-web-client-cannot-promise-a-cadence-its-browser-will-not-keep.md
+— which was settled the next day and deleted with the fix, so read
+2026-09-16-a-hidden-tab-is-a-backgrounded-app.md instead.
 
 ## What the entry inferred, and which half of it was wrong
 

@@ -208,6 +208,19 @@ export class Realtime {
   private lastSeen = 0;
   private closedByUs = false;
   /**
+   * Whether this client has put the socket down on purpose, meaning to pick it
+   * up again.
+   *
+   * **Distinct from `closedByUs`, which is signing out.** That one is final
+   * and forgets what this session was doing; this one keeps every bit of it —
+   * the watches, the standing, the queue — because the same person is coming
+   * back to the same tab. `resume` is the way out, and it is already wired to
+   * the transition that produces one.
+   *
+   * Set only by a hidden browser tab. See `suspend`.
+   */
+  private suspended = false;
+  /**
    * Actions taken while the socket was not open, waiting for one that is.
    *
    * `send` used to drop anything it could not write, silently and with no way
@@ -235,6 +248,7 @@ export class Realtime {
     this.token = token;
     this.handlers = handlers;
     this.closedByUs = false;
+    this.suspended = false;
     this.open();
   }
 
@@ -441,6 +455,10 @@ export class Realtime {
         this.enteredLostAt = Date.now();
       }
       if (this.closedByUs) return;
+      // Nor is a tab we put down an outage. Nothing is wrong, nothing is
+      // waiting, and scheduling a reconnect here would reopen the socket this
+      // client has just decided it should not be holding.
+      if (this.suspended) return;
       this.beginOutage();
       this.scheduleReconnect();
     };
@@ -480,6 +498,58 @@ export class Realtime {
   }
 
   /**
+   * Puts the socket down because nobody is looking at this tab.
+   *
+   * **A hidden tab is a backgrounded app, and this is the half of that the
+   * browser will not do for us.** iOS suspends a process that is not holding
+   * audio: its timers stop, its socket dies, the server's sweep notices, and
+   * `resume` repairs it on the way back. Chrome does something no phone does —
+   * it parks the tab's timers within about thirteen seconds while leaving the
+   * socket open, which is alive on the wire and dead in every loop that proves
+   * it. The server then sweeps the connection on a five-second silence budget,
+   * the tab reconnects, and the whole thing repeats every twenty seconds for
+   * as long as the tab is open: the floor released and retaken, `inApp`
+   * flapping, thousands of opens a day. See
+   * planning/decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md
+   * and the measurements behind it.
+   *
+   * So the tab is made to do deliberately what the phone does incidentally.
+   * **Only when no audio is live** — the caller decides that, and
+   * `channelHasAudio` is the predicate, which is being in the room: for this
+   * client a member stepped in, self-muted or not, since stepping in is what
+   * opens the device. A phone in that state is kept alive by the audio
+   * background mode and goes on pinging, and so does the tab. The same
+   * predicate covers a guest who only listens, which is `web/guest.ts`.
+   *
+   * **The watchdog stopping is not tidying, it is the point.** It lives on the
+   * same parked interval and the same five-second budget as the heartbeat, so
+   * a tab left running would kill its own socket on the first fire after the
+   * park — a fix that only widened the server's budget would have retuned this
+   * loop to a minute rather than removed it.
+   *
+   * Idempotent, because `visibilitychange` is not a promise about how many
+   * times it fires.
+   */
+  suspend(): void {
+    if (!this.token || this.closedByUs || this.suspended) return;
+    this.suspended = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.stopHeartbeat();
+    // Closed rather than terminated, and left as `this.socket` so `onclose`
+    // does its ordinary bookkeeping — the `enteredLostAt` stamp in particular,
+    // which is what decides whether coming back is restoring presence or
+    // asserting a stale one. The `suspended` branch there is the only thing
+    // that differs.
+    this.socket?.close();
+    // Not an outage: nothing is being waited for, so the wall must not go up
+    // behind a tab nobody is looking at and greet the person on their return.
+    this.clearOffline();
+  }
+
+  /**
    * The app has come back to the foreground, where the socket is very likely
    * dead and nothing has noticed.
    *
@@ -498,6 +568,10 @@ export class Realtime {
    */
   resume(): void {
     if (!this.token || this.closedByUs) return;
+    // Whatever brought the app back also ends a suspension, and it ends one
+    // whichever branch below runs: a tab that was put down has no socket, so
+    // this falls through to the reopen.
+    this.suspended = false;
 
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.lastSeen = Date.now();
@@ -539,7 +613,7 @@ export class Realtime {
    * each.
    */
   private reconnectNow(): void {
-    if (!this.token || this.closedByUs) return;
+    if (!this.token || this.closedByUs || this.suspended) return;
     const state = this.socket?.readyState;
     if (state === WebSocket.OPEN || state === CONNECTING) return;
 

@@ -176,6 +176,11 @@ let microphone: LocalAudioTrack | null = null;
 /** Backoff for reconnection, as the app does it: 500ms doubling to ten seconds. */
 let attempt = 0;
 let heartbeat: ReturnType<typeof setInterval> | null = null;
+/**
+ * Whether this page has put its socket down because nobody is looking at the
+ * tab. See `suspend`, which is the whole of the reasoning.
+ */
+let suspended = false;
 
 function send(message: GuestClientMessage): void {
   if (socket?.readyState === WebSocket.OPEN) {
@@ -394,6 +399,9 @@ function stopWatching(): void {
 // --- The socket ------------------------------------------------------------
 
 function connect(): void {
+  // Nobody is looking at this tab, and whatever scheduled this was running
+  // before that was true. See `suspend`.
+  if (suspended) return;
   const seat = storedSeat();
   // Reached from Home with no seat in this browser: there is no link here to
   // knock with, so say so rather than opening a socket that can only be
@@ -431,6 +439,11 @@ function connect(): void {
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
     socket = null;
+    // A socket this page put down on purpose is not an outage: there is
+    // nothing to say and nothing to retry, and the tab coming back is what
+    // opens the next one. Before the seat check below, because a suspension
+    // says nothing about whether there is a seat.
+    if (suspended) return;
     // Only while there is a seat to come back to. A page that was refused has
     // nothing to retry, and hammering the door is worse than saying so.
     if (!storedSeat()) return;
@@ -440,6 +453,56 @@ function connect(): void {
     setTimeout(connect, delay);
   };
 }
+
+/**
+ * Puts the socket down because nobody is looking at this tab, and picks it up
+ * again when somebody is.
+ *
+ * **A hidden tab is a backgrounded app**, and this page is in exactly the
+ * position the app's web build is in: Chrome parks a hidden tab's timers
+ * within about thirteen seconds while leaving the socket open, the heartbeat
+ * above stops, and the server's sweep terminates a connection that is alive on
+ * the wire and unable to prove it — every twenty seconds, for as long as the
+ * tab is open. For a guest each of those closes is `pushGuest`'s *you are no
+ * longer in this channel* path. See
+ * planning/decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md.
+ *
+ * **Two things are held rather than put down.** A guest in the room has audio
+ * live in either direction — publishing if they were granted the microphone,
+ * subscribing if they were not, which is `channelHasAudio` in core/ and is the
+ * line the phone draws with its audio background mode. And a guest *knocking*
+ * is holding a request on the server: the close handler withdraws the knock,
+ * so suspending here would cancel the very wait the person switched tabs to
+ * sit through, and the member inside would watch it vanish.
+ *
+ * There is no watchdog on this page to stop — it only sends — which is the one
+ * way it is simpler than the app.
+ */
+function suspend(): void {
+  if (suspended) return;
+  if (room || screen === 'knocking') return;
+  suspended = true;
+  // There may be no socket to close: a tab hidden mid-backoff has only a
+  // pending `connect`, which the flag above is what stops — see `connect`,
+  // where it is read. A timer is exactly what a hidden tab cannot be trusted
+  // to run on time anyway.
+  socket?.close();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    suspend();
+    return;
+  }
+  if (!suspended) return;
+  suspended = false;
+  if (socket) return;
+  // From the top of the backoff, because coming back is not a failure: this
+  // is the same reasoning the app's `resume` gives for not waiting out a
+  // delay earned in a different moment.
+  attempt = 0;
+  connect();
+});
 
 async function handle(message: GuestServerMessage): Promise<void> {
   switch (message.type) {
@@ -524,9 +587,18 @@ async function handle(message: GuestServerMessage): Promise<void> {
 
 type Screen = 'door' | 'knocking' | 'room' | 'refused' | 'reconnecting';
 
-function show(screen: Screen): void {
+/**
+ * Which screen is up, for the one reader that needs to know outside `show`.
+ *
+ * See `suspend`: a page at the door with a knock pending is holding something
+ * on the server, and must not put its socket down.
+ */
+let screen: Screen | null = null;
+
+function show(next: Screen): void {
+  screen = next;
   for (const name of ['door', 'knocking', 'room', 'refused', 'reconnecting']) {
-    $(name).hidden = name !== screen;
+    $(name).hidden = name !== next;
   }
 }
 
