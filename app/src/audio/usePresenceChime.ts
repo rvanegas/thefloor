@@ -3,8 +3,8 @@ import type { ChannelState, UserId } from '../../../core/types';
 import { chime, warmChimes, type ChimeKind } from './chime';
 
 /**
- * Sounds a chime in the room this device is standing in when somebody arrives
- * or leaves.
+ * Sounds a chime in the room this device is standing in when somebody else
+ * steps into it or out of it.
  *
  * **Above the channel screen, like `useSilencedNudge` and `useKnockNudge`, and
  * for the same reason**: presence is not a screen. Walking back to Home leaves
@@ -32,11 +32,49 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  * native renderer's per-peak cache needs. See
  * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
  *
- * **Three sounds since 2026-09-15, where there were two.** A declaration from
- * outside used to fire the arrival chime, which made *stepped in* and *stepped
- * to the edge* the same event to every ear in the room. They are not the same
- * event — one of them can speak — so `nearby` is now its own kind rather than
- * a second caller of `in`.
+ * ## The rule, which is two clauses and replaced three loops
+ *
+ * There are three rungs somebody can be on in a channel — **present**,
+ * **nearby**, and neither, which the roster calls *stepped out*. A snapshot
+ * moves people between them, and since 2026-09-17:
+ *
+ * - **The rung somebody lands on picks the chime.** Present rings `in`,
+ *   nearby rings `nearby`, stepped out rings `out`. Where they came *from*
+ *   does not enter into it.
+ * - **A move sounds only if it crosses `present`** — only if they were
+ *   present, or are now. Everything else is somebody rearranging themselves
+ *   outside the room, which is not news to the people in it.
+ *
+ * Four moves sound, and they are the four a listener could act on: `in→out`,
+ * `in→nearby`, `out→in`, `nearby→in`. The two that do not are `out→nearby` and
+ * `nearby→out`, neither of which changes who is in the room with you.
+ *
+ * Two further rules hold over any tick:
+ *
+ * - **You never hear your own movement**, in any direction. It is the part of
+ *   the request that is least negotiable and the easiest to lose to a
+ *   refactor, since every other rule here is about other people — and it is
+ *   the reason this cue is local rather than published into the media room,
+ *   which could not have made the distinction at all.
+ * - **One chime per kind, all kinds that apply, in a fixed order.** A snapshot
+ *   can carry several moves; what the room hears is one sentence about them
+ *   rather than a copy of each. Two people leaving and one stepping back to
+ *   nearby is **two** chimes — `out` once, then `nearby` — not three.
+ *
+ * **`out→nearby` used to ring, and that is the substantive loss.** A
+ * declaration from outside was the case the third chime was added for on
+ * 2026-09-15, and being reachable is a real thing to learn about somebody. It
+ * is silent now because it is not a change to *this* room: the people in it
+ * are the same people, and a conversation interrupted by news about somebody
+ * who was not in it is a conversation interrupted for nothing. It stays on the
+ * roster for anybody who looks. See
+ * planning/decisions/2026-09-17-the-chime-follows-the-room.md.
+ *
+ * **It also dissolved a problem rather than solving one.** `nearby→out` cannot
+ * be told from a snapshot: `stepOut` clears a declaration identically whether
+ * a tap or the attention clock ended it, stamping nothing either way — so a
+ * chime there would have had to choose between silence and announcing a
+ * decision nobody made. It does not cross `present`, so the rule never asks.
  */
 export function usePresenceChime(
   channel: ChannelState | null,
@@ -59,7 +97,7 @@ export function usePresenceChime(
   } | null>(null);
 
   /**
-   * Renders the three sounds before any of them is wanted.
+   * Renders the sounds before any of them is wanted.
    *
    * **The cue's whole job is to land at the moment somebody walks in**, and the
    * first play of an unrendered chime is the one that has a WAV written and a
@@ -116,7 +154,39 @@ export function usePresenceChime(
     if (!before || before.channelId !== channelId) return;
 
     /**
-     * **One chime per direction, however many people moved.**
+     * Which rung somebody is on, given the two rosters of a snapshot.
+     *
+     * The three are exclusive by construction rather than by care here:
+     * `ENTER` clears a declaration and the `nearby` exit writes one, so
+     * nobody is in `present` and `declaredNearbyAt` at once. See `Exit` in
+     * `core/channel.ts`. The rung names are the chime kinds because the rung
+     * landed on *is* the chime — that is the rule, not a coincidence worth
+     * mapping through a table.
+     */
+    const rungOf = (
+      id: UserId,
+      inRoom: readonly UserId[],
+      atHand: readonly UserId[]
+    ): ChimeKind =>
+      inRoom.includes(id) ? 'in' : atHand.includes(id) ? 'nearby' : 'out';
+
+    /**
+     * **Everybody who crossed `present`, and nobody else** — the second clause
+     * of the rule, written as the thing iterated rather than as a test inside
+     * the loop.
+     *
+     * Somebody in either roster of `present` has `in` at one end of their move
+     * by construction, and somebody in neither has it at neither end. So this
+     * list *is* the set of moves that sound, and nothing below has to ask.
+     * Deduplicated by hand rather than through a `Set`, which keeps the order
+     * stable and the iteration plain.
+     */
+    const crossed = before.present.concat(
+      present.filter((id) => !before.present.includes(id))
+    );
+
+    /**
+     * **One chime per kind, however many people moved.**
      *
      * Two people arriving in the same snapshot is one arrival sound. Two
      * copies of the same 180ms tone laid over each other is not twice as
@@ -125,15 +195,26 @@ export function usePresenceChime(
      */
     let rising = false;
     let falling = false;
-    let edging = false;
+    let nearing = false;
 
-    for (const id of present) {
-      if (id === me || before.present.includes(id)) continue;
-      rising = true;
-    }
+    for (const id of crossed) {
+      // You are never told about yourself. You know you walked in.
+      if (id === me) continue;
+      const from = rungOf(id, before.present, before.nearby);
+      const to = rungOf(id, present, nearby);
+      if (from === to) continue;
 
-    for (const id of before.present) {
-      if (id === me || present.includes(id)) continue;
+      if (to === 'in') {
+        rising = true;
+        continue;
+      }
+      if (to === 'nearby') {
+        // Stepping back to nearby is not leaving: they are still one ping
+        // away, and what they get is the sound for the rung they landed on.
+        nearing = true;
+        continue;
+      }
+
       /**
        * **Only a departure somebody chose makes a sound**, and `core/channel.ts`
        * § `Exit` is what makes that answerable from two snapshots. There are
@@ -150,7 +231,9 @@ export function usePresenceChime(
        * top two from the bottom two: it is written at the moment somebody
        * decides something and left alone when a clock decides instead. So a
        * changed `lastPresentAt` across the departure edge *is* the definition
-       * of a deliberate exit, and nothing else here has to be enumerated.
+       * of a deliberate exit, and nothing else here has to be enumerated. The
+       * `nearby` row never reaches this branch, having landed on its own rung
+       * above.
        *
        * **The `waiting` clause is a second opinion on the one case that can
        * fool the first.** The stamp test compares against the last snapshot
@@ -171,41 +254,16 @@ export function usePresenceChime(
       falling = true;
     }
 
-    for (const id of nearby) {
-      if (id === me || before.nearby.includes(id)) continue;
-      /**
-       * **A declaration from outside is its own event; one from inside is
-       * not.**
-       *
-       * Mirrors `server/src/channels.ts`, which makes the same distinction
-       * before announcing: somebody present who taps *Be nearby* is stepping
-       * out to the rung below, and that is a departure — it sounds as the
-       * falling chime above and must not sound twice. Only somebody who was
-       * not in the room has arrived at its edge.
-       *
-       * **It is `nearby` and not `in`, which is the 2026-09-15 correction.**
-       * Arriving at the edge of a room is not arriving in it: the one can
-       * speak and the other cannot, and a cue that collapses them tells
-       * everybody present to expect a voice that is not coming.
-       *
-       * Keyed on the id *appearing* in the map and never on its value: the
-       * stamp is restamped in place when somebody taps the lit rung, and a
-       * renewal is not an arrival.
-       */
-      if (before.present.includes(id)) continue;
-      edging = true;
-    }
-
     /**
      * **At most one of each, and in this order.**
      *
      * The order is the order the room would narrate them in, and it is fixed
      * rather than incidental: a snapshot in which somebody steps in while
-     * somebody else steps to the edge has to sound the same way every time, or
-     * the pair of sounds is a coin toss rather than a sentence.
+     * somebody else steps back to nearby has to sound the same way every time,
+     * or the pair of sounds is a coin toss rather than a sentence.
      */
     if (rising) fire('in');
     if (falling) fire('out');
-    if (edging) fire('nearby');
+    if (nearing) fire('nearby');
   }, [channelId, presentKey, nearbyKey, me, fire]);
 }

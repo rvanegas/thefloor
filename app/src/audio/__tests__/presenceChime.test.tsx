@@ -7,6 +7,7 @@ import { usePresenceChime } from '../usePresenceChime';
 const ME = 'acct_me';
 const THEM = 'acct_them';
 const THIRD = 'acct_third';
+const FOURTH = 'acct_fourth';
 const NOW = 1_700_000_000_000;
 
 /**
@@ -27,6 +28,15 @@ const alone = () =>
     id: 'sess_1',
     initiator: ME,
     invitees: [THEM, THIRD],
+    now: NOW,
+  });
+
+/** The same, with a fourth person, for the snapshots that move three at once. */
+const aloneOfFour = () =>
+  createChannel({
+    id: 'sess_1',
+    initiator: ME,
+    invitees: [THEM, THIRD, FOURTH],
     now: NOW,
   });
 
@@ -72,10 +82,10 @@ function mount(channel: ChannelState | null) {
 /**
  * One call's arguments, per kind.
  *
- * Rising is an arrival, falling a departure, edging a declaration from outside
- * the room. **Named rather than spelled inline** so that the assertions say
- * which event they mean; the kinds were `true` and `false` until 2026-09-15,
- * and a third of them cannot be a boolean.
+ * Rising is an arrival, falling a departure, nearing a step back to the rung
+ * that is one ping from the room. **Named rather than spelled inline** so that
+ * the assertions say which event they mean; the kinds were `true` and `false`
+ * until 2026-09-15, and a third of them cannot be a boolean.
  *
  * **The kind is the whole of it.** A peak was a second argument for one day on
  * 2026-09-15, when how loud a chime is was the listener's to choose; the
@@ -85,7 +95,7 @@ function mount(channel: ChannelState | null) {
  */
 const rising = ['in'];
 const falling = ['out'];
-const edging = ['nearby'];
+const nearing = ['nearby'];
 
 describe('the chime that says the room changed shape', () => {
   it('rises when somebody else steps in', () => {
@@ -121,6 +131,20 @@ describe('the chime that says the room changed shape', () => {
     expect(view.fire).not.toHaveBeenCalled();
 
     view.update(stepOut(enter(theirs, ME), ME));
+    expect(view.fire).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('says nothing about your own step back to nearby', () => {
+    // The third way to move, and the same rule. In the app this is doubly
+    // covered — declaring yourself nearby ends your presence, so `live` goes
+    // null and the hook is handed nothing — but the guard is what states it,
+    // and a caller passing a channel it is not present in must not be told
+    // about itself.
+    const theirs = enter(enter(alone(), THEM), ME);
+    const view = mount(theirs);
+
+    view.update(declareNearby(theirs, ME));
     expect(view.fire).not.toHaveBeenCalled();
     view.unmount();
   });
@@ -170,53 +194,72 @@ describe('the chime that says the room changed shape', () => {
       view.unmount();
     });
 
-    it('falls for somebody stepping out to nearby, which is a decision', () => {
+    it('rings nearby for somebody stepping back to it, not out', () => {
+      // `in→nearby`. It fell until 2026-09-17, on the reading that the rung
+      // below the room is outside it — which left the room unable to tell
+      // somebody who had gone away from somebody still one ping away. The
+      // rung landed on picks the chime.
       const together = enter(alone(), THEM);
       const view = mount(together);
 
       view.update(declareNearby(together, THEM));
-      expect(view.fire.mock.calls).toEqual([falling]);
+      expect(view.fire.mock.calls).toEqual([nearing]);
+      expect(view.fire).not.toHaveBeenCalledWith('out');
       view.unmount();
     });
   });
 
-  describe('a declaration from outside is its own event', () => {
-    it('edges when somebody declares themselves nearby from outside', () => {
-      // They were never in the room, so nothing is leaving `present` — the
-      // only signal is the id appearing in `declaredNearbyAt`.
-      //
-      // It is the `nearby` kind and not `in`, which is the whole of the
-      // 2026-09-15 correction: arriving at the edge of a room is not arriving
-      // in it, and the two sounded identical until there was a third chime.
+  describe('only a move that crosses present makes a sound', () => {
+    it('says nothing when somebody outside declares themselves nearby', () => {
+      // `out→nearby`, and the substantive loss of 2026-09-17. It rang the
+      // nearby chime — it was the case that chime was added for — and it is
+      // silent now because it is not a change to this room: the people in it
+      // are the same people, and interrupting them with news about somebody
+      // who is not in it is interrupting them for nothing.
       const together = enter(alone(), THEM);
       const view = mount(together);
 
       view.update(declareNearby(together, THIRD));
-      expect(view.fire.mock.calls).toEqual([edging]);
+      expect(view.fire).not.toHaveBeenCalled();
       view.unmount();
     });
 
-    it('does not also ring the arrival chime for a declaration', () => {
-      // The regression this file exists to prevent from coming back: one
-      // event, one sound. A declaration that fired both would be a room told
-      // to expect a voice that cannot speak.
+    it('says nothing when somebody nearby stops being nearby', () => {
+      // `nearby→out`, which the rule never has to ask about — and could not
+      // answer if it did. `stepOut` clears a declaration identically whether
+      // a tap or the attention clock ended it, stamping nothing either way,
+      // so the two are the same pair of snapshots.
       const together = enter(alone(), THEM);
-      const view = mount(together);
+      const declaredOut = declareNearby(together, THIRD);
+      const view = mount(declaredOut);
 
-      view.update(declareNearby(together, THIRD));
-      expect(view.fire).toHaveBeenCalledTimes(1);
-      expect(view.fire).not.toHaveBeenCalledWith('in');
+      view.update(stepOut(declaredOut, THIRD, NOW + 2_000));
+      expect(view.fire).not.toHaveBeenCalled();
       view.unmount();
     });
 
-    it('gives one falling chime and no rising one from inside', () => {
-      // Somebody present who taps *Be nearby* is stepping out to the rung
-      // below. Their arrival was announced when they stepped in.
+    it('rings in when somebody nearby steps into the room', () => {
+      // `nearby→in`. The rung landed on picks the chime, so arriving is
+      // arriving however near they already were — and it must not also ring
+      // the departure chime for the declaration it ends.
       const together = enter(alone(), THEM);
+      const declaredOut = declareNearby(together, THIRD);
+      const view = mount(declaredOut);
+
+      view.update(enter(declaredOut, THIRD, NOW + 2_000));
+      expect(view.fire.mock.calls).toEqual([rising]);
+      view.unmount();
+    });
+
+    it('tells a departure apart from a step back to nearby in one snapshot', () => {
+      // Two people moving at once are two events, and one sound each. This is
+      // what the per-person loop buys over a pair of flags set by whoever
+      // moved.
+      const together = enter(enter(alone(), THEM), THIRD);
       const view = mount(together);
 
-      view.update(declareNearby(together, THEM));
-      expect(view.fire.mock.calls).toEqual([falling]);
+      view.update(declareNearby(stepOut(together, THIRD), THEM));
+      expect(view.fire.mock.calls).toEqual([falling, nearing]);
       view.unmount();
     });
 
@@ -230,6 +273,52 @@ describe('the chime that says the room changed shape', () => {
 
       view.update(declareNearby(declared, THIRD, NOW + 60_000));
       expect(view.fire).not.toHaveBeenCalled();
+      view.unmount();
+    });
+  });
+
+  /**
+   * **One per kind, every kind, in a fixed order.** A tick can carry several
+   * moves, and what a room should hear is one sentence about them rather than
+   * a copy of each — two departures are still one departure sound, and the
+   * count is on the roster for whoever the sound made look.
+   */
+  describe('several moves in one tick', () => {
+    it('makes one sound when two people leave in the same snapshot', () => {
+      const together = enter(enter(alone(), THEM), THIRD);
+      const view = mount(together);
+
+      view.update(stepOut(stepOut(together, THEM), THIRD));
+      expect(view.fire.mock.calls).toEqual([falling]);
+      view.unmount();
+    });
+
+    it('makes two chimes of two departures and a step back to nearby', () => {
+      // The worked example: two `out` and one `nearby` in one tick is two
+      // chimes, not three — one per kind, and the `out` is not doubled.
+      const together = enter(
+        enter(enter(aloneOfFour(), THEM), THIRD),
+        FOURTH
+      );
+      const view = mount(together);
+
+      view.update(
+        declareNearby(stepOut(stepOut(together, THIRD), FOURTH), THEM)
+      );
+      expect(view.fire.mock.calls).toEqual([falling, nearing]);
+      view.unmount();
+    });
+
+    it('sounds all three kinds in order when a tick carries all three', () => {
+      // `in`, then `out`, then `nearby` — fixed rather than incidental, so a
+      // busy snapshot is a sentence and not a coin toss.
+      const together = enter(enter(aloneOfFour(), THEM), THIRD);
+      const view = mount(together);
+
+      view.update(
+        declareNearby(enter(stepOut(together, THIRD), FOURTH), THEM)
+      );
+      expect(view.fire.mock.calls).toEqual([rising, falling, nearing]);
       view.unmount();
     });
   });

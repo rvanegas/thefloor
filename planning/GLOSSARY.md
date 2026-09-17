@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
-- **Chime** — The sound a device makes when somebody *else* changes the shape of the channel you are in: two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for declaring themselves nearby — and see *recording chime*, the fourth, which is about the room rather than about who is in it
+- **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, since the alert path has no gain
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
@@ -317,12 +317,34 @@ audibly the first one backwards, which is what lets the difference be carried by
 a sound nobody was taught.
 
 **Three of them, not two, since 2026-09-15.** A pair that does not move —
-E5 twice, neither rising nor falling — says somebody outside the room has
-declared themselves **nearby** to it. It had been ringing the arrival chime, which made *stepped in* and *stepped
-to the edge* the same event to every ear present — and they are not the same
-event, because one of them can speak and the other cannot. A cue that collapses
-them tells a room to expect a voice that is not coming, which is the one failure
-worse than a cue nobody hears.
+E5 twice, neither rising nor falling — says somebody has stepped back to
+**nearby**, the rung that is one ping from the room.
+
+**Which of the three you hear is decided by where somebody lands, and whether
+you hear anything at all by whether they crossed `present`** — two clauses,
+since 2026-09-17. So `in→out` falls, `in→nearby` rings nearby, and both
+`out→in` and `nearby→in` rise. **`out→nearby` and `nearby→out` are silent**:
+somebody moving about outside has not changed who is in the conversation, and
+interrupting it to say so is interrupting it for nothing. The first of those
+two rang until 2026-09-17 and was the case the third chime was built for, which
+makes it the real cost of the rule rather than a tidy-up. One filter sits on
+top and is not derivable from either clause: **only a departure somebody chose
+rings `out`**, a dropped connection and a spent attention window being clocks
+rather than decisions. See `decisions/2026-09-17-the-chime-follows-the-room.md`.
+
+**You never hear your own movement, in any direction**, which is the oldest
+rule here and the reason the cue is local rather than published into the media
+room. And **a tick sounds one chime per kind, every kind that applies, in the
+order `in`, `out`, `nearby`** — two people leaving and one stepping back to
+nearby is two chimes, not three.
+
+**Why *nearby* needed a sound of its own at all**, which is the 2026-09-15
+half and still holds: it had been ringing the arrival chime, so *stepped in*
+and *stepped to nearby* were the same event to every ear present. They are not
+the same event, because one of those people can speak and the other cannot — a
+nearby person holds no connection to the media room and hears nothing. A cue
+that collapses them tells a room to expect a voice that is not coming, which is
+the one failure worse than a cue nobody hears.
 
 **A fourth since 2026-09-17, and it is not a presence chime.** Three notes
 rising — C#5, E5, A5 — when a **recording** somebody started begins. The other
