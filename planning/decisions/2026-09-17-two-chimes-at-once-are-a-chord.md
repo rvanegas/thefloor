@@ -60,6 +60,25 @@ with the peak: it is asked when to start a note, where the alert path is only
 ever told to start one. The cursor resets with the context, a fresh one
 starting its clock at zero.
 
+## How the beat gets judged
+
+`AudioLabView` has a *Chimes together* section, added with this change: five
+rows, each a snapshot the app can really produce — `in·out`, `out·nearby`,
+`in·out·nearby`, and the two that cross the hooks, `in·recording` and
+`out·recording`. No row repeats a kind, because a kind sounds once however many
+people moved.
+
+**They play through `chime.ts` rather than the native module**, which is the
+whole point — the queue is what is being listened to, and `ring` beside them
+calls the module directly and would play a pair as the chord this entry is
+about. The consequence is that the path and lead-in rows do not apply to them,
+the queue asking for the shipping ones; the peak does. The screen says so,
+because a dial that silently stops applying is worse than one not offered.
+
+The question for the ear is whether one note of silence is enough to hear two
+events as two, and whether three kinds in a tick can be followed at all — if
+they cannot, the rule that plays all of them is what is wrong, not the gap.
+
 ## What is not solved
 
 **The order two hooks fire in is still their declaration order in `App.tsx`.**

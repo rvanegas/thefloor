@@ -16,6 +16,7 @@ import {
   type ChimePath,
   type TrialResult,
 } from '../../modules/audio-route';
+import { chime as queuedChime } from '../audio/chime';
 import { recordEvent } from '../audio/diagnostics';
 import { Button, Card, IconButton, Screen, SectionLabel } from './components';
 import { CloseIcon } from './icons';
@@ -96,14 +97,74 @@ const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
  */
 const LEADS = ['0', '0.18', '0.35', '0.6', '1'];
 
+/**
+ * The four the app actually plays, as opposed to the candidates below.
+ *
+ * A combination is made of these and never of a candidate: what the
+ * combinations section is auditioning is the spacing between two sounds, and
+ * putting an unchosen note into one would be asking two questions with one
+ * tap.
+ */
+const REAL_KINDS: ChimeKind[] = ['in', 'out', 'nearby', 'recording'];
+
 /** Every kind the buttons below can ask for, so all of them can be warmed. */
 const CHIME_KINDS: (ChimeKind | ChimeCandidate)[] = [
-  'in',
-  'out',
+  ...REAL_KINDS,
   'nearby-a',
   'nearby-b',
   'nearby-c',
   'nearby-d',
+];
+
+/** One row of the combinations list, and the moment it is taken from. */
+interface Combination {
+  name: string;
+  kinds: ChimeKind[];
+  /** The snapshot that produces it, so the ear knows what it is judging. */
+  why: string;
+}
+
+/**
+ * The combinations the app can actually produce in one tick, in the order they
+ * are worth hearing.
+ *
+ * **Every one of these is a real snapshot rather than an arrangement.** One
+ * chime per kind is the rule, so no row repeats a kind, and the order within a
+ * row is the order `usePresenceChime` narrates in — with the recording chime
+ * last, that being the order the hooks are mounted in. A row that could not
+ * happen would be a sound nobody needs an opinion about.
+ *
+ * **What is being judged is the gap, not the notes.** The notes are settled
+ * one section up. The question here is whether two chimes a beat apart read as
+ * two events, or as one longer sound — and whether three is too many to follow
+ * at all, which is the row nobody has an answer for.
+ */
+const COMBINATIONS: Combination[] = [
+  {
+    name: 'In · out',
+    kinds: ['in', 'out'],
+    why: 'Somebody steps in as somebody else steps out. The commonest pair, and the one where rising-then-falling could be heard as a single shape.',
+  },
+  {
+    name: 'Out · nearby',
+    kinds: ['out', 'nearby'],
+    why: 'Two people leave and a third steps back to nearby — two chimes, not three, since a kind sounds once however many moved.',
+  },
+  {
+    name: 'In · out · nearby',
+    kinds: ['in', 'out', 'nearby'],
+    why: 'All three in one tick. Rare, and the row to listen to hardest: if three cannot be followed, the rule that plays all of them is wrong.',
+  },
+  {
+    name: 'In · recording',
+    kinds: ['in', 'recording'],
+    why: 'Somebody arrives as a recording starts. Two hooks, neither aware of the other — the case a queue inside either one could not have spaced.',
+  },
+  {
+    name: 'Out · recording',
+    kinds: ['out', 'recording'],
+    why: 'A departure against the one chime that is not about presence. Both fall and rise around the same notes, so it is the likeliest pair to blur.',
+  },
 ];
 
 /** One row of the matrix, and why it is in it. */
@@ -366,6 +427,19 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     for (const kind of CHIME_KINDS) {
       prepareChime(kind, Number(peak), Number(lead));
     }
+    /**
+     * And again at the shipping lead, for the combinations.
+     *
+     * Those go through `chime.ts` so that the queue is what is heard, and the
+     * queue asks for `CHIME_LEAD` rather than for this screen's chip. A key
+     * that is not warmed is a cold first play, which in a section about
+     * *timing* would be the one artefact that ruins the reading.
+     */
+    if (Number(lead) !== CHIME_LEAD) {
+      for (const kind of REAL_KINDS) {
+        prepareChime(kind, Number(peak), CHIME_LEAD);
+      }
+    }
   }, [peak, lead]);
 
   /**
@@ -387,6 +461,16 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     outputs: string;
     through: string;
   } | null>(null);
+
+  /**
+   * The last combination asked for, by name.
+   *
+   * Deliberately thinner than `lastChime`: there is no route readout worth
+   * taking, because the finding here is made entirely by ear and the route is
+   * whatever the section above already established. What the label is for is
+   * knowing which row you are still hearing when two of them sound alike.
+   */
+  const [lastCombination, setLastCombination] = useState<string | null>(null);
 
   const styles = useMemo(() => makeStyles(), []);
 
@@ -479,6 +563,29 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * the readout says which. The two are worth telling apart here for the same
    * reason everything else on this screen is.
    */
+  /**
+   * Plays a combination through the app's own queue, which is the point of it.
+   *
+   * **Not `ring` in a loop.** `ring` calls the native module directly, which
+   * is right for judging one sound at one peak on one path — and would play a
+   * combination as a chord, since a system sound starts and returns. The queue
+   * in `chime.ts` is the thing under test here, so these go through it.
+   *
+   * **Which means the path and lead chips do not apply**, the queue asking for
+   * the shipping ones. The peak does, so a combination can be heard at
+   * whatever the peak row is set to. Said on screen, because a dial that
+   * silently stops applying is worse than one that is not offered.
+   */
+  const ringAll = (combination: Combination) => {
+    for (const kind of combination.kinds) {
+      queuedChime(kind, Number(peak));
+    }
+    setLastCombination(combination.name);
+    recordEvent(
+      `lab COMBINATION ${combination.kinds.join('+')} peak=${peak} @${phase}`
+    );
+  };
+
   const ring = (kind: ChimeKind | ChimeCandidate) => {
     const played = chime(kind, Number(peak), Number(lead), path);
     const here = routeSnapshot();
@@ -892,6 +999,88 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
             onPress={() => ring('nearby-d')}
           />
         </Card>
+        <Card>
+          <Button
+            label="Chime — recording started (C#5 E5 A5)"
+            variant="ghost"
+            onPress={() => ring('recording')}
+          />
+        </Card>
+      </View>
+
+      {/*
+        The combinations, which are a third experiment and the newest.
+
+        Everything above this asks what one sound is like. This asks what two
+        of them are like together, which until 2026-09-17 was not a question
+        anybody could have answered by tapping: two chimes in one tick were
+        played *simultaneously*, the alert path starting a sound and returning,
+        so a pair was a chord and not a sequence. There is a beat between them
+        now, and whether that beat is the right length is a thing only an ear
+        in a room can say.
+
+        These go through `chime.ts` rather than the native module, because the
+        queue that holds the beat is the thing being listened to.
+      */}
+      <SectionLabel>Chimes together</SectionLabel>
+      <Card>
+        <Text style={styles.body}>
+          A third experiment. Above:{' '}
+          <Text style={styles.strong}>what one sound is like</Text>. Here:{' '}
+          <Text style={styles.strong}>whether two read as two</Text>.
+        </Text>
+        <Text style={styles.step}>
+          1 · Tap a pair. Two events, or one longer noise?
+        </Text>
+        <Text style={styles.step}>
+          2 · Tap the three-kind row. Can it be followed at all?
+        </Text>
+        <Text style={styles.step}>
+          3 · Let each finish before the next — a tap into a queue is a fourth
+          sound
+        </Text>
+        <Text style={styles.note}>
+          Until 2026-09-17 a pair like these was not spaced but simultaneous.
+          The alert path starts a sound and returns, so two calls in one tick
+          began together and what a room heard was a chord — from which neither
+          event could be recovered, let alone both. The beat is one note long,
+          matching the notes inside each chime.
+        </Text>
+        <Text style={styles.note}>
+          These play through the app's queue rather than straight at the native
+          module, that queue being what holds the beat.{' '}
+          <Text style={styles.strong}>So the path and lead-in rows above do
+          not apply here</Text> — the queue asks for the shipping ones. The peak
+          does apply, so a combination can be compared at any row of it.
+        </Text>
+        <Text style={styles.note}>
+          Every row is a snapshot the app can really produce. No row repeats a
+          kind, because a kind sounds once however many people moved — two
+          departures and one step to nearby is two chimes, which is the second
+          row.
+        </Text>
+        <Text style={styles.note}>
+          The last two rows cross the two hooks: `usePresenceChime` and
+          `useRecordingChime` are mounted side by side and neither knows the
+          other exists, so their order is their order in `App.tsx`. Spacing
+          made that order audible, which is worth hearing before it is trusted.
+        </Text>
+      </Card>
+
+      <View style={styles.list}>
+        {COMBINATIONS.map((combination) => (
+          <Card key={combination.name}>
+            <Button
+              label={
+                combination.name +
+                (lastCombination === combination.name ? ' · last' : '')
+              }
+              variant="ghost"
+              onPress={() => ringAll(combination)}
+            />
+            <Text style={styles.why}>{combination.why}</Text>
+          </Card>
+        ))}
       </View>
 
       <SectionLabel>Where the last chime went</SectionLabel>
