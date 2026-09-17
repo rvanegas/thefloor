@@ -36,6 +36,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
+| *The lock screen card* | the one surface outside the app, and the palette it transcribes |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
 | *The rules that are actually load-bearing* | the seven things to not break |
 
@@ -910,8 +911,10 @@ rules.
   `type.muted`, beside it rather than up in a summary. A disabled control with
   no reason is a bug. Two exceptions: a state that will move on its own and
   has nothing to wait for on this screen, like "Transcribing…"; and **a row
-  where being refused is the ordinary condition**, which as of 2026-09-13 is
-  the recording transport and nothing else. Two of its three are grey most of
+  where being refused is the ordinary condition**, which as of 2026-09-17 is
+  the recording transport and the lock screen card — see § *The lock screen
+  card*, where there is no room for a sentence and the way to find out is to
+  open the app. Two of its three are grey most of
   the time, by design, and a sentence for each was four paragraphs under three
   buttons — read once and skipped after, and answering questions the header's
   pill, the list below and the channel's settings each answer in their own
@@ -929,6 +932,50 @@ rules.
 - **Empty states are a sentence** and, where there is genuinely nothing to
   offer, no button: `NoDetailView` deliberately carries no control, because
   one would be a second way to do what the pane beside it is already doing.
+
+---
+
+## The lock screen card
+
+The one piece of this interface that renders outside the app: a Live Activity,
+up whenever this device is standing in a channel, drawn by the widget
+extension in `app/targets/lock-screen/`. It carries a name, a line about the
+microphone, one button and a tap.
+
+**Its palette is a transcription, not an import.** A widget extension is a
+separate process with no JavaScript in it, so `theme.ts` cannot reach it and
+the hex values are copied into `LockScreenLiveActivity.swift` by hand. That is
+a duplicate, and duplicates drift: **change one, change both, in the same
+commit.** Only the tokens the card actually spends are transcribed — `text`,
+`textMuted`, `textFaint`, `disabled`, `surfaceRaised` and `floor` — and adding
+a colour there means adding it here first and deciding what it is for, exactly
+as for any other surface. Both palettes are carried, chosen on the system's
+colour scheme, for the reason every other surface carries both.
+
+**The words are transcribed too.** "Your microphone is muted" and "Your
+microphone is open" are the footer's own hints, copied. Two surfaces describing
+one microphone must not describe it in two vocabularies.
+
+Three rules that look like details and are not:
+
+- **The button shows three states as two.** Its label flips between *Mute* and
+  *Unmute* on the same derivation the footer icon uses — *you are not being
+  heard*, which folds in a device with no input — rather than on the reducer's
+  `selfMuted`. GLOSSARY.md § *Mute (four things, one word)* is the entry that
+  separates them.
+- **Refused is grey, with no sentence saying why**, which is the named
+  exception in § *Words on controls*. There is no room for a sentence on a
+  lock screen and being refused here is ordinary rather than an error, so the
+  card's other control stands in for one: tapping it opens the app at the
+  channel, where every reason is already stated in its own place.
+- **Being silenced does not grey it.** Somebody silenced by another's claim may
+  still set their own mute, and it is what they are left with when the claim
+  ends. The footer keeps the control live and spends `silenced` orange on it;
+  the card has no colour to spend and simply stays live.
+
+Below iOS 17 there is no button at all — `Button(intent:)` is what lets a tap
+act without opening the app, and there is no earlier spelling of it. The card
+states the microphone instead, in the same grey.
 
 ---
 

@@ -59,7 +59,8 @@
       "expo-secure-store",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
-      "./plugins/with-google-services"
+      "./plugins/with-google-services",
+      "./plugins/with-live-activity"
     ]
   }
 }

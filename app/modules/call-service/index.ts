@@ -14,10 +14,16 @@ import { Platform } from 'react-native';
  * measured false on 2026-09-05.** The entitlement keeps a process alive while
  * it is *producing audio*, which a channel with nobody in it is not: a phone
  * locked for five minutes alone in an empty channel came back
- * `drops 2 (recovered 0, expired 2)`. `modules/keep-alive` is the iOS half of
- * this same job, and the two platforms want the same thing for opposite
- * reasons — Android a visible component so it may keep a process that is
- * capturing, iOS audio so it may keep a process that has an entitlement.
+ * `drops 2 (recovered 0, expired 2)`. The two platforms want the same thing for
+ * opposite reasons — Android a visible component so it may keep a process that
+ * is capturing, iOS audio so it may keep a process that has an entitlement.
+ *
+ * **`modules/keep-alive` was the iOS half and no longer exists**, deleted whole
+ * on 2026-09-08 because it played silence when `hasAudio` was false and both
+ * states that reached are now either a claim or deliberately suspended — see
+ * `decisions/2026-09-08-stepping-in-and-nearby.md`. This comment went on
+ * pointing at it for nine days. There is no iOS counterpart to this service
+ * today.
  *
  * **Everything here is a no-op that answers `false` off Android**, on the same
  * reasoning as `modules/audio-route`: it is a *local* native module, so it is
@@ -57,6 +63,18 @@ const native = load();
  * the channel is open; iOS shows nothing equivalent, so putting a channel name
  * there would be this app disclosing on one platform what it does not on the
  * other, to whoever picks the phone up.
+ *
+ * **That reason expired on 2026-09-17 and the name has not been added anyway.**
+ * iOS now shows an equivalent — `modules/live-activity`, which puts a card on
+ * the lock screen headed by the channel's name — so the asymmetry this
+ * omission was protecting no longer exists, and consistency now argues the
+ * other way. It was left alone because *what a stranger holding the phone may
+ * read* is a disclosure decision rather than a consistency one, and changing
+ * it quietly in the commit that removed its justification would be making that
+ * decision by accident. Either both surfaces name the channel or neither
+ * should; see
+ * `planning/decisions/2026-09-17-the-lock-screen-carries-two-controls.md`
+ * § *What was left open*.
  */
 const TITLE = 'In a channel';
 const BODY = 'The Floor is open. Tap to come back.';

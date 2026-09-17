@@ -5,6 +5,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
+import { useChannelLink } from './src/state/useChannelLink';
+import { useLockScreen } from './src/state/useLockScreen';
 import { usePresenceChime } from './src/audio/usePresenceChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
@@ -230,6 +232,26 @@ function Root() {
   useKnockNudge(live);
 
   /**
+   * The card on the lock screen, carrying Mute and a way back in.
+   *
+   * Here for the reason every hook above it is here: presence is not a screen,
+   * and the person this is *for* is by definition not looking at one. It takes
+   * `here` rather than `live` because the card is headed by the channel's name
+   * and falls back to who is in it, which needs the roster the snapshot
+   * carries and the reduced state does not.
+   *
+   * `audio.inputAvailable` rather than the reducer's mute alone: a device with
+   * no microphone is muted as far as any interface goes, and an Unmute that
+   * cannot open one is the promise `ChannelView` already refuses to make.
+   *
+   * See `modules/live-activity` for why this is a Live Activity and not a
+   * notification, and `state/useLockScreen.ts` for what the two controls read.
+   */
+  useLockScreen(here, me, audio.inputAvailable, (channelId, muted) =>
+    app.act(channelId, { type: 'SET_SELF_MUTE', muted })
+  );
+
+  /**
    * Told that the room has changed shape, which is the one thing a
    * conversation used to keep entirely to the screen.
    *
@@ -363,6 +385,33 @@ function Root() {
     setList('channels');
     clearNotificationTap();
   }, [notificationTap, ready, token, clearNotificationTap]);
+
+  /**
+   * A tap on the lock screen card, which is the same intention by another
+   * road.
+   *
+   * It lands on the effect above's behaviour rather than sharing its slot: the
+   * two arrive differently — one as an APNs payload this app wrote, one as a
+   * URL the widget extension composed — and folding them together would mean a
+   * malformed one of either kind being read as the other. What they share is
+   * what happens next, which is this.
+   *
+   * Deferred until signed in and ready for the same reason, and it is the more
+   * likely case here: a card tapped from a cold launch is read while the
+   * stored token is still coming back.
+   *
+   * It never enters the channel. Opening is a screen; `ENTER` is a claim on
+   * the phone's audio system, and a card that stepped somebody in from their
+   * lock screen would be the one thing on this surface they could not have
+   * meant. See `decisions/2026-09-08-the-arrival-is-offered.md`.
+   */
+  const { linked, clearLink } = useChannelLink();
+  useEffect(() => {
+    if (!linked || !ready || !token) return;
+    setDetail({ kind: 'channel', channelId: linked });
+    setList('channels');
+    clearLink();
+  }, [linked, ready, token, clearLink]);
 
   /**
    * Signing out closes every screen stacked over Home.
