@@ -352,6 +352,49 @@ export const CHIME_AMPLITUDE = 1;
 export const CHIME_LEAD = 0;
 
 /**
+ * How long one note of a chime lasts, mirroring `chimeNoteSeconds` in the
+ * Swift on the same terms as the two constants above.
+ *
+ * Here because JavaScript has to know how long a sound it cannot hear is
+ * going to last — see `CHIME_BEAT` — and `chimeInfo()` reports the same number
+ * but only on a phone with a linked native half, which is no use to the
+ * scheduler on web or to a test.
+ */
+export const CHIME_NOTE_SECONDS = 0.09;
+
+/**
+ * How many notes each kind is made of, mirroring the row lengths of
+ * `chimeNotes` in `AudioRouteModule.swift`.
+ *
+ * **Only the scheduler reads this**, and only to know when a sound will be
+ * finished, so the cost of a row being wrong is a gap slightly off rather than
+ * a wrong sound. Keep it right anyway: it is two lines from the table it
+ * mirrors, and a kind added here without a row there is a type error, which is
+ * the half that catches the likelier mistake.
+ */
+export const CHIME_NOTES: Record<ChimeKind, number> = {
+  in: 2,
+  out: 2,
+  nearby: 2,
+  recording: 3,
+};
+
+/**
+ * The silence held between two chimes that fall in the same moment.
+ *
+ * **Without it they are not merely crowded, they are simultaneous.**
+ * `AudioServicesPlaySystemSound` returns as soon as it has handed the sound
+ * over, so two calls in one tick start together and what a room hears is a
+ * chord — with no way to tell that two things happened, let alone which two.
+ * Spacing them is what makes a pair of events a pair of sounds.
+ *
+ * **One note long**, which is the shortest gap that still reads as a gap: each
+ * chime is two or three notes of its own, so a rest the length of one note is
+ * heard as the space between two figures rather than as a fourth note missing.
+ */
+export const CHIME_BEAT_SECONDS = 0.09;
+
+/**
  * Which path a chime is played down.
  *
  * **`system` is what the app has always used and has no volume control of any

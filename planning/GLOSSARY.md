@@ -41,6 +41,7 @@ caused; the list carries the meaning.
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, since the alert path has no gain
+- **Beat (between chimes)** — One note of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -337,6 +338,15 @@ rule here and the reason the cue is local rather than published into the media
 room. And **a tick sounds one chime per kind, every kind that applies, in the
 order `in`, `out`, `nearby`** — two people leaving and one stepping back to
 nearby is two chimes, not three.
+
+**Those come one after another, not together.** A beat of one note
+(`CHIME_BEAT_SECONDS`) is held between chimes that fall in the same moment, so
+a pair of events is heard as a pair. Until 2026-09-17 they were *simultaneous*
+— the alert path starts a sound and returns, so two calls in one tick are a
+chord rather than a sequence — which made the narration order inaudible and the
+events unrecoverable. The queue is in `chime.ts` and spans both hooks, so an
+arrival and a recording starting in one tick are spaced too. See
+`decisions/2026-09-17-two-chimes-at-once-are-a-chord.md`.
 
 **Why *nearby* needed a sound of its own at all**, which is the 2026-09-15
 half and still holds: it had been ringing the arrival chime, so *stepped in*

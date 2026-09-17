@@ -20,7 +20,11 @@
  * depending on which screen somebody happened to be at.
  */
 
-import { CHIME_AMPLITUDE, type ChimeKind } from '../../modules/audio-route';
+import {
+  CHIME_AMPLITUDE,
+  CHIME_BEAT_SECONDS,
+  type ChimeKind,
+} from '../../modules/audio-route';
 
 const NOTE_E5 = 659.25;
 const NOTE_A5 = 880.0;
@@ -57,6 +61,15 @@ const PEAK = CHIME_AMPLITUDE;
 let context: AudioContext | null = null;
 
 /**
+ * When the speaker is next free, in the audio context's own clock.
+ *
+ * Reset with the context rather than carried across one: a fresh context
+ * starts its clock at zero, so a stamp from the previous one would be in the
+ * future for as long as that one had been running.
+ */
+let nextFree = 0;
+
+/**
  * The one context, made on first use.
  *
  * **Lazily, because a context made at import time starts suspended** — a
@@ -72,7 +85,10 @@ function audio(): AudioContext | null {
       (globalThis as { webkitAudioContext?: typeof AudioContext })
         .webkitAudioContext;
     if (!Ctor) return null;
-    context ??= new Ctor();
+    if (!context) {
+      context = new Ctor();
+      nextFree = 0;
+    }
     if (context.state === 'suspended') void context.resume();
     return context;
   } catch {
@@ -93,8 +109,25 @@ export function chime(kind: ChimeKind, amplitude: number = PEAK): void {
 
     const notes = KINDS[kind];
     if (!notes) return;
+
+    /**
+     * **Where the browser has the easier job, as it did with the peak.**
+     *
+     * Two chimes in one tick must not start together — see `CHIME_BEAT_SECONDS`
+     * — and here the fix needs no timer at all: Web Audio takes the moment to
+     * start each note as an argument, so a second chime is simply scheduled
+     * after the first rather than played later by a clock. `nextFree` is in the
+     * context's own time, which is what those arguments are in.
+     *
+     * The native twin keeps the same `nextFree` idea against `Date.now()` and
+     * a `setTimeout`, because a system sound has no such argument. The two
+     * agree on the gap and on nothing else about how it is produced.
+     */
+    const start = Math.max(ctx.currentTime, nextFree);
+    nextFree = start + notes.length * NOTE_SECONDS + CHIME_BEAT_SECONDS;
+
     notes.forEach((frequency, index) => {
-      const at = ctx.currentTime + index * NOTE_SECONDS;
+      const at = start + index * NOTE_SECONDS;
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
 

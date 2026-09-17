@@ -1,5 +1,8 @@
 import {
   CHIME_AMPLITUDE,
+  CHIME_BEAT_SECONDS,
+  CHIME_NOTE_SECONDS,
+  CHIME_NOTES,
   chime as playChime,
   prepareChime,
   type ChimeKind,
@@ -107,8 +110,27 @@ export function chimeRecording(amplitude?: number): void {
   playChime('recording', amplitude);
 }
 
+/** How long a kind occupies the speaker, in milliseconds. */
+function spanMs(kind: ChimeKind): number {
+  return CHIME_NOTES[kind] * CHIME_NOTE_SECONDS * 1000;
+}
+
 /**
- * One function over all three, which is what the hook holds and the tests
+ * When the speaker is next free, as a `Date.now()` stamp.
+ *
+ * Module state rather than a hook's, which is the whole point: the presence
+ * chimes and the recording chime are scheduled by two hooks that know nothing
+ * about each other, and a room that has just gained somebody *and* started
+ * recording would otherwise play both at once. Everything audible goes through
+ * this function, so this is the one place that can know.
+ */
+let nextFree = 0;
+
+/** Past this far behind, a chime is dropped rather than played late. */
+const CHIME_STALE_MS = 1_000;
+
+/**
+ * One function over all of them, which is what the hooks hold and the tests
  * replace.
  *
  * A single injectable `fire` keeps the sounds together at the call site — a
@@ -118,7 +140,36 @@ export function chimeRecording(amplitude?: number): void {
  * one level down: `fire(true)` could only ever mean one of two things, and
  * there are three. There are four now, and the fourth is not a presence chime
  * — `useRecordingChime` holds this same function for it.
+ *
+ * **It is also the queue, and that is why both hooks hold this one rather
+ * than reaching for the module below.** Two chimes asked for in the same tick
+ * are played one after the other with a beat between them, instead of
+ * together: `AudioServicesPlaySystemSound` starts a sound and returns, so
+ * *at the same moment* is what two calls in one tick literally means. Callers
+ * stay ignorant of it — they say what happened, in the order it should be
+ * narrated, and are not made to care when the speaker is free. See
+ * planning/decisions/2026-09-17-two-chimes-at-once-are-a-chord.md.
  */
 export function chime(kind: ChimeKind, amplitude?: number): void {
-  playChime(kind, amplitude);
+  const now = Date.now();
+  const at = Math.max(now, nextFree);
+  const wait = at - now;
+
+  /**
+   * **A chime too late to be about anything is not played.**
+   *
+   * The queue only ever holds the handful of kinds one tick can declare, so a
+   * wait this long is not a busy room — it is a backlog that has stopped
+   * describing the present. Late is worse than absent here: the roster is
+   * already right, and a sound a second behind it sends somebody looking for a
+   * change that has been on screen the whole time.
+   */
+  if (wait > CHIME_STALE_MS) return;
+
+  nextFree = at + spanMs(kind) + CHIME_BEAT_SECONDS * 1000;
+  if (wait === 0) {
+    playChime(kind, amplitude);
+    return;
+  }
+  setTimeout(() => playChime(kind, amplitude), wait);
 }
