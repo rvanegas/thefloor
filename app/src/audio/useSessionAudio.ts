@@ -268,6 +268,25 @@ export interface SessionAudio {
    * gated separately.
    */
   resubscribe: () => void;
+  /**
+   * The browser's two obligations, which a phone does not have — and which are
+   * here so that `ChannelView` can read them without a platform test.
+   *
+   * **Both are constants on this side and must stay constants.** A page may be
+   * refused permission to make noise, and a page's granted microphone may
+   * carry digital silence with nothing in WebRTC reporting it; neither can
+   * happen to an installed app, which owns its own `AVAudioSession` and is
+   * never inside somebody else's `WKWebView`. `useSessionAudio.web.ts` is
+   * where they are real, and `core/capture.ts` carries the second one's
+   * account.
+   *
+   * Declared rather than left off because Metro picks the file and TypeScript
+   * checks this one: a member on only one side is a control that compiles on
+   * web and fails to on a phone, or the reverse.
+   */
+  playbackBlocked: boolean;
+  micSilent: boolean;
+  allowPlayback: () => void;
 }
 
 /**
@@ -720,6 +739,10 @@ export function useSessionAudio(
     micOpen: false,
     micPublished: false,
     inputAvailable: true,
+    // The browser's two, inert here. See the interface.
+    playbackBlocked: false,
+    micSilent: false,
+    allowPlayback: () => {},
     asked: null,
     // Replaced below, once `setGeneration` exists to close over. Never called
     // in between: nothing renders before the hook returns.

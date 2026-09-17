@@ -601,6 +601,21 @@ interrupting somebody with. Every healthy state draws nothing at all, which
 is the property to keep — see `describeAudio`, which returns null rather than
 a reassurance.
 
+**It is also where the browser's two notices go, added 2026-09-17**, and they
+are the one case where this card carries a control. A browser may refuse a
+page permission to make sound, and a browser's granted microphone may carry
+silence — both while the transport is perfectly healthy, so `describeAudio`
+says nothing and the card is drawn by them alone. The first is a sentence and
+a `primary` button (*Play the channel*), which is the section's first rule
+rather than an exception to it: the press is what lifts the refusal, so the
+control is the explanation's whole point, and it repeats nothing in the
+footer. It is the only `primary` the channel screen ever draws, affordable
+because the card exists only while the channel is inaudible and there is
+exactly one thing to do about it. The second is a sentence with no control at
+all — the cure is another browser, which no button here can perform. Both are
+constants on a phone and neither ever renders there; see
+`decisions/2026-09-17-the-web-app-grew-the-browser-s-two-obligations.md`.
+
 The surviving sentences are both under the roster rather than on a card,
 there being no card either could belong to: that the room is held on another
 phone, and — since later the same day — that somebody **just** stepped in

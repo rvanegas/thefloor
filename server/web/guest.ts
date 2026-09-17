@@ -6,6 +6,7 @@ import {
   type LocalAudioTrack,
   type RemoteTrack,
 } from 'livekit-client';
+import { sample, startWatch } from '../../core/capture';
 import { HEARTBEAT_INTERVAL_MS } from '../../core/constants';
 import { isEmbeddedBrowser } from '../../core/embedded';
 import type {
@@ -338,15 +339,17 @@ function embeddedBrowser(): boolean {
  * connected to nothing downstream — connecting it to the destination is how
  * you build an echo — and the samples never leave this function.
  *
+ * **The counting left for `core/capture.ts` on 2026-09-17**, when `/app` and
+ * `/beta` grew the same meter and a second copy of the thresholds would have
+ * drifted the first time either was tuned — the move `isEmbeddedBrowser` made,
+ * for the reason it made it. What is left here is reading the samples, which
+ * cannot be pure, and it is still the half nothing in this repository can run.
+ *
  * It is deliberately a question and not a verdict. Somebody in a quiet room
  * with noise suppression on can read as silent too, so the notice says what
  * was observed and offers the two things that might help, rather than
  * announcing that their microphone is broken.
  */
-const SILENCE = 0.002;
-/** Eight seconds of samples that were actually being taken. */
-const PATIENCE = 32;
-
 let meter: { context: AudioContext; timer: ReturnType<typeof setInterval> } | null = null;
 
 function watchCapture(track: LocalAudioTrack): void {
@@ -365,25 +368,21 @@ function watchCapture(track: LocalAudioTrack): void {
     .connect(analyser);
 
   const samples = new Float32Array(analyser.fftSize);
-  let silent = 0;
+  let watch = startWatch();
   const timer = setInterval(() => {
     // A suspended context and a muted track are both silence that means
-    // nothing, so they are not counted rather than being counted as quiet.
-    if (context.state !== 'running' || track.isMuted) return;
-    analyser.getFloatTimeDomainData(samples);
-    let peak = 0;
-    for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
-    if (peak > SILENCE) {
-      // Heard something, so the question is settled for this microphone.
-      $('mic-trouble').hidden = true;
-      stopWatching();
-      return;
+    // nothing, so they are passed as no reading rather than as quiet.
+    let peak: number | null = null;
+    if (context.state === 'running' && !track.isMuted) {
+      analyser.getFloatTimeDomainData(samples);
+      peak = 0;
+      for (const level of samples) peak = Math.max(peak, Math.abs(level));
     }
-    silent += 1;
-    if (silent >= PATIENCE) {
-      $('mic-trouble').hidden = false;
-      stopWatching();
-    }
+    watch = sample(watch, peak);
+    if (watch.verdict === 'waiting') return;
+    // Settled for this microphone, either way, so the meter stops.
+    $('mic-trouble').hidden = watch.verdict === 'heard';
+    stopWatching();
   }, 250);
 
   meter = { context, timer };

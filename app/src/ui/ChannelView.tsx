@@ -2009,11 +2009,24 @@ export function ChannelView({
           overheard. The accurate version of it is on the privacy page,
           which is where a fact about retention belongs.
         */}
-        {iAmPresent && audioNote !== null ? (
+        {iAmPresent &&
+        (audioNote !== null || audio.playbackBlocked || audio.micSilent) ? (
           <>
             <SectionLabel>Audio</SectionLabel>
             <Card style={styles.stack}>
-              <Text style={audioTone(audio.status)}>{audioNote}</Text>
+              {audioNote !== null ? (
+                <Text style={audioTone(audio.status)}>{audioNote}</Text>
+              ) : null}
+              {/*
+                The browser's two, and they are the reason this card is drawn
+                at all while the status is `connected` — which is the state
+                both of them happen in. On a phone both are constants and
+                nothing below this ever renders; see `SessionAudio`.
+              */}
+              {audio.playbackBlocked ? (
+                <PlaybackBlocked onAllow={audio.allowPlayback} />
+              ) : null}
+              {audio.micSilent ? <MicrophoneSilent /> : null}
             </Card>
           </>
         ) : null}
@@ -4031,6 +4044,57 @@ function describeAudio(audio: SessionAudio): string | null {
     case 'error':
       return `Audio failed: ${audio.message ?? 'unknown error'}`;
   }
+}
+
+/**
+ * The browser is refusing to let this page make sound.
+ *
+ * **The button is the whole point and cannot be replaced by a retry.** A page
+ * nobody has interacted with may be denied playback, and what lifts the denial
+ * is a real gesture — so this is the one card in the app whose control exists
+ * to be pressed rather than to do anything, and pressing it is the act. See
+ * `SessionAudio.allowPlayback`.
+ *
+ * `primary`, which the screen otherwise spends on nothing: while this is up
+ * the channel is inaudible, and there is exactly one thing to do about it.
+ * It is never drawn beside another commitment, since the card is not drawn at
+ * all unless the browser has said no.
+ */
+function PlaybackBlocked({ onAllow }: { onAllow: () => void }) {
+  return (
+    <>
+      <Text style={type.body}>
+        <Text style={styles.emphasis}>This browser will not play sound yet.</Text>{' '}
+        It waits to be asked, so nothing said in this channel is reaching you.
+      </Text>
+      <Button label="Play the channel" variant="primary" onPress={onAllow} />
+    </>
+  );
+}
+
+/**
+ * The microphone was granted and appears to be carrying nothing.
+ *
+ * **A question rather than a verdict**, which is why it says what was observed
+ * and not that the microphone is broken: somebody in a quiet room with noise
+ * suppression on reads exactly the same way. `core/capture.ts` carries the
+ * measurement and the reasoning.
+ *
+ * No control. The cure is to open the app in a real browser, which is not
+ * something a button here can do — the sibling notice on `AuthView` is the one
+ * that can, because there the link is all there is, and by the time somebody
+ * is standing in a channel a copied link costs them the room. Stepping out and
+ * back in publishes a fresh microphone, which is what takes the reading again.
+ */
+function MicrophoneSilent() {
+  return (
+    <Text style={type.body}>
+      <Text style={styles.emphasis}>Nothing is coming from your microphone.</Text>{' '}
+      If you have been talking, nobody is hearing it — which is what an app&rsquo;s
+      built-in browser usually does on iOS. Open this in Safari or Chrome
+      instead; stepping out and back in takes the reading again.
+    </Text>
+  );
 }
 
 function audioTone(status: string) {

@@ -1449,6 +1449,89 @@ describe('being alone in a channel', () => {
 });
 
 /**
+ * The two states only a browser can be in.
+ *
+ * Both are ports of `server/web/guest.ts`, both happen while the status is
+ * `connected`, and both are false by construction on a phone — so what is
+ * rendered here is the web app's half of the screen, drawn by the shared view
+ * because `SessionAudio` carries the fields on both platforms. See
+ * `useSessionAudio.web.ts`, and `core/capture.ts` for the second.
+ */
+describe('what a browser can be wrong about', () => {
+  const connected = (over: Partial<typeof AUDIO>) => ({
+    ...AUDIO,
+    status: 'connected' as const,
+    ...over,
+  });
+
+  /**
+   * The case the card exists for: the transport is fine, so nothing else on
+   * the screen has a word for it, and the person is hearing nothing.
+   */
+  it('offers a gesture when the browser refuses to play sound', () => {
+    showChannel(channelOf());
+    const pressed: number[] = [];
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={connected({
+          playbackBlocked: true,
+          allowPlayback: () => pressed.push(1),
+        })}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).toContain('This browser will not play sound yet.');
+    // The press is the act, not a request for one: an autoplay refusal is
+    // lifted by a real gesture and by nothing else.
+    act(() => findButton(tree, 'Play the channel')!.props.onPress());
+    expect(pressed).toEqual([1]);
+    act(() => tree.unmount());
+  });
+
+  /** And on the ordinary connected browser it is not drawn at all. */
+  it('draws no card when the browser is playing sound', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={connected({})}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    expect(textOf(tree)).not.toContain('Audio');
+    expect(findButton(tree, 'Play the channel')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * A granted microphone that is carrying nothing, which is what an in-app
+   * browser on iOS does and what nothing in WebRTC reports.
+   *
+   * Said as an observation rather than a verdict, and with no control: the
+   * cure is another browser, and `AuthView`'s notice is the one that can hand
+   * somebody the link for it.
+   */
+  it('says when nothing is coming from the microphone', () => {
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={connected({ micSilent: true })}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Nothing is coming from your microphone.');
+    expect(text).toContain('Open this in Safari or Chrome');
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * A channel screen with the repeated cards turned off.
  *
  * The setting removes ways of doing a thing twice, and nothing else, so what

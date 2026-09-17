@@ -371,6 +371,12 @@ export const AUDIO = {
   // tests: the panel it lives on is gated on `mockApp.debug`.
   reconnect: () => {},
   resubscribe: () => {},
+  // The browser's two, which are constants on a phone and false in the
+  // ordinary web case as well: the page is playing sound and the microphone is
+  // producing some. A test that wants either notice sets it on a copy.
+  playbackBlocked: false,
+  micSilent: false,
+  allowPlayback: () => {},
 };
 
 /** The same connection, with somebody audible on it. */

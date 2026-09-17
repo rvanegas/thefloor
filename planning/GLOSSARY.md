@@ -92,6 +92,7 @@ caused; the list carries the meaning.
 - **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Capturable** — Whether a *recording* started now would capture anything: anybody's open microphone, or a track playing. `subscribeable`'s companion, and it counts you where that one discounts you — which is why one person alone may record and, since 2026-09-14, is the whole of what the recording guard asks about the room
+- **Capture watch** — The meter a browser runs over its own published microphone, because a granted microphone that carries silence is reported by nothing; `core/capture.ts` counts, each caller reads its own samples
 - **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
@@ -125,6 +126,7 @@ caused; the list carries the meaning.
 - **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
 - **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
+- **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
 - **Protocol** — `core/protocol.ts` — the wire
 - **Pump** — `PlaybackPump` — what *produces* shared playback, as distinct from publishing
@@ -1628,6 +1630,28 @@ unlike the *presence* it ends — see STATES.md. And its expiry is an ordinary
 and *Nearby* is not what it produces. Which of the two words a browser produces
 is decided by which clock ran out first — see *Nearby / Stepped out*.
 
+## Capture watch
+
+The meter a browser runs over the microphone it has published, in
+`core/capture.ts` plus an `AnalyserNode` at each caller —
+`server/web/guest.ts` and `app/src/audio/useSessionAudio.web.ts`.
+
+**Not a level meter and not *speaking*.** It asks one question once: is
+anything at all coming out of this microphone. Four samples a second, eight
+seconds below the floor to say no, and one sample above it settles the
+question for that microphone for good — where *speaking* is the room's
+continuous judgement about who is talking, pushed by the SFU, and is about
+people rather than about a device.
+
+It exists because on the web every step of the path can succeed and carry
+silence: an in-app browser on iOS grants the microphone, the track is live,
+the SFU forwards, and nothing anywhere reports it. *Embedded browser* is the
+warning at the door for the same failure, and is a guess by user agent; this
+is the measurement. Both can be right on their own.
+
+**A question and not a verdict**, which is why what the screen says is what
+was observed: a quiet room with noise suppression reads the same way.
+
 ## Card
 
 One row in the *Channels* list, from either source — an invitation or a channel
@@ -2038,6 +2062,23 @@ by default.
 
 Grows on `INVITE`, shrinks only on `LEAVE_CHANNEL`. **Membership is not
 presence** — see *present*.
+
+## Playback blocked
+
+`SessionAudio.playbackBlocked` — the browser refusing to let this page make
+sound, which every engine may do to a page nobody has interacted with.
+
+**Not a failure and not a mute.** Nothing is broken, the room is arriving, and
+no retry lifts it: what lifts it is a real gesture, which is why it is a state
+with a button — `allowPlayback`, drawn on the *Audio* card — rather than
+something the audio hook resolves on its own. Read from
+`RoomEvent.AudioPlaybackStatusChanged` rather than from one attempt at
+connection, since a tab restored from the background can become blocked long
+after a connection that was fine.
+
+**Always false on a phone.** An installed app owns its own `AVAudioSession`
+and asks nobody's permission to play; the field exists on the native
+`SessionAudio` so that the shared view can read it without a platform test.
 
 ## Playout
 
