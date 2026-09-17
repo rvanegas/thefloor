@@ -126,6 +126,29 @@ export interface BuildOptions {
    */
   trackRoot?: string;
   /**
+   * Where the web trains are served from — the directory holding `stable` and
+   * `beta`.
+   *
+   * **This exists so that two test runs can happen at once**, added
+   * 2026-09-17. The trains are built by `bin/deploy-web` and rsynced straight
+   * to the box, so nothing writes them in a checkout except the tests that
+   * need one to exist — and those were creating and then `rm -rf`ing
+   * `server/web/stable` itself, a fixed real path. Two suites doing that at
+   * the same time delete each other's fixture, which is how a `bin/deploy`
+   * that overlapped anything else running the suite failed in `open`,
+   * `train-root` and `guest-flow` and nowhere else. See
+   * `decisions/2026-09-17-the-tests-stopped-sharing-a-directory.md`.
+   *
+   * Unset, it is `server/web`, which is what production uses and what every
+   * caller but a test wants. It covers **only the train directories**: the
+   * guest page and the guest bundle live in the same directory and are
+   * committed or built rather than fixtures, so they keep resolving from the
+   * real one. A test pointing this at a temp directory is saying *no train is
+   * deployed here except the ones I make*, which is exactly what each of them
+   * wants to say.
+   */
+  trainRoot?: string;
+  /**
    * Reaches an iOS device whose app is not running. Without one, nothing is
    * sent and the in-app path is all there is — which is what it was before
    * push.
@@ -328,6 +351,12 @@ const TRACK_CONTENT_TYPES: Record<string, string> = {
 
 export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
+  /**
+   * Where `stable` and `beta` are looked for. See `BuildOptions.trainRoot` —
+   * the default is the directory production serves, and a test overrides it so
+   * that two runs of the suite cannot delete each other's fixtures.
+   */
+  const trainRoot = options.trainRoot ?? join(__dirname, '..', 'web');
   const db = openDb(options.dbPath ?? ':memory:');
   const accounts = new Accounts(db, options.review);
   const donations = new Donations(
@@ -1527,7 +1556,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const shell = async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const html = await readFile(
-          join(__dirname, '..', 'web', train.dir, 'index.html'),
+          join(trainRoot, train.dir, 'index.html'),
           'utf8'
         );
         reply.type('text/html; charset=utf-8');
@@ -1552,7 +1581,7 @@ export function buildApp(options: BuildOptions = {}): App {
     void fastify.register(
       async (scope) => {
         void scope.register(fastifyStatic, {
-          root: join(__dirname, '..', 'web', train.dir),
+          root: join(trainRoot, train.dir),
           // Relative to the scope, whose prefix is the train's.
           prefix: '/',
           // `sendFile` is unused, and two registrations must not decorate the
@@ -1834,7 +1863,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const found: string[] = [];
     for (const train of TRAINS) {
       try {
-        await access(join(__dirname, '..', 'web', train.dir, 'index.html'));
+        await access(join(trainRoot, train.dir, 'index.html'));
         found.push(train.prefix);
       } catch {
         // Not deployed. Ordinary for stable, which is cut from `released`.

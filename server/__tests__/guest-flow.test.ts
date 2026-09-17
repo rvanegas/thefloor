@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { DISCONNECT_GRACE_MS } from '../../core/constants';
@@ -31,12 +32,17 @@ let app: App;
 let media: MemoryMediaServer;
 let pusher: MemoryPusher;
 let baseUrl: string;
+let trainRoot: string;
 let clock = 1_700_000_000_000;
 
 beforeEach(async () => {
   clock = 1_700_000_000_000;
   media = new MemoryMediaServer();
   pusher = new MemoryPusher();
+  // This suite's own train directory rather than `server/web`, so that two
+  // runs of the suite cannot delete each other's fixtures — see
+  // `train-root.test.ts`, which carries the account.
+  trainRoot = await mkdtemp(join(tmpdir(), 'thefloor-trains-'));
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
@@ -45,6 +51,7 @@ beforeEach(async () => {
     now: () => clock,
     roomCloseGraceMs: 0,
     pusher,
+    trainRoot,
   });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
@@ -55,6 +62,7 @@ beforeEach(async () => {
 afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
+  await rm(trainRoot, { recursive: true, force: true });
 });
 
 /** A socket that collects what it is sent and can wait for one message. */
@@ -269,7 +277,7 @@ describe('the page', () => {
     const nowhere = await app.fastify.inject({ method: 'GET', url: `/g/${link.token}` });
     expect(nowhere.body).toContain('data-app=""');
 
-    const beta = join(__dirname, '..', 'web', 'beta');
+    const beta = join(trainRoot, 'beta');
     await mkdir(beta, { recursive: true });
     await writeFile(join(beta, 'index.html'), '<!doctype html>');
     try {

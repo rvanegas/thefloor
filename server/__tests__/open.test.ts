@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
 
@@ -19,7 +20,14 @@ import { buildApp, type App } from '../src/app';
 let app: App;
 let clock = 1_700_000_000_000;
 
-const trainDir = (name: string) => join(__dirname, '..', 'web', name);
+/**
+ * This suite's own train directory rather than `server/web`, so that two runs
+ * of the suite cannot delete each other's fixtures. `train-root.test.ts`
+ * carries the account; `BuildOptions.trainRoot` is the option that allows it.
+ */
+let root: string;
+
+const trainDir = (name: string) => join(root, name);
 
 async function withTrains<T>(names: string[], body: () => Promise<T>): Promise<T> {
   for (const name of names) {
@@ -37,13 +45,15 @@ async function withTrains<T>(names: string[], body: () => Promise<T>): Promise<T
 
 const open = (url = '/open') => app.fastify.inject({ method: 'GET', url });
 
-beforeEach(() => {
-  app = buildApp({ dbPath: ':memory:', now: () => clock });
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'thefloor-trains-'));
+  app = buildApp({ dbPath: ':memory:', now: () => clock, trainRoot: root });
 });
 
 afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
+  await rm(root, { recursive: true, force: true });
 });
 
 describe('/open', () => {

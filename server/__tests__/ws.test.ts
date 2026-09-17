@@ -132,11 +132,29 @@ class Client {
     this.socket.send(JSON.stringify(message));
   }
 
-  /** Waits for a message matching `predicate`, or throws on timeout. */
+  /**
+   * Waits for a message matching `predicate`, or throws on timeout.
+   *
+   * **The deadline is a failsafe, not an assertion about speed**, and it was
+   * three seconds against a `testTimeout` of fifteen — twelve seconds of
+   * headroom nothing was using. A real socket and a real server are on the
+   * other end of this, so under load the reply genuinely takes longer, and
+   * two full suites running at once is load: `bin/deploy` runs the tests, and
+   * it overlaps anybody else running them. That produced sporadic
+   * `timed out waiting for pong` in this file and nowhere else, which reads
+   * like a broken heartbeat and is a busy machine.
+   *
+   * Ten seconds costs nothing when the message arrives — the loop returns as
+   * soon as it sees it — and stays inside the suite's own timeout, so a
+   * message that never comes still fails here, with the list of what *did*
+   * arrive, rather than as a bare jest timeout that says nothing.
+   *
+   * Raised 2026-09-17 with the train directories; both were the same report.
+   */
   async next<T extends ServerMessage['type']>(
     type: T,
     predicate: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true,
-    timeoutMs = 3000
+    timeoutMs = 10_000
   ): Promise<Extract<ServerMessage, { type: T }>> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {

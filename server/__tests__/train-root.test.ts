@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
 
@@ -19,7 +20,22 @@ import { buildApp, type App } from '../src/app';
 let app: App;
 let clock = 1_700_000_000_000;
 
-const trainDir = (name: string) => join(__dirname, '..', 'web', name);
+/**
+ * This suite's own train directory, which is the whole reason it can be run
+ * beside another copy of itself.
+ *
+ * **It used to be `server/web`, the real one.** Three suites made a train
+ * there and `rm -rf`'d it afterwards, so two runs of the suite at once — a
+ * `bin/deploy` overlapping anybody else's `npm test`, which is the ordinary
+ * case rather than a strange one — deleted each other's fixtures mid-assertion
+ * and failed in `open`, `train-root` and `guest-flow`. `mkdtemp` is the
+ * pattern `export.test.ts` and `playback.test.ts` already use for the same
+ * reason; the trains were the one thing that had no option to point anywhere
+ * else, and `BuildOptions.trainRoot` is that option.
+ */
+let root: string;
+
+const trainDir = (name: string) => join(root, name);
 
 async function withTrains<T>(names: string[], body: () => Promise<T>): Promise<T> {
   for (const name of names) {
@@ -40,13 +56,15 @@ async function withTrains<T>(names: string[], body: () => Promise<T>): Promise<T
 
 const get = (url: string) => app.fastify.inject({ method: 'GET', url });
 
-beforeEach(() => {
-  app = buildApp({ dbPath: ':memory:', now: () => clock });
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'thefloor-trains-'));
+  app = buildApp({ dbPath: ':memory:', now: () => clock, trainRoot: root });
 });
 
 afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
+  await rm(root, { recursive: true, force: true });
 });
 
 describe('a train root', () => {
