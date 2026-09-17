@@ -155,6 +155,18 @@ struct LockScreenCard: View {
 
   private var dark: Bool { scheme == .dark }
 
+  /**
+   How much larger this surface's controls are than the island's.
+
+   **A lock screen is read at arm's length, and often not held.** The card is
+   the width of the screen with six words on it and room to spare, where the
+   expanded island is a panel with three regions to fit; the same control that
+   is comfortable there is small here. Both controls take it, so the pair keeps
+   its proportions — a glyph that grew while the word beside it did not would
+   read as two sizes rather than one.
+   */
+  private static let scale: CGFloat = 2
+
   var body: some View {
     HStack(alignment: .center, spacing: 10) {
       /**
@@ -172,8 +184,8 @@ struct LockScreenCard: View {
         .foregroundColor(Palette.text(dark))
         .lineLimit(1)
       Spacer(minLength: 8)
-      OpenControl(channelId: channelId, dark: dark)
-      MuteControl(state: state, dark: dark)
+      OpenControl(channelId: channelId, dark: dark, scale: Self.scale)
+      MuteControl(state: state, dark: dark, scale: Self.scale)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
@@ -212,14 +224,15 @@ struct LockScreenCard: View {
 private struct OpenControl: View {
   let channelId: String
   let dark: Bool
+  var scale: CGFloat = 1
 
   var body: some View {
     Link(destination: URL(string: "thefloor://channel/\(channelId)")!) {
       Text("Open")
-        .font(.subheadline.weight(.medium))
+        .font(.system(size: 15 * scale, weight: .medium))
         .foregroundColor(Palette.text(dark))
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14 * scale)
+        .padding(.vertical, 8 * scale)
         .background(Palette.raised(dark))
         .clipShape(Capsule())
     }
@@ -245,6 +258,7 @@ private struct OpenControl: View {
 private struct MuteControl: View {
   let state: FloorActivityAttributes.ContentState
   let dark: Bool
+  var scale: CGFloat = 1
 
   /** What the glyph would have said. The screen reader still gets it. */
   private var label: String { state.muted ? "Unmute" : "Mute" }
@@ -268,9 +282,10 @@ private struct MuteControl: View {
   private func glyph(enabled: Bool) -> some View {
     MicGlyph(
       muted: state.muted,
-      color: enabled ? Palette.text(dark) : Palette.faint(dark)
+      color: enabled ? Palette.text(dark) : Palette.faint(dark),
+      size: 22 * scale
     )
-    .padding(9)
+    .padding(9 * scale)
     .background(enabled ? Palette.raised(dark) : Palette.disabled(dark))
     .clipShape(Circle())
   }

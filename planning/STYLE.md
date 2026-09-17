@@ -968,7 +968,7 @@ name until 2026-09-17, and it said what the glyph beside it already said. Two
 statements of one fact on a surface with room for about six words; the glyph is
 the half that survives.
 
-Four rules that look like details and are not:
+Five rules that look like details and are not:
 
 - **Both controls are visible, and the card is still a tap.** *Open* is a
   `Link` to the same deep link `widgetURL` carries. It is not a second way in
@@ -987,6 +987,14 @@ Four rules that look like details and are not:
   lock screen and being refused here is ordinary rather than an error, so
   *Open* stands in for one: it opens the app at the channel, where every
   reason is already stated in its own place.
+- **The card's controls are twice the island's, and both by the same factor.**
+  A lock screen is read at arm's length and often not held; the expanded
+  island is a panel with three regions to fit, and a control that is
+  comfortable there is small here. `LockScreenCard.scale` is that number, and
+  **both controls take it** — the microphone's glyph and the disc around it,
+  *Open*'s type and its padding — so the pair keeps its proportions. A glyph
+  that grew while the word beside it did not would read as two sizes rather
+  than one.
 - **Being silenced does not grey it.** Somebody silenced by another's claim may
   still set their own mute, and it is what they are left with when the claim
   ends. The footer keeps the control live and spends `silenced` orange on it;
