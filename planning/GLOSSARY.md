@@ -1707,6 +1707,15 @@ else of yours was showing it — the video moves, not merely the controls — an
 the server is what enforces that, being the only thing that can see all of
 somebody's devices at once.
 
+**Handing it over only *asks*.** The film moves when the target instance
+declares itself the screen, and the eviction that follows is what takes it off
+the device that asked. Until 2026-09-18 that device cleared its own role in
+the same breath, which opened a window with the film on *nothing* whenever the
+target was slow, backgrounded or no longer had the channel open. Waiting for
+the eviction makes *exactly one* true by construction; the cost is that the
+asking device goes on showing the film for a round trip, which is what is
+actually the case.
+
 **It is refused while the film is running**, and pausing is the whole of what
 it asks: moving a picture between devices mid-scene means the film leaves what
 you are looking at and turns up on something across the room a second later,

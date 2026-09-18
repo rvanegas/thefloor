@@ -185,6 +185,43 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  it('leaves the transport live on the device that is not showing the film', () => {
+    /*
+      **The surface with no bar to reach for.** The film's own controls are on
+      the picture, so a device watching from the other side of the switch has
+      only this row — and it is the common case, a *screen* being one device
+      per person. `canControlWatch` asks about the account rather than about
+      this instance, so a phone that handed the picture to the laptop is still
+      in the room and still drives it.
+    */
+    mockApp.screensElsewhere = ['sess_1'];
+    showChannel(watching());
+    const tree = open();
+    expect(chosen(tree, 'Other device')).toBe(true);
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(false);
+    expect(findButton(tree, '−15s')!.props.disabled).toBe(false);
+    expect(findButton(tree, '+15s')!.props.disabled).toBe(false);
+    act(() => findButton(tree, 'Play')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'WATCH_PLAY' });
+    act(() => tree.unmount());
+  });
+
+  it('leaves the film’s own bar live on the device that is showing it', () => {
+    // The other half of the same question, asked where the answer is passed
+    // rather than rendered: `mayControl` is what decides whether the frame
+    // answers a finger at all. See `WatchPlayer`.
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+    const tree = open();
+    expect(chosen(tree, 'This device')).toBe(true);
+    const player = tree.root.findAll(
+      (n) => typeof n.type !== 'string' && n.props?.mayControl !== undefined
+    );
+    expect(player.length).toBeGreaterThan(0);
+    expect(player[0].props.mayControl).toBe(true);
+    act(() => tree.unmount());
+  });
+
   it('says how far in everybody is before any screen has said how long it is', () => {
     showChannel(watching());
     const tree = open();
@@ -314,10 +351,16 @@ describe('Channel, watching together', () => {
     const tree = open();
     act(() => findChoice(tree, 'Other device')!.props.onPress());
     expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
-    // And stops showing it here. The two buttons this replaced never did,
-    // so a phone that had been watching here went on playing the film —
-    // picture and sound — after handing it to the laptop.
-    expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+    /*
+      **And does not stop showing it here**, which reversed on 2026-09-18.
+      `screens.use` only *asks*: the film moves when the target declares
+      itself the screen, and the server then takes it off every other
+      instance including this one. Clearing eagerly was the app
+      second-guessing that, and it opened a window with the film on nothing —
+      cleared here and never picked up there if the target was slow,
+      backgrounded, or no longer had the channel open.
+    */
+    expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
     act(() => tree.unmount());
   });
 
@@ -352,7 +395,9 @@ describe('Channel, watching together', () => {
     expect(findButton(tree, 'Another phone')).toBeDefined();
     act(() => findButton(tree, 'Chrome on macOS')!.props.onPress());
     expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
-    expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+    // Asked for, not taken away: the film moves when the laptop declares,
+    // and the server is what takes it off this device. See `handOver`.
+    expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
     act(() => tree.unmount());
   });
 

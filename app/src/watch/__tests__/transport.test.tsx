@@ -113,6 +113,15 @@ function laggyPlayer(lag: number) {
           },
         };
       },
+      /*
+        **Seeking starts a player that has not begun**, which is the API's own
+        rule and the opposite of the intuition: *"If the player is paused when
+        the function is called, it will remain paused. If the function is
+        called from another state (playing, video cued, etc.), the player will
+        play the video."* A fake that kept a cued player cued through a seek
+        would be a fake that could not reproduce the defect this file exists
+        to catch.
+      */
       seek: (ms: number) => {
         calls.push(`seek:${Math.round(ms)}`);
         const was = state;
@@ -189,9 +198,20 @@ function server(initial: ChannelState, trip: number) {
 
 let tree: ReactTestRenderer | null = null;
 
-function run(opts: { mayControl?: boolean } = {}) {
+function run(
+  opts: {
+    mayControl?: boolean;
+    /**
+     * The channel as it stands before this follower exists, for the screen
+     * that arrives at a party already under way. Applied to the fresh
+     * channel, so the follower mounts against it rather than watching it
+     * happen.
+     */
+    already?: (channel: ChannelState) => ChannelState;
+  } = {}
+) {
   const player = laggyPlayer(LAG_MS);
-  const wire = server(party(), TRIP_MS);
+  const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
     useFollow(watch, player.port, true, {
       mayControl: opts.mayControl ?? true,
@@ -355,6 +375,46 @@ describe('a second press, made before the first has settled', () => {
     sim.advance(1_000);
 
     expect(sim.player.calls.slice(after)).toEqual([]);
+  });
+});
+
+describe('a screen joining a party that is paused', () => {
+  it('does not start the film by arriving', () => {
+    /*
+      **Reported from a device switch: handing the picture over turned a
+      paused party into a playing one.**
+
+      The new screen comes up `cued` at zero against a channel paused a
+      minute in, so the follower seeks it — and a seek is what starts a cued
+      player. Its own follower then read a playing player against a paused
+      channel, which in a settled phase is a person pressing play, and told
+      the room so. Nothing about that reading is wrong; the instruction was
+      incomplete. See `followInstructions`.
+    */
+    // A party paused a minute in, already so before this screen existed —
+    // which is what a picture being handed over looks like from the device
+    // receiving it. The player is `unstarted`, which is to say cued.
+    const sim = run({
+      already: (c) =>
+        reduce(
+          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
+          { type: 'WATCH_PAUSE', userId: A },
+          T0 + 60_000
+        ),
+    });
+    expect(sim.where().channel).toBe('paused');
+
+    // The follower's first tick runs on mount, so by here the cued player has
+    // already been sent where the party is — which is the seek that used to
+    // start it.
+    sim.advance(8_000);
+
+    // Nothing was said to the room at all: arriving is not pressing anything.
+    expect(sim.wire.heard).toEqual([]);
+    expect(sim.where().channel).toBe('paused');
+    // And the screen is where the party is, stopped.
+    expect(sim.player.state).toBe('paused');
+    expect(Math.abs(sim.player.positionMs - 60_000)).toBeLessThanOrEqual(1_500);
   });
 });
 

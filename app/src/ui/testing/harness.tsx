@@ -745,6 +745,11 @@ export function resetHarness(): void {
   mockApp.displaced = false;
   mockApp.screens = [];
   mockApp.screenFor = null;
+  // **Reset with its two neighbours**, which it was not until 2026-09-18: a
+  // test that set it left every later test in the file believing another of
+  // this account's devices was showing a film, which is exactly the state
+  // that stops a party taking the screen it is looking at.
+  mockApp.screensElsewhere = [];
   mockApp.expired = false;
   mockApp.updateUrl = null;
   mockApp.notifications.ask = 'none';

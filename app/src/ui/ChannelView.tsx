@@ -756,24 +756,31 @@ export function ChannelView({
   }, [app, channelId, choosing, myScreens]);
 
   /**
-   * Gives the film to another of this account's devices, and stops showing it
-   * here.
+   * Gives the film to another of this account's devices.
    *
-   * **The second half is new with the switch, and is a bug it made visible.**
-   * The two buttons it replaced never cleared this device's own screen role,
-   * so a phone that had been *watching here* went on playing the film — its
-   * own picture and its own sound — after handing it to the laptop. Two
-   * buttons could describe that; a switch reading *other device* while
-   * this device is plainly still showing one cannot.
+   * **And does not stop showing it here, which is the repair of 2026-09-18.**
+   * This used to clear its own role in the same breath, so that a switch
+   * could not read *other device* while this device was plainly still
+   * playing one. What that missed is that `screens.use` only *asks*: the
+   * server passes the request to the target, and the film moves when the
+   * target declares itself the screen — at which point the server takes it
+   * off every other instance anyway, this one included.
    *
-   * Cleared here rather than when *other device* is pressed, because
-   * pressing it may find nowhere to go: an account with no other device
-   * signed in gets the banner and keeps its film, where an eager clear would
-   * take the film away and offer nothing in its place.
+   * So the eager clear was the app second-guessing the one thing that can
+   * see all of somebody's devices at once, and it opened a window with the
+   * film on **nothing**: cleared here, and never picked up there if the
+   * target was slow, backgrounded, or no longer had the channel open. A
+   * device switch that lands on neither screen is what that looks like.
+   *
+   * Letting the eviction do it makes *exactly one* true by construction
+   * rather than by agreement. The cost is that this device goes on showing
+   * the film for the length of a round trip after the press, which is
+   * honest — it is still the screen until the other one takes over — and the
+   * switch says so, being a reading of where the film is rather than of what
+   * was asked for. See `screens.showing` in server/src/ws.ts.
    */
   function handOver(device: string): void {
     app.useScreen(channelId, device);
-    app.showScreenFor(null);
   }
 
   /**

@@ -458,6 +458,34 @@ export function followInstructions(
     instructions.push({ do: 'pause' });
   }
   if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });
+  /*
+    **A seek starts a cued player, so a paused party has to stop it again.**
+
+    The IFrame API is explicit about this and it is the opposite of the
+    intuition: *"If the player is paused when the function is called, it will
+    remain paused. If the function is called from another state (playing,
+    video cued, etc.), the player will play the video."* A player that has
+    just been built is `cued`, not paused — so the one seek that puts a fresh
+    screen where the party has got to is also the thing that starts it.
+
+    That is how **switching devices turned a paused party into a playing
+    one**: the new screen was positioned, began playing as a side effect, and
+    its own follower then read a playing player against a paused channel and
+    told the room somebody had pressed play. The follower cannot be blamed for
+    that — in `watching` it is right to believe its player — so the repair is
+    that the instruction is finished rather than that the reading is doubted.
+
+    Only for the states a seek actually starts, which is why this is not
+    simply *always pause last*. A player that was `playing` or `buffering`
+    was stopped by the pause above and stays stopped through the seek; one
+    that was already `paused` stays paused by the documented rule. What is
+    left is a player that has not begun — `cued`, which this calls
+    `unstarted` — and one that has run out, and those are exactly the two a
+    seek would set going.
+  */
+  if (adrift && (player.state === 'unstarted' || player.state === 'ended')) {
+    instructions.push({ do: 'pause' });
+  }
   return instructions;
 }
 
