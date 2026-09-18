@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
@@ -27,7 +27,7 @@ import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
-import { NoDetailView, Panes } from './src/ui/Panes';
+import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
@@ -820,11 +820,48 @@ function Root() {
    * the one View that holds the detail subtree at a fixed depth so a resize
    * does not remount it. See `Panes`.
    */
+  /**
+   * Where a swipe goes from here, which is a question about this screen rather
+   * than about a thumb — `ui/swipe.ts` owns the thumb.
+   *
+   * **Only below the breakpoint.** A swipe between two screens is meaningless
+   * where both are already on the screen at once: in a split, Home is the
+   * column on the left and going to it is looking left. Handing a split no
+   * handlers is also what keeps the detail pane still while a window is being
+   * dragged, which is the one time this could have moved something nobody
+   * touched.
+   *
+   * **Not on the web**, where a horizontal drag is a text selection, a
+   * trackpad's two fingers are the browser's own history, and the address bar
+   * is a way back that a phone does not have. `useRoute.web.ts` is the sibling
+   * that makes that true; this is the half of it that declines to compete.
+   *
+   * **Left is out, right is in, and the asymmetry is deliberate.** Left is
+   * offered from a channel screen and nowhere else: settings, help and a
+   * profile have unambiguous back buttons and no return gesture to pair with,
+   * so a swipe off them would be a way out with no way back. Right is offered
+   * only into `live` — the room this device is *standing in*, not the last one
+   * somebody looked at — so it is not the undo of the left swipe and does not
+   * pretend to be. Looking at a channel without stepping into it and swiping
+   * away is therefore a one-way trip, by the same tap it always was.
+   */
+  const swipes: Swipes | undefined =
+    split || Platform.OS === 'web'
+      ? undefined
+      : {
+          left: detail.kind === 'channel' ? close : undefined,
+          right:
+            detail.kind === 'none' && live
+              ? () => enterChannel(live.id)
+              : undefined,
+        };
+
   return (
     <Panes
       layout={layout}
       list={listPane}
       detail={showing ?? (layout === 'split' ? <NoDetailView /> : listPane)}
+      swipes={swipes}
     />
   );
 }

@@ -1,7 +1,30 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  PanResponder,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { LIST_WIDTH, PaneContext, type Layout } from './layout';
+import { shouldCapture, swipeOf } from './swipe';
 import { colors, spacing, type } from './theme';
+
+/**
+ * Where a swipe goes, in each direction it can go anywhere.
+ *
+ * An absent handler is a direction with nothing in it, and the gesture is not
+ * taken at all — no movement, no bounce, nothing to explain. Which is the
+ * whole of what *otherwise inert* means: a right swipe with no live channel
+ * behind it must be indistinguishable from a right swipe on a screen that has
+ * never heard of swiping.
+ */
+export type Swipes = { left?: () => void; right?: () => void };
+
+/** How long the arriving screen takes to cross. */
+const SLIDE_MS = 220;
 
 /**
  * A list beside the screen you are looking at — or, below the breakpoint, that
@@ -23,19 +46,103 @@ import { colors, spacing, type } from './theme';
  * `Root` — which is precisely what would have made the loss quiet enough to
  * ship.
  *
- * **It reads nothing.** No hook, no app state; `Root` decides the mode and
- * hands both halves down. That is what makes it testable on its own.
+ * **It reads no app state.** `Root` decides the mode, decides where each
+ * swipe goes, and hands all of it down; the only thing this component asks the
+ * platform for is how wide the window is, which is how far an arriving screen
+ * has to travel. That is what makes it testable on its own.
+ *
+ * **The swipes are here because the slot they move is here.** Where they are
+ * allowed — below the breakpoint, off the web, and only into a channel
+ * somebody is standing in — is `App.tsx`'s judgement, and arrives as handlers
+ * that are simply absent when the answer is no. See `Swipes`.
  */
 export function Panes({
   layout,
   list,
   detail,
+  swipes,
 }: {
   layout: Layout;
   list: React.ReactNode;
   detail: React.ReactNode;
+  swipes?: Swipes;
 }) {
   const split = layout === 'split';
+  const { width } = useWindowDimensions();
+
+  /**
+   * How far the detail slot is from where it belongs, which is always zero
+   * except while a screen is arriving.
+   *
+   * **The screen being left does not move.** Both of them moving means both of
+   * them mounted, and in this arrangement only one ever is — see the fallback
+   * in `App.tsx`, where Home *is* the detail slot when nothing is open. Paying
+   * for the other half with a permanent second mount of Home, or with
+   * `ChannelView` alive behind it, is a great deal more than the difference is
+   * worth.
+   */
+  const slide = React.useRef(new Animated.Value(0)).current;
+
+  /**
+   * Read through refs, because `PanResponder.create` captures what it can see
+   * and is built once. Rebuilding it whenever the handlers change identity —
+   * which is every render, they are closures — would hand a live gesture to a
+   * new responder mid-drag.
+   */
+  const swipesRef = React.useRef(swipes);
+  swipesRef.current = swipes;
+  const widthRef = React.useRef(width);
+  widthRef.current = width;
+
+  const responder = React.useMemo(
+    () =>
+      PanResponder.create({
+        /**
+         * Capture rather than a plain responder: every screen this sits over
+         * is full of things that claim a touch first, and a gesture that only
+         * worked on the gaps between them would be one nobody could find.
+         *
+         * It declines a direction with no handler, so the drag stays with
+         * whatever was under it rather than being taken and dropped.
+         */
+        onMoveShouldSetPanResponderCapture: (_event, gesture) => {
+          const swipes = swipesRef.current;
+          if (!swipes) return false;
+          if (!shouldCapture(gesture.dx, gesture.dy)) return false;
+          return !!(gesture.dx < 0 ? swipes.left : swipes.right);
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          const swipes = swipesRef.current;
+          if (!swipes) return;
+          const direction = swipeOf(gesture.dx, gesture.dy, gesture.vx);
+          if (!direction) return;
+          const go = direction === 'left' ? swipes.left : swipes.right;
+          if (!go) return;
+          /*
+            The arriving screen is put where it comes from before it is asked
+            for, so it renders already offset and crosses from there. A left
+            swipe is a step towards Home, which therefore comes in from the
+            right; a right swipe opens the channel, which comes from the left.
+            See `swipe.ts` for why those are that way round.
+          */
+          slide.setValue(direction === 'left' ? widthRef.current : -widthRef.current);
+          go();
+          Animated.timing(slide, {
+            toValue: 0,
+            duration: SLIDE_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start();
+        },
+        /**
+         * A scroll underneath asking for the gesture back gets it. Nothing is
+         * held mid-drag, so there is nothing to unwind.
+         */
+        onPanResponderTerminationRequest: () => true,
+      }),
+    [slide]
+  );
+
   return (
     <View style={split ? styles.row : styles.fill}>
       {split ? (
@@ -43,11 +150,21 @@ export function Panes({
           <PaneContext.Provider value="list">{list}</PaneContext.Provider>
         </View>
       ) : null}
-      <View key="detail" style={styles.fill}>
+      {/*
+        `Animated.View` in both arrangements, not only where it moves. This is
+        the slot the docblock above is about: changing what sits at this depth
+        between modes is exactly the remount it exists to prevent, and a
+        wrapper added for the stack alone would be one.
+      */}
+      <Animated.View
+        key="detail"
+        style={[styles.fill, { transform: [{ translateX: slide }] }]}
+        {...(swipes ? responder.panHandlers : null)}
+      >
         <PaneContext.Provider value={split ? 'detail' : null}>
           {detail}
         </PaneContext.Provider>
-      </View>
+      </Animated.View>
     </View>
   );
 }

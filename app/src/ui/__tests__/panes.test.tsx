@@ -29,6 +29,18 @@ function List() {
   return <Text>{`list in ${String(pane)}`}</Text>;
 }
 
+/**
+ * Whether anything in the tree is listening for a drag. `PanResponder` hands
+ * back the responder system's own prop names rather than its own, so this
+ * looks for `onMoveShouldSetResponderCapture` and not the `PanResponder` one.
+ */
+function responderOf(tree: ReactTestRenderer): boolean {
+  return tree.root.findAll(
+    (node) =>
+      typeof node.props?.onMoveShouldSetResponderCapture === 'function'
+  ).length > 0;
+}
+
 function textOf(tree: ReactTestRenderer): string[] {
   return tree.root
     .findAll((node) => node.type === Text)
@@ -85,6 +97,37 @@ describe('the two arrangements', () => {
     act(() => {
       tree.update(<Panes layout="stack" list={<List />} detail={<Detail />} />);
     });
+    expect(mounts).toBe(1);
+  });
+
+  /**
+   * The gesture is attached to the slot it moves, and only when there is
+   * somewhere for it to go. A screen with no swipe available must not have a
+   * responder sitting over it declining things — that is a drag taken and
+   * dropped, which reads as the app having missed the touch.
+   */
+  it('attaches no responder when there is nowhere to swipe', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <Panes layout="stack" list={<List />} detail={<Detail />} />
+      );
+    });
+    expect(responderOf(tree)).toBe(false);
+
+    act(() => {
+      tree.update(
+        <Panes
+          layout="stack"
+          list={<List />}
+          detail={<Detail />}
+          swipes={{ left: () => {} }}
+        />
+      );
+    });
+    expect(responderOf(tree)).toBe(true);
+    // Gaining and losing the gesture is what navigating does, and it must not
+    // cost the screen underneath its state.
     expect(mounts).toBe(1);
   });
 

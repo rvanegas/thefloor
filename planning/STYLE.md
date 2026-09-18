@@ -915,10 +915,24 @@ the copy.
 
 ## Feedback and motion
 
-**There is no animation.** `Animated` appears nowhere in `app/src/ui/`, and no
-animation library is a dependency. Nothing fades, slides or springs.
+**One thing moves, and it is a screen arriving under a thumb.** `Animated`
+appears in `app/src/ui/Panes.tsx` and nowhere else, and no animation library is
+a dependency. Nothing fades and nothing springs.
 
-The whole feedback vocabulary is opacity on press:
+This said *there is no animation* until 2026-09-18, and the sentence earned its
+keep for as long as nothing needed motion to be understood. A swipe does: a
+screen that replaced another with no travel between them would not say which
+way the gesture went, and a gesture whose direction is invisible is one nobody
+learns. So the arriving screen crosses from the edge the swipe came from, in
+220ms, on the native driver — and the screen being left does not move, because
+both of them moving means both of them mounted. See
+`decisions/2026-09-18-a-screen-arrives-from-the-side-it-was-asked-for.md`.
+
+**It is not a licence for the rest.** A transition that carries information is
+the case; a fade on a card, a spring on a button and a shimmer on a list are
+not, and the argument that got motion in here is one none of them can make.
+
+The whole feedback vocabulary is otherwise opacity on press:
 
 - **0.7** — a button, a segment, a small control.
 - **0.6** — a large pressable surface: a whole row, a footer action, a
