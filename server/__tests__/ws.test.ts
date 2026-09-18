@@ -1520,6 +1520,48 @@ describe('websocket', () => {
         phone.close();
       });
 
+      /**
+       * **A film shows on one device at a time.** Handing one over moves the
+       * video and not merely the controls, so an instance declaring itself
+       * the screen is every other instance of that account ceasing to be
+       * one — and the server is the only thing that can see all of somebody's
+       * devices at once.
+       */
+      it('takes the film off every other device of the account', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        phone.send({ type: 'screens.showing', channelId });
+        await laptop.next('screening', (m) => m.channelIds.includes(channelId));
+
+        // The laptop now takes it, which is the phone losing it.
+        laptop.send({ type: 'screens.showing', channelId });
+        const { channelId: told } = await phone.next('screen');
+        expect(told).toBeNull();
+
+        // And the server's own copy went with it, so the picker does not go
+        // on offering a phone that has stopped showing anything as busy.
+        phone.send({ type: 'screens.list' });
+        const { screens } = await phone.next('screens');
+        expect(screens.find((s) => s.self)?.watching).toBe(false);
+        expect(screens.find((s) => !s.self)?.watching).toBe(true);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('says nothing to a device that was showing nothing', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.showing', channelId });
+        await phone.next('screening', (m) => m.channelIds.includes(channelId));
+
+        // The phone was never a screen, so there is nothing to take off it.
+        // A `screen` message here would open the channel on a device whose
+        // owner never asked it to.
+        expect(phone.received.some((m) => m.type === 'screen')).toBe(false);
+
+        phone.close();
+        laptop.close();
+      });
+
       it('hands a film to the chosen instance without moving anybody', async () => {
         const { alice, channelId, phone, laptop } = await withScreens();
         await enter(phone, channelId, alice.account.id);

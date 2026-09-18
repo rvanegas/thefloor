@@ -1408,6 +1408,34 @@ export function registerWebsocket(deps: {
           // steady state is the same value arriving again.
           if (connection.screening === message.channelId) return;
           connection.screening = message.channelId;
+          /*
+            **A film shows on one device at a time, and this is where that is
+            true.** Handing a film over moves the video and not merely the
+            controls, so an instance declaring itself the screen is every
+            other instance of this account ceasing to be one.
+
+            Enforced here rather than by the app that asked, for two reasons.
+            The server is the only thing that can see all of somebody's
+            devices at once — a phone taking the film back knows nothing
+            about the tablet that was also showing it — and the declaration
+            arrives by this one path however it was provoked, whether
+            somebody pressed *same device* or another instance handed it
+            over with `screens.use`.
+
+            The account and never a channel: two films of one person's on two
+            devices is the same room with two soundtracks in it, and which
+            channel each belongs to does not make it less so.
+          */
+          if (message.channelId !== null) {
+            for (const other of connections) {
+              if (other === connection) continue;
+              if (other.scope.kind !== 'session') continue;
+              if (other.userId !== connection.userId) continue;
+              if (other.screening === null) continue;
+              other.screening = null;
+              send(other, { type: 'screen', channelId: null });
+            }
+          }
           pushScreening(connection.userId);
           return;
         }

@@ -87,7 +87,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
-- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *same device* or *separate device*, which is one fact each device states in its own terms
+- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *same device* or *separate device*, which is one fact each device states in its own terms, and which only moves while the film is paused
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1657,6 +1657,19 @@ buttons they replaced on 2026-09-17, but a matched pair rather than a *here*
 and an *another* that read as two unrelated acts and inverted their meanings
 as you walked between rooms. Picking *separate* lists your own live
 instances, and only when there is more than one to choose between.
+
+**One device shows the film at a time.** Taking it here takes it off whatever
+else of yours was showing it — the video moves, not merely the controls — and
+the server is what enforces that, being the only thing that can see all of
+somebody's devices at once.
+
+**It is refused while the film is running**, and pausing is the whole of what
+it asks: moving a picture between devices mid-scene means the film leaves what
+you are looking at and turns up on something across the room a second later,
+in the middle of a sentence, with the sound crossing after it. Refused rather
+than hidden, so the answer goes on saying where the film is. The *floor* does
+not govern it at any point — which of your own devices shows a film is not
+what the channel is attending to.
 
 **The chosen answer is the same fact on every device, said in each one's own
 terms.** Hand the film to the laptop and the laptop shows *same device* while

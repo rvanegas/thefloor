@@ -84,3 +84,58 @@ Cleared on the hand-over rather than when *separate device* is pressed,
 because a press may find nowhere to go: an account with no other device
 signed in gets the banner and keeps its film, where an eager clear would take
 the film away and offer nothing in its place.
+
+## And it does not move while the film is running
+
+Moving a picture between devices mid-scene is the confusing act whichever way
+it goes: the film leaves what you are looking at, turns up on something across
+the room a second or two later and in the middle of a sentence, and the audio
+crosses after it. Pausing first makes the move deliberate and costs one tap of
+a control that sits inches above this one.
+
+**Refused rather than hidden.** The answer has to go on saying where the film
+is while it cannot be changed — that being the thing somebody hunting for the
+picture most needs to read — so `Segmented` gained a `disabled` that fades the
+words and leaves the track and the raised segment alone. Greying the track the
+way a `Button` greys would take the answer away along with the control.
+
+**The floor still has nothing to do with it.** What the channel is attending
+to is the floor's business; which of your own devices shows it is not, and
+that rule is unchanged — the one refusal on this switch is the film running,
+not anybody's claim.
+
+## A film shows on one device at a time
+
+Said plainly because it was not true. *Screen* is a role an instance takes,
+and nothing stopped two of somebody's instances taking it at once: press
+*same device* on the phone while the laptop is showing the film and both play
+it, two pictures and two soundtracks, from one account. The switch made that
+unstateable — one control cannot read *same device* on two devices — but the
+switch did not cause it, and the answer is not a label.
+
+**Handing a film over moves the video, not merely the controls.** So the
+server takes the film off every other instance of the account the moment one
+of them declares itself the screen: `screen` now carries a null channel, and
+a device that receives one stops showing. Enforced there rather than in the
+app that asked, for two reasons — the server is the only thing that can see
+all of somebody's devices at once, and the declaration arrives by one path
+however it was provoked, whether somebody pressed *same device* or another
+instance handed the film over with `screens.use`.
+
+The account rather than the channel: two films of one person's on two devices
+is the same room with two soundtracks in it, and which channel each belongs
+to does not make it less so.
+
+### The half that was silently missing
+
+A device *asked* to be a screen set its own role and told the server nothing
+— `showingScreen` was only ever called by the device that chose for itself.
+So the server believed a laptop playing a film was idle: the picker offered
+it as free, and `ScreenDevice.watching` was wrong for exactly the devices the
+feature exists to use. The mirror above would have inherited the same hole,
+since the phone learns where the film is from what the other instances have
+declared.
+
+Both directions go through `showingScreen` now, which is the one path that
+tells the server, and the exclusivity above is enforced on the one message it
+sends.

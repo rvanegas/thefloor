@@ -3106,7 +3106,37 @@ export function ChannelView({
                       app.listScreens();
                     }
                   }}
+                  /*
+                    **Not while the film is running.** Moving a picture
+                    between devices mid-scene is the confusing act whichever
+                    way it goes: the film vanishes from what you are looking
+                    at and reappears on something across the room, a second
+                    or two later and in the middle of a sentence, and the
+                    audio crosses with it. Pausing first makes the move
+                    deliberate and costs one tap of a control that is inches
+                    above this one.
+
+                    Refused rather than hidden, so that the answer goes on
+                    saying where the film is while it cannot be changed —
+                    which is the thing somebody looking for the picture most
+                    needs to read.
+
+                    It is the only refusal on this switch. The *floor* governs
+                    what the channel is attending to and has no business
+                    saying which of your own devices shows it, which is the
+                    rule the disabled transport above already asserts from the
+                    other side.
+                  */
+                  disabled={watch.status === 'playing'}
                 />
+                {watch.status === 'playing' ? (
+                  // Beside the refused control rather than up in a summary,
+                  // which is what every disabled control here does. See
+                  // STYLE.md § *Words on controls*.
+                  <Text style={type.muted}>
+                    Pause the film to move it to another device.
+                  </Text>
+                ) : null}
 
                 {choosing && otherScreens.length > 1
                   ? otherScreens.map((screen) => (

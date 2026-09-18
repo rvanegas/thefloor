@@ -713,7 +713,42 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('makes this device the screen when the same answer is pressed', () => {
+    it('refuses to be moved while the film is running', () => {
+    // **Moving a picture between devices mid-scene is the confusing act
+    // whichever way it goes**: the film leaves what you are looking at and
+    // turns up on something across the room, a second later and in the
+    // middle of a sentence. Pausing first makes the move deliberate, and
+    // the Play/Pause control is inches above this one.
+    mockApp.screenFor = 'sess_1';
+    showChannel(playing());
+    const tree = open();
+    expect(findChoice(tree, 'Same device')!.props.disabled).toBe(true);
+    expect(findChoice(tree, 'Separate device')!.props.disabled).toBe(true);
+    // Refused rather than hidden: the answer goes on saying where the film
+    // is, which is what somebody looking for the picture needs to read.
+    expect(chosen(tree, 'Same device')).toBe(true);
+    // And a sentence beside it, as every disabled control here has.
+    expect(textOf(tree)).toContain('Pause the film');
+    act(() => tree.unmount());
+  });
+
+  it('can be moved again the moment it is paused', () => {
+    showChannel(
+      watching((s) =>
+        reduce(
+          reduce(s, { type: 'WATCH_PLAY', userId: ME }, NOW),
+          { type: 'WATCH_PAUSE', userId: ME },
+          NOW + 5_000
+        )
+      )
+    );
+    const tree = open();
+    expect(findChoice(tree, 'Same device')!.props.disabled).toBeFalsy();
+    expect(textOf(tree)).not.toContain('Pause the film');
+    act(() => tree.unmount());
+  });
+
+  it('makes this device the screen when the same answer is pressed', () => {
       showChannel(watching());
       const tree = open();
       act(() => findChoice(tree, 'Same device')!.props.onPress());

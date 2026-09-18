@@ -63,8 +63,15 @@ export interface RealtimeHandlers {
   onChannelMoved?: (from: string, to: string) => void;
   /** The account's live instances, in answer to `listScreens`. */
   onScreens?: (screens: ScreenDevice[]) => void;
-  /** Another of this account's instances wants this one to show the film. */
-  onScreenAsked?: (channelId: string) => void;
+  /**
+   * Which channel this instance is to show a film for, or null for none.
+   *
+   * Null is the server saying the film has moved to another of this
+   * account's devices — see `screen` in core/protocol.ts. A film shows on
+   * one device at a time, so this is not a refusal but the other end of
+   * somebody else's handover.
+   */
+  onScreenAsked?: (channelId: string | null) => void;
   /**
    * Which channels this account's *other* instances are showing, pushed
    * whenever any of them changes. Not `onScreens`: that is the picker's list,

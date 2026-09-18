@@ -1618,17 +1618,25 @@ export type ServerMessage =
    */
   | { type: 'screens'; screens: ScreenDevice[] }
   /**
-   * Another of this account's instances has asked this one to be the screen.
+   * Which channel this instance is to show a film for, or null for none.
    *
    * The receiving app opens the channel and starts showing the film. It does
    * **not** step in: a screen is a role an instance takes, not a place to be,
    * and entering here would displace the device its owner is actually holding.
    *
+   * **Null is the other half of the same handover, and is the server's**:
+   * a film shows on one device at a time, so an instance declaring itself
+   * the screen is every other instance of that account ceasing to be one.
+   * Sent unasked for that reason — nobody's app decides this, and the server
+   * is the only thing that can see all of somebody's devices at once. The
+   * device that receives it stops showing the film, which is the video
+   * moving rather than merely the controls.
+   *
    * Directed at one connection, the way `displaced` is, because it is about a
    * device rather than about a channel — no snapshot could carry it, since
    * nothing on the channel has changed.
    */
-  | { type: 'screen'; channelId: string }
+  | { type: 'screen'; channelId: string | null }
   /**
    * Which channels this account's *other* instances are showing a film for.
    *

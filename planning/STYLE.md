@@ -444,6 +444,14 @@ label that wraps or truncates is worse than a line of its own. **It may show
 neither answer as chosen**, which is the state before anybody has answered —
 a switch that guessed would be a control reporting a state the app is not in.
 
+**`disabled` refuses the whole control and fades only the words.** The track
+and the raised segment stay exactly as they are, because what is chosen has
+to go on being legible while it cannot be changed — `colors.disabled` behind
+it, which is what a `Button` does, would take the answer away with the
+control. Never per-option: a set with one answer left is not a choice and
+must not be drawn as one. A caller says why in a sentence beside it, as § *Words
+on controls* requires of every disabled control.
+
 ### FooterAction
 
 Deliberately not a `Button`: a row of filled rectangles would make the bar

@@ -1220,11 +1220,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // film to the laptop show *separate device* as the chosen answer.
         onScreening: (channelIds) =>
           setState((s) => ({ ...s, screensElsewhere: channelIds })),
-        // Being asked to show a film reaches the app wherever it is: the
-        // channel opens on this device and starts playing, and nothing about
-        // where anybody is standing changes.
-        onScreenAsked: (channelId) =>
-          setState((s) => ({ ...s, screenFor: channelId })),
+        /*
+          Being asked to show a film reaches the app wherever it is: the
+          channel opens on this device and starts playing, and nothing about
+          where anybody is standing changes. A null is the same message
+          saying the film has gone to another of this account's devices —
+          one device shows it at a time, and the handover moves the video.
+
+          **Reported back as well as recorded**, which it was not until
+          2026-09-17. The device that is *asked* to show a film used to set
+          this and say nothing, so the server went on believing it was idle:
+          the picker offered it as free while it was playing, and the
+          *Watch on* switch on the device that had just handed the film over
+          never learnt that it had landed. `showingScreen` is the one path
+          that tells the server, so every way of becoming a screen goes
+          through it.
+        */
+        onScreenAsked: (channelId) => {
+          realtime.showingScreen(channelId);
+          setState((s) => ({ ...s, screenFor: channelId }));
+        },
         onDisplaced: () =>
           setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
         // Mirrored rather than derived. Every transition of it is a decision

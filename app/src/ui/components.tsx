@@ -651,6 +651,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   role,
+  disabled,
 }: {
   options: readonly {
     value: T;
@@ -702,6 +703,20 @@ export function Segmented<T extends string>({
    * would go missing from the tests of the card it belongs to.
    */
   role?: 'tabs' | 'choice';
+  /**
+   * Refuses every answer, the whole control at once.
+   *
+   * **Not per-option**, because a set with one answer left is not a choice
+   * and should not be drawn as one. The track and the raised segment stay
+   * exactly as they are and only the words fade: what is chosen has to go on
+   * being legible while it cannot be changed, that being the whole of what a
+   * refused switch has to say. `colors.disabled` behind it — what a `Button`
+   * does — would take the answer with it.
+   *
+   * A caller says why in a sentence beside it, as every disabled control
+   * here does. See STYLE.md § *Words on controls*.
+   */
+  disabled?: boolean;
 }) {
   const tabs = role !== 'choice';
   return (
@@ -721,7 +736,11 @@ export function Segmented<T extends string>({
         <View key={row[0].value} style={styles.segmentRow}>
           {row.map((option) => {
             const on = value === option.value;
-            const color = on ? colors.text : colors.textMuted;
+            const color = disabled
+              ? colors.textFaint
+              : on
+                ? colors.text
+                : colors.textMuted;
             return (
               <Pressable
                 key={option.value}
@@ -729,7 +748,13 @@ export function Segmented<T extends string>({
                 // `selected` is the word for a tab and `checked` the word for
                 // one answer of several; a reader given the wrong one says
                 // nothing about the state at all.
-                accessibilityState={tabs ? { selected: on } : { checked: on }}
+                // `disabled` only when it is, so the two tab strips — which
+                // are never refused — announce exactly what they always did.
+                accessibilityState={{
+                  ...(tabs ? { selected: on } : { checked: on }),
+                  ...(disabled ? { disabled: true } : {}),
+                }}
+                disabled={disabled}
                 // Spelled out only when there is a dab, so the six tabs that
                 // have none keep announcing their label and nothing else.
                 accessibilityLabel={
@@ -739,7 +764,7 @@ export function Segmented<T extends string>({
                 style={({ pressed }) => [
                   styles.segment,
                   on && styles.segmentOn,
-                  pressed && styles.segmentPressed,
+                  pressed && !disabled && styles.segmentPressed,
                 ]}
               >
                 {option.icon ? (
@@ -760,6 +785,7 @@ export function Segmented<T extends string>({
                       styles.segmentLabel,
                       option.icon && styles.segmentLabelUnderIcon,
                       on && styles.segmentLabelOn,
+                      disabled && styles.segmentLabelOff,
                     ]}
                     numberOfLines={1}
                   >
@@ -970,6 +996,10 @@ const styles = StyleSheet.create({
    */
   segmentLabelUnderIcon: { fontSize: 11 },
   segmentLabelOn: { color: colors.text },
+  // Last in the list, so it wins over `segmentLabelOn`: a refused switch
+  // fades both of its words and keeps the raised segment to say which is
+  // which.
+  segmentLabelOff: { color: colors.textFaint },
   empty: { paddingVertical: spacing(2) },
 });
 
