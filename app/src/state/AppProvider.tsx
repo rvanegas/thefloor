@@ -290,6 +290,21 @@ interface AppState {
    */
   screens: ScreenDevice[];
   /**
+   * The channels this account's *other* instances are showing a film for.
+   *
+   * **Live, where `screens` is frozen**, and they are two questions rather
+   * than one. That list is the picker's and is read at the moment of
+   * choosing; this is the single fact the watch card's *Watch on* switch
+   * needs — whether the film is on somewhere else of yours — and it has to
+   * arrive by itself, because the device that hands a film away is the one
+   * that would otherwise show no selection at all.
+   *
+   * Pushed by the server whenever any of the account's instances starts or
+   * stops showing something, and once when this one connects. Never includes
+   * this device: see `screenFor` for that half.
+   */
+  screensElsewhere: string[];
+  /**
    * The channel this device has been asked to show a film for, or null.
    *
    * Set by another of this account's own instances, and by nothing else. It is
@@ -1052,6 +1067,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     movedChannel: null,
     displaced: false,
     screens: [],
+    screensElsewhere: [],
     screenFor: null,
     standingIn: null,
     nearbyIn: [],
@@ -1199,6 +1215,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // another device has taken the account somewhere, and this one is no
         // longer nearby anything.
         onScreens: (screens) => setState((s) => ({ ...s, screens })),
+        // One fact rather than a list, and pushed rather than asked for —
+        // see `screensElsewhere`. It is what lets the device that handed a
+        // film to the laptop show *separate device* as the chosen answer.
+        onScreening: (channelIds) =>
+          setState((s) => ({ ...s, screensElsewhere: channelIds })),
         // Being asked to show a film reaches the app wherever it is: the
         // channel opens on this device and starts playing, and nothing about
         // where anybody is standing changes.
@@ -1573,6 +1594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         debug: false,
         leaderboard: false,
         screens: [],
+        screensElsewhere: [],
         screenFor: null,
         home: null,
         channelViews: {},
@@ -1842,6 +1864,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
           screens: [],
+          screensElsewhere: [],
           screenFor: null,
         standingIn: null,
           nearbyIn: [],
@@ -1898,6 +1921,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           movedChannel: null,
           displaced: false,
           screens: [],
+          screensElsewhere: [],
           screenFor: null,
         standingIn: null,
           nearbyIn: [],

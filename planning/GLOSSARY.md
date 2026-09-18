@@ -87,7 +87,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
-- **Screen** — The app instance showing a party's film; any device you are signed in on
+- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *same device* or *separate device*, which is one fact each device states in its own terms
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1651,9 +1651,21 @@ be. A screen does not *step in*, so it neither displaces the device holding
 your voice nor claims an audio session of its own, which is why a film on a
 second device sounds best.
 
-Chosen with two buttons: *Watch here* and *Watch on another device*. The second
-lists your own live instances, and only when there is more than one to choose
-between.
+Chosen with one switch, *Watch on*, whose two answers are **Same device** and
+**Separate device** — relative to the device in your hand, like the two
+buttons they replaced on 2026-09-17, but a matched pair rather than a *here*
+and an *another* that read as two unrelated acts and inverted their meanings
+as you walked between rooms. Picking *separate* lists your own live
+instances, and only when there is more than one to choose between.
+
+**The chosen answer is the same fact on every device, said in each one's own
+terms.** Hand the film to the laptop and the laptop shows *same device* while
+the phone shows *separate device*: both are describing where the film is. The
+phone can only say so because the server pushes which channels this account's
+*other* instances are showing — the picker's list is frozen at the moment of
+choosing and could not answer this. Before anybody has chosen, neither answer
+is shown, a party being perfectly able to sit loaded with the film on
+nothing.
 
 ## Watching here
 

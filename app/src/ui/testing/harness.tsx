@@ -140,6 +140,12 @@ export const mockApp = {
    * person with a phone and nothing else signed in.
    */
   screens: [] as ScreenDevice[],
+  /**
+   * The channels this account's *other* instances are showing. Empty by
+   * default for `screens`' reason, and it is what the *Watch on* switch reads
+   * to show *separate device* as chosen.
+   */
+  screensElsewhere: [] as string[],
   /** The channel this device has been asked to show a film for. */
   screenFor: null as string | null,
   listScreens: jest.fn(),
@@ -483,6 +489,42 @@ export function findButton(
     buttons.find((n) => labelOf(n).trim() === label) ??
     buttons.find((n) => labelOf(n).includes(label))
   );
+}
+
+/**
+ * One answer of a labelled choice, by its label — a `Segmented` with
+ * `role="choice"` rather than a tab strip.
+ *
+ * Its own finder rather than a case of `findButton`, for that one's reason
+ * turned around: a choice is not a tab and must not be swept up by
+ * `findTab`, and it is not a button either — a test enumerating the controls
+ * on a card should not find two of them because a switch happens to sit
+ * there. The watch card's *Watch on* is the only one today.
+ */
+export function findChoice(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  const answers = tree.root.findAll(
+    (n) => n.props?.accessibilityRole === 'radio'
+  );
+  return (
+    answers.find((n) => labelOf(n).trim() === label) ??
+    answers.find((n) => labelOf(n).includes(label))
+  );
+}
+
+/**
+ * Whether a labelled choice is showing this answer as the chosen one.
+ *
+ * `checked` rather than `selected`, which is the word a tab uses — see
+ * `Segmented`'s `role`.
+ */
+export function chosen(
+  tree: ReactTestRenderer,
+  label: string
+): boolean | undefined {
+  return findChoice(tree, label)?.props?.accessibilityState?.checked;
 }
 
 /**

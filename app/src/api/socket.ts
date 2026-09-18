@@ -66,6 +66,13 @@ export interface RealtimeHandlers {
   /** Another of this account's instances wants this one to show the film. */
   onScreenAsked?: (channelId: string) => void;
   /**
+   * Which channels this account's *other* instances are showing, pushed
+   * whenever any of them changes. Not `onScreens`: that is the picker's list,
+   * asked for once and frozen; this is the one fact the *Watch on* switch
+   * needs live on the device that handed the film away.
+   */
+  onScreening?: (channelIds: string[]) => void;
+  /**
    * Another of this account's devices has stepped into a channel, so this one
    * is no longer the device standing anywhere.
    *
@@ -421,6 +428,9 @@ export class Realtime {
           break;
         case 'screens':
           this.handlers.onScreens?.(message.screens);
+          break;
+        case 'screening':
+          this.handlers.onScreening?.(message.channelIds);
           break;
         case 'screen':
           // Another of this account's instances has asked this one to show a

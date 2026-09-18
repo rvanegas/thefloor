@@ -1629,5 +1629,27 @@ export type ServerMessage =
    * nothing on the channel has changed.
    */
   | { type: 'screen'; channelId: string }
+  /**
+   * Which channels this account's *other* instances are showing a film for.
+   *
+   * **Pushed, where `screens` is asked for**, and the two are not the same
+   * question wearing different clothes. That one is a picker's list, read
+   * once at the moment of choosing and deliberately not refreshed, because a
+   * list that reorders under a finger is worse than one a second old. This is
+   * one fact — *is the film on somewhere else of mine* — and it has to be
+   * live, because it is what the *Watch on* switch shows as chosen on the
+   * device that handed the film away. Without it that device shows no
+   * selection at all and the choice it just made appears not to have landed.
+   *
+   * Channel ids rather than devices, and never this connection's own: what
+   * the switch asks is whether a *separate* device is showing this channel,
+   * and which one it is is the picker's business. This account only, like
+   * everything else about screens.
+   *
+   * Sent whenever any of the account's instances starts or stops showing
+   * something, and once to each new session connection so that a device which
+   * has just come up is not the only one that does not know.
+   */
+  | { type: 'screening'; channelIds: string[] }
   | { type: 'error'; message: string; code?: string }
   | { type: 'pong'; serverNow: number };

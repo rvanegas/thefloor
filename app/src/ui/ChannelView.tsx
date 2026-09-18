@@ -161,6 +161,24 @@ export function uploadingLabel(percent: number | null): string {
  * enforces, so a greyed-out button and a refused action cannot disagree — but
  * the server is the authority and this only renders what it has been told.
  */
+/**
+ * The two answers to *Watch on*, and the whole of what the switch offers.
+ *
+ * **Relative to the device you are holding, deliberately.** Both labels are,
+ * and that is the improvement: *here* and *another device* were also
+ * relative, and read as two unrelated buttons whose meanings swapped as you
+ * walked between rooms. *Same* and *separate* are a matched pair, so the
+ * question can be asked once and the answer shown as chosen.
+ *
+ * A module constant because `Segmented` takes its options by value: an array
+ * rebuilt each render is a new identity on every keystroke elsewhere on this
+ * screen, which is the kind of thing that turns a switch into a re-render.
+ */
+const WATCH_ON = [
+  { value: 'same' as const, label: 'Same device' },
+  { value: 'separate' as const, label: 'Separate device' },
+];
+
 export function ChannelView({
   channelId,
   audio,
@@ -575,6 +593,15 @@ export function ChannelView({
     isPresent(channel, me) &&
     app.standingIn === channelId;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
+  /**
+   * Whether the film is on one of this account's *other* devices.
+   *
+   * Pushed rather than asked for — see `screensElsewhere` — because it is
+   * what the *Watch on* switch shows as chosen on the device that handed the
+   * film away, and a device that learnt it only by asking would show nothing
+   * chosen at exactly the moment somebody had just chosen.
+   */
+  const screenElsewhere = app.screensElsewhere.includes(channelId);
 
   /**
    * Tells the room when this device is both the screen and the voice.
@@ -649,9 +676,34 @@ export function ChannelView({
   const myScreens = app.screens.filter((screen) => !screen.self);
   useEffect(() => {
     if (!choosing || myScreens.length !== 1) return;
-    app.useScreen(channelId, myScreens[0].device);
+    handOver(myScreens[0].device);
     setChoosing(false);
+    // `handOver` is rebuilt every render and listing it would re-run this on
+    // each one; what it closes over — `app` and `channelId` — is listed
+    // instead, which is the same dependency said accurately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app, channelId, choosing, myScreens]);
+
+  /**
+   * Gives the film to another of this account's devices, and stops showing it
+   * here.
+   *
+   * **The second half is new with the switch, and is a bug it made visible.**
+   * The two buttons it replaced never cleared this device's own screen role,
+   * so a phone that had been *watching here* went on playing the film — its
+   * own picture and its own sound — after handing it to the laptop. Two
+   * buttons could describe that; a switch reading *separate device* while
+   * this device is plainly still showing one cannot.
+   *
+   * Cleared here rather than when *separate device* is pressed, because
+   * pressing it may find nowhere to go: an account with no other device
+   * signed in gets the banner and keeps its film, where an eager clear would
+   * take the film away and offer nothing in its place.
+   */
+  function handOver(device: string): void {
+    app.useScreen(channelId, device);
+    app.showScreenFor(null);
+  }
 
   /**
    * This screen is what its channel's attention clock is about, for as long as
@@ -2992,38 +3044,69 @@ export function ChannelView({
                   below for the sending case.
                 */}
                 {/*
-                  Where to watch, which is two buttons and almost never three
-                  taps.
+                  Where to watch: one question with two answers, which is what
+                  it always was and is now drawn as.
 
-                  **Not "Play here".** *Play* is the transport's word, and the
-                  Play/Pause control is inches above this one — two acts
+                  **"Here" and "another device" were two buttons and read as
+                  two different acts**, and the pair inverted itself as you
+                  walked across the room — the laptop's *Watch here* and the
+                  phone's *Watch here* are opposite instructions in identical
+                  words, and neither said what the other device was doing. A
+                  switch says the answer as well as the question, and *same*
+                  against *separate* is a matched pair where *here* against
+                  *another device* is not.
+
+                  **Relative to the device in your hand, and mirrored because
+                  of it.** Hand the film to the laptop and the phone shows
+                  *separate device* while the laptop shows *same device*: both
+                  are saying the one true thing about where the film is, each
+                  in its own terms. What makes that possible on the device
+                  that gave the film away is `screensElsewhere`, which is
+                  pushed rather than asked for.
+
+                  **Not "Play on".** *Play* is the transport's word and the
+                  Play/Pause control is inches above this one; two acts
                   sharing one word on one screen is the drift GLOSSARY.md
-                  exists to prevent. *Watch* is the feature's word and names
-                  the state these set.
+                  exists to prevent.
+
+                  The label is above rather than beside the track: two
+                  segments and a lead-in do not fit across a phone, and a
+                  *Separate device* that wraps or truncates is worse than a
+                  line of its own.
 
                   The picker below appears only when there is more than one
                   other device to choose between, which is unusual: one other
                   is not a choice, and is taken without asking.
                 */}
-                <View style={styles.buttonRow}>
-                  <Button
-                    label={screeningHere ? 'Watching here' : 'Watch here'}
-                    style={styles.flexButton}
-                    variant={screeningHere ? 'primary' : undefined}
-                    onPress={() => {
+                <Text style={type.muted}>Watch on</Text>
+                <Segmented
+                  // An answer to the question above it, not a way to another
+                  // view — which is a different announcement to a screen
+                  // reader and a different thing to the view harness. See
+                  // `Segmented`'s `role`.
+                  role="choice"
+                  options={WATCH_ON}
+                  // Neither, until somebody has chosen: a party can be loaded
+                  // with the film on nothing, and a switch that claimed
+                  // *same device* before anybody said so would be a control
+                  // reporting a state the channel is not in.
+                  value={
+                    screeningHere
+                      ? 'same'
+                      : screenElsewhere
+                        ? 'separate'
+                        : 'neither'
+                  }
+                  onChange={(where) => {
+                    if (where === 'same') {
                       setChoosing(false);
                       app.showScreenFor(channelId);
-                    }}
-                  />
-                  <Button
-                    label="Watch on another device"
-                    style={styles.flexButton}
-                    onPress={() => {
+                    } else {
                       setChoosing(true);
                       app.listScreens();
-                    }}
-                  />
-                </View>
+                    }
+                  }}
+                />
 
                 {choosing && otherScreens.length > 1
                   ? otherScreens.map((screen) => (
@@ -3036,7 +3119,7 @@ export function ChannelView({
                             : undefined
                         }
                         onPress={() => {
-                          app.useScreen(channelId, screen.device);
+                          handOver(screen.device);
                           setChoosing(false);
                         }}
                       />

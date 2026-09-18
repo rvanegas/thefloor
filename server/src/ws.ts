@@ -511,6 +511,38 @@ export function registerWebsocket(deps: {
   };
 
   /**
+   * Tells each of this account's instances what its *others* are showing.
+   *
+   * **Pushed, where `screensFor` is asked for**, and the difference is the
+   * point: that one is a picker's list, frozen at the moment of choosing
+   * because a list that reorders under a finger is worse than one a second
+   * old. This is one live fact per device — *is the film on somewhere else of
+   * mine* — and it is what the *Watch on* switch shows as chosen on the
+   * device that handed the film away. Without it that device shows no
+   * selection and the choice it just made looks as though it never landed.
+   *
+   * Each connection is told about the others and never about itself, which is
+   * what makes the answer mean *separate device* on every device at once.
+   * Keyed by `deviceKey` for `screensFor`'s reason: a device reconnecting
+   * holds two sockets for a moment, and the one on its way out must not go on
+   * answering for it.
+   */
+  const pushScreening = (userId: string): void => {
+    const sessions = [...connections].filter(
+      (c) => c.scope.kind === 'session' && c.userId === userId
+    );
+    for (const connection of sessions) {
+      const self = deviceKey(connection);
+      const channelIds = new Set<string>();
+      for (const other of sessions) {
+        if (deviceKey(other) === self) continue;
+        if (other.screening !== null) channelIds.add(other.screening);
+      }
+      send(connection, { type: 'screening', channelIds: [...channelIds] });
+    }
+  };
+
+  /**
    * The connection to hand a film to, given a device this account named.
    *
    * Matched on the claimed id or on the fallback key, so that a device which
@@ -1163,6 +1195,11 @@ export function registerWebsocket(deps: {
       // one, which is how "in the app now" used to mean "as of whenever your
       // last snapshot was".
       if (arriving) announcePresence(account.id);
+      // A device that has just come up knows nothing about what the account's
+      // other instances are showing, and they know nothing about it. Both
+      // halves are settled here, which is also what makes a reconnection
+      // recover the switch's selection without anybody asking.
+      pushScreening(account.id);
     }
     // A follower page is neither of those things. It says nothing about
     // whether its owner has the app open — they may be watching from a laptop
@@ -1365,9 +1402,15 @@ export function registerWebsocket(deps: {
           connection.watchingChannels.delete(message.channelId);
           return;
 
-        case 'screens.showing':
+        case 'screens.showing': {
+          // Nothing to say when a device repeats itself, which it does: the
+          // app reconciles this rather than firing it on a tap, so the
+          // steady state is the same value arriving again.
+          if (connection.screening === message.channelId) return;
           connection.screening = message.channelId;
+          pushScreening(connection.userId);
           return;
+        }
 
         case 'screens.list':
           send(connection, { type: 'screens', screens: screensFor(connection) });
@@ -1514,6 +1557,15 @@ export function registerWebsocket(deps: {
     socket.on('close', (code: number, reason: Buffer) => {
       connections.delete(connection);
       logClose(connection, code, reason.toString());
+      // **A screen that has gone away has stopped showing anything**, which
+      // is the lifetime `Connection.screening` was given deliberately. Said
+      // to the rest of the account here, after the delete, so the loop does
+      // not count the socket that is leaving — otherwise a laptop that was
+      // closed goes on being the answer to *is it on somewhere else* until
+      // something unrelated happens to push the fact again.
+      if (connection.scope.kind === 'session' && connection.screening !== null) {
+        pushScreening(connection.userId);
+      }
       // The last moment this socket proved somebody was there — not the moment
       // it ended, which is a different number and, for the departure that
       // matters most, a wrong one.

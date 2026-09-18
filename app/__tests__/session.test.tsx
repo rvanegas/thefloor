@@ -40,6 +40,7 @@ const mockApp = {
    * See `AppProvider.screens`.
    */
   screens: [] as unknown[],
+  screensElsewhere: [] as string[],
   screenFor: null as string | null,
   showScreenFor: jest.fn(),
   listScreens: jest.fn(),

@@ -26,6 +26,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findChoice,
   findExactButton,
   labelOf,
   mockApp,
@@ -501,7 +502,7 @@ describe('Channel', () => {
     expect(on('Watch something together')).toEqual({ disabled: true });
     // Where to watch is not one of them, and is not on the screen at all: the
     // choice belongs to a film, and there is none.
-    expect(findButton(tree, 'Watch on another device')).toBeUndefined();
+    expect(findChoice(tree, 'Separate device')).toBeUndefined();
     act(() => tree.unmount());
   });
 

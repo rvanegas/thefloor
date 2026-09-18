@@ -650,6 +650,7 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  role,
 }: {
   options: readonly {
     value: T;
@@ -683,14 +684,36 @@ export function Segmented<T extends string>({
   }[];
   value: T;
   onChange: (value: T) => void;
+  /**
+   * What this set of segments *is*, which is two different things wearing one
+   * shape.
+   *
+   * `tabs` — the default, and what both tab strips are — swaps the body of
+   * the screen. `choice` answers a question that is on the screen already:
+   * the watch card's *Watch on*, whose two segments are an answer to a
+   * labelled question and not a way to somewhere else. A screen reader is
+   * told which, because "tab" and "one of two answers" are not the same
+   * announcement, and somebody who cannot see the track has nothing else to
+   * tell them apart.
+   *
+   * **A `choice` is not a tab to the view harness either**: `findButton`
+   * excludes anything inside a `tablist` so that an *Invite* tab and an
+   * *Invite* button can share a screen, and a choice that claimed the role
+   * would go missing from the tests of the card it belongs to.
+   */
+  role?: 'tabs' | 'choice';
 }) {
+  const tabs = role !== 'choice';
   return (
     // `tablist`, so a screen reader announces the set as one switch rather
     // than as loose buttons — and so a test can tell a tab from a control on
     // the pane below it, which since 2026-09-12 can carry the same word: the
     // channel screen's *Invite* tab and the *Invite* button on it. See
     // `tabInstances` in the view harness.
-    <View accessibilityRole="tablist" style={styles.segmented}>
+    <View
+      accessibilityRole={tabs ? 'tablist' : 'radiogroup'}
+      style={styles.segmented}
+    >
       {segmentRows(options).map((row) => (
         // Keyed by the row's own first option rather than by its index, so a
         // set that gains or loses one — the watch tab, which is behind Labs —
@@ -702,8 +725,11 @@ export function Segmented<T extends string>({
             return (
               <Pressable
                 key={option.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
+                accessibilityRole={tabs ? 'button' : 'radio'}
+                // `selected` is the word for a tab and `checked` the word for
+                // one answer of several; a reader given the wrong one says
+                // nothing about the state at all.
+                accessibilityState={tabs ? { selected: on } : { checked: on }}
                 // Spelled out only when there is a dab, so the six tabs that
                 // have none keep announcing their label and nothing else.
                 accessibilityLabel={

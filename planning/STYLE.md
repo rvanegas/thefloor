@@ -428,6 +428,22 @@ An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
 
+**Two things wear this shape, and `role` says which.** `tabs`, the default,
+swaps the body of the screen — the two tab strips. `choice` answers a
+question that is already on the screen: the watch card's *Watch on*, whose
+segments are answers rather than ways to somewhere else. The difference is
+not decoration — a screen reader is told `radiogroup`/`radio` and `checked`
+rather than `tablist`/`button` and `selected`, and somebody who cannot see
+the track has nothing else to tell a switch from a tab bar. `findChoice` in
+the view harness is the matching finder, `findButton` and `findTab` deliberately
+seeing neither.
+
+**A `choice` carries its question as a line of `type.muted` above the track**,
+not beside it: two segments and a lead-in do not fit across a phone, and a
+label that wraps or truncates is worse than a line of its own. **It may show
+neither answer as chosen**, which is the state before anybody has answered —
+a switch that guessed would be a control reporting a state the app is not in.
+
 ### FooterAction
 
 Deliberately not a `Button`: a row of filled rectangles would make the bar

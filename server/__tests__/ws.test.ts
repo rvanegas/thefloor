@@ -1461,8 +1461,9 @@ describe('websocket', () => {
       it('says which instances are actually showing something', async () => {
         const { channelId, phone, laptop } = await withScreens();
         laptop.send({ type: 'screens.showing', channelId });
-        // Waited out rather than raced: the report sets connection state and
-        // answers nothing, so there is no message to await.
+        // Waited out rather than raced. The report does push a `screening`
+        // now — see below — but this test is about the picker's own list,
+        // which is still asked for and still answers only when asked.
         await new Promise((r) => setTimeout(r, 50));
 
         phone.send({ type: 'screens.list' });
@@ -1472,6 +1473,51 @@ describe('websocket', () => {
 
         phone.close();
         laptop.close();
+      });
+
+      /**
+       * The fact the *Watch on* switch reads, which is pushed rather than
+       * asked for — see `pushScreening`. The picker's list is deliberately
+       * frozen at the moment of choosing; this has to arrive by itself,
+       * because the device that hands a film away is the one that would
+       * otherwise show no selection at all.
+       */
+      it('tells the account when one of its devices starts showing something', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.showing', channelId });
+
+        const { channelIds } = await phone.next('screening', (m) =>
+          m.channelIds.includes(channelId)
+        );
+        expect(channelIds).toEqual([channelId]);
+
+        // And never about itself: what the switch asks is whether a
+        // *separate* device is showing this, so the laptop's own answer is
+        // empty while it is the one showing.
+        const mine = await laptop.next('screening', (m) => m.channelIds.length === 0);
+        expect(mine.channelIds).toEqual([]);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('takes it back when that device goes away', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.showing', channelId });
+        await phone.next('screening', (m) => m.channelIds.includes(channelId));
+
+        // **A screen that has gone away has stopped showing anything**, which
+        // is the lifetime `Connection.screening` was given deliberately. Left
+        // unsaid, a laptop that was closed goes on being the answer to *is it
+        // on somewhere else* until something unrelated pushes the fact again.
+        laptop.close();
+        const { channelIds } = await phone.next(
+          'screening',
+          (m) => m.channelIds.length === 0
+        );
+        expect(channelIds).toEqual([]);
+
+        phone.close();
       });
 
       it('hands a film to the chosen instance without moving anybody', async () => {
