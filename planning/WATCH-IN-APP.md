@@ -27,7 +27,7 @@ watch-scoped socket all go.
 - *What a screen is* — and why it is never borrowed
 - *The two buttons* — and the picker behind the second
 - *Device names* — the entitlement, and what to do until it arrives
-- *The audio session* — the one thing still unmeasured
+- *Watching here stops capturing* — the exception, and what it costs
 - *What leaves* — and why nothing is shimmed
 - *What this does not change*
 - *Order of work*
@@ -238,36 +238,72 @@ feature, not this one.
 
 ---
 
-## The audio session, which is the one thing still unmeasured
+## Watching here stops capturing, which is an exception
 
-Capture now stops whenever a film plays under an enforced mute and returns at
-every pause — on **every** device, including the two-device users who pay
-nothing today.
+**While this device is the screen and the film is playing, it does not
+capture.** The session is `playback` rather than `playAndRecord`, so the film
+plays in stereo at full rate with nothing ducking it and no voice processing in
+its path. At a pause the microphone comes back and the session returns to
+`CALL`, which is what makes pause-to-talk work.
 
-If that transition is `CALL` → `LISTENING` it is a **category** change, and
-therefore a Bluetooth profile handover at every pause, stereo to mono and back.
-STATES.md calls that transition audible and calls it a feature *at the edge of
-the room*; at every pause of a film it is not a feature, and for two-device
-users it would be a regression.
+**Name it as an exception, because it is one.** `core/micNeeded.ts` carries one
+rule — *you hold the audio system if and only if you are stepped in* — and this
+is the first thing to qualify it since the 2026-09-08 redesign that made it one
+rule. A clause that is not written down as an exception is a clause somebody
+deletes as an inconsistency.
 
-**There may be a third configuration, and it is measurable rather than
-arguable.** The nine readings of 2026-09-08 say the category costs nothing and
-the **mode** does, the voice modes asserting `duckOthers` behind the caller's
-back — `playAndRecord` with a non-voice mode let a podcast play at 48 kHz with
-an input tap running. So a session that keeps `playAndRecord` throughout, stops
-capture, and merely drops the voice mode while the film plays would give good
-film audio and pause-to-talk with no profile churn. Whether a Bluetooth route
-follows the category or the mode is the open question, and it is the same bench
-that produced those readings.
+Two things make it safe, and both are properties of a watch party rather than
+general licence:
 
-Until that is measured, the STATES.md row *Stepped in, watch party, while the
-video plays → `CALL`* is what is true, and it is the row this design changes.
+- **Nothing wants a stem from this microphone.** `canStartRecording` requires
+  `state.watch.party === null` — a *loaded* party refuses a recording whether
+  it is playing or paused, and regardless of where anybody is watching it. So
+  the capture that is being declined is feeding nothing: not a recording, and
+  not a subscription either, since the mute is enforced for the length of the
+  run. The reason recording is refused is the same one that makes this
+  harmless: **the video would not be in the recording anyway**, so a recording
+  made beside a party is missing the thing everybody was reacting to.
+- **The reacquisition happens in the foreground.** iOS refuses a backgrounded
+  app a *new* microphone — the deferred promotion in STATES.md — so a device
+  that has given up capture must be in front when it asks for it back. A film
+  playing on this screen is what puts it there.
+
+**That second one needs stating precisely, because nothing can prevent
+backgrounding.** What is prevented is the *automatic* case: the idle timer
+locking the phone under a film nobody is touching. That wants
+`expo-keep-awake` on native and `navigator.wakeLock` on web, neither of which
+this app has yet. A person deliberately swapping away is still possible, and it
+is already handled — the app stays `LISTENING`, takes `CALL` at the next
+foreground, and that is the machinery the deferred promotion already is. It
+should also stop being the screen, since a suspended WebView is showing nobody
+anything.
+
+### What it costs: a profile handover at every pause
+
+Stereo is available **only** with the category change. HFP follows a category
+that carries an input, which is why STATES.md describes crossing `CALL` ↔
+`LISTENING` as a Bluetooth profile switch, stereo to mono and back. So the hope
+recorded earlier in this design — that dropping the voice *mode* while keeping
+`playAndRecord` would buy good audio with no churn — is dead on the project's
+own readings: the mode costs the ducking, the category costs the profile, and
+stereo needs the category.
+
+The bloom is the thing being bought, so the handover is the price rather than a
+defect. What is not yet known is whether its gap is tolerable **at every pause
+of a film**, which is a different question from tolerating it at the edge of a
+room. That is a walk question and not a bench one — nothing in this repository
+can answer it, and one evening with a headset can.
+
+The STATES.md row *Stepped in, watch party, while the video plays → `CALL`*
+becomes two rows: the screen's, which is `LISTENING`, and everybody else's,
+which is unchanged.
 
 **A WebView's audio plays into the host app's session**, which is what makes
-any of this bite on native: a film inside a `videoChat`-mode session is ducked,
-mono and voice-processed. That claim is also worth one measurement rather than
-one assertion — *a design's claim about a path it does not touch is a
+any of this bite on native — and with the exception in place, the session it
+plays into is the right one. The claim is still worth one measurement rather
+than one assertion: *a design's claim about a path it does not touch is a
 hypothesis*.
+
 
 ---
 
@@ -312,7 +348,9 @@ default-on one.
 - **The Floor still carries no video.** Nothing is fetched, decoded, published,
   recorded or stored here; it is a link, YouTube's own player, unmodified and
   unobscured. What moves is which window that player is in.
-- **Recording is still refused in both directions**, and for the same reason.
+- **Recording is still refused in both directions**, and for the same reason
+  — a loaded party refuses one whether it is playing or paused, and wherever
+  anybody is watching. That is what makes the capture exception above safe.
 - **The floor still confers control without pausing anything.**
 - **`WATCH_DRIFT_MS` and the seek-storm guards are unchanged.** The correction
   arithmetic should be extracted into `core/watch.ts` as a pure function so
@@ -344,12 +382,11 @@ section, and the two rewrites should be one.
 
 ## Order of work
 
-1. **Measure the audio session** — whether a Bluetooth route follows the
-   category or the mode, and what a WebView's audio actually does inside a
-   `videoChat` session. Everything below is priced by the answer, and it is one
-   phone and an afternoon.
-2. **Request the device-name entitlement**, which has a lead time and nothing
+1. **Request the device-name entitlement**, which has a lead time and nothing
    else waits on it.
+2. **Keeping the screen awake** — `expo-keep-awake` on native,
+   `navigator.wakeLock` on web. Small, independent of everything else, and the
+   capture exception leans on it.
 3. **Extract the correction arithmetic into `core/watch.ts`**, with the
    follower page as its second caller while it still exists.
 4. **The rule** — `watchingHere` on the state and the roster, the predicate,
@@ -368,4 +405,6 @@ outstanding steps in
 `backlog/the-watch-party-has-been-walked-once-and-the-rest-of-the-walk-is-outstanding.md`
 are still outstanding, and this design adds three of its own — a film watched
 on one device, a film watched on two, and somebody switching between them
-mid-film.
+mid-film. **The handover at each pause is a walk item and the only unsettled
+thing left** — whether the stereo bloom is worth its gap when a film is paused
+and resumed a dozen times in an evening.
