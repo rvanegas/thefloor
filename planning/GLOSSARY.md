@@ -40,8 +40,9 @@ caused; the list carries the meaning.
 - **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
-- **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, since the alert path has no gain
-- **Beat (between chimes)** — One note of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord; the queue is in `chime.ts` and spans every chime the app plays
+- **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
+- **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, the media path then playing it at full gain
+- **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
@@ -339,9 +340,12 @@ room. And **a tick sounds one chime per kind, every kind that applies, in the
 order `in`, `out`, `nearby`** — two people leaving and one stepping back to
 nearby is two chimes, not three.
 
-**Those come one after another, not together.** A beat of one note
+**Those come one after another, not together.** A beat of 300ms
 (`CHIME_BEAT_SECONDS`) is held between chimes that fall in the same moment, so
-a pair of events is heard as a pair. Until 2026-09-17 they were *simultaneous*
+a pair of events is heard as a pair. It was one note long until 2026-09-17 and
+was reported as hardly distinguishable from a single sound: a note is still at
+a fifth of its peak when the next is due, so a rest that short is filled by the
+decay of the note before it. Until 2026-09-17 they were *simultaneous*
 — the alert path starts a sound and returns, so two calls in one tick are a
 chord rather than a sequence — which made the narration order inaudible and the
 events unrecoverable. The queue is in `chime.ts` and spans both hooks, so an
@@ -402,9 +406,13 @@ two are clocks running out — a connection past its grace, an attention window
 expiring — and neither sounds. See `core/channel.ts` § `Exit`.
 
 Distinct from the **buzz** (`app/src/audio/cue.ts`), which is the vibration
-motor and tells *you* something about yourself without words. The two share a
+motor and tells *you* something about yourself without words. The two shared a
 delivery mechanism — an iOS system sound, chosen because it starts no engine
-and writes no audio session — and nothing else. `usePresenceChime` is the
+and writes no audio session — until 2026-09-17, and now share only the second
+half of that reason. A chime goes out an `AVAudioPlayer` on the media path,
+which also writes nothing to the session but, unlike an alert, is not silenced
+by the ringer switch; the buzz is still a system sound. See
+`decisions/2026-09-17-the-chime-is-not-an-alert.md`. `usePresenceChime` is the
 schedule for the three and `useRecordingChime` for the fourth, `chime.ts` the sound, and `AudioRouteModule.swift` renders it —
 `chimeNotes` there is the table of kinds, and `chime.web.ts` mirrors it row for
 row so the same event does not sound like a different one depending on which

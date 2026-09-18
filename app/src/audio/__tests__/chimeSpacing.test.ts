@@ -135,6 +135,29 @@ describe('two chimes in one tick', () => {
     expect(chime('out')).toBe('dropped');
   });
 
+  /**
+   * The case the beat going to 300ms would have broken, silently.
+   *
+   * Four is every chime the app has and is what one tick can declare: both
+   * hooks firing at once, three rungs moved and a recording started. At the
+   * old 90ms beat the last of them waited 810ms and the flat one-second
+   * threshold held it; at 300ms it waits 1440ms and a flat second would have
+   * thrown it away — the recording chime, in precisely the moment it is most
+   * worth hearing. Asserted against the constants rather than a number so that
+   * lengthening the beat again cannot quietly reintroduce it.
+   */
+  it('plays every kind a single tick can declare, however long the beat', () => {
+    expect(chime('in')).toBe('played');
+    expect(chime('out')).toBe('queued');
+    expect(chime('nearby')).toBe('queued');
+    expect(chime('recording')).toBe('queued');
+
+    jest.advanceTimersByTime(
+      slot('in') + slot('out') + slot('nearby') + slot('recording')
+    );
+    expect(played).toEqual(['in', 'out', 'nearby', 'recording']);
+  });
+
   it('drops a chime too far behind to be about anything', () => {
     // Twelve of them is not a busy room, it is a backlog that has stopped
     // describing the present — and a sound a second behind the roster sends

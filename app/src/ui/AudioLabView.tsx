@@ -4,6 +4,7 @@ import {
   chime,
   CHIME_AMPLITUDE,
   CHIME_LEAD,
+  CHIME_PATH,
   chimeArity,
   chimeInfo,
   configureSession,
@@ -392,13 +393,16 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   const [lead, setLead] = useState(String(CHIME_LEAD));
 
   /**
-   * Which path the next chime goes down, and the most important chip on the
-   * screen until it is settled.
+   * Which path the next chime goes down.
    *
-   * Starts on `system`, which is what the app ships, so the first tap is the
-   * sound that was reported rather than the candidate replacing it.
+   * Starts on `CHIME_PATH`, which is what the app ships, so the first tap is
+   * the sound somebody actually has rather than the one it replaced. That is
+   * `player` since 2026-09-17 — the chip stays because `system` is the control
+   * the choice was made against, and because the two differ in silent mode
+   * rather than only in level, which is a difference an ear can only take with
+   * the switch thrown.
    */
-  const [path, setPath] = useState<ChimePath>('system');
+  const [path, setPath] = useState<ChimePath>(CHIME_PATH);
 
   /**
    * What the running binary's renderer holds, read once.
@@ -594,7 +598,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
     });
     recordEvent(
       `lab COMBINATION ${combination.kinds.join('+')} peak=${peak} @${phase} · ` +
-        `${outcomes.join(' · ')} via=system lead=0`
+        `${outcomes.join(' · ')} via=${CHIME_PATH} lead=${CHIME_LEAD}`
     );
   };
 

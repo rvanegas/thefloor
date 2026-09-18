@@ -388,11 +388,24 @@ export const CHIME_NOTES: Record<ChimeKind, number> = {
  * chord — with no way to tell that two things happened, let alone which two.
  * Spacing them is what makes a pair of events a pair of sounds.
  *
- * **One note long**, which is the shortest gap that still reads as a gap: each
- * chime is two or three notes of its own, so a rest the length of one note is
- * heard as the space between two figures rather than as a fourth note missing.
+ * **A third of a second, and it was one note long until 2026-09-17.** The
+ * shorter gap was reasoned from the notes rather than heard — a rest the
+ * length of one note ought to read as the space between two figures — and a
+ * phone reported that two chimes a beat apart could hardly be told from one
+ * sound. The reasoning missed the envelope: each note decays as `exp(-t * 18)`
+ * and is still at a fifth of its peak when the next one is due, so the tail of
+ * one chime is still sounding through a 90ms rest and the pair runs together.
+ *
+ * **It is longer than a whole chime on purpose.** Two notes are 180ms, so a
+ * 300ms rest is the one gap in the sequence that is longer than any gap
+ * inside a chime — which is what makes the ear group the notes into figures
+ * rather than hearing four or five evenly spaced tones.
+ *
+ * Raising it lengthens the longest legitimate queue, which is why
+ * `CHIME_STALE_MS` in `../../src/audio/chime.ts` is derived from this number
+ * rather than set beside it.
  */
-export const CHIME_BEAT_SECONDS = 0.09;
+export const CHIME_BEAT_SECONDS = 0.3;
 
 /**
  * Which path a chime is played down.
@@ -413,11 +426,49 @@ export const CHIME_BEAT_SECONDS = 0.09;
  * `expo-audio`, which does manage the session, and was carried across to the
  * bare player without being checked.
  *
- * **It is a comparison and not yet a choice.** Which one the app ships on is a
- * decision about what a presence cue is allowed to interrupt, not only about
- * how loud it is, and that is not settled by this type.
+ * **It was a comparison, and on 2026-09-17 it became a choice: the app ships
+ * on `player`.** The question that settled it was not loudness but the ringer
+ * switch. `AudioServicesPlaySystemSound` is an alert, and a phone in silent
+ * mode does not play alerts — so every chime was being discarded for any
+ * listener with the switch thrown, which is a great many of them and was
+ * indistinguishable from the cue being broken. It cost most of a day of
+ * chasing a renderer that was working the whole time.
+ *
+ * **A chime is not an alert, because by the time one can fire you are already
+ * in a call.** The silent switch is a statement about being interrupted by
+ * things you did not ask for. Somebody present in a channel is listening to a
+ * voice through the same speaker at the same moment; a cue that says who just
+ * joined that conversation is part of it, not an interruption of it, and
+ * suppressing it silences an explanation while leaving the thing it explains
+ * audible. That is the whole argument, and it is why this is a judgement about
+ * what a presence cue *is* rather than a workaround for a quiet one.
+ *
+ * **The mechanism is the session, not a flag.** `AVAudioPlayer` plays into
+ * whatever session the app already holds and sets nothing itself; in a channel
+ * that session is `playAndRecord`, which ignores the ringer switch. So the
+ * chime is audible in silent mode exactly when there is a conversation for it
+ * to be about, and no flag had to be set for it — outside a channel the app
+ * holds no such session and the same call would respect the switch, which is
+ * the right behaviour there and is why the audio lab can still be silent with
+ * the switch thrown.
+ *
+ * `system` stays, because it is the control the above was judged against and
+ * is what every build before this one played.
  */
 export type ChimePath = 'system' | 'player';
+
+/**
+ * The path the app plays its chimes down.
+ *
+ * **A named constant rather than a literal default, because a binary can be
+ * older than this choice.** `chime` negotiates its argument count downwards,
+ * and the `via` argument is the first one dropped — so a bundle running
+ * against a binary built before the path existed silently plays down the alert
+ * path and is silent in silent mode, which is the original fault wearing the
+ * fix's clothes. `chimeArity` below is how the lab tells the two apart. See
+ * planning/SHIMS.md.
+ */
+export const CHIME_PATH: ChimePath = 'player';
 
 /**
  * Renders a chime and hands it to the system sound server, without playing it.
@@ -550,7 +601,7 @@ export function chime(
   kind: ChimeKind | ChimeCandidate,
   amplitude: number = CHIME_AMPLITUDE,
   lead: number = CHIME_LEAD,
-  via: ChimePath = 'system'
+  via: ChimePath = CHIME_PATH
 ): boolean {
   const play = native?.chime;
   if (play == null) return false;

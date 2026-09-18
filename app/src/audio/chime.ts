@@ -143,8 +143,27 @@ let nextFree = 0;
  */
 export type ChimeOutcome = 'played' | 'refused' | 'queued' | 'dropped';
 
-/** Past this far behind, a chime is dropped rather than played late. */
-const CHIME_STALE_MS = 1_000;
+/**
+ * Past this far behind, a chime is dropped rather than played late.
+ *
+ * **Derived rather than chosen, because it is a statement about the queue and
+ * not about a duration.** The rule it enforces is the one the comment in
+ * `chime` states: a wait longer than everything one tick could possibly
+ * declare is not a busy room, it is a backlog. That bound is the four kinds
+ * end to end with a beat after each — so a tick that rings every chime the app
+ * has still sounds all four, and a fifth is a genuine pile-up.
+ *
+ * **It was a flat second until 2026-09-17, and that is what made it fragile.**
+ * A second comfortably held four chimes at the old 90ms beat and silently
+ * stopped holding them when the beat went to 300ms: the fourth sound of a tick
+ * would have been dropped, which is the recording chime in exactly the case
+ * both hooks fire at once. A constant beside `CHIME_BEAT_SECONDS` is a
+ * constant that has to be remembered; one computed from it cannot drift.
+ */
+const CHIME_STALE_MS = KINDS.reduce(
+  (total, kind) => total + spanMs(kind) + CHIME_BEAT_SECONDS * 1000,
+  0
+);
 
 /**
  * One function over all of them, which is what the hooks hold and the tests

@@ -509,6 +509,15 @@ bundle and the binary under it, which has no floor. `chimeArity()` reports which
 form was taken and the lab prints it, so a reading taken off chips the sound
 never had is visible rather than assumed.
 
+**Since 2026-09-17 the step down is no longer only a loss of detail.** `via` is
+the first argument dropped, and it now carries the choice of path — so a bundle
+negotiating down to three arguments or fewer plays the chime down the alert
+path, which a phone in silent mode does not play at all. That is the exact
+fault the path change was made to fix, reappearing on a stale binary and
+looking like the fix not having worked. `chimeArity()` reading less than four
+is the reading that tells them apart, and the answer is a native rebuild rather
+than another day in the renderer.
+
 Covered by `app/src/audio/__tests__/chimeArity.test.ts`, which is the only jest
 coverage this module has: `load()` returns null off iOS, so everything else in
 it is a null check under test.
