@@ -193,10 +193,34 @@ export function WatchPlayer({
   watch,
   channelId,
   onDuration,
+  onRefusal,
+  fill = false,
 }: {
   watch: WatchState;
   channelId: string;
   onDuration: (durationMs: number) => void;
+  /**
+   * That this film is not going to play, said upwards.
+   *
+   * Only the full-screen picture reads it, and it reads it to collapse: a
+   * refusal is YouTube's own message in the middle of the frame with the way
+   * out it offers, and a screen filled edge to edge with an explanation
+   * nobody can press is worse than the card that has the rest of the channel
+   * around it.
+   *
+   * Cleared to null when the film changes, so a party that moves off a
+   * refused video can be expanded again.
+   */
+  onRefusal?: (message: string | null) => void;
+  /**
+   * Fill whatever this is given instead of being a 16:9 card.
+   *
+   * The embed letterboxes inside its own frame whatever shape that frame is,
+   * so the picture is as big as the space allows and the bars are the film's
+   * own. What this drops is the rounded corner, which is a card's edge and
+   * not a screen's.
+   */
+  fill?: boolean;
 }): React.ReactElement | null {
   const view = useRef<WebView | null>(null);
   const reading = useRef<PlayerReading | null>(null);
@@ -219,6 +243,19 @@ export function WatchPlayer({
     reading.current = null;
     told.current = false;
   }, [videoId]);
+
+  /*
+    The refusal, said upwards — in an effect rather than from the message
+    handler, so that clearing it for a new film is reported by the same path
+    that sets it and a listener cannot be left holding the last video's
+    verdict. `told` is the pattern one field over: the callback is rebuilt on
+    every render of the screen above, so it is deliberately not a dependency.
+  */
+  const reportRefusal = useRef(onRefusal);
+  reportRefusal.current = onRefusal;
+  useEffect(() => {
+    reportRefusal.current?.(refused);
+  }, [refused]);
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -297,7 +334,7 @@ export function WatchPlayer({
   if (!videoId) return null;
 
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frame, fill && styles.filling]}>
       <WebView
         ref={view}
         // Keyed on the video so swapping films rebuilds the page rather than
@@ -357,6 +394,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  // Full screen: no fixed ratio and no rounded corner, the letterboxing
+  // being the embed's own and the edge being the device's. See `fill`.
+  filling: { flex: 1, aspectRatio: undefined, borderRadius: 0 },
   web: { flex: 1, backgroundColor: '#000' },
   // Pinned to the bottom of the frame so YouTube's own explanation, which sits
   // in the middle of it, is still readable above this one.

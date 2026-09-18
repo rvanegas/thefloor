@@ -68,6 +68,8 @@ export function WatchPlayer({
   watch,
   channelId,
   onDuration,
+  onRefusal: _onRefusal,
+  fill = false,
 }: {
   watch: WatchState;
   channelId: string;
@@ -76,6 +78,18 @@ export function WatchPlayer({
    * learns it from whoever loads first; see `learnDuration`.
    */
   onDuration: (durationMs: number) => void;
+  /**
+   * Taken and never called, this player having no `onError` of its own: a
+   * refusal in a browser shows as YouTube's own message inside the frame and
+   * nothing above it is told. Declared so the two players take the same props
+   * and the screen above does not have to know which one it has — the
+   * expanded picture simply has one fewer automatic way out here than it has
+   * on a phone. Worth wiring up the day the web player learns to hear
+   * `onError`.
+   */
+  onRefusal?: (message: string | null) => void;
+  /** Fill the space given rather than being a 16:9 card. See WatchPlayer.tsx. */
+  fill?: boolean;
 }): React.ReactElement {
   const mount = useRef<HTMLDivElement | null>(null);
   const player = useRef<YouTubePlayer | null>(null);
@@ -177,9 +191,10 @@ export function WatchPlayer({
       style={{
         position: 'relative',
         width: '100%',
-        aspectRatio: '16 / 9',
+        ...(fill
+          ? { height: '100%', borderRadius: 0 }
+          : { aspectRatio: '16 / 9', borderRadius: 12 }),
         background: '#000',
-        borderRadius: 12,
         overflow: 'hidden',
       }}
     >

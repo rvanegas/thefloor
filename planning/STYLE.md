@@ -32,7 +32,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes |
+| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
@@ -861,6 +861,34 @@ label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Player* lost SHARED
 AUDIO and *Recordings* keeps only the one over the list, the transport above
 it having no heading at all.
+
+### The expanded picture, which is where a pinned row goes over the body
+
+**One screen breaks the rule above, and this is the whole of it.** Full screen
+on the *Watch* tab — `watch/FullScreen.tsx` — puts the transport on a
+`rgba(0,0,0,0.6)` scrim over the bottom of the picture rather than beside it.
+
+The rule it breaks is the good one: header and footer are siblings of the
+scroll, so nothing is ever covered and no inset has to be kept in step. What
+it buys here is a *smaller picture in landscape than in portrait* — a stacked
+transport and footer leave about 200pt of a sideways phone, where portrait
+full width gives 219 — and a control whose purpose is a bigger picture cannot
+be built on a layout that shrinks it. So the transport is overlaid, as every
+video player's is, and the channel's own footer stays a sibling below, because
+being able to reach your own microphone is not something a film should cost
+you.
+
+**Two things there are deliberately not.** The chrome does not fade after a
+few seconds, which is what every other player does: the row that exits is also
+the row that pauses, and this state has no other way out — there is no `esc`
+on a phone and no system full-screen to dismiss. And the way out is a `Button`
+with its word on it rather than an `IconButton`, against § *Icons*' licence
+for a header glyph: an icon is findable once it has been learnt, and the only
+exit from a state somebody may not know they can leave is not where they learn
+one.
+
+The stage is `#000` rather than `colors.bg`, for the reason the player's card
+is: what shows beside a film is letterbox, which belongs to the film.
 
 ### Two panes
 

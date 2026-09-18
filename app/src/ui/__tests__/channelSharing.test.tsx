@@ -8,6 +8,7 @@ import { reduce } from '../../../../core/channel';
 import { MAX_CLIP_LENGTH } from '../../../../core/constants';
 import { type ChannelState } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
+import { WatchPlayer } from '../../watch/WatchPlayer';
 import { Share, TextInput } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -456,6 +457,114 @@ describe('Channel, watching together', () => {
       watching: true,
     });
     act(() => tree.unmount());
+  });
+
+  /*
+    **Full screen, and the four ways back out of it.**
+
+    The picture fills the device because this application makes it fill the
+    device: YouTube's own bar went on 2026-09-18 and took its full-screen
+    button with it, and nothing inside the player gives one back. What that
+    buys is a state whose only exits are the ones written here — so the two a
+    person presses are asserted in watch/__tests__/fullScreen.test.tsx, and the
+    ones nobody presses are asserted below, each being a way for the film to
+    leave the screen without the person who expanded it doing anything.
+  */
+  describe('Full screen', () => {
+    /** Expanded, from the card, on the device showing the film. */
+    function expand() {
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      return tree;
+    }
+
+    /** What the card has and the expanded picture does not. */
+    const onTheCard = (tree: ReactTestRenderer) =>
+      findButton(tree, 'Change video') !== undefined;
+
+    it('is offered on the device showing the film and on no other', () => {
+      // A phone that handed the picture to the laptop still drives the party
+      // — that is what the transport is for — but it has no picture, and a
+      // control that filled its screen with black would be offering the film
+      // to whoever has the least reason to want it.
+      showChannel(watching());
+      const away = open();
+      expect(findButton(away, '−15s')).toBeDefined();
+      expect(findButton(away, 'Full screen')).toBeUndefined();
+      act(() => away.unmount());
+
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const here = open();
+      expect(findButton(here, 'Full screen')).toBeDefined();
+      act(() => here.unmount());
+    });
+
+    it('takes the transport with it, and leaves the card behind', () => {
+      const tree = expand();
+      // One row drawn in two places rather than two rows: the seek and the
+      // three buttons are the same element the card had.
+      expect(findButton(tree, '−15s')).toBeDefined();
+      expect(findButton(tree, 'Play')).toBeDefined();
+      expect(findButton(tree, 'Exit full screen')).toBeDefined();
+      // And everything that is about arranging a party rather than watching
+      // one is not on the screen at all.
+      expect(onTheCard(tree)).toBe(false);
+      act(() => tree.unmount());
+    });
+
+    it('collapses when the party stops under it', () => {
+      // Otherwise Stop, pressed on somebody else's phone, leaves this one
+      // holding a black rectangle and two controls that do nothing.
+      const tree = expand();
+      showChannel(channelOf());
+      act(() =>
+        tree.update(<ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />)
+      );
+      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('collapses when the film moves to another device', () => {
+      // The same rectangle, arrived at from the other direction: the picture
+      // is on the laptop now, and what is expanded here is nothing.
+      const tree = expand();
+      mockApp.screenFor = null;
+      showChannel(watching());
+      act(() =>
+        tree.update(<ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />)
+      );
+      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      expect(onTheCard(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('collapses when YouTube refuses the film', () => {
+      /*
+        A refusal is YouTube's own message in the middle of the frame, with
+        the way out it offers — and edge to edge, with the rest of the channel
+        gone, it is an explanation nobody can act on. On the card it has the
+        channel around it: the link, Change video, and Stop.
+      */
+      const tree = expand();
+      const player = tree.root.findAll((n) => n.type === WatchPlayer)[0]!;
+      act(() => player.props.onRefusal('This video is gone — deleted, or private.'));
+      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      expect(onTheCard(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
   });
 
   it('starts muted, which is what makes the default safe', () => {

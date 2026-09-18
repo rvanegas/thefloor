@@ -86,8 +86,9 @@ caused; the list carries the meaning.
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
-- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
+- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused
+- **Full screen** — The film filling one device, in landscape, with the transport over it and the channel's own bar below; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1656,6 +1657,29 @@ The bar was the party's controls for two days and never once worked for a
 whole one; *intent* carries the account. Anybody in the room may drive, no
 claim being possible while a film is on. The cost of the bar going is dragging
 to a point in a film, which the progress bar took over.
+
+**Full screen is the app's control, for the same reason.** The player's
+full-screen button was on the bar that went, the IFrame API offers no method
+for one, and the browser's `requestFullscreen` is unreachable inside a
+`WKWebView` nobody has enabled it on — so expanding the picture is something
+the app does to its own layout, and nothing is asked of the player. It is
+offered only on the device actually showing the film, since a phone that
+handed the picture to the laptop has nothing to expand; it is ungated by the
+*floor*, how big a film is on somebody's phone being nobody else's business;
+and it is not in any snapshot, so nobody else's screen changes when you press
+it. The phone turns landscape while it is up and back when it is not.
+
+**The way out is the app's too, which is what makes it a design rather than a
+button.** There is no `esc` on a phone and no system full-screen to dismiss,
+so a control nobody finds is a person stuck. There are four: the *Exit full
+screen* button, which says its words rather than drawing a shape; a swipe
+down over the picture; chrome that never hides, unlike every other player's,
+because the row that exits is also the row that pauses; and the three
+automatic collapses — the party stopping, the picture moving to another
+device, and YouTube refusing the film — each of which would otherwise leave
+somebody holding a black rectangle. Expanding and collapsing each rebuild the
+player, so the film reloads and the follower drives it back to where everybody
+is; the cost is a few seconds of black for the one person who pressed it.
 
 ## Screen
 

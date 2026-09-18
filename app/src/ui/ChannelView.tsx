@@ -87,6 +87,7 @@ import {
   StopIcon,
   WatchIcon,
 } from './icons';
+import { FullScreen } from '../watch/FullScreen';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -551,6 +552,25 @@ export function ChannelView({
    * people in it have no business seeing the field appear on their screens.
    */
   const [changing, setChanging] = useState(false);
+  /**
+   * Whether the picture has been expanded to fill this device.
+   *
+   * **Local to one device and to one session of it**, like `changing` above
+   * and unlike everything else on this card: how big the film is on somebody's
+   * phone is not a fact about the party, and a channel that carried it would be
+   * one where standing up to fetch a drink resized four other people's screens.
+   * It is not in `core`, not in a snapshot, and deliberately not remembered
+   * across a screen being closed — a person who comes back to a channel comes
+   * back to the card, where the rest of it is.
+   */
+  const [fullScreen, setFullScreen] = useState(false);
+  /**
+   * That the film will not play, as the player found out.
+   *
+   * Only the expanded picture reads it; see the collapse below, and
+   * `WatchPlayer`'s `onRefusal` for why it is reported at all.
+   */
+  const [filmRefused, setFilmRefused] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [watchNote, setWatchNote] = useState<string | null>(null);
   /**
@@ -655,6 +675,31 @@ export function ChannelView({
     if (!partyLoaded || screenIsMine === screenSaid) return;
     app.act(channelId, { type: 'WATCH_HERE', watching: screenIsMine });
   }, [app, channelId, partyLoaded, screenIsMine, screenSaid]);
+
+  /**
+   * **Collapses the expanded picture when there is nothing left in it.**
+   *
+   * Full screen is a state with no chrome but its own, so the three ways it
+   * can be emptied out from underneath somebody all end with a black
+   * rectangle and two controls that no longer do anything: the party stopping,
+   * the film moving to another device, and YouTube refusing to play it. None
+   * of the three is something the person expanding the picture did, and none
+   * of them is announced by anything they can see from inside it.
+   *
+   * So the collapse is automatic and lands them back on the card, which has
+   * the rest of the channel around it — the Stop that ended the party, the
+   * switch that moved the screen, and the refusal in words. The two ways out
+   * they press are `FullScreen`'s; these are the ones they never asked for.
+   *
+   * Above the early returns with its siblings, so it reads the channel
+   * directly rather than the derived constants further down. See the block
+   * comment above.
+   */
+  useEffect(() => {
+    if (!fullScreen) return;
+    if (partyLoaded && screenIsHere && !filmRefused) return;
+    setFullScreen(false);
+  }, [fullScreen, partyLoaded, screenIsHere, filmRefused]);
 
   /**
    * Stops being a screen when there is nothing to show.
@@ -1929,6 +1974,187 @@ export function ChannelView({
     </View>
   );
 
+  /**
+   * **The transport, which is one row drawn in two places.**
+   *
+   * The card has it under the picture and the expanded picture has it over
+   * the bottom of itself, and they are the same element rather than two that
+   * must be kept in step — a scrubber that learnt a new trick in one of them
+   * and not the other is exactly the drift this extraction exists to prevent.
+   * Only one of the two is ever mounted, `FullScreen` being an early return,
+   * so `trackWidth` below is unambiguous either way.
+   *
+   * Null with no party, there being nothing to drive.
+   */
+  const watchTransport = party ? (
+    <>
+      {party.durationMs ? (
+        <>
+          {/*
+            **The scrubber, which is where dragging YouTube's bar
+            went.** Taking the picture's own controls away leaves
+            ±15s as the only way to reach a different part of a
+            film, which is no way to cross two hours of one. A tap
+            lands where it is put, in the one place that was
+            already drawing where everybody is.
+
+            A tap rather than a drag: a drag wants a gesture
+            handler and a held position that does not follow the
+            channel while a finger is down, and neither is worth
+            having before somebody has used this one. `locationX`
+            is measured against the track itself, so the arithmetic
+            is the fill's in reverse.
+          */}
+          <Pressable
+            accessibilityRole="adjustable"
+            accessibilityLabel="Seek"
+            disabled={!mayControlWatch}
+            onPress={(event) => {
+              const width = trackWidth.current;
+              if (!width || !party.durationMs) return;
+              const at =
+                (event.nativeEvent.locationX / width) *
+                party.durationMs;
+              act({
+                type: 'WATCH_SEEK',
+                positionMs: Math.max(
+                  0,
+                  Math.min(party.durationMs, Math.round(at))
+                ),
+              });
+            }}
+            onLayout={(event) => {
+              trackWidth.current = event.nativeEvent.layout.width;
+            }}
+            style={styles.progressTrack}
+          >
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.min(
+                    100,
+                    (watchAt / Math.max(1, party.durationMs)) * 100
+                  )}%`,
+                },
+              ]}
+            />
+          </Pressable>
+          <View style={styles.progressLabels}>
+            <Text style={styles.progressTime}>
+              {formatDuration(watchAt)}
+            </Text>
+            <Text style={styles.progressTime}>
+              {formatDuration(party.durationMs)}
+            </Text>
+          </View>
+        </>
+      ) : (
+        // No bar until a screen has said how long the video is —
+        // nothing here asks YouTube anything, so until then the only
+        // honest thing to show is how far in everybody is.
+        <Text style={styles.progressTime}>
+          {formatDuration(watchAt)} in
+        </Text>
+      )}
+
+      {/*
+        **The transport, and the film's own bar is the other way of
+        reaching it.**
+
+        This row came out earlier on 2026-09-18 and went back in the
+        same day, which is worth recording because the reasoning
+        changed underneath it rather than being reversed. What was
+        wrong with two sets of controls was never that there were
+        two: it was that *one of them did not work* — the app's row
+        was governed by the floor while YouTube's bar sat above it
+        ungoverned and visible, and which of them answered a finger
+        depended on a claim somebody might make mid-scene.
+
+        Both are live now and both produce the same three actions,
+        so they are one transport with two surfaces rather than two
+        transports. And the bar alone was not enough: it is on the
+        picture, so **a device that is not showing the film had no
+        controls at all** — which is most of a party most of the
+        time, since a screen is one device per person. See
+        planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+      */}
+      <View style={styles.buttonRow}>
+        <Button
+          label="−15s"
+          style={styles.flexButton}
+          disabled={!mayControlWatch}
+          onPress={() =>
+            act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
+          }
+        />
+        <Button
+          label={watch.status === 'playing' ? 'Pause' : 'Play'}
+          variant="primary"
+          style={styles.flexButton}
+          disabled={!mayControlWatch}
+          onPress={() =>
+            act({
+              type:
+                watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
+            })
+          }
+        />
+        <Button
+          label="+15s"
+          style={styles.flexButton}
+          disabled={!mayControlWatch}
+          onPress={() =>
+            act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
+          }
+        />
+      </View>
+    </>
+  ) : null;
+
+  /*
+    **The picture, filling the phone, and the channel still under it.**
+
+    An early return rather than an overlay, which is this codebase's shape for
+    a screen that replaces another — the profile, the settings and the
+    transcript above are all the same move, and there is no `Modal` in this
+    application at all. See `Introduction`, which argues it.
+
+    **What it costs is a reload, and the cost is affordable for one reason.**
+    Expanding reparents the `WebView`, so the page is rebuilt and the film
+    starts again from nothing, and so does collapsing. The channel holds the
+    position and the play state, and `useFollow` puts a fresh player back where
+    everybody is without being asked — so the price is a few seconds of black
+    and a buffer for the person who pressed it, not a lost place in the film
+    and nothing at all for anybody else. Avoiding it means hoisting the player
+    out of the scroll and floating it over a measured placeholder, which is a
+    great deal of machinery for a second of black; it is the thing to do if the
+    flash turns out to be what people complain about.
+
+    Guarded on both halves rather than on `fullScreen` alone, so that the
+    render is impossible to reach with nothing in it — the effect above
+    collapses these away, and this is what holds between the state changing and
+    the effect running.
+  */
+  if (fullScreen && party && screeningHere) {
+    return (
+      <FullScreen
+        onCollapse={() => setFullScreen(false)}
+        chrome={watchTransport}
+        footer={footer}
+        picture={
+          <WatchPlayer
+            watch={watch}
+            channelId={channelId}
+            fill
+            onDuration={(durationMs) => act({ type: 'WATCH_READY', durationMs })}
+            onRefusal={(message) => setFilmRefused(message !== null)}
+          />
+        }
+      />
+    );
+  }
+
   return (
     <Screen header={header} footer={footer} contentStyle={styles.container}>
         {/*
@@ -2973,128 +3199,37 @@ export function ChannelView({
                 <Text style={type.heading} numberOfLines={1}>
                   {party.url}
                 </Text>
-                {party.durationMs ? (
-                  <>
-                    {/*
-                      **The scrubber, which is where dragging YouTube's bar
-                      went.** Taking the picture's own controls away leaves
-                      ±15s as the only way to reach a different part of a
-                      film, which is no way to cross two hours of one. A tap
-                      lands where it is put, in the one place that was
-                      already drawing where everybody is.
-
-                      A tap rather than a drag: a drag wants a gesture
-                      handler and a held position that does not follow the
-                      channel while a finger is down, and neither is worth
-                      having before somebody has used this one. `locationX`
-                      is measured against the track itself, so the arithmetic
-                      is the fill's in reverse.
-                    */}
-                    <Pressable
-                      accessibilityRole="adjustable"
-                      accessibilityLabel="Seek"
-                      disabled={!mayControlWatch}
-                      onPress={(event) => {
-                        const width = trackWidth.current;
-                        if (!width || !party.durationMs) return;
-                        const at =
-                          (event.nativeEvent.locationX / width) *
-                          party.durationMs;
-                        act({
-                          type: 'WATCH_SEEK',
-                          positionMs: Math.max(
-                            0,
-                            Math.min(party.durationMs, Math.round(at))
-                          ),
-                        });
-                      }}
-                      onLayout={(event) => {
-                        trackWidth.current = event.nativeEvent.layout.width;
-                      }}
-                      style={styles.progressTrack}
-                    >
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${Math.min(
-                              100,
-                              (watchAt / Math.max(1, party.durationMs)) * 100
-                            )}%`,
-                          },
-                        ]}
-                      />
-                    </Pressable>
-                    <View style={styles.progressLabels}>
-                      <Text style={styles.progressTime}>
-                        {formatDuration(watchAt)}
-                      </Text>
-                      <Text style={styles.progressTime}>
-                        {formatDuration(party.durationMs)}
-                      </Text>
-                    </View>
-                  </>
-                ) : (
-                  // No bar until a screen has said how long the video is —
-                  // nothing here asks YouTube anything, so until then the only
-                  // honest thing to show is how far in everybody is.
-                  <Text style={styles.progressTime}>
-                    {formatDuration(watchAt)} in
-                  </Text>
-                )}
-
+                {watchTransport}
                 {/*
-                  **The transport, and the film's own bar is the other way of
-                  reaching it.**
+                  **Full screen, which has to be the app's control now.**
 
-                  This row came out earlier on 2026-09-18 and went back in the
-                  same day, which is worth recording because the reasoning
-                  changed underneath it rather than being reversed. What was
-                  wrong with two sets of controls was never that there were
-                  two: it was that *one of them did not work* — the app's row
-                  was governed by the floor while YouTube's bar sat above it
-                  ungoverned and visible, and which of them answered a finger
-                  depended on a claim somebody might make mid-scene.
+                  YouTube's own bar carried this button, and the bar went on
+                  2026-09-18 — see `WatchPlayer`, which has the whole of why.
+                  Nothing gives it back from inside the player: the IFrame API
+                  has no method for it, and the browser's `requestFullscreen`
+                  needs a `WKWebView` preference `react-native-webview` does
+                  not set. So expanding the picture is something this
+                  application does to its own layout, and `FullScreen` is the
+                  layout.
 
-                  Both are live now and both produce the same three actions,
-                  so they are one transport with two surfaces rather than two
-                  transports. And the bar alone was not enough: it is on the
-                  picture, so **a device that is not showing the film had no
-                  controls at all** — which is most of a party most of the
-                  time, since a screen is one device per person. See
-                  planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+                  **On the device showing the film and nowhere else.** A phone
+                  that handed the picture to the laptop still drives the party
+                  from the row above — that is what makes the transport worth
+                  having on every device — but it has no picture to expand,
+                  and a control that filled the screen with black would be
+                  offering the film to whoever has the fewest reasons to want
+                  it.
+
+                  Not gated on the floor. Nothing about how big the film is on
+                  one person's phone is the channel's business, which is the
+                  same reasoning that keeps *Watch on* ungated.
                 */}
-                <View style={styles.buttonRow}>
+                {screeningHere ? (
                   <Button
-                    label="−15s"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
-                    }
+                    label="Full screen"
+                    onPress={() => setFullScreen(true)}
                   />
-                  <Button
-                    label={watch.status === 'playing' ? 'Pause' : 'Play'}
-                    variant="primary"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({
-                        type:
-                          watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
-                      })
-                    }
-                  />
-                  <Button
-                    label="+15s"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
-                    }
-                  />
-                </View>
-
+                ) : null}
                 {/*
                   Muting the room, which is a different act from muting yourself
                   and says so. Watching something together is mostly not talking,
