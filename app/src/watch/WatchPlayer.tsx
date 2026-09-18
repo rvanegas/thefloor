@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WatchState } from '../../../core/types';
-import type { PlayerState } from '../../../core/watch';
+import type { PlayerState, WatchIntent } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
 
@@ -67,9 +67,9 @@ function page(videoId: string): string {
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
   html,body{margin:0;background:#000;height:100%;overflow:hidden}
-  #p{width:100%;height:100%}
+  #frame,#p{width:100%;height:100%}
 </style></head>
-<body><div id="p"></div>
+<body><div id="frame"><div id="p"></div></div>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (function(){
@@ -120,9 +120,23 @@ function page(videoId: string): string {
   document.addEventListener('message', handle);
   window.addEventListener('message', handle);
   function handle(event) {
-    if (!player) return;
     var command;
     try { command = JSON.parse(event.data); } catch (e) { return; }
+    // Before the player rather than after it: whether the frame answers a
+    // finger is a fact about the document, and is settled while the embed is
+    // still loading.
+    if (command.do === 'interactive') {
+      // **Inert, not hidden.** The bar belongs to the embed and cannot be
+      // taken off it without taking the picture too, so a screen that may not
+      // drive the party gets a frame that does not answer — the same thing
+      // the greyed buttons in the channel say, said by the video. Nothing is
+      // drawn over the player and nothing about it changes: it is still
+      // YouTube's own, visible and unobscured.
+      var frame = document.getElementById('frame');
+      if (frame) frame.style.pointerEvents = command.on ? 'auto' : 'none';
+      return;
+    }
+    if (!player) return;
     if (command.do === 'play' && player.playVideo) player.playVideo();
     else if (command.do === 'pause' && player.pauseVideo) player.pauseVideo();
     else if (command.do === 'seek' && player.seekTo) {
@@ -167,11 +181,22 @@ const STATES: Record<number, PlayerState> = {
 export function WatchPlayer({
   watch,
   channelId,
+  mayControl,
   onDuration,
+  onIntent,
 }: {
   watch: WatchState;
   channelId: string;
+  /**
+   * Whether this device may move the party's transport — `canControlWatch`,
+   * asked where the channel is known. It decides two things at once and they
+   * are the same thing: whether the video's own controls answer a finger, and
+   * whether what they do reaches the channel.
+   */
+  mayControl: boolean;
   onDuration: (durationMs: number) => void;
+  /** A press on the video's own controls, on its way to the transport. */
+  onIntent: (intent: WatchIntent) => void;
 }): React.ReactElement | null {
   const view = useRef<WebView | null>(null);
   const reading = useRef<{
@@ -245,7 +270,32 @@ export function WatchPlayer({
     };
   }, [ready]);
 
-  useFollow(watch, port, true);
+  const drive = useMemo(
+    () => ({ mayControl, onIntent }),
+    [mayControl, onIntent]
+  );
+  useFollow(watch, port, true, drive);
+
+  /*
+    **Whether the frame answers a finger, said to the page rather than drawn
+    over it.**
+
+    It cannot be a player parameter: `controls` is fixed when the embed is
+    built, and the floor moves mid-party — somebody stepping in to say
+    something would otherwise reload everybody else's film to take the bar
+    away from them. A command costs nothing and lands in the same tick.
+
+    A refused video is interactive whatever the floor says, because the only
+    thing left in the frame is YouTube's own explanation and the way out it
+    offers, and making that unpressable for everybody but the floor-holder
+    would be taking away an escape rather than a control.
+  */
+  useEffect(() => {
+    if (!ready) return;
+    view.current?.postMessage(
+      JSON.stringify({ do: 'interactive', on: mayControl || refused !== null })
+    );
+  }, [ready, mayControl, refused]);
 
   if (!videoId) return null;
 

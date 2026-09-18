@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WatchState } from '../../../core/types';
-import type { PlayerState } from '../../../core/watch';
+import type { PlayerState, WatchIntent } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
 
@@ -67,15 +67,26 @@ function iframeApi(): Promise<void> {
 export function WatchPlayer({
   watch,
   channelId,
+  mayControl,
   onDuration,
+  onIntent,
 }: {
   watch: WatchState;
   channelId: string;
+  /**
+   * Whether this device may move the party's transport — `canControlWatch`,
+   * asked where the channel is known. It decides two things at once and they
+   * are the same thing: whether the player's own controls answer a click, and
+   * whether what they do reaches the channel.
+   */
+  mayControl: boolean;
   /**
    * How long the video is, the first time this player knows. The channel
    * learns it from whoever loads first; see `learnDuration`.
    */
   onDuration: (durationMs: number) => void;
+  /** A click on the player's own controls, on its way to the transport. */
+  onIntent: (intent: WatchIntent) => void;
 }): React.ReactElement {
   const mount = useRef<HTMLDivElement | null>(null);
   const player = useRef<YouTubePlayer | null>(null);
@@ -158,7 +169,7 @@ export function WatchPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  useFollow(watch, port, true);
+  useFollow(watch, port, true, { mayControl, onIntent });
 
   return (
     <div
@@ -171,7 +182,30 @@ export function WatchPlayer({
         overflow: 'hidden',
       }}
     >
-      <div ref={mount} style={{ width: '100%', height: '100%' }} />
+      {/*
+        **Inert, not hidden, for a screen that may not drive.** YouTube's bar
+        is inside the frame and cannot be taken off it without taking the
+        picture too, so the frame stops answering instead — the same thing the
+        greyed buttons in the channel say, said by the player. Nothing is
+        drawn over it and nothing about it changes: it is still YouTube's own,
+        visible and unobscured. `controls` would have been the other way, and
+        it is fixed when the embed is built, so the floor moving mid-party
+        would have reloaded the film to take the bar away.
+      */}
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          pointerEvents: mayControl ? 'auto' : 'none',
+        }}
+      >
+        {/*
+          The mount is a child rather than this element itself: `YT.Player`
+          replaces the node it is given with its iframe, so anything styled
+          on that node is gone the moment the player is built.
+        */}
+        <div ref={mount} style={{ width: '100%', height: '100%' }} />
+      </div>
     </div>
   );
 }

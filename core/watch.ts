@@ -409,3 +409,124 @@ export function correctionFor(
   const at = watchPositionMs(watch, now);
   return Math.abs(player.positionMs - at) > WATCH_DRIFT_MS ? at : null;
 }
+
+/**
+ * What the previous tick saw — of the player, and of the channel beside it.
+ *
+ * **A reading on its own cannot tell a press from a consequence.** A player
+ * that is paused while the channel says playing is either somebody who has
+ * just pressed pause on the video's own bar, or somebody's follower a
+ * heartbeat behind a pause that has already happened elsewhere; the two are
+ * the same reading and the opposite act. What separates them is which of the
+ * two moved, so the previous tick's *pair* is kept and not just the player's
+ * half of it.
+ */
+export interface PlayerHistory {
+  state: PlayerState;
+  positionMs: number | null;
+  /** When that reading was taken. */
+  at: number;
+  /** What the channel was saying at the same moment. */
+  status: WatchState['status'];
+  /** Where the channel was at the same moment, per `watchPositionMs`. */
+  channelPositionMs: number;
+}
+
+/**
+ * A transport act performed on the video's own controls rather than on the
+ * channel's. The same three the buttons produce, deliberately: this is a
+ * second way to press them, not a second transport.
+ */
+export type WatchIntent =
+  | { do: 'play' }
+  | { do: 'pause' }
+  | { do: 'seek'; positionMs: number };
+
+/**
+ * What this screen's own player says its owner just did.
+ *
+ * **The embed's controls are a remote, for whoever may drive.** YouTube's bar
+ * is inside the frame and cannot be taken away without taking away the
+ * picture it is drawn on, and until this existed pressing it bought a quarter
+ * of a second of obedience and then a correction — the player doing as it was
+ * told and the follower undoing it, which reads as a broken video rather than
+ * as a channel with one transport. So a press is taken as what it plainly is,
+ * sent to the channel, and comes back to every screen as an ordinary snapshot.
+ *
+ * Null is the answer at almost every tick, and every guard below exists to
+ * keep it that way — a false positive here is not a missed correction but one
+ * person's phone reaching into everybody else's evening.
+ *
+ * Whether this device may drive at all is `canControlWatch`, asked by the
+ * caller: core has no channel here, only the watch state.
+ */
+export function intentFrom(
+  watch: WatchState,
+  player: PlayerReading,
+  previous: PlayerHistory | null,
+  now: number
+): WatchIntent | null {
+  if (!watch.party) return null;
+  // The first tick of a party has nothing to have changed against, and the
+  // opening reading of a fresh player — unstarted, at zero, against a
+  // transport already mid-film — is the one most likely to look like an act.
+  if (!previous) return null;
+
+  /*
+    **The channel moved, so this player is following rather than leading.**
+
+    This is the guard that stops a pause going round the room for ever.
+    Somebody pauses; every other screen's follower pauses its own player a
+    tick later; each of those is a player that has just changed state while
+    the channel says something it does not yet match — which is the signature
+    of a press, exactly. Asking which of the two moved first separates them,
+    and nothing else does.
+  */
+  if (previous.status !== watch.status) return null;
+  const at = watchPositionMs(watch, now);
+  const expectedChannel =
+    previous.channelPositionMs +
+    (watch.status === 'playing' ? now - previous.at : 0);
+  if (Math.abs(at - expectedChannel) > WATCH_DRIFT_MS) return null;
+
+  // Our own correction is not an act either, and it is the thing that moves
+  // the player hardest. The settle window is the follower's, for its reasons.
+  if (player.seekedAt !== null && now - player.seekedAt < WATCH_SEEK_SETTLE_MS) {
+    return null;
+  }
+
+  /*
+    **Only the two states a person can produce, and only against a channel
+    that disagrees.** `unstarted` is a player that has not begun, `buffering`
+    one on its way somewhere, and `ended` the film running out — none of the
+    three is anybody pressing anything, and `ended` above all must never
+    become a pause, since the transport is entitled to run past a duration it
+    was never told.
+  */
+  if (player.state !== previous.state) {
+    if (player.state === 'playing' && watch.status !== 'playing') {
+      return { do: 'play' };
+    }
+    if (player.state === 'paused' && watch.status === 'playing') {
+      return { do: 'pause' };
+    }
+  }
+
+  /*
+    **A scrub is a position that moved further than time did.**
+
+    Drift cannot produce one: between two ticks half a second apart a playing
+    player advances about half a second, and the gap between where it should
+    have reached and where it says it is is the jump somebody's thumb made.
+    Measured against the *previous reading* rather than against the channel,
+    which is what keeps ordinary accumulated drift — the thing `correctionFor`
+    exists for — from reading as an act.
+  */
+  if (player.positionMs === null || previous.positionMs === null) return null;
+  const expectedPlayer =
+    previous.positionMs + (previous.state === 'playing' ? now - previous.at : 0);
+  if (Math.abs(player.positionMs - expectedPlayer) > WATCH_DRIFT_MS) {
+    return { do: 'seek', positionMs: player.positionMs };
+  }
+  return null;
+}

@@ -2801,9 +2801,27 @@ export function ChannelView({
                   <WatchPlayer
                     watch={watch}
                     channelId={channelId}
+                    // **The player's own controls are these buttons, reached
+                    // the other way round.** A press on YouTube's bar used to
+                    // be obeyed for a quarter of a second and then corrected
+                    // away; it now moves the channel, for exactly the people
+                    // the buttons below are enabled for, and comes back to
+                    // every screen as an ordinary snapshot. For everybody
+                    // else the frame does not answer at all, which is the
+                    // greyed button said by the video.
+                    mayControl={mayControlWatch}
                     onDuration={(durationMs) =>
                       act({ type: 'WATCH_READY', durationMs })
                     }
+                    onIntent={(intent) => {
+                      if (intent.do === 'play') act({ type: 'WATCH_PLAY' });
+                      else if (intent.do === 'pause') act({ type: 'WATCH_PAUSE' });
+                      else
+                        act({
+                          type: 'WATCH_SEEK',
+                          positionMs: intent.positionMs,
+                        });
+                    }}
                   />
                 ) : null}
                 <Text style={type.heading} numberOfLines={1}>

@@ -121,6 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `intentFrom` in `core/watch.ts`, which answers null unless the *player* moved while the channel did not; only a screen that may *control the watch* asks it at all
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -1630,7 +1631,14 @@ confers nothing.
 
 **Since 2026-09-17 the film plays inside the app**, on whichever device you
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
-player, unmodified and unobscured, and The Floor still carries no video. What
+player, unmodified and unobscured, and The Floor still carries no video.
+
+**The video's own controls are the party's controls**, for whoever may drive
+it: play, pause and dragging its bar move the whole channel, exactly as the
+buttons under the film do. For anybody who may not — somebody else holds the
+*floor* — the frame simply does not answer, which is the greyed button said by
+the video rather than a press that reverses itself a moment later. See
+*intent*. What
 went with the change is the *follower page*, a browser that followed a channel
 on a six-hour link credential without being signed in; there is no such page and
 no such token now.
@@ -1956,6 +1964,37 @@ composed and therefore decays: a client subtracting it from its own advancing
 clock reports the age of the snapshot on top of the real gap. A *fact* does not
 decay, which is what lets Home refresh on socket transitions rather than on a
 timer.
+
+## Intent (a watch party's)
+
+**What this screen's own player says its owner just did.** The video's own
+bar is inside the embed and cannot be taken off it without taking the picture
+too, so since 2026-09-17 a press on it is read rather than resisted: play,
+pause and a scrub go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
+`WATCH_SEEK`, exactly what the buttons under the film produce, and come back
+to every screen as an ordinary snapshot. It is a second way to press the
+transport, not a second transport.
+
+Until then a press bought a quarter of a second of obedience and then a
+correction — the player doing as it was told and the follower undoing it,
+which reads as a broken video rather than as a channel with one remote.
+
+**`intentFrom` in `core/watch.ts`, and null is the answer almost every tick.**
+A player that disagrees with the channel is either somebody's thumb or
+somebody's follower a heartbeat behind a change that has already happened
+elsewhere, and the two are the *same reading*; what separates them is which of
+the two moved, which is why a *player history* — the previous tick's player
+and channel together — is kept. Get it wrong the generous way and one
+person's phone reaches into everybody else's evening, so `buffering`,
+`unstarted`, the end of the film, ordinary drift, the follower's own
+correction and a backgrounded app are each excluded by name.
+
+**Only a screen that may *control the watch* asks.** For everybody else the
+frame is made *inert* — `pointer-events` off, nothing drawn over it and
+nothing about the embed changed — which is the greyed button said by the
+video. `controls: 0` would have been the other way and was rejected: it is
+fixed when the embed is built, so the *floor* moving mid-party would have
+reloaded everybody's film to take the bar away from them.
 
 ## Introduction
 

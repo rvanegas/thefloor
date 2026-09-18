@@ -7,10 +7,15 @@ import {
   reduce,
 } from '../channel';
 import { hasMicrophone, microphoneNeeded } from '../micNeeded';
-import { correctionFor, followInstructions } from '../watch';
+import {
+  correctionFor,
+  followInstructions,
+  intentFrom,
+  watchPositionMs,
+} from '../watch';
 import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from '../constants';
-import type { ChannelAction, ChannelState } from '../types';
-import type { PlayerReading, PlayerState } from '../watch';
+import type { ChannelAction, ChannelState, WatchState } from '../types';
+import type { PlayerHistory, PlayerReading, PlayerState } from '../watch';
 
 const A = 'user-a';
 const B = 'user-b';
@@ -329,5 +334,143 @@ describe('following the transport', () => {
     expect(
       followInstructions(rewound, reading('paused', 60_000), T0 + 62_000)
     ).toEqual([{ do: 'seek', positionMs: 0 }]);
+  });
+});
+
+/**
+ * The video's own bar, pressed — the other direction through the same port.
+ *
+ * Every test here is really the one question `intentFrom` exists to answer:
+ * which of the two moved. A player that disagrees with the channel is either
+ * somebody's thumb or somebody's follower a heartbeat behind, and the reading
+ * is identical; get it wrong in the generous direction and one person's phone
+ * reaches into everybody else's evening, so the false-positive cases below
+ * outnumber the true ones on purpose.
+ */
+describe('a press on the video’s own controls', () => {
+  const reading = (
+    state: PlayerState,
+    positionMs: number | null,
+    seekedAt: number | null = null
+  ): PlayerReading => ({ state, positionMs, seekedAt });
+
+  const playing = (at = T0) =>
+    apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
+
+  /** What the tick before this one saw, of the player and the channel both. */
+  const before = (
+    watch: WatchState,
+    state: PlayerState,
+    positionMs: number | null,
+    at: number
+  ): PlayerHistory => ({
+    state,
+    positionMs,
+    at,
+    status: watch.status,
+    channelPositionMs: watchPositionMs(watch, at),
+  });
+
+  it('reads a pause on the bar as a pause of the party', () => {
+    const watch = playing();
+    const was = before(watch, 'playing', 4_500, T0 + 4_500);
+    expect(
+      intentFrom(watch, reading('paused', 5_000), was, T0 + 5_000)
+    ).toEqual({ do: 'pause' });
+  });
+
+  it('reads a play on the bar as a play of the party', () => {
+    const watch = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
+    ]).watch;
+    const was = before(watch, 'paused', 5_000, T0 + 6_000);
+    expect(
+      intentFrom(watch, reading('playing', 5_000), was, T0 + 6_500)
+    ).toEqual({ do: 'play' });
+  });
+
+  it('reads a scrub as a seek of the party', () => {
+    const watch = playing();
+    const was = before(watch, 'playing', 4_500, T0 + 4_500);
+    // A thumb landing a minute in, half a second after the player was where
+    // it was meant to be.
+    expect(
+      intentFrom(watch, reading('playing', 60_000), was, T0 + 5_000)
+    ).toEqual({ do: 'seek', positionMs: 60_000 });
+  });
+
+  it('is silent for a follower catching up with somebody else’s pause', () => {
+    // **The case that would have made a pause go round the room for ever.**
+    // The channel pauses; a tick later this player is still playing, and a
+    // tick after that the follower has stopped it. Both readings look exactly
+    // like a press and neither is one.
+    const paused = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
+    ]).watch;
+    const stillPlaying = before(playing(), 'playing', 4_500, T0 + 4_500);
+    expect(
+      intentFrom(paused, reading('playing', 5_000), stillPlaying, T0 + 5_200)
+    ).toBeNull();
+
+    const caughtUp = before(paused, 'playing', 5_000, T0 + 5_200);
+    expect(
+      intentFrom(paused, reading('paused', 5_000), caughtUp, T0 + 5_700)
+    ).toBeNull();
+  });
+
+  it('is silent when the channel is the thing that seeked', () => {
+    const rewound = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'WATCH_SEEK', userId: A, positionMs: 0 }, T0 + 60_000],
+    ]).watch;
+    // The player is still a minute in because nothing has corrected it yet,
+    // which is a disagreement the channel opened and not this screen.
+    const was = before(playing(), 'playing', 59_500, T0 + 59_500);
+    expect(
+      intentFrom(rewound, reading('playing', 60_000), was, T0 + 60_100)
+    ).toBeNull();
+  });
+
+  it('is silent on the first tick, having nothing to compare against', () => {
+    expect(intentFrom(playing(), reading('unstarted', 0), null, T0)).toBeNull();
+  });
+
+  it('does not read buffering, an unstarted player or the end as a press', () => {
+    const watch = playing();
+    for (const state of ['buffering', 'unstarted', 'ended'] as PlayerState[]) {
+      const was = before(watch, 'playing', 4_500, T0 + 4_500);
+      expect(intentFrom(watch, reading(state, 5_000), was, T0 + 5_000)).toBeNull();
+    }
+  });
+
+  it('does not mistake ordinary drift for a scrub', () => {
+    const watch = playing();
+    // Half a second of tick against a player that advanced a second: the gap
+    // `correctionFor` is for, and nothing a thumb did.
+    const was = before(watch, 'playing', 4_000, T0 + 4_500);
+    expect(intentFrom(watch, reading('playing', 5_000), was, T0 + 5_000)).toBeNull();
+  });
+
+  it('does not read its own correction as a press', () => {
+    const watch = playing();
+    const was = before(watch, 'playing', 4_500, T0 + 4_500);
+    // The follower seeked a moment ago, so the jump is its own doing.
+    expect(
+      intentFrom(
+        watch,
+        reading('playing', 60_000, T0 + 4_900),
+        was,
+        T0 + 5_000
+      )
+    ).toBeNull();
+  });
+
+  it('says nothing at all when there is no party', () => {
+    const idle = watching().watch;
+    const stopped = { ...idle, party: null };
+    const was = before(stopped, 'playing', 0, T0);
+    expect(intentFrom(stopped, reading('paused', 0), was, T0 + 500)).toBeNull();
   });
 });
