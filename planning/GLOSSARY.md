@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `contradictionFrom` in `core/watch.ts` says whether a player is out of step in a way neither the channel nor the follower caused; `useFollow` waits a tick to see whether it is still true, a press being durable where the embed's small lies are not. Only a screen that may *control the watch* asks at all
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `contradictionFrom` in `core/watch.ts` says whether a player is out of step in a way neither the channel nor the follower caused; `useFollow` waits a tick to see whether it is still true — a play or a pause by disagreeing again, a scrub by the gap it left open, since a jump is visible for one tick only (`scrubStands`). Nothing is said to the player while it waits, or in the quiet period after a press, because a correction in either undoes a press nothing has read yet. Only a screen that may *control the watch* asks at all
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -2013,6 +2013,23 @@ follower having just spoken, a player between states — and `useFollow` then
 waits a tick to see whether it is still true, leaving the player alone
 meanwhile. A press is durable; a state reported late, an advert starting or a
 stall that resolves itself is not.
+
+**A scrub answers a different second question, which is the repair of the
+repair.** A play and a pause prove themselves by disagreeing again, but a
+jump is visible for exactly one tick: the reading after a scrub is continuous
+with the one before it, the film simply running from its new place. Asked to
+be seen twice, every scrub on the bar was dropped and then corrected away —
+the bar appearing to ignore a finger, which is how it was reported. So a held
+scrub answers to the *gap* between the player and the channel instead
+(`scrubStands`), which a thumb leaves open and a one-tick lie closes by
+itself.
+
+**And the quiet period after a press is a silence, not a deafness.** It
+stopped this follower *reading* another press while it went on correcting the
+player, so a second press made inside it was pushed back before anything
+noticed it had been made — press Play, watch it start and stop, press again,
+each press restarting the window that erased the last. Nothing is said to the
+player in there now.
 
 **The first version asked only whether the player had changed, and that was
 not enough** — a player reporting a state late has also changed. One device's

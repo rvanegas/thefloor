@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import {
   contradictionFrom,
   followInstructions,
+  scrubStands,
   watchPositionMs,
 } from '../../../core/watch';
 import type {
@@ -68,6 +69,17 @@ const INTENT_DWELL_MS = 400;
  * comfortably longer than the round trip it takes for a press to come back
  * as a snapshot, and comfortably shorter than any pair of presses a person
  * actually makes.
+ *
+ * **It is a silence and not merely a deafness**, which is the repair of
+ * 2026-09-17. A window that stopped this follower *reading* a press while it
+ * went on correcting the player was worse than one that did nothing: a second
+ * press made inside it was pushed back to whatever the channel said before
+ * anything could notice it had been made. What that produced is what was
+ * reported — press Play, watch it start and stop again, press it again, and
+ * again, each press restarting the window that erased the last one. So
+ * nothing is said to the player in here either; the channel is not going
+ * anywhere, and a player that really is disobeying is corrected two seconds
+ * later instead of straight away.
  */
 const INTENT_QUIET_MS = 2_000;
 
@@ -217,6 +229,21 @@ export function useFollow(
         spokeAt.current === null || now - spokeAt.current > INTENT_QUIET_MS;
 
       /*
+        **Just after this follower has spoken, it watches and says nothing.**
+
+        See `INTENT_QUIET_MS`. Correcting in here is correcting away the press
+        that has not been read yet, and the person who made it presses again,
+        which starts the window over. Only a screen that may drive is silent:
+        for everybody else there is no press to protect and the ordinary
+        correction is the whole job.
+      */
+      if (may?.mayControl && watching && !quiet) {
+        standing.current = null;
+        previous.current = here;
+        return;
+      }
+
+      /*
         **A disagreement, and then the same disagreement again.**
 
         `contradictionFrom` answers whether this player is out of step in a
@@ -228,9 +255,29 @@ export function useFollow(
         fix, arriving half a second late.
       */
       if (may?.mayControl && watching && comparable && quiet) {
-        const candidate = contradictionFrom(current, full, previous.current, now);
+        const held = standing.current;
+        /*
+          **A scrub proves itself by the gap it left, not by jumping twice.**
+
+          A play or a pause is a state that goes on disagreeing, so the second
+          look is the same look. A jump is not: the reading after a scrub is
+          continuous with the one before it, so `contradictionFrom` — which
+          finds a scrub by comparing a reading against its predecessor — sees
+          nothing the second time, every time. A held scrub therefore answers
+          to the gap between the player and the channel instead, which a thumb
+          leaves open and a one-tick lie does not. See `scrubStands`.
+
+          **And to the gap alone**, rather than to whichever question answers
+          yes. A lie that goes out and comes back is two jumps, and the
+          journey home is a fresh candidate of the same kind as the one being
+          waited on — so a confirmation that took either would take the blip
+          for the very press it exists to rule out.
+        */
+        const candidate =
+          held?.intent.do === 'seek'
+            ? scrubStands(current, full, now)
+            : contradictionFrom(current, full, previous.current, now);
         if (candidate) {
-          const held = standing.current;
           const same = held !== null && held.intent.do === candidate.do;
           if (!same) {
             standing.current = { intent: candidate, since: now };

@@ -11,6 +11,7 @@ import {
   contradictionFrom,
   correctionFor,
   followInstructions,
+  scrubStands,
   watchPositionMs,
 } from '../watch';
 import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from '../constants';
@@ -523,5 +524,67 @@ describe('a player out of step with the channel', () => {
     expect(
       contradictionFrom(stopped, reading('paused', 0), was, T0 + 500)
     ).toBeNull();
+  });
+});
+
+/**
+ * The second look a scrub answers to, which is not the one a press answers to.
+ *
+ * **A jump is visible for exactly one tick.** The reading after a scrub is
+ * continuous with the one before it — the film simply running from its new
+ * place — so `contradictionFrom` asked a second time about the same thumb
+ * says nothing, every time. Asked to prove itself the way a play or a pause
+ * does, every scrub on the video's own bar was therefore dropped and then
+ * corrected away, which is a bar that does not answer a finger.
+ *
+ * What a thumb leaves behind instead is a gap, and that is durable. These are
+ * the two sides of that.
+ */
+describe('a scrub asked to stand a tick later', () => {
+  const reading = (
+    state: PlayerState,
+    positionMs: number | null
+  ): PlayerReading => ({ state, positionMs, seekedAt: null, commandedAt: null });
+
+  const playing = (at = T0) =>
+    apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
+
+  it('stands while the player is somewhere the channel is not', () => {
+    const watch = playing();
+    // A minute in, against a channel five seconds in and running.
+    expect(
+      scrubStands(watch, reading('playing', 60_500), T0 + 5_500)
+    ).toEqual({ do: 'seek', positionMs: 60_500 });
+  });
+
+  it('carries where the film has reached, not where the thumb landed', () => {
+    const watch = playing();
+    const first = scrubStands(watch, reading('playing', 60_000), T0 + 5_000);
+    const second = scrubStands(watch, reading('playing', 60_500), T0 + 5_500);
+    expect(first).toEqual({ do: 'seek', positionMs: 60_000 });
+    // Sending the older figure is sending the party a tick behind.
+    expect(second).toEqual({ do: 'seek', positionMs: 60_500 });
+  });
+
+  it('falls away when the gap closes, which is what a blip does', () => {
+    const watch = playing();
+    // The advert ended and the player's own clock is the film's again.
+    expect(scrubStands(watch, reading('playing', 5_400), T0 + 5_500)).toBeNull();
+  });
+
+  it('is not opened by drift alone', () => {
+    const watch = playing();
+    expect(
+      scrubStands(watch, reading('playing', 5_500 - WATCH_DRIFT_MS), T0 + 5_500)
+    ).toBeNull();
+  });
+
+  it('says nothing about a player that cannot say where it is', () => {
+    expect(scrubStands(playing(), reading('unstarted', null), T0 + 5_500)).toBeNull();
+  });
+
+  it('says nothing at all when there is no party', () => {
+    const stopped = { ...watching().watch, party: null };
+    expect(scrubStands(stopped, reading('playing', 60_000), T0 + 5_000)).toBeNull();
   });
 });

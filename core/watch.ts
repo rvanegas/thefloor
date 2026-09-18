@@ -559,3 +559,42 @@ export function contradictionFrom(
   }
   return null;
 }
+
+/**
+ * Whether a scrub this follower is holding is still true a tick later.
+ *
+ * **A jump is visible for exactly one tick, which is what the dwell could not
+ * see.** `contradictionFrom` finds a scrub by comparing where the player is
+ * against where its own previous reading said it would be — and the reading
+ * *after* a scrub is perfectly continuous with the one before it, because the
+ * film has simply been running from its new place. So a seek candidate asked
+ * to prove itself the way a play or a pause does could never do it: the second
+ * look always agreed. Every scrub on the video's own bar was therefore
+ * dropped and then corrected away, which is the bar appearing to ignore a
+ * finger.
+ *
+ * What a scrub *does* leave behind is a player standing somewhere the channel
+ * is not, and that is durable — so this is the second look, asked of the gap
+ * rather than of the jump. A one-tick lie from the embed closes it, an advert
+ * ending closes it, and somebody's thumb does not.
+ *
+ * Deliberately not a second `contradictionFrom`: the guards that make a
+ * disagreement *readable* — the channel having moved, this follower having
+ * just spoken, nobody looking — were all asked when the candidate was taken
+ * and are the caller's to keep asking. This answers the narrow question of
+ * whether the gap is still open.
+ */
+export function scrubStands(
+  watch: WatchState,
+  player: PlayerReading,
+  now: number
+): WatchIntent | null {
+  if (!watch.party) return null;
+  if (player.positionMs === null) return null;
+  const at = watchPositionMs(watch, now);
+  if (Math.abs(player.positionMs - at) <= WATCH_DRIFT_MS) return null;
+  // Where it has reached rather than where it was first seen: the film has
+  // been running for the dwell, and sending the older figure is sending the
+  // party a tick behind.
+  return { do: 'seek', positionMs: player.positionMs };
+}
