@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `intentFrom` in `core/watch.ts`, which answers null unless the *player* moved while the channel did not; only a screen that may *control the watch* asks it at all
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `contradictionFrom` in `core/watch.ts` says whether a player is out of step in a way neither the channel nor the follower caused; `useFollow` waits a tick to see whether it is still true, a press being durable where the embed's small lies are not. Only a screen that may *control the watch* asks at all
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -2004,15 +2004,26 @@ Until then a press bought a quarter of a second of obedience and then a
 correction — the player doing as it was told and the follower undoing it,
 which reads as a broken video rather than as a channel with one remote.
 
-**`intentFrom` in `core/watch.ts`, and null is the answer almost every tick.**
-A player that disagrees with the channel is either somebody's thumb or
-somebody's follower a heartbeat behind a change that has already happened
-elsewhere, and the two are the *same reading*; what separates them is which of
-the two moved, which is why a *player history* — the previous tick's player
-and channel together — is kept. Get it wrong the generous way and one
-person's phone reaches into everybody else's evening, so `buffering`,
-`unstarted`, the end of the film, ordinary drift, the follower's own
-correction and a backgrounded app are each excluded by name.
+**It takes two readings, and the second one is the repair.** A player that
+disagrees with the channel is either somebody's thumb or a player halfway
+through obeying, and at a single instant the two are the *same reading*. So
+it is asked in two parts: `contradictionFrom` in `core/watch.ts` says whether
+anything here explains the disagreement — the channel having moved, this
+follower having just spoken, a player between states — and `useFollow` then
+waits a tick to see whether it is still true, leaving the player alone
+meanwhile. A press is durable; a state reported late, an advert starting or a
+stall that resolves itself is not.
+
+**The first version asked only whether the player had changed, and that was
+not enough** — a player reporting a state late has also changed. One device's
+slow player instructed the room, the room obeyed, and the correction that
+followed produced the next instruction: a Play that stuttered
+play-pause-play-pause and settled on pause, with every microphone opening and
+closing behind it as each run re-sampled the mute. Get it wrong the generous
+way and one person's phone reaches into everybody else's evening, so
+`buffering`, `unstarted`, the end of the film, ordinary drift, a stall, the
+follower's own commands, a backgrounded app and the tick it comes back on are
+each excluded by name.
 
 **Only a screen that may *control the watch* asks.** For everybody else the
 frame is made *inert* — `pointer-events` off, nothing drawn over it and

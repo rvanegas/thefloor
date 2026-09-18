@@ -1,4 +1,8 @@
-import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from './constants';
+import {
+  WATCH_COMMAND_SETTLE_MS,
+  WATCH_DRIFT_MS,
+  WATCH_SEEK_SETTLE_MS,
+} from './constants';
 import type { WatchParty, WatchState } from './types';
 
 /**
@@ -288,6 +292,15 @@ export interface PlayerReading {
   positionMs: number | null;
   /** When this follower last issued a seek, or null if it never has. */
   seekedAt: number | null;
+  /**
+   * When this follower last told the player to play or pause, or null.
+   *
+   * `seekedAt`'s sibling and, until 2026-09-17, the one that did not exist.
+   * A player has not obeyed yet is indistinguishable from a player somebody
+   * has just pressed unless the follower remembers having spoken — see
+   * `WATCH_COMMAND_SETTLE_MS` for what that cost.
+   */
+  commandedAt: number | null;
 }
 
 /**
@@ -443,45 +456,56 @@ export type WatchIntent =
   | { do: 'seek'; positionMs: number };
 
 /**
- * What this screen's own player says its owner just did.
+ * What this player is saying that the channel is not, with nothing here to
+ * explain it.
  *
- * **The embed's controls are a remote, for whoever may drive.** YouTube's bar
- * is inside the frame and cannot be taken away without taking away the
- * picture it is drawn on, and until this existed pressing it bought a quarter
- * of a second of obedience and then a correction — the player doing as it was
- * told and the follower undoing it, which reads as a broken video rather than
- * as a channel with one transport. So a press is taken as what it plainly is,
- * sent to the channel, and comes back to every screen as an ordinary snapshot.
+ * **A candidate and not yet an act.** It answers the narrow question — is
+ * this player out of step in a way that neither the channel nor this
+ * follower caused — and the caller decides whether it was *meant*, by seeing
+ * whether it is still true a tick later. That split is the whole repair of
+ * 2026-09-17: read at a single instant, a disagreement is equally somebody's
+ * thumb and a player halfway through obeying, and the first version of this
+ * took every one of them for a press. One device's slow player became an
+ * instruction to the room, the room obeyed, and the correction that followed
+ * produced the next instruction — a Play that stuttered play-pause-play-pause
+ * and settled on pause, with every microphone in the room opening and
+ * closing behind it as each run re-sampled the party's mute.
  *
- * Null is the answer at almost every tick, and every guard below exists to
- * keep it that way — a false positive here is not a missed correction but one
- * person's phone reaching into everybody else's evening.
+ * So there are four ways out before a contradiction is even reported, and
+ * each of them is a way somebody's evening got loud:
  *
- * Whether this device may drive at all is `canControlWatch`, asked by the
- * caller: core has no channel here, only the watch state.
+ * - **the channel moved**, and this player is following rather than leading.
+ *   Somebody pauses; every other screen's follower pauses its own player a
+ *   tick later; each of those is a player at odds with a channel it does not
+ *   yet match, which is a press exactly. Asking which of the two moved first
+ *   is what stops a pause going round the room for ever.
+ * - **this follower has just spoken** — `commandedAt`, `seekedAt`. A player
+ *   told to play reports the state it was in for a moment and then buffers,
+ *   and that moment is not evidence of anything.
+ * - **the player is between things.** `unstarted` has not begun, `buffering`
+ *   is on its way somewhere, and `ended` is the film running out; none is
+ *   anybody pressing anything, and `ended` above all must never become a
+ *   pause, since the transport is entitled to run past a duration it was
+ *   never told.
+ * - **nothing is out of step at all**, which is almost every tick.
+ *
+ * Whether this device may drive is `canControlWatch`, asked by the caller:
+ * core has no channel here, only the watch state.
  */
-export function intentFrom(
+export function contradictionFrom(
   watch: WatchState,
   player: PlayerReading,
   previous: PlayerHistory | null,
   now: number
 ): WatchIntent | null {
   if (!watch.party) return null;
-  // The first tick of a party has nothing to have changed against, and the
+  // The first tick of a party has nothing to be compared against, and the
   // opening reading of a fresh player — unstarted, at zero, against a
   // transport already mid-film — is the one most likely to look like an act.
   if (!previous) return null;
 
-  /*
-    **The channel moved, so this player is following rather than leading.**
-
-    This is the guard that stops a pause going round the room for ever.
-    Somebody pauses; every other screen's follower pauses its own player a
-    tick later; each of those is a player that has just changed state while
-    the channel says something it does not yet match — which is the signature
-    of a press, exactly. Asking which of the two moved first separates them,
-    and nothing else does.
-  */
+  // The channel moved. See above: this is the guard that stops one pause
+  // becoming everybody's.
   if (previous.status !== watch.status) return null;
   const at = watchPositionMs(watch, now);
   const expectedChannel =
@@ -489,27 +513,25 @@ export function intentFrom(
     (watch.status === 'playing' ? now - previous.at : 0);
   if (Math.abs(at - expectedChannel) > WATCH_DRIFT_MS) return null;
 
-  // Our own correction is not an act either, and it is the thing that moves
-  // the player hardest. The settle window is the follower's, for its reasons.
+  // This follower spoke recently, so what the player is doing may still be
+  // it obeying. Both windows, because both commands move a player and
+  // neither lands at once.
   if (player.seekedAt !== null && now - player.seekedAt < WATCH_SEEK_SETTLE_MS) {
     return null;
   }
+  if (
+    player.commandedAt !== null &&
+    now - player.commandedAt < WATCH_COMMAND_SETTLE_MS
+  ) {
+    return null;
+  }
 
-  /*
-    **Only the two states a person can produce, and only against a channel
-    that disagrees.** `unstarted` is a player that has not begun, `buffering`
-    one on its way somewhere, and `ended` the film running out — none of the
-    three is anybody pressing anything, and `ended` above all must never
-    become a pause, since the transport is entitled to run past a duration it
-    was never told.
-  */
-  if (player.state !== previous.state) {
-    if (player.state === 'playing' && watch.status !== 'playing') {
-      return { do: 'play' };
-    }
-    if (player.state === 'paused' && watch.status === 'playing') {
-      return { do: 'pause' };
-    }
+  // The two states a person can produce, against a channel that disagrees.
+  if (player.state === 'playing' && watch.status !== 'playing') {
+    return { do: 'play' };
+  }
+  if (player.state === 'paused' && watch.status === 'playing') {
+    return { do: 'pause' };
   }
 
   /*
@@ -521,6 +543,13 @@ export function intentFrom(
     Measured against the *previous reading* rather than against the channel,
     which is what keeps ordinary accumulated drift — the thing `correctionFor`
     exists for — from reading as an act.
+
+    **A stall cannot produce one either, as long as the readings either side
+    are a tick apart.** A player that stops advancing falls behind by exactly
+    the time between the two readings, so a follower that refuses to compare
+    readings further apart than a tick can never mistake a stall for a jump:
+    the error is bounded below `WATCH_DRIFT_MS` by the tick itself. Enforcing
+    that bound is the caller's, which owns the clock — see `useFollow`.
   */
   if (player.positionMs === null || previous.positionMs === null) return null;
   const expectedPlayer =

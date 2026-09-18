@@ -8,9 +8,9 @@ import {
 } from '../channel';
 import { hasMicrophone, microphoneNeeded } from '../micNeeded';
 import {
+  contradictionFrom,
   correctionFor,
   followInstructions,
-  intentFrom,
   watchPositionMs,
 } from '../watch';
 import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from '../constants';
@@ -243,8 +243,9 @@ describe('following the transport', () => {
   const reading = (
     state: PlayerState,
     positionMs: number | null,
-    seekedAt: number | null = null
-  ): PlayerReading => ({ state, positionMs, seekedAt });
+    seekedAt: number | null = null,
+    commandedAt: number | null = null
+  ): PlayerReading => ({ state, positionMs, seekedAt, commandedAt });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
@@ -338,21 +339,26 @@ describe('following the transport', () => {
 });
 
 /**
- * The video's own bar, pressed — the other direction through the same port.
+ * A player out of step with the channel, and whether anything here explains
+ * it.
  *
- * Every test here is really the one question `intentFrom` exists to answer:
- * which of the two moved. A player that disagrees with the channel is either
- * somebody's thumb or somebody's follower a heartbeat behind, and the reading
- * is identical; get it wrong in the generous direction and one person's phone
- * reaches into everybody else's evening, so the false-positive cases below
- * outnumber the true ones on purpose.
+ * **Every test is the one question**: is this somebody's thumb, or a player
+ * halfway through obeying? The two are the same reading, and the first
+ * version of this asked only whether the player had *changed* — which a
+ * player reporting a state late has also done. So one device's slow player
+ * instructed the room, the room obeyed, and the correction that followed
+ * produced the next instruction: a Play that stuttered play-pause-play-pause
+ * and settled on pause, with every microphone in the room opening and
+ * closing behind it. The false-positive cases below outnumber the true ones
+ * on purpose, and the dwell that finishes the job is `useFollow`'s.
  */
-describe('a press on the video’s own controls', () => {
+describe('a player out of step with the channel', () => {
   const reading = (
     state: PlayerState,
     positionMs: number | null,
-    seekedAt: number | null = null
-  ): PlayerReading => ({ state, positionMs, seekedAt });
+    seekedAt: number | null = null,
+    commandedAt: number | null = null
+  ): PlayerReading => ({ state, positionMs, seekedAt, commandedAt });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
@@ -375,7 +381,7 @@ describe('a press on the video’s own controls', () => {
     const watch = playing();
     const was = before(watch, 'playing', 4_500, T0 + 4_500);
     expect(
-      intentFrom(watch, reading('paused', 5_000), was, T0 + 5_000)
+      contradictionFrom(watch, reading('paused', 5_000), was, T0 + 5_000)
     ).toEqual({ do: 'pause' });
   });
 
@@ -386,7 +392,7 @@ describe('a press on the video’s own controls', () => {
     ]).watch;
     const was = before(watch, 'paused', 5_000, T0 + 6_000);
     expect(
-      intentFrom(watch, reading('playing', 5_000), was, T0 + 6_500)
+      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 6_500)
     ).toEqual({ do: 'play' });
   });
 
@@ -396,27 +402,51 @@ describe('a press on the video’s own controls', () => {
     // A thumb landing a minute in, half a second after the player was where
     // it was meant to be.
     expect(
-      intentFrom(watch, reading('playing', 60_000), was, T0 + 5_000)
+      contradictionFrom(watch, reading('playing', 60_000), was, T0 + 5_000)
     ).toEqual({ do: 'seek', positionMs: 60_000 });
+  });
+
+  it('says nothing about a player that has just been told to play', () => {
+    // **The fix, stated once.** The follower said play half a second ago and
+    // the embed is still reporting the state it was in; taken as a press
+    // that reading pauses the party, and the play that somebody presses
+    // next produces it again. This is the stutter, and this window is what
+    // closes it.
+    const watch = playing();
+    const was = before(watch, 'paused', 5_000, T0 + 4_500);
+    const told = T0 + 4_600;
+    expect(
+      contradictionFrom(
+        watch,
+        reading('paused', 5_000, null, told),
+        was,
+        T0 + 5_000
+      )
+    ).toBeNull();
+
+    // And says it again once the window has passed and the player has still
+    // not moved, which is no longer a player obeying slowly.
+    expect(
+      contradictionFrom(
+        watch,
+        reading('paused', 5_000, null, told),
+        before(watch, 'paused', 5_000, T0 + 6_600),
+        T0 + 7_000
+      )
+    ).toEqual({ do: 'pause' });
   });
 
   it('is silent for a follower catching up with somebody else’s pause', () => {
     // **The case that would have made a pause go round the room for ever.**
-    // The channel pauses; a tick later this player is still playing, and a
-    // tick after that the follower has stopped it. Both readings look exactly
-    // like a press and neither is one.
+    // The channel pauses; a tick later this player is still playing, which
+    // looks exactly like a press and is not one.
     const paused = apply(watching(), [
       [{ type: 'WATCH_PLAY', userId: A }, T0],
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
     ]).watch;
     const stillPlaying = before(playing(), 'playing', 4_500, T0 + 4_500);
     expect(
-      intentFrom(paused, reading('playing', 5_000), stillPlaying, T0 + 5_200)
-    ).toBeNull();
-
-    const caughtUp = before(paused, 'playing', 5_000, T0 + 5_200);
-    expect(
-      intentFrom(paused, reading('paused', 5_000), caughtUp, T0 + 5_700)
+      contradictionFrom(paused, reading('playing', 5_000), stillPlaying, T0 + 5_200)
     ).toBeNull();
   });
 
@@ -429,19 +459,23 @@ describe('a press on the video’s own controls', () => {
     // which is a disagreement the channel opened and not this screen.
     const was = before(playing(), 'playing', 59_500, T0 + 59_500);
     expect(
-      intentFrom(rewound, reading('playing', 60_000), was, T0 + 60_100)
+      contradictionFrom(rewound, reading('playing', 60_000), was, T0 + 60_100)
     ).toBeNull();
   });
 
   it('is silent on the first tick, having nothing to compare against', () => {
-    expect(intentFrom(playing(), reading('unstarted', 0), null, T0)).toBeNull();
+    expect(
+      contradictionFrom(playing(), reading('unstarted', 0), null, T0)
+    ).toBeNull();
   });
 
   it('does not read buffering, an unstarted player or the end as a press', () => {
     const watch = playing();
     for (const state of ['buffering', 'unstarted', 'ended'] as PlayerState[]) {
       const was = before(watch, 'playing', 4_500, T0 + 4_500);
-      expect(intentFrom(watch, reading(state, 5_000), was, T0 + 5_000)).toBeNull();
+      expect(
+        contradictionFrom(watch, reading(state, 5_000), was, T0 + 5_000)
+      ).toBeNull();
     }
   });
 
@@ -450,7 +484,22 @@ describe('a press on the video’s own controls', () => {
     // Half a second of tick against a player that advanced a second: the gap
     // `correctionFor` is for, and nothing a thumb did.
     const was = before(watch, 'playing', 4_000, T0 + 4_500);
-    expect(intentFrom(watch, reading('playing', 5_000), was, T0 + 5_000)).toBeNull();
+    expect(
+      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 5_000)
+    ).toBeNull();
+  });
+
+  it('does not mistake a stall for a scrub, at a tick apart', () => {
+    // **A stalled player falls behind by exactly the gap between readings**,
+    // so as long as they are about a tick apart the error stays under
+    // `WATCH_DRIFT_MS` and this cannot fire. Keeping them that close is
+    // `useFollow`'s job — see `READINGS_COMPARABLE_MS`, which is what makes
+    // an app coming back from a pocket start the comparison again.
+    const watch = playing();
+    const was = before(watch, 'playing', 5_000, T0 + 5_000);
+    expect(
+      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 5_500)
+    ).toBeNull();
   });
 
   it('does not read its own correction as a press', () => {
@@ -458,7 +507,7 @@ describe('a press on the video’s own controls', () => {
     const was = before(watch, 'playing', 4_500, T0 + 4_500);
     // The follower seeked a moment ago, so the jump is its own doing.
     expect(
-      intentFrom(
+      contradictionFrom(
         watch,
         reading('playing', 60_000, T0 + 4_900),
         was,
@@ -471,6 +520,8 @@ describe('a press on the video’s own controls', () => {
     const idle = watching().watch;
     const stopped = { ...idle, party: null };
     const was = before(stopped, 'playing', 0, T0);
-    expect(intentFrom(stopped, reading('paused', 0), was, T0 + 500)).toBeNull();
+    expect(
+      contradictionFrom(stopped, reading('paused', 0), was, T0 + 500)
+    ).toBeNull();
   });
 });

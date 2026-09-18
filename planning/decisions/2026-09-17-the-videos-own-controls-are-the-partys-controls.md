@@ -33,9 +33,12 @@ film produce — and comes back to every screen as an ordinary snapshot. It is a
 second way to press the transport and not a second transport: there is no new
 action, no new field on `WatchState`, and nothing the server had to learn.
 
-**The rule is `intentFrom` in `core/watch.ts`**, beside `followInstructions`
-and for the same reason: two surfaces implement it and a rule that exists
-twice is two rules.
+**The rule is `contradictionFrom` in `core/watch.ts`**, beside
+`followInstructions` and for the same reason: two surfaces implement it and a
+rule that exists twice is two rules. It was `intentFrom` for a few hours and
+the rename is the fix — see
+*2026-09-17-a-press-is-not-one-reading.md*, which is what a phone found the
+same evening.
 
 **The hard part is not detection, it is the false positive.** A player that
 disagrees with the channel is either somebody's thumb or somebody's follower a

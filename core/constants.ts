@@ -123,6 +123,25 @@ export const WATCH_DRIFT_MS = 1_500;
 export const WATCH_SEEK_SETTLE_MS = 2_000;
 
 /**
+ * How long a play or a pause is left to land before the player's own state
+ * may be read as anybody's doing.
+ *
+ * **The seek window's sibling, and it was missing for a day.** A player told
+ * to play does not play at once: it reports the state it was in for a moment
+ * and buffers, and a follower reading that gap saw a player disagreeing with
+ * the channel — which since the video's own controls became a remote is the
+ * signature of somebody pressing something. So one device's slow player
+ * became an instruction to the room, the room obeyed, and the correction
+ * that followed produced the next instruction. It showed as a Play that
+ * stuttered play-pause-play-pause and settled on pause.
+ *
+ * Shorter than the seek window because a transport command is cheaper than a
+ * fetch: what it has to cover is the player acknowledging, not the player
+ * filling a buffer.
+ */
+export const WATCH_COMMAND_SETTLE_MS = 1_500;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the
