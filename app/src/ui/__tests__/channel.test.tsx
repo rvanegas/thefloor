@@ -502,7 +502,7 @@ describe('Channel', () => {
     expect(on('Watch something together')).toEqual({ disabled: true });
     // Where to watch is not one of them, and is not on the screen at all: the
     // choice belongs to a film, and there is none.
-    expect(findChoice(tree, 'Separate device')).toBeUndefined();
+    expect(findChoice(tree, 'Other device')).toBeUndefined();
     act(() => tree.unmount());
   });
 

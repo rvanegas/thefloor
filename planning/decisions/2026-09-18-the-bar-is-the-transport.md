@@ -98,6 +98,13 @@ is a re-shaping rather than a fourth guard:
   is gone. The progress readout stays, because saying where everybody is is
   not a control.
 
+> **The second of those was wrong, and was reversed the same afternoon.** The
+> row is back: what was wrong with two sets of controls was that one of them
+> did not work, not that there were two, and the bar alone leaves a device
+> that is not the *screen* with no controls at all — which is most of a party
+> most of the time. The first point stands and is what keeps the bar live.
+> See 2026-09-18-the-transport-has-two-surfaces.md.
+
 **And a watch party is now a mode the channel is in rather than a thing it is
 carrying.** No floor may be claimed, no recording begun and no track put on
 while a film is loaded. Recording was already mutually exclusive both ways;
@@ -119,6 +126,9 @@ visibly.
 picture, so somebody in the party whose screen is not the one showing it has
 no transport at all. That is inherent in "the bar is the only control" and is
 accepted rather than overlooked.
+
+> Not accepted for long: this is the cost that brought the app's row back the
+> same afternoon. See 2026-09-18-the-transport-has-two-surfaces.md.
 
 **A press is acted on the first time it is seen.** No arrangement waits a tick
 any more except for jumps. What made that unsafe before was reading a player

@@ -87,7 +87,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
-- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *same device* or *separate device*, which is one fact each device states in its own terms, and which only moves while the film is paused
+- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default, taken once per film) or *other device*, which is one fact each device states in its own terms, and which only moves while the film is paused
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar is the *only* transport: the app draws no buttons of its own, the floor is not asked, and a film refuses the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers) or *wondering* (a jump, looked at once more) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar and the app's own row are **one transport with two surfaces** — both live, both producing the same three actions — and the floor is not asked at all, a film refusing the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers) or *wondering* (a jump, looked at once more) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -1642,13 +1642,20 @@ confers nothing.
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
 player, unmodified and unobscured, and The Floor still carries no video.
 
-**The video's own controls are the party's only controls**, and since
-2026-09-18 the app draws none of its own. The bar is inside the embed and
-comes off only with the picture, so it is on every screen showing a film
-whatever the app does — and a Play and ±15s row underneath it was a second set
-of controls, one of which was the real one. The buttons went and the bar
-stayed: play, pause and dragging it move the whole channel. The progress
-readout stays too, saying where everybody is being no kind of control.
+**The video's own controls are the party's controls too**, which is one
+transport with two surfaces rather than two transports. The bar is inside the
+embed and comes off only with the picture, so it is on every screen showing a
+film whatever the app does: play, pause and dragging it move the whole
+channel, exactly as the app's own row does.
+
+What was wrong before 2026-09-18 was never that there were two sets — it was
+that **one of them did not work**. The app's row was governed by the *floor*
+while the bar sat above it ungoverned and visible, so which of them answered a
+finger depended on a claim somebody might make mid-scene. The row came out
+that morning on the reasoning that an inert control is worse than none, and
+went back the same day once both were live: the bar is on the picture, so a
+device that is not showing the film has no bar to reach for — and that is most
+of a party most of the time, a *screen* being one device per person.
 
 **Anybody in the room may drive**, no claim being possible during a film. For
 a screen that may not drive at all the frame simply does not answer, which is
@@ -1668,12 +1675,25 @@ be. A screen does not *step in*, so it neither displaces the device holding
 your voice nor claims an audio session of its own, which is why a film on a
 second device sounds best.
 
-Chosen with one switch, *Watch on*, whose two answers are **Same device** and
-**Separate device** — relative to the device in your hand, like the two
-buttons they replaced on 2026-09-17, but a matched pair rather than a *here*
-and an *another* that read as two unrelated acts and inverted their meanings
-as you walked between rooms. Picking *separate* lists your own live
-instances, and only when there is more than one to choose between.
+Chosen with one switch, *Watch on*, whose two answers are **This device** and
+**Other device** — relative to the device in your hand, like the two buttons
+they replaced on 2026-09-17, but a matched pair rather than a *here* and an
+*another* that read as two unrelated acts and inverted their meanings as you
+walked between rooms. They read *same* and *separate* until 2026-09-18: same
+*as what* is a question the switch never answers, where *this* points at the
+thing in your hand and *other* at everything else. Picking *other* lists your
+own live instances, and only when there is more than one to choose between.
+
+**One of the two is always chosen, and *this device* is the default.** A film
+comes up on the device you are looking at unless another of yours is already
+showing it, so the switch is how you move a picture rather than how you turn
+one on. There was a third state until 2026-09-18 — neither answer chosen, for
+a party sitting loaded with the film on nothing — which in practice meant
+starting a watch party showed you no film until you noticed a control you had
+not touched. The default is taken once per film rather than held as an
+invariant: handing the picture away clears this device's role a moment before
+the server says where the film went, and a standing rule would read that gap
+as *nobody is showing it* and take the film straight back.
 
 **One device shows the film at a time.** Taking it here takes it off whatever
 else of yours was showing it — the video moves, not merely the controls — and
@@ -1689,13 +1709,11 @@ not govern it at any point — which of your own devices shows a film is not
 what the channel is attending to.
 
 **The chosen answer is the same fact on every device, said in each one's own
-terms.** Hand the film to the laptop and the laptop shows *same device* while
-the phone shows *separate device*: both are describing where the film is. The
+terms.** Hand the film to the laptop and the laptop shows *this device* while
+the phone shows *other device*: both are describing where the film is. The
 phone can only say so because the server pushes which channels this account's
 *other* instances are showing — the picker's list is frozen at the moment of
-choosing and could not answer this. Before anybody has chosen, neither answer
-is shown, a party being perfectly able to sit loaded with the film on
-nothing.
+choosing and could not answer this.
 
 ## Watching here
 
@@ -2009,14 +2027,18 @@ timer.
 
 ## Intent (a watch party's)
 
-**What this screen's own player says its owner just did**, and since
-2026-09-18 the only way the transport moves at all. The video's own bar is
-inside the embed and cannot be taken off it without taking the picture too —
-so it is visible on every screen showing a film whatever the app does, and a
-row of the app's own Play and ±15s buttons underneath it was a second set of
-controls, one of which was the real one. The buttons went; the bar stayed.
-Play, pause and a scrub go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
-`WATCH_SEEK` and come back to every screen as an ordinary snapshot.
+**What this screen's own player says its owner just did.** The video's own bar
+is inside the embed and cannot be taken off it without taking the picture too,
+so it is visible on every screen showing a film whatever the app does. Play,
+pause and a scrub on it go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
+`WATCH_SEEK` — the same three the app's own row produces — and come back to
+every screen as an ordinary snapshot. Two surfaces, one transport.
+
+The app's row came out on the morning of 2026-09-18 and went back the same
+day. What was wrong was not that there were two sets of controls but that one
+of them did not work: the row was governed by the *floor* and the bar was not.
+Once both were live the row earned its place again, because a device that is
+not the *screen* has no bar to reach for.
 
 **The API will not say who caused a state change**, and that is the fact the
 design turns on. `onStateChange` carries the new player state and nothing

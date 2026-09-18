@@ -522,7 +522,7 @@ export function registerWebsocket(deps: {
    * selection and the choice it just made looks as though it never landed.
    *
    * Each connection is told about the others and never about itself, which is
-   * what makes the answer mean *separate device* on every device at once.
+   * what makes the answer mean *other device* on every device at once.
    * Keyed by `deviceKey` for `screensFor`'s reason: a device reconnecting
    * holds two sockets for a moment, and the one on its way out must not go on
    * answering for it.
@@ -1419,7 +1419,7 @@ export function registerWebsocket(deps: {
             devices at once — a phone taking the film back knows nothing
             about the tablet that was also showing it — and the declaration
             arrives by this one path however it was provoked, whether
-            somebody pressed *same device* or another instance handed it
+            somebody pressed *this device* or another instance handed it
             over with `screens.use`.
 
             The account and never a channel: two films of one person's on two

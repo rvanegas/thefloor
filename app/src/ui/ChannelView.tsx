@@ -167,16 +167,22 @@ export function uploadingLabel(percent: number | null): string {
  * **Relative to the device you are holding, deliberately.** Both labels are,
  * and that is the improvement: *here* and *another device* were also
  * relative, and read as two unrelated buttons whose meanings swapped as you
- * walked between rooms. *Same* and *separate* are a matched pair, so the
- * question can be asked once and the answer shown as chosen.
+ * walked between rooms. A matched pair lets the question be asked once and
+ * the answer shown as chosen.
+ *
+ * *This* and *other* since 2026-09-18, where it read *same* and *separate*.
+ * Same *as what* is a question the switch never answers — it invites the
+ * reader to look for the other thing being compared, and there isn't one.
+ * *This device* points at the thing in your hand and *other device* at
+ * everything else, which is the actual division and needs no antecedent.
  *
  * A module constant because `Segmented` takes its options by value: an array
  * rebuilt each render is a new identity on every keystroke elsewhere on this
  * screen, which is the kind of thing that turns a switch into a re-render.
  */
 const WATCH_ON = [
-  { value: 'same' as const, label: 'Same device' },
-  { value: 'separate' as const, label: 'Separate device' },
+  { value: 'same' as const, label: 'This device' },
+  { value: 'separate' as const, label: 'Other device' },
 ];
 
 export function ChannelView({
@@ -630,6 +636,52 @@ export function ChannelView({
   }, [app, channelId, partyLoaded]);
 
   /**
+   * **The film comes up on the device you are looking at.**
+   *
+   * *Watch on* had a third answer until 2026-09-18 — neither segment chosen,
+   * for a party loaded with the film on nothing — and what that meant in
+   * practice is that starting a watch party showed you no film until you
+   * noticed a switch you had not touched. Watching is the point; the device
+   * in your hand is the obvious place; so it is the default, and the switch
+   * is how you move it rather than how you turn it on.
+   *
+   * **Only when no device of mine is already showing it**, which is what
+   * keeps two of somebody's own instances from fighting over it. The server
+   * takes the film off every other instance the moment one declares — see
+   * `screens.showing` in server/src/ws.ts — so without this guard a phone
+   * and a laptop both open on the same channel would each declare, each be
+   * evicted by the other, and each declare again.
+   *
+   * Even in the race where both read *nobody is showing it* in the same
+   * instant, this settles in one round: the evicted instance is told, learns
+   * `screensElsewhere`, and stops asking. What it must not do is ask again
+   * on being evicted, which is why the condition is about where the film is
+   * and not about what this device would prefer.
+   *
+   * **Once per film, and that is what makes it a default rather than a
+   * rule.** Handing the picture to the laptop clears this device's own role
+   * a moment before the server says where the film went, so a standing
+   * invariant would read that gap as *nobody is showing it* and take the
+   * film straight back. A default is something that happens when a film
+   * arrives; after that, where it plays is the switch's business and this
+   * has no further opinion. A new video is a new film and defaults again.
+   */
+  const defaulted = useRef<string | null>(null);
+  // Read off `channel` rather than the `party` local below, every hook having
+  // to stay above this screen's early returns.
+  const filmOn = channel?.watch?.party?.videoId ?? null;
+  useEffect(() => {
+    if (filmOn === null) {
+      defaulted.current = null;
+      return;
+    }
+    if (defaulted.current === filmOn) return;
+    defaulted.current = filmOn;
+    if (app.screenFor === channelId || screenElsewhere) return;
+    app.showScreenFor(channelId);
+  }, [app, channelId, filmOn, screenElsewhere]);
+
+  /**
    * A film playing on this screen is somebody being here.
    *
    * **Otherwise watching a film is how you get stepped out of the room you are
@@ -692,10 +744,10 @@ export function ChannelView({
    * The two buttons it replaced never cleared this device's own screen role,
    * so a phone that had been *watching here* went on playing the film — its
    * own picture and its own sound — after handing it to the laptop. Two
-   * buttons could describe that; a switch reading *separate device* while
+   * buttons could describe that; a switch reading *other device* while
    * this device is plainly still showing one cannot.
    *
-   * Cleared here rather than when *separate device* is pressed, because
+   * Cleared here rather than when *other device* is pressed, because
    * pressing it may find nowhere to go: an account with no other device
    * signed in gets the banner and keeps its film, where an eager clear would
    * take the film away and offer nothing in its place.
@@ -2913,20 +2965,56 @@ export function ChannelView({
                 )}
 
                 {/*
-                  **The film's own bar is the transport, and there is no
-                  second one.** A row of Play and ±15s buttons used to sit
-                  here, under a YouTube bar that is inside the embed and
-                  cannot be taken off the picture without taking the picture
-                  too — so every screen showing a film had two sets of
-                  controls, one of which was the real one. Which of them
-                  worked depended on the floor, and on a stack of timing
-                  guards that took three attempts and never settled.
+                  **The transport, and the film's own bar is the other way of
+                  reaching it.**
 
-                  Removed rather than moved: see
+                  This row came out earlier on 2026-09-18 and went back in the
+                  same day, which is worth recording because the reasoning
+                  changed underneath it rather than being reversed. What was
+                  wrong with two sets of controls was never that there were
+                  two: it was that *one of them did not work* — the app's row
+                  was governed by the floor while YouTube's bar sat above it
+                  ungoverned and visible, and which of them answered a finger
+                  depended on a claim somebody might make mid-scene.
+
+                  Both are live now and both produce the same three actions,
+                  so they are one transport with two surfaces rather than two
+                  transports. And the bar alone was not enough: it is on the
+                  picture, so **a device that is not showing the film had no
+                  controls at all** — which is most of a party most of the
+                  time, since a screen is one device per person. See
                   planning/decisions/2026-09-18-the-bar-is-the-transport.md.
-                  The progress readout above stays, because saying where
-                  everybody is is not a control.
                 */}
+                <View style={styles.buttonRow}>
+                  <Button
+                    label="−15s"
+                    style={styles.flexButton}
+                    disabled={!mayControlWatch}
+                    onPress={() =>
+                      act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
+                    }
+                  />
+                  <Button
+                    label={watch.status === 'playing' ? 'Pause' : 'Play'}
+                    variant="primary"
+                    style={styles.flexButton}
+                    disabled={!mayControlWatch}
+                    onPress={() =>
+                      act({
+                        type:
+                          watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
+                      })
+                    }
+                  />
+                  <Button
+                    label="+15s"
+                    style={styles.flexButton}
+                    disabled={!mayControlWatch}
+                    onPress={() =>
+                      act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
+                    }
+                  />
+                </View>
 
                 {/*
                   Muting the room, which is a different act from muting yourself
@@ -3043,7 +3131,7 @@ export function ChannelView({
 
                   **Relative to the device in your hand, and mirrored because
                   of it.** Hand the film to the laptop and the phone shows
-                  *separate device* while the laptop shows *same device*: both
+                  *other device* while the laptop shows *this device*: both
                   are saying the one true thing about where the film is, each
                   in its own terms. What makes that possible on the device
                   that gave the film away is `screensElsewhere`, which is
@@ -3056,7 +3144,7 @@ export function ChannelView({
 
                   The label is above rather than beside the track: two
                   segments and a lead-in do not fit across a phone, and a
-                  *Separate device* that wraps or truncates is worse than a
+                  *Other device* that wraps or truncates is worse than a
                   line of its own.
 
                   The picker below appears only when there is more than one
@@ -3075,13 +3163,24 @@ export function ChannelView({
                   // with the film on nothing, and a switch that claimed
                   // *same device* before anybody said so would be a control
                   // reporting a state the channel is not in.
-                  value={
-                    screeningHere
-                      ? 'same'
-                      : screenElsewhere
-                        ? 'separate'
-                        : 'neither'
-                  }
+                  /*
+                    **One of the two, always**, where this used to have a
+                    third answer of *neither* for a party whose film was on
+                    nothing. That state is gone rather than hidden: a party
+                    now makes the device you are looking at its screen unless
+                    another of yours already is — see the effect named for
+                    this comment — so *this device* is a fact by the time it
+                    is shown, not a claim the switch makes on the film's
+                    behalf.
+
+                    Read off where the film actually is, in that order: this
+                    device if it is showing it, another of mine if one is.
+                    The fallback is *this device* because that is what the
+                    default is about to make true, and a switch that showed
+                    nothing for the tick in between would flicker on every
+                    party that started.
+                  */
+                  value={screenElsewhere && !screeningHere ? 'separate' : 'same'}
                   onChange={(where) => {
                     if (where === 'same') {
                       setChoosing(false);

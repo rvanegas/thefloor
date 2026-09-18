@@ -143,7 +143,7 @@ export const mockApp = {
   /**
    * The channels this account's *other* instances are showing. Empty by
    * default for `screens`' reason, and it is what the *Watch on* switch reads
-   * to show *separate device* as chosen.
+   * to show *other device* as chosen.
    */
   screensElsewhere: [] as string[],
   /** The channel this device has been asked to show a film for. */

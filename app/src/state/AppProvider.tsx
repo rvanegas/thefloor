@@ -1217,7 +1217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         onScreens: (screens) => setState((s) => ({ ...s, screens })),
         // One fact rather than a list, and pushed rather than asked for —
         // see `screensElsewhere`. It is what lets the device that handed a
-        // film to the laptop show *separate device* as the chosen answer.
+        // film to the laptop show *other device* as the chosen answer.
         onScreening: (channelIds) =>
           setState((s) => ({ ...s, screensElsewhere: channelIds })),
         /*
