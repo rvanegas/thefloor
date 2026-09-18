@@ -3196,9 +3196,29 @@ export function ChannelView({
                     }
                   />
                 ) : null}
-                <Text style={type.heading} numberOfLines={1}>
-                  {party.url}
-                </Text>
+                {/*
+                  **The URL was the heading here and is gone as of
+                  2026-09-18.** A YouTube link is machine text: it names the
+                  video only to somebody who already knows the id, it is the
+                  longest string on the card, and `numberOfLines={1}` meant
+                  what it actually showed was `https://www.youtube.com/watc…`
+                  — the half that is the same for every film. Drawn in
+                  `heading`, it claimed to be the subject of the card while
+                  saying nothing about which film was on.
+
+                  Nothing replaces it, because nothing here knows the title:
+                  the channel learns exactly one fact from a player, the
+                  duration, and asking YouTube for a name would be the first
+                  time this application talked to it — see `WatchParty`, whose
+                  `url` is kept precisely so the interface can hand back what
+                  was pasted rather than display it. Handing it back is *Copy
+                  video link*, below, which is where somebody who wants the
+                  link goes.
+
+                  What says a film is on is the transport, the *Watch on*
+                  switch and the picture itself. A follower device has all
+                  three.
+                */}
                 {watchTransport}
                 {/*
                   **Full screen, which has to be the app's control now.**

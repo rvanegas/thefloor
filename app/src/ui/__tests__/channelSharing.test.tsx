@@ -178,7 +178,6 @@ describe('Channel, watching together', () => {
     */
     showChannel(watching());
     const tree = open();
-    expect(textOf(tree)).toContain(URL);
     expect(findButton(tree, 'Play')).toBeDefined();
     expect(findButton(tree, '−15s')).toBeDefined();
     expect(findButton(tree, '+15s')).toBeDefined();
@@ -819,8 +818,30 @@ describe('Channel, watching together', () => {
   it('shows a party already running', () => {
     showChannel(watching());
     const tree = open();
-    expect(textOf(tree)).toContain(URL);
+    // The controls a loaded party has and an empty card does not. The URL
+    // was the evidence here until it stopped being drawn — see the card,
+    // which says why a link is not what tells you a film is on.
+    expect(findButton(tree, 'Change video')).toBeDefined();
     expect(findButton(tree, 'Stop')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The link is on the clipboard's button and nowhere on the card.
+   *
+   * It was the card's heading until 2026-09-18, truncated after
+   * `https://www.youtube.com/watc…` — machine text claiming to be the
+   * subject of the card while naming nothing. *Copy video link* is the whole
+   * of how a URL leaves this screen now, which is why this asserts the
+   * button is still there: a link nobody can reach is a different change
+   * from a link nobody is shown.
+   */
+  it('does not draw the video URL', () => {
+    showChannel(watching());
+    const tree = open();
+    expect(textOf(tree)).not.toContain(URL);
+    expect(textOf(tree)).not.toContain('youtube.com');
+    expect(findButton(tree, 'Copy video link')).toBeDefined();
     act(() => tree.unmount());
   });
 
