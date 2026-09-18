@@ -401,6 +401,39 @@ describe('the attention clock', () => {
     expect(channel(channelId).present).not.toContain(alice.id);
   });
 
+  it('is saved by the device watching the film, not the one holding the voice', async () => {
+    /*
+      **The load-bearing fact of the in-app watch party**, and the one this
+      clock had a comment denying until 2026-09-17.
+
+      A party is the case where somebody is unmistakably present and produces
+      no evidence at all: nobody speaks through a film, and the device showing
+      it is frequently not the device in the room. `attentive` keys on
+      `(channel, user)` and checks membership rather than presence — so the
+      laptop's report, about a channel it is not standing in, is what keeps the
+      phone's presence alive.
+
+      Without it a two-hour film ends with everybody stepped out at the
+      fifteen-minute mark, which is the room emptying itself while five people
+      watch it. See decisions/2026-09-17-the-screen-is-the-app.md.
+    */
+    const { alice, bob, channelId } = await roomOfTwo();
+    attends(bob.id, channelId);
+
+    // Alice's other device: signed in, a member, and standing in nothing. It
+    // is the screen, and the only thing it ever says is that it is watching.
+    await signIn('alice@example.com', 'Alice');
+    expect(channel(channelId).present).toContain(alice.id);
+
+    for (let i = 0; i < 3; i += 1) {
+      attends(alice.id, channelId);
+      attends(bob.id, channelId);
+      clock += ATTENTION_WINDOW_MS / 2;
+      app.channels.tick();
+    }
+    expect(channel(channelId).present).toContain(alice.id);
+  });
+
   it('retires the lone phone and not the one with company, in one pass', async () => {
     // The guard, exercised in the only way the server can be made to show it:
     // two channels, one clock, and the same fifteen minutes passing over both.

@@ -121,6 +121,41 @@ report itself for the length of the film** — the case
 need shrinks with it, the condition now being categorical and said under the
 roster, but that is a decision narrowed by this one.
 
+## Nobody speaks through a film, so the clock had to learn something
+
+A watch party is the case where somebody is unmistakably present and produces
+no evidence at all. A browser's attention clock counts a hand on the page, and
+somebody watching a video produces none for two hours — a cross-origin iframe
+swallows even the clicks they do make. Fifteen minutes in,
+`useAttention.web.ts` would step them out of the channel the party is running
+in, and take their voice with it.
+
+**Most of the fix was already true and nobody had noticed.** `attentive` keys
+on `(channel, user)` and checks membership rather than presence, so evidence
+from any of an account's devices refreshes the clock for the room another of
+them is standing in: **the laptop showing the film is what saves the phone
+holding the voice.** presence.test.ts now says so out loud, the fact being
+load-bearing and not obvious.
+
+What had to be added is one report: a tab showing the film says so every
+`ATTENTION_REPORT_MS` while it plays. **Evidence rather than an exemption**,
+which is the distinction that clock turns on — an abandoned tab is the ghost it
+is hunting, and a tab showing a film somebody deliberately started, which stops
+itself at the end, is not one. Only while *playing*: a paused party is a tab
+that may genuinely have been walked away from.
+
+**And ws.ts carried a comment saying the opposite**, which is now corrected:
+*somebody watching a party on a laptop while their phone sits in a drawer is
+not attending the room the phone is holding. Control lives on the phone; so
+does attention.* That was true of a follower page — a link credential that
+could not send the message at all. A screen is an ordinary session now, and a
+person watching the thing the room is attending to is attending it.
+
+Somebody in the room on a browser who has chosen **no** screen is deliberately
+not covered. They are in a channel where a film is playing and are
+demonstrably doing nothing, which is the case the window exists for. That
+closes `tasks/keep-alive-during-watch-party.md`.
+
 ## The picker, and the banner that is deliberately prose
 
 Two buttons: **Watch here** and **Watch on another device**. Not "Play here" —

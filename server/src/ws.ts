@@ -1276,11 +1276,24 @@ export function registerWebsocket(deps: {
          * A person is attending the application. Not a channel event and not
          * scoped to one — see `ClientMessage.attentive`.
          *
-         * **Session sockets only**, which the `watch` guard above has already
-         * settled: a follower page is a second screen rather than a second
-         * place to be, and somebody watching a party on a laptop while their
-         * phone sits in a drawer is not attending the room the phone is
-         * holding. Control lives on the phone; so does attention.
+         * **Account-scoped, deliberately**, and since 2026-09-17 that is
+         * load-bearing rather than incidental. `Channels.attentive` keys on
+         * `(channel, user)` and checks membership rather than presence, so
+         * evidence gathered on one of an account's devices refreshes the
+         * clock for the room another of them is standing in. That is what
+         * keeps somebody present through a two-hour film: the laptop showing
+         * it reports, and the phone holding the voice is what the report
+         * saves.
+         *
+         * **This used to say the opposite** — that somebody watching on a
+         * laptop while their phone sat in a drawer was not attending the room
+         * the phone was holding, and that attention lived on the phone with
+         * control. That was true of a *follower page*, which held a link
+         * credential, could not send this message, and said nothing about
+         * where anybody was. A screen is an ordinary session of the app now,
+         * and a person watching the thing the room is attending to is
+         * attending it. See
+         * planning/decisions/2026-09-17-the-screen-is-the-app.md.
          */
         case 'attentive': {
           // A client naming rooms, so the shape is checked before it is

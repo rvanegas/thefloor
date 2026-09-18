@@ -82,6 +82,13 @@ describe('Channel, watching together', () => {
     );
   }
 
+  /** The same party, running — which is when a screen is evidence of anybody. */
+  function playing(mutate: (s: ChannelState) => ChannelState = (s) => s) {
+    return watching((s) =>
+      mutate(reduce(s, { type: 'WATCH_PLAY', userId: ME }, NOW))
+    );
+  }
+
   /**
    * The screen, on the tab the watch card lives on.
    *
@@ -314,6 +321,36 @@ describe('Channel, watching together', () => {
     expect(findButton(tree, 'Another phone')).toBeDefined();
     act(() => findButton(tree, 'Chrome on macOS')!.props.onPress());
     expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
+    act(() => tree.unmount());
+  });
+
+  it('reports attention while it is showing a film', () => {
+    // **Otherwise watching a film is how you get stepped out of the room you
+    // are watching it in.** A browser's attention clock counts a hand on the
+    // page, and somebody watching a video produces none for two hours — a
+    // cross-origin iframe swallows even the clicks they do make. Fifteen
+    // minutes in, the tab would step them out of the channel the party is
+    // running in.
+    mockApp.screenFor = 'sess_1';
+    showChannel(playing());
+    const tree = open();
+    // Without an argument, which is what distinguishes it from the forced
+    // report the channel screen makes as it opens: this one is the periodic
+    // evidence, and it is rate limited by `shouldReport` rather than by us.
+    expect(mockApp.reportAttentive).toHaveBeenCalledWith();
+    act(() => tree.unmount());
+  });
+
+  it('says nothing about attention while the film is paused', () => {
+    // Evidence rather than an exemption: a paused film is a tab that may
+    // genuinely have been abandoned, which is the ghost the clock is hunting.
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+    const tree = open();
+    // Opening the screen reports once and forces it — that is somebody's hand
+    // arriving, and it is not this. What must not happen is the periodic
+    // report, which is the claim that a film is running.
+    expect(mockApp.reportAttentive).not.toHaveBeenCalledWith();
     act(() => tree.unmount());
   });
 
