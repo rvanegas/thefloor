@@ -659,8 +659,29 @@ export function buildApp(options: BuildOptions = {}): App {
     // the whole of what a cohort seat is worth. `ChannelRegistry` is given the
     // question rather than the table for the reason every other wiring here
     // has: the composition root is the only layer allowed to know that push
-    // and channels are both in this process.
-    (userId) => devices.tokensFor([userId]).length > 0
+    // and channels are both in this process — and it is the only one that can
+    // see both halves of this answer, the permission living on the account row
+    // and the address in `Devices`.
+    //
+    // **Both halves, and the grant is the one that was missing.** An address
+    // was standing in for a permission, and the two come apart in both
+    // directions: a token can outlive a permission turned off in Settings, and
+    // a permission can outlive the token a sign-out dropped. A seat is spent
+    // once and the whole of what it offers is that somebody may speak into it
+    // later, so it goes only to an account that is reachable on both counts.
+    //
+    // **`granted` explicitly, with no exception for builds that cannot say.**
+    // `accounts.notifications` is null for every build before 213, and null
+    // means *unknown* rather than denied — `markNotifications` refuses to
+    // overwrite a phone's real answer with silence, correctly. Reading unknown
+    // as eligible is what filled the first two cohorts, so it reads as refused
+    // here. The cost is that the boot backfill now passes over the accounts
+    // that predate the header, which is the right trade for a feature whose
+    // whole point is the arrival who can be told: they are refused for a
+    // reason they can undo, and the next build they run says so.
+    (userId) =>
+      accounts.byId(userId)?.notifications === 'granted' &&
+      devices.tokensFor([userId]).length > 0
   );
 
   // Reads the stems through the same gate the export does, and spends money,
@@ -728,6 +749,18 @@ export function buildApp(options: BuildOptions = {}): App {
   // up by it too, since the registration that would have placed them reached
   // a process that is gone. That is a second reason for the sweep and not a
   // second mechanism.
+  // **Before the backfill, and that order is the whole of why this runs here.**
+  // The repair gives back the seats that were spent on rows which can never
+  // answer, and the pass below fills a cohort that has seats left — so
+  // repairing first is what lets a returned seat go to somebody real on the
+  // same boot rather than a deploy later.
+  //
+  // Idempotent like the two above it, so the reading that matters is the
+  // second boot's, which should repair nothing; logged either way, since
+  // silence would be indistinguishable from the pass having been skipped.
+  const repaired = channels.repairCohorts();
+  fastify.log.info(repaired, 'cohorts repaired');
+
   const seeded = channels.backfillCohorts(accounts.cohortCandidates());
   fastify.log.info({ placed: seeded }, 'cohorts backfilled');
 

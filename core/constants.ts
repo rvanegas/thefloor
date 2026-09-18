@@ -63,6 +63,28 @@ export const MAX_CHANNEL_PARTICIPANTS = 6;
 export const COHORT_SIZE = 5;
 
 /**
+ * What every *getting-started channel* is called, which is the same string for
+ * all of them.
+ *
+ * **It used to end in the cohort's number, and the number was a disclosure.**
+ * With `COHORT_SIZE` at five, "Getting Started Cohort 2" tells a stranger that
+ * between six and ten people have ever arrived here with nobody to talk to —
+ * on the Home screen of precisely the people being asked to believe the place
+ * is worth staying in. Nobody needed it: a member is in at most one cohort and
+ * has nothing to tell it apart from.
+ *
+ * **The host is the exception, and is served elsewhere.** They are in every
+ * cohort, so their channels list is the one screen that sees several at once
+ * and the only one a discriminator was ever for. It reaches them as
+ * `RejoinableView.cohort` — a number on the snapshot, sent to hosts alone —
+ * rather than as a word in a name everybody reads. See `rejoinableFor`.
+ *
+ * Here rather than in `server/` because both ends have a use for it: the
+ * server writes it and the repair script matches on it.
+ */
+export const COHORT_CHANNEL_NAME = 'Getting Started';
+
+/**
  * The reach at which somebody no longer needs a cohort.
  *
  * A getting-started channel is for an arrival who has nobody here. Somebody

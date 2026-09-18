@@ -1803,30 +1803,78 @@ export class Accounts {
    *
    * **A candidate list, not a verdict.** Everything that decides eligibility
    * is in `ChannelRegistry.placeInCohort` — hosts, people already in a cohort,
-   * and anybody who can already reach `COHORT_REACH_FLOOR` people — and this
-   * deliberately does not duplicate any of it. Two places answering the same
-   * question is how a backfill and a signup come to disagree about who gets
-   * one.
+   * anybody who can already reach `COHORT_REACH_FLOOR` people, and anybody who
+   * has not granted notifications — and this deliberately does not duplicate
+   * any of it. Two places answering the same question is how a backfill and a
+   * signup come to disagree about who gets one.
    *
-   * The demo accounts are the exception, and they are excluded here because
-   * this is the only layer that knows which they are. A phone at Apple is not
-   * an arrival with nobody to talk to, on the same reasoning that keeps both
-   * of them out of the build census.
+   * `cohortExcluded` is the exception and is applied here, because this is the
+   * only layer that can see an identifier — but it is applied on the live path
+   * too, and that method says why.
    *
    * Oldest first so that the people who have been waiting longest fill the
    * earliest cohort, which is the only ordering anybody could defend when a
    * backfill spans several.
    */
   cohortCandidates(): string[] {
-    const demo = [this.review?.identifier, this.review?.contact].filter(
-      (identifier): identifier is string => !!identifier
-    );
     const rows = this.db
       .prepare('SELECT id, identifier FROM accounts ORDER BY created_at ASC, id ASC')
       .all() as unknown as Array<{ id: string; identifier: string }>;
-    return rows
-      .filter((row) => !demo.some((identifier) => sameIdentifier(row.identifier, identifier)))
-      .map((row) => row.id);
+    return rows.filter((row) => !this.cohortExcluded(row.identifier)).map((row) => row.id);
+  }
+
+  /**
+   * Whether this account is one a *getting-started channel* must never hold,
+   * on grounds of **who it is** rather than of what it has.
+   *
+   * The three refusals in `ChannelRegistry.placeInCohort` are about somebody's
+   * situation — they host, they are already in one, they arrived into a
+   * working group — and every one of them can stop being true. These cannot.
+   * An erased account will never be un-erased, and an address of ours will
+   * never be a stranger who needs introducing. So they are a different kind of
+   * gate and live at a different layer, which is also the only layer that can
+   * see an identifier at all.
+   *
+   * **It is asked on both paths, and that is the whole reason it is a method.**
+   * `cohortCandidates` guards the boot backfill and `placeInCohort` guards a
+   * signup, and the first version of this filtered only the backfill — which
+   * is how a test address reaches a cohort the moment it registers a phone.
+   * One predicate, two callers, no chance of them disagreeing.
+   *
+   * - **Erased accounts.** A tombstone cannot sign in, cannot be told anything
+   *   and cannot answer; a seat spent on one is spent forever. Two of them
+   *   were in cohort 1 for exactly this reason: they were erased weeks before
+   *   the feature existed, so nothing ever removed them from a channel — the
+   *   backfill put them there.
+   * - **Every `@rvanegas.co` address.** The two App Review accounts were
+   *   already excluded by identity, which missed `rtest1@` and `rtest2@` and
+   *   would miss the next one made. The domain is the honest rule: it is ours,
+   *   nobody outside this project has an address on it, and a cohort is a room
+   *   of strangers rather than a place to put our own test rigs. `rtest2@` was
+   *   in cohort 2.
+   *
+   * **Not `rvanegas@gmail.com`**, which is a real account belonging to a real
+   * person and is excluded from cohorts by the ordinary gates or not at all.
+   */
+  cohortExcluded(identifier: string): boolean {
+    if (identifier.startsWith(ERASED_IDENTIFIER_PREFIX)) return true;
+    if (identifier.toLowerCase().endsWith(`@${OUR_DOMAIN}`)) return true;
+    // Kept beside the domain rule rather than folded into it, though both
+    // review accounts are on that domain today: they are configuration, and a
+    // `REVIEW_IDENTIFIER` pointed somewhere else would silently lose its
+    // exclusion. This is the only layer that knows which they are.
+    return [this.review?.identifier, this.review?.contact].some(
+      (configured) => !!configured && sameIdentifier(identifier, configured)
+    );
+  }
+
+  /** `cohortExcluded` by id, for the callers that hold one. See there. */
+  cohortExcludedId(userId: string): boolean {
+    const row = this.byId(userId);
+    // No row is not an account, and a placement for one would be a channel
+    // holding an id nothing resolves. Refuse rather than fall through.
+    if (!row) return true;
+    return this.cohortExcluded(row.identifier);
   }
 
   acceptedPairs(): Array<[string, string]> {
@@ -2467,6 +2515,17 @@ function erasedIdentifier(accountId: string): string {
  * leaves behind and has nothing else to go on.
  */
 export const ERASED_IDENTIFIER_PREFIX = 'erased:';
+
+/**
+ * The project's own email domain, which is the one thing that reliably tells
+ * our addresses from everybody else's.
+ *
+ * Only `cohortExcluded` reads it, and deliberately so: it is not a permission
+ * and confers nothing. It answers one question — is this address ours — for
+ * the one feature that has to introduce strangers to each other and must
+ * therefore not seat a test rig among them.
+ */
+export const OUR_DOMAIN = 'rvanegas.co';
 
 function normalize(identifier: string): string {
   return identifier.trim();

@@ -57,10 +57,14 @@
 # bin/people carries, for the same reason: a cohort of accounts that have not
 # come back is the finding.
 #
-# Two kinds of row are not ordinary people, and both can be placed in a cohort
-# like anybody else, since they sign up knowing nobody: the App Review accounts
-# `appreview@` and `appreview2@` are Apple's (planning/DEMO-ACCOUNT.md), and an
-# `erased:acct_…` identifier is a tombstone rather than somebody who left.
+# Two kinds of row are not ordinary people and **can no longer be placed**,
+# since 2026-09-18: an `erased:acct_…` identifier is a tombstone rather than
+# somebody who left, and every address on `rvanegas.co` is ours — the App
+# Review accounts `appreview@` and `appreview2@` (planning/DEMO-ACCOUNT.md)
+# and the `rtest…@` rigs alike. `Accounts.cohortExcluded` is that rule, the
+# boot repair takes out whoever the looser gate already placed, and the seat
+# goes back. If either kind shows up in a row below, the repair did not run
+# or the gate has regressed; both are worth knowing about.
 set -euo pipefail
 
 HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}

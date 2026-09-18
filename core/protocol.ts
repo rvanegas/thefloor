@@ -446,6 +446,29 @@ export interface RejoinableView {
    */
   nearbyCount?: number;
   /**
+   * Which *getting-started cohort* this channel is — **and null for every
+   * reader who is not a `cohort host`**, which is everybody but one or two
+   * people.
+   *
+   * `ChannelView.cohort` carries the same number to anybody inside the room,
+   * where it draws the explanatory card and the number itself is never shown.
+   * This one exists for the opposite reason: to be *read out*. A host is in
+   * every cohort, so their channels list is several identically-named rows,
+   * and the number is what tells them apart.
+   *
+   * **Withheld on the wire rather than hidden in the client**, which is the
+   * whole point of it living here. `COHORT_CHANNEL_NAME` stopped putting the
+   * number in a string every member reads, and sending it to those members
+   * anyway would put the same disclosure one `console.log` away. A member's
+   * snapshot does not contain it.
+   *
+   * Optional for `nearby`'s reason exactly: a server that predates it sends no
+   * such key, and a client meeting that draws no number — which is what every
+   * build before this one did, the number having been in the name. See
+   * planning/SHIMS.md.
+   */
+  cohort?: number | null;
+  /**
    * The most recent moment anybody *other than this reader* was in the channel
    * — see `lastPresenceByOthers` in core/channel.ts. **This is what Home draws
    * its time from and what Home orders on**, and `lastPresenceAt` beside it is

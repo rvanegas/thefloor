@@ -168,8 +168,8 @@ who is speaking, what the channel is, or who is in it.</p>
 <h2>Getting started</h2>
 <p>The Floor is no use to somebody who arrives with nobody here, so a new
 account that signs up without an invitation is put into one channel — <em>Getting
-Started Cohort</em>, and a number — with up to three other people who joined
-around the same time, and one of the people who run The Floor. It happens once
+Started</em> — with up to three other people who joined around the same time,
+and one of the people who run The Floor. It happens once
 and it never happens again. Somebody who arrives on an invitation from people
 who are already here is not put in one.</p>
 <p><strong>It happens when you turn notifications on, and not before.</strong>

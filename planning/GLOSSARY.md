@@ -53,7 +53,7 @@ caused; the list carries the meaning.
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Getting-started channel** — The one channel a new account with nobody here is put into, named *Getting Started Cohort <n>*: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has turned notifications on, at the moment they do
+- **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link*; with or without an account here
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
@@ -103,7 +103,7 @@ caused; the list carries the meaning.
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
 - **Cohort host** — The account a *getting-started channel* is opened with, named by sign-in address in `COHORT_HOST_IDENTIFIERS`. **Not a *root***, which is a position in the invitation forest and is most people
-- **Cohort seats** — How many people a *getting-started channel* has ever held, the host included. Spent rather than occupied: leaving does not give one back, so a closed cohort stays closed
+- **Cohort seats** — How many people a *getting-started channel* has ever held, the host included. Spent rather than occupied: leaving does not give one back, so a closed cohort stays closed. The one exception is the boot repair, which returns a seat that should never have been spent
 - **Core** — `core/`, the rules: pure functions over a `ChannelState`, no I/O and no imports outside itself
 - **Conversing** — You, present in a channel, with somebody else in it — another member or a *guest*; `isConversing` in `app/src/state/conversing.ts`. It stamps the *introduction*'s *step in with somebody* rung and latches the notification ask, and it is not the same as having stepped in
 - **Detail (pane)** — The right-hand pane of the two-pane layout, above the width breakpoint — the other is the *list*
@@ -611,10 +611,21 @@ ones that travel are defined.
 ## Getting-started channel
 
 The one channel a new account is put into without asking for it: *Getting
-Started Cohort 1*, then 2, and so on. Up to four people who signed up around
-the same time, plus a *cohort host* — one of the people who run The Floor. It
-is an ordinary channel in every other respect: it can be named, written in,
-recorded in, and left from its settings screen like any other.
+Started*, which is what every one of them is called. Up to four people who
+signed up around the same time, plus a *cohort host* — one of the people who
+run The Floor. It is an ordinary channel in every other respect: it can be
+named, written in, recorded in, and left from its settings screen like any
+other.
+
+**The name carried the cohort's number until 2026-09-18**, and the number was
+a disclosure: with `COHORT_SIZE` at five, *Getting Started Cohort 2* tells a
+stranger that between six and ten people have ever arrived here with nobody to
+talk to — on the Home screen of exactly the people being asked to believe the
+place is worth staying in. A member is in at most one and had nothing to tell
+it apart from. The host is in all of them, so their channels list is the one
+screen that needs a discriminator, and it reaches them as
+`RejoinableView.cohort` — a number sent to hosts alone, absent from everybody
+else's snapshot rather than hidden in their client. See `COHORT_CHANNEL_NAME`.
 
 **It exists because the application does nothing for one person.** Home is two
 lists, and a new account arrives with both of them empty and every control on
@@ -631,7 +642,17 @@ there is no search for people and nothing suggests anybody to anybody.
 invitation which already puts it within *reach* of four people is not placed
 in one; they have what it would have given them. See `COHORT_REACH_FLOOR`.
 
-**And only for somebody who has turned notifications on**, since 2026-09-15.
+**And never for a tombstone or for an address of ours**, since 2026-09-18.
+`Accounts.cohortExcluded` refuses an erased account and every address on
+`rvanegas.co` — the App Review accounts and the `rtest…@` rigs alike — on both
+the signup path and the boot backfill. These are refusals about *who somebody
+is* rather than about their situation, and the difference is that none of them
+can stop being true: the other gates below can. The first backfill had neither
+rule and put two tombstones and a test rig into live cohorts; the boot repair
+takes out whoever it placed and gives the seat back.
+
+**And only for somebody who has granted notifications**, since 2026-09-15 —
+and *granted* explicitly, since 2026-09-18.
 The whole of what the channel offers is that somebody may speak into it later,
 so a member who cannot be told that happened is a *cohort seat* — spent once,
 never returned — that can never answer. The placement therefore waits: it
@@ -640,6 +661,16 @@ which is `POST /devices` and not the signup, and an account that never turns
 them on is never placed. *Cohort-eligible* is the server's name for somebody
 waiting on exactly that and nothing else. See
 `decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
+
+**A device token was standing in for the permission**, and the two come apart
+in both directions — a token outlives a permission switched off in Settings, a
+permission outlives the token a sign-out dropped. Worse, `accounts.notifications`
+is null for every build before 213 and null means *unknown*, so an old build
+registering an address was read as a yes. The gate now wants both halves and
+reads unknown as refused. The cost is that the backfill passes over accounts on
+older builds, which is the right trade for a feature whose whole point is the
+arrival who can be told: they are refused for a reason they can undo, and the
+next build they run says so.
 
 **It is a growth hack and it ends.** It seeds activity while there is not
 enough to seed itself, and when growth no longer needs it, emptying

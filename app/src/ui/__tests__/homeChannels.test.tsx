@@ -4,7 +4,10 @@ import renderer, {
   type ReactTestRenderer,
 } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
-import { WAITING_WINDOW_MS } from '../../../../core/constants';
+import {
+  COHORT_CHANNEL_NAME,
+  WAITING_WINDOW_MS,
+} from '../../../../core/constants';
 import { type HomeView as HomeViewData } from '../../../../core/protocol';
 import { HomeView } from '../HomeView';
 import { ChannelView } from '../ChannelView';
@@ -170,6 +173,63 @@ describe('named channels and described ones do not look alike', () => {
       <HomeView {...homeNav} />
     );
     expect(textOf(tree)).toContain('Just you');
+    act(() => tree.unmount());
+  });
+});
+
+/**
+ * The cohort number on a row, which exactly one reader is sent.
+ *
+ * Every *getting-started channel* is called `COHORT_CHANNEL_NAME` and nothing
+ * else, since 2026-09-18 — the number used to be in the name, where it told
+ * every member roughly how many people had ever arrived here alone. A *cohort
+ * host* is in all of them, so their list is several identical rows and they
+ * are the one reader a discriminator was ever for.
+ *
+ * **The client does not decide who that is.** The server sends `cohort` to a
+ * host and omits the key otherwise, so these tests are about drawing what
+ * arrives rather than about a rule held here. See `RejoinableView.cohort`.
+ */
+describe('a cohort row', () => {
+  const homeWithCohort = (cohort: number | null | undefined) => {
+    mockApp.home = {
+      invites: [],
+      rejoinable: [
+        {
+          channelId: 'sess_c',
+          name: COHORT_CHANNEL_NAME,
+          others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+          presentCount: 0,
+          createdAt: NOW,
+          lastActiveAt: NOW,
+          cohort,
+        },
+      ],
+      contacts: [],
+    };
+    return render(<HomeView {...homeNav} />);
+  };
+
+  it('carries its number for the host who was sent one', () => {
+    const tree = homeWithCohort(2);
+    expect(textOf(tree)).toContain(`${COHORT_CHANNEL_NAME} 2`);
+    act(() => tree.unmount());
+  });
+
+  it('is the bare name for a member, who is sent none', () => {
+    const tree = homeWithCohort(undefined);
+    const text = textOf(tree);
+    expect(text).toContain(COHORT_CHANNEL_NAME);
+    // No digit after it, which is the whole of what moved off this screen.
+    expect(text).not.toMatch(new RegExp(`${COHORT_CHANNEL_NAME}\\s+\\d`));
+    act(() => tree.unmount());
+  });
+
+  it('reads an explicit null the same way as an absent key', () => {
+    // A server that sends the key and means *no number* — an ordinary channel
+    // in a host's own list — must draw exactly what a member's row draws.
+    const tree = homeWithCohort(null);
+    expect(textOf(tree)).not.toMatch(new RegExp(`${COHORT_CHANNEL_NAME}\\s+\\d`));
     act(() => tree.unmount());
   });
 });

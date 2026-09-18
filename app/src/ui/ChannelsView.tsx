@@ -475,6 +475,17 @@ function inviteCard(invite: InviteView): Card {
   };
 }
 
+/**
+ * A title with its cohort number on the end, for the reader who was sent one.
+ *
+ * Absent and null both mean *draw nothing*: an ordinary channel has no number,
+ * a server predating the field sends no key, and a member of a cohort is
+ * deliberately not told which one they are in. See `RejoinableView.cohort`.
+ */
+function withCohortNumber(title: string, cohort: number | null | undefined): string {
+  return cohort == null ? title : `${title} ${cohort}`;
+}
+
 function memberCard(channel: RejoinableView): Card {
   // A seat carries the resolved name and the present count and nothing else —
   // the roster is names-only to a guest and the history is not theirs to read
@@ -501,9 +512,21 @@ function memberCard(channel: RejoinableView): Card {
   return {
     channelId: channel.channelId,
     kind: 'member',
-    title:
+    // **The number is appended for one reader and nobody else**, and the
+    // client does not decide which: the server sends `cohort` to a *cohort
+    // host* and omits the key for everybody else, so this draws whatever it is
+    // given. Every cohort is called the same thing now — see
+    // `COHORT_CHANNEL_NAME` — which for a host is several identical rows, this
+    // being the only screen that sees more than one at a time.
+    //
+    // Appended to the resolved title rather than replacing it, so a cohort
+    // somebody has renamed from Channel Settings keeps the name they gave it
+    // and still tells the host which one it is.
+    title: withCohortNumber(
       channel.name ??
-      describeChannel(channel.others.map((other) => other.displayName)),
+        describeChannel(channel.others.map((other) => other.displayName)),
+      channel.cohort
+    ),
     presentCount: channel.presentCount,
     // `lastActiveAt` is the fallback for a server that predates the better
     // stamp, and is the same answer for every channel nobody is in — which are

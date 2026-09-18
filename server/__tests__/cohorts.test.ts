@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryPusher } from '../src/push';
-import { COHORT_REACH_FLOOR, COHORT_SIZE } from '../../core/constants';
+import {
+  COHORT_CHANNEL_NAME,
+  COHORT_REACH_FLOOR,
+  COHORT_SIZE,
+} from '../../core/constants';
+import type { HomeView } from '../../core/protocol';
+import { OUR_DOMAIN } from '../src/accounts';
+import { NOTIFY_HEADER } from '../src/release';
 
 /**
  * *Getting-started channels*: the introductory channel a new account with
@@ -90,11 +97,18 @@ async function signIn(
 }
 
 /**
- * Turning notifications on, as the app does it: one address, registered.
+ * Turning notifications on, as the app does it: one address, registered, and
+ * the grant declared on the same request.
  *
  * The route rather than a write, because the placement hangs off the route —
  * `POST /devices` is what notices an account's first address, and a test that
  * inserted the row would be exercising neither half.
+ *
+ * **Both halves, since 2026-09-18.** The gate is `notifications = 'granted'`
+ * *and* an address, and the header is how a phone says the first — written by
+ * `requireAccount` on the way into this very request, which is why one inject
+ * still does it. A registration without the header is a build too old to say,
+ * and that is a case with its own test rather than the shape of this helper.
  */
 async function enableNotifications(user: {
   token: string;
@@ -103,28 +117,33 @@ async function enableNotifications(user: {
   const registered = await app.fastify.inject({
     method: 'POST',
     url: '/devices',
-    headers: auth(user.token),
+    headers: { ...auth(user.token), [NOTIFY_HEADER]: 'granted' },
     payload: { token: `apns-${user.identifier}`, platform: 'ios' },
   });
   expect(registered.statusCode).toBe(200);
 }
 
 /**
- * Every cohort channel this account is a member of, by name.
+ * Every cohort channel this account is a member of, **by number**.
  *
  * Both of Home's lists, because a cohort moves between them: it is a standing
  * place while nobody has ever been in it, and an invitation from the host once
  * somebody has. `channelsFor` is no use here — it answers about presence, not
  * membership.
+ *
+ * **The number rather than the name, since 2026-09-18**, when every cohort
+ * became `COHORT_CHANNEL_NAME` and names stopped telling them apart. It is
+ * also the better test: `channels.cohort` is what the server actually keys
+ * these on, where the name is a string any member may rewrite.
  */
-function cohortsOf(accountId: string): string[] {
-  const names = [
-    ...app.channels.rejoinableFor(accountId).map((view) => view.name),
-    ...app.channels.invitesFor(accountId).map((view) => view.name),
+function cohortsOf(accountId: string): number[] {
+  const ids = [
+    ...app.channels.rejoinableFor(accountId).map((view) => view.channelId),
+    ...app.channels.invitesFor(accountId).map((view) => view.channelId),
   ];
-  return names.filter(
-    (name): name is string => !!name && /^Getting Started Cohort /.test(name)
-  );
+  return ids
+    .map((id) => app.channels.cohortNumberOf(id))
+    .filter((n): n is number => n !== null);
 }
 
 /** The live state of this account's cohort, for the tests that act on it. */
@@ -132,7 +151,9 @@ function cohortChannelOf(accountId: string) {
   const id = [
     ...app.channels.rejoinableFor(accountId),
     ...app.channels.invitesFor(accountId),
-  ].find((view) => /^Getting Started Cohort /.test(view.name ?? ''))?.channelId;
+  ]
+    .map((view) => view.channelId)
+    .find((channelId) => app.channels.cohortNumberOf(channelId) !== null);
   return id ? app.channels.get(id)! : null;
 }
 
@@ -166,10 +187,10 @@ describe('a new account with nobody here', () => {
     const host = await signIn(HOST, 'Rochelle');
     const arrival = await signIn('new@example.com');
 
-    expect(cohortOf(arrival.account.id)).toBe('Getting Started Cohort 1');
+    expect(cohortOf(arrival.account.id)).toBe(1);
     // The host is in it, which is the point of it. Without this the channel is
     // four strangers and nobody to answer them.
-    expect(cohortOf(host.account.id)).toBe('Getting Started Cohort 1');
+    expect(cohortOf(host.account.id)).toBe(1);
   });
 
   it('is not made anybody’s contact by it', async () => {
@@ -211,13 +232,13 @@ describe('a new account with nobody here', () => {
     }
 
     for (const arrival of arrivals) {
-      expect(cohortOf(arrival.account.id)).toBe('Getting Started Cohort 1');
+      expect(cohortOf(arrival.account.id)).toBe(1);
     }
 
     // The seat after the last one opens a second, rather than widening the
     // first past what a channel holds.
     const overflow = await signIn('overflow@example.com');
-    expect(cohortOf(overflow.account.id)).toBe('Getting Started Cohort 2');
+    expect(cohortOf(overflow.account.id)).toBe(2);
   });
 
   it('is placed in exactly one, ever', async () => {
@@ -226,7 +247,7 @@ describe('a new account with nobody here', () => {
     // Signing in again is not arriving again.
     await signIn('new@example.com');
 
-    expect(cohortsOf(arrival.account.id)).toEqual(['Getting Started Cohort 1']);
+    expect(cohortsOf(arrival.account.id)).toEqual([1]);
   });
 });
 
@@ -250,7 +271,7 @@ describe('the seats of a cohort', () => {
     // whose introductions happened last week, which is the one experience this
     // feature exists to prevent.
     const next = await signIn('next@example.com');
-    expect(cohortOf(next.account.id)).toBe('Getting Started Cohort 2');
+    expect(cohortOf(next.account.id)).toBe(2);
   });
 });
 
@@ -328,20 +349,20 @@ describe('the seat waits for the permission rather than the signup', () => {
     clock += 3 * 24 * 60 * 60 * 1_000;
     await enableNotifications(arrival);
 
-    expect(cohortOf(arrival.account.id)).toBe('Getting Started Cohort 1');
+    expect(cohortOf(arrival.account.id)).toBe(1);
   });
 
   it('does not place twice when the same phone registers again', async () => {
     await signIn(HOST, 'Rochelle');
     const arrival = await signIn('again@example.com');
-    expect(cohortsOf(arrival.account.id)).toEqual(['Getting Started Cohort 1']);
+    expect(cohortsOf(arrival.account.id)).toEqual([1]);
 
     // Every launch re-registers the address it already holds. The placement
     // hangs off an account's *first* one, so the rest are bookkeeping.
     await enableNotifications(arrival);
     await enableNotifications(arrival);
 
-    expect(cohortsOf(arrival.account.id)).toEqual(['Getting Started Cohort 1']);
+    expect(cohortsOf(arrival.account.id)).toEqual([1]);
     expect(cohortChannelOf(arrival.account.id)!.participants).toHaveLength(2);
   });
 
@@ -352,8 +373,62 @@ describe('the seat waits for the permission rather than the signup', () => {
     // The cohort that arrival would have opened does not exist, so the next
     // person who can be reached gets seat one rather than seat two.
     const reachable = await signIn('loud@example.com');
-    expect(cohortOf(reachable.account.id)).toBe('Getting Started Cohort 1');
+    expect(cohortOf(reachable.account.id)).toBe(1);
     expect(cohortChannelOf(reachable.account.id)!.participants).toHaveLength(2);
+  });
+
+  /**
+   * An address is not a permission, and the gate wants the permission.
+   *
+   * Until 2026-09-18 it wanted only the address, on the reasoning that a phone
+   * with a token is a phone that was asked — which is true of a phone and not
+   * true of an account. The two come apart in both directions, and the
+   * direction that filled the first two cohorts is this one: a build that
+   * predates the header registers an address and claims nothing, and *unknown*
+   * was being read as yes.
+   */
+  it('spends no seat on a build too old to say whether it was granted', async () => {
+    await signIn(HOST, 'Rochelle');
+    const old = await signIn('old-build@example.com', 'Someone', {
+      notifications: false,
+    });
+
+    // The address alone, with no claim about the permission — which is exactly
+    // what every build before 213 sends.
+    const registered = await app.fastify.inject({
+      method: 'POST',
+      url: '/devices',
+      headers: auth(old.token),
+      payload: { token: 'apns-old-build', platform: 'ios' },
+    });
+    expect(registered.statusCode).toBe(200);
+
+    expect(cohortsOf(old.account.id)).toEqual([]);
+    // And the backfill agrees with the live path, which is the whole reason
+    // the gate is one predicate: a restart must not place whom a signup would
+    // not.
+    expect(app.channels.backfillCohorts(app.accounts.cohortCandidates())).toBe(0);
+    expect(cohortsOf(old.account.id)).toEqual([]);
+  });
+
+  it('spends no seat on somebody who has an address and has refused', async () => {
+    await signIn(HOST, 'Rochelle');
+    const refused = await signIn('refused@example.com', 'Someone', {
+      notifications: false,
+    });
+
+    const registered = await app.fastify.inject({
+      method: 'POST',
+      url: '/devices',
+      headers: { ...auth(refused.token), [NOTIFY_HEADER]: 'denied' },
+      payload: { token: 'apns-refused', platform: 'ios' },
+    });
+    expect(registered.statusCode).toBe(200);
+
+    expect(cohortsOf(refused.account.id)).toEqual([]);
+    // And it is the one refusal they can undo: Home still says a cohort is
+    // waiting on them, so the app may ask again.
+    expect(app.channels.wouldPlaceInCohort(refused.account.id)).toBe(true);
   });
 });
 
@@ -499,8 +574,8 @@ describe('the backfill', () => {
     // The variable set and the box restarted. Nothing is lost by having waited
     // for a build that can draw the card.
     await boot([HOST]);
-    expect(cohortsOf(cold.account.id)).toEqual(['Getting Started Cohort 1']);
-    expect(cohortsOf(host.account.id)).toEqual(['Getting Started Cohort 1']);
+    expect(cohortsOf(cold.account.id)).toEqual([1]);
+    expect(cohortsOf(host.account.id)).toEqual([1]);
 
     // And the cohort survives the next restart as a cohort, rather than coming
     // back as an ordinary channel of strangers with nothing explaining itself.
@@ -535,6 +610,273 @@ describe('the backfill', () => {
     // A phone at Apple is not somebody with nobody to talk to. The same
     // reasoning keeps both demo accounts out of the build census.
     expect(app.accounts.cohortCandidates()).not.toContain(reviewer.account.id);
+    // And the live path refuses them too, which is the half the candidate list
+    // cannot cover: a reviewer registering a phone goes through `placeInCohort`
+    // rather than through any backfill.
+    expect(cohortsOf(reviewer.account.id)).toEqual([]);
+  });
+});
+
+/**
+ * Who a cohort may never hold, whatever their situation — `cohortExcluded`.
+ *
+ * Distinct from the four refusals above it, and the distinction is the point:
+ * those are about what somebody *has* and every one of them can stop being
+ * true, where these are about who somebody is and cannot. Both of these were
+ * found in a live cohort on 2026-09-18, the backfill having placed them.
+ */
+describe('who is refused on identity rather than on situation', () => {
+  it('leaves out an erased account, on both paths', async () => {
+    await signIn(HOST, 'Rochelle');
+    const leaving = await signIn('leaving@example.com');
+    expect(cohortsOf(leaving.account.id)).toEqual([1]);
+
+    const deleted = await app.fastify.inject({
+      method: 'DELETE',
+      url: '/me',
+      headers: auth(leaving.token),
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    // Deleting takes them out of the channel, which `removeMember` has always
+    // done. What is new is that nothing puts them back: a tombstone is not a
+    // candidate, and a seat spent on one could never be answered.
+    expect(app.accounts.cohortCandidates()).not.toContain(leaving.account.id);
+    expect(app.channels.backfillCohorts(app.accounts.cohortCandidates())).toBe(0);
+    expect(cohortsOf(leaving.account.id)).toEqual([]);
+  });
+
+  it('leaves out every address on our own domain', async () => {
+    await signIn(HOST, 'Rochelle');
+    const rig = await signIn(`rtest2@${OUR_DOMAIN}`, 'A test rig');
+
+    // The live path, which is where this one actually bit: `rtest2@` was not a
+    // demo account, so identity-by-identity exclusion missed it and it sat in
+    // a cohort with four strangers.
+    expect(cohortsOf(rig.account.id)).toEqual([]);
+    expect(app.accounts.cohortCandidates()).not.toContain(rig.account.id);
+    expect(app.channels.hasCohorts()).toBe(false);
+  });
+
+  it('tells neither of them that a cohort is waiting on the permission', async () => {
+    await signIn(HOST, 'Rochelle');
+    const rig = await signIn(`rtest1@${OUR_DOMAIN}`, 'A test rig', {
+      notifications: false,
+    });
+
+    // The Home flag is `placeInCohort`'s gate with the reachability half taken
+    // off, so a refusal that has nothing to do with reachability has to be
+    // inside it — otherwise the app asks for a permission that would unlock
+    // nothing.
+    expect(app.channels.wouldPlaceInCohort(rig.account.id)).toBe(false);
+  });
+});
+
+/**
+ * The repair, which is about the two cohorts that already exist.
+ *
+ * Tightening a gate stops the next placement and does nothing at all about the
+ * ones already made: a placement is a channel, and channels are not re-derived
+ * from the gate on boot. On 2026-09-18 the live cohort 1 was closed at five
+ * seats, two of them holding erased accounts.
+ *
+ * On a file database throughout, because every claim here is about what a
+ * restart finds.
+ */
+describe('the repair of cohorts a looser gate assembled', () => {
+  let dbPath: string;
+
+  const boot = async () => {
+    app = buildApp({
+      dbPath,
+      mailer: new MemoryMailer(),
+      now: () => clock,
+      pusher,
+      cohortHosts: [HOST],
+    });
+    await app.fastify.listen({ port: 0, host: '127.0.0.1' });
+  };
+
+  const reboot = async () => {
+    app.channels.stop();
+    await app.fastify.close();
+    await boot();
+  };
+
+  beforeEach(async () => {
+    app.channels.stop();
+    await app.fastify.close();
+    dbPath = join(mkdtempSync(join(tmpdir(), 'thefloor-repair-')), 'test.db');
+    await boot();
+  });
+
+  it('takes an erased account out and gives its seat back', async () => {
+    await signIn(HOST, 'Rochelle');
+    const leaving = await signIn('leaving@example.com');
+    const staying = await signIn('staying@example.com');
+    const channelId = cohortChannelOf(staying.account.id)!.id;
+    expect(app.channels.get(channelId)!.participants).toHaveLength(3);
+
+    // Erased behind the registry's back, which is the state the live rows were
+    // actually in: both were tombstones weeks before a cohort existed, so
+    // nothing ever removed them from a channel — the backfill put them in one.
+    app.accounts.erase(leaving.account.id);
+
+    await reboot();
+
+    const repaired = app.channels.get(channelId)!;
+    expect(repaired.participants).not.toContain(leaving.account.id);
+    expect(repaired.participants).toContain(staying.account.id);
+    // The seat back, so the next arrival takes it rather than opening a cohort
+    // of their own. This is the one place a spent seat is ever returned.
+    const next = await signIn('next@example.com');
+    expect(cohortOf(next.account.id)).toBe(1);
+  });
+
+  it('takes our own addresses out of a cohort they were placed in', async () => {
+    const host = await signIn(HOST, 'Rochelle');
+    const stranger = await signIn('stranger@example.com');
+    const channelId = cohortChannelOf(stranger.account.id)!.id;
+
+    // Placed before the domain rule existed, which is how `rtest2@` came to be
+    // sitting in a room with four strangers. Put there through the ordinary
+    // invitation rather than by a write, so the channel is in exactly the
+    // state the old placement produced — which needs them to be contacts
+    // first, that being what `dispatch` refuses on.
+    const rig = await signIn(`rtest2@${OUR_DOMAIN}`, 'A test rig');
+    await connect(rig, host);
+    app.channels.dispatch(channelId, host.account.id, {
+      type: 'INVITE',
+      contactId: rig.account.id,
+    } as never);
+    expect(app.channels.get(channelId)!.participants).toContain(rig.account.id);
+
+    await reboot();
+
+    expect(app.channels.get(channelId)!.participants).not.toContain(
+      rig.account.id
+    );
+  });
+
+  it('leaves alone somebody who simply has not granted notifications', async () => {
+    await signIn(HOST, 'Rochelle');
+    const placed = await signIn('placed@example.com');
+    const channelId = cohortChannelOf(placed.account.id)!.id;
+
+    // The permission withdrawn afterwards, which is a real person in a room
+    // they can already see. The gate decides who a seat is *spent* on; reading
+    // it as grounds for eviction is a different act and not one this does.
+    app.accounts.markNotifications(placed.account.id, 'denied', clock);
+
+    await reboot();
+
+    expect(app.channels.get(channelId)!.participants).toContain(
+      placed.account.id
+    );
+  });
+
+  it('renames what this code named, and not what a person named', async () => {
+    const host = await signIn(HOST, 'Rochelle');
+    const member = await signIn('member@example.com');
+    const channelId = cohortChannelOf(member.account.id)!.id;
+
+    // Through the reducer rather than by a write to the row: the name lives in
+    // `channels.state`, the durable projection a restore actually reads, and a
+    // test that updated the `name` column alone would assert against a value
+    // nothing loads.
+    const rename = async (name: string) => {
+      app.channels.dispatch(channelId, host.account.id, {
+        type: 'SET_NAME',
+        name,
+      } as never);
+      expect(app.channels.get(channelId)!.name).toBe(name);
+      await reboot();
+    };
+
+    // Exactly the string the first implementation generated.
+    await rename('Getting Started Cohort 1');
+    expect(app.channels.get(channelId)!.name).toBe(COHORT_CHANNEL_NAME);
+
+    // And a name somebody chose survives, being a thing a person did rather
+    // than a thing this code did.
+    await rename('Thursday lot');
+    expect(app.channels.get(channelId)!.name).toBe('Thursday lot');
+  });
+
+  it('repairs nothing on a second boot', async () => {
+    await signIn(HOST, 'Rochelle');
+    const leaving = await signIn('leaving@example.com');
+    await signIn('staying@example.com');
+    app.accounts.erase(leaving.account.id);
+
+    await reboot();
+    expect(app.channels.repairCohorts()).toEqual({ renamed: 0, removed: 0 });
+  });
+});
+
+/**
+ * What a cohort is called, and who is told which one it is.
+ *
+ * Adopted 2026-09-18. The name carried the number, and with `COHORT_SIZE` at
+ * five that told every member roughly how many people had ever arrived here
+ * alone — on the Home screen of exactly the people being asked to believe the
+ * place is worth staying in.
+ */
+describe('the name, and the number the host alone is sent', () => {
+  const rejoinable = (user: User) =>
+    app.fastify
+      .inject({ method: 'GET', url: '/home', headers: auth(user.token) })
+      .then((reply) => (reply.json() as HomeView).rejoinable);
+
+  it('calls every cohort the same thing', async () => {
+    await signIn(HOST, 'Rochelle');
+    const first = await signIn('first@example.com');
+    for (let n = 0; n < COHORT_SIZE; n += 1) {
+      await signIn(`filler${n}@example.com`);
+    }
+
+    // Two cohorts, one name. The number is still what the server keys them on.
+    expect(cohortsOf((await signIn('later@example.com')).account.id)).toEqual([2]);
+    expect(cohortChannelOf(first.account.id)!.name).toBe(COHORT_CHANNEL_NAME);
+  });
+
+  it('sends the host the number of each, since they are in all of them', async () => {
+    const host = await signIn(HOST, 'Rochelle');
+    await signIn('first@example.com');
+    for (let n = 0; n < COHORT_SIZE; n += 1) {
+      await signIn(`filler${n}@example.com`);
+    }
+    await signIn('later@example.com');
+
+    const numbers = (await rejoinable(host))
+      .map((view) => view.cohort)
+      .filter((n): n is number => n != null)
+      .sort();
+    expect(numbers).toEqual([1, 2]);
+  });
+
+  it('sends a member no number at all, which is the point of moving it', async () => {
+    await signIn(HOST, 'Rochelle');
+    const member = await signIn('member@example.com');
+
+    const views = await rejoinable(member);
+    expect(views.map((view) => view.name)).toContain(COHORT_CHANNEL_NAME);
+    // Not null-but-present: the key is absent from a member's snapshot, so the
+    // number is not one `console.log` away from somebody who was never to be
+    // shown it.
+    expect(views.every((view) => view.cohort == null)).toBe(true);
+  });
+
+  it('gives an ordinary channel no number, even to the host', async () => {
+    const host = await signIn(HOST, 'Rochelle');
+    const friend = await signIn('friend@example.com');
+    await connect(host, friend);
+
+    const ordinary = (await rejoinable(host)).filter(
+      (view) => view.name !== COHORT_CHANNEL_NAME
+    );
+    expect(ordinary.length).toBeGreaterThan(0);
+    expect(ordinary.every((view) => view.cohort == null)).toBe(true);
   });
 });
 

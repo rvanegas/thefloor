@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   ATTENTION_ECHO_MS,
   ATTENTION_WINDOW_MS,
+  COHORT_CHANNEL_NAME,
   COHORT_REACH_FLOOR,
   COHORT_SIZE,
   DELETED_RETENTION_MS,
@@ -1338,6 +1339,13 @@ export class ChannelRegistry {
     const hosts = this.cohortHosts();
     if (hosts.length === 0) return false;
     if (hosts.includes(userId)) return false;
+    // Who they are, before anything about their situation. An erased account
+    // and an address of ours are refused on both paths rather than only in the
+    // backfill's candidate list — see `Accounts.cohortExcluded`, which is where
+    // the reasoning is. It sits inside `wouldPlace` rather than beside it so
+    // that Home never tells one of these accounts a cohort is waiting on the
+    // notification permission, which would be an untrue thing to say.
+    if (this.accounts.cohortExcludedId(userId)) return false;
     if (this.cohortOf(userId)) return false;
     return (
       this.accounts.reachableFrom(userId, COHORT_REACH_FLOOR) < COHORT_REACH_FLOOR
@@ -1437,6 +1445,11 @@ export class ChannelRegistry {
    * marker a standing contact channel carries — so until somebody walks in,
    * this is a place on Home rather than a summons. See `invitesFor`, which
    * skips a channel nobody has entered, and `rejoinableFor`, which takes it.
+   *
+   * **The name carries no number**, since 2026-09-18 — see
+   * `COHORT_CHANNEL_NAME`. `n` is still what the channel is *numbered*, is
+   * still written to `channels.cohort`, and is still how the host tells three
+   * of these apart; it is simply no longer in the string every member reads.
    */
   private openNewCohort(
     host: string,
@@ -1444,7 +1457,7 @@ export class ChannelRegistry {
     n: number
   ): { channelId: string } {
     const createdAt = this.now();
-    const name = `Getting Started Cohort ${n}`;
+    const name = COHORT_CHANNEL_NAME;
     const id = insertWithUniqueKey(
       () => newId('chan'),
       (candidate) =>
@@ -1542,6 +1555,89 @@ export class ChannelRegistry {
       if (this.placeInCohort(id)) placed += 1;
     }
     return placed;
+  }
+
+  /**
+   * Puts right the cohorts a looser gate already assembled.
+   *
+   * **Written 2026-09-18, for two live rooms.** The first backfill ran with
+   * nothing between it and the accounts table but a demo-account filter, and
+   * the two cohorts it produced held an erased account apiece, a second
+   * tombstone, and `rtest2@rvanegas.co` — five seats of cohort 1 spent, two of
+   * them on rows that can never answer. Tightening `cohortExcluded` stops the
+   * next one; it does nothing whatsoever about these, because a placement is a
+   * channel and channels are not re-derived from the gate on boot.
+   *
+   * Two things, and the line between them is *who could ever come back*:
+   *
+   * - **The name.** Every cohort is `COHORT_CHANNEL_NAME` now. Only the names
+   *   this class generated are rewritten — a cohort somebody retitled from
+   *   Channel Settings keeps what they called it, that being a thing a person
+   *   did rather than a thing this code did.
+   * - **The members refused on identity**, and only those. A tombstone and an
+   *   address of ours are not people who might yet turn a permission on: they
+   *   are rows that will never speak, holding seats in a room built to be
+   *   answered in. They leave, and **the seat goes back**, which is the one
+   *   place in this feature that a spent seat is ever returned — see
+   *   `cohort_seats`, where the rule is that leaving does not reopen one. The
+   *   rule is about somebody who was rightly given a seat and walked out; this
+   *   is about a seat that should never have been spent, and putting it back
+   *   is how cohort 1 stops being full of nobody.
+   *
+   * **It does not evict anybody who merely has not granted notifications.**
+   * That gate decides who a seat is *spent* on, and reading it as grounds for
+   * removal would take a real person out of a room that is already on their
+   * Home — for a permission they can still turn on, in a room they can already
+   * see. The two questions are not the same one and this answers only the
+   * first.
+   *
+   * Idempotent, like the passes beside it: the honest check is that a second
+   * boot repairs nothing.
+   */
+  repairCohorts(): { renamed: number; removed: number } {
+    let renamed = 0;
+    let removed = 0;
+    for (const channel of [...this.channels.values()]) {
+      const n = this.cohortNumbers.get(channel.id);
+      if (n === undefined) continue;
+      if (channel.status !== 'active') continue;
+
+      // On behalf of whoever is first in the roster, which for a cohort is the
+      // host that opened it — `SET_NAME` is refused to a non-participant, and
+      // the alternative was a write behind the reducer's back.
+      const actor = channel.participants[0];
+      if (actor && channel.name === `Getting Started Cohort ${n}`) {
+        const before = this.get(channel.id)!;
+        const after = reduce(
+          before,
+          { type: 'SET_NAME', userId: actor, name: COHORT_CHANNEL_NAME },
+          this.now()
+        );
+        if (after !== before) {
+          this.commit(before, after);
+          this.emit([channel.id]);
+          renamed += 1;
+        }
+      }
+
+      for (const userId of [...this.get(channel.id)!.participants]) {
+        if (!this.accounts.cohortExcludedId(userId)) continue;
+        const before = this.get(channel.id)!;
+        // The ordinary way out, so that anything hanging off presence is
+        // unwound the way a departure unwinds it. A cohort nobody has entered
+        // cannot be mid-recording, but this is not the place to rely on that.
+        this.apply(channel.id, userId, {
+          type:
+            before.participants.length === 1 ? 'DELETE_CHANNEL' : 'LEAVE_CHANNEL',
+        } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+        removed += 1;
+        this.spendCohort(
+          channel.id,
+          Math.max(0, (this.cohortSeats.get(channel.id) ?? 0) - 1)
+        );
+      }
+    }
+    return { renamed, removed };
   }
 
   /**
@@ -2562,6 +2658,10 @@ export class ChannelRegistry {
    */
   rejoinableFor(userId: string): RejoinableView[] {
     const rejoinable: RejoinableView[] = [];
+    // Asked once rather than per channel, and it is the whole of the gate on
+    // the number below: a host sees which cohort each row is, everybody else
+    // gets no key at all. See `RejoinableView.cohort`.
+    const isHost = this.cohortHosts().includes(userId);
     for (const channel of this.channels.values()) {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
@@ -2619,6 +2719,10 @@ export class ChannelRegistry {
         nearby: isWaiting(channel, userId),
         // Everybody else within reach of it — see `RejoinableView.nearbyCount`.
         nearbyCount: othersWaiting(channel, userId),
+        // Null for every ordinary channel and for every reader who is not a
+        // host. The cohorts are all called the same thing now, so this is what
+        // stops a host's list being three indistinguishable rows.
+        cohort: isHost ? this.cohortNumbers.get(channel.id) ?? null : null,
       });
     }
     // Every channel this account is sitting in as a guest, which is a place

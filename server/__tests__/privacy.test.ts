@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  COHORT_CHANNEL_NAME,
   TRANSCRIPT_DELETED_RETENTION_MS,
   USAGE_RETENTION_MS,
 } from '../../core/constants';
+import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
 import { PRIVACY_UPDATED } from '../src/privacy';
 import { MemoryTranscription } from '../src/transcription';
@@ -210,7 +212,7 @@ describe('The privacy policy', () => {
 
     it('says nothing when the server makes none', async () => {
       app = buildApp({ dbPath: ':memory:' });
-      expect(await collapsed()).not.toContain('Getting Started Cohort');
+      expect(await collapsed()).not.toContain(COHORT_CHANNEL_NAME);
     });
 
     it('describes them, and the limits, when it does', async () => {
@@ -220,7 +222,7 @@ describe('The privacy policy', () => {
       });
       const page = await collapsed();
 
-      expect(page).toContain('Getting Started Cohort');
+      expect(page).toContain(COHORT_CHANNEL_NAME);
       // The three claims somebody would otherwise reasonably assume the other
       // way, and which the server has to keep true: it is not a contact, the
       // address is not shown, and nobody can find you this way. `cohorts.test.ts`
@@ -259,7 +261,12 @@ describe('The privacy policy', () => {
         await app.fastify.inject({
           method: 'POST',
           url: '/devices',
-          headers: { authorization: `Bearer ${token}` },
+          headers: {
+            authorization: `Bearer ${token}`,
+            // The grant as well as the address: both halves are the gate. See
+            // cohorts.test.ts.
+            [NOTIFY_HEADER]: 'granted',
+          },
           payload: { token: `apns-${identifier}`, platform: 'ios' },
         });
       };
@@ -276,7 +283,7 @@ describe('The privacy policy', () => {
       // describes it.
       app = buildApp({ dbPath, cohortHosts: [] });
       expect(app.channels.hasCohorts()).toBe(true);
-      expect(await collapsed()).toContain('Getting Started Cohort');
+      expect(await collapsed()).toContain(COHORT_CHANNEL_NAME);
     });
   });
 
