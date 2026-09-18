@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar and the app's own row are **one transport with two surfaces** — both live, both producing the same three actions — and the floor is not asked at all, a film refusing the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers), *wondering* (a jump, looked at once more) or *settling* (the player between states, and not by this follower's doing) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
+- **Intent (a watch party's)** — *Retired 2026-09-18.* The video's own bar was a second way to press the transport, read off the player because the IFrame API never says what caused a state change. Telling a thumb from the echo of the app's own command took four phases and seven constants and failed five times; `controls: 0` removed the surface instead. The transport is the app's own row, and a button press *is* an action
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -1642,30 +1642,17 @@ confers nothing.
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
 player, unmodified and unobscured, and The Floor still carries no video.
 
-**The video's own controls are the party's controls too**, which is one
-transport with two surfaces rather than two transports. The bar is inside the
-embed and comes off only with the picture, so it is on every screen showing a
-film whatever the app does: play, pause and dragging it move the whole
-channel, exactly as the app's own row does.
+**The video's own controls are off**, and have been since 2026-09-18:
+`controls: 0`, with `disablekb` beside it. The picture is not a control. The
+transport is the app's own row — Play, ±15s, and a progress bar that seeks
+where it is tapped — and the frame answers no finger at all, a refused video
+excepted, where the only thing left in it is YouTube's own explanation and the
+way out it offers.
 
-What was wrong before 2026-09-18 was never that there were two sets — it was
-that **one of them did not work**. The app's row was governed by the *floor*
-while the bar sat above it ungoverned and visible, so which of them answered a
-finger depended on a claim somebody might make mid-scene. The row came out
-that morning on the reasoning that an inert control is worse than none, and
-went back the same day once both were live: the bar is on the picture, so a
-device that is not showing the film has no bar to reach for — and that is most
-of a party most of the time, a *screen* being one device per person.
-
-**Anybody in the room may drive**, no claim being possible during a film. For
-a screen that may not drive at all the frame simply does not answer, which is
-the greyed button said by the video rather than a press that reverses itself a
-moment later. The cost of putting the controls on the picture is that only a
-*screen* can drive: somebody in the party who is not showing the film has no
-transport. See *intent* for how a press is told from a player obeying, which
-took four attempts. What went with the move into the app is the *follower
-page*, a browser that followed a channel on a six-hour link credential without
-being signed in; there is no such page and no such token now.
+The bar was the party's controls for two days and never once worked for a
+whole one; *intent* carries the account. Anybody in the room may drive, no
+claim being possible while a film is on. The cost of the bar going is dragging
+to a point in a film, which the progress bar took over.
 
 ## Screen
 
@@ -2043,74 +2030,31 @@ timer.
 
 ## Intent (a watch party's)
 
-**What this screen's own player says its owner just did.** The video's own bar
-is inside the embed and cannot be taken off it without taking the picture too,
-so it is visible on every screen showing a film whatever the app does. Play,
-pause and a scrub on it go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
-`WATCH_SEEK` — the same three the app's own row produces — and come back to
-every screen as an ordinary snapshot. Two surfaces, one transport.
+**Retired on 2026-09-18, and worth keeping as an account of why.**
 
-The app's row came out on the morning of 2026-09-18 and went back the same
-day. What was wrong was not that there were two sets of controls but that one
-of them did not work: the row was governed by the *floor* and the bar was not.
-Once both were live the row earned its place again, because a device that is
-not the *screen* has no bar to reach for.
+The video's own bar was a second way to press the transport: play, pause and a
+scrub on YouTube's own controls became `WATCH_PLAY`, `WATCH_PAUSE` and
+`WATCH_SEEK`. It never worked for more than a day at a time.
 
-**The API will not say who caused a state change**, and that is the fact the
-design turns on. `onStateChange` carries the new player state and nothing
-about its cause, so a follower cannot ask whether a press was a person or its
-own instruction landing. Three attempts on three consecutive days tried to
-separate the two by *how long ago* the instruction went out — a seek settle, a
-command settle, a dwell, a quiet period, a pending window, seven constants
-between them — and each one traded a misread against an erased press. See
-planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+**The bar is an input surface on the same player the channel drives as an
+output surface**, and the API will not say which of the two caused a state
+change — `onStateChange` carries the new state and nothing else. So a follower
+watching its own player was listening for a person through a speaker it was
+talking into. Everything built to separate the two separated them by *time* —
+a dwell, a quiet period, a settle window, a pending press, four phases and
+seven constants — and each was a window in which the follower stopped
+listening in case what it heard was itself. Every window is a press that can
+be swallowed; every window closed is a misread that can loop. The trade moved
+five times and never settled, the last move swallowing every scrub in order to
+stop a play press being stopped again.
 
-**So the ambiguity is removed at its source rather than guessed around.** A
-disagreement is only ambiguous when *I told it to* is a live possibility, so a
-follower never commands and reads in the same breath. It is only ever doing
-one of four things, and every transition is an observation rather than an
-elapsed window:
+`controls: 0` removed the surface rather than the ambiguity. The transport is
+the app's own row, which was never the problem, for the reason that makes it
+not one: **a button press is an action.** Nothing infers anything, so nothing
+is swallowed, and actions are applied in the order they arrive and fanned out
+to every player — which is all the channel ever did.
 
-- **watching** — the player is where the channel wants it. Nothing is ever
-  said to a player in this state, so anything it does has no explanation on
-  this device and is therefore its owner's doing. The only state a press is
-  read in.
-- **settling** — the player is between states and this follower did not put
-  it there. Pressing Play goes `paused` → `buffering` → `playing`, and a tick
-  is half a second, so the middle one is the reading most often caught;
-  correcting it stops the film somebody just started.
-- **sending** — the player has been told something and has not arrived yet
-  (`hasArrived`). Nothing is read, so a correction cannot come back as an act.
-- **told** — the channel has been told something and has not answered yet
-  (`channelAnswered`). Nothing is said to the player, so a correction cannot
-  undo the press on its way out.
-- **wondering** — a position that moved further than time did, looked at once
-  more. A wrong play costs one transition; a wrong *position* moves the whole
-  room somewhere nobody asked for, so a jump is worth a tick of latency and a
-  press is not.
-
-**An advert is a different video in the same frame**, and it is measured
-rather than waited out. During a pre-roll both the position and the length
-describe the advert, so a player reporting a length that is not the film's is
-not showing the film: nothing is said to it and nothing read from it until it
-is (`showingTheFilm`, `WATCH_LENGTH_SLACK_MS`). Every earlier attempt listed
-"an advert starting" among the lies it was guessing around.
-
-Two fuses remain, and they are fuses rather than rules — for the observation
-that never comes. `WATCH_OBEDIENCE_MS` bounds waiting on a player, because
-waiting there is *deafness* and a person pressing something meanwhile goes
-unheard; `WATCH_PATIENCE_MS` bounds waiting on the channel, for a press the
-server refused.
-
-**Anybody in the room may drive, and the floor is not asked.** It used to be
-`holdsSharedControl`, which meant a claim made a visible, pressable bar do
-nothing on somebody else's screen. A film now refuses the floor outright,
-along with recordings and the audio player — see *watch party*, which is a
-mode the channel is in rather than a thing it is carrying. For a screen that
-may not drive at all the frame is made *inert* (`pointer-events` off, nothing
-drawn over it and nothing about the embed changed). `controls: 0` would have
-been the other way and was rejected: it is fixed when the embed is built, so
-anything moving mid-party would reload everybody's film.
+See planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
 
 ## Introduction
 

@@ -206,19 +206,32 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('leaves the film’s own bar live on the device that is showing it', () => {
-    // The other half of the same question, asked where the answer is passed
-    // rather than rendered: `mayControl` is what decides whether the frame
-    // answers a finger at all. See `WatchPlayer`.
-    mockApp.screenFor = 'sess_1';
-    showChannel(watching());
-    const tree = open();
-    expect(chosen(tree, 'This device')).toBe(true);
-    const player = tree.root.findAll(
-      (n) => typeof n.type !== 'string' && n.props?.mayControl !== undefined
+  it('seeks to where the progress bar is tapped', () => {
+    /*
+      **Where dragging YouTube's bar went.** The picture's own controls are
+      off since 2026-09-18, so ±15s would otherwise be the only way to cross
+      a two-hour film. The tap lands where it is put, in the one place that
+      was already drawing where everybody is.
+    */
+    showChannel(
+      watching((s) =>
+        reduce(s, { type: 'WATCH_READY', userId: ME, durationMs: 600_000 }, NOW)
+      )
     );
-    expect(player.length).toBeGreaterThan(0);
-    expect(player[0].props.mayControl).toBe(true);
+    const tree = open();
+    const track = tree.root
+      .findAll((n) => n.props?.accessibilityLabel === 'Seek')
+      .at(0);
+    expect(track).toBeDefined();
+
+    act(() => track!.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
+    act(() => track!.props.onPress({ nativeEvent: { locationX: 50 } }));
+
+    // A quarter of the way along a ten-minute film.
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'WATCH_SEEK',
+      positionMs: 150_000,
+    });
     act(() => tree.unmount());
   });
 

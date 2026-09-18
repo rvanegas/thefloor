@@ -490,145 +490,25 @@ export function followInstructions(
 }
 
 /**
- * What the previous tick saw — of the player, and of the channel beside it.
+ * The bar is gone, and with it everything that read one.
  *
- * **A reading on its own cannot tell a press from a consequence.** A player
- * that is paused while the channel says playing is either somebody who has
- * just pressed pause on the video's own bar, or somebody's follower a
- * heartbeat behind a pause that has already happened elsewhere; the two are
- * the same reading and the opposite act. What separates them is which of the
- * two moved, so the previous tick's *pair* is kept and not just the player's
- * half of it.
+ * **Four failures in four days lived in the code that used to stand here**,
+ * and they were one failure. The video's own controls are an input surface on
+ * the same player the channel drives as an output surface, and the API says
+ * nothing about what caused a state change — so a follower watching its
+ * player could not tell somebody's thumb from the echo of its own command.
+ * Everything built to separate them separated them by *time*: a dwell, a
+ * quiet period, a settle window, a pending press, four phases and seven
+ * constants, each one trading a misread against a swallowed press. The last
+ * of them, added to stop a play press being stopped again, swallowed every
+ * scrub instead — because both gestures announce themselves as a transition
+ * and it waited for transitions to finish.
+ *
+ * `controls: 0` removes the surface rather than the ambiguity. There is no
+ * bar to press, so nothing this side of the channel ever has to guess what a
+ * person did: every action comes from a button, which is unambiguous because
+ * a press *is* an action, and the player is only ever told things. One
+ * direction, and a follower with nothing to decide.
+ *
+ * See planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
  */
-export interface PlayerHistory {
-  state: PlayerState;
-  positionMs: number | null;
-  /** When that reading was taken. */
-  at: number;
-  /** What the channel was saying at the same moment. */
-  status: WatchState['status'];
-  /** Where the channel was at the same moment, per `watchPositionMs`. */
-  channelPositionMs: number;
-}
-
-/**
- * A transport act performed on the video's own controls.
- *
- * Since 2026-09-18 these are the *only* controls: the bar is inside the embed
- * and visible whatever the app does, and a second row of buttons beside a bar
- * that did nothing was the confusing half. So this is not a second way to
- * press the transport any more — it is the transport.
- */
-export type WatchIntent =
-  | { do: 'play' }
-  | { do: 'pause' }
-  | { do: 'seek'; positionMs: number };
-
-/**
- * What this player's owner just did to it.
- *
- * **Asked only of a settled player, and that is the whole repair.** Three
- * attempts read a player that this same follower might have commanded a
- * moment ago, and tried to tell a thumb from an unobeyed instruction by how
- * long ago the instruction went out — a dwell, a settle window, a quiet
- * period, seven constants between them. They are the same reading, and no
- * amount of timing separates them, because the API does not say what caused a
- * state change: `onStateChange` carries the new state and nothing else.
- *
- * So the ambiguity is removed at the source instead. A follower that has
- * said anything to its player does not ask this question until the player has
- * *arrived* where it was sent (`hasArrived`); while it is settled it says
- * nothing to the player at all. A change seen here therefore has no
- * explanation on this device, and the only remaining question is whether it
- * has one on the channel — which is exact, because the previous tick kept
- * both halves.
- *
- * Whether this device may drive is `canControlWatch`, asked by the caller:
- * core has no channel here, only the watch state.
- */
-export function actFrom(
-  watch: WatchState,
-  player: PlayerReading,
-  previous: PlayerHistory | null,
-  now: number
-): WatchIntent | null {
-  if (!watch.party) return null;
-  // The first tick of a party has nothing to be compared against, and the
-  // opening reading of a fresh player — unstarted, at zero, against a
-  // transport already mid-film — is the one most likely to look like an act.
-  if (!previous) return null;
-  // An advert is a different video reporting its own clock. Say nothing about
-  // a player that is not showing the film.
-  if (!showingTheFilm(watch, player)) return null;
-
-  /*
-    **The channel moved, and this player is following rather than leading.**
-
-    Somebody pauses; every other screen's follower pauses its own player a
-    tick later; each of those is a player at odds with a channel it does not
-    yet match, which is a press exactly. Asking which of the two moved first
-    is what stops a pause going round the room for ever.
-  */
-  if (previous.status !== watch.status) return null;
-  const at = watchPositionMs(watch, now);
-  const expectedChannel =
-    previous.channelPositionMs +
-    (watch.status === 'playing' ? now - previous.at : 0);
-  if (Math.abs(at - expectedChannel) > WATCH_DRIFT_MS) return null;
-
-  // The two states a person can produce, against a channel that disagrees.
-  // `buffering`, `unstarted` and `ended` are the player between things, and
-  // `ended` above all must never become a pause: the transport is entitled to
-  // run past a duration it was never told.
-  if (player.state === 'playing' && watch.status !== 'playing') {
-    return { do: 'play' };
-  }
-  if (player.state === 'paused' && watch.status === 'playing') {
-    return { do: 'pause' };
-  }
-
-  /*
-    **A scrub is a position that moved further than time did.**
-
-    Drift cannot produce one: between two ticks half a second apart a playing
-    player advances about half a second, and the gap between where it should
-    have reached and where it says it is is the jump somebody's thumb made.
-    Measured against the *previous reading* rather than against the channel,
-    so that ordinary accumulated drift does not read as an act.
-
-    **A stall cannot produce one either, as long as the readings either side
-    are a tick apart.** A player that stops advancing falls behind by exactly
-    the time between the two readings, so a follower that refuses to compare
-    readings further apart than a tick can never mistake a stall for a jump:
-    the error is bounded below `WATCH_DRIFT_MS` by the tick itself. Enforcing
-    that bound is the caller's, which owns the clock — see `useFollow`.
-  */
-  if (player.positionMs === null || previous.positionMs === null) return null;
-  const expectedPlayer =
-    previous.positionMs + (previous.state === 'playing' ? now - previous.at : 0);
-  if (Math.abs(player.positionMs - expectedPlayer) > WATCH_DRIFT_MS) {
-    return { do: 'seek', positionMs: player.positionMs };
-  }
-  return null;
-}
-
-/**
- * Whether the channel has come back saying what a press asked for.
- *
- * The other observation the follower waits on, and the reason it is here
- * rather than beside the clock that used to bound it: a press goes to the
- * server and returns as a snapshot, and until it does the channel still says
- * the thing the person just changed. A follower that corrected in the
- * meantime would undo the press on its way out.
- */
-export function channelAnswered(
-  intent: WatchIntent,
-  watch: WatchState,
-  now: number
-): boolean {
-  if (intent.do === 'play') return watch.status === 'playing';
-  if (intent.do === 'pause') return watch.status === 'paused';
-  // A seek lands where the transport was asked to go and then keeps moving,
-  // so the question is whether the channel is near it rather than at it.
-  return Math.abs(watchPositionMs(watch, now) - intent.positionMs) <= 2_000;
-}

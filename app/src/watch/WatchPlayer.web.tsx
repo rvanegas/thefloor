@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WatchState } from '../../../core/types';
-import type { PlayerState, WatchIntent } from '../../../core/watch';
+import type { PlayerState } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
 
@@ -67,26 +67,15 @@ function iframeApi(): Promise<void> {
 export function WatchPlayer({
   watch,
   channelId,
-  mayControl,
   onDuration,
-  onIntent,
 }: {
   watch: WatchState;
   channelId: string;
-  /**
-   * Whether this device may move the party's transport — `canControlWatch`,
-   * asked where the channel is known. It decides two things at once and they
-   * are the same thing: whether the player's own controls answer a click, and
-   * whether what they do reaches the channel.
-   */
-  mayControl: boolean;
   /**
    * How long the video is, the first time this player knows. The channel
    * learns it from whoever loads first; see `learnDuration`.
    */
   onDuration: (durationMs: number) => void;
-  /** A click on the player's own controls, on its way to the transport. */
-  onIntent: (intent: WatchIntent) => void;
 }): React.ReactElement {
   const mount = useRef<HTMLDivElement | null>(null);
   const player = useRef<YouTubePlayer | null>(null);
@@ -116,6 +105,10 @@ export function WatchPlayer({
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
+          // **The picture is not a control** — see the native page, which
+          // carries the whole of why. The transport is the app's own row.
+          controls: 0,
+          disablekb: 1,
         },
         events: {
           onReady: () => {
@@ -177,7 +170,7 @@ export function WatchPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  useFollow(watch, port, true, { mayControl, onIntent });
+  useFollow(watch, port, true);
 
   return (
     <div
@@ -204,7 +197,10 @@ export function WatchPlayer({
         style={{
           width: '100%',
           height: '100%',
-          pointerEvents: mayControl ? 'auto' : 'none',
+          // Inert for everybody, the bar having gone: there is nothing on
+          // the picture to press, so a frame that answers a finger can only
+          // do something nobody asked for. See the native page.
+          pointerEvents: 'none',
         }}
       >
         {/*

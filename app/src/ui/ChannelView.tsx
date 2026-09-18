@@ -685,6 +685,18 @@ export function ChannelView({
    * missed. Stepping out again does not undo it: an existing screen is left
    * where it is, this being a default and not an invariant.
    */
+  /**
+   * How wide the scrubber is, so a tap on it can be turned into a position.
+   *
+   * A ref rather than state: it is read inside the press that follows the
+   * layout, never rendered, and putting it in state would re-render the
+   * channel every time the track was measured. **Declared up here with the
+   * other hooks**, every one of which has to stay above this screen's early
+   * returns — one below them crashed the app on entering any channel for a
+   * build.
+   */
+  const trackWidth = useRef(0);
+
   const defaulted = useRef<string | null>(null);
   // Read off `channel` rather than the `party` local below, every hook having
   // to stay above this screen's early returns.
@@ -2928,30 +2940,23 @@ export function ChannelView({
                   lived on a laptop. What changed is the window.
                 */}
                 {screeningHere ? (
+                  /*
+                    **The picture, and nothing to press on it.** YouTube's own
+                    bar is off since 2026-09-18 (`controls: 0`): it was an
+                    input surface on the player the channel drives as an
+                    output surface, and the API never says which of the two
+                    caused a state change, so four days of arrangements to
+                    tell a thumb from the echo of our own command each traded
+                    a misread against a swallowed press. The transport is the
+                    row below, which is unambiguous because a button press
+                    *is* an action.
+                  */
                   <WatchPlayer
                     watch={watch}
                     channelId={channelId}
-                    // **The player's own controls are these buttons, reached
-                    // the other way round.** A press on YouTube's bar used to
-                    // be obeyed for a quarter of a second and then corrected
-                    // away; it now moves the channel, for exactly the people
-                    // the buttons below are enabled for, and comes back to
-                    // every screen as an ordinary snapshot. For everybody
-                    // else the frame does not answer at all, which is the
-                    // greyed button said by the video.
-                    mayControl={mayControlWatch}
                     onDuration={(durationMs) =>
                       act({ type: 'WATCH_READY', durationMs })
                     }
-                    onIntent={(intent) => {
-                      if (intent.do === 'play') act({ type: 'WATCH_PLAY' });
-                      else if (intent.do === 'pause') act({ type: 'WATCH_PAUSE' });
-                      else
-                        act({
-                          type: 'WATCH_SEEK',
-                          positionMs: intent.positionMs,
-                        });
-                    }}
                   />
                 ) : null}
                 <Text style={type.heading} numberOfLines={1}>
@@ -2959,7 +2964,44 @@ export function ChannelView({
                 </Text>
                 {party.durationMs ? (
                   <>
-                    <View style={styles.progressTrack}>
+                    {/*
+                      **The scrubber, which is where dragging YouTube's bar
+                      went.** Taking the picture's own controls away leaves
+                      ±15s as the only way to reach a different part of a
+                      film, which is no way to cross two hours of one. A tap
+                      lands where it is put, in the one place that was
+                      already drawing where everybody is.
+
+                      A tap rather than a drag: a drag wants a gesture
+                      handler and a held position that does not follow the
+                      channel while a finger is down, and neither is worth
+                      having before somebody has used this one. `locationX`
+                      is measured against the track itself, so the arithmetic
+                      is the fill's in reverse.
+                    */}
+                    <Pressable
+                      accessibilityRole="adjustable"
+                      accessibilityLabel="Seek"
+                      disabled={!mayControlWatch}
+                      onPress={(event) => {
+                        const width = trackWidth.current;
+                        if (!width || !party.durationMs) return;
+                        const at =
+                          (event.nativeEvent.locationX / width) *
+                          party.durationMs;
+                        act({
+                          type: 'WATCH_SEEK',
+                          positionMs: Math.max(
+                            0,
+                            Math.min(party.durationMs, Math.round(at))
+                          ),
+                        });
+                      }}
+                      onLayout={(event) => {
+                        trackWidth.current = event.nativeEvent.layout.width;
+                      }}
+                      style={styles.progressTrack}
+                    >
                       <View
                         style={[
                           styles.progressFill,
@@ -2971,7 +3013,7 @@ export function ChannelView({
                           },
                         ]}
                       />
-                    </View>
+                    </Pressable>
                     <View style={styles.progressLabels}>
                       <Text style={styles.progressTime}>
                         {formatDuration(watchAt)}

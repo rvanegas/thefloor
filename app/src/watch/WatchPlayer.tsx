@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WatchState } from '../../../core/types';
-import type {
-  PlayerReading,
-  PlayerState,
-  WatchIntent,
-} from '../../../core/watch';
+import type { PlayerReading, PlayerState } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
 
@@ -92,6 +88,16 @@ function page(videoId: string): string {
         playsinline: 1,
         rel: 0,
         modestbranding: 1,
+        // **The picture is not a control.** YouTube's own bar is an input
+        // surface on the player the channel drives as an output surface, and
+        // the API never says which of the two caused a state change — so a
+        // follower watching this player could not tell a thumb from the echo
+        // of its own command. Four days of arrangements to separate them
+        // each traded a misread against a swallowed press. Taking the bar
+        // away removes the question. The transport is the app's own row.
+        controls: 0,
+        // The same surface reached by a key rather than a finger.
+        disablekb: 1,
         // Nothing may start by itself: the transport says when, and a page
         // that began playing on load would be a burst of somebody else's film.
         autoplay: 0
@@ -130,12 +136,13 @@ function page(videoId: string): string {
     // finger is a fact about the document, and is settled while the embed is
     // still loading.
     if (command.do === 'interactive') {
-      // **Inert, not hidden.** The bar belongs to the embed and cannot be
-      // taken off it without taking the picture too, so a screen that may not
-      // drive the party gets a frame that does not answer — the same thing
-      // the greyed buttons in the channel say, said by the video. Nothing is
-      // drawn over the player and nothing about it changes: it is still
-      // YouTube's own, visible and unobscured.
+      // **Inert for everybody, the bar having gone.** There is nothing on the
+      // picture to press any more, so a frame that answers a finger can only
+      // do something nobody asked for — a tap toggling play is not documented
+      // either way, and belt and braces costs nothing now that no control is
+      // being taken away. The one exception is a refusal, where the only
+      // thing left in the frame is YouTube's own explanation and the way out
+      // it offers.
       var frame = document.getElementById('frame');
       if (frame) frame.style.pointerEvents = command.on ? 'auto' : 'none';
       return;
@@ -185,22 +192,11 @@ const STATES: Record<number, PlayerState> = {
 export function WatchPlayer({
   watch,
   channelId,
-  mayControl,
   onDuration,
-  onIntent,
 }: {
   watch: WatchState;
   channelId: string;
-  /**
-   * Whether this device may move the party's transport — `canControlWatch`,
-   * asked where the channel is known. It decides two things at once and they
-   * are the same thing: whether the video's own controls answer a finger, and
-   * whether what they do reaches the channel.
-   */
-  mayControl: boolean;
   onDuration: (durationMs: number) => void;
-  /** A press on the video's own controls, on its way to the transport. */
-  onIntent: (intent: WatchIntent) => void;
 }): React.ReactElement | null {
   const view = useRef<WebView | null>(null);
   const reading = useRef<PlayerReading | null>(null);
@@ -275,11 +271,7 @@ export function WatchPlayer({
     };
   }, [ready]);
 
-  const drive = useMemo(
-    () => ({ mayControl, onIntent }),
-    [mayControl, onIntent]
-  );
-  useFollow(watch, port, true, drive);
+  useFollow(watch, port, true);
 
   /*
     **Whether the frame answers a finger, said to the page rather than drawn
@@ -298,9 +290,9 @@ export function WatchPlayer({
   useEffect(() => {
     if (!ready) return;
     view.current?.postMessage(
-      JSON.stringify({ do: 'interactive', on: mayControl || refused !== null })
+      JSON.stringify({ do: 'interactive', on: refused !== null })
     );
-  }, [ready, mayControl, refused]);
+  }, [ready, refused]);
 
   if (!videoId) return null;
 

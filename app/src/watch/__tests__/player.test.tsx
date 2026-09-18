@@ -55,16 +55,10 @@ const watch: WatchState = {
 
 let tree: ReactTestRenderer | null = null;
 
-function draw(mayControl = true): Record<string, unknown> {
+function draw(): Record<string, unknown> {
   act(() => {
     tree = renderer.create(
-      <WatchPlayer
-        watch={watch}
-        channelId="c1"
-        mayControl={mayControl}
-        onDuration={() => {}}
-        onIntent={() => {}}
-      />
+      <WatchPlayer watch={watch} channelId="c1" onDuration={() => {}} />
     );
   });
   return seen[0];
@@ -144,25 +138,39 @@ describe('the page the film plays in', () => {
  * visible from the props alone, which is why both are asserted here.
  */
 describe('YouTube’s own controls', () => {
-  it('lets the frame answer a finger when this screen may drive', () => {
-    ready(draw(true));
-    expect(interactive()).toBe(true);
+  it('builds the embed with its own controls off', () => {
+    /*
+      **The picture is not a control.** YouTube's bar was an input surface on
+      the player the channel drives as an output surface, and the API never
+      says which of the two caused a state change — so telling a thumb from
+      the echo of our own command took four days of arrangements, each
+      trading a misread against a swallowed press. `controls: 0` removes the
+      question rather than answering it; `disablekb` is the same surface
+      reached by a key. See
+      planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
+    */
+    const props = draw();
+    const html = (props.source as { html: string }).html;
+    expect(html).toContain('controls: 0');
+    expect(html).toContain('disablekb: 1');
   });
 
-  it('makes the frame inert when it may not', () => {
-    // The greyed buttons in the channel, said by the video. Nothing is drawn
-    // over the player and nothing about the embed changes.
-    ready(draw(false));
+  it('makes the frame inert, there being nothing on it to press', () => {
+    // **Belt and braces, and it costs nothing now.** Whether a tap on the
+    // picture toggles play with the controls off is not documented either
+    // way, and a frame that answers a finger can now only do something
+    // nobody asked for — no control is being taken away by refusing it.
+    ready(draw());
     expect(interactive()).toBe(false);
   });
 
   it('says nothing to a page that has not reported itself ready', () => {
-    draw(false);
+    draw();
     expect(interactive()).toBeUndefined();
   });
 
-  it('gives a refused video back its way out, whoever is driving', () => {
-    const props = draw(false);
+  it('gives a refused video back its way out', () => {
+    const props = draw();
     ready(props);
     const onMessage = props.onMessage as (event: {
       nativeEvent: { data: string };

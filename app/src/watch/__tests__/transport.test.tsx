@@ -1,28 +1,26 @@
 import React from 'react';
-import { AppState, Text } from 'react-native';
+import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState, WatchState } from '../../../../core/types';
-import type { PlayerState, WatchIntent } from '../../../../core/watch';
+import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { useFollow, type PlayerPort } from '../drive';
 
 /**
- * The transport with everything that is slow about it left in.
+ * The follower with everything that is slow about it left in.
  *
- * `follow.test.tsx` drives the follower a tick at a time against a player it
- * moves by hand, which is how the rules are tested. This one is the other
- * half: a player that takes half a second to obey anything, a channel on the
- * far side of a round trip, and a clock that runs while both of them think.
- * **Every defect in here survived the tick-at-a-time tests**, because each of
- * them is a race between two latencies rather than a wrong answer.
+ * A player that takes half a second to obey anything, a channel on the far
+ * side of a round trip, and a clock that runs while both of them think.
+ * **Every defect this file has caught was a race between two latencies**
+ * rather than a wrong answer, which is why the rules' own tests were green
+ * through all of them.
  *
- * Reported from a watch on 2026-09-17, after the dwell had already landed:
- * *play results in alternating play and pause, never settling into desired
- * state. Video seek is also reverted, as if seek within video is ignored by
- * app.* They are two faces of one thing — the follower correcting the player
- * back to the channel during the window in which it has not yet read what the
- * person did to it.
+ * It is much smaller than it was. Two thirds of it were about reading a press
+ * off the player — a scrub, a play, a pause, an advert lying about all three —
+ * and there is nothing to read any more: the picture's own controls are off
+ * since 2026-09-18, so this player is only ever told things. See
+ * planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
  */
 
 const A = 'user-a';
@@ -34,17 +32,16 @@ const LENGTH = 600_000;
 /** How long this player takes to do as it is told. Longer than a tick. */
 const LAG_MS = 600;
 
-/** How long a press takes to reach the channel and come back. */
+/** How long an action takes to reach the channel and come back. */
 const TRIP_MS = 300;
 
 /**
  * A player that obeys, but not instantly, like every embed does.
  *
- * The thing it has that a hand-driven fake does not is *latency*: a command
- * leaves it buffering for a while and only then takes effect, and it goes on
- * reporting its old state in the meantime. A second command arriving inside
- * that window does not restart the clock — a real player is already on its
- * way — which matters, because the follower used to send one every tick.
+ * A command leaves it buffering for a while and only then takes effect, and
+ * it goes on reporting its old state in the meantime. A second command
+ * arriving inside that window does not restart the clock — a real player is
+ * already on its way.
  */
 function laggyPlayer(lag: number) {
   let state: PlayerState = 'unstarted';
@@ -72,32 +69,6 @@ function laggyPlayer(lag: number) {
       }
       durationMs = seconds * 1000;
       positionMs = 1_000;
-    },
-    /** Somebody's thumb on the video's own bar, which lands at once. */
-    press(next: PlayerState, at?: number) {
-      state = next;
-      want = next;
-      pending = null;
-      if (at !== undefined) positionMs = at;
-    },
-    /**
-     * Play, pressed on the bar, the way a real player answers it: a moment
-     * of `buffering` and only then `playing`.
-     *
-     * **The state the follower is most likely to see**, a tick being half a
-     * second and the wait to start being about that. A fake that jumped
-     * straight to playing could not reproduce a press that starts the film
-     * and is immediately stopped again.
-     */
-    pressPlay(buffersFor: number) {
-      state = 'buffering';
-      want = 'playing';
-      pending = {
-        at: Date.now() + buffersFor,
-        run: () => {
-          state = 'playing';
-        },
-      };
     },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
@@ -137,9 +108,7 @@ function laggyPlayer(lag: number) {
         rule and the opposite of the intuition: *"If the player is paused when
         the function is called, it will remain paused. If the function is
         called from another state (playing, video cued, etc.), the player will
-        play the video."* A fake that kept a cued player cued through a seek
-        would be a fake that could not reproduce the defect this file exists
-        to catch.
+        play the video."*
       */
       seek: (ms: number) => {
         calls.push(`seek:${Math.round(ms)}`);
@@ -166,7 +135,11 @@ function party(): ChannelState {
     { type: 'START_WATCH', userId: A, videoId: 'dQw4w9WgXcQ', url: URL },
     T0
   );
-  return reduce(started, { type: 'WATCH_READY', userId: A, durationMs: LENGTH }, T0);
+  return reduce(
+    started,
+    { type: 'WATCH_READY', userId: A, durationMs: LENGTH },
+    T0
+  );
 }
 
 /** The channel, reached over a wire with a round trip in it. */
@@ -176,36 +149,16 @@ function server(initial: ChannelState, trip: number) {
     at: number;
     act: (c: ChannelState, now: number) => ChannelState;
   }[] = [];
-  const heard: string[] = [];
   return {
     get watch(): WatchState {
       return state.watch;
     },
-    /** Every intent the channel was actually asked for, in order. */
-    heard,
-    send(intent: WatchIntent, now: number) {
-      heard.push(
-        intent.do === 'seek'
-          ? `seek:${Math.round(intent.positionMs)}`
-          : intent.do
-      );
-      queue.push({
-        at: now + trip,
-        act: (c, t) =>
-          intent.do === 'play'
-            ? reduce(c, { type: 'WATCH_PLAY', userId: A }, t)
-            : intent.do === 'pause'
-              ? reduce(c, { type: 'WATCH_PAUSE', userId: A }, t)
-              : reduce(
-                  c,
-                  {
-                    type: 'WATCH_SEEK',
-                    userId: A,
-                    positionMs: intent.positionMs,
-                  },
-                  t
-                ),
-      });
+    /** A button, pressed anywhere in the room. */
+    press(
+      action: (c: ChannelState, now: number) => ChannelState,
+      now: number
+    ) {
+      queue.push({ at: now + trip, act: action });
     },
     deliver(now: number) {
       while (queue.length && queue[0].at <= now) {
@@ -215,16 +168,20 @@ function server(initial: ChannelState, trip: number) {
   };
 }
 
+const play = (c: ChannelState, t: number) =>
+  reduce(c, { type: 'WATCH_PLAY', userId: A }, t);
+const pause = (c: ChannelState, t: number) =>
+  reduce(c, { type: 'WATCH_PAUSE', userId: A }, t);
+const seekTo = (positionMs: number) => (c: ChannelState, t: number) =>
+  reduce(c, { type: 'WATCH_SEEK', userId: A, positionMs }, t);
+
 let tree: ReactTestRenderer | null = null;
 
 function run(
   opts: {
-    mayControl?: boolean;
     /**
      * The channel as it stands before this follower exists, for the screen
-     * that arrives at a party already under way. Applied to the fresh
-     * channel, so the follower mounts against it rather than watching it
-     * happen.
+     * that arrives at a party already under way.
      */
     already?: (channel: ChannelState) => ChannelState;
   } = {}
@@ -232,10 +189,7 @@ function run(
   const player = laggyPlayer(LAG_MS);
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true, {
-      mayControl: opts.mayControl ?? true,
-      onIntent: (intent) => wire.send(intent, Date.now()),
-    });
+    useFollow(watch, player.port, true);
     return <Text>following</Text>;
   }
   act(() => {
@@ -289,7 +243,6 @@ function inStep(where: ReturnType<ReturnType<typeof run>['where']>) {
 
 beforeEach(() => {
   jest.useFakeTimers({ now: T0, doNotFake: ['nextTick'] });
-  (AppState as unknown as { currentState: string }).currentState = 'active';
 });
 
 afterEach(() => {
@@ -300,304 +253,47 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-describe('a scrub on the video’s own bar', () => {
-  it('moves the party rather than being corrected away', () => {
-    /*
-      **The seek that was ignored.** A jump is visible for exactly one tick —
-      the reading after it is continuous with the one before, the film simply
-      running from its new place — so a seek candidate asked to be seen twice
-      never was, and the follower dragged the picture back to where the
-      channel still said it should be. What that looks like on a watch is a
-      bar that does not answer a finger.
-    */
+describe('a button pressed in the room', () => {
+  it('starts the film here', () => {
     const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
-    sim.advance(6_000);
-    const before = sim.wire.heard.length;
-
-    const to = sim.player.positionMs + 120_000;
-    sim.player.press('playing', to);
-    sim.advance(6_000);
-
-    // One seek, carrying where the film had reached by the time it was read
-    // rather than where the thumb first landed — a tick of the dwell later.
-    const sent = sim.wire.heard.slice(before);
-    expect(sent).toHaveLength(1);
-    const asked = Number(sent[0].split(':')[1]);
-    expect(asked).toBeGreaterThanOrEqual(to);
-    expect(asked).toBeLessThanOrEqual(to + 1_500);
-    // And the party went there, rather than the picture coming back.
-    const where = sim.where();
-    expect(where.channelAt).toBeGreaterThan(to);
-    expect(inStep(where)).toBe(true);
-  });
-
-  it('is not read from a player that merely lied for a tick', () => {
-    // The dwell's whole job, which the gap does instead for a scrub: an
-    // advert's own clock, a state reported late. Here the position comes
-    // back by itself, so nothing was meant by it.
-    const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
-    sim.advance(6_000);
-    const before = sim.wire.heard.length;
-
-    const real = sim.player.positionMs;
-    sim.player.press('playing', real + 90_000);
-    sim.advance(500);
-    sim.player.press('playing', real + 500);
+    sim.wire.press(play, Date.now());
     sim.advance(4_000);
-
-    expect(sim.wire.heard.slice(before)).toEqual([]);
     expect(inStep(sim.where())).toBe(true);
-  });
-});
-
-describe('a second press, made before the first has settled', () => {
-  it('is read rather than corrected away', () => {
-    /*
-      **The alternation.** The window after a press stopped this follower
-      reading another one, but not talking to the player — so a press made
-      inside it was pushed back to whatever the channel still said, and the
-      person pressed again, which started the window over. Press Play, watch
-      it start and stop, press again: play-pause-play-pause, settling
-      nowhere. See `INTENT_QUIET_MS`.
-    */
-    const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
-    sim.advance(6_000);
-
-    sim.player.press('paused');
-    sim.advance(2_000);
-    expect(sim.wire.heard).toEqual(['play', 'pause']);
-    expect(sim.where().channel).toBe('paused');
-
-    // A second later, which is how fast anybody presses when the first press
-    // looked ignored.
-    sim.player.press('playing');
-    sim.advance(5_000);
-
-    expect(sim.wire.heard).toEqual(['play', 'pause', 'play']);
-    expect(inStep(sim.where())).toBe(true);
-  });
-
-  it('leaves the player alone in the meantime', () => {
-    // Not merely deaf: silent. Anything said to the player in this window is
-    // said over a press nothing has read yet.
-    const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
-    sim.advance(6_000);
-
-    sim.player.press('paused');
-    sim.advance(2_000);
-    const after = sim.player.calls.length;
-    sim.player.press('playing');
-    sim.advance(1_000);
-
-    expect(sim.player.calls.slice(after)).toEqual([]);
-  });
-});
-
-describe('a screen joining a party that is paused', () => {
-  it('does not start the film by arriving', () => {
-    /*
-      **Reported from a device switch: handing the picture over turned a
-      paused party into a playing one.**
-
-      The new screen comes up `cued` at zero against a channel paused a
-      minute in, so the follower seeks it — and a seek is what starts a cued
-      player. Its own follower then read a playing player against a paused
-      channel, which in a settled phase is a person pressing play, and told
-      the room so. Nothing about that reading is wrong; the instruction was
-      incomplete. See `followInstructions`.
-    */
-    // A party paused a minute in, already so before this screen existed —
-    // which is what a picture being handed over looks like from the device
-    // receiving it. The player is `unstarted`, which is to say cued.
-    const sim = run({
-      already: (c) =>
-        reduce(
-          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
-          { type: 'WATCH_PAUSE', userId: A },
-          T0 + 60_000
-        ),
-    });
-    expect(sim.where().channel).toBe('paused');
-
-    // The follower's first tick runs on mount, so by here the cued player has
-    // already been sent where the party is — which is the seek that used to
-    // start it.
-    sim.advance(8_000);
-
-    // Nothing was said to the room at all: arriving is not pressing anything.
-    expect(sim.wire.heard).toEqual([]);
-    expect(sim.where().channel).toBe('paused');
-    // And the screen is where the party is, stopped.
-    expect(sim.player.state).toBe('paused');
-    expect(Math.abs(sim.player.positionMs - 60_000)).toBeLessThanOrEqual(1_500);
-  });
-});
-
-describe('play, pressed on the video’s own bar', () => {
-  it('is not stopped again by the tick that catches it buffering', () => {
-    /*
-      **Reported from a watch: the film starts and immediately stops.**
-
-      A press goes `paused` → `buffering` → `playing`, and a tick is half a
-      second, so the reading the follower most often gets is the middle one.
-      `buffering` is not a state a person can be in, so nothing read it as a
-      press — and the paused branch of `followInstructions` treats a
-      buffering player as one on its way to playing and stops it, which is
-      right for a player the follower itself started and wrong for a thumb.
-
-      Nothing said to this player can explain it: in `watching` the follower
-      has been silent. So it waits a tick for the player to settle rather
-      than correcting something it did not cause.
-    */
-    const sim = run({
-      already: (c) =>
-        reduce(
-          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
-          { type: 'WATCH_PAUSE', userId: A },
-          T0 + 30_000
-        ),
-    });
-    // Let the screen settle where the paused party is.
-    sim.advance(4_000);
-    expect(sim.player.state).toBe('paused');
-    const heard = sim.wire.heard.length;
-
-    // A thumb on Play, which buffers past the next tick before it runs.
-    sim.player.pressPlay(700);
-    sim.advance(6_000);
-
-    expect(sim.wire.heard.slice(heard)).toEqual(['play']);
     expect(sim.where().channel).toBe('playing');
-    expect(sim.player.state).toBe('playing');
-    expect(inStep(sim.where())).toBe(true);
   });
 
-  /*
-    **However long the wait to start.** Whether a tick lands inside the
-    buffering at all is a matter of where the press falls between two of
-    them, so one duration proves one alignment. These are the ones either
-    side of a tick and either side of the fuse.
-  */
-  it.each([100, 300, 700, 1_200, 2_400])(
-    'reaches the room after buffering for %ims',
-    (buffersFor) => {
-      const sim = run({
-        already: (c) =>
-          reduce(
-            reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
-            { type: 'WATCH_PAUSE', userId: A },
-            T0 + 30_000
-          ),
-      });
-      sim.advance(4_000);
-      const heard = sim.wire.heard.length;
-
-      sim.player.pressPlay(buffersFor);
-      sim.advance(8_000);
-
-      expect(sim.wire.heard.slice(heard)).toEqual(['play']);
-      expect(sim.where().channel).toBe('playing');
-      expect(sim.player.state).toBe('playing');
-    }
-  );
-
-  it('gives up waiting on a player that never lands', () => {
-    /*
-      **The fuse, tested rather than asserted.** A player that buffers and
-      never settles would otherwise be waited on for ever, and the wait is a
-      silence — nothing corrects it. `WATCH_OBEDIENCE_MS` ends it, and the
-      tick that ends it has to go on and correct the player in the same
-      breath: stopping at `watching` would meet the buffering test again and
-      start a fresh wait, which is a fuse that re-lights itself.
-    */
-    const sim = run({
-      already: (c) =>
-        reduce(
-          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
-          { type: 'WATCH_PAUSE', userId: A },
-          T0 + 30_000
-        ),
-    });
-    sim.advance(4_000);
-    const calls = sim.player.calls.length;
-
-    // Buffering with nothing on the other side of it, for ever.
-    sim.player.press('buffering');
-    sim.advance(6_000);
-
-    expect(sim.player.calls.slice(calls)).toContain('pause');
-    expect(sim.wire.heard).toEqual([]);
-  });
-
-  it('is still stopped when it is the channel that is paused and nobody pressed', () => {
-    // The other side of the wait: a player that really is out of step gets
-    // corrected, a tick later than it used to be. See `WATCH_OBEDIENCE_MS`.
-    const sim = run({
-      already: (c) =>
-        reduce(
-          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
-          { type: 'WATCH_PAUSE', userId: A },
-          T0 + 30_000
-        ),
-      mayControl: false,
-    });
-    sim.advance(4_000);
-
-    sim.player.pressPlay(300);
-    sim.advance(6_000);
-
-    // Not a screen that may drive, so the press is not an instruction and the
-    // player is put back where the channel is.
-    expect(sim.wire.heard).toEqual([]);
-    expect(sim.player.state).toBe('paused');
-  });
-});
-
-describe('an advert in the frame', () => {
-  it('moves neither the room nor the picture', () => {
-    /*
-      **An advert is a different video reporting its own clock.** Its
-      position reads as a scrub to the start and its length is nothing like
-      the film's, which is how it is told apart — every earlier attempt
-      listed this among the lies it was guessing around, with a timer. See
-      `showingTheFilm`.
-    */
+  it('stops it again', () => {
     const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
-    sim.advance(6_000);
-    const heard = sim.wire.heard.length;
-    const calls = sim.player.calls.length;
-
-    sim.player.advert(90);
-    sim.advance(5_000);
-    expect(sim.wire.heard.slice(heard)).toEqual([]);
-    expect(sim.player.calls.slice(calls)).toEqual([]);
-
-    // The spot ends and the film comes back where the party had got to.
-    sim.player.advert(null);
-    sim.player.press('playing', Math.round(sim.where().channelAt));
+    sim.wire.press(play, Date.now());
     sim.advance(4_000);
-    expect(sim.wire.heard.slice(heard)).toEqual([]);
+    sim.wire.press(pause, Date.now());
+    sim.advance(4_000);
+    expect(inStep(sim.where())).toBe(true);
+    expect(sim.where().channel).toBe('paused');
+  });
+
+  it('moves it, and the picture goes with it', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(4_000);
+    sim.wire.press(seekTo(300_000), Date.now());
+    sim.advance(6_000);
+    expect(sim.player.positionMs).toBeGreaterThanOrEqual(300_000);
     expect(inStep(sim.where())).toBe(true);
   });
-});
 
-describe('a screen that may not drive', () => {
-  it('is corrected back, which is the greyed button said by the video', () => {
-    // The silence above belongs to whoever may drive. For everybody else
-    // there is no press to protect, and following is the whole job.
-    const sim = run({ mayControl: false });
-    sim.wire.send({ do: 'play' }, Date.now());
+  it('is answered on every press, however fast they come', () => {
+    // **No window in which this follower is deaf.** There used to be four,
+    // each one a way of not mistaking a press for the echo of a correction;
+    // with nothing to mistake, a press a second is just three presses.
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(1_000);
+    sim.wire.press(pause, Date.now());
+    sim.advance(1_000);
+    sim.wire.press(play, Date.now());
     sim.advance(6_000);
-
-    sim.player.press('playing', sim.player.positionMs + 120_000);
-    sim.advance(6_000);
-
-    expect(sim.wire.heard).toEqual(['play']);
+    expect(sim.where().channel).toBe('playing');
     expect(inStep(sim.where())).toBe(true);
   });
 });
@@ -607,12 +303,57 @@ describe('a party left alone', () => {
     // The seek storm's test: nothing is pressed, so nothing should be said
     // to the player at all once it is running.
     const sim = run();
-    sim.wire.send({ do: 'play' }, Date.now());
+    sim.wire.press(play, Date.now());
     sim.advance(4_000);
     const after = sim.player.calls.length;
     sim.advance(30_000);
 
     expect(sim.player.calls.slice(after)).toEqual([]);
+    expect(inStep(sim.where())).toBe(true);
+  });
+});
+
+describe('a screen joining a party that is paused', () => {
+  it('does not start the film by arriving', () => {
+    /*
+      **The seek that put a new screen where the party had got to also
+      started it**, a cued player being one of the states the API says a seek
+      sets going. A paused party therefore pauses after the corrective seek —
+      for the two states a seek actually starts, since a player that was
+      playing was stopped by the pause issued before it.
+    */
+    const sim = run({
+      already: (c) => pause(play(c, T0), T0 + 60_000),
+    });
+    expect(sim.where().channel).toBe('paused');
+
+    sim.advance(8_000);
+
+    expect(sim.where().channel).toBe('paused');
+    expect(sim.player.state).toBe('paused');
+    expect(Math.abs(sim.player.positionMs - 60_000)).toBeLessThanOrEqual(1_500);
+  });
+});
+
+describe('an advert in the frame', () => {
+  it('is left alone until the film is back', () => {
+    /*
+      **An advert is a different video reporting its own clock**, so its
+      position reads as a jump to the start and its length is nothing like
+      the film's. Correcting it would seek the advert. They end by
+      themselves. See `showingTheFilm`.
+    */
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(6_000);
+    const calls = sim.player.calls.length;
+
+    sim.player.advert(90);
+    sim.advance(5_000);
+    expect(sim.player.calls.slice(calls)).toEqual([]);
+
+    sim.player.advert(null);
+    sim.advance(4_000);
     expect(inStep(sim.where())).toBe(true);
   });
 });
