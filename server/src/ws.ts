@@ -44,9 +44,20 @@ import { settingsForWire } from './settings-wire';
  * `scope.kind` and says why.
  */
 type Scope =
-  | { kind: 'session' }
-  /** The one channel this page may follow, from the credential it arrived on. */
-  | { kind: 'watch'; channelId: string };
+  /**
+   * The only kind there is, since the player moved into the app.
+   *
+   * **Kept as a union of one on purpose.** There was a second — `watch`, a
+   * follower page holding a six-hour link credential, allowed to watch one
+   * channel and to send exactly one action — and it went when a screen became
+   * an ordinary signed-in instance of the app. Every narrowing on `scope.kind`
+   * went with it, which is most of what this type was for.
+   *
+   * A shape is what the next restriction will need, and turning this into a
+   * bare interface would mean discovering that again. See
+   * planning/decisions/2026-09-17-the-screen-is-the-app.md.
+   */
+  { kind: 'session' };
 
 interface Connection {
   socket: WebSocket;
@@ -612,27 +623,20 @@ export function registerWebsocket(deps: {
       // 4401 alone is enough for it to stop reconnecting, but the message is
       // what it can put on screen.
       //
-      // Each kind of socket is re-checked against the table it was accepted
-      // from. A watch link is not a session and is not reached by signing out
-      // of one, so it dies only of its own expiry, which is what the six-hour
-      // TTL is sized for.
-      const live =
-        connection.scope.kind === 'watch'
-          ? !!accounts.watchTokenFor(connection.token, now())
-          : !!accounts.accountForToken(connection.token, now());
+      // Re-checked against the table it was accepted from, every heartbeat.
+      // There was a second table to check — the follower page's watch links —
+      // until screens became ordinary sessions of the app.
+      const live = !!accounts.accountForToken(connection.token, now());
       if (!live) {
         send(connection, {
           type: 'error',
-          message:
-            connection.scope.kind === 'watch'
-              ? 'This watch link has expired.'
-              // Not "signed in on another device" any more: since 2026-08-24
-              // signing in elsewhere revokes nothing, so the ways to arrive
-              // here are a deliberate sign-out of this device from another
-              // one, an account deleted, and a token ninety days old. The
-              // wording covers all three rather than naming the one that used
-              // to produce it almost every time.
-              : 'This device was signed out.',
+          // Not "signed in on another device" any more: since 2026-08-24
+          // signing in elsewhere revokes nothing, so the ways to arrive here
+          // are a deliberate sign-out of this device from another one, an
+          // account deleted, and a token ninety days old. The wording covers
+          // all three rather than naming the one that used to produce it
+          // almost every time.
+          message: 'This device was signed out.',
           code: 'unauthorized',
         });
         connection.endedBy = 'unauthorized';
@@ -1090,10 +1094,7 @@ export function registerWebsocket(deps: {
     // door. Session first because it is the overwhelmingly common case and
     // because it is the wider scope — a token good for both would be a bug,
     // and this order makes it visible rather than silently narrowing.
-    const session = token ? accounts.accountForToken(token, now()) : undefined;
-    const follower =
-      !session && token ? accounts.watchTokenFor(token, now()) : undefined;
-    const account = session ?? follower?.account;
+    const account = token ? accounts.accountForToken(token, now()) : undefined;
     // `!token` is redundant — no token means no account — but it is what lets
     // the connection below keep the credential as a plain string.
     if (!token || !account) {
@@ -1111,9 +1112,7 @@ export function registerWebsocket(deps: {
     const connection: Connection = {
       socket,
       userId: account.id,
-      scope: follower
-        ? { kind: 'watch', channelId: follower.channelId }
-        : { kind: 'session' },
+      scope: { kind: 'session' },
       token,
       tokenHash: sha256(token),
       watchingHome: false,
@@ -1270,34 +1269,6 @@ export function registerWebsocket(deps: {
       } catch {
         send(connection, { type: 'error', message: 'Malformed message.' });
         return;
-      }
-
-      // What a follower page may say, in one place rather than as a clause on
-      // each case below. It watches its own channel, heartbeats, and reports a
-      // duration; everything else is refused, including watching a second
-      // channel and every action but one.
-      //
-      // The page is a *follower*: control lives on the phone, which is what
-      // the product says, and stating it here is what makes a leaked link
-      // expose what is being watched rather than the ability to change it.
-      if (connection.scope.kind === 'watch') {
-        const scope = connection.scope;
-        const allowed =
-          message.type === 'ping' ||
-          ((message.type === 'watch.channel' ||
-            message.type === 'unwatch.channel') &&
-            message.channelId === scope.channelId) ||
-          (message.type === 'channel.action' &&
-            message.channelId === scope.channelId &&
-            message.action.type === 'WATCH_READY');
-        if (!allowed) {
-          send(connection, {
-            type: 'error',
-            message: 'This page can only watch.',
-            code: 'forbidden',
-          });
-          return;
-        }
       }
 
       switch (message.type) {
@@ -1529,16 +1500,7 @@ export function registerWebsocket(deps: {
 
     socket.on('close', (code: number, reason: Buffer) => {
       connections.delete(connection);
-      // Above the early return below, because a follower page that cannot hold
-      // a socket is the same fault wearing a different scope, and the line that
-      // would explain it is this one.
       logClose(connection, code, reason.toString());
-      // A follower page closing is a tab closing. It asserted nothing about
-      // presence while it was open — see the connect path — so there is
-      // nothing to withdraw, and reporting a disconnect here would step
-      // somebody out of a channel they are sitting in with the phone in their
-      // hand.
-      if (connection.scope.kind === 'watch') return;
       // The last moment this socket proved somebody was there — not the moment
       // it ended, which is a different number and, for the departure that
       // matters most, a wrong one.

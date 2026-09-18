@@ -1033,29 +1033,6 @@ export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether `userId` may open a follower screen on this channel's party.
- *
- * `hasTheRoom` and **not** the floor, which is the combination nothing else
- * uses. The floor is excluded because opening a screen of your own changes
- * nothing about what the channel is doing — somebody in the room whose floor
- * is held by another may still put the film on a laptop. The room is required
- * because the page is a live view of a conversation, and a channel with people
- * talking in it that you have not stepped into is one you are outside of on
- * every device you own.
- *
- * An empty channel is nobody's conversation, so a member may open a screen on
- * one before anybody arrives — which is close to the ordinary order of doing
- * this: open the screen, step in, choose the video.
- */
-export function canOpenWatchScreen(
-  state: ChannelState,
-  userId: UserId
-): boolean {
-  if (state.status !== 'active') return false;
-  return isParticipant(state, userId) && hasTheRoom(state, userId);
-}
-
-/**
  * Whether `userId` may drive the watch party's transport.
  *
  * The same rule as `canControlPlayback`, deliberately — see

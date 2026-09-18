@@ -8,7 +8,6 @@ import {
   canControlPlayback,
   canControlWatch,
   canLoadTrack,
-  canOpenWatchScreen,
   canStartRecording,
   canStartWatch,
   createChannel,
@@ -274,11 +273,10 @@ describe('a member who has not stepped in', () => {
   }
 
   describe('while somebody else is in the channel', () => {
-    it('may not drive the party, nor open a screen on it', () => {
+    it('may not drive the party', () => {
       const s = occupied();
       expect(canControlWatch(s, A)).toBe(false);
       expect(canStartWatch(s, A)).toBe(false);
-      expect(canOpenWatchScreen(s, A)).toBe(false);
     });
 
     it('is refused by the reducer, not merely greyed', () => {
@@ -333,9 +331,13 @@ describe('a member who has not stepped in', () => {
       expect(s.watch.party).toBeNull();
     });
 
-    it('may open a screen, there being no conversation to intrude on', () => {
-      expect(canOpenWatchScreen(empty(), A)).toBe(true);
-    });
+    /*
+      `canOpenWatchScreen` used to be asserted here — a member outside an empty
+      channel could open a follower page on it, there being no conversation to
+      intrude on. The guard went with the page on 2026-09-17: which of your own
+      devices shows a film is not a question the channel answers. What is left
+      of the split is the two guards above.
+    */
 
     it('is held to the same split on shared playback', () => {
       // Driving yes, loading no — the same two answers as the party above.

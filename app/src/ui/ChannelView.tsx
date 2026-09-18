@@ -41,7 +41,6 @@ import {
   canLoadTrack,
   canStartWatch,
   canControlWatch,
-  canOpenWatchScreen,
   isPartyMuted,
   isWithheld,
   partyMuteRequested,
@@ -1130,13 +1129,12 @@ export function ChannelView({
   const party = watch.party;
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
-  // The room without the floor clause, which is the combination a second
-  // screen needs: opening one changes nothing, so somebody in the room whose
-  // floor is held by another may still put the film on a laptop. What it
-  // refuses is somebody outside a conversation that is going on — the follower
-  // page is a live view of one, and a channel you have not stepped into is one
-  // you are outside of on every device you own.
-  const mayOpenWatchScreen = canOpenWatchScreen(channel, me);
+  // The room without the floor clause. It governs the card's prose rather than
+  // any control now: choosing which of your own devices shows a film changes
+  // nothing about the channel, so nothing about it is gated — but somebody
+  // outside a conversation that is going on is still told that first, ahead of
+  // whose floor it is.
+  const mayWatchHere = iHaveTheRoom;
   const mayStartWatch = canStartWatch(channel, me);
   /**
    * Whether *this* device is the one showing the film.
@@ -3096,7 +3094,7 @@ export function ChannelView({
             ) : null}
 
             <Text style={type.muted}>
-              {!mayOpenWatchScreen
+              {!mayWatchHere
                 ? // First, because it outranks the rest: somebody outside a
                   // conversation that is going on has no use for being told whose
                   // floor it is or that a recording is running. It is also the

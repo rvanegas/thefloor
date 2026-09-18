@@ -234,7 +234,6 @@ describe('the sweep itself', () => {
       codes: 0,
       invites: 0,
       tokens: 0,
-      watchTokens: 0,
     });
   });
 
@@ -253,13 +252,11 @@ describe('the sweep itself', () => {
       codes: 1,
       invites: 1,
       tokens: 0,
-      watchTokens: 0,
     });
     expect(accounts.sweepExpired(at)).toEqual({
       codes: 0,
       invites: 0,
       tokens: 0,
-      watchTokens: 0,
     });
   });
 

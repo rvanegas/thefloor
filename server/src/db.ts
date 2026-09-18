@@ -894,38 +894,6 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 CREATE INDEX IF NOT EXISTS device_tokens_account ON device_tokens(account_id);
 
--- The credential a watch party's follower page holds, and deliberately not a
--- row in tokens.
---
--- It cannot be a session token, and the reason that remains is the one that
--- was always sufficient: accountForToken would accept it everywhere, so a link
--- pasted into a chat would be a full credential for the account rather than
--- permission to follow one channel on one screen.
---
--- There used to be a second reason, and it is gone rather than weakened.
--- issueToken revoked every other session for the account, so minting one to
--- open a page would have signed the owner's phone out; since 2026-08-24 it
--- revokes nothing. Noted because a reader finding one reason where the file
--- promised two would reasonably wonder which had been forgotten.
---
--- So it names a channel as well as an account, and nothing outside the watch
--- socket ever looks it up. Hashed, like tokens and otp_codes and unlike the
--- guest link below: it re-enters without anybody being asked again, which is
--- what makes it a credential rather than an address.
-CREATE TABLE IF NOT EXISTS watch_tokens (
-  token_hash TEXT PRIMARY KEY,
-  account_id TEXT NOT NULL REFERENCES accounts(id),
-  -- ON DELETE CASCADE, like channel_notification_levels and unlike the guest
-  -- rows below, which the sweep clears by hand. The difference is that a guest
-  -- row carries a name a recording still needs at the end of a run, and this
-  -- carries nothing at all once the channel is gone — so there is no ordering
-  -- to get right, only a reference that must not make the sweep throw.
-  channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-  created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS watch_tokens_account ON watch_tokens(account_id);
-
 -- A capability to knock at one channel's door, and nothing more. Holding it
 -- gets you as far as asking: a member who is present has to accept, and what
 -- they accept is a name a stranger typed.
@@ -1608,6 +1576,22 @@ function migrate(db: Db): void {
   if (accountColumns.some((c) => c.name === 'bio')) {
     db.exec('ALTER TABLE accounts DROP COLUMN bio');
   }
+  /*
+    The follower page's credentials, dropped on 2026-09-17 with the page.
+
+    A watch token was a six-hour capability to follow one channel on a browser
+    that was not signed in. Screens are ordinary signed-in instances of the app
+    now, so nothing mints one, nothing accepts one, and the route the links
+    pointed at is gone — see
+    planning/decisions/2026-09-17-the-screen-is-the-app.md.
+
+    Dropped rather than left to expire, on the bio column's reasoning above:
+    what is in it is credentials, and a credential nothing can check, revoke or
+    show anybody is exactly the kind of row an account deletion exists to make
+    impossible. Every one of them was worthless the moment the route went, and
+    the longest-lived had six hours to run.
+  */
+  db.exec('DROP TABLE IF EXISTS watch_tokens');
   // Null for everyone, which is the only value that could be right: a handle
   // exists here because somebody typed it, and there is nowhere else on this
   // box one could be inferred from.
