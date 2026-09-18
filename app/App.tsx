@@ -24,6 +24,7 @@ import { HelpView } from './src/ui/HelpView';
 import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
+import { nearbyChannels } from './src/ui/ChannelsView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
@@ -847,6 +848,21 @@ function Root() {
    * does not remount it. See `Panes`.
    */
   /**
+   * The channel the left swipe opens: the topmost bar on the tier, or nothing
+   * when the tier has no bars.
+   *
+   * **The tab is the live channel's alone.** `lastTab` exists so that swiping
+   * out of the notepad and back in lands on the notepad, which is a claim
+   * about a room you just left; arriving in a nearby room is the tap on its
+   * bar by another route, and that opens a channel the way every other tap
+   * does.
+   */
+  const nearest = live ? undefined : nearbyChannels(app.home)[0];
+  const hoisted: { channelId: string; tab?: ChannelTab } | undefined = live
+    ? { channelId: live.id, tab: lastTab.current.get(live.id) }
+    : nearest && { channelId: nearest.channelId };
+
+  /**
    * Where a swipe goes from here, which is a question about this screen rather
    * than about a thumb — `ui/swipe.ts` owns the thumb.
    *
@@ -865,11 +881,23 @@ function Root() {
    * **Right is out, left is in, and the asymmetry is deliberate.** Right is
    * offered from a channel screen and nowhere else: settings, help and a
    * profile have unambiguous back buttons and no return gesture to pair with,
-   * so a swipe off them would be a way out with no way back. Left is offered
-   * only into `live` — the room this device is *standing in*, not the last one
-   * somebody looked at — so it is not the undo of the right swipe and does not
-   * pretend to be. Looking at a channel without stepping into it and swiping
-   * away is therefore a one-way trip, by the same tap it always was.
+   * so a swipe off them would be a way out with no way back. Left goes into
+   * the topmost bar hoisted onto the tier — so it is not the undo of the right
+   * swipe and does not pretend to be. Looking at a channel that is hoisted
+   * onto nothing and swiping away is therefore a one-way trip, by the same tap
+   * it always was.
+   *
+   * **The topmost bar, computed from what the bars are computed from.** Left
+   * used to go only into `live`, which was the same answer while the live bar
+   * was the only thing pinned up there; since the nearby tier joined it, a
+   * reader with no room to stand in has bars on the screen and a gesture that
+   * did nothing. What it opens is `live` when there is one and the first
+   * `nearbyChannels` otherwise, which is `HomeView`'s order of drawing read
+   * off the same two values rather than off the drawing — that tier can be
+   * covered by a profile, scrolled past or not yet laid out, and none of that
+   * is a fact about where a thumb should go. The nearby list needs no
+   * filtering here for the reason it needs it there: the one channel that can
+   * appear in both is `live`, and `live` has already won when it exists.
    *
    * **Right goes back because every other phone does.** The first version had
    * these the other way round, reasoning from the layout — Home is the column
@@ -906,10 +934,10 @@ function Root() {
                 }
               : undefined,
           left:
-            detail.kind === 'none' && live
+            detail.kind === 'none' && hoisted
               ? () => {
                   app.recordNav('swipeIn');
-                  enterChannel(live.id, lastTab.current.get(live.id));
+                  enterChannel(hoisted.channelId, hoisted.tab);
                 }
               : undefined,
         };

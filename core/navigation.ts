@@ -31,7 +31,17 @@ export type NavAction =
   | 'home'
   /** The right swipe off a channel screen, which does what `home` does. */
   | 'swipeOut'
-  /** The left swipe into the channel this device is standing in. */
+  /**
+   * The left swipe into the topmost channel hoisted onto Home — the one this
+   * device is standing in, or the nearest room it is within reach of when
+   * there is no such thing.
+   *
+   * **The pair below still reads**, because the live bar is the topmost bar
+   * whenever there is one: every swipe that had a `liveCard` to be compared
+   * with is still counted here. What the second case adds is swipes taken on a
+   * tier where no live line was drawn at all, so the two numbers answer *is
+   * the gesture found* rather than dividing one journey between them.
+   */
   | 'swipeIn'
   /** The pinned live line on Home, which does what `swipeIn` does. */
   | 'liveCard';

@@ -18,7 +18,7 @@ import { colors, spacing, type } from './theme';
  *
  * An absent handler is a direction with nothing in it, and the gesture is not
  * taken at all — no movement, no bounce, nothing to explain. Which is the
- * whole of what *otherwise inert* means: a left swipe with no live channel
+ * whole of what *otherwise inert* means: a left swipe with no hoisted channel
  * behind it must be indistinguishable from a left swipe on a screen that has
  * never heard of swiping.
  */

@@ -9,9 +9,9 @@
  * behind is the responder, which no test in this repository can reach.
  *
  * **It answers a direction and nothing else.** Whether there is anywhere to go
- * in that direction is `App.tsx`'s question: the channel you are standing in
- * is the only thing a left swipe can open, and that is a fact about presence
- * rather than about a thumb. See `Panes`.
+ * in that direction is `App.tsx`'s question: a left swipe opens the topmost
+ * channel hoisted onto Home, and which channel that is is a fact about
+ * presence and reach rather than about a thumb. See `Panes`.
  */
 
 /** Which way the thumb went, once it has gone far enough to mean it. */
