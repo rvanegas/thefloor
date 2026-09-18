@@ -46,10 +46,13 @@ voluntary, unlocks nothing, and the app is free.
 
 6. THIRD-PARTY MATERIAL AND WATCH PARTIES
 A member may play their own audio file in; any member can delete any
-recording. A watch party is behind Labs and carries no video: this app never
-fetches, decodes, stores or shows a frame; it shares a position and a clock.
-"Watch on another screen" mints a link to a page where YouTube's own IFrame
-player plays it unmodified, unobscured and with its own controls.
+recording. A watch party is behind Labs and carries no video of ours: this app
+never fetches, decodes, stores or republishes a frame, and what travels through
+it is a position and a clock. The video itself is played by YouTube's own
+IFrame player, embedded unmodified, unobscured and with its own controls, on
+whichever of the member's own signed-in devices they choose. Nothing is
+downloaded, nothing is separated from its audio, and a channel with a party
+loaded refuses to record.
 
 GUIDELINE 1.2: no discovery and no directory - nothing can be browsed and
 nobody found. A username names an invite link, not a search term, and a link

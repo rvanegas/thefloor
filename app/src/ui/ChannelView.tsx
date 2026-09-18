@@ -21,6 +21,7 @@ import {
 } from '../../../core/watch';
 import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
+  ATTENTION_REPORT_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
@@ -600,6 +601,42 @@ export function ChannelView({
     if (partyLoaded || app.screenFor !== channelId) return;
     app.showScreenFor(null);
   }, [app, channelId, partyLoaded]);
+
+  /**
+   * A film playing on this screen is somebody being here.
+   *
+   * **Otherwise watching a film is how you get stepped out of the room you are
+   * watching it in.** A browser's attention clock counts a hand on the page —
+   * a click, a key, a scroll — and a person watching a video produces none of
+   * those for two hours; a cross-origin YouTube iframe swallows its own clicks
+   * besides, so even the ones they do make never reach this document. Fifteen
+   * minutes in, `useAttention.web.ts` would step them out of the channel the
+   * party is running in.
+   *
+   * **Evidence, rather than an exemption**, which is the distinction the
+   * attention design turns on. An abandoned tab is the ghost that clock is
+   * hunting; a tab showing a film somebody deliberately started, which stops
+   * itself at the end and which the transport can pause from anywhere, is not
+   * that. It is the same reasoning by which somebody else being audible counts
+   * and your own microphone does not.
+   *
+   * Reported rather than decided — the server holds the clock — and rate
+   * limited by `shouldReport`, so this costs one message per
+   * `ATTENTION_REPORT_MS` however often it runs. Harmless on a phone, which
+   * has no such clock: being frontmost already speaks for somebody who is only
+   * watching.
+   *
+   * It does **not** cover the other half of `tasks/keep-alive-during-watch-party.md`
+   * — a browser in the room while the film plays on another device has no
+   * hand on it either, and nothing here is evidence about that tab.
+   */
+  useEffect(() => {
+    if (!screenIsHere || channel?.watch?.status !== 'playing') return;
+    const tell = () => app.reportAttentive();
+    tell();
+    const timer = setInterval(tell, ATTENTION_REPORT_MS);
+    return () => clearInterval(timer);
+  }, [app, screenIsHere, channel?.watch?.status]);
 
   /**
    * Resolves a tap on *Watch on another device* when there is nothing to

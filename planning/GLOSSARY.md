@@ -87,6 +87,8 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
+- **Screen** — The app instance showing a party's film; any device you are signed in on
+- **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
 
@@ -1625,6 +1627,44 @@ was reacting to.
 pausing gives them all back — you pause a film to talk about it. It writes
 nobody's *self-mute*, and it is not the *floor*: it withholds everybody and
 confers nothing.
+
+**Since 2026-09-17 the film plays inside the app**, on whichever device you
+choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
+player, unmodified and unobscured, and The Floor still carries no video. What
+went with the change is the *follower page*, a browser that followed a channel
+on a six-hour link credential without being signed in; there is no such page and
+no such token now.
+
+## Screen
+
+**The app instance showing a party's film.** Any instance of your own account,
+on any device you are signed in on — a role an instance takes, never a place to
+be. A screen does not *step in*, so it neither displaces the device holding
+your voice nor claims an audio session of its own, which is why a film on a
+second device sounds best.
+
+Chosen with two buttons: *Watch here* and *Watch on another device*. The second
+lists your own live instances, and only when there is more than one to choose
+between.
+
+## Watching here
+
+**Your screen and your voice on one device**, which is the case that costs
+something. A device cannot both play a film in stereo and hold a microphone
+open — an open microphone forces a voice-mode session, which is mono, ducked
+and voice processed — so a screen that is also in the room stops capturing
+while the film plays, and the room's mute is **enforced** for that run so that
+nobody is waiting on a voice that cannot arrive.
+
+Sampled when a run starts rather than watched continuously: somebody switching
+to their only device mid-film changes nothing until the next Play, so no voice
+is cut mid-sentence. Drawn on the roster, because between the switch and the
+next pause that person is silent and the room would otherwise read it as a
+dropped call.
+
+A *guest* with no speech grant does not count — no microphone, nothing to give
+up. A *self-mute* does, a muted microphone being held open rather than
+released.
 
 ---
 

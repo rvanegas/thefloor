@@ -42,6 +42,30 @@ channel, a desktop browser open on each:
    stuttering endlessly, and the failure the fix risks is the opposite — a
    screen stuck on Finished that will not replay.
 
+**Three steps arrived on 2026-09-17, when the player moved into the app** —
+decisions/2026-09-17-the-screen-is-the-app.md. Everything above was written for
+a follower page on a laptop, which no longer exists; read *both browsers* as
+*both screens*, wherever each person has chosen to put theirs.
+
+10. **A film on one device.** Watch here, on the phone you are in the room on.
+    The room should go quiet as it starts and stay quiet — *Unmute the room*
+    greyed with its reason — and your own microphone should close: a Bluetooth
+    headset blooming from mono to stereo is the audible proof, and it is the
+    whole point of the exception. Pause: the voice comes back, and so does
+    mono. **Do this a dozen times.** The handover at each pause is the one
+    thing the design left unsettled, and whether it is tolerable is a question
+    only an evening can answer.
+11. **A film on two devices, one account.** Watch on another device from the
+    phone, with the web app signed in on a laptop. The laptop should start
+    showing it without stepping in — nothing about presence changes, the phone
+    is not displaced, and the roster gains no second entry — and the room
+    should stay unmutable, because nobody's screen and voice are one device.
+12. **Switching mid-film.** With the room unmuted and a film running on the
+    laptop, tap *Watch here* on the phone. **Nothing should happen until the
+    next pause**: no voice is cut, and the room is still audible. Pause and
+    play again, and the room goes quiet. That is the sampling, and getting it
+    wrong is a conversation cut off mid-sentence.
+
 **Unmute the room before doing any of this**, which is now a deliberate act:
 parties start muted, so a walk done on the defaults will be a walk with every
 microphone shut and no drift audible at all. Then use headphones, or the

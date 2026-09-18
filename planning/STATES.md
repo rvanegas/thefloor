@@ -423,8 +423,10 @@ things that this file keeps apart:
   that driving is tidying — an absent member stopping a film somebody left
   running on an empty channel is clearing up after a room that has gone home —
   while starting leaves something behind for whoever steps in next, chosen by
-  somebody who is not there. `canOpenWatchScreen` is a third combination,
-  occupation without the floor, because a follower page changes nothing.
+  somebody who is not there. There was a third combination, occupation without
+  the floor — `canOpenWatchScreen`, for a follower page that changed nothing —
+  and it went on 2026-09-17 with the page: which of your own devices shows a
+  film is not a question the channel answers.
   decisions/ § *Starting is for whoever is in the room; driving is
   for whoever the room belongs to*. `present` counts members only, so a guest
   never holds a room — though `settleEmpty` means a guest cannot be in an empty
@@ -820,9 +822,21 @@ session already `CALL` is left alone when the app goes off screen.
 | Stepped in, alone, nothing running | `CALL` |
 | Stepped in, muted | `CALL` |
 | Stepped in, everybody muted | `CALL` |
-| Stepped in, watch party, while the video plays | `CALL` |
+| Stepped in, watch party on another device, while it plays | `CALL` |
+| Stepped in, **watching here**, while it plays | `LISTENING` |
 | Guest in the room, no speech grant | `LISTENING` |
 | Stepped in, promotion deferred while backgrounded | `LISTENING` |
+
+**The watching-here row is the one exception to *a session follows whether you
+are stepped in*, and it is written down as an exception in
+`core/micNeeded.ts`.** A device that is showing the film gives up its
+microphone while the film plays, so the session can be `playback` and the film
+can be in stereo rather than mono, ducked and voice processed. Two properties
+of a watch party make it safe and neither generalises: a loaded party already
+refuses a recording, so the capture feeds nothing, and a run with a screen in
+the room is enforced-muted, so it feeds no subscription either. The price is a
+Bluetooth profile handover at each pause, paid knowingly — see
+decisions/2026-09-17-the-screen-is-the-app.md.
 
 **The empty-channel row is the reversal, and it was made knowingly.**
 `core/micNeeded.ts` used to carry the principle *being in an empty channel
