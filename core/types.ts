@@ -383,6 +383,32 @@ export interface WatchState {
    */
   mutedAll: boolean;
   /**
+   * Whether this run's mute is the one nobody may lift.
+   *
+   * **Sampled when a run starts, never evaluated continuously.** `WATCH_PLAY`
+   * asks whether anybody in the room is watching on the device they are in it
+   * on — `watchingHere` below — and if so this run begins muted and stays
+   * that way until it is paused. `canUnmuteRoom` is the guard that reads it.
+   *
+   * Sampling rather than deriving is what stops a voice being cut
+   * mid-sentence. Somebody switching to their only device during a playing,
+   * unmuted film changes nothing until the film is paused and started again,
+   * and at a pause everybody may talk regardless — so the moment enforcement
+   * begins is never audible as an interruption. It also means there is no
+   * pending state and no second clock: the question is asked at one edge and
+   * the answer is written here.
+   *
+   * The reason it is enforced at all is the audio session. A device that is
+   * showing the film cannot both serve it in stereo and hold a microphone
+   * open — see `microphoneNeeded` in core/micNeeded.ts, where the exception
+   * that stops its capture is written down.
+   *
+   * False while paused, so that unmuting a paused party is allowed and the
+   * next run re-asks the question. Cleared with the party, like everything
+   * else here.
+   */
+  enforced: boolean;
+  /**
    * Why the party stopped, when it stopped for a reason nobody asked for.
    *
    * The same reasoning as `PlaybackState.failure`, one screen further out: a
@@ -597,6 +623,36 @@ export interface ChannelState {
    * anything.
    */
   waiting: UserId[];
+  /**
+   * Who is watching the party on the very device they are in the room on.
+   *
+   * **A subset of `present`, and the whole of what one device costs.** A
+   * screen and a microphone on one device cannot both be served: the film
+   * wants a `playback` session in stereo, and an open microphone forces
+   * `playAndRecord` under a voice mode, which is mono, ducked and voice
+   * processed. So a device that is the screen stops capturing while the film
+   * plays — the exception written down in core/micNeeded.ts — and the room's
+   * mute is enforced for that run so that nobody is expecting a voice that
+   * cannot arrive.
+   *
+   * **Read through `microphoneNeeded`, never alone.** A guest with no speech
+   * grant is in the room, may be watching here, and has no microphone to be a
+   * problem; one of those must not quiet a room for nothing. `enforcedFor`
+   * in core/channel.ts is the combination, and is the only thing that should
+   * ask this question.
+   *
+   * **Drawn on the roster**, which is not decoration. Between somebody
+   * choosing this device and the film next pausing, they are inaudible while
+   * the room still believes otherwise — the mirror of the fault `isWithheld`
+   * forbids — and saying *watching* beside their name is what makes the
+   * silence legible rather than a dropped call.
+   *
+   * Volatile, like `present` and `waiting` and for the same reason: it
+   * describes a process rather than a channel. A restart drops every screen in
+   * the world along with the presence it depends on, and `revivedWatch`
+   * brings the party back paused with nobody watching, which is true.
+   */
+  watchingHere: UserId[];
   /**
    * When each *declared* wait was declared, for those that were.
    *
@@ -838,6 +894,21 @@ export type ChannelAction =
    * reducer refuses anybody who is not a participant.
    */
   | { type: 'WATCH_READY'; userId: UserId; durationMs: number }
+  /**
+   * This account's device in the room is, or is no longer, the screen.
+   *
+   * A fact about a device rather than a control over the channel, so it is
+   * gated by being in the room and nothing else — it drives no transport and
+   * confers nothing. What it does change is whether the next run's mute can be
+   * lifted, which is why the reducer keeps it rather than the server keeping
+   * it to itself: `WatchState.enforced` is sampled from it.
+   *
+   * Only ever sent by the connection that holds this account's presence. An
+   * instance that is a screen *without* being in the room — the second device,
+   * which is the configuration this design prefers — sends nothing, because
+   * its microphone was never the problem.
+   */
+  | { type: 'WATCH_HERE'; userId: UserId; watching: boolean }
   /** Reported, not performed — like PLAYBACK_FAILED: no actor, no guard. */
   | { type: 'WATCH_FAILED'; reason: string }
   /**

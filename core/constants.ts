@@ -107,6 +107,22 @@ export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 export const WATCH_DRIFT_MS = 1_500;
 
 /**
+ * How long a correction is left to land before another may be issued.
+ *
+ * A seek is not instantaneous: the player reports the old position for a
+ * moment, then buffers, and a follower that re-read the clock in between would
+ * see the drift it has already fixed and fix it again. That is the seek storm,
+ * and two guards close it — this window, and never correcting a buffering
+ * player.
+ *
+ * It was a literal in the follower page until the player moved into the app,
+ * at which point two implementations needed the same number. Here for
+ * `WATCH_DRIFT_MS`'s reason: it describes the shared clock's tolerances, not
+ * one client's.
+ */
+export const WATCH_SEEK_SETTLE_MS = 2_000;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the

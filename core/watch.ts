@@ -1,3 +1,4 @@
+import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from './constants';
 import type { WatchParty, WatchState } from './types';
 
 /**
@@ -23,6 +24,7 @@ export function initialWatchState(): WatchState {
     positionMs: 0,
     startedAt: null,
     mutedAll: false,
+    enforced: false,
     failure: null,
   };
 }
@@ -84,6 +86,7 @@ export function startParty(party: WatchParty): WatchState {
     positionMs: 0,
     startedAt: null,
     mutedAll: true,
+    enforced: false,
     failure: null,
   };
 }
@@ -97,6 +100,12 @@ export function startParty(party: WatchParty): WatchState {
  */
 export function setPartyMute(watch: WatchState, muted: boolean): WatchState {
   if (!watch.party) return watch;
+  // Refused rather than silently ignored is the caller's business — the
+  // reducer checks `canUnmuteRoom` and never reaches here — but the rule is
+  // restated at the mutation for the same reason every guard in core is: a
+  // second caller arriving later must not be able to lift an enforced mute by
+  // going round the guard.
+  if (watch.enforced && !muted) return watch;
   return { ...watch, mutedAll: muted };
 }
 
@@ -124,7 +133,18 @@ export function stopParty(): WatchState {
  * beginning, which is the only reading of "play" available at that position —
  * the same rule shared playback follows.
  */
-export function watchPlay(watch: WatchState, now: number): WatchState {
+export function watchPlay(
+  watch: WatchState,
+  now: number,
+  /**
+   * Whether anybody in the room is watching on the device they are in it on,
+   * which only the channel can answer — hence a parameter rather than a
+   * lookup. **This is the sampling point**: the question is asked here, at the
+   * edge of a run, and the answer is written to `enforced` and left alone
+   * until the next one.
+   */
+  screenInTheRoom = false
+): WatchState {
   if (!watch.party) return watch;
   const atEnd =
     watch.party.durationMs !== null &&
@@ -134,6 +154,11 @@ export function watchPlay(watch: WatchState, now: number): WatchState {
     status: 'playing',
     positionMs: atEnd ? 0 : watch.positionMs,
     startedAt: now,
+    // Forced on rather than merely locked: a run that cannot be unmuted must
+    // also not begin audible, or the first thing an enforced party does is
+    // publish a room full of microphones pointed at their own screens.
+    mutedAll: screenInTheRoom ? true : watch.mutedAll,
+    enforced: screenInTheRoom,
     failure: null,
   };
 }
@@ -145,6 +170,11 @@ export function watchPause(watch: WatchState, now: number): WatchState {
     status: 'paused',
     positionMs: watchPositionMs(watch, now),
     startedAt: null,
+    // A pause ends the run and with it the enforcement, so that unmuting a
+    // paused party is allowed. The next `watchPlay` asks the question again,
+    // which is what makes somebody unplugging their laptop mid-evening take
+    // effect without anything having to watch for it.
+    enforced: false,
   };
 }
 
@@ -234,4 +264,148 @@ export function parseYouTubeUrl(url: string): { videoId: string } | null {
     if (match && VIDEO_ID.test(match[1])) return { videoId: match[1] };
   }
   return null;
+}
+
+/**
+ * What a player is doing, in the only five states any of this cares about.
+ *
+ * YouTube's own numbers are deliberately not used here: core must not know
+ * what `YT.PlayerState.ENDED` is, and an app player that is a native WebView
+ * has its own vocabulary anyway. Each caller maps its player's state to these
+ * five and is the only thing that knows the mapping.
+ */
+export type PlayerState =
+  | 'unstarted'
+  | 'buffering'
+  | 'playing'
+  | 'paused'
+  | 'ended';
+
+/** A player's own account of itself, read fresh at each tick. */
+export interface PlayerReading {
+  state: PlayerState;
+  /** Where the player is, in ms, or null when it cannot say yet. */
+  positionMs: number | null;
+  /** When this follower last issued a seek, or null if it never has. */
+  seekedAt: number | null;
+}
+
+/**
+ * One thing to do to a player. A tick may produce none, one or two.
+ */
+export type WatchInstruction =
+  | { do: 'play' }
+  | { do: 'pause' }
+  | { do: 'seek'; positionMs: number };
+
+/**
+ * What to tell this player, given where the channel is and where the player
+ * is.
+ *
+ * **The whole reason this is in core**: there are now three followers — the
+ * app on native, the app on the web, and the follower page while it still
+ * exists — and a rule about a shared clock that exists three times is three
+ * rules. Everything platform-shaped stays at the caller: reading the player,
+ * issuing the calls, and mapping its states to `PlayerState`.
+ *
+ * Returned as a list rather than performed, because ordering is load-bearing
+ * in both branches and is the kind of thing that gets quietly reversed by
+ * somebody tidying. See the two comments below.
+ */
+export function followInstructions(
+  watch: WatchState,
+  player: PlayerReading,
+  now: number
+): WatchInstruction[] {
+  if (!watch.party) return [];
+  const at = watchPositionMs(watch, now);
+
+  /*
+    **An ended video is not a stopped one, and nothing here may restart it.**
+
+    `playVideo()` on an ended player starts it again from the beginning. A
+    transport still saying playing — which it is for at least one tick after
+    the end, and for ever when the duration was never learned — therefore
+    restarted the video; the correction then saw the player at zero against a
+    position at the end, called that drift, and seeked back to the end, which
+    ended it again. The whole loop is invisible except as the first second
+    stuttering endlessly, which is exactly how it was reported.
+
+    **Only while the channel agrees it is over**, and that clause is what keeps
+    replay working: pressing Play on a finished video moves the transport back
+    to zero while the player is still ended, so a flat "never touch an ended
+    player" would leave every screen at Finished for ever.
+  */
+  if (player.state === 'ended') {
+    const here = player.positionMs ?? at;
+    if (at >= here - WATCH_DRIFT_MS) return [];
+  }
+
+  const correction = correctionFor(watch, player, now);
+
+  if (watch.status === 'playing') {
+    const instructions: WatchInstruction[] = [];
+    if (correction !== null) instructions.push({ do: 'seek', positionMs: correction });
+    /*
+      A buffering player is already on its way to playing and needs nothing
+      said to it. Re-issuing play at every tick into a player that is mid-seek
+      is the other half of the seek storm — the seek is what stalls it, and the
+      play is what stops it settling afterwards.
+    */
+    if (player.state !== 'playing' && player.state !== 'buffering') {
+      instructions.push({ do: 'play' });
+    }
+    return instructions;
+  }
+
+  /*
+    **Paused, and this is where the ordering matters.**
+
+    The pause goes first and the correction second. Correcting before pausing
+    sends the player somewhere it is about to be stopped at, which is a seek
+    spent to land in the same wrong place.
+
+    **And a paused transport is corrected whatever the player was doing**,
+    which is the fix for BACKLOG.md § *A rewind while the watch party is paused
+    leaves the picture where it was*. The old shape only corrected inside the
+    branch that had just paused a playing player, so a seek arriving while
+    everything was already at rest moved the readout and not the picture: the
+    footer said one time, the frame showed another, and it stayed that way
+    until somebody pressed Play.
+  */
+  const instructions: WatchInstruction[] = [];
+  if (player.state === 'playing' || player.state === 'buffering') {
+    instructions.push({ do: 'pause' });
+  }
+  if (correction !== null) instructions.push({ do: 'seek', positionMs: correction });
+  return instructions;
+}
+
+/**
+ * Where to seek to, or null when the drift is not worth the stutter.
+ *
+ * Correcting continuously is the obvious thing and the wrong one: a seek is a
+ * visible jump and an audible one, and two people half a second apart are
+ * watching the same film while two people jumping every four seconds are not.
+ * `WATCH_DRIFT_MS` is where that trade was set.
+ *
+ * Exported because a player may want to ask the question without being told
+ * what else to do — and because it is the half worth testing directly.
+ */
+export function correctionFor(
+  watch: WatchState,
+  player: PlayerReading,
+  now: number
+): number | null {
+  if (!watch.party) return null;
+  if (player.positionMs === null) return null;
+  // Both guards are the seek storm's: one correction outstanding at a time,
+  // and a player that is still fetching is left to finish rather than sent
+  // somewhere else.
+  if (player.state === 'buffering') return null;
+  if (player.seekedAt !== null && now - player.seekedAt < WATCH_SEEK_SETTLE_MS) {
+    return null;
+  }
+  const at = watchPositionMs(watch, now);
+  return Math.abs(player.positionMs - at) > WATCH_DRIFT_MS ? at : null;
 }

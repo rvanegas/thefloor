@@ -21,18 +21,38 @@ import type { ChannelState, UserId } from './types';
  * to guess which was meant.
  *
  * **What left with it.** The occupancy clause — *is anybody else in the room* —
- * and the watch-party clause. Neither is a tidy-up: the session follows your
- * own mode rather than the roster, so this predicate no longer reads who else
- * is here; and a watch party's film plays on **another device**, so an
- * exclusive claim does not silence it and the occupants simply mute, which is
- * ordinary self-mute using machinery that already exists. `partyWithholds`
- * stays in `core/watch.ts` for the server's withholding, which is a different
- * question.
+ * and the watch-party clause. The first is not a tidy-up: the session follows
+ * your own mode rather than the roster, so this predicate no longer reads who
+ * else is here.
+ *
+ * **The second has come back, inverted, and the sentence it left on is now
+ * false.** It read: *a watch party's film plays on another device, so an
+ * exclusive claim does not silence it and the occupants simply mute*. Since
+ * the player moved into the app the film may be on this very device, and then
+ * the microphone is not a bystander but the thing standing between its owner
+ * and a film in stereo. See `isScreening` below, which is that clause in its
+ * new form — an exception rather than a condition, and narrower than the one
+ * that left.
  *
  * The one thing this still asks about somebody other than the caller is what
  * kind of person the caller is, which is the guest case below.
  */
-export function microphoneNeeded(
+export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
+  if (!hasMicrophone(channel, me)) return false;
+  return !isScreening(channel, me);
+}
+
+/**
+ * Whether this person has a microphone in this room at all.
+ *
+ * **The rule above, minus the watch exception below it**, and the two are
+ * separated for a reason that is not tidiness: `anyScreenInTheRoom` in
+ * channel.ts has to ask whether somebody's microphone matters *in order to
+ * decide whether it should be closed*, and asking `microphoneNeeded` for that
+ * would be asking a question whose answer is what it is about to compute. One
+ * predicate is about the person and the room; the other is about this moment.
+ */
+export function hasMicrophone(
   channel: ChannelState,
   me: UserId
 ): boolean {
@@ -52,6 +72,42 @@ export function microphoneNeeded(
   // cannot. The divergence is narrower than it was and it is permanent.
   if (isGuest(channel, me) && !guestMaySpeak(channel, me)) return false;
   return true;
+}
+
+/**
+ * Whether this device is showing the film right now, and so must not capture.
+ *
+ * **The exception to the one rule above, and it is written down as one so that
+ * nobody later deletes it as an inconsistency.** *You hold the audio system if
+ * and only if you are stepped in* has been the whole of this file since the
+ * 2026-09-08 redesign; this is the first thing to qualify it.
+ *
+ * **What it buys is stereo.** A screen and a microphone on one device cannot
+ * both be served: an open microphone forces `playAndRecord` under a voice
+ * mode, which is mono over Bluetooth, ducked, and voice processed — and the
+ * film is the thing everybody came for. Closing it lets `sessionFor` ask for
+ * `LISTENING`, which is `playback`, which is the stereo bloom. The price is a
+ * profile handover at every pause, paid knowingly.
+ *
+ * **Two properties of a watch party make it safe, and neither generalises.**
+ * A loaded party already refuses a recording — `canStartRecording` requires
+ * `watch.party === null`, playing or paused and wherever anybody is watching —
+ * so the capture being declined feeds nothing; and it feeds no subscription
+ * either, because a run with a screen in the room is enforced-muted for its
+ * length. The other is that a film keeps the app in front, which is where iOS
+ * requires a *new* microphone to be asked for: the deferred promotion in
+ * STATES.md is what a backgrounded reacquisition would otherwise hit, and it
+ * is also what covers somebody swapping away mid-film.
+ *
+ * **Keyed on `enforced` rather than on the party's mute.** They coincide by
+ * construction — a run with a screen in the room begins muted and cannot be
+ * unmuted — and reading the sampled flag is what keeps this in step with the
+ * room's expectations rather than a tick ahead of them.
+ */
+function isScreening(channel: ChannelState, me: UserId): boolean {
+  const watch = channel.watch;
+  if (watch.status !== 'playing' || !watch.enforced) return false;
+  return channel.watchingHere.includes(me);
 }
 
 /**

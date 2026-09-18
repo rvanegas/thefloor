@@ -52,6 +52,7 @@ import {
   stopRecording,
 } from './recording';
 import { guestMaySpeak, inRoom, isGuest, roomOccupants } from './guests';
+import { hasMicrophone } from './micNeeded';
 import type {
   ChannelAction,
   ChannelState,
@@ -122,6 +123,10 @@ export function createChannel(params: {
     // what separates a channel you have opened from one you were added to,
     // and everyone else has still only been added.
     everPresent: present,
+    // Nobody is a screen at the moment a channel opens, there being nothing to
+    // watch. Volatile like `present`, and rebuilt from live sockets rather
+    // than restored.
+    watchingHere: [],
     guests: {},
     knocks: [],
     floor: initialFloorState(),
@@ -1085,6 +1090,50 @@ export function canControlWatch(
  */
 export function canStartWatch(state: ChannelState, userId: UserId): boolean {
   return mayPutSomethingOn(state, userId) && state.recording.status === 'idle';
+}
+
+/**
+ * Whether anybody in the room is watching on the device they are in it on.
+ *
+ * **The predicate is `hasMicrophone && watchingHere`, and the first half is
+ * not decoration.** `hasMicrophone` rather than `microphoneNeeded` because the
+ * latter now carries the screening exception itself — see core/micNeeded.ts,
+ * where the two are split for exactly this call. A guest with no speech grant is in the room, may well be
+ * the one with the television, and has no microphone to be a problem: their
+ * token cannot publish, so they already hold a `playback` session and their
+ * film already sounds right. One of those must not quiet a room for nothing.
+ *
+ * A self-mute, by contrast, counts — `microphoneNeeded` says nothing about it,
+ * deliberately. A muted microphone is *held* open rather than released, so the
+ * session is still a call's and the film is still mono and ducked. *Self-mute
+ * is not an input to the audio session* is a standing rule with an afternoon
+ * behind it, and this is not the thing that reopens it.
+ *
+ * Filtered by `inRoom` as well, which is what saves every departure path from
+ * having to clear `watchingHere`: stepping out, being displaced, losing a
+ * socket and the channel ending all remove somebody from `present`, and this
+ * stops counting them at the same moment.
+ */
+export function anyScreenInTheRoom(state: ChannelState): boolean {
+  return state.watchingHere.some(
+    (id) => inRoom(state, id) && hasMicrophone(state, id)
+  );
+}
+
+/**
+ * Whether the room's mute may be lifted.
+ *
+ * Read by the reducer to refuse `SET_WATCH_MUTE` and by the Watch tab to grey
+ * the button with a sentence under it — the same division every guard here
+ * makes, so that a greyed control and a refused action cannot disagree.
+ *
+ * `enforced` rather than `anyScreenInTheRoom`, which is the sampling and is
+ * the point: the question was asked when the run began, and asking it again
+ * here would make the button flicker under somebody's finger every time a
+ * person in another country closed a laptop.
+ */
+export function canUnmuteRoom(state: ChannelState): boolean {
+  return !state.watch.enforced;
 }
 
 /**
@@ -2112,6 +2161,10 @@ export function reduce(
         // of what tears the playback participant down — there is no
         // `applyWatchToMedia` and nothing here has to know there is a room.
         playback: clearTrack(state.playback),
+        // A new film is a new question. Somebody who watched the last one on
+        // this phone may want the television for this one, and inheriting the
+        // answer would put a film on a screen nobody chose.
+        watchingHere: [],
       };
     }
 
@@ -2129,8 +2182,16 @@ export function reduce(
           // `stopParty` returns the initial state, so the room's microphones
           // come back with the party's end. Nothing in the interface would
           // explain a mute that outlived the thing it was for.
-          return { ...state, watch: stopParty() };
+          //
+          // Every screen goes with it, for the same reason: being a screen is
+          // a thing you are for a particular film, and the next one is a
+          // question worth asking again rather than an answer inherited from
+          // the last.
+          return { ...state, watch: stopParty(), watchingHere: [] };
         case 'SET_WATCH_MUTE':
+          // The enforced mute is refused here as well as in `setPartyMute`,
+          // so that the reducer and the greyed button are reading one rule.
+          if (!action.muted && !canUnmuteRoom(state)) return state;
           // Note the two things that are *not* here. No write to `selfMuted`:
           // the two are separate states, and clearing this one restores each
           // person's own mute exactly as they left it, which is the whole
@@ -2141,7 +2202,15 @@ export function reduce(
           // pair of states to keep in step, and one of them would drift.
           return { ...state, watch: setPartyMute(watch, action.muted) };
         case 'WATCH_PLAY':
-          return { ...state, watch: watchPlay(watch, now) };
+          // **The sampling point.** Whether this run's mute can be lifted is
+          // decided here, once, from who is watching on the device they are
+          // in the room on — and then left alone until the next pause. See
+          // `WatchState.enforced` for why it is asked at this edge rather
+          // than answered continuously.
+          return {
+            ...state,
+            watch: watchPlay(watch, now, anyScreenInTheRoom(state)),
+          };
         case 'WATCH_PAUSE':
           return { ...state, watch: watchPause(watch, now) };
         case 'WATCH_SEEK':
@@ -2156,6 +2225,27 @@ export function reduce(
       // the one most likely to have loaded the video first.
       if (!isParticipant(state, action.userId)) return state;
       return { ...state, watch: learnDuration(state.watch, action.durationMs) };
+    }
+
+    case 'WATCH_HERE': {
+      // Being in the room, and nothing more. It is a report about a device
+      // rather than a control over the channel — the same standing
+      // `WATCH_READY` has, and for the same reason: it drives no transport
+      // and confers nothing on the person sending it.
+      //
+      // **Stepping out takes it away**, which is handled where presence is
+      // rather than here: `watchingHere` is filtered by `present` wherever it
+      // is read, so there is no departure path that has to remember to clear
+      // it. See `anyScreenInTheRoom`.
+      if (!inRoom(state, action.userId)) return state;
+      const here = state.watchingHere.includes(action.userId);
+      if (here === action.watching) return state;
+      return {
+        ...state,
+        watchingHere: action.watching
+          ? [...state.watchingHere, action.userId]
+          : state.watchingHere.filter((id) => id !== action.userId),
+      };
     }
 
     case 'PASTE_CLIP': {
