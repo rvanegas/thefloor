@@ -80,6 +80,25 @@ function laggyPlayer(lag: number) {
       pending = null;
       if (at !== undefined) positionMs = at;
     },
+    /**
+     * Play, pressed on the bar, the way a real player answers it: a moment
+     * of `buffering` and only then `playing`.
+     *
+     * **The state the follower is most likely to see**, a tick being half a
+     * second and the wait to start being about that. A fake that jumped
+     * straight to playing could not reproduce a press that starts the film
+     * and is immediately stopped again.
+     */
+    pressPlay(buffersFor: number) {
+      state = 'buffering';
+      want = 'playing';
+      pending = {
+        at: Date.now() + buffersFor,
+        run: () => {
+          state = 'playing';
+        },
+      };
+    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       if (pending && now >= pending.at) {
@@ -415,6 +434,126 @@ describe('a screen joining a party that is paused', () => {
     // And the screen is where the party is, stopped.
     expect(sim.player.state).toBe('paused');
     expect(Math.abs(sim.player.positionMs - 60_000)).toBeLessThanOrEqual(1_500);
+  });
+});
+
+describe('play, pressed on the video’s own bar', () => {
+  it('is not stopped again by the tick that catches it buffering', () => {
+    /*
+      **Reported from a watch: the film starts and immediately stops.**
+
+      A press goes `paused` → `buffering` → `playing`, and a tick is half a
+      second, so the reading the follower most often gets is the middle one.
+      `buffering` is not a state a person can be in, so nothing read it as a
+      press — and the paused branch of `followInstructions` treats a
+      buffering player as one on its way to playing and stops it, which is
+      right for a player the follower itself started and wrong for a thumb.
+
+      Nothing said to this player can explain it: in `watching` the follower
+      has been silent. So it waits a tick for the player to settle rather
+      than correcting something it did not cause.
+    */
+    const sim = run({
+      already: (c) =>
+        reduce(
+          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
+          { type: 'WATCH_PAUSE', userId: A },
+          T0 + 30_000
+        ),
+    });
+    // Let the screen settle where the paused party is.
+    sim.advance(4_000);
+    expect(sim.player.state).toBe('paused');
+    const heard = sim.wire.heard.length;
+
+    // A thumb on Play, which buffers past the next tick before it runs.
+    sim.player.pressPlay(700);
+    sim.advance(6_000);
+
+    expect(sim.wire.heard.slice(heard)).toEqual(['play']);
+    expect(sim.where().channel).toBe('playing');
+    expect(sim.player.state).toBe('playing');
+    expect(inStep(sim.where())).toBe(true);
+  });
+
+  /*
+    **However long the wait to start.** Whether a tick lands inside the
+    buffering at all is a matter of where the press falls between two of
+    them, so one duration proves one alignment. These are the ones either
+    side of a tick and either side of the fuse.
+  */
+  it.each([100, 300, 700, 1_200, 2_400])(
+    'reaches the room after buffering for %ims',
+    (buffersFor) => {
+      const sim = run({
+        already: (c) =>
+          reduce(
+            reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
+            { type: 'WATCH_PAUSE', userId: A },
+            T0 + 30_000
+          ),
+      });
+      sim.advance(4_000);
+      const heard = sim.wire.heard.length;
+
+      sim.player.pressPlay(buffersFor);
+      sim.advance(8_000);
+
+      expect(sim.wire.heard.slice(heard)).toEqual(['play']);
+      expect(sim.where().channel).toBe('playing');
+      expect(sim.player.state).toBe('playing');
+    }
+  );
+
+  it('gives up waiting on a player that never lands', () => {
+    /*
+      **The fuse, tested rather than asserted.** A player that buffers and
+      never settles would otherwise be waited on for ever, and the wait is a
+      silence — nothing corrects it. `WATCH_OBEDIENCE_MS` ends it, and the
+      tick that ends it has to go on and correct the player in the same
+      breath: stopping at `watching` would meet the buffering test again and
+      start a fresh wait, which is a fuse that re-lights itself.
+    */
+    const sim = run({
+      already: (c) =>
+        reduce(
+          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
+          { type: 'WATCH_PAUSE', userId: A },
+          T0 + 30_000
+        ),
+    });
+    sim.advance(4_000);
+    const calls = sim.player.calls.length;
+
+    // Buffering with nothing on the other side of it, for ever.
+    sim.player.press('buffering');
+    sim.advance(6_000);
+
+    expect(sim.player.calls.slice(calls)).toContain('pause');
+    expect(sim.wire.heard).toEqual([]);
+  });
+
+  it('is still stopped when it is the channel that is paused and nobody pressed', () => {
+    // The other side of the wait: a player that really is out of step gets
+    // corrected, a tick later than it used to be. See `WATCH_OBEDIENCE_MS`.
+    const sim = run({
+      already: (c) =>
+        reduce(
+          reduce(c, { type: 'WATCH_PLAY', userId: A }, T0),
+          { type: 'WATCH_PAUSE', userId: A },
+          T0 + 30_000
+        ),
+      mayControl: false,
+    });
+    sim.advance(4_000);
+
+    sim.player.pressPlay(300);
+    sim.advance(6_000);
+
+    // Not a screen that may drive, so the press is not an instruction and the
+    // player is put back where the channel is.
+    expect(sim.wire.heard).toEqual([]);
+    expect(sim.player.state).toBe('paused');
   });
 });
 

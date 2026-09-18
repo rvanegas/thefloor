@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar and the app's own row are **one transport with two surfaces** — both live, both producing the same three actions — and the floor is not asked at all, a film refusing the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers) or *wondering* (a jump, looked at once more) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar and the app's own row are **one transport with two surfaces** — both live, both producing the same three actions — and the floor is not asked at all, a film refusing the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers), *wondering* (a jump, looked at once more) or *settling* (the player between states, and not by this follower's doing) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -2075,6 +2075,10 @@ elapsed window:
   said to a player in this state, so anything it does has no explanation on
   this device and is therefore its owner's doing. The only state a press is
   read in.
+- **settling** — the player is between states and this follower did not put
+  it there. Pressing Play goes `paused` → `buffering` → `playing`, and a tick
+  is half a second, so the middle one is the reading most often caught;
+  correcting it stops the film somebody just started.
 - **sending** — the player has been told something and has not arrived yet
   (`hasArrived`). Nothing is read, so a correction cannot come back as an act.
 - **told** — the channel has been told something and has not answered yet

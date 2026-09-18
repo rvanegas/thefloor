@@ -110,6 +110,8 @@ export interface Drive {
  *   on its way out. Ends when the channel agrees (`channelAnswered`).
  * - **`wondering`** — a position that moved further than time did, looked at
  *   once more before anybody acts on it. See below.
+ * - **`settling`** — the player is between states and this follower did not
+ *   put it there. See below.
  *
  * Commanding and reading are therefore never both available, which is the
  * property none of the timer arrangements could hold. Each wait carries a
@@ -133,7 +135,8 @@ type Doing =
   | { phase: 'watching' }
   | { phase: 'sending'; want: Desired; since: number }
   | { phase: 'told'; intent: WatchIntent; since: number }
-  | { phase: 'wondering'; since: number };
+  | { phase: 'wondering'; since: number }
+  | { phase: 'settling'; since: number };
 
 /**
  * Keeps a player in step with the channel — and, for whoever may drive, lets
@@ -238,6 +241,40 @@ export function useFollow(
       }
 
       /*
+        **Waiting for a player to land**, having said nothing to it. It is
+        its owner's doing, so what it settles into is what they did; until
+        then there is nothing to read and nothing worth correcting.
+
+        The fuse is the player's — see `WATCH_OBEDIENCE_MS` — because a
+        player that buffers indefinitely is one the channel has to be allowed
+        to correct eventually, and waiting here says nothing to anybody.
+      */
+      let waited = false;
+      if (state.phase === 'settling') {
+        if (reading.state !== 'buffering') {
+          // It landed. What it landed on is what its owner did, and the next
+          // tick reads it in the ordinary way.
+          doing.current = { phase: 'watching' };
+          previous.current = here;
+          return;
+        }
+        if (now - state.since <= WATCH_OBEDIENCE_MS) {
+          previous.current = here;
+          return;
+        }
+        /*
+          **The fuse, and it has to burn through to the correction in this
+          same tick.** Returning to `watching` and stopping here would meet
+          the buffering test below, which would start a fresh wait with a
+          fresh timestamp — a fuse that re-lights itself every time it
+          reaches the end, which is no fuse at all. So the wait is recorded
+          as spent and this tick goes on to correct the player.
+        */
+        doing.current = { phase: 'watching' };
+        waited = true;
+      }
+
+      /*
         **Looking again at a jump**, having said nothing to anybody since it
         was seen. The gap it left is what answers: a thumb leaves the player
         somewhere the channel is not and it stays there, and a one-tick lie
@@ -262,6 +299,34 @@ export function useFollow(
           doing.current = { phase: 'told', intent: act, since: now };
           may.onIntent(act);
         }
+        return;
+      }
+
+      /*
+        **A player that is between states, having been put there by somebody
+        else.**
+
+        Pressing Play goes `paused` → `buffering` → `playing`, and a tick is
+        half a second, so the reading a follower most often catches is the
+        middle one. `buffering` is not a state a person can be *in*, so
+        nothing reads it as a press — and the paused branch of
+        `followInstructions` treats a buffering player as one on its way to
+        playing and stops it. That is right for a player this follower
+        started and wrong for a thumb, and it is what *the film starts and
+        immediately stops again* was.
+
+        In `watching` nothing has been said to this player, so a transition
+        here is nobody's but its owner's. It is given a tick to land on the
+        state that says what it was, which costs a correction half a second
+        on the rare occasion the buffering really was drift resolving itself.
+
+        Only `buffering`. A `cued` player is not on its way anywhere and
+        never leaves that state on its own — it is how a screen arrives, and
+        waiting for it to settle would be waiting for ever.
+      */
+      if (reading.state === 'buffering' && !waited) {
+        previous.current = here;
+        doing.current = { phase: 'settling', since: now };
         return;
       }
 
