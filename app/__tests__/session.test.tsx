@@ -85,6 +85,12 @@ const mockApp = {
    */
   introduction: { show: 'none' } as const,
   markTried: () => undefined,
+  /*
+    The navigation counter. A spy, because two of the four controls it counts
+    are the swipes this file is about — see the swipe tests below, which assert
+    on what was counted as well as on where the screen went.
+  */
+  recordNav: jest.fn(),
   forgetIntroduction: async () => undefined,
   status: 'open' as const,
   lastError: null,
@@ -818,6 +824,9 @@ describe('the swipes', () => {
     mockApp.token = 'token';
     mockApp.notificationTap = null;
     mockApp.leaderboard = false;
+    // Shared across the file, so it carries the previous test's swipes unless
+    // it is emptied here.
+    mockApp.recordNav.mockClear();
     mockApp.channelViews = {
       [CHANNEL]: {
         channel: createChannel({
@@ -873,6 +882,18 @@ describe('the swipes', () => {
 
     act(() => swipesOf(tree)!.right!());
     expect(textOf(tree)).toContain('Start a channel');
+
+    /*
+      And both were counted, which is the half of this that has no other
+      witness. The two gestures are measured against the two controls that do
+      the same thing — the pinned live line and the channel header's Home —
+      and a gesture that moved the screen without counting would make the
+      controls look more popular than they are. See `core/navigation.ts`.
+    */
+    expect(mockApp.recordNav.mock.calls.map(([id]: [string]) => id)).toEqual([
+      'swipeIn',
+      'swipeOut',
+    ]);
     act(() => tree.unmount());
   });
 

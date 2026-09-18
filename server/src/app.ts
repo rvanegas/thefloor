@@ -22,6 +22,7 @@ import {
   normaliseImHandle,
 } from '../../core/im';
 import { describeChannel } from '../../core/naming';
+import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
 import {
@@ -2591,6 +2592,44 @@ export function buildApp(options: BuildOptions = {}): App {
     // else can see.
     if (changed) homeNotifier.notify([account.id]);
     return accounts.tried(account.id);
+  });
+
+  /**
+   * Counts one use of one of the four ways between Home and a channel.
+   *
+   * **Answers 204 and holds nothing about the caller.** The account is
+   * required so that this is not a counter anybody on the internet can move,
+   * and is then discarded: what goes in the table is the kind, the build, the
+   * client and the day. See `nav_counts` in the schema for why it is a count
+   * rather than a row, and `core/navigation.ts` for the four names.
+   *
+   * **Refuses a name it does not know**, on `/me/tried`'s reasoning. A client
+   * sending a fifth name is a bug, and a counter that filed it would make the
+   * report unreadable while looking like it was working.
+   *
+   * The client sends this and does not wait for it — a navigation that stalled
+   * on a metering call would be the instrumentation changing the thing it
+   * measures — so nothing here is on anybody's path to anywhere.
+   */
+  fastify.post('/nav', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const body = request.body as { id?: unknown } | undefined;
+    if (!isNavAction(body?.id)) {
+      return reply
+        .code(400)
+        .send({ error: `id must be one of ${NAV_ACTIONS.join(', ')}.` });
+    }
+
+    channels.usage.recordNav({
+      kind: body!.id as string,
+      // Absent stays absent rather than becoming a guess; `recordNav` floors
+      // it to 0, which the schema explains.
+      build: claimedBuild(request.headers[BUILD_HEADER]),
+      client: claimedClient(request.headers[CLIENT_HEADER]),
+    });
+    return reply.code(204).send();
   });
 
   /**

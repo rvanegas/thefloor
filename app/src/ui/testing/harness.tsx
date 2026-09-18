@@ -207,6 +207,13 @@ export const mockApp = {
    */
   introduction: { show: 'none' } as Introduction,
   markTried: jest.fn(),
+  /**
+   * The navigation counter, which no test asserts on and every screen holding
+   * one of the four controls calls. A spy rather than a no-op so that the
+   * tests which press Home go on measuring what they were written to measure
+   * — see `core/navigation.ts`.
+   */
+  recordNav: jest.fn(),
   /** Puts one rung of the introduction away — `state/useIntroduction.ts`. */
   dismissStep: jest.fn(),
   forgetIntroduction: jest.fn(async () => undefined),

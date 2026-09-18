@@ -469,6 +469,26 @@ export interface PingRow {
   answered_at: number | null;
 }
 
+/**
+ * How many times one of the four navigation controls was used, on one build,
+ * by one kind of client, on one day.
+ *
+ * The meter's fourth table and the only one with nobody in it — a running
+ * total rather than a record of anything that happened. See the schema for
+ * why it is shaped this way and `core/navigation.ts` for what the kinds are.
+ */
+export interface NavCountRow {
+  /** One of `NavAction`'s four. */
+  kind: string;
+  /** The build that did it, or 0 when the client would not say. */
+  build: number;
+  /** `'native'` or `'web'`. A swipe is never web — see the schema. */
+  client: string;
+  /** `'YYYY-MM-DD'`, UTC. */
+  day: string;
+  count: number;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   id           TEXT PRIMARY KEY,
@@ -1127,6 +1147,63 @@ CREATE INDEX IF NOT EXISTS pings_sent ON pings(sent_at);
 -- every ping ever sent.
 CREATE INDEX IF NOT EXISTS pings_open
   ON pings(channel_id, target_id) WHERE answered_at IS NULL;
+
+-- How often each of the four ways between Home and the channel you are
+-- standing in was used — and nothing else whatever.
+--
+-- **The fourth of the meter's tables and the only one with no identity in
+-- it.** Every other table here names an account, because every other question
+-- is about somebody: what this box carried for them, who asked whom to come.
+-- This one asks which of two controls a population reaches for, and the answer
+-- is a ratio. An account_id column would make it a better report — a person
+-- who swipes forty times a day is forty rows against somebody else's one, and
+-- with identities the count could be per person instead — and it is left out
+-- anyway, because /privacy says there is no record of what any individual
+-- tapped and that sentence is worth more than the bias is worth removing.
+-- The bias is stated in bin/usage nav instead, where somebody reading the
+-- figure will meet it.
+--
+-- **So it is counts and not rows.** One row per kind per build per day,
+-- incremented; a tap adds nothing to this table that a reader could take
+-- apart. A row per tap would have carried a time to the millisecond, which
+-- with a thirty-row day is very nearly an identity even with no column saying
+-- so.
+--
+-- **Not swept, which is the deliberate departure from everything above it.**
+-- The rest of the meter is a thirty-day window because it is about people and
+-- must not become a history of anybody. There is nobody in here to have a
+-- history, and the question — did the gesture that shipped in build N get
+-- used — is answered over the life of a build rather than over a month. For
+-- the same reason UsageMeter.forget does not touch it: there is nothing in
+-- it that deleting an account could make untrue.
+--
+-- **And it cannot contain anything from before the build that created it**,
+-- which is what makes the build column honest rather than decorative: the
+-- table starts empty, so every count in it came from a client new enough to
+-- send one. Read per build, never totalled across them — an app that people
+-- have not updated to yet is not an app whose gestures went unused.
+CREATE TABLE IF NOT EXISTS nav_counts (
+  -- One of core/navigation.ts' four. Refused at the route rather than
+  -- accepted and filed, so this column holds those four names and no others.
+  kind   TEXT NOT NULL,
+  -- Which build did it. **0 when the client would not say** rather than null,
+  -- so the upsert below has a key it can match — SQLite treats two nulls as
+  -- distinct in a unique index, and a nullable column here would insert a
+  -- fresh row on every tap from such a client instead of incrementing one.
+  -- See claimedBuild, which answers null, and the route, which floors it.
+  build  INTEGER NOT NULL,
+  -- 'native' or 'web'. Separate from the build for claimedClient's reason,
+  -- and load-bearing for this report in particular: the web client has no
+  -- swipes at all, so a ratio read across both would report the gesture as
+  -- unpopular when it was merely absent.
+  client TEXT NOT NULL,
+  -- 'YYYY-MM-DD', UTC. The coarsest time there is any reason to keep: enough
+  -- to see a gesture being discovered over a fortnight, not enough to put
+  -- anybody's evening in order.
+  day    TEXT NOT NULL,
+  count  INTEGER NOT NULL,
+  PRIMARY KEY (kind, build, client, day)
+);
 
 -- What a recording says, once somebody has paid to find out.
 --

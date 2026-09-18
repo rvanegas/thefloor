@@ -12,10 +12,19 @@
 # Read-only, always: there is no --write, because nothing here is a thing you
 # would ever want to edit by hand and the sweep owns the deleting.
 #
-# These queries are the entire read interface to `usage_spans` and
-# `usage_bytes`. **The meter's third table, `pings`, is not read here** — it
+# These queries are the entire read interface to `usage_spans`, `usage_bytes`
+# and `nav_counts`. **The meter's other table, `pings`, is not read here** — it
 # measures whether asking somebody to come worked, which is a funnel question
 # and not a cost one, and `bin/growth pings` is the report for it.
+#
+# **`nav` is not a cost report either, and is here rather than in bin/growth
+# because it is not a funnel one.** It asks which of two controls people reach
+# for — a design question, and the first this project has measured rather than
+# argued. It lives with the meter because its table does, and its table lives
+# there because `usage.ts` is where instrumentation that nothing in the
+# application reads is kept. Three of the bounds below do not apply to it: it
+# is not swept, it holds no minutes, and it holds nobody. Its own bounds are in
+# its heading and are not the same shape as these.
 # Nothing in the server reads any of them — no endpoint, no field on
 # the wire, no screen — which is deliberate and is what keeps the meter
 # instrumentation rather than a feature. The reasoning is in
@@ -381,7 +390,86 @@ ORDER BY day DESC;
 SQL
 }
 
-report_names=(minutes pairs peak bytes transcripts defects)
+usage_nav() {
+  cat <<'SQL'
+.print ''
+.print '── Which way people go: the control, or the gesture ────────────'
+.print ''
+-- The four ways between Home and the channel you are standing in, as a share
+-- of each pair. Two journeys, two ways to make each:
+--
+--   leaving   home     the Home glyph in the channel header
+--             swipeOut the right swipe off the same screen
+--   entering  liveCard the pinned live line on Home
+--             swipeIn  the left swipe back into the room
+--
+-- **Read a row against its partner and never on its own.** A count of the
+-- glyph is large when the app is used and small when it is not, and neither
+-- reading is about the glyph; the pct column is the figure this table exists
+-- for.
+--
+-- **Per build, and never totalled across them.** The counter shipped with the
+-- build that created the table, so there is nothing older in it to exclude —
+-- but a build people have not updated to yet is not a build whose gesture went
+-- unused, and adding two builds together says exactly that. The oldest build
+-- here is the one the instrumentation shipped in.
+--
+-- **Per client, and that is not a nicety.** The web app has no swipes at all
+-- — `App.tsx` withholds them, the address bar being the way back there — so a
+-- ratio read across both would report the gesture as unpopular when it was
+-- merely absent.
+--
+-- **And the bias, which cannot be removed from these numbers.** There is no
+-- account in this table, deliberately (see the schema, and /privacy). So one
+-- person who swipes forty times a day counts forty and somebody who taps once
+-- counts one: this is a share of *acts*, not a share of *people*, and a
+-- handful of heavy users is enough to move it. It answers "which is the
+-- common way through this app" and cannot answer "how many people have found
+-- the swipe". Nothing here will ever answer the second.
+WITH totals AS (
+  SELECT client, build, kind, SUM(count) AS n
+  FROM nav_counts GROUP BY client, build, kind
+),
+paired AS (
+  SELECT client, build, kind, n,
+         CASE WHEN kind IN ('home', 'swipeOut') THEN 'leaving'
+              ELSE 'entering' END AS journey,
+         CASE WHEN kind IN ('home', 'liveCard') THEN 'control'
+              ELSE 'gesture' END AS how
+  FROM totals
+)
+SELECT p.client, p.build, p.journey, p.how, p.kind, p.n AS times,
+       ROUND(100.0 * p.n / (SELECT SUM(q.n) FROM paired q
+                             WHERE q.client = p.client
+                               AND q.build = p.build
+                               AND q.journey = p.journey), 1) AS pct
+FROM paired p
+ORDER BY p.client, p.build DESC, p.journey, p.how;
+
+.print ''
+.print '── The same four by day, on the phone ──────────────────────────'
+.print ''
+-- Whether a gesture is being *found*, which the shares above cannot show: a
+-- swipe nobody knows about starts at nothing and climbs as people trip over
+-- it, and a share taken over the life of a build averages that climb away.
+--
+-- Native only, for the reason above — there are no swipes to plot on the web.
+-- Builds are summed here and are not above, which is the one place that is
+-- the right thing to do: a day is a day whatever anybody is running, and the
+-- question is the shape of the line rather than the level of it.
+SELECT day,
+       COALESCE(SUM(CASE WHEN kind = 'home'     THEN count END), 0) AS home,
+       COALESCE(SUM(CASE WHEN kind = 'swipeOut' THEN count END), 0) AS swipe_out,
+       COALESCE(SUM(CASE WHEN kind = 'liveCard' THEN count END), 0) AS live_card,
+       COALESCE(SUM(CASE WHEN kind = 'swipeIn'  THEN count END), 0) AS swipe_in
+FROM nav_counts
+WHERE client = 'native'
+GROUP BY day
+ORDER BY day DESC;
+SQL
+}
+
+report_names=(minutes pairs peak bytes transcripts nav defects)
 
 list_reports() {
   cat <<'TXT'
@@ -390,6 +478,8 @@ pairs        minutes each pair of people spent in a channel together
 peak         per day: most connections and most recording jobs at once
 bytes        recording bytes this server served, by kind
 transcripts  what transcription cost, who spent it, and where the free uses went
+nav          which of the four ways in and out of a channel people take —
+             a share of taps and swipes, never of people; read the header
 defects      fallback mic spans, leaked open spans, and what restarts erased
              from every other report above — read this before quoting those
 TXT

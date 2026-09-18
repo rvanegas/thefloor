@@ -48,6 +48,7 @@ import { isConversing } from './conversing';
 import { useIntroduction } from './useIntroduction';
 import type { Introduction, StepId } from './introduction';
 import type { TriedId } from './tried';
+import type { NavAction } from '../../../core/navigation';
 import {
   APPEARANCE_KEY,
   applyPreference,
@@ -837,6 +838,22 @@ interface AppValue extends AppState {
    * whether this has ever been done. See `state/tried.ts`.
    */
   markTried: (id: TriedId) => void;
+  /**
+   * Counts one use of one of the four ways between Home and a channel — the
+   * Home glyph in a channel header, the swipe that does the same thing, and
+   * the two ways back into the channel this device is standing in.
+   *
+   * **Instrumentation, and the only thing on this context that is.** It
+   * changes nothing on screen, nothing waits for it, and a failure is not
+   * reported: a navigation that hesitated while a counter was written would be
+   * the measurement altering the thing measured. See `core/navigation.ts` for
+   * the four names and what the pairing is for, and the server's `nav_counts`
+   * for what is kept — a count, with nobody's name on it.
+   *
+   * On the context rather than called from `api` at each site, because the
+   * token lives here and the four sites are in two different files.
+   */
+  recordNav: (id: NavAction) => void;
   /**
    * Puts one rung of the introduction away for good, from the card itself —
    * `useIntroduction.dismiss`. On the context for the reason the rest of this
@@ -1770,6 +1787,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       forceDabs: setForcedDabs,
       introduction,
       markTried,
+      /*
+        Fire and forget, exactly like the settings write below and with less
+        to lose: there is no local state to apply first, and nothing on screen
+        that a failed call could contradict. A signed-out app counts nothing,
+        which is right — none of the four controls is reachable without a
+        session.
+      */
+      recordNav: (id) => {
+        if (!state.token) return;
+        void api.recordNav(state.token, id).catch(() => {});
+      },
       dismissStep,
       forgetIntroduction,
       installPrompt: promptInstall,

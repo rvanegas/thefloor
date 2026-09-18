@@ -1669,7 +1669,25 @@ export function ChannelView({
           <IconButton
             label="Home"
             icon={(color) => <HomeIcon color={color} />}
-            onPress={onClose}
+            /*
+              Counted, because the right swipe does exactly this and nobody
+              knows which of the two people reach for. The glyph's own number
+              means nothing on its own — it is large when the app is used and
+              small when it is not — so it is the share against `swipeOut`
+              that is the figure, and neither half can be read without the
+              other. See `core/navigation.ts`.
+
+              **This press and not `onClose`.** The same handler is the way
+              off two other screens in here — the error wall and the empty
+              state, both labelled *Back to home* — and those are somebody
+              getting out of a dead end rather than choosing between two ways
+              to leave a conversation. Counting them here would pad the
+              control the swipe is being compared against.
+            */
+            onPress={() => {
+              app.recordNav('home');
+              onClose();
+            }}
           />
         </View>
       </View>

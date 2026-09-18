@@ -884,14 +884,33 @@ function Root() {
    * appears to; `lastTab` is the whole of the fix, and it is deliberately not
    * how tapping into a channel behaves.
    */
+  /*
+    **Counted, both of them, and counted here rather than in `Panes`.** What
+    is being asked is whether either gesture is used at all beside the control
+    that does the same thing — the Home glyph for the right swipe, the pinned
+    live line for the left — and a count taken inside the responder would be a
+    count of thumbs that reached `swipeOf`, including the ones the branch below
+    then dropped for having nowhere to go. Only a swipe that actually moves the
+    screen is comparable with a tap that actually moves the screen. See
+    `core/navigation.ts`.
+  */
   const swipes: Swipes | undefined =
     split || Platform.OS === 'web'
       ? undefined
       : {
-          right: detail.kind === 'channel' ? close : undefined,
+          right:
+            detail.kind === 'channel'
+              ? () => {
+                  app.recordNav('swipeOut');
+                  close();
+                }
+              : undefined,
           left:
             detail.kind === 'none' && live
-              ? () => enterChannel(live.id, lastTab.current.get(live.id))
+              ? () => {
+                  app.recordNav('swipeIn');
+                  enterChannel(live.id, lastTab.current.get(live.id));
+                }
               : undefined,
         };
 

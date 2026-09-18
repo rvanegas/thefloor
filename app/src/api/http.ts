@@ -10,6 +10,7 @@ import type {
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
 import type { AccountSettings } from '../../../core/settings';
+import type { NavAction } from '../../../core/navigation';
 import type { Tried, TriedId } from '../../../core/tried';
 import type {
   VoiceDeclarations,
@@ -315,6 +316,17 @@ export const api = {
    */
   markTried: (token: string, ids: readonly TriedId[]) =>
     request<Tried>('/me/tried', { method: 'POST', body: { ids }, token }),
+
+  /**
+   * Counts one use of one of the four ways between Home and a channel.
+   *
+   * **Nothing is awaited and nothing comes back.** The server answers 204 and
+   * records no account, so there is nothing for a caller to read and nothing
+   * for a failure to mean — see `recordNav` on the context, which is the only
+   * thing that calls this and swallows the promise.
+   */
+  recordNav: (token: string, id: NavAction) =>
+    request<void>('/nav', { method: 'POST', body: { id }, token }),
 
   /**
    * Unsets all four, for the debug *Forget the introduction*.

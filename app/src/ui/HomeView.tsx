@@ -313,7 +313,20 @@ export function HomeView({
             accessibilityLabel={`${liveChannel.title}, ${
               liveChannel.muted ? "your microphone is muted" : "you are here"
             }. Tap to return.`}
-            onPress={() => onReturnToChannel(liveChannel.channelId)}
+            /*
+              Counted as the tap the left swipe is measured against — this
+              line and that gesture are the two ways back into the room you
+              are standing in, and either number alone says nothing. Here
+              rather than around `onReturnToChannel` in `App.tsx`, because the
+              introduction checklist calls that same handler to open a channel
+              by a different journey entirely, and counting those as this
+              would make the control look used by people who never found it.
+              See `core/navigation.ts`.
+            */
+            onPress={() => {
+              app.recordNav('liveCard');
+              onReturnToChannel(liveChannel.channelId);
+            }}
             style={styles.liveBar}
           >
             <View style={styles.rowMain}>

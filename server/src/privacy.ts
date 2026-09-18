@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '15 September 2026';
+export const PRIVACY_UPDATED = '18 September 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -311,8 +311,20 @@ account, whether you have allowed notifications, and whether a ping brought
 somebody. The first and the last are kept for ${USAGE_RETENTION_DAYS} days and
 then deleted. All of it records durations, sizes and outcomes, never content —
 not what was said, not what was played, not the words written with a ping, not
-what any recording contains. There is no record of which screens you opened,
-what you tapped, or how long you spent looking at anything.</p>
+what any recording contains. There is no record of which screens you opened or
+how long you spent looking at anything.</p>
+
+<p>There is one more thing counted, and it is the only measurement here that
+is attached to nobody at all. There are two ways to leave a conversation — the
+house at the top of the screen, and swiping it away to the right — and two ways
+back into the one you are in: the line pinned at the top of your home screen,
+and swiping in from the left. This server keeps a running tally of how many
+times each of those four was used in a day, and that is the whole of it: no
+account, no time of day, no order, nothing that could be taken apart afterwards
+into what any one person did. It is kept so that we can tell which of two ways
+of doing the same thing people actually use, and stop building the one nobody
+reaches for. It is never shown to another user, it goes nowhere, and nothing in
+the application behaves differently because of it.</p>
 
 <h2>Deleting things</h2>
 <p>Deleting a recording or a channel marks it immediately: it disappears for
