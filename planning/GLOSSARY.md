@@ -87,7 +87,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs*, starting side only. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
-- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default, taken once per film) or *other device*, which is one fact each device states in its own terms, and which only moves while the film is paused
+- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1684,16 +1684,23 @@ walked between rooms. They read *same* and *separate* until 2026-09-18: same
 thing in your hand and *other* at everything else. Picking *other* lists your
 own live instances, and only when there is more than one to choose between.
 
-**One of the two is always chosen, and *this device* is the default.** A film
-comes up on the device you are looking at unless another of yours is already
-showing it, so the switch is how you move a picture rather than how you turn
-one on. There was a third state until 2026-09-18 — neither answer chosen, for
-a party sitting loaded with the film on nothing — which in practice meant
-starting a watch party showed you no film until you noticed a control you had
-not touched. The default is taken once per film rather than held as an
+**One of the two is always chosen, and which one is the default depends on
+whether you are *stepped in*.** In the room, a film comes up on the device you
+are on; outside it, nothing starts and the answer is *other device*. So the
+switch is how you move a picture rather than how you turn one on, and a
+channel you are only reading never begins playing a film at you.
+
+There was a third state until 2026-09-18 — neither answer chosen, for a party
+sitting loaded with the film on nothing — which in practice meant starting a
+watch party showed you no film until you noticed a control you had not
+touched.
+
+The default is taken **once per film**, and only while stepped in. Not an
 invariant: handing the picture away clears this device's role a moment before
 the server says where the film went, and a standing rule would read that gap
-as *nobody is showing it* and take the film straight back.
+as *nobody is showing it* and take the film straight back. Not marked as taken
+while stepped out either, so stepping in later is what it waits for; stepping
+out again leaves an existing screen alone.
 
 **One device shows the film at a time.** Taking it here takes it off whatever
 else of yours was showing it — the video moves, not merely the controls — and

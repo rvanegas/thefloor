@@ -37,17 +37,32 @@ loaded with the film on nothing. It was honest about the model and poor as an
 interface: **starting a watch party showed you no film until you noticed a
 switch you had not touched.**
 
-The device you are looking at is now the default, so one of the two answers is
-always chosen and the switch is how you *move* a picture rather than how you
-turn one on. The answer stays a fact rather than a claim: the film really does
-land on this device before the switch says so.
+**The default is *this device* stepped in and *other device* stepped out**, so
+one of the two answers is always chosen and the switch is how you *move* a
+picture rather than how you turn one on. The answer stays a fact rather than a
+claim: in the room the film really does land here before the switch says so,
+and outside it nothing lands, which is what *other device* says.
 
-**Taken once per film rather than held as an invariant**, which is the part
-that needed care. Handing the picture to the laptop clears this device's own
-role a moment before the server says where the film went, so a standing rule
+The stepped-out half is not a detail. Somebody reading a channel they have
+stepped out of has not asked to watch anything, and a film starting on its own
+in front of them — with its sound — is the thing a default must not do. It is
+also why the switch's value collapsed to one question: *is the film here*.
+Being the fallback rather than a fact it has to establish, *other device*
+covers a picture handed to the laptop and a channel read from outside the room
+in the same sentence, and the switch no longer consults `screensElsewhere` at
+all — that fact now only guards the default.
+
+**Taken once per film rather than held as an invariant, and only while stepped
+in**, which is the part that needed care. Handing the picture to the laptop
+clears this device's own role a moment before the server says where the film
+went, so a standing rule
 would read that gap as *nobody is showing it* and take the film straight back.
 A default is something that happens when a film arrives; where it plays after
 that is the switch's business.
+
+It is also not marked as taken while stepped out, so stepping in later is what
+the default waits for rather than something it has already missed — and
+stepping out again leaves an existing screen where it is.
 
 **And only when no device of mine is already showing it**, which is what keeps
 two of somebody's own instances from fighting. The server takes the film off

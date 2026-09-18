@@ -682,27 +682,35 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('takes this device as the answer before anybody has chosen', () => {
+    it('asks for this device as soon as a party is loaded, stepped in', () => {
       /*
         **There is no third answer any more.** This used to show neither
         segment chosen for a party whose film was on nothing — which in
         practice meant starting a watch party showed you no film until you
         noticed a switch you had not touched. The film now comes up on the
-        device you are looking at, so the answer is a fact rather than a
+        device you are in the room on, so the answer is a fact rather than a
         claim, and the switch is how you move it rather than how you turn it
-        on.
+        on. What it renders once the role lands is the test below.
       */
       showChannel(watching());
       const tree = open();
-      expect(chosen(tree, 'This device')).toBe(true);
-      expect(chosen(tree, 'Other device')).toBe(false);
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
       act(() => tree.unmount());
     });
 
-    it('asks to be the screen as soon as a party is loaded', () => {
-      showChannel(watching());
+    it('asks for nothing while stepped out, and says other device', () => {
+      /*
+        **The other half of the rule**: *this device* is the default in the
+        room and *other device* is the default outside it. Somebody reading a
+        channel they have stepped out of has not asked to watch anything, and
+        a film starting on its own in front of them — with its sound — is the
+        thing this must not do.
+      */
+      showChannel(watching((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
       const tree = open();
-      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
+      expect(mockApp.showScreenFor).not.toHaveBeenCalledWith('sess_1');
+      expect(chosen(tree, 'Other device')).toBe(true);
+      expect(chosen(tree, 'This device')).toBe(false);
       act(() => tree.unmount());
     });
 
@@ -732,13 +740,16 @@ describe('Channel, watching together', () => {
     });
 
     it('is about this channel and not about any film of yours', () => {
-      // A laptop showing something in another channel is not this channel's
-      // answer, and reading the fact as a bare "is a film on somewhere" would
-      // make every channel's switch agree with every other.
+      // A laptop showing something in *another* channel must not stop this
+      // device taking this channel's film: reading the fact as a bare "is a
+      // film on somewhere" would leave every channel after the first with no
+      // screen at all. The switch itself no longer consults this — it asks
+      // only whether the film is here — so the scoping now lives in the
+      // default.
       mockApp.screensElsewhere = ['sess_other'];
       showChannel(watching());
       const tree = open();
-      expect(chosen(tree, 'Other device')).toBe(false);
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
       act(() => tree.unmount());
     });
 

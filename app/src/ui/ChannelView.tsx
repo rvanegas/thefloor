@@ -593,11 +593,19 @@ export function ChannelView({
   // it and no screens, which is what these answer.
   const partyLoaded = !!channel?.watch?.party;
   const screenIsHere = app.screenFor === channelId && partyLoaded;
-  const screenIsMine =
-    screenIsHere &&
-    !!channel &&
-    isPresent(channel, me) &&
-    app.standingIn === channelId;
+  /**
+   * Whether this device is the one standing in this channel.
+   *
+   * **Both halves, and the second is the per-device one.** Presence is the
+   * account's — the channel says you are in the room — and `standingIn` is
+   * this instance's, so a phone holding your presence means the laptop you
+   * also have open is *not* stepped in here. Which is exactly the question
+   * *Watch on* has to answer: the film belongs on the device you are in the
+   * room on.
+   */
+  const steppedIn =
+    !!channel && isPresent(channel, me) && app.standingIn === channelId;
+  const screenIsMine = screenIsHere && steppedIn;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
   /**
    * Whether the film is on one of this account's *other* devices.
@@ -665,6 +673,17 @@ export function ChannelView({
    * film straight back. A default is something that happens when a film
    * arrives; after that, where it plays is the switch's business and this
    * has no further opinion. A new video is a new film and defaults again.
+   *
+   * **And only for a device that is stepped in**, which is the whole of the
+   * rule: *this device* is the default in the room, and *other device* is
+   * the default outside it. Somebody reading a channel they have stepped out
+   * of has not asked to watch anything, and a film starting on its own in
+   * front of them — with its sound — is the thing this must not do.
+   *
+   * Not marked as taken while stepped out, deliberately, so that stepping in
+   * later is what the default waits for rather than something it has already
+   * missed. Stepping out again does not undo it: an existing screen is left
+   * where it is, this being a default and not an invariant.
    */
   const defaulted = useRef<string | null>(null);
   // Read off `channel` rather than the `party` local below, every hook having
@@ -675,11 +694,11 @@ export function ChannelView({
       defaulted.current = null;
       return;
     }
-    if (defaulted.current === filmOn) return;
+    if (defaulted.current === filmOn || !steppedIn) return;
     defaulted.current = filmOn;
     if (app.screenFor === channelId || screenElsewhere) return;
     app.showScreenFor(channelId);
-  }, [app, channelId, filmOn, screenElsewhere]);
+  }, [app, channelId, filmOn, screenElsewhere, steppedIn]);
 
   /**
    * A film playing on this screen is somebody being here.
@@ -3166,21 +3185,22 @@ export function ChannelView({
                   /*
                     **One of the two, always**, where this used to have a
                     third answer of *neither* for a party whose film was on
-                    nothing. That state is gone rather than hidden: a party
-                    now makes the device you are looking at its screen unless
-                    another of yours already is — see the effect named for
-                    this comment — so *this device* is a fact by the time it
-                    is shown, not a claim the switch makes on the film's
-                    behalf.
+                    nothing. That state is gone rather than hidden, and the
+                    question this asks is now simply whether the film is
+                    here: it is *this device* when this device is showing it
+                    and *other device* the rest of the time, which covers a
+                    picture handed to the laptop and a channel being read
+                    from outside the room with the same sentence.
 
-                    Read off where the film actually is, in that order: this
-                    device if it is showing it, another of mine if one is.
-                    The fallback is *this device* because that is what the
-                    default is about to make true, and a switch that showed
-                    nothing for the tick in between would flicker on every
-                    party that started.
+                    What makes that an answer rather than a shrug is the
+                    default above: a film arriving on a device that is
+                    stepped in lands on it, so *this device* is a fact by the
+                    time it is shown rather than a claim the switch makes on
+                    the film's behalf. Stepped out, no film lands and *other
+                    device* is the honest reading — nothing here is showing
+                    it.
                   */
-                  value={screenElsewhere && !screeningHere ? 'separate' : 'same'}
+                  value={screeningHere ? 'same' : 'separate'}
                   onChange={(where) => {
                     if (where === 'same') {
                       setChoosing(false);
