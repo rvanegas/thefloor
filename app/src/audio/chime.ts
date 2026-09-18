@@ -126,6 +126,23 @@ function spanMs(kind: ChimeKind): number {
  */
 let nextFree = 0;
 
+/**
+ * What became of a chime that was asked for.
+ *
+ * **Added because the audio lab could not tell silence from silence.** Three
+ * different things sound identical from a room — the sound played, the sound
+ * was held back a beat, and the sound was thrown away — and a section whose
+ * whole subject is *timing* cannot be read by an ear that does not know which
+ * of the three it is listening for. The hooks ignore this; the lab prints it.
+ *
+ * - `played` — handed to the sound server on this tick, and it accepted.
+ * - `refused` — handed over and refused, which on this path means a binary
+ *   with no `chime` at all rather than anything about the room.
+ * - `queued` — the speaker was busy, so it will sound after the wait.
+ * - `dropped` — further behind than `CHIME_STALE_MS`, so never played.
+ */
+export type ChimeOutcome = 'played' | 'refused' | 'queued' | 'dropped';
+
 /** Past this far behind, a chime is dropped rather than played late. */
 const CHIME_STALE_MS = 1_000;
 
@@ -149,8 +166,13 @@ const CHIME_STALE_MS = 1_000;
  * stay ignorant of it — they say what happened, in the order it should be
  * narrated, and are not made to care when the speaker is free. See
  * planning/decisions/2026-09-17-two-chimes-at-once-are-a-chord.md.
+ *
+ * **It returns which of those four things happened, and the hooks ignore it.**
+ * The return exists for the lab, where the queue itself is what is being
+ * judged: a row that makes no sound is a finding only if you know whether the
+ * queue threw it away or the speaker refused it.
  */
-export function chime(kind: ChimeKind, amplitude?: number): void {
+export function chime(kind: ChimeKind, amplitude?: number): ChimeOutcome {
   const now = Date.now();
   const at = Math.max(now, nextFree);
   const wait = at - now;
@@ -164,12 +186,12 @@ export function chime(kind: ChimeKind, amplitude?: number): void {
    * already right, and a sound a second behind it sends somebody looking for a
    * change that has been on screen the whole time.
    */
-  if (wait > CHIME_STALE_MS) return;
+  if (wait > CHIME_STALE_MS) return 'dropped';
 
   nextFree = at + spanMs(kind) + CHIME_BEAT_SECONDS * 1000;
   if (wait === 0) {
-    playChime(kind, amplitude);
-    return;
+    return playChime(kind, amplitude) ? 'played' : 'refused';
   }
   setTimeout(() => playChime(kind, amplitude), wait);
+  return 'queued';
 }

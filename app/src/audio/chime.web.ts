@@ -26,6 +26,18 @@ import {
   type ChimeKind,
 } from '../../modules/audio-route';
 
+/**
+ * What became of a chime, mirroring the native twin's type so the two halves
+ * have one signature.
+ *
+ * **`dropped` never happens here**, and that is a real difference rather than
+ * an omission: the native side schedules with a timer against `Date.now()` and
+ * throws away anything that has fallen a second behind the present, where Web
+ * Audio is handed the start time as an argument and cannot be late. Nothing
+ * reads this but the audio lab, which does not run in a browser.
+ */
+export type ChimeOutcome = 'played' | 'refused' | 'queued' | 'dropped';
+
 const NOTE_E5 = 659.25;
 const NOTE_A5 = 880.0;
 const NOTE_CS5 = 554.37;
@@ -102,13 +114,16 @@ function audio(): AudioContext | null {
  * place the browser has the easier job — the same choice on the settings
  * screen reaches both, and nothing has to be rendered twice to honour it.
  */
-export function chime(kind: ChimeKind, amplitude: number = PEAK): void {
+export function chime(
+  kind: ChimeKind,
+  amplitude: number = PEAK
+): ChimeOutcome {
   try {
     const ctx = audio();
-    if (!ctx) return;
+    if (!ctx) return 'refused';
 
     const notes = KINDS[kind];
-    if (!notes) return;
+    if (!notes) return 'refused';
 
     /**
      * **Where the browser has the easier job, as it did with the peak.**
@@ -145,10 +160,13 @@ export function chime(kind: ChimeKind, amplitude: number = PEAK): void {
       oscillator.start(at);
       oscillator.stop(at + NOTE_SECONDS);
     });
+
+    return start > ctx.currentTime ? 'queued' : 'played';
   } catch {
     // A browser refusing something, or no Web Audio at all. A failed cue must
     // not become an error in a conversation — the contract every file in this
     // directory holds itself to.
+    return 'refused';
   }
 }
 

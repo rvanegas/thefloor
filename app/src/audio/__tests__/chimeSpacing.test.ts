@@ -36,7 +36,7 @@ jest.mock('../../../modules/audio-route', () => {
 // Imported after the mock, so `chime.ts` binds to it rather than to the module.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { chime } = require('../chime') as {
-  chime: (kind: string) => void;
+  chime: (kind: string) => 'played' | 'refused' | 'queued' | 'dropped';
 };
 
 /** One kind's whole slot: its notes, then the beat after it, in ms. */
@@ -111,6 +111,28 @@ describe('two chimes in one tick', () => {
 
     chime('out');
     expect(played).toEqual(['out']);
+  });
+
+  /**
+   * The outcome is the audio lab's only instrument, and nothing else reads it.
+   *
+   * A combination that makes no sound has four explanations that sound
+   * identical from a room, and the difference between *the queue threw this
+   * away* and *the speaker refused it* is the difference between a screen
+   * being tapped too fast and a binary with no chime in it. Asserted here
+   * because a readout that quietly starts saying `played` for everything is a
+   * readout somebody will believe.
+   */
+  it('says what became of each chime', () => {
+    expect(chime('in')).toBe('played');
+    expect(chime('out')).toBe('queued');
+
+    jest.advanceTimersByTime(slot('in') + slot('out'));
+    expect(chime('nearby')).toBe('played');
+
+    // Far enough behind that the queue stops describing the present.
+    for (let i = 0; i < 12; i++) chime('in');
+    expect(chime('out')).toBe('dropped');
   });
 
   it('drops a chime too far behind to be about anything', () => {

@@ -465,12 +465,19 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
   /**
    * The last combination asked for, by name.
    *
-   * Deliberately thinner than `lastChime`: there is no route readout worth
-   * taking, because the finding here is made entirely by ear and the route is
-   * whatever the section above already established. What the label is for is
-   * knowing which row you are still hearing when two of them sound alike.
+   * Thinner than `lastChime` in one way and not in another: there is no route
+   * readout worth taking, the route being whatever the section above already
+   * established — but **what the queue did with each kind is not optional**,
+   * because it is the one thing a room cannot tell you. A row that was dropped
+   * for being stale and a row that played into a silent switch are the same
+   * silence, and only this says which.
    */
-  const [lastCombination, setLastCombination] = useState<string | null>(null);
+  const [lastCombination, setLastCombination] = useState<{
+    name: string;
+    /** One `kind outcome` per kind, in the order they were asked for. */
+    outcomes: string;
+    peak: string;
+  } | null>(null);
 
   const styles = useMemo(() => makeStyles(), []);
 
@@ -577,12 +584,17 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * silently stops applying is worse than one that is not offered.
    */
   const ringAll = (combination: Combination) => {
-    for (const kind of combination.kinds) {
-      queuedChime(kind, Number(peak));
-    }
-    setLastCombination(combination.name);
+    const outcomes = combination.kinds.map(
+      (kind) => `${kind} ${queuedChime(kind, Number(peak))}`
+    );
+    setLastCombination({
+      name: combination.name,
+      outcomes: outcomes.join(' · '),
+      peak,
+    });
     recordEvent(
-      `lab COMBINATION ${combination.kinds.join('+')} peak=${peak} @${phase}`
+      `lab COMBINATION ${combination.kinds.join('+')} peak=${peak} @${phase} · ` +
+        `${outcomes.join(' · ')} via=system lead=0`
     );
   };
 
@@ -1073,7 +1085,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
             <Button
               label={
                 combination.name +
-                (lastCombination === combination.name ? ' · last' : '')
+                (lastCombination?.name === combination.name ? ' · last' : '')
               }
               variant="ghost"
               onPress={() => ringAll(combination)}
@@ -1082,6 +1094,38 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           </Card>
         ))}
       </View>
+
+      {/*
+        What the queue did, which is the half a room cannot report.
+
+        A combination that makes no sound has four explanations and they are
+        not the same bug: the peak is inaudible, the binary has no `chime`, the
+        speaker was still busy and the sound is coming, or the queue threw the
+        row away for being further behind than a second. The first is a dial;
+        the last is this section's own instructions being disobeyed — tapping
+        the next row before the previous has finished — and until this readout
+        existed it looked exactly like a section that does not work.
+      */}
+      <Card>
+        {lastCombination == null ? (
+          <Text style={styles.body}>No combination played yet.</Text>
+        ) : (
+          <View>
+            <Reading label="combination" value={lastCombination.name} />
+            <Reading label="queue" value={lastCombination.outcomes} />
+            <Reading label="peak" value={lastCombination.peak} />
+            <Reading label="path" value="system · lead 0s (the shipping ones)" />
+            <Text style={styles.note}>
+              <Text style={styles.strong}>dropped</Text> means the queue threw
+              it away: something was still sounding more than a second ahead of
+              it, which here means the previous row had not finished.{' '}
+              <Text style={styles.strong}>queued</Text> means it is coming, a
+              beat behind. <Text style={styles.strong}>refused</Text> means the
+              binary has no chime at all and nothing on this screen will sound.
+            </Text>
+          </View>
+        )}
+      </Card>
 
       <SectionLabel>Where the last chime went</SectionLabel>
       <Card>
