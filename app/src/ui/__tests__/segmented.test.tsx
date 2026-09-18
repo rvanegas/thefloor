@@ -43,8 +43,9 @@ describe('segmentRows', () => {
       ['a', 'b', 'c'],
       ['d', 'e', 'f'],
     ]);
-    // The closest balance an odd number has, and the longer row first: the
-    // channel screen loses its watch tab to Labs, and this is that shape.
+    // The closest balance an odd number has, and the longer row first. No
+    // tab strip is this shape since the watch tab left Labs, but the choice
+    // rows still can be.
     expect(segmentRows(['a', 'b', 'c', 'd', 'e'])).toEqual([
       ['a', 'b', 'c'],
       ['d', 'e'],

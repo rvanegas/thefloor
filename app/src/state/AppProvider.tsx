@@ -713,14 +713,16 @@ interface AppValue extends AppState {
    * Whether this account has asked to see the experimental features.
    *
    * Off by default like the two above it, and unlike them it hides things
-   * rather than rearranging them: with it off there is no watch party card on
-   * a channel screen and no transcript anywhere. The transcripts half is not read from
-   * here at all — the server withholds each recording's `transcript` field
-   * from a viewer without Labs, and the app already draws nothing when that
-   * field is absent, which is how a server with no transcription key has
-   * always been handled. What this value drives in the app is the watch party,
-   * whose state travels on the channel snapshot and so cannot be withheld the
-   * same way. See `ChannelView` and `labs` in core/settings.ts.
+   * rather than rearranging them: with it off there is no transcript anywhere.
+   * Nothing in the app reads this value to decide that — the server withholds
+   * each recording's `transcript` field from a viewer without Labs, and the
+   * app already draws nothing when that field is absent, which is how a server
+   * with no transcription key has always been handled. It is read here so the
+   * settings screen can show the switch and so signing in can restore it.
+   *
+   * The watch party was the other half of this and left Labs on 2026-09-18,
+   * which is why nothing on the channel screen consults it now. See `labs` in
+   * core/settings.ts.
    */
   labs: boolean;
   setLabs: (value: boolean) => void;

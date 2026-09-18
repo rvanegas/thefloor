@@ -19,6 +19,7 @@ import {
   chosen,
   findButton,
   findChoice,
+  findTab,
   labelOf,
   mockApp,
   render,
@@ -121,12 +122,11 @@ describe('Channel, watching together', () => {
   }
 
   /**
-   * Every test in this block is an account that has asked for Labs, the watch
-   * party being behind it. The two at the end of the block are the ones about
-   * the gate itself, and set this for themselves.
+   * Labs off throughout, the watch party having left it on 2026-09-18: what
+   * these tests are about is the card, and it is everybody's card now.
    */
   beforeEach(() => {
-    mockApp.labs = true;
+    mockApp.labs = false;
   });
 
   /** The link field, which is the only TextInput in the empty card. */
@@ -684,34 +684,30 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
   /**
-   * The gate, from the side of somebody who never asked. Not a disabled
-   * button and not an empty card: the section is not on the screen at all,
-   * which is what "experimental features are hidden" has to mean if it means
-   * anything. See `labs` in core/settings.ts.
+   * Where the gate used to be. There is no account this is hidden from any
+   * more: the tab is on the bar and the card behind it offers starting one,
+   * with Labs off. See `labs` in core/settings.ts.
    */
-  it('is not on the screen at all without Labs', () => {
+  it('is on the screen without Labs', () => {
     mockApp.labs = false;
     showChannel(channelOf());
     const tree = openOnMembers();
-    // The tab itself, first: since the card became one there is a way to hide
-    // it that leaves the word *Watch* on the screen with nothing behind it,
-    // which would be the gate failing in the one place somebody reads it.
-    expect(findButton(tree, 'Watch')).toBeUndefined();
-    expect(textOf(tree)).not.toContain('Watch together');
-    expect(findButton(tree, 'Watch something together')).toBeUndefined();
-    expect(findButton(tree, 'Watch on another screen')).toBeUndefined();
+    expect(findTab(tree, 'Watch')).toBeDefined();
     act(() => tree.unmount());
+
+    const card = open();
+    expect(textOf(card)).toContain('Watch together');
+    act(() => card.unmount());
   });
 
   /**
-   * And the exception that keeps the gate honest. A party is channel state:
-   * somebody else in this channel has one running, this person's own player
-   * is being driven by it, and the recording controls are refusing them
-   * because of it. Hiding the card would leave them with an unexplained
-   * refusal and no way to stop what is causing it.
+   * And a party already running, which was the exception that kept the gate
+   * honest and is now just the ordinary case. A party is channel state:
+   * somebody else in this channel has one running, this person's own player is
+   * being driven by it, and the recording controls are refusing them because
+   * of it.
    */
-  it('shows a party already running to somebody without Labs', () => {
-    mockApp.labs = false;
+  it('shows a party already running', () => {
     showChannel(watching());
     const tree = open();
     expect(textOf(tree)).toContain(URL);

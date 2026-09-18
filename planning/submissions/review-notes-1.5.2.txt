@@ -22,11 +22,12 @@ Members tab opens their profile, which carries "Mute them" above Ping.
 
 The tabs across the top are the rest: Notepad (plain text behind an Edit,
 shared clipboard above it), Invite (a contact, or "Share a guest link"),
-Player (an audio file from this phone) and Recordings (Record/Stop, and
-Rename, Play, Share and Delete per row). "Record automatically" is in the
+Player (an audio file from this phone), Recordings (Record/Stop, and
+Rename, Play, Share and Delete per row) and Watch (section 6).
+"Record automatically" is in the
 channel's Settings. Floor Settings, from
 Home, carries Getting started, Email and Labs; Labs > "Show experimental
-features" reveals Transcribe on a recording's row and a Watch tab (section 6).
+features" reveals Transcribe on a recording's row.
 
 NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
 unavailable while alone; Ping is offered only to somebody in the channel or
@@ -46,7 +47,7 @@ voluntary, unlocks nothing, and the app is free.
 
 6. THIRD-PARTY MATERIAL AND WATCH PARTIES
 A member may play their own audio file in; any member can delete any
-recording. A watch party is behind Labs and carries no video of ours: this app
+recording. A watch party carries no video of ours: this app
 never fetches, decodes, stores or republishes a frame, and what travels through
 it is a position and a clock. The video itself is played by YouTube's own
 IFrame player, embedded unmodified, unobscured and with its own controls, on

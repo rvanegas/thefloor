@@ -65,7 +65,7 @@ caused; the list carries the meaning.
 - **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
 - **Invite pin** — The six digits at the end of an invite link, good once
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
-- **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default
+- **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone button 17 and later
@@ -86,7 +86,7 @@ caused; the list carries the meaning.
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
-- **Watch party** — Shared playback in a channel; behind *Labs*, starting side only. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
+- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -292,11 +292,11 @@ sections that are not about the people in the room, stacked under the one that
 is, on the longest screen in the application. The heading is gone: the switch
 draws that seam now.
 
-*Watch* is the one that is not always there, being behind *Labs* — except to
-somebody sitting in a channel where a party is already running, who has to be
-able to stop it. Every other tab is offered to everybody at all times, whatever
-the room is doing; a set of fixed controls that changes shape under a finger
-already on its way is the wrong one pressed.
+*Watch* was the one that was not always there, being behind *Labs* — except to
+somebody sitting in a channel where a party was already running, who had to be
+able to stop it. Since 2026-09-18 it is behind nothing, so every tab is offered
+to everybody at all times, whatever the room is doing; a set of fixed controls
+that changes shape under a finger already on its way is the wrong one pressed.
 
 See planning/decisions/2026-09-12-the-channel-screen-is-six-tabs.md.
 
@@ -812,15 +812,15 @@ is in the channel rather than to whoever has the screen open.
 
 **A setting on Home that decides whether the unfinished parts of the app exist
 for you.** Off for everybody until they turn it on, and it belongs to the
-account rather than to the phone. Two things are behind it today: *transcripts*
-and the *watch party*.
+account rather than to the phone. One thing is behind it today: *transcripts*.
+The *watch party* was the other and left on 2026-09-18, which is what graduating
+looks like — see
+planning/decisions/2026-09-18-the-watch-party-comes-out-of-labs.md.
 
-It is a gate, not a preference: with it off the sections are not on the screen
-at all — no greyed buttons, no empty cards. And it is only about you. Somebody
-in your channel who has turned it on can start a watch party you never asked to
-see; you get the card for it while it is running, because your own player is
-following it, and you can stop it. What Labs decides is whether *you* can begin
-one. See `labs` in core/settings.ts.
+It is a gate, not a preference: with it off the section is not on the screen at
+all — no greyed buttons, no empty cards. And it is only about you: a member of
+your channel who has turned it on can transcribe a recording you cannot read.
+See `labs` in core/settings.ts.
 
 ## Leaderboard
 
@@ -1614,9 +1614,11 @@ this system assumed was one.
 
 ## Watch party
 
-Behind *Labs*, since 2026-09-06, on the starting side only: anybody in a
-channel can stop, pause and seek a party that is already running, whoever
-started it.
+Behind *Labs* from 2026-09-06 to 2026-09-18, on the starting side only —
+anybody in a channel could always stop, pause and seek a party already running,
+whoever started it. It is behind nothing now: the tab is on every channel
+screen and anybody in the room can begin one. See
+planning/decisions/2026-09-18-the-watch-party-comes-out-of-labs.md.
 
 A YouTube video everybody watches on their own screens, in step. Nothing about
 it is fetched, published, recorded or stored here: it is a link, and each

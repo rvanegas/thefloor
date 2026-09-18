@@ -578,12 +578,12 @@ export function showRecordings(tree: ReactTestRenderer): void {
 }
 
 /**
- * The watch party — which is the one tab that is not always there.
+ * The watch party, which since 2026-09-18 is a tab like the other five.
  *
- * `showTab` throws when it is missing, which is the behaviour a test wants: a
- * party is behind Labs, so a test that reaches for this tab without setting
- * `mockApp.labs` is a test that would otherwise go on quietly asserting
- * against the roster.
+ * It was the one tab that was not always there, Labs deciding, and `showTab`
+ * throwing when it is missing was what kept a test from quietly asserting
+ * against the roster instead. The throw stays; there is nothing left that can
+ * take the tab away.
  */
 export function showWatch(tree: ReactTestRenderer): void {
   showTab(tree, 'Watch');

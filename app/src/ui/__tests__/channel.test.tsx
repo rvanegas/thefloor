@@ -27,6 +27,7 @@ import {
   channelOf,
   findButton,
   findChoice,
+  findTab,
   findExactButton,
   labelOf,
   mockApp,
@@ -432,10 +433,6 @@ describe('Channel', () => {
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
     };
-    // The watch party is behind Labs, and this test is about what an
-    // empty channel refuses rather than about the gate. See `labs` in
-    // core/settings.ts.
-    mockApp.labs = true;
     showChannel(
       channelOf((c) =>
         reduce(
@@ -1412,10 +1409,9 @@ describe('Channel', () => {
       be a rule and a phrase is the switch itself, and the group heading has
       gone with it.
 
-      Labs on, so the order under test is the whole screen rather than the
-      screen minus its experimental tab.
+      All six all the time since the watch tab left Labs on 2026-09-18, so the
+      order under test is the whole screen and nothing has to be arranged for.
     */
-    mockApp.labs = true;
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1534,7 +1530,6 @@ describe('Channel', () => {
     no icon simply draws its word a size larger than its neighbours.
   */
   it('gives every tab a glyph as well as a word', () => {
-    mockApp.labs = true;
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1638,13 +1633,13 @@ describe('Channel', () => {
   });
 
   /*
-    The watch tab is the one that comes and goes, and what decides is Labs
-    rather than anything about the room — a tab that appeared and vanished as
-    people started and stopped things would be the wrong one pressed. The
-    exception is a party already running, which somebody without Labs has to
-    be able to see and stop; `watchOffered` is both halves.
+    The watch tab was the one that came and went, and what decided was Labs.
+    Out of Labs on 2026-09-18, so the tab bar is six fixed tabs: a tab that
+    appears and vanishes is the wrong one pressed, and the only reason to
+    tolerate that was withholding an experiment.
   */
-  it('offers the watch tab to Labs, and to anybody in a party already on', () => {
+  it('offers the watch tab without Labs, party or no party', () => {
+    mockApp.labs = false;
     showChannel(channelOf());
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1652,7 +1647,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    expect(findButton(tree, 'Watch')).toBeUndefined();
+    expect(findTab(tree, 'Watch')).toBeDefined();
     act(() => tree.unmount());
 
     // The same account, the same channel, and a party running in it: the tab

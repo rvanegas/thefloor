@@ -95,19 +95,22 @@ export interface AccountSettings {
    * Whether the experimental parts of the app are visible and usable at all.
    *
    * Unset, which is the default, this app is what it has always been: a
-   * channel is voices, a clipboard, a shared track and a recording. Set, two
-   * more things appear — transcripts on recordings, and the watch party — and
-   * the controls that begin them start working.
+   * channel is voices, a clipboard, a shared track, a recording and a video
+   * watched together. Set, transcripts appear on recordings and the control
+   * that asks for one starts working.
+   *
+   * The watch party was behind this until 2026-09-18 and is not any more: it
+   * had stopped being unfinished, and a feature nobody can reach is not being
+   * tested by anybody. Labs is down to the one thing again.
    *
    * **It is a gate rather than a preference**, which is the one thing that
    * still sets it apart from the two above now that all three read the same
    * way round. They change how something already yours behaves; this one
    * decides whether something exists for you. That is also why it is enforced
    * at both ends: the app withholds the surfaces, and the server refuses the
-   * two actions that begin one of these features — starting a watch party and
-   * asking for a transcript, the second of which spends money at a third
-   * party. A hidden control and a refused action must not disagree, and here
-   * the refusal is the one that matters.
+   * action that begins the feature — asking for a transcript, which spends
+   * money at a third party. A hidden control and a refused action must not
+   * disagree, and here the refusal is the one that matters.
    *
    * It follows the person rather than the phone on the plainest reading of
    * the two above: having asked to see the unfinished parts of an app is

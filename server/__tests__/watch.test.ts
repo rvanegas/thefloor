@@ -128,11 +128,11 @@ class Client {
 }
 
 /**
- * Signs somebody in with Labs already on, the watch party being behind it.
+ * Signs somebody in, with settings left at their defaults — Labs off.
  *
- * The file is about what a party does once it exists; starting one is refused
- * without Labs, and the test that asserts that turns it back off. See `labs`
- * in core/settings.ts.
+ * The watch party was behind Labs until 2026-09-18 and this helper turned it
+ * on for every test in the file. It does not any more, which is the assertion:
+ * everything here is an ordinary account. See `labs` in core/settings.ts.
  */
 async function signIn(identifier: string, displayName: string) {
   const code = app.accounts.issueCode(identifier, clock)!;
@@ -141,12 +141,10 @@ async function signIn(identifier: string, displayName: string) {
     url: '/auth/verify',
     payload: { identifier, code, displayName },
   });
-  const account = verified.json() as {
+  return verified.json() as {
     token: string;
     account: { id: string; displayName: string };
   };
-  app.accounts.updateSettings(account.account.id, { labs: true }, clock);
-  return account;
 }
 
 async function channelOfTwo() {
@@ -194,25 +192,23 @@ function tokenOf(url: string): string {
   went rather than being narrowed.
 */
 
-describe('the Labs gate', () => {
+describe('starting and stopping', () => {
   /**
-   * Starting is what puts an experimental feature on everybody else's screen,
-   * so starting is what is refused. Only starting: the tests below all act as
-   * accounts that asked for Labs, and the transport is deliberately left
-   * open to everybody in a channel where a party is already running — see
+   * What the Labs gate used to guard. Starting a party was refused to an
+   * account that had not asked for the experimental features; it left Labs on
+   * 2026-09-18, so an ordinary account starts one — and everybody in the
+   * channel can still stop it, which is the half that was never gated. See
    * `dispatch` in src/channels.ts and `labs` in core/settings.ts.
    */
-  it('refuses a party to somebody who has not turned Labs on', async () => {
+  it('lets an account with Labs off start a party', async () => {
     const { alice, channelId } = await channelOfTwo();
-    app.accounts.updateSettings(alice.account.id, { labs: false }, clock);
 
-    const refused = app.channels.dispatch(channelId, alice.account.id, {
+    const started = app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_WATCH',
       url: URL,
     } as never);
-    expect(refused.ok).toBe(false);
-    expect((refused as { error: string }).error).toMatch(/Labs/);
-    expect(app.channels.get(channelId)!.watch.party).toBeNull();
+    expect(started.ok).toBe(true);
+    expect(app.channels.get(channelId)!.watch.party).not.toBeNull();
   });
 
   it('lets the rest of the channel stop one that is already running', async () => {
@@ -221,10 +217,8 @@ describe('the Labs gate', () => {
       type: 'START_WATCH',
       url: URL,
     } as never);
-    // Bob never asked for any of this, and is now in a channel driving his
-    // own player. Stopping it is the one thing he must be able to do.
-    app.accounts.updateSettings(bob.account.id, { labs: false }, clock);
-
+    // Bob never started any of this, and is now in a channel driving his own
+    // player. Stopping it is the one thing he must be able to do.
     const stopped = app.channels.dispatch(channelId, bob.account.id, {
       type: 'STOP_WATCH',
     } as never);

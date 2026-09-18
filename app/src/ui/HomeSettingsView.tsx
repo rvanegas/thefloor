@@ -435,9 +435,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           features" alone is a setting whose effect nobody can find.
         */}
         <Text style={type.muted}>
-          Off, which is where everybody starts. On, two unfinished things
-          appear: transcripts of your recordings, and watching a video together
-          in a channel. They can change or go away.
+          Off, which is where everybody starts. On, one unfinished thing
+          appears: transcripts of your recordings. It can change or go away.
         </Text>
         <Text style={type.muted}>
           It follows your account rather than this phone, and it is only about

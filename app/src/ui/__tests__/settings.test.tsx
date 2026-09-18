@@ -296,12 +296,17 @@ describe("the Labs setting", () => {
     act(() => tree.unmount());
   });
 
-  it("names the two things it turns on", async () => {
+  /**
+   * One thing, not two: watching a video together left Labs on 2026-09-18 and
+   * the card must stop naming it, a switch that promises something it does not
+   * turn on being worse than one that promises nothing.
+   */
+  it("names the thing it turns on", async () => {
     const tree = await openSettings();
     const text = textOf(tree);
     expect(text).toContain("Show experimental features");
     expect(text).toContain("transcripts");
-    expect(text).toContain("watching a video together");
+    expect(text).not.toContain("watching a video together");
     // And that it is nobody else's business, which is the question anybody
     // sharing a channel asks next.
     expect(text).toContain("not to anybody else");

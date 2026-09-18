@@ -166,15 +166,16 @@ it — anybody in the channel can play it, rename it, export it or delete it, an
 it carries the same name for everybody. Deleting a channel deletes its
 recordings.
 
-The next two are **behind Labs**, a switch in Settings that is off until you
-turn it on. They are unfinished and may change or go away, which is what the
+The next one is **behind Labs**, a switch in Settings that is off until you
+turn it on. It is unfinished and may change or go away, which is what the
 switch is admitting; turning it on affects only what *you* see.
 
 **A transcript** can be made from a recording on request. It goes to a
 third-party provider, named on the screen that asks; asking sends everybody's
 audio out, so who asked is always shown. Everybody gets one free.
 
-**A watch party** is a YouTube link everybody watches in step on their own
+**A watch party**, which came out from behind Labs on 2026-09-18, is a
+YouTube link everybody watches in step on their own
 screens — nothing is fetched, stored or recorded here. **Mute the room**
 withholds everybody's microphone while the video plays and gives them all back
 when you pause it, because you pause a film to talk about it.

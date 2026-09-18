@@ -1349,31 +1349,14 @@ export function ChannelView({
   const partyMuted = isPartyMuted(channel);
 
   /**
-   * Whether watching together is a thing this account has at all.
+   * The tabs this account is offered, which is six, always the same six.
    *
-   * Behind Labs, and the one experimental surface the app has to withhold for
-   * itself: a recording's transcript vanishes because the server stops sending
-   * the field, but a party is channel state and arrives on every snapshot
-   * whether anybody asked for the feature or not.
-   *
-   * `|| party` is not a leak in that gate. Somebody who never asked for watch
-   * parties can still be sitting in a channel where one is running — their own
-   * player is being driven by it and the recording controls are refusing them
-   * because of it — and a tab explaining that, with a Stop on it, is the only
-   * honest thing to draw. What Labs decides is whether you can *begin* one,
-   * which is what the server enforces; see `dispatch` in server/src/channels.ts.
-   */
-  const watchOffered = app.labs || !!party;
-  /**
-   * The tabs this account is offered, which is six or five.
-   *
-   * **The one variable tab is the only one it may be.** A tab bar that gains
-   * and loses entries as the state of the room changes is the footer's
-   * finger-under-the-thumb problem one control up: the thing you were reaching
-   * for is somewhere else by the time you land. What governs this one is
-   * `watchOffered`, which is a Labs setting and a party that is either running
-   * or not — neither of them something that flickers — and the alternative was
-   * a tab named *Watch* offered to somebody for whom watching does not exist.
+   * *Watch* was the one variable tab while watching together was behind Labs,
+   * and it is not any more: a tab bar that gains and loses entries as the
+   * state of the room changes is the footer's finger-under-the-thumb problem
+   * one control up — the thing you were reaching for is somewhere else by the
+   * time you land — and the reason to tolerate it was withholding an
+   * experimental feature, which is no longer a thing being done here.
    */
   const tabs: readonly {
     value: ChannelTab;
@@ -1405,28 +1388,12 @@ export function ChannelView({
       label: 'Recordings',
       icon: (color) => <RecordingsIcon color={color} />,
     },
-    ...(watchOffered
-      ? [
-          {
-            value: 'watch' as const,
-            label: 'Watch',
-            icon: (color: ColorValue) => <WatchIcon color={color} />,
-          },
-        ]
-      : []),
+    {
+      value: 'watch',
+      label: 'Watch',
+      icon: (color) => <WatchIcon color={color} />,
+    },
   ];
-  /**
-   * The tab actually drawn, which is the one chosen unless it has gone.
-   *
-   * Only *Watch* can go, and it goes the moment a party stops in a channel
-   * belonging to somebody without Labs — who is very likely the person looking
-   * at it when it stops, that tab being where the Stop button is. Falling back
-   * to the roster is the answer rather than leaving the screen blank: the tab
-   * is gone because the thing it was about is over, and the roster is what the
-   * screen is for.
-   */
-  const shown: ChannelTab = tabs.some((t) => t.value === tab) ? tab : 'members';
-
   /**
    * Mints a follower link and hands it to the share sheet.
    *
@@ -1726,7 +1693,7 @@ export function ChannelView({
         planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
       */}
       <View style={[styles.tabs, styles.tabsHeader]}>
-        <Segmented options={tabs} value={shown} onChange={setTab} />
+        <Segmented options={tabs} value={tab} onChange={setTab} />
       </View>
       </View>
     </View>
@@ -1959,7 +1926,7 @@ export function ChannelView({
             </View>
           </Card>
         ) : null}
-        {shown === 'members' ? (
+        {tab === 'members' ? (
           <>
         <View style={styles.presence}>
           {/*
@@ -2309,7 +2276,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'notepad' ? (
+        {tab === 'notepad' ? (
           <>
         {/*
           **What the channel has written down**, which is two things: the
@@ -2520,7 +2487,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'player' ? (
+        {tab === 'player' ? (
           <>
 
         {/*
@@ -2703,7 +2670,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'recordings' ? (
+        {tab === 'recordings' ? (
           <>
         {/*
           The transport, above the list it produces. It was on the *Player*
@@ -2909,7 +2876,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'watch' ? (
+        {tab === 'watch' ? (
           <>
           {/*
             Watching, which is deliberately not a second kind of shared audio.
@@ -3447,7 +3414,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {shown === 'invites' ? (
+        {tab === 'invites' ? (
           <>
             {/*
               Two ways in, in the order they are reached for: a contact who

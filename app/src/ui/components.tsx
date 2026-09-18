@@ -731,8 +731,9 @@ export function Segmented<T extends string>({
     >
       {segmentRows(options).map((row) => (
         // Keyed by the row's own first option rather than by its index, so a
-        // set that gains or loses one — the watch tab, which is behind Labs —
-        // does not hand a row's identity to a different row.
+        // set that gains or loses one does not hand a row's identity to a
+        // different row. The channel screen's six tabs are fixed since the
+        // watch tab left Labs, but the choice rows are not.
         <View key={row[0].value} style={styles.segmentRow}>
           {row.map((option) => {
             const on = value === option.value;
