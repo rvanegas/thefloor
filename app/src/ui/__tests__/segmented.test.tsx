@@ -66,7 +66,7 @@ describe('Segmented', () => {
     { value: 'roster', label: 'Roster' },
     { value: 'notes', label: 'Notes' },
     { value: 'invites', label: 'Invite links' },
-    { value: 'player', label: 'Player' },
+    { value: 'listen', label: 'Listen' },
     { value: 'recordings', label: 'Recordings' },
     { value: 'watch', label: 'Watch' },
   ] as const;

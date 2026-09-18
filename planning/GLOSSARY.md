@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Player, Recordings, Watch; the first was *Roster* until 2026-09-14
+- **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14 and the fourth *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
 - **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
@@ -232,7 +232,7 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *Members*, *Notepad*, *Invite*, *Player*, *Recordings*, *Watch*.
+draws: *Members*, *Notepad*, *Invite*, *Listen*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -243,7 +243,7 @@ and how somebody who is not here gets in. The last three are what the channel
 is carrying, which outlives the moment: what is playing, what is being
 recorded and what was recorded before, what is being watched. The
 recording transport is on *Recordings* since 2026-09-12; it was a second card
-on *Player* until then, on the reasoning that recording is what playing is
+on *Listen* until then, on the reasoning that recording is what playing is
 doing to the room — but the tab somebody goes to about a recording is the one
 named after them. It is a card again on the tab it moved to, as of
 2026-09-13, and neither it nor the shared track's card carries a label over
@@ -272,6 +272,15 @@ an *invite link* makes whoever opens it a *contact*, and is sent from
 channel: a contact who has an account, and a *guest link* for somebody who has
 not. Neither of them is an invite link, so the tab now says what it does rather
 than naming the wrong object.
+
+**The fourth is *Listen*, and was *Player* until 2026-09-18.** Both tabs are
+players — one carries audio, the other a film with its picture — so naming one
+of them after the machinery said nothing that distinguished it from *Watch*.
+The pair now says what somebody does there rather than what the tab holds,
+which is the verb the rest of the vocabulary is in. **The rung underneath it
+is still called `player`**: `/me/tried` refuses a name it does not know and
+`accounts.ts` keeps a `tried_player` column, so that id is on the wire and the
+rename stopped at the word on the screen.
 
 **The order ran differently until 2026-09-12**, with the four carried things
 together and the invitations tab at the end as the rarest thing anybody does

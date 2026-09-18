@@ -31,7 +31,7 @@ export interface Tried {
   nearby: boolean;
   /** A guest link minted or shared, on a channel's *Invite* tab. */
   guest: boolean;
-  /** Anything played on a channel's *Player* tab. */
+  /** Anything played on a channel's *Listen* tab — *Player* until 2026-09-18. */
   player: boolean;
 }
 

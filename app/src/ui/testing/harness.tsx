@@ -575,8 +575,8 @@ export function showNotepad(tree: ReactTestRenderer): void {
 }
 
 /** The shared track and the recording controls. */
-export function showPlayer(tree: ReactTestRenderer): void {
-  showTab(tree, 'Player');
+export function showListen(tree: ReactTestRenderer): void {
+  showTab(tree, 'Listen');
 }
 
 /** What has been recorded here, and the search over their transcripts. */

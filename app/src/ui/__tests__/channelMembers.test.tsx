@@ -33,7 +33,7 @@ import {
   showChannel,
   showInvites,
   showNotepad,
-  showPlayer,
+  showListen,
   textOf,
 } from '../testing/harness';
 
@@ -1795,7 +1795,7 @@ describe('a channel screen that does not repeat its footer', () => {
     expect(textOf(tree)).toContain('Dana Chu');
     showNotepad(tree);
     expect(textOf(tree)).toContain('Shared clipboard');
-    showPlayer(tree);
+    showListen(tree);
     expect(textOf(tree)).toContain('Recording');
     // And the tabs themselves are all still offered. A preference about
     // repetition that quietly removed a tab would be removing abilities.

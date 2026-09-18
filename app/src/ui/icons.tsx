@@ -404,7 +404,7 @@ export function InviteIcon({
  * one on the tab it would be labelling. What the tab holds is a track the
  * whole channel hears, which is a thing rather than an act.
  */
-export function PlayerIcon({
+export function ListenIcon({
   color,
   size = 22,
 }: {

@@ -36,7 +36,7 @@ import {
   showChannel,
   showInvites,
   showNotepad,
-  showPlayer,
+  showListen,
   showRecordings,
   showMembers,
   showWatch,
@@ -389,7 +389,7 @@ describe('Channel', () => {
       'Step in to put something on the channel clipboard'
     );
 
-    showPlayer(tree);
+    showListen(tree);
     expect(disabled('Play something together')).toEqual(
       off('Play something together')
     );
@@ -487,7 +487,7 @@ describe('Channel', () => {
     showRecordings(tree);
     expect(on('Record')).toEqual({ disabled: true });
 
-    showPlayer(tree);
+    showListen(tree);
     // And since 2026-08-24, putting something on. This asserted the opposite
     // until then: loading a track and starting a party are the two acts that
     // leave something behind for whoever steps in next, so they ask presence
@@ -813,7 +813,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
     expect(findButton(tree, 'Play something together')).toBeDefined();
     act(() => tree.unmount());
   });
@@ -832,7 +832,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
 
     await act(async () => {
       findButton(tree, 'Play something together')!.props.onPress();
@@ -870,7 +870,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
 
     await act(async () => {
       findButton(tree, 'Play something together')!.props.onPress();
@@ -914,7 +914,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
     const text = textOf(tree);
     expect(text).toContain('Kind of Blue');
     expect(text).toContain('0:30');
@@ -950,7 +950,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
 
     expect(textOf(tree)).toContain('Dana Chu has the floor, so they decide what plays');
     expect(findButton(tree, 'Pause')!.props.accessibilityState.disabled).toBe(
@@ -993,7 +993,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
 
     const share = findExactButton(tree, 'Share')!;
     expect(share.props.accessibilityState.disabled).toBe(false);
@@ -1027,7 +1027,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showPlayer(tree);
+    showListen(tree);
     act(() => findButton(tree, '+15s')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SEEK',
@@ -1455,7 +1455,7 @@ describe('Channel', () => {
       'Members',
       'Notepad',
       'Invite',
-      'Player',
+      'Listen',
       'Recordings',
       'Watch',
     ]);
@@ -1495,9 +1495,9 @@ describe('Channel', () => {
 
     // Nothing at all, since 2026-09-13: the recording transport moved to
     // *Recordings* on 2026-09-12, and what was left was one card under a
-    // SHARED AUDIO label on a tab called *Player* — the screen naming itself
+    // SHARED AUDIO label on a tab called *Listen* — the screen naming itself
     // twice over a card whose own sentence says everyone hears this.
-    showPlayer(tree);
+    showListen(tree);
     expect(sections()).toEqual([]);
 
     // The transport above the list it produces, and one heading rather than
@@ -1595,13 +1595,13 @@ describe('Channel', () => {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
-        tab="player"
+        tab="listen"
         onClose={() => {}}
         onExit={() => {}}
       />);
     const shown = () =>
       tree.root.findAll((node) => node.type === Segmented)[0]!.props.value;
-    expect(shown()).toBe('player');
+    expect(shown()).toBe('listen');
 
     // The screen stays up and is asked for another one.
     act(() =>

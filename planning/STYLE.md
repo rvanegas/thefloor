@@ -858,7 +858,7 @@ rather than "Empty".
 
 **A tab with one thing on it gets no label**, since 2026-09-13. A section
 label divides; where there is nothing to divide from, it is the screen saying
-its own name twice under a tab that already said it. *Player* lost SHARED
+its own name twice under a tab that already said it. *Listen* lost SHARED
 AUDIO and *Recordings* keeps only the one over the list, the transport above
 it having no heading at all.
 

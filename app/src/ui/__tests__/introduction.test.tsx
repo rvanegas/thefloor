@@ -195,7 +195,7 @@ describe('the rungs that are done inside a channel', () => {
       {
         id: 'player' as const,
         label: 'Play something together',
-        instruction: "On a channel's Player tab, add audio.",
+        instruction: "On a channel's Listen tab, add audio.",
         note: 'why',
         done: false,
       },
@@ -246,12 +246,12 @@ describe('the rungs that are done inside a channel', () => {
     act(() => findButton(tree, 'Open the channel')?.props.onPress());
     // The other two name their tab, in the word the tab bar uses.
     act(() => findButton(tree, 'Open Invite')?.props.onPress());
-    act(() => findButton(tree, 'Open Player')?.props.onPress());
+    act(() => findButton(tree, 'Open Listen')?.props.onPress());
 
     expect(opened).toEqual([
       ['sess_1', 'members'],
       ['sess_1', 'invites'],
-      ['sess_1', 'player'],
+      ['sess_1', 'listen'],
     ]);
     act(() => tree.unmount());
   });
@@ -332,7 +332,7 @@ describe('the install rung', () => {
         {
           id: 'player',
           label: 'Play something together',
-          instruction: "On a channel's Player tab, add audio.",
+          instruction: "On a channel's Listen tab, add audio.",
           note: 'why',
           done: true,
         },
@@ -347,7 +347,7 @@ describe('the install rung', () => {
     expect(findButton(tree, 'Open Channels')).toBeDefined();
     // The done one is a line and nothing else — its title, and no way in.
     expect(text).toContain('Play something together');
-    expect(text).not.toContain("On a channel's Player tab, add audio.");
+    expect(text).not.toContain("On a channel's Listen tab, add audio.");
     act(() => tree.unmount());
   });
 

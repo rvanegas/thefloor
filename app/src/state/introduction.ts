@@ -350,7 +350,7 @@ function tryingSteps(tried: Tried): Step[] {
       id: 'player',
       label: 'Play something together',
       instruction:
-        "On a channel's Player tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
+        "On a channel's Listen tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
       note: 'It is the one thing here that is not somebody talking, and the room stays a room while it plays.',
       done: tried.player,
     },

@@ -80,7 +80,7 @@ import {
   MicIcon,
   NotepadIcon,
   PauseIcon,
-  PlayerIcon,
+  ListenIcon,
   RecordingsIcon,
   SettingsIcon,
   StepIcon,
@@ -140,7 +140,7 @@ export type ChannelTab =
   | 'members'
   | 'notepad'
   | 'invites'
-  | 'player'
+  | 'listen'
   | 'recordings'
   | 'watch';
 
@@ -1450,9 +1450,9 @@ export function ChannelView({
       icon: (color) => <InviteIcon color={color} />,
     },
     {
-      value: 'player',
-      label: 'Player',
-      icon: (color) => <PlayerIcon color={color} />,
+      value: 'listen',
+      label: 'Listen',
+      icon: (color) => <ListenIcon color={color} />,
     },
     {
       value: 'recordings',
@@ -2757,11 +2757,11 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'player' ? (
+        {tab === 'listen' ? (
           <>
 
         {/*
-          No label over it, since 2026-09-13. The tab is called *Player* and
+          No label over it, since 2026-09-13. The tab is called *Listen* and
           this is the only thing on it, so SHARED AUDIO was the screen saying
           its own name twice — and the card's own sentence, at the foot of
           it, already says that everyone hears this. The recording transport
@@ -2943,7 +2943,7 @@ export function ChannelView({
         {tab === 'recordings' ? (
           <>
         {/*
-          The transport, above the list it produces. It was on the *Player*
+          The transport, above the list it produces. It was on the *Listen*
           tab, one card under the shared audio, on the grounds that recording
           is what playing is doing to the room; but the tab somebody goes to
           about a recording is the one named after them, and having gone there
@@ -3153,7 +3153,7 @@ export function ChannelView({
             Nothing about the video travels through The Floor — everybody's own
             player shows it, with its own sound, and what this card drives is a
             clock. That is why it refuses recordings and why the shared audio on
-            the *Player* tab empties when this one fills.
+            the *Listen* tab empties when this one fills.
           */}
           <SectionLabel>Watch together</SectionLabel>
           <Card style={styles.stack}>

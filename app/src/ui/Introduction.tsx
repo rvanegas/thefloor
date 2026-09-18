@@ -199,7 +199,7 @@ export function Introduction({
  * on the way to the room they are already in, with the row they are already
  * on. So when `live` names a channel those rungs open it, on the tab the rung
  * is about: the roster for the two controls in the bar along the bottom, the
- * Invite tab for the guest link, the Player tab for the audio.
+ * Invite tab for the guest link, the Listen tab for the audio.
  *
  * The rule it does not break is the one that matters: nothing here claims a
  * floor, mints a link or plays anything. It opens the screen the control is
@@ -222,7 +222,7 @@ function actionFor(
    *
    * The label is the destination as the app labels it, which is the pattern
    * *Open Contacts* and *Open Channels* set: the tab bar at the top of that
-   * screen says *Invite* and *Player*, so the button says the word somebody
+   * screen says *Invite* and *Listen*, so the button says the word somebody
    * will be looking at a moment later. The roster is not named, because the
    * two rungs that land there are about controls in the bar along the bottom
    * rather than about the tab.
@@ -265,7 +265,7 @@ function actionFor(
     //
     // With a channel being stood in they go there instead — see `inChannel`
     // above, and the note on this function about why that is not the card
-    // reaching past a list. A rung that opened the Player tab of a channel
+    // reaching past a list. A rung that opened the Listen tab of a channel
     // somebody was *not* in would be promising something the app would then
     // refuse; this opens the one they are in.
     //
@@ -277,8 +277,13 @@ function actionFor(
       return inChannel('members', 'Open the channel');
     case 'guest':
       return inChannel('invites', 'Open Invite');
+    // **The rung is still called `player` and the tab is not**, since
+    // 2026-09-18. The tab was renamed to *Listen* to sit beside *Watch*; this
+    // id is on the wire — `/me/tried` refuses a name it does not know, and
+    // `accounts.ts` keeps a `tried_player` column — so renaming it would be a
+    // wire change and a migration for a word nobody reads.
     case 'player':
-      return inChannel('player', 'Open Player');
+      return inChannel('listen', 'Open Listen');
   }
 }
 
