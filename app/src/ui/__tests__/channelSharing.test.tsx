@@ -166,11 +166,19 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the transport once a party is loaded', () => {
+  it('shows the card once a party is loaded, and no transport of its own', () => {
+    /*
+      **The film's own bar is the transport.** A Play and a pair of ±15s
+      buttons used to sit under the picture, beside a YouTube bar that is
+      inside the embed and cannot be taken off it — two sets of controls, one
+      of them real. See
+      planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+    */
     showChannel(watching());
     const tree = open();
     expect(textOf(tree)).toContain(URL);
-    expect(findButton(tree, 'Play')).toBeDefined();
+    expect(findButton(tree, 'Play')).toBeUndefined();
+    expect(findButton(tree, '−15s')).toBeUndefined();
     expect(findButton(tree, 'Stop')).toBeDefined();
     act(() => tree.unmount());
   });
@@ -185,14 +193,17 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('greys the transport while somebody else holds the floor', () => {
+  it('is not touched by a claim, because no claim can be made', () => {
+    // **A film refuses the floor outright** — see `watchPartyIsOn`. It used
+    // to be that a claim greyed a video's controls for everybody else, which
+    // on a bar that is inside the picture meant a visible control that did
+    // nothing.
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
-    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
-    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Dana Chu has the floor');
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
+    expect(textOf(tree)).not.toContain('Dana Chu has the floor');
     act(() => tree.unmount());
   });
 
@@ -217,7 +228,6 @@ describe('Channel, watching together', () => {
   it('refuses the whole card to somebody outside an occupied channel', () => {
     showChannel(watching((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
     const tree = open();
-    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
     expect(textOf(tree)).toContain('Step in to start a watch party');
@@ -241,7 +251,6 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(findButton(tree, 'Play')!.props.disabled).toBe(false);
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
     expect(textOf(tree)).toContain('Step in to put something else on');
@@ -560,13 +569,13 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('greys the mute while somebody else holds the floor', () => {
+  it('leaves the mute to anybody in the room, no claim being possible', () => {
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
     // "Unmute", the party having started muted — the label follows the intent.
-    expect(findButton(tree, 'Unmute the room')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Unmute the room')!.props.disabled).toBe(false);
     act(() => tree.unmount());
   });
 

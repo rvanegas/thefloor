@@ -86,7 +86,7 @@ caused; the list carries the meaning.
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
-- **Watch party** — Shared playback in a channel; behind *Labs*, starting side only
+- **Watch party** — Shared playback in a channel; behind *Labs*, starting side only. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The film's own bar is the only transport, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *same device* or *separate device*, which is one fact each device states in its own terms, and which only moves while the film is paused
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -121,7 +121,7 @@ caused; the list carries the meaning.
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
-- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. `contradictionFrom` in `core/watch.ts` says whether a player is out of step in a way neither the channel nor the follower caused; `useFollow` waits a tick to see whether it is still true — a play or a pause by disagreeing again, a scrub by the gap it left open, since a jump is visible for one tick only (`scrubStands`). Nothing is said to the player while it waits, or in the quiet period after a press, because a correction in either undoes a press nothing has read yet. Only a screen that may *control the watch* asks at all
+- **Intent (a watch party's)** — What this screen's own player says its owner just did on YouTube's bar — play, pause or a scrub — sent to the channel as the ordinary transport action it is. Since 2026-09-18 the bar is the *only* transport: the app draws no buttons of its own, the floor is not asked, and a film refuses the floor, a recording and the audio player outright. A follower is only ever doing one thing — *watching* (settled, so anything the player does is its owner's), *sending* (told the player something, deaf until it arrives), *told* (told the channel something, silent until it answers) or *wondering* (a jump, looked at once more) — so commanding and reading are never both available. `actFrom` reads a settled player; `showingTheFilm` says when the frame is an advert rather than the film
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -1620,9 +1620,18 @@ started it.
 
 A YouTube video everybody watches on their own screens, in step. Nothing about
 it is fetched, published, recorded or stored here: it is a link, and each
-device plays it. A channel with a party loaded refuses to record — playing or
-paused, since a recording made beside one would be missing the thing everybody
-was reacting to.
+device plays it.
+
+**It is a mode the channel is in rather than a thing it is carrying**, and
+since 2026-09-18 an exclusive one. While a film is loaded — playing or paused
+— no *floor* may be claimed, no recording begun and no track put on. The
+reasons differ and the answer does not: a recording beside a party would be
+missing the thing everybody was reacting to, a track would be a second thing
+to attend to playing over the first, and a claim is a demand that the room be
+quiet, which *mute the room* already does for a film with a control that
+belongs to the film. Stopping the party lifts all three at once. Loading a
+track used to *end* a party; it is refused now, so the replacement that ran
+both ways runs one.
 
 **Mute the room** withholds every microphone *while the video is playing*, and
 pausing gives them all back — you pause a film to talk about it. It writes
@@ -1633,15 +1642,23 @@ confers nothing.
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
 player, unmodified and unobscured, and The Floor still carries no video.
 
-**The video's own controls are the party's controls**, for whoever may drive
-it: play, pause and dragging its bar move the whole channel, exactly as the
-buttons under the film do. For anybody who may not — somebody else holds the
-*floor* — the frame simply does not answer, which is the greyed button said by
-the video rather than a press that reverses itself a moment later. See
-*intent*. What
-went with the change is the *follower page*, a browser that followed a channel
-on a six-hour link credential without being signed in; there is no such page and
-no such token now.
+**The video's own controls are the party's only controls**, and since
+2026-09-18 the app draws none of its own. The bar is inside the embed and
+comes off only with the picture, so it is on every screen showing a film
+whatever the app does — and a Play and ±15s row underneath it was a second set
+of controls, one of which was the real one. The buttons went and the bar
+stayed: play, pause and dragging it move the whole channel. The progress
+readout stays too, saying where everybody is being no kind of control.
+
+**Anybody in the room may drive**, no claim being possible during a film. For
+a screen that may not drive at all the frame simply does not answer, which is
+the greyed button said by the video rather than a press that reverses itself a
+moment later. The cost of putting the controls on the picture is that only a
+*screen* can drive: somebody in the party who is not showing the film has no
+transport. See *intent* for how a press is told from a player obeying, which
+took four attempts. What went with the move into the app is the *follower
+page*, a browser that followed a channel on a six-hour link credential without
+being signed in; there is no such page and no such token now.
 
 ## Screen
 
@@ -1992,62 +2009,66 @@ timer.
 
 ## Intent (a watch party's)
 
-**What this screen's own player says its owner just did.** The video's own
-bar is inside the embed and cannot be taken off it without taking the picture
-too, so since 2026-09-17 a press on it is read rather than resisted: play,
-pause and a scrub go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
-`WATCH_SEEK`, exactly what the buttons under the film produce, and come back
-to every screen as an ordinary snapshot. It is a second way to press the
-transport, not a second transport.
+**What this screen's own player says its owner just did**, and since
+2026-09-18 the only way the transport moves at all. The video's own bar is
+inside the embed and cannot be taken off it without taking the picture too —
+so it is visible on every screen showing a film whatever the app does, and a
+row of the app's own Play and ±15s buttons underneath it was a second set of
+controls, one of which was the real one. The buttons went; the bar stayed.
+Play, pause and a scrub go to the channel as `WATCH_PLAY`, `WATCH_PAUSE` and
+`WATCH_SEEK` and come back to every screen as an ordinary snapshot.
 
-Until then a press bought a quarter of a second of obedience and then a
-correction — the player doing as it was told and the follower undoing it,
-which reads as a broken video rather than as a channel with one remote.
+**The API will not say who caused a state change**, and that is the fact the
+design turns on. `onStateChange` carries the new player state and nothing
+about its cause, so a follower cannot ask whether a press was a person or its
+own instruction landing. Three attempts on three consecutive days tried to
+separate the two by *how long ago* the instruction went out — a seek settle, a
+command settle, a dwell, a quiet period, a pending window, seven constants
+between them — and each one traded a misread against an erased press. See
+planning/decisions/2026-09-18-the-bar-is-the-transport.md.
 
-**It takes two readings, and the second one is the repair.** A player that
-disagrees with the channel is either somebody's thumb or a player halfway
-through obeying, and at a single instant the two are the *same reading*. So
-it is asked in two parts: `contradictionFrom` in `core/watch.ts` says whether
-anything here explains the disagreement — the channel having moved, this
-follower having just spoken, a player between states — and `useFollow` then
-waits a tick to see whether it is still true, leaving the player alone
-meanwhile. A press is durable; a state reported late, an advert starting or a
-stall that resolves itself is not.
+**So the ambiguity is removed at its source rather than guessed around.** A
+disagreement is only ambiguous when *I told it to* is a live possibility, so a
+follower never commands and reads in the same breath. It is only ever doing
+one of four things, and every transition is an observation rather than an
+elapsed window:
 
-**A scrub answers a different second question, which is the repair of the
-repair.** A play and a pause prove themselves by disagreeing again, but a
-jump is visible for exactly one tick: the reading after a scrub is continuous
-with the one before it, the film simply running from its new place. Asked to
-be seen twice, every scrub on the bar was dropped and then corrected away —
-the bar appearing to ignore a finger, which is how it was reported. So a held
-scrub answers to the *gap* between the player and the channel instead
-(`scrubStands`), which a thumb leaves open and a one-tick lie closes by
-itself.
+- **watching** — the player is where the channel wants it. Nothing is ever
+  said to a player in this state, so anything it does has no explanation on
+  this device and is therefore its owner's doing. The only state a press is
+  read in.
+- **sending** — the player has been told something and has not arrived yet
+  (`hasArrived`). Nothing is read, so a correction cannot come back as an act.
+- **told** — the channel has been told something and has not answered yet
+  (`channelAnswered`). Nothing is said to the player, so a correction cannot
+  undo the press on its way out.
+- **wondering** — a position that moved further than time did, looked at once
+  more. A wrong play costs one transition; a wrong *position* moves the whole
+  room somewhere nobody asked for, so a jump is worth a tick of latency and a
+  press is not.
 
-**And the quiet period after a press is a silence, not a deafness.** It
-stopped this follower *reading* another press while it went on correcting the
-player, so a second press made inside it was pushed back before anything
-noticed it had been made — press Play, watch it start and stop, press again,
-each press restarting the window that erased the last. Nothing is said to the
-player in there now.
+**An advert is a different video in the same frame**, and it is measured
+rather than waited out. During a pre-roll both the position and the length
+describe the advert, so a player reporting a length that is not the film's is
+not showing the film: nothing is said to it and nothing read from it until it
+is (`showingTheFilm`, `WATCH_LENGTH_SLACK_MS`). Every earlier attempt listed
+"an advert starting" among the lies it was guessing around.
 
-**The first version asked only whether the player had changed, and that was
-not enough** — a player reporting a state late has also changed. One device's
-slow player instructed the room, the room obeyed, and the correction that
-followed produced the next instruction: a Play that stuttered
-play-pause-play-pause and settled on pause, with every microphone opening and
-closing behind it as each run re-sampled the mute. Get it wrong the generous
-way and one person's phone reaches into everybody else's evening, so
-`buffering`, `unstarted`, the end of the film, ordinary drift, a stall, the
-follower's own commands, a backgrounded app and the tick it comes back on are
-each excluded by name.
+Two fuses remain, and they are fuses rather than rules — for the observation
+that never comes. `WATCH_OBEDIENCE_MS` bounds waiting on a player, because
+waiting there is *deafness* and a person pressing something meanwhile goes
+unheard; `WATCH_PATIENCE_MS` bounds waiting on the channel, for a press the
+server refused.
 
-**Only a screen that may *control the watch* asks.** For everybody else the
-frame is made *inert* — `pointer-events` off, nothing drawn over it and
-nothing about the embed changed — which is the greyed button said by the
-video. `controls: 0` would have been the other way and was rejected: it is
-fixed when the embed is built, so the *floor* moving mid-party would have
-reloaded everybody's film to take the bar away from them.
+**Anybody in the room may drive, and the floor is not asked.** It used to be
+`holdsSharedControl`, which meant a claim made a visible, pressable bar do
+nothing on somebody else's screen. A film now refuses the floor outright,
+along with recordings and the audio player — see *watch party*, which is a
+mode the channel is in rather than a thing it is carrying. For a screen that
+may not drive at all the frame is made *inert* (`pointer-events` off, nothing
+drawn over it and nothing about the embed changed). `controls: 0` would have
+been the other way and was rejected: it is fixed when the embed is built, so
+anything moving mid-party would reload everybody's film.
 
 ## Introduction
 

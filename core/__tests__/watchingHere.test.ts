@@ -1,5 +1,10 @@
 import {
   anyScreenInTheRoom,
+  canClaimFloor,
+  canControlPlayback,
+  canControlWatch,
+  canLoadTrack,
+  canStartRecording,
   canUnmuteRoom,
   createChannel,
   isPartyMuted,
@@ -8,13 +13,15 @@ import {
 } from '../channel';
 import { hasMicrophone, microphoneNeeded } from '../micNeeded';
 import {
-  contradictionFrom,
-  correctionFor,
+  actFrom,
+  channelAnswered,
+  desiredFor,
   followInstructions,
-  scrubStands,
+  hasArrived,
+  showingTheFilm,
   watchPositionMs,
 } from '../watch';
-import { WATCH_DRIFT_MS, WATCH_SEEK_SETTLE_MS } from '../constants';
+import { WATCH_DRIFT_MS, WATCH_LENGTH_SLACK_MS } from '../constants';
 import type { ChannelAction, ChannelState, WatchState } from '../types';
 import type { PlayerHistory, PlayerReading, PlayerState } from '../watch';
 
@@ -244,9 +251,8 @@ describe('following the transport', () => {
   const reading = (
     state: PlayerState,
     positionMs: number | null,
-    seekedAt: number | null = null,
-    commandedAt: number | null = null
-  ): PlayerReading => ({ state, positionMs, seekedAt, commandedAt });
+    durationMs: number | null = LENGTH
+  ): PlayerReading => ({ state, positionMs, durationMs });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
@@ -274,23 +280,12 @@ describe('following the transport', () => {
     ).toEqual([{ do: 'seek', positionMs: drift }, { do: 'play' }]);
   });
 
-  it('will not correct twice inside the settle window', () => {
-    const drift = WATCH_DRIFT_MS + 5_000;
-    const now = T0 + drift;
+  it('says nothing to a player that is merely a little adrift', () => {
+    // The tolerance is `hasArrived`'s now rather than a second opinion held
+    // here: a correction is a visible stutter, so the gap has to be worth one.
     expect(
-      correctionFor(
-        playing(),
-        reading('playing', 0, now - WATCH_SEEK_SETTLE_MS + 1),
-        now
-      )
-    ).toBeNull();
-    expect(
-      correctionFor(
-        playing(),
-        reading('playing', 0, now - WATCH_SEEK_SETTLE_MS - 1),
-        now
-      )
-    ).toBe(drift);
+      followInstructions(playing(), reading('playing', 0), T0 + WATCH_DRIFT_MS)
+    ).toEqual([]);
   });
 
   it('leaves an ended player alone while the channel agrees it is over', () => {
@@ -339,27 +334,129 @@ describe('following the transport', () => {
   });
 });
 
+
 /**
- * A player out of step with the channel, and whether anything here explains
- * it.
+ * Whether a player has arrived where it was sent.
  *
- * **Every test is the one question**: is this somebody's thumb, or a player
- * halfway through obeying? The two are the same reading, and the first
- * version of this asked only whether the player had *changed* — which a
- * player reporting a state late has also done. So one device's slow player
- * instructed the room, the room obeyed, and the correction that followed
- * produced the next instruction: a Play that stuttered play-pause-play-pause
- * and settled on pause, with every microphone in the room opening and
- * closing behind it. The false-positive cases below outnumber the true ones
- * on purpose, and the dwell that finishes the job is `useFollow`'s.
+ * **The observation the whole follower now turns on.** A follower that has
+ * said anything to its player stays deaf until this is true, so a correction
+ * can never be read back as somebody's thumb — the loop that produced a
+ * play-pause flip three separate times. What makes it a repair rather than a
+ * fourth guess is that it is a fact about the player rather than a guess
+ * about how long players take.
  */
-describe('a player out of step with the channel', () => {
+describe('a player asked whether it has arrived', () => {
   const reading = (
     state: PlayerState,
     positionMs: number | null,
-    seekedAt: number | null = null,
-    commandedAt: number | null = null
-  ): PlayerReading => ({ state, positionMs, seekedAt, commandedAt });
+    durationMs: number | null = LENGTH
+  ): PlayerReading => ({ state, positionMs, durationMs });
+
+  const want = { status: 'playing' as const, positionMs: 60_000 };
+
+  it('has, when it is doing the right thing in the right place', () => {
+    expect(hasArrived(reading('playing', 60_000), want)).toBe(true);
+  });
+
+  it('has, within the tolerance the shared clock is kept to', () => {
+    expect(hasArrived(reading('playing', 60_000 + WATCH_DRIFT_MS), want)).toBe(
+      true
+    );
+    expect(
+      hasArrived(reading('playing', 60_000 + WATCH_DRIFT_MS + 1), want)
+    ).toBe(false);
+  });
+
+  it('has not, while it is still on its way', () => {
+    // `buffering` is going somewhere and `unstarted` has not begun. Reading
+    // either as arrival is how a follower starts talking over itself.
+    expect(hasArrived(reading('buffering', 60_000), want)).toBe(false);
+    expect(hasArrived(reading('unstarted', 60_000), want)).toBe(false);
+  });
+
+  it('has not, when it is doing the other thing', () => {
+    expect(hasArrived(reading('paused', 60_000), want)).toBe(false);
+  });
+
+  it('has, at the end of the film, whatever it was asked for', () => {
+    // A player at the end cannot be made to be anywhere else without being
+    // restarted, so waiting for it to arrive is waiting for ever.
+    expect(hasArrived(reading('ended', LENGTH), want)).toBe(true);
+  });
+
+  it('has not, while it cannot say where it is', () => {
+    expect(hasArrived(reading('playing', null), want)).toBe(false);
+  });
+});
+
+/**
+ * An advert, which is a different video in the same frame.
+ *
+ * Every attempt at this listed "an advert starting" among the lies it was
+ * guessing around, and guessed with a timer. The API says so if it is asked
+ * the right question: during a pre-roll both the position and the length
+ * describe the advert, so a player reporting a length that is not the film's
+ * is not showing the film.
+ */
+describe('telling a film from what runs before it', () => {
+  const reading = (durationMs: number | null): PlayerReading => ({
+    state: 'playing',
+    positionMs: 3_000,
+    durationMs,
+  });
+
+  const playing = (at = T0) =>
+    apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
+
+  it('is the film when the lengths agree', () => {
+    expect(showingTheFilm(playing(), reading(LENGTH))).toBe(true);
+  });
+
+  it('is the film within the slack a rounded length needs', () => {
+    expect(
+      showingTheFilm(playing(), reading(LENGTH - WATCH_LENGTH_SLACK_MS))
+    ).toBe(true);
+  });
+
+  it('is not the film when a ninety-second spot says so', () => {
+    expect(showingTheFilm(playing(), reading(90_000))).toBe(false);
+  });
+
+  it('is the film whenever either end cannot say', () => {
+    // An unknown is not evidence of an advert, and refusing to follow on one
+    // would leave a party that never learned its length unable to run.
+    expect(showingTheFilm(playing(), reading(null))).toBe(true);
+    const unlearned = reduce(
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+      T0
+    ).watch;
+    expect(showingTheFilm(unlearned, reading(90_000))).toBe(true);
+  });
+});
+
+/**
+ * What a settled player's owner just did to it.
+ *
+ * **Every test is the one question**: is this somebody's thumb, or a player
+ * halfway through obeying? Three attempts asked it of a player this same
+ * follower might have commanded a moment ago, and tried to separate the two
+ * by how long ago the command went out. They are the same reading, and the
+ * IFrame API will not say which — `onStateChange` carries the new state and
+ * nothing about its cause.
+ *
+ * So it is asked only of a player that has *arrived*, which is a state this
+ * follower has said nothing in. What is left for this to rule out is the
+ * other explanation — that the channel moved and this player is following
+ * rather than leading — and that one is exact, because the previous tick kept
+ * both halves.
+ */
+describe('a settled player’s owner', () => {
+  const reading = (
+    state: PlayerState,
+    positionMs: number | null,
+    durationMs: number | null = LENGTH
+  ): PlayerReading => ({ state, positionMs, durationMs });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
@@ -381,9 +478,9 @@ describe('a player out of step with the channel', () => {
   it('reads a pause on the bar as a pause of the party', () => {
     const watch = playing();
     const was = before(watch, 'playing', 4_500, T0 + 4_500);
-    expect(
-      contradictionFrom(watch, reading('paused', 5_000), was, T0 + 5_000)
-    ).toEqual({ do: 'pause' });
+    expect(actFrom(watch, reading('paused', 5_000), was, T0 + 5_000)).toEqual({
+      do: 'pause',
+    });
   });
 
   it('reads a play on the bar as a play of the party', () => {
@@ -392,9 +489,9 @@ describe('a player out of step with the channel', () => {
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
     ]).watch;
     const was = before(watch, 'paused', 5_000, T0 + 6_000);
-    expect(
-      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 6_500)
-    ).toEqual({ do: 'play' });
+    expect(actFrom(watch, reading('playing', 5_000), was, T0 + 6_500)).toEqual({
+      do: 'play',
+    });
   });
 
   it('reads a scrub as a seek of the party', () => {
@@ -403,38 +500,8 @@ describe('a player out of step with the channel', () => {
     // A thumb landing a minute in, half a second after the player was where
     // it was meant to be.
     expect(
-      contradictionFrom(watch, reading('playing', 60_000), was, T0 + 5_000)
+      actFrom(watch, reading('playing', 60_000), was, T0 + 5_000)
     ).toEqual({ do: 'seek', positionMs: 60_000 });
-  });
-
-  it('says nothing about a player that has just been told to play', () => {
-    // **The fix, stated once.** The follower said play half a second ago and
-    // the embed is still reporting the state it was in; taken as a press
-    // that reading pauses the party, and the play that somebody presses
-    // next produces it again. This is the stutter, and this window is what
-    // closes it.
-    const watch = playing();
-    const was = before(watch, 'paused', 5_000, T0 + 4_500);
-    const told = T0 + 4_600;
-    expect(
-      contradictionFrom(
-        watch,
-        reading('paused', 5_000, null, told),
-        was,
-        T0 + 5_000
-      )
-    ).toBeNull();
-
-    // And says it again once the window has passed and the player has still
-    // not moved, which is no longer a player obeying slowly.
-    expect(
-      contradictionFrom(
-        watch,
-        reading('paused', 5_000, null, told),
-        before(watch, 'paused', 5_000, T0 + 6_600),
-        T0 + 7_000
-      )
-    ).toEqual({ do: 'pause' });
   });
 
   it('is silent for a follower catching up with somebody else’s pause', () => {
@@ -447,7 +514,7 @@ describe('a player out of step with the channel', () => {
     ]).watch;
     const stillPlaying = before(playing(), 'playing', 4_500, T0 + 4_500);
     expect(
-      contradictionFrom(paused, reading('playing', 5_000), stillPlaying, T0 + 5_200)
+      actFrom(paused, reading('playing', 5_000), stillPlaying, T0 + 5_200)
     ).toBeNull();
   });
 
@@ -460,33 +527,40 @@ describe('a player out of step with the channel', () => {
     // which is a disagreement the channel opened and not this screen.
     const was = before(playing(), 'playing', 59_500, T0 + 59_500);
     expect(
-      contradictionFrom(rewound, reading('playing', 60_000), was, T0 + 60_100)
+      actFrom(rewound, reading('playing', 60_000), was, T0 + 60_100)
+    ).toBeNull();
+  });
+
+  it('is silent about a player showing an advert', () => {
+    // The advert's clock is near zero against a film five seconds in, which
+    // is a scrub backwards to anything that does not know what it is looking
+    // at. See `showingTheFilm`.
+    const watch = playing();
+    const was = before(watch, 'playing', 4_500, T0 + 4_500);
+    expect(
+      actFrom(watch, reading('playing', 1_000, 90_000), was, T0 + 5_000)
     ).toBeNull();
   });
 
   it('is silent on the first tick, having nothing to compare against', () => {
-    expect(
-      contradictionFrom(playing(), reading('unstarted', 0), null, T0)
-    ).toBeNull();
+    expect(actFrom(playing(), reading('unstarted', 0), null, T0)).toBeNull();
   });
 
   it('does not read buffering, an unstarted player or the end as a press', () => {
     const watch = playing();
     for (const state of ['buffering', 'unstarted', 'ended'] as PlayerState[]) {
       const was = before(watch, 'playing', 4_500, T0 + 4_500);
-      expect(
-        contradictionFrom(watch, reading(state, 5_000), was, T0 + 5_000)
-      ).toBeNull();
+      expect(actFrom(watch, reading(state, 5_000), was, T0 + 5_000)).toBeNull();
     }
   });
 
   it('does not mistake ordinary drift for a scrub', () => {
     const watch = playing();
     // Half a second of tick against a player that advanced a second: the gap
-    // `correctionFor` is for, and nothing a thumb did.
+    // a correction is for, and nothing a thumb did.
     const was = before(watch, 'playing', 4_000, T0 + 4_500);
     expect(
-      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 5_000)
+      actFrom(watch, reading('playing', 5_000), was, T0 + 5_000)
     ).toBeNull();
   });
 
@@ -494,26 +568,11 @@ describe('a player out of step with the channel', () => {
     // **A stalled player falls behind by exactly the gap between readings**,
     // so as long as they are about a tick apart the error stays under
     // `WATCH_DRIFT_MS` and this cannot fire. Keeping them that close is
-    // `useFollow`'s job — see `READINGS_COMPARABLE_MS`, which is what makes
-    // an app coming back from a pocket start the comparison again.
+    // `useFollow`'s job — see `READINGS_COMPARABLE_MS`.
     const watch = playing();
     const was = before(watch, 'playing', 5_000, T0 + 5_000);
     expect(
-      contradictionFrom(watch, reading('playing', 5_000), was, T0 + 5_500)
-    ).toBeNull();
-  });
-
-  it('does not read its own correction as a press', () => {
-    const watch = playing();
-    const was = before(watch, 'playing', 4_500, T0 + 4_500);
-    // The follower seeked a moment ago, so the jump is its own doing.
-    expect(
-      contradictionFrom(
-        watch,
-        reading('playing', 60_000, T0 + 4_900),
-        was,
-        T0 + 5_000
-      )
+      actFrom(watch, reading('playing', 5_000), was, T0 + 5_500)
     ).toBeNull();
   });
 
@@ -521,70 +580,109 @@ describe('a player out of step with the channel', () => {
     const idle = watching().watch;
     const stopped = { ...idle, party: null };
     const was = before(stopped, 'playing', 0, T0);
-    expect(
-      contradictionFrom(stopped, reading('paused', 0), was, T0 + 500)
-    ).toBeNull();
+    expect(actFrom(stopped, reading('paused', 0), was, T0 + 500)).toBeNull();
   });
 });
 
 /**
- * The second look a scrub answers to, which is not the one a press answers to.
+ * The other observation a follower waits on: the channel agreeing.
  *
- * **A jump is visible for exactly one tick.** The reading after a scrub is
- * continuous with the one before it — the film simply running from its new
- * place — so `contradictionFrom` asked a second time about the same thumb
- * says nothing, every time. Asked to prove itself the way a play or a pause
- * does, every scrub on the video's own bar was therefore dropped and then
- * corrected away, which is a bar that does not answer a finger.
- *
- * What a thumb leaves behind instead is a gap, and that is durable. These are
- * the two sides of that.
+ * A press goes to the server and comes back as a snapshot, and until it does
+ * the channel still says the thing the person just changed. A follower that
+ * corrected in the meantime would undo the press on its way out.
  */
-describe('a scrub asked to stand a tick later', () => {
-  const reading = (
-    state: PlayerState,
-    positionMs: number | null
-  ): PlayerReading => ({ state, positionMs, seekedAt: null, commandedAt: null });
-
+describe('the channel answering a press', () => {
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
 
-  it('stands while the player is somewhere the channel is not', () => {
-    const watch = playing();
-    // A minute in, against a channel five seconds in and running.
+  it('has answered a pause when it says paused', () => {
+    const paused = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
+    ]).watch;
+    expect(channelAnswered({ do: 'pause' }, paused, T0 + 5_100)).toBe(true);
+    expect(channelAnswered({ do: 'pause' }, playing(), T0 + 5_100)).toBe(false);
+  });
+
+  it('has answered a seek when it is near where it was sent', () => {
+    // A seek lands where it was asked to go and then keeps moving, so the
+    // question is whether the channel is near it rather than at it.
+    const sought = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'WATCH_SEEK', userId: A, positionMs: 60_000 }, T0 + 5_000],
+    ]).watch;
     expect(
-      scrubStands(watch, reading('playing', 60_500), T0 + 5_500)
-    ).toEqual({ do: 'seek', positionMs: 60_500 });
-  });
-
-  it('carries where the film has reached, not where the thumb landed', () => {
-    const watch = playing();
-    const first = scrubStands(watch, reading('playing', 60_000), T0 + 5_000);
-    const second = scrubStands(watch, reading('playing', 60_500), T0 + 5_500);
-    expect(first).toEqual({ do: 'seek', positionMs: 60_000 });
-    // Sending the older figure is sending the party a tick behind.
-    expect(second).toEqual({ do: 'seek', positionMs: 60_500 });
-  });
-
-  it('falls away when the gap closes, which is what a blip does', () => {
-    const watch = playing();
-    // The advert ended and the player's own clock is the film's again.
-    expect(scrubStands(watch, reading('playing', 5_400), T0 + 5_500)).toBeNull();
-  });
-
-  it('is not opened by drift alone', () => {
-    const watch = playing();
+      channelAnswered({ do: 'seek', positionMs: 60_000 }, sought, T0 + 6_000)
+    ).toBe(true);
     expect(
-      scrubStands(watch, reading('playing', 5_500 - WATCH_DRIFT_MS), T0 + 5_500)
-    ).toBeNull();
+      channelAnswered({ do: 'seek', positionMs: 300_000 }, sought, T0 + 6_000)
+    ).toBe(false);
+  });
+});
+
+/**
+ * What the channel asks of every player, in one place.
+ */
+describe('what the channel wants a player to be', () => {
+  it('is nothing at all when there is no party', () => {
+    const idle = { ...watching().watch, party: null };
+    expect(desiredFor(idle, T0)).toBeNull();
   });
 
-  it('says nothing about a player that cannot say where it is', () => {
-    expect(scrubStands(playing(), reading('unstarted', null), T0 + 5_500)).toBeNull();
+  it('is the pair, and the position is the shared clock’s', () => {
+    const watch = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+    ]).watch;
+    expect(desiredFor(watch, T0 + 5_000)).toEqual({
+      status: 'playing',
+      positionMs: 5_000,
+    });
+  });
+});
+
+/**
+ * A watch party is a mode the channel is in, and since 2026-09-18 an
+ * exclusive one.
+ *
+ * Each of these was refused separately or not at all before, and the one that
+ * was not — the floor — was reaching into the video's transport and deciding
+ * who could press a bar that everybody watching can see.
+ */
+describe('a channel with a film on', () => {
+  const withFilm = () => watching();
+  const withoutFilm = () =>
+    reduce(
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+      { type: 'ENTER', userId: B },
+      T0
+    );
+
+  it('refuses a floor claim', () => {
+    expect(canClaimFloor(withoutFilm(), A, T0)).toBe(true);
+    expect(canClaimFloor(withFilm(), A, T0)).toBe(false);
   });
 
-  it('says nothing at all when there is no party', () => {
-    const stopped = { ...watching().watch, party: null };
-    expect(scrubStands(stopped, reading('playing', 60_000), T0 + 5_000)).toBeNull();
+  it('refuses a track', () => {
+    expect(canLoadTrack(withoutFilm(), A)).toBe(true);
+    expect(canLoadTrack(withFilm(), A)).toBe(false);
+  });
+
+  it('refuses the audio player', () => {
+    expect(canControlPlayback(withoutFilm(), A)).toBe(true);
+    expect(canControlPlayback(withFilm(), A)).toBe(false);
+  });
+
+  it('refuses a recording, as it always did', () => {
+    expect(canStartRecording(withFilm(), A)).toBe(false);
+  });
+
+  it('lets anybody in the room drive, claim or no claim', () => {
+    // **The floor is not asked any more.** It cannot be claimed while a film
+    // is on, so there was nothing left for it to say here — and what it used
+    // to say was that a visible, pressable bar did nothing on somebody
+    // else's screen.
+    const state = withFilm();
+    expect(canControlWatch(state, A)).toBe(true);
+    expect(canControlWatch(state, B)).toBe(true);
   });
 });

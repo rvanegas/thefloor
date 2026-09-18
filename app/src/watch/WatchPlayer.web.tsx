@@ -127,10 +127,18 @@ export function WatchPlayer({
                 if (!p) return null;
                 const state = STATES[p.getPlayerState()] ?? 'unstarted';
                 const seconds = p.getCurrentTime?.();
+                // **The advert's own length, when one is running**, which is
+                // what `showingTheFilm` reads it for — not a second opinion
+                // about the film's.
+                const length = p.getDuration?.();
                 return {
                   state,
                   positionMs:
                     typeof seconds === 'number' ? seconds * 1000 : null,
+                  durationMs:
+                    typeof length === 'number' && length > 0
+                      ? length * 1000
+                      : null,
                 };
               },
               play: () => player.current?.playVideo(),

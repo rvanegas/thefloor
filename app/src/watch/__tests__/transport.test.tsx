@@ -29,6 +29,7 @@ const A = 'user-a';
 const B = 'user-b';
 const T0 = 1_700_000_000_000;
 const URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+const LENGTH = 600_000;
 
 /** How long this player takes to do as it is told. Longer than a tick. */
 const LAG_MS = 600;
@@ -48,6 +49,7 @@ const TRIP_MS = 300;
 function laggyPlayer(lag: number) {
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
+  let durationMs: number | null = LENGTH;
   let want: PlayerState | null = null;
   let pending: { at: number; run: () => void } | null = null;
   const calls: string[] = [];
@@ -58,6 +60,18 @@ function laggyPlayer(lag: number) {
     },
     get positionMs() {
       return positionMs;
+    },
+    /**
+     * An advert taking the frame over, reporting its own clock and its own
+     * length — which is how `showingTheFilm` tells one from the film.
+     */
+    advert(seconds: number | null) {
+      if (seconds === null) {
+        durationMs = LENGTH;
+        return;
+      }
+      durationMs = seconds * 1000;
+      positionMs = 1_000;
     },
     /** Somebody's thumb on the video's own bar, which lands at once. */
     press(next: PlayerState, at?: number) {
@@ -75,7 +89,7 @@ function laggyPlayer(lag: number) {
       }
     },
     port: {
-      read: () => ({ state, positionMs }),
+      read: () => ({ state, positionMs, durationMs }),
       play: () => {
         calls.push('play');
         if (state === 'playing' || want === 'playing') return;
@@ -124,11 +138,7 @@ function party(): ChannelState {
     { type: 'START_WATCH', userId: A, videoId: 'dQw4w9WgXcQ', url: URL },
     T0
   );
-  return reduce(
-    started,
-    { type: 'WATCH_READY', userId: A, durationMs: 600_000 },
-    T0
-  );
+  return reduce(started, { type: 'WATCH_READY', userId: A, durationMs: LENGTH }, T0);
 }
 
 /** The channel, reached over a wire with a round trip in it. */
@@ -345,6 +355,35 @@ describe('a second press, made before the first has settled', () => {
     sim.advance(1_000);
 
     expect(sim.player.calls.slice(after)).toEqual([]);
+  });
+});
+
+describe('an advert in the frame', () => {
+  it('moves neither the room nor the picture', () => {
+    /*
+      **An advert is a different video reporting its own clock.** Its
+      position reads as a scrub to the start and its length is nothing like
+      the film's, which is how it is told apart — every earlier attempt
+      listed this among the lies it was guessing around, with a timer. See
+      `showingTheFilm`.
+    */
+    const sim = run();
+    sim.wire.send({ do: 'play' }, Date.now());
+    sim.advance(6_000);
+    const heard = sim.wire.heard.length;
+    const calls = sim.player.calls.length;
+
+    sim.player.advert(90);
+    sim.advance(5_000);
+    expect(sim.wire.heard.slice(heard)).toEqual([]);
+    expect(sim.player.calls.slice(calls)).toEqual([]);
+
+    // The spot ends and the film comes back where the party had got to.
+    sim.player.advert(null);
+    sim.player.press('playing', Math.round(sim.where().channelAt));
+    sim.advance(4_000);
+    expect(sim.wire.heard.slice(heard)).toEqual([]);
+    expect(inStep(sim.where())).toBe(true);
   });
 });
 

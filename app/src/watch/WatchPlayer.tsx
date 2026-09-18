@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WatchState } from '../../../core/types';
-import type { PlayerState, WatchIntent } from '../../../core/watch';
+import type {
+  PlayerReading,
+  PlayerState,
+  WatchIntent,
+} from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
 
@@ -199,10 +203,7 @@ export function WatchPlayer({
   onIntent: (intent: WatchIntent) => void;
 }): React.ReactElement | null {
   const view = useRef<WebView | null>(null);
-  const reading = useRef<{
-    state: PlayerState;
-    positionMs: number | null;
-  } | null>(null);
+  const reading = useRef<PlayerReading | null>(null);
   const told = useRef(false);
   const [ready, setReady] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
@@ -249,6 +250,10 @@ export function WatchPlayer({
       reading.current = {
         state: STATES[payload.state ?? -1] ?? 'unstarted',
         positionMs: payload.positionMs ?? null,
+        // **The advert's own length, when one is running**, which is what
+        // `showingTheFilm` reads it for — not a second opinion about the
+        // film. See `learnDuration` for why the party keeps only the first.
+        durationMs: payload.durationMs ?? null,
       };
       if (!told.current && payload.durationMs) {
         told.current = true;

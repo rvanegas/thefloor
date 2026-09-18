@@ -2912,36 +2912,21 @@ export function ChannelView({
                   </Text>
                 )}
 
-                <View style={styles.buttonRow}>
-                  <Button
-                    label="−15s"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
-                    }
-                  />
-                  <Button
-                    label={watch.status === 'playing' ? 'Pause' : 'Play'}
-                    variant="primary"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({
-                        type:
-                          watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
-                      })
-                    }
-                  />
-                  <Button
-                    label="+15s"
-                    style={styles.flexButton}
-                    disabled={!mayControlWatch}
-                    onPress={() =>
-                      act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
-                    }
-                  />
-                </View>
+                {/*
+                  **The film's own bar is the transport, and there is no
+                  second one.** A row of Play and ±15s buttons used to sit
+                  here, under a YouTube bar that is inside the embed and
+                  cannot be taken off the picture without taking the picture
+                  too — so every screen showing a film had two sets of
+                  controls, one of which was the real one. Which of them
+                  worked depended on the floor, and on a stack of timing
+                  guards that took three attempts and never settled.
+
+                  Removed rather than moved: see
+                  planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+                  The progress readout above stays, because saying where
+                  everybody is is not a control.
+                */}
 
                 {/*
                   Muting the room, which is a different act from muting yourself

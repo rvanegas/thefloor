@@ -216,10 +216,19 @@ describe('who may drive it', () => {
     expect(canControlWatch(s, B)).toBe(true);
   });
 
-  it('is the floor-holder alone while a claim is live', () => {
+  it('cannot be narrowed by a claim, because no claim can be made', () => {
+    /*
+      **The floor left the transport on 2026-09-18.** It used to be that a
+      claim made the video everybody could see answer only one person's
+      finger — the bar is inside the embed and cannot be taken off the
+      picture, so what the floor actually did was make a visible, pressable
+      control do nothing. A film is now a mode that refuses claims outright
+      (`canClaimFloor`), so this attempt changes nothing at all.
+    */
     const s = reduce(watching(), { type: 'CLAIM_FLOOR', userId: A }, T0);
+    expect(s.floor.holder).toBeNull();
     expect(canControlWatch(s, A)).toBe(true);
-    expect(canControlWatch(s, B)).toBe(false);
+    expect(canControlWatch(s, B)).toBe(true);
   });
 
   it('does not pause the video — a claim confers control, not silence', () => {
@@ -245,8 +254,9 @@ describe('who may drive it', () => {
   });
 
   it('ignores an action from somebody the guard refuses', () => {
-    const claimed = reduce(watching(), { type: 'CLAIM_FLOOR', userId: A }, T0);
-    const s = reduce(claimed, { type: 'WATCH_PLAY', userId: B }, T0 + 1_000);
+    // Stepping out is what refuses somebody now, the floor having left.
+    const out = reduce(watching(), { type: 'STEP_OUT', userId: B }, T0);
+    const s = reduce(out, { type: 'WATCH_PLAY', userId: B }, T0 + 1_000);
     expect(s.watch.status).toBe('paused');
   });
 });
@@ -341,14 +351,20 @@ describe('a member who has not stepped in', () => {
 
     it('is held to the same split on shared playback', () => {
       // Driving yes, loading no — the same two answers as the party above.
-      expect(canControlPlayback(empty(), A)).toBe(true);
-      expect(canLoadTrack(empty(), A)).toBe(false);
+      // Asked of a channel with no film on, since a film refuses the audio
+      // player to everybody and would answer before the split did.
+      const quiet = reduce(empty(), { type: 'STOP_WATCH', userId: A }, T0);
+      expect(canControlPlayback(quiet, A)).toBe(true);
+      expect(canLoadTrack(quiet, A)).toBe(false);
     });
 
     it('gets starting back by stepping in', () => {
       const s = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
       expect(canStartWatch(s, A)).toBe(true);
-      expect(canLoadTrack(s, A)).toBe(true);
+      // The film is still on, so the track is refused for that reason now.
+      expect(canLoadTrack(s, A)).toBe(false);
+      const quiet = reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 4_000);
+      expect(canLoadTrack(quiet, A)).toBe(true);
     });
   });
 });
@@ -364,14 +380,18 @@ describe('a channel attends to one thing', () => {
     expect(s.watch.party?.videoId).toBe(VIDEO);
   });
 
-  it('ends the party when a track is loaded', () => {
+  it('refuses a track while a party is on, rather than ending it', () => {
+    // **The replacement runs one way now.** Starting a party still clears a
+    // track; a track no longer ends a party, because it cannot be loaded
+    // while one is on. The audio button is dead during a film, deliberately
+    // and visibly — see `watchPartyIsOn`.
     const s = reduce(
       watching(),
       { type: 'SET_TRACK', userId: B, track: TRACK },
       T0 + 1_000
     );
-    expect(s.watch.party).toBeNull();
-    expect(s.playback.track).toEqual(TRACK);
+    expect(s.watch.party).not.toBeNull();
+    expect(s.playback.track).toBeNull();
   });
 
   it('refuses a party while a recording is running', () => {
@@ -556,15 +576,20 @@ describe('muting the room', () => {
     expect(isPartyMuted(s)).toBe(true);
   });
 
-  it('leaves the floor rule alone once cleared', () => {
+  it('returns everybody to audible once cleared', () => {
+    // **This used to return to the claim's own answer**, a claim being the
+    // other thing that could withhold a microphone. No claim can be made
+    // while a film is on, so the room's mute is the only rule left in here
+    // and clearing it clears everything — which is the simplification the
+    // exclusivity bought. See `watchPartyIsOn`.
     const s = apply(watching(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
       [mute(true), T0 + 1_000],
       [mute(false), T0 + 2_000],
     ]);
-    // Back to the claim's own answer, rather than to everybody audible.
+    expect(s.floor.holder).toBeNull();
     expect(isWithheld(s, A)).toBe(false);
-    expect(isWithheld(s, B)).toBe(true);
+    expect(isWithheld(s, B)).toBe(false);
   });
 });
 

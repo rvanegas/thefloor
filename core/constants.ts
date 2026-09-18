@@ -107,39 +107,64 @@ export const PLAYBACK_DEFAULT_VOLUME = 0.7;
 export const WATCH_DRIFT_MS = 1_500;
 
 /**
- * How long a correction is left to land before another may be issued.
+ * How far a player's own idea of its length may be from the film's before it
+ * is taken to be showing something else.
  *
- * A seek is not instantaneous: the player reports the old position for a
- * moment, then buffers, and a follower that re-read the clock in between would
- * see the drift it has already fixed and fix it again. That is the seek storm,
- * and two guards close it — this window, and never correcting a buffering
- * player.
+ * **An advert is a different video in the same frame.** During a pre-roll,
+ * `getCurrentTime` and `getDuration` describe the advert, so a player thirty
+ * seconds into a ninety-second spot reports a position near zero and a length
+ * nothing like the film's — two true statements about the wrong video, and
+ * every attempt at this so far listed "an advert starting" among the lies it
+ * was guessing around. `showingTheFilm` measures it instead.
  *
- * It was a literal in the follower page until the player moved into the app,
- * at which point two implementations needed the same number. Here for
- * `WATCH_DRIFT_MS`'s reason: it describes the shared clock's tolerances, not
- * one client's.
+ * Generous, because it separates a film from an advert rather than measuring
+ * anything: the two differ by minutes, and a player rounding its own length
+ * to the nearest second must not read as a different video.
  */
-export const WATCH_SEEK_SETTLE_MS = 2_000;
+export const WATCH_LENGTH_SLACK_MS = 5_000;
 
 /**
- * How long a play or a pause is left to land before the player's own state
- * may be read as anybody's doing.
+ * How long a follower waits on an observation that may never arrive.
  *
- * **The seek window's sibling, and it was missing for a day.** A player told
- * to play does not play at once: it reports the state it was in for a moment
- * and buffers, and a follower reading that gap saw a player disagreeing with
- * the channel — which since the video's own controls became a remote is the
- * signature of somebody pressing something. So one device's slow player
- * became an instruction to the room, the room obeyed, and the correction
- * that followed produced the next instruction. It showed as a Play that
- * stuttered play-pause-play-pause and settled on pause.
+ * **The only timer left in the follower, and it is a fuse rather than a
+ * rule.** Every window this replaced — a seek settle, a command settle, a
+ * dwell, a quiet period, a pending press — was a guess at how long something
+ * takes, and the follower now waits on the thing itself instead: the player
+ * arriving where it was sent, the channel answering what it was told. Both
+ * are facts, and both are observed.
  *
- * Shorter than the seek window because a transport command is cheaper than a
- * fetch: what it has to cover is the player acknowledging, not the player
- * filling a buffer.
+ * What an observation cannot do is fail loudly. A player that will not obey —
+ * an advert running, an embed that has lost its way — and a press the server
+ * refused because somebody stopped the party in the same second both leave a
+ * follower waiting for something that is never coming. So each wait has a
+ * fuse, set long enough that it never ends a wait that was going to succeed:
+ * comfortably past a round trip and past any embed's idea of prompt.
  */
-export const WATCH_COMMAND_SETTLE_MS = 1_500;
+export const WATCH_PATIENCE_MS = 4_000;
+
+/**
+ * How long a player is given to do as it is told before it is listened to
+ * again.
+ *
+ * **The channel's fuse is not the player's**, and sharing one cost a session:
+ * a follower waiting on its player is *deaf*, so a person pressing something
+ * while a correction was in flight went unheard for the whole of it. Four
+ * seconds of that is the old complaint in a new dress.
+ *
+ * So this is short — about what an embed takes to acknowledge, rather than
+ * what it takes to fill a buffer, since arriving is observed directly and
+ * this only has to cover a player that is never going to arrive at all.
+ *
+ * **What it costs when it fires early is bounded**, which is why a short one
+ * is safe here and was not safe in any of the three timer arrangements this
+ * replaced. A follower that starts listening while its own instruction is
+ * still outstanding may read that instruction back as a press — and what it
+ * then tells the channel is *what the player is actually doing*. The channel
+ * follows, the player already agrees with it, nothing needs correcting, and
+ * there is no second reading to produce a third instruction. It converges on
+ * the player instead of fighting it.
+ */
+export const WATCH_OBEDIENCE_MS = 1_500;
 
 /**
  * The most characters a channel name may hold.

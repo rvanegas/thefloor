@@ -546,6 +546,13 @@ export function canClaimFloor(
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
+  // **Not while a film is on.** A claim is a demand that the room be quiet,
+  // and a party already has one of those in the control that belongs to the
+  // film — see `watchPartyIsOn`, and `partyWithholds` for the mute that
+  // follows the transport. Two ways to silence a room, one of which also
+  // decides who may press play, is the arrangement that put the floor inside
+  // the video's transport.
+  if (watchPartyIsOn(state)) return false;
   // **Members only, and this reversed on 2026-08-30.** It read `inRoom`
   // against `roomOccupants`, deliberately, on the argument that the floor is
   // about who is talking and a guest with the microphone is talking. What that
@@ -939,6 +946,30 @@ export function canStopRecording(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * Whether a film is on.
+ *
+ * **A watch party is a mode the channel is in, not a thing it is carrying**,
+ * and since 2026-09-18 it is exclusive: no floor may be claimed, no recording
+ * begun, and no track put on while one is loaded. Each of those was refused
+ * separately or not at all before, and the one that was not — the floor —
+ * was reaching into the transport through `holdsSharedControl` and deciding
+ * who could press a video's own controls.
+ *
+ * The reasons differ and the rule does not. A recording made alongside a
+ * party would be a recording of people reacting to something it does not
+ * contain. A track would be a second thing to attend to, playing over the
+ * first. And a claim is a demand that the room be quiet, which is what
+ * *muting the room* already does for a film, said by a control that belongs
+ * to the film — see `partyWithholds`, and the mute that follows the transport.
+ *
+ * Stopping the party lifts all three at once, which is what makes this
+ * self-correcting: there is no state to unwind, only a party to end.
+ */
+export function watchPartyIsOn(state: ChannelState): boolean {
+  return state.watch.party !== null;
+}
+
+/**
  * Whether `userId` may load, play, pause, seek, re-level or clear the shared
  * track.
  *
@@ -958,6 +989,9 @@ export function canControlPlayback(
   state: ChannelState,
   userId: UserId
 ): boolean {
+  // A second thing to attend to, played over the first. See
+  // `watchPartyIsOn`.
+  if (watchPartyIsOn(state)) return false;
   return holdsSharedControl(state, userId);
 }
 
@@ -1029,6 +1063,7 @@ function mayPutSomethingOn(state: ChannelState, userId: UserId): boolean {
  * are written as one call for that reason.
  */
 export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
+  if (watchPartyIsOn(state)) return false;
   return mayPutSomethingOn(state, userId);
 }
 
@@ -1047,7 +1082,28 @@ export function canControlWatch(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  return holdsSharedControl(state, userId);
+  /*
+    **The floor is not asked, and that is the change of 2026-09-18.**
+
+    It used to be `holdsSharedControl`, the same rule as the audio player's,
+    on the argument that a claim confers control of what the channel attends
+    to. What that missed is where a film's controls actually are: inside the
+    embed, visible to everybody watching, and impossible to take off the
+    picture without taking the picture too. So the floor was not greying a
+    button — it was making a visible, pressable bar do nothing on somebody
+    else's screen, and making this device's own reading of that bar
+    conditional on a claim somebody might make mid-scene.
+
+    No claim can be made while a film is on now (`canClaimFloor`), so there
+    is nothing left for `floorPermits` to say here. Whoever is in the room
+    may drive, and the thing that keeps a room quiet during a film is the
+    room's mute rather than a claim.
+  */
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    hasTheRoom(state, userId)
+  );
 }
 
 /**
@@ -2108,14 +2164,22 @@ export function reduce(
       const playback = state.playback;
       switch (action.type) {
         case 'SET_TRACK':
-          // Loading a track ends any party, the same way starting a party
-          // clears any track. A channel attends to one thing, and mutual
-          // replacement is what stops either button ever being dead.
-          return {
-            ...state,
-            playback: setTrack(playback, action.track),
-            watch: stopParty(),
-          };
+          /*
+            **The replacement runs one way now.** Starting a party still
+            clears any track — a channel attends to one thing — but a track
+            no longer ends a party, because since 2026-09-18 it cannot be
+            loaded while one is on: `canLoadTrack` refuses at the route and
+            `canControlPlayback` refuses here.
+
+            That reverses the argument this branch was written for, which was
+            that mutual replacement stops either button ever being dead. The
+            audio button *is* dead during a film now, deliberately and
+            visibly, and the reason is the one that made the party exclusive
+            at all — see `watchPartyIsOn`. A film is a mode, and a second
+            thing to attend to playing over it was never the useful reading
+            of that tap.
+          */
+          return { ...state, playback: setTrack(playback, action.track) };
         case 'CLEAR_TRACK':
           return { ...state, playback: clearTrack(playback) };
         case 'PLAY':

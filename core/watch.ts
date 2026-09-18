@@ -1,8 +1,4 @@
-import {
-  WATCH_COMMAND_SETTLE_MS,
-  WATCH_DRIFT_MS,
-  WATCH_SEEK_SETTLE_MS,
-} from './constants';
+import { WATCH_DRIFT_MS, WATCH_LENGTH_SLACK_MS } from './constants';
 import type { WatchParty, WatchState } from './types';
 
 /**
@@ -290,17 +286,91 @@ export interface PlayerReading {
   state: PlayerState;
   /** Where the player is, in ms, or null when it cannot say yet. */
   positionMs: number | null;
-  /** When this follower last issued a seek, or null if it never has. */
-  seekedAt: number | null;
   /**
-   * When this follower last told the player to play or pause, or null.
-   *
-   * `seekedAt`'s sibling and, until 2026-09-17, the one that did not exist.
-   * A player has not obeyed yet is indistinguishable from a player somebody
-   * has just pressed unless the follower remembers having spoken — see
-   * `WATCH_COMMAND_SETTLE_MS` for what that cost.
+   * How long the player says the thing it is currently showing runs for, or
+   * null when it cannot say. **Not the film's length** — see `showingTheFilm`,
+   * which is the whole reason this is read.
    */
-  commandedAt: number | null;
+  durationMs: number | null;
+}
+
+/**
+ * Whether what the player is showing is the film the party is watching.
+ *
+ * **An advert is a different video in the same frame**, and the API says so if
+ * it is asked the right question: during a pre-roll, `getCurrentTime` and
+ * `getDuration` describe the advert. A player thirty seconds into a
+ * ninety-second spot therefore reports a position near zero and a duration
+ * nothing like the film's, and both readings are true statements about the
+ * wrong video.
+ *
+ * Every attempt at this so far listed "an advert starting" among the lies it
+ * was guessing around, and guessed with a timer. This measures it instead:
+ * the party learns the film's length once, from the first follower that can
+ * say — `learnDuration` — and anything reporting a materially different one
+ * is not showing the film. Nothing is said to such a player and nothing is
+ * read from it; adverts end by themselves.
+ *
+ * True while the duration is unknown at either end, which is the honest
+ * answer before anybody has been able to say: an unknown is not evidence of
+ * an advert, and refusing to follow on one would leave a party that never
+ * learned its length unable to run at all.
+ */
+export function showingTheFilm(
+  watch: WatchState,
+  player: PlayerReading
+): boolean {
+  const film = watch.party?.durationMs ?? null;
+  if (film === null || player.durationMs === null) return true;
+  // Generous, because it is separating a film from an advert rather than
+  // measuring anything: the two differ by minutes, and a player rounding its
+  // own length to the nearest second must not read as a different video.
+  return Math.abs(player.durationMs - film) <= WATCH_LENGTH_SLACK_MS;
+}
+
+/**
+ * What the channel is asking every player to be, at this moment.
+ *
+ * The pair rather than either half: a player is in step when it is doing the
+ * right thing *at* the right place, and the two are corrected by one
+ * instruction apiece but decided together.
+ */
+export interface Desired {
+  status: 'playing' | 'paused';
+  positionMs: number;
+}
+
+export function desiredFor(watch: WatchState, now: number): Desired | null {
+  if (!watch.party) return null;
+  return {
+    status: watch.status === 'playing' ? 'playing' : 'paused',
+    positionMs: watchPositionMs(watch, now),
+  };
+}
+
+/**
+ * Whether a player has arrived where it was asked to be.
+ *
+ * **The question the whole follower now turns on.** A follower that has said
+ * something to its player stays deaf until this is true, so a correction can
+ * never be read back as somebody's thumb — which is the loop that produced
+ * every flip-flop so far, three separate times. It is closed by *observing
+ * the player arrive* rather than by a window elapsing, which is what makes it
+ * a fact rather than a guess.
+ *
+ * `buffering` is on its way and has not arrived. `unstarted` has not begun.
+ * `ended` has arrived at a stop, whatever it was asked for, because a player
+ * at the end of a film cannot be made to be anywhere else without being
+ * restarted — see `followInstructions`.
+ */
+export function hasArrived(player: PlayerReading, want: Desired): boolean {
+  if (player.state === 'ended') return true;
+  if (player.state === 'buffering' || player.state === 'unstarted') {
+    return false;
+  }
+  if (player.state !== want.status) return false;
+  if (player.positionMs === null) return false;
+  return Math.abs(player.positionMs - want.positionMs) <= WATCH_DRIFT_MS;
 }
 
 /**
@@ -312,14 +382,13 @@ export type WatchInstruction =
   | { do: 'seek'; positionMs: number };
 
 /**
- * What to tell this player, given where the channel is and where the player
- * is.
+ * What to tell this player to bring it where the channel wants it.
  *
- * **The whole reason this is in core**: there are now three followers — the
- * app on native, the app on the web, and the follower page while it still
- * exists — and a rule about a shared clock that exists three times is three
- * rules. Everything platform-shaped stays at the caller: reading the player,
- * issuing the calls, and mapping its states to `PlayerState`.
+ * **Only ever called about a player that has not arrived**, which is what
+ * lets this be as blunt as it is: there is no tolerance to apply and no
+ * decision about whether the gap is worth a stutter, because `hasArrived`
+ * already asked both. Every instruction here is followed by a silence that
+ * lasts until the player is where it was sent.
  *
  * Returned as a list rather than performed, because ordering is load-bearing
  * in both branches and is the kind of thing that gets quietly reversed by
@@ -330,8 +399,8 @@ export function followInstructions(
   player: PlayerReading,
   now: number
 ): WatchInstruction[] {
-  if (!watch.party) return [];
-  const at = watchPositionMs(watch, now);
+  const want = desiredFor(watch, now);
+  if (!want) return [];
 
   /*
     **An ended video is not a stopped one, and nothing here may restart it.**
@@ -350,21 +419,19 @@ export function followInstructions(
     player" would leave every screen at Finished for ever.
   */
   if (player.state === 'ended') {
-    const here = player.positionMs ?? at;
-    if (at >= here - WATCH_DRIFT_MS) return [];
+    const here = player.positionMs ?? want.positionMs;
+    if (want.positionMs >= here - WATCH_DRIFT_MS) return [];
   }
 
-  const correction = correctionFor(watch, player, now);
+  const adrift =
+    player.positionMs !== null &&
+    Math.abs(player.positionMs - want.positionMs) > WATCH_DRIFT_MS;
 
-  if (watch.status === 'playing') {
+  if (want.status === 'playing') {
     const instructions: WatchInstruction[] = [];
-    if (correction !== null) instructions.push({ do: 'seek', positionMs: correction });
-    /*
-      A buffering player is already on its way to playing and needs nothing
-      said to it. Re-issuing play at every tick into a player that is mid-seek
-      is the other half of the seek storm — the seek is what stalls it, and the
-      play is what stops it settling afterwards.
-    */
+    if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });
+    // A buffering player is already on its way to playing and needs nothing
+    // said to it.
     if (player.state !== 'playing' && player.state !== 'buffering') {
       instructions.push({ do: 'play' });
     }
@@ -390,37 +457,8 @@ export function followInstructions(
   if (player.state === 'playing' || player.state === 'buffering') {
     instructions.push({ do: 'pause' });
   }
-  if (correction !== null) instructions.push({ do: 'seek', positionMs: correction });
+  if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });
   return instructions;
-}
-
-/**
- * Where to seek to, or null when the drift is not worth the stutter.
- *
- * Correcting continuously is the obvious thing and the wrong one: a seek is a
- * visible jump and an audible one, and two people half a second apart are
- * watching the same film while two people jumping every four seconds are not.
- * `WATCH_DRIFT_MS` is where that trade was set.
- *
- * Exported because a player may want to ask the question without being told
- * what else to do — and because it is the half worth testing directly.
- */
-export function correctionFor(
-  watch: WatchState,
-  player: PlayerReading,
-  now: number
-): number | null {
-  if (!watch.party) return null;
-  if (player.positionMs === null) return null;
-  // Both guards are the seek storm's: one correction outstanding at a time,
-  // and a player that is still fetching is left to finish rather than sent
-  // somewhere else.
-  if (player.state === 'buffering') return null;
-  if (player.seekedAt !== null && now - player.seekedAt < WATCH_SEEK_SETTLE_MS) {
-    return null;
-  }
-  const at = watchPositionMs(watch, now);
-  return Math.abs(player.positionMs - at) > WATCH_DRIFT_MS ? at : null;
 }
 
 /**
@@ -446,9 +484,12 @@ export interface PlayerHistory {
 }
 
 /**
- * A transport act performed on the video's own controls rather than on the
- * channel's. The same three the buttons produce, deliberately: this is a
- * second way to press them, not a second transport.
+ * A transport act performed on the video's own controls.
+ *
+ * Since 2026-09-18 these are the *only* controls: the bar is inside the embed
+ * and visible whatever the app does, and a second row of buttons beside a bar
+ * that did nothing was the confusing half. So this is not a second way to
+ * press the transport any more — it is the transport.
  */
 export type WatchIntent =
   | { do: 'play' }
@@ -456,43 +497,28 @@ export type WatchIntent =
   | { do: 'seek'; positionMs: number };
 
 /**
- * What this player is saying that the channel is not, with nothing here to
- * explain it.
+ * What this player's owner just did to it.
  *
- * **A candidate and not yet an act.** It answers the narrow question — is
- * this player out of step in a way that neither the channel nor this
- * follower caused — and the caller decides whether it was *meant*, by seeing
- * whether it is still true a tick later. That split is the whole repair of
- * 2026-09-17: read at a single instant, a disagreement is equally somebody's
- * thumb and a player halfway through obeying, and the first version of this
- * took every one of them for a press. One device's slow player became an
- * instruction to the room, the room obeyed, and the correction that followed
- * produced the next instruction — a Play that stuttered play-pause-play-pause
- * and settled on pause, with every microphone in the room opening and
- * closing behind it as each run re-sampled the party's mute.
+ * **Asked only of a settled player, and that is the whole repair.** Three
+ * attempts read a player that this same follower might have commanded a
+ * moment ago, and tried to tell a thumb from an unobeyed instruction by how
+ * long ago the instruction went out — a dwell, a settle window, a quiet
+ * period, seven constants between them. They are the same reading, and no
+ * amount of timing separates them, because the API does not say what caused a
+ * state change: `onStateChange` carries the new state and nothing else.
  *
- * So there are four ways out before a contradiction is even reported, and
- * each of them is a way somebody's evening got loud:
- *
- * - **the channel moved**, and this player is following rather than leading.
- *   Somebody pauses; every other screen's follower pauses its own player a
- *   tick later; each of those is a player at odds with a channel it does not
- *   yet match, which is a press exactly. Asking which of the two moved first
- *   is what stops a pause going round the room for ever.
- * - **this follower has just spoken** — `commandedAt`, `seekedAt`. A player
- *   told to play reports the state it was in for a moment and then buffers,
- *   and that moment is not evidence of anything.
- * - **the player is between things.** `unstarted` has not begun, `buffering`
- *   is on its way somewhere, and `ended` is the film running out; none is
- *   anybody pressing anything, and `ended` above all must never become a
- *   pause, since the transport is entitled to run past a duration it was
- *   never told.
- * - **nothing is out of step at all**, which is almost every tick.
+ * So the ambiguity is removed at the source instead. A follower that has
+ * said anything to its player does not ask this question until the player has
+ * *arrived* where it was sent (`hasArrived`); while it is settled it says
+ * nothing to the player at all. A change seen here therefore has no
+ * explanation on this device, and the only remaining question is whether it
+ * has one on the channel — which is exact, because the previous tick kept
+ * both halves.
  *
  * Whether this device may drive is `canControlWatch`, asked by the caller:
  * core has no channel here, only the watch state.
  */
-export function contradictionFrom(
+export function actFrom(
   watch: WatchState,
   player: PlayerReading,
   previous: PlayerHistory | null,
@@ -503,9 +529,18 @@ export function contradictionFrom(
   // opening reading of a fresh player — unstarted, at zero, against a
   // transport already mid-film — is the one most likely to look like an act.
   if (!previous) return null;
+  // An advert is a different video reporting its own clock. Say nothing about
+  // a player that is not showing the film.
+  if (!showingTheFilm(watch, player)) return null;
 
-  // The channel moved. See above: this is the guard that stops one pause
-  // becoming everybody's.
+  /*
+    **The channel moved, and this player is following rather than leading.**
+
+    Somebody pauses; every other screen's follower pauses its own player a
+    tick later; each of those is a player at odds with a channel it does not
+    yet match, which is a press exactly. Asking which of the two moved first
+    is what stops a pause going round the room for ever.
+  */
   if (previous.status !== watch.status) return null;
   const at = watchPositionMs(watch, now);
   const expectedChannel =
@@ -513,20 +548,10 @@ export function contradictionFrom(
     (watch.status === 'playing' ? now - previous.at : 0);
   if (Math.abs(at - expectedChannel) > WATCH_DRIFT_MS) return null;
 
-  // This follower spoke recently, so what the player is doing may still be
-  // it obeying. Both windows, because both commands move a player and
-  // neither lands at once.
-  if (player.seekedAt !== null && now - player.seekedAt < WATCH_SEEK_SETTLE_MS) {
-    return null;
-  }
-  if (
-    player.commandedAt !== null &&
-    now - player.commandedAt < WATCH_COMMAND_SETTLE_MS
-  ) {
-    return null;
-  }
-
   // The two states a person can produce, against a channel that disagrees.
+  // `buffering`, `unstarted` and `ended` are the player between things, and
+  // `ended` above all must never become a pause: the transport is entitled to
+  // run past a duration it was never told.
   if (player.state === 'playing' && watch.status !== 'playing') {
     return { do: 'play' };
   }
@@ -541,8 +566,7 @@ export function contradictionFrom(
     player advances about half a second, and the gap between where it should
     have reached and where it says it is is the jump somebody's thumb made.
     Measured against the *previous reading* rather than against the channel,
-    which is what keeps ordinary accumulated drift — the thing `correctionFor`
-    exists for — from reading as an act.
+    so that ordinary accumulated drift does not read as an act.
 
     **A stall cannot produce one either, as long as the readings either side
     are a tick apart.** A player that stops advancing falls behind by exactly
@@ -561,40 +585,22 @@ export function contradictionFrom(
 }
 
 /**
- * Whether a scrub this follower is holding is still true a tick later.
+ * Whether the channel has come back saying what a press asked for.
  *
- * **A jump is visible for exactly one tick, which is what the dwell could not
- * see.** `contradictionFrom` finds a scrub by comparing where the player is
- * against where its own previous reading said it would be — and the reading
- * *after* a scrub is perfectly continuous with the one before it, because the
- * film has simply been running from its new place. So a seek candidate asked
- * to prove itself the way a play or a pause does could never do it: the second
- * look always agreed. Every scrub on the video's own bar was therefore
- * dropped and then corrected away, which is the bar appearing to ignore a
- * finger.
- *
- * What a scrub *does* leave behind is a player standing somewhere the channel
- * is not, and that is durable — so this is the second look, asked of the gap
- * rather than of the jump. A one-tick lie from the embed closes it, an advert
- * ending closes it, and somebody's thumb does not.
- *
- * Deliberately not a second `contradictionFrom`: the guards that make a
- * disagreement *readable* — the channel having moved, this follower having
- * just spoken, nobody looking — were all asked when the candidate was taken
- * and are the caller's to keep asking. This answers the narrow question of
- * whether the gap is still open.
+ * The other observation the follower waits on, and the reason it is here
+ * rather than beside the clock that used to bound it: a press goes to the
+ * server and returns as a snapshot, and until it does the channel still says
+ * the thing the person just changed. A follower that corrected in the
+ * meantime would undo the press on its way out.
  */
-export function scrubStands(
+export function channelAnswered(
+  intent: WatchIntent,
   watch: WatchState,
-  player: PlayerReading,
   now: number
-): WatchIntent | null {
-  if (!watch.party) return null;
-  if (player.positionMs === null) return null;
-  const at = watchPositionMs(watch, now);
-  if (Math.abs(player.positionMs - at) <= WATCH_DRIFT_MS) return null;
-  // Where it has reached rather than where it was first seen: the film has
-  // been running for the dwell, and sending the older figure is sending the
-  // party a tick behind.
-  return { do: 'seek', positionMs: player.positionMs };
+): boolean {
+  if (intent.do === 'play') return watch.status === 'playing';
+  if (intent.do === 'pause') return watch.status === 'paused';
+  // A seek lands where the transport was asked to go and then keeps moving,
+  // so the question is whether the channel is near it rather than at it.
+  return Math.abs(watchPositionMs(watch, now) - intent.positionMs) <= 2_000;
 }

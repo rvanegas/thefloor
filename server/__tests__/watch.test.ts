@@ -354,7 +354,18 @@ describe('muting the room reaches the media plane', () => {
     expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(false);
   });
 
-  it('returns to the floors answer rather than to everybody audible', async () => {
+  it('returns everybody to audible, no claim being possible underneath', async () => {
+    /*
+      **This used to return to the floor's answer.** A claim could be made
+      during a party and outlived the room's mute, so clearing the mute left
+      whoever was not holding the floor still silenced.
+
+      A film refuses the floor outright since 2026-09-18 — see
+      `watchPartyIsOn` — so the room's mute is the only rule left in here and
+      clearing it clears everything. That is the simplification the
+      exclusivity bought, asserted against the media plane rather than the
+      reducer.
+    */
     const { alice, bob, channelId } = await partyOf(false);
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
     app.channels.dispatch(channelId, alice.account.id, {
@@ -368,9 +379,8 @@ describe('muting the room reaches the media plane', () => {
     } as never);
     await new Promise((r) => setTimeout(r, 0));
 
-    // The claim outlived the mute and is still in force underneath it.
     expect(silencedFor(alice.account.id).at(-1)?.silenced).toBe(false);
-    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(true);
+    expect(silencedFor(bob.account.id).at(-1)?.silenced).toBe(false);
   });
 
   it('gives everybody back on pause, and takes them away again on resume', async () => {
