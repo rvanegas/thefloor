@@ -58,6 +58,7 @@ import {
 } from '../../../core/channel';
 import { inRoom } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
+import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
@@ -86,6 +87,7 @@ import {
   StopIcon,
   WatchIcon,
 } from './icons';
+import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
   Card,
@@ -510,6 +512,14 @@ export function ChannelView({
    * `ok` is carried rather than assumed — `copyText` returns whether it landed
    * precisely so a refusal is not announced as a success.
    */
+  /**
+   * Whether somebody is part-way through choosing where to watch.
+   *
+   * Local and transient: the list of devices is asked for at the moment the
+   * button is tapped, and an answer that arrived later than the person's
+   * attention is one they will ask for again.
+   */
+  const [choosing, setChoosing] = useState(false);
   const [watchCopied, setWatchCopied] = useState<{
     which: 'video' | 'screen';
     ok: boolean;
@@ -542,6 +552,70 @@ export function ChannelView({
     // decision from leaving the channel, and conflating them would silently
     // drop the user out of a live conversation.
   }, [channelId]);
+
+  /*
+    **The screen's three effects, held up here above every early return.**
+
+    This component returns early four times — an ended channel, a profile, the
+    settings screen, a transcript — so a hook written down beside the watch
+    card it belongs to is a hook that runs on some renders and not others,
+    which React ends as "rendered fewer hooks than expected". The values they
+    need are read off the channel directly rather than from the derived
+    constants further down, for the same reason.
+  */
+  // Optional throughout, because this block sits above the guard that waits
+  // for a first snapshot as well as above the four early returns — see the
+  // comment above. A channel nobody has been sent yet has no party, nobody in
+  // it and no screens, which is what these answer.
+  const partyLoaded = !!channel?.watch?.party;
+  const screenIsHere = app.screenFor === channelId && partyLoaded;
+  const screenIsMine =
+    screenIsHere &&
+    !!channel &&
+    isPresent(channel, me) &&
+    app.standingIn === channelId;
+  const screenSaid = (channel?.watchingHere ?? []).includes(me);
+
+  /**
+   * Tells the room when this device is both the screen and the voice.
+   *
+   * Reconciled rather than fired on a tap, so that a reconnection, a step-out
+   * and a party ending all converge on the truth without any of them having to
+   * remember to. The reducer ignores a report that says what it already holds,
+   * so this settles in one round trip and then says nothing.
+   */
+  useEffect(() => {
+    if (!partyLoaded || screenIsMine === screenSaid) return;
+    app.act(channelId, { type: 'WATCH_HERE', watching: screenIsMine });
+  }, [app, channelId, partyLoaded, screenIsMine, screenSaid]);
+
+  /**
+   * Stops being a screen when there is nothing to show.
+   *
+   * A party ending, or being replaced, leaves this device holding a role for a
+   * film nobody is watching — and the picker would go on offering it as busy.
+   * Cleared here rather than by the reducer: this is connection state, and
+   * nobody's business but this device's.
+   */
+  useEffect(() => {
+    if (partyLoaded || app.screenFor !== channelId) return;
+    app.showScreenFor(null);
+  }, [app, channelId, partyLoaded]);
+
+  /**
+   * Resolves a tap on *Watch on another device* when there is nothing to
+   * choose between.
+   *
+   * One other instance is not a choice, so it is not offered as one: the film
+   * goes there and the card says which. Two or more draws the list; none draws
+   * the banner, which is the case this cannot solve for somebody.
+   */
+  const myScreens = app.screens.filter((screen) => !screen.self);
+  useEffect(() => {
+    if (!choosing || myScreens.length !== 1) return;
+    app.useScreen(channelId, myScreens[0].device);
+    setChoosing(false);
+  }, [app, channelId, choosing, myScreens]);
 
   /**
    * This screen is what its channel's attention clock is about, for as long as
@@ -1064,6 +1138,28 @@ export function ChannelView({
   // you are outside of on every device you own.
   const mayOpenWatchScreen = canOpenWatchScreen(channel, me);
   const mayStartWatch = canStartWatch(channel, me);
+  /**
+   * Whether *this* device is the one showing the film.
+   *
+   * A role rather than a place: an instance can be a screen for a channel it is
+   * not standing in, which is the configuration this design prefers — the film
+   * on a laptop that holds no audio session at all, the voice on the phone.
+   */
+  const screeningHere = screenIsHere;
+  /**
+   * Whether the room has been told that this account's screen and microphone
+   * are one device.
+   *
+   * **Only true when both are this device.** A second instance showing a film
+   * while the phone holds the room is exactly what the exception is not for:
+   * that phone's microphone is not competing with anything.
+   */
+  // `?? []` for the reason `watch` has its `?? initialWatchState()`: a server
+  // that predates this field sends snapshots without it, which is what this
+  // build meets between its release and the deploy that follows.
+  /** This account's other live instances — the ones a film could go to. */
+  const otherScreens = myScreens;
+
   // The whole of why `parseYouTubeUrl` is in core: this decides whether the
   // button lights up and the server decides whether to accept, and a greyed
   // control and a refused action must not disagree about what a link is.
@@ -1177,58 +1273,23 @@ export function ChannelView({
   };
 
   /**
-   * A follower link, minted and copied.
+   * What to call one of this account's devices in the picker.
    *
-   * **This one is a credential**, unlike the video's link: the token rides in
-   * the fragment and is good for six hours of following this channel. That is
-   * the same thing `shareWatchLink` hands to the share sheet, so copying is no
-   * wider a capability than sharing already was — but it lands somewhere
-   * quieter, and a clipboard is a place things are forgotten. Worth knowing
-   * rather than worth preventing.
+   * The name where the platform gave one, and the kind where it did not —
+   * which is every browser, there being no device-name API on the web. A made
+   * up name in a list of real ones would be worse than saying plainly that
+   * this is the other browser.
    */
-  const copyScreenLink = async () => {
-    setLinking(true);
-    setWatchError(null);
-    try {
-      const url = await app.watchLink(channel.id);
-      setWatchCopied({ which: 'screen', ok: await copyText(url) });
-    } catch (error) {
-      setWatchError(
-        error instanceof Error ? error.message : 'That did not work.'
-      );
-    } finally {
-      setLinking(false);
-    }
-  };
+  const screenLabel = (screen: ScreenDevice) =>
+    screen.name ?? (screen.client === 'web' ? 'A browser' : 'Another phone');
 
-  /** What a copy button says, given whether it is the one that just landed. */
-  const copyLabel = (which: 'video' | 'screen', idle: string) =>
+  /** What the copy button says, once it has been pressed. */
+  const copyLabel = (which: 'video', idle: string) =>
     watchCopied?.which !== which
       ? idle
       : watchCopied.ok
         ? '✓ copied'
         : '✗ copy failed';
-
-  const shareWatchLink = async () => {
-    setLinking(true);
-    setWatchError(null);
-    setWatchNote(null);
-    try {
-      const url = await app.watchLink(channel.id);
-      const handoff = await shareLink(url);
-      if (handoff === 'copied') {
-        setWatchNote('Link copied. Open it on the other screen.');
-      } else if (handoff === 'failed') {
-        setWatchError('The link would not copy. Try again.');
-      }
-    } catch (error) {
-      setWatchError(
-        error instanceof Error ? error.message : 'That did not work.'
-      );
-    } finally {
-      setLinking(false);
-    }
-  };
 
   // `?? null` for the same reason `recordings` has its `?? []`: a server that
   // predates this field sends snapshots without it, which is what this build
@@ -2692,6 +2753,24 @@ export function ChannelView({
 
             {party ? (
               <>
+                {/*
+                  The film itself, when this device is the one showing it.
+
+                  **The Floor still carries no video.** This is YouTube's own
+                  player, unmodified and unobscured, playing its own picture
+                  with its own sound; what travels through this application is
+                  a position and a clock, exactly as it was when the player
+                  lived on a laptop. What changed is the window.
+                */}
+                {screeningHere ? (
+                  <WatchPlayer
+                    watch={watch}
+                    channelId={channelId}
+                    onDuration={(durationMs) =>
+                      act({ type: 'WATCH_READY', durationMs })
+                    }
+                  />
+                ) : null}
                 <Text style={type.heading} numberOfLines={1}>
                   {party.url}
                 </Text>
@@ -2859,29 +2938,76 @@ export function ChannelView({
                   conversation happening elsewhere. `shareWatchLink` is still
                   below for the sending case.
                 */}
+                {/*
+                  Where to watch, which is two buttons and almost never three
+                  taps.
+
+                  **Not "Play here".** *Play* is the transport's word, and the
+                  Play/Pause control is inches above this one — two acts
+                  sharing one word on one screen is the drift GLOSSARY.md
+                  exists to prevent. *Watch* is the feature's word and names
+                  the state these set.
+
+                  The picker below appears only when there is more than one
+                  other device to choose between, which is unusual: one other
+                  is not a choice, and is taken without asking.
+                */}
                 <View style={styles.buttonRow}>
                   <Button
-                    label={copyLabel('video', 'Copy video link')}
+                    label={screeningHere ? 'Watching here' : 'Watch here'}
                     style={styles.flexButton}
-                    onPress={() => void copyVideoLink()}
+                    variant={screeningHere ? 'primary' : undefined}
+                    onPress={() => {
+                      setChoosing(false);
+                      app.showScreenFor(channelId);
+                    }}
                   />
                   <Button
-                    label={
-                      linking
-                        ? 'Making a link…'
-                        : copyLabel('screen', 'Copy screen link')
-                    }
+                    label="Watch on another device"
                     style={styles.flexButton}
-                    disabled={linking || !mayOpenWatchScreen}
-                    onPress={() => void copyScreenLink()}
+                    onPress={() => {
+                      setChoosing(true);
+                      app.listScreens();
+                    }}
                   />
                 </View>
 
+                {choosing && otherScreens.length > 1
+                  ? otherScreens.map((screen) => (
+                      <Button
+                        key={screen.device}
+                        label={screenLabel(screen)}
+                        sublabel={
+                          screen.watching
+                            ? 'Already showing something'
+                            : undefined
+                        }
+                        onPress={() => {
+                          app.useScreen(channelId, screen.device);
+                          setChoosing(false);
+                        }}
+                      />
+                    ))
+                  : null}
+
+                {choosing && otherScreens.length === 0 ? (
+                  // The case this cannot solve for somebody. Signing in
+                  // elsewhere is an errand, and the tempting fix — a link that
+                  // did it for them — would put a full session credential in
+                  // whatever they pasted it into. See planning/WATCH-IN-APP.md.
+                  <Text style={type.muted}>
+                    <Text style={styles.emphasis}>
+                      No other device is signed in.
+                    </Text>{' '}
+                    Open The Floor on a laptop or tablet and sign in there, and
+                    it will show up here as somewhere to watch.
+                  </Text>
+                ) : null}
+
                 <Button
-                  label={linking ? 'Making a link…' : 'Watch on another screen'}
+                  label={copyLabel('video', 'Copy video link')}
                   variant="ghost"
-                  disabled={linking || !mayOpenWatchScreen}
-                  onPress={shareWatchLink}
+                  onPress={() => void copyVideoLink()}
                 />
 
                 {/*
@@ -2915,13 +3041,12 @@ export function ChannelView({
                     setWatchUrl('');
                   }}
                 />
-                <Button
-                  label={linking ? 'Making a link…' : 'Watch on another screen'}
-                  sublabel="A page for a laptop or a tablet, which follows this channel"
-                  variant="ghost"
-                  disabled={linking || !mayOpenWatchScreen}
-                  onPress={shareWatchLink}
-                />
+                {/*
+                  Nothing offers a screen until there is something to show on
+                  one. The choice belongs to a film — it is cleared when one
+                  ends and asked again for the next — so an idle card has
+                  nothing to ask.
+                */}
               </>
             )}
 
@@ -2994,10 +3119,10 @@ export function ChannelView({
                           // beside a greyed Change video — see `canStartWatch`.
                           party
                           ? 'Step in to put something else on. What is here you can still stop.'
-                          : 'Step in to start a watch party. A screen for one you can open from here.'
+                          : 'Step in to start a watch party. Everybody watches in the app, here or on another of their own devices.'
                         : party
                           ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
-                          : 'Open the link on a laptop or a tablet and it follows the channel. Recording is off while a party is on.'}
+                          : 'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.'}
             </Text>
           </Card>
           </>

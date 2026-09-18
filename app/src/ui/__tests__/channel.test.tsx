@@ -499,9 +499,9 @@ describe('Channel', () => {
 
     showWatch(tree);
     expect(on('Watch something together')).toEqual({ disabled: true });
-    // The screen link is not one of them — it changes nothing, and an empty
-    // channel is nobody's conversation to intrude on.
-    expect(on('Watch on another screen')).toEqual({ disabled: false });
+    // Where to watch is not one of them, and is not on the screen at all: the
+    // choice belongs to a film, and there is none.
+    expect(findButton(tree, 'Watch on another device')).toBeUndefined();
     act(() => tree.unmount());
   });
 

@@ -7,12 +7,13 @@ import type {
   ClientAction,
   ClientMessage,
   HomeView,
+  ScreenDevice,
   ServerMessage,
   ChannelView,
 } from '../../../core/protocol';
 import type { AccountSettings } from '../../../core/settings';
 import { appBuild, CLIENT_KIND } from './build';
-import { DEVICE_ID } from './device';
+import { DEVICE_ID, DEVICE_NAME } from './device';
 import { notificationPermission } from './notify';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
@@ -60,6 +61,10 @@ export interface RealtimeHandlers {
    * inherited the room.
    */
   onChannelMoved?: (from: string, to: string) => void;
+  /** The account's live instances, in answer to `listScreens`. */
+  onScreens?: (screens: ScreenDevice[]) => void;
+  /** Another of this account's instances wants this one to show the film. */
+  onScreenAsked?: (channelId: string) => void;
   /**
    * Another of this account's devices has stepped into a channel, so this one
    * is no longer the device standing anywhere.
@@ -293,7 +298,13 @@ export class Realtime {
         // account's *other* devices without displacing this one when it
         // reconnects. It cannot use the token for that any more: two browser
         // tabs share one. See device.ts.
-        `&device=${encodeURIComponent(DEVICE_ID)}`
+        `&device=${encodeURIComponent(DEVICE_ID)}` +
+        // What to call this device in its owner's own screen picker, and
+        // nowhere else. Absent where the platform has no name to give, which
+        // is every browser. See device.ts.
+        (DEVICE_NAME === null
+          ? ''
+          : `&deviceName=${encodeURIComponent(DEVICE_NAME)}`)
     );
     this.socket = socket;
 
@@ -407,6 +418,16 @@ export class Realtime {
             this.watchChannel(message.to);
           }
           this.handlers.onChannelMoved?.(message.from, message.to);
+          break;
+        case 'screens':
+          this.handlers.onScreens?.(message.screens);
+          break;
+        case 'screen':
+          // Another of this account's instances has asked this one to show a
+          // film. **Not an invitation to step in** — a screen is a role, not a
+          // place to be, and entering here would take the room away from the
+          // device its owner is holding.
+          this.handlers.onScreenAsked?.(message.channelId);
           break;
         case 'displaced':
           // This session is not the one standing anywhere: another of this
@@ -768,6 +789,34 @@ export class Realtime {
   watchChannel(channelId: string): void {
     this.watchedChannel = channelId;
     this.send({ type: 'watch.channel', channelId });
+  }
+
+  /**
+   * Asks which of this account's instances could show a film.
+   *
+   * Asked rather than watched: the question is put at the moment somebody taps
+   * *Watch on another device*, and a list that refreshed itself would be a
+   * list that changed under a finger.
+   */
+  listScreens(): void {
+    this.send({ type: 'screens.list' });
+  }
+
+  /** Hands the film to one of this account's other instances. */
+  useScreen(channelId: string, device: string): void {
+    this.send({ type: 'screens.use', channelId, device });
+  }
+
+  /**
+   * Says this instance is, or is no longer, showing a film.
+   *
+   * **Not the same report as `WATCH_HERE`**, which is a fact about the channel
+   * and is dispatched. This one never leaves the connection and exists so that
+   * a device signed in and face-down on a table is not offered in the picker
+   * beside the laptop somebody is looking at. See `ClientMessage`.
+   */
+  showingScreen(channelId: string | null): void {
+    this.send({ type: 'screens.showing', channelId });
   }
 
   /**

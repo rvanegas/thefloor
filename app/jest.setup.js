@@ -127,3 +127,32 @@ jest.mock('@livekit/react-native', () => ({
     })),
   },
 }));
+
+/**
+ * The film's own window, which reaches the bridge as it is imported.
+ *
+ * `react-native-webview` asks `TurboModuleRegistry.getEnforcing` for its native
+ * module at module load, so importing the watch player under jest throws before
+ * any test has had a chance to render anything — the same reason the LiveKit
+ * mock above exists.
+ *
+ * A view that draws nothing and answers `postMessage`, which is the whole of
+ * what a test needs from it: what is worth asserting about a follower is which
+ * instruction a transport produces, and that lives in core.
+ */
+jest.mock('react-native-webview', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    WebView: React.forwardRef((_props, ref) => {
+      React.useImperativeHandle(ref, () => ({ postMessage: jest.fn() }));
+      return React.createElement(View, { testID: 'webview' });
+    }),
+  };
+});
+
+/** Holding a screen awake is a device's business, and a no-op off one. */
+jest.mock('expo-keep-awake', () => ({
+  activateKeepAwakeAsync: jest.fn(async () => {}),
+  deactivateKeepAwake: jest.fn(),
+}));

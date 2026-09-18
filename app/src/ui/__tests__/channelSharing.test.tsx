@@ -187,15 +187,17 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('leaves the follower link alone while somebody else holds it', () => {
-    // Opening a screen of your own is not changing what the channel is doing,
-    // so the floor has no business governing it.
+  it('leaves where you watch alone while somebody else holds the floor', () => {
+    // Choosing a screen of your own is not changing what the channel is doing,
+    // so the floor has no business governing it. A claim decides what plays;
+    // it does not decide which of your devices shows it.
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
+    expect(findButton(tree, 'Watch here')!.props.disabled).toBeFalsy();
     expect(
-      findButton(tree, 'Watch on another screen')!.props.disabled
+      findButton(tree, 'Watch on another device')!.props.disabled
     ).toBeFalsy();
     act(() => tree.unmount());
   });
@@ -211,9 +213,6 @@ describe('Channel, watching together', () => {
     expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
-    expect(
-      findButton(tree, 'Watch on another screen')!.props.disabled
-    ).toBe(true);
     expect(textOf(tree)).toContain('Step in to start a watch party');
     act(() => tree.unmount());
   });
@@ -238,9 +237,6 @@ describe('Channel, watching together', () => {
     expect(findButton(tree, 'Play')!.props.disabled).toBe(false);
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
-    expect(
-      findButton(tree, 'Watch on another screen')!.props.disabled
-    ).toBe(false);
     expect(textOf(tree)).toContain('Step in to put something else on');
     act(() => tree.unmount());
   });
@@ -270,21 +266,69 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('shares a follower link for another screen', async () => {
-    const share = jest
-      .spyOn(Share, 'share')
-      .mockResolvedValue({ action: 'sharedAction' } as never);
+  it('asks what this account has signed in, on the way to another device', () => {
     showChannel(watching());
     const tree = open();
-    await act(async () => {
-      findButton(tree, 'Watch on another screen')!.props.onPress();
-    });
-    expect(mockApp.watchLink).toHaveBeenCalledWith('sess_1');
-    expect(share).toHaveBeenCalledWith({
-      message: 'https://example.test/watch/sess_1#tok',
+    act(() => findButton(tree, 'Watch on another device')!.props.onPress());
+    // Asked at the moment of the tap rather than watched: a list that
+    // refreshed itself would be a list that changed under a finger.
+    expect(mockApp.listScreens).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('says plainly when there is no other device to watch on', () => {
+    showChannel(watching());
+    const tree = open();
+    act(() => findButton(tree, 'Watch on another device')!.props.onPress());
+    expect(textOf(tree)).toContain('No other device is signed in');
+    // And the banner is the whole answer: no link is offered, because the one
+    // that would help is a full session credential. See planning/WATCH-IN-APP.md.
+    expect(mockApp.useScreen).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('takes the only other device without offering it as a choice', () => {
+    mockApp.screens = [
+      { device: 'dev-me', name: 'iPhone 15 Pro', client: 'native', self: true, watching: false },
+      { device: 'dev-laptop', name: 'Chrome on macOS', client: 'web', self: false, watching: false },
+    ];
+    showChannel(watching());
+    const tree = open();
+    act(() => findButton(tree, 'Watch on another device')!.props.onPress());
+    expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
+    act(() => tree.unmount());
+  });
+
+  it('offers the list once there is more than one to choose between', () => {
+    mockApp.screens = [
+      { device: 'dev-me', name: 'iPhone 15 Pro', client: 'native', self: true, watching: false },
+      { device: 'dev-laptop', name: 'Chrome on macOS', client: 'web', self: false, watching: false },
+      { device: 'dev-pad', name: null, client: 'native', self: false, watching: false },
+    ];
+    showChannel(watching());
+    const tree = open();
+    act(() => findButton(tree, 'Watch on another device')!.props.onPress());
+    expect(findButton(tree, 'Chrome on macOS')).toBeDefined();
+    // A device that gave no name is described by its kind rather than by an
+    // invented name, which in a list of real ones would be worse than a gap.
+    expect(findButton(tree, 'Another phone')).toBeDefined();
+    act(() => findButton(tree, 'Chrome on macOS')!.props.onPress());
+    expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
+    act(() => tree.unmount());
+  });
+
+  it('shows the film here, and tells the room, when this device is the screen', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+    const tree = open();
+    expect(findButton(tree, 'Watching here')).toBeDefined();
+    // The room is told, because a screen and a microphone on one device is
+    // what decides whether the next run's mute can be lifted.
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'WATCH_HERE',
+      watching: true,
     });
     act(() => tree.unmount());
-    share.mockRestore();
   });
 
   it('starts muted, which is what makes the default safe', () => {
@@ -434,19 +478,6 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('mints and copies the screen link, which is a credential', async () => {
-    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
-    showChannel(watching());
-    const tree = open();
-    await act(async () => findButton(tree, 'Copy screen link')!.props.onPress());
-
-    expect(mockApp.watchLink).toHaveBeenCalledWith('sess_1');
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      'https://example.test/watch/sess_1#tok'
-    );
-    act(() => tree.unmount());
-  });
-
   it('says so when the clipboard declines, rather than claiming a copy', async () => {
     // `copyText` returns whether it landed precisely so that a refusal is not
     // announced as a success — discovered otherwise at the paste, by somebody
@@ -460,15 +491,17 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('reports only the button that was pressed', async () => {
+  it('leaves the screen buttons alone when the link is copied', async () => {
     (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
     showChannel(watching());
     const tree = open();
     await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
 
-    // One piece of state for two buttons: the other must still offer itself
-    // rather than both reading as copied.
-    expect(findButton(tree, 'Copy screen link')).toBeDefined();
+    // The copied state belongs to one button. The two that decide where the
+    // film is shown are a different question and must go on offering
+    // themselves.
+    expect(findButton(tree, 'Watch here')).toBeDefined();
+    expect(findButton(tree, 'Watch on another device')).toBeDefined();
     act(() => tree.unmount());
   });
 
@@ -514,12 +547,13 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('offers the link before anybody has chosen a video', () => {
-    // The ordinary order of doing this is to open the screen first and then
-    // pick something, so the link cannot be behind a loaded party.
+  it('asks nothing about screens before there is a film to show', () => {
+    // The choice belongs to a film: it is cleared when one ends and asked
+    // again for the next, so an idle card has nothing to ask.
     showChannel(channelOf());
     const tree = open();
-    expect(findButton(tree, 'Watch on another screen')).toBeDefined();
+    expect(findButton(tree, 'Watch here')).toBeUndefined();
+    expect(findButton(tree, 'Watch on another device')).toBeUndefined();
     act(() => tree.unmount());
   });
   /**

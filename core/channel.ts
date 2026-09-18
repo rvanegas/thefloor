@@ -1115,7 +1115,7 @@ export function canStartWatch(state: ChannelState, userId: UserId): boolean {
  * stops counting them at the same moment.
  */
 export function anyScreenInTheRoom(state: ChannelState): boolean {
-  return state.watchingHere.some(
+  return (state.watchingHere ?? []).some(
     (id) => inRoom(state, id) && hasMicrophone(state, id)
   );
 }
@@ -1133,7 +1133,7 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
  * person in another country closed a laptop.
  */
 export function canUnmuteRoom(state: ChannelState): boolean {
-  return !state.watch.enforced;
+  return !state.watch?.enforced;
 }
 
 /**
@@ -1687,7 +1687,9 @@ export function reduce(
         // a time, so entering from a second one displaces the first — and if
         // the displaced device was the screen, the row it left behind would
         // otherwise go on speaking for a phone that is no longer in the room.
-        watchingHere: state.watchingHere.filter((id) => id !== action.userId),
+        watchingHere: (state.watchingHere ?? []).filter(
+          (id) => id !== action.userId
+        ),
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
           : [...state.everPresent, action.userId],
@@ -2244,13 +2246,13 @@ export function reduce(
       // is read, so there is no departure path that has to remember to clear
       // it. See `anyScreenInTheRoom`.
       if (!inRoom(state, action.userId)) return state;
-      const here = state.watchingHere.includes(action.userId);
+      const here = (state.watchingHere ?? []).includes(action.userId);
       if (here === action.watching) return state;
       return {
         ...state,
         watchingHere: action.watching
-          ? [...state.watchingHere, action.userId]
-          : state.watchingHere.filter((id) => id !== action.userId),
+          ? [...(state.watchingHere ?? []), action.userId]
+          : (state.watchingHere ?? []).filter((id) => id !== action.userId),
       };
     }
 

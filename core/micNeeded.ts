@@ -105,9 +105,13 @@ export function hasMicrophone(
  * room's expectations rather than a tick ahead of them.
  */
 function isScreening(channel: ChannelState, me: UserId): boolean {
+  // Optional for `partyMuteRequested`'s reason: a server older than these
+  // fields sends snapshots without them, which this build meets between its
+  // release and the deploy that follows. No party and no screens is what those
+  // channels had.
   const watch = channel.watch;
-  if (watch.status !== 'playing' || !watch.enforced) return false;
-  return channel.watchingHere.includes(me);
+  if (watch?.status !== 'playing' || !watch.enforced) return false;
+  return (channel.watchingHere ?? []).includes(me);
 }
 
 /**

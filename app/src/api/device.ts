@@ -1,3 +1,5 @@
+import * as Device from 'expo-device';
+
 /**
  * What this copy of the app calls itself, so the server can tell it apart from
  * the account's other copies.
@@ -45,4 +47,39 @@ function mint(): string {
   if (uuid) return uuid;
   const rand = () => Math.random().toString(36).slice(2, 10);
   return `${Date.now().toString(36)}-${rand()}${rand()}`;
+}
+
+/**
+ * What to call this device in its own account's screen picker.
+ *
+ * **Shown to one person — its owner — and never to the room.** It rides on the
+ * socket URL beside `DEVICE_ID`, lives on the connection and dies with it. A
+ * device name is frequently somebody's own name, and a channel has no business
+ * knowing whose iPad is showing the film.
+ *
+ * **Weak by construction, and the fallback is the point.** `Device.deviceName`
+ * is `UIDevice.current.name`, which on iOS 16 and newer answers a generic
+ * "iPhone" unless the app holds the user-assigned device name entitlement —
+ * requested, not yet granted, see planning/WATCH-IN-APP.md. So the model name
+ * is what is actually useful today and what this prefers: "iPhone 15 Pro"
+ * tells somebody which of their devices this is, where "iPhone" does not.
+ *
+ * Null when the platform says nothing — which is every browser, there being no
+ * device-name API on the web at all. The picker meets that by describing a
+ * device by its kind instead, because a made-up name in a list of real ones is
+ * worse than a gap.
+ */
+export const DEVICE_NAME: string | null = describe();
+
+function describe(): string | null {
+  // The user-assigned name only when it is genuinely one — which is to say,
+  // when it is not simply the model over again. With the entitlement this is
+  // "Rodrigo's iPhone"; without it, it is "iPhone", and the model is strictly
+  // more use.
+  const assigned = Device.deviceName?.trim();
+  const model = Device.modelName?.trim();
+  if (assigned && assigned !== model && assigned !== Device.brand?.trim()) {
+    return assigned;
+  }
+  return model || null;
 }

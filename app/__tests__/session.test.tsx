@@ -34,6 +34,17 @@ const mockApp = {
    */
   standingIn: null as string | null,
   /**
+   * The screen picker's inputs, empty in every test here — nothing in this
+   * file is about where a film is shown — but read on every render of the
+   * channel screen, so they have to be the right shape rather than absent.
+   * See `AppProvider.screens`.
+   */
+  screens: [] as unknown[],
+  screenFor: null as string | null,
+  showScreenFor: jest.fn(),
+  listScreens: jest.fn(),
+  useScreen: jest.fn(),
+  /**
    * The channels this *device* declared itself nearby in, and who has walked
    * into each since. Empty in every test here — nothing in this file is about
    * the offer — but read on every render by `useNearby`, so they have to be

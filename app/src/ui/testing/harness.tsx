@@ -11,6 +11,7 @@ import type {
   HomeView as HomeViewData,
   ProfileView as ProfileViewData,
   RecordingView,
+  ScreenDevice,
 } from '../../../../core/protocol';
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
@@ -133,6 +134,17 @@ export const mockApp = {
   nearbyIn: [] as string[],
   nearbyArrival: {} as Record<string, string[]>,
   displaced: false,
+  /**
+   * This account's other live instances, for the screen picker. Empty by
+   * default, which is the ordinary case and the one the banner is for: a
+   * person with a phone and nothing else signed in.
+   */
+  screens: [] as ScreenDevice[],
+  /** The channel this device has been asked to show a film for. */
+  screenFor: null as string | null,
+  listScreens: jest.fn(),
+  useScreen: jest.fn(),
+  showScreenFor: jest.fn(),
   /**
    * Below the compatibility floor, which stops anything from being live
    * however present the roster says you are — the socket is already hung up.
@@ -690,6 +702,8 @@ export function resetHarness(): void {
   mockApp.nearbyIn = [];
   mockApp.nearbyArrival = {};
   mockApp.displaced = false;
+  mockApp.screens = [];
+  mockApp.screenFor = null;
   mockApp.expired = false;
   mockApp.updateUrl = null;
   mockApp.notifications.ask = 'none';

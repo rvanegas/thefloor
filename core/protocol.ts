@@ -1340,6 +1340,15 @@ export type ClientAction =
    * send, and the only fact about a party that does not originate here.
    */
   | { type: 'WATCH_READY'; durationMs: number }
+  /**
+   * This account's device in the room is, or is no longer, the screen.
+   *
+   * Sent only by the instance that holds this account's presence, and only
+   * about itself. A second instance showing a film sends `screens.showing`
+   * instead — that one is about a connection, this one is about the room. See
+   * `ChannelAction.WATCH_HERE`.
+   */
+  | { type: 'WATCH_HERE'; watching: boolean }
   | { type: 'PASTE_CLIP'; text: string }
   | { type: 'CLEAR_CLIP' }
   /**

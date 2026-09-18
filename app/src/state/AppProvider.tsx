@@ -18,6 +18,7 @@ import type {
   ProfileView,
   PublicAccount,
   ChannelView,
+  ScreenDevice,
   SupportView,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
@@ -280,6 +281,23 @@ interface AppState {
    * act of standing somewhere again, and by signing out.
    */
   displaced: boolean;
+  /**
+   * This account's live instances, as of the last time they were asked for.
+   *
+   * Empty until somebody taps *Watch on another device*, and not refreshed
+   * afterwards: the list is read at the moment a choice is made, and one that
+   * reordered itself under a finger would be worse than one a second old.
+   */
+  screens: ScreenDevice[];
+  /**
+   * The channel this device has been asked to show a film for, or null.
+   *
+   * Set by another of this account's own instances, and by nothing else. It is
+   * **not** presence: this device does not step in, does not take the room and
+   * does not displace whatever is holding it — see `screen` in
+   * core/protocol.ts.
+   */
+  screenFor: string | null;
   /**
    * The channel *this device* is standing in, or null.
    *
@@ -550,6 +568,18 @@ interface AppValue extends AppState {
   ) => Promise<ProfileView>;
   startChannel: (contactIds: string[]) => Promise<string>;
   watchChannel: (channelId: string) => void;
+  /** Asks the server which of this account's instances could show a film. */
+  listScreens: () => void;
+  /** Hands the film to one of them. */
+  useScreen: (channelId: string, device: string) => void;
+  /**
+   * Says this device is showing a film for that channel, or for none.
+   *
+   * Two things read the answer and they are not the same thing: the picker, so
+   * that a connected-but-idle device is not offered as a screen, and this
+   * device itself, which is what draws the player.
+   */
+  showScreenFor: (channelId: string | null) => void;
   leaveChannelView: (channelId: string) => void;
   /**
    * Dispatches a channel action, returning whether it reached the socket.
@@ -1031,6 +1061,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recordingAsked: null,
     movedChannel: null,
     displaced: false,
+    screens: [],
+    screenFor: null,
     standingIn: null,
     nearbyIn: [],
     nearbyArrival: {},
@@ -1176,6 +1208,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // A declaration made here is over too, and any offer standing on it:
         // another device has taken the account somewhere, and this one is no
         // longer nearby anything.
+        onScreens: (screens) => setState((s) => ({ ...s, screens })),
+        // Being asked to show a film reaches the app wherever it is: the
+        // channel opens on this device and starts playing, and nothing about
+        // where anybody is standing changes.
+        onScreenAsked: (channelId) =>
+          setState((s) => ({ ...s, screenFor: channelId })),
         onDisplaced: () =>
           setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
         // Mirrored rather than derived. Every transition of it is a decision
@@ -1544,6 +1582,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         me: null,
         debug: false,
         leaderboard: false,
+        screens: [],
+        screenFor: null,
         home: null,
         channelViews: {},
         goneChannels: [],
@@ -1811,6 +1851,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           recordingAsked: null,
           movedChannel: null,
           displaced: false,
+          screens: [],
+          screenFor: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -1865,6 +1907,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           recordingAsked: null,
           movedChannel: null,
           displaced: false,
+          screens: [],
+          screenFor: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -2062,6 +2106,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       watchChannel: (channelId) => {
         realtime.watchChannel(channelId);
         void sweepChannel(channelId);
+      },
+
+      listScreens: () => realtime.listScreens(),
+      useScreen: (channelId, device) => realtime.useScreen(channelId, device),
+      // Cleared here as well as sent, so that a device which has stopped being
+      // a screen stops believing it is one even if the socket is down. The
+      // server's copy is connection state and dies with the socket anyway.
+      showScreenFor: (channelId) => {
+        realtime.showingScreen(channelId);
+        setState((s) =>
+          s.screenFor === channelId ? s : { ...s, screenFor: channelId }
+        );
       },
 
       // Only this channel's snapshot goes: leaving one is not leaving the
