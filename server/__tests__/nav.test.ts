@@ -172,6 +172,40 @@ describe('counting the four ways in and out', () => {
     expect(JSON.stringify(row)).not.toContain(alice.account.id);
   });
 
+  it('answers a debug account and counts nothing it does', async () => {
+    // The authors of the gesture are the one population certain not to be
+    // answering the question — they know where it is — and there is no
+    // identity in the table to subtract them with afterwards. So the row is
+    // never written. 204 either way: the client has nothing to do
+    // differently, and a body saying *not counted* would put a fact about the
+    // meter on the wire.
+    const dev = await signIn('dev@example.com', 'Dev');
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(
+      dev.account.id
+    );
+    for (const id of NAV_ACTIONS) {
+      expect((await nav(dev.token, { id })).statusCode).toBe(204);
+    }
+    expect(counts()).toEqual([]);
+
+    // And it is the account that is excluded, not the route: somebody else on
+    // the same build and the same day still counts.
+    const alice = await signIn('user1@example.com', 'Alice');
+    await nav(alice.token, { id: 'home' });
+    expect(counts()).toHaveLength(1);
+    expect(counts()[0]).toMatchObject({ kind: 'home', count: 1 });
+  });
+
+  it('still refuses a name it does not know from a debug account', async () => {
+    // The exclusion is not a way in. A client bug is a client bug on the
+    // author's phone too, and that is the phone it will be found on.
+    const dev = await signIn('dev@example.com', 'Dev');
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(
+      dev.account.id
+    );
+    expect((await nav(dev.token, { id: 'sideways' })).statusCode).toBe(400);
+  });
+
   it('survives the sweep, and the erasure of the account that did it', async () => {
     // Both deliberate, and both the opposite of every other table here. There
     // is nobody in these rows to have a thirty-day window or a right to be

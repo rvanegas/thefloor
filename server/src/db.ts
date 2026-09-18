@@ -57,6 +57,15 @@ export interface AccountRow {
    * actual configuration. Nothing about it grants a permission, so the worst
    * a wrongly-set flag can do is clutter one person's channel screen. See
    * `app/src/ui/AudioDebugPanel.tsx`.
+   *
+   * **It has a second job since 2026-09-18, and it is not a display one**: a
+   * `debug` account's navigation is not counted in `nav_counts` — see
+   * `POST /nav`. The column is read as *this is one of the people who built
+   * the app*, which is what it has always meant in practice, and that is the
+   * population the meter has to leave out to answer anything. So a flag set
+   * to see the audio panel now also silently removes somebody from one
+   * report; set it for that reason and no other, and do not set it for a
+   * tester whose behaviour you want to read.
    */
   debug: number | null;
   /**
@@ -1176,6 +1185,13 @@ CREATE INDEX IF NOT EXISTS pings_open
 -- used — is answered over the life of a build rather than over a month. For
 -- the same reason UsageMeter.forget does not touch it: there is nothing in
 -- it that deleting an account could make untrue.
+--
+-- **And the people who built the app are not in it.** POST /nav drops a tap
+-- from a debug account rather than counting it: they know where both
+-- gestures are, and they use the app more than anybody, so their acts are the
+-- ones certain to be unrepresentative of whether a gesture is found. With no
+-- identity in these rows the subtraction cannot be made afterwards, so it is
+-- made at the door or not at all.
 --
 -- **And it cannot contain anything from before the build that created it**,
 -- which is what makes the build column honest rather than decorative: the

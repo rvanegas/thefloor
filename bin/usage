@@ -419,6 +419,13 @@ usage_nav() {
 -- ratio read across both would report the gesture as unpopular when it was
 -- merely absent.
 --
+-- **The authors are not in here.** A tap from a `debug` account is dropped at
+-- the route rather than counted (see POST /nav): the people who built the
+-- gesture know where it is and use the app more than anybody, and with no
+-- identity in the table they could not be subtracted later. So these are
+-- other people's acts — which also means a build's first day or two is not
+-- evidence of anything, because the only person using it is excluded.
+--
 -- **And the bias, which cannot be removed from these numbers.** There is no
 -- account in this table, deliberately (see the schema, and /privacy). So one
 -- person who swipes forty times a day counts forty and somebody who taps once

@@ -2599,13 +2599,23 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * **Answers 204 and holds nothing about the caller.** The account is
    * required so that this is not a counter anybody on the internet can move,
-   * and is then discarded: what goes in the table is the kind, the build, the
-   * client and the day. See `nav_counts` in the schema for why it is a count
+   * is read once for the exclusion below, and is then discarded: what goes in
+   * the table is the kind, the build, the client and the day. See `nav_counts` in the schema for why it is a count
    * rather than a row, and `core/navigation.ts` for the four names.
    *
    * **Refuses a name it does not know**, on `/me/tried`'s reasoning. A client
    * sending a fifth name is a bug, and a counter that filed it would make the
    * report unreadable while looking like it was working.
+   *
+   * **A `debug` account is answered and not counted.** The people who build
+   * this app know where both gestures are, and they use the app more than
+   * anybody — so their taps are the one kind certain to be unrepresentative of
+   * the question, which is whether a gesture is *found*. With no account in
+   * the table there is no way to subtract them afterwards: either the row is
+   * never written or the bias is permanent. So it is dropped here, at the one
+   * moment anybody knows whose tap it was. The answer is still 204, because
+   * the client has nothing to do differently and a body saying *not counted*
+   * would be a fact about the meter on the wire.
    *
    * The client sends this and does not wait for it — a navigation that stalled
    * on a metering call would be the instrumentation changing the thing it
@@ -2621,6 +2631,9 @@ export function buildApp(options: BuildOptions = {}): App {
         .code(400)
         .send({ error: `id must be one of ${NAV_ACTIONS.join(', ')}.` });
     }
+
+    // See above: counted for everybody but the accounts that built the thing.
+    if (account.debug) return reply.code(204).send();
 
     channels.usage.recordNav({
       kind: body!.id as string,
