@@ -1682,6 +1682,12 @@ export function reduce(
         // side.
         declaredNearbyAt: stillDeclared,
         present: [...state.present, action.userId],
+        // **A fresh arrival has declared no screen**, and clearing it here is
+        // what covers a device change. An account is present on one device at
+        // a time, so entering from a second one displaces the first — and if
+        // the displaced device was the screen, the row it left behind would
+        // otherwise go on speaking for a phone that is no longer in the room.
+        watchingHere: state.watchingHere.filter((id) => id !== action.userId),
         everPresent: state.everPresent.includes(action.userId)
           ? state.everPresent
           : [...state.everPresent, action.userId],

@@ -11,6 +11,7 @@ import type {
   HomeView,
   PublicAccount,
   RecordingView,
+  ScreenDevice,
   ServerMessage,
 } from '../../core/protocol';
 import type { AccountSettings } from '../../core/settings';
@@ -117,6 +118,24 @@ interface Connection {
    */
   device: string | null;
   /**
+   * What this device calls itself, for its own account's screen picker.
+   *
+   * Held beside `device` because they answer different questions: that one is
+   * an identity nobody reads, this one is a label nobody routes by. Neither is
+   * a credential. See `claimedDeviceName` for why it never leaves the account
+   * that sent it.
+   */
+  deviceName: string | null;
+  /**
+   * The channel this instance is showing a film for, or null.
+   *
+   * Connection state and nothing more — it reaches no channel, no row and no
+   * other account, and it dies with the socket, which is the correct lifetime:
+   * a screen that has gone away has stopped showing anything. Read only by the
+   * screen picker. See `ClientMessage.screens.showing`.
+   */
+  screening: string | null;
+  /**
    * When this socket was accepted, which is the start of the only clock that
    * says how long it lasted.
    *
@@ -168,6 +187,42 @@ const MAX_DEVICE_LENGTH = 128;
 function claimedDevice(raw: string | null | undefined): string | null {
   if (!raw) return null;
   return raw.length <= MAX_DEVICE_LENGTH ? raw : null;
+}
+
+/**
+ * The most characters a device's own name may hold.
+ *
+ * Shorter than the id above because this one is shown to somebody. A model
+ * name is a dozen characters and a browser label twice that; anything longer
+ * is not a name, and a picker is not a place to render a paragraph.
+ */
+const MAX_DEVICE_NAME_LENGTH = 64;
+
+/**
+ * What a device calls itself, for this account's own picker and nowhere else.
+ *
+ * **Shown only to its owner.** It reaches no other member, no channel
+ * snapshot and no row on disk — it lives on the connection and dies with it.
+ * That is deliberate rather than incidental: a device name is frequently a
+ * person's own name, and *Rodrigo's iPad* is not a thing the room is entitled
+ * to.
+ *
+ * **Weaker than it looks, on purpose.** On iOS 16 and newer `UIDevice.name`
+ * is a generic "iPhone" unless the app holds the user-assigned device name
+ * entitlement, so the client sends a model name instead and this is often
+ * "iPhone 15 Pro" rather than anything personal. On the web there is no
+ * device-name API at all and the client derives a browser label. Two tabs on
+ * one machine therefore carry the same name, which the picker disambiguates
+ * by what each is doing rather than by what it is called.
+ *
+ * Never refuses, on `claimedDevice`'s contract: an absent or unusable name is
+ * a device that will be described by its kind instead.
+ */
+function claimedDeviceName(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_DEVICE_NAME_LENGTH) return null;
+  return trimmed;
 }
 
 /**
@@ -411,6 +466,58 @@ export function registerWebsocket(deps: {
    * never a session token, and is a second screen rather than a second place
    * to be — it was never standing anywhere to be displaced from.
    */
+  /**
+   * This account's live instances, newest-known first, for the screen picker.
+   *
+   * **Keyed by `deviceKey` rather than by socket**, for `displaceOtherSessions`'
+   * reason: a device reconnecting holds two sockets for a moment, and offering
+   * it twice would be offering one television as two.
+   *
+   * Session-scoped connections only. Nothing else is a place a film could be
+   * shown, and a watch-scoped socket — while any still exist — is a page
+   * rather than an instance of the app.
+   */
+  const screensFor = (connection: Connection): ScreenDevice[] => {
+    const mine = new Map<string, ScreenDevice>();
+    const self = deviceKey(connection);
+    for (const other of connections) {
+      if (other.scope.kind !== 'session') continue;
+      if (other.userId !== connection.userId) continue;
+      const key = deviceKey(other);
+      if (mine.has(key)) continue;
+      mine.set(key, {
+        device: other.device ?? key,
+        name: other.deviceName,
+        client: other.client === 'web' ? 'web' : 'native',
+        self: key === self,
+        // What a screen is actually doing, rather than merely that it is
+        // connected — a device signed in and face-down on a table is not
+        // something to offer beside the laptop somebody is looking at.
+        watching: other.screening !== null,
+      });
+    }
+    return [...mine.values()];
+  };
+
+  /**
+   * The connection to hand a film to, given a device this account named.
+   *
+   * Matched on the claimed id or on the fallback key, so that a device which
+   * announced none — an older build — can still be addressed by the token key
+   * the picker was given for it.
+   */
+  const screenConnectionFor = (
+    connection: Connection,
+    device: string
+  ): Connection | undefined => {
+    for (const other of connections) {
+      if (other.scope.kind !== 'session') continue;
+      if (other.userId !== connection.userId) continue;
+      if (other.device === device || deviceKey(other) === device) return other;
+    }
+    return undefined;
+  };
+
   const displaceOtherSessions = (connection: Connection): void => {
     const key = deviceKey(connection);
     for (const other of connections) {
@@ -1029,6 +1136,10 @@ export function registerWebsocket(deps: {
       // this socket has a use for it: displacement is about live connections,
       // and an HTTP call is not one.
       device: claimedDevice(url.searchParams.get('device')),
+      // The sixth, and the only one of them that is ever rendered. See
+      // `claimedDeviceName` for who may see it, which is one person.
+      deviceName: claimedDeviceName(url.searchParams.get('deviceName')),
+      screening: null,
       openedAt: now(),
       endedBy: null,
     };
@@ -1269,6 +1380,38 @@ export function registerWebsocket(deps: {
         case 'unwatch.channel':
           connection.watchingChannels.delete(message.channelId);
           return;
+
+        case 'screens.showing':
+          connection.screening = message.channelId;
+          return;
+
+        case 'screens.list':
+          send(connection, { type: 'screens', screens: screensFor(connection) });
+          return;
+
+        case 'screens.use': {
+          // **The account's own devices and nothing else.** A forged id could
+          // not reach another account in any case — the loop only ever looks
+          // at sockets sharing this `userId` — but a message that silently did
+          // nothing would be indistinguishable from a device that had just
+          // gone away, and those want different answers.
+          const target = screenConnectionFor(connection, message.device);
+          if (!target) {
+            send(connection, {
+              type: 'error',
+              message: 'That device is not signed in any more.',
+              code: 'no-such-device',
+            });
+            return;
+          }
+          // Nothing about the channel changes, so nothing is dispatched and no
+          // snapshot is emitted. Whether that device ends up counting as a
+          // screen *in the room* is its own business and its own `WATCH_HERE`
+          // — which it will not send, not being in the room. See `screen` in
+          // core/protocol.ts.
+          send(target, { type: 'screen', channelId: message.channelId });
+          return;
+        }
 
         case 'channel.action': {
           // Answering the door is the one action whose result goes to somebody

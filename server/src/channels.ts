@@ -296,6 +296,7 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'WATCH_PAUSE',
   'WATCH_SEEK',
   'WATCH_READY',
+  'WATCH_HERE',
   'SET_WATCH_MUTE',
   'PASTE_CLIP',
   'CLEAR_CLIP',
@@ -374,6 +375,12 @@ function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['
     // Absent on rows written between the watch party shipping and the mute
     // shipping, which read as false: those channels had no mute to state.
     mutedAll: stored.mutedAll === true,
+    // **Never restored, and it cannot be.** Enforcement is sampled from who is
+    // watching on their only device, and a restart dropped every screen in the
+    // world — so a revived party has none by definition, and the first Play
+    // after a restart asks the question again. Carrying the flag across would
+    // lock a mute on the strength of a device that is no longer connected.
+    enforced: false,
     // Dropped, unlike the position: a failure is about the run that met it,
     // and the run is over. Coming back with a warning about a page that no
     // longer exists would be a sentence nobody could act on.
@@ -6168,6 +6175,11 @@ export class ChannelRegistry {
       // that says nothing about whether any of them had walked into a channel
       // to hold on for somebody — see `waiting` in core/types.ts.
       waiting: [],
+      // And nobody comes back a screen. Every player in the world disconnected
+      // with the process, and the party is revived paused with nothing showing
+      // it — so the first Play asks the question again, which is where the
+      // answer is supposed to come from.
+      watchingHere: [],
       everPresent: durable.everPresent ?? [],
       floor: initialFloorState(),
       selfMuted: Object.fromEntries(participants.map((id) => [id, false])),

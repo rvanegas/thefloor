@@ -839,6 +839,27 @@ export interface HomeView {
  * countdowns are computed against the server's clock rather than the device's,
  * which drifts and can be set by the user.
  */
+/**
+ * One of this account's live instances, as the screen picker sees it.
+ *
+ * **A live socket is not a screen anybody can see**, which is why `watching`
+ * is here: a device may be signed in, connected and face-down on a table. A
+ * picker that offered it alongside the laptop somebody is looking at would be
+ * offering two things that are not alike.
+ */
+export interface ScreenDevice {
+  /** The id this instance claimed at connect; what `screens.use` names. */
+  device: string;
+  /** What it calls itself, or null when it never said. */
+  name: string | null;
+  /** Native or web, so a nameless device can still be described by its kind. */
+  client: 'native' | 'web';
+  /** Whether this is the instance asking — the *Watch here* case. */
+  self: boolean;
+  /** Whether this instance is already showing a film. */
+  watching: boolean;
+}
+
 export interface ChannelView {
   channel: ChannelState;
   /**
@@ -1350,6 +1371,38 @@ export type ClientAction =
 
 export type ClientMessage =
   /** Start receiving Home snapshots. */
+  /**
+   * Which of this account's other instances could show a film.
+   *
+   * Asked rather than watched, for the reason `screens` above is not pushed.
+   */
+  | { type: 'screens.list' }
+  /**
+   * Make that instance the screen for this channel.
+   *
+   * The device is one of this account's own, named by the id it claimed at
+   * connect. The server refuses anything else — not because a forged id could
+   * reach another account's device, which it could not, but because a message
+   * that silently did nothing is worse to debug than one that says no.
+   */
+  | { type: 'screens.use'; channelId: string; device: string }
+  /**
+   * This instance is, or is no longer, showing a film.
+   *
+   * **Not the same report as `WATCH_HERE`, and both are sent by an instance
+   * that is in the room.** That one is a fact about the *channel* — somebody's
+   * microphone and screen are one device, which decides whether the next run's
+   * mute can be lifted — and it is dispatched, committed and drawn on the
+   * roster. This is a fact about a *connection*, read by nothing but the
+   * screen picker, so that a device signed in and face-down on a table is not
+   * offered beside the laptop somebody is looking at.
+   *
+   * The server cannot derive either from the other: it does not know which of
+   * an account's sockets is holding its presence, and an instance showing a
+   * film without being in the room is exactly the configuration this design
+   * prefers.
+   */
+  | { type: 'screens.showing'; channelId: string | null }
   | { type: 'watch.home' }
   /** Start receiving snapshots for one channel. */
   | { type: 'watch.channel'; channelId: string }
@@ -1542,5 +1595,30 @@ export type ServerMessage =
    * take the room away from the device somebody is holding.
    */
   | { type: 'displaced' }
+  /**
+   * This account's other live instances, for the screen picker.
+   *
+   * Sent in answer to `screens.list` and never pushed: the question is asked
+   * at the moment somebody taps *Watch on another device*, and a list that
+   * refreshed itself would be a list that changed under a finger.
+   *
+   * **This account's own devices only.** Nothing here describes anybody else,
+   * and the names are the ones each device claimed for itself — see
+   * `claimedDeviceName` in server/src/ws.ts for why they are weak and why
+   * they go no further than their owner.
+   */
+  | { type: 'screens'; screens: ScreenDevice[] }
+  /**
+   * Another of this account's instances has asked this one to be the screen.
+   *
+   * The receiving app opens the channel and starts showing the film. It does
+   * **not** step in: a screen is a role an instance takes, not a place to be,
+   * and entering here would displace the device its owner is actually holding.
+   *
+   * Directed at one connection, the way `displaced` is, because it is about a
+   * device rather than about a channel — no snapshot could carry it, since
+   * nothing on the channel has changed.
+   */
+  | { type: 'screen'; channelId: string }
   | { type: 'error'; message: string; code?: string }
   | { type: 'pong'; serverNow: number };

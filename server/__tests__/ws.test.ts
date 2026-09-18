@@ -109,11 +109,21 @@ class Client {
    *               behaviour every installed build has, and the reason most
    *               tests here pass nothing.
    */
-  constructor(token: string, base: string, build?: number, device?: string) {
+  constructor(
+    token: string,
+    base: string,
+    build?: number,
+    device?: string,
+    /** What this copy calls itself, which only its own picker ever sees. */
+    deviceName?: string
+  ) {
     this.socket = new WebSocket(
       `ws://${base}/ws?token=${token}` +
         (build === undefined ? '' : `&build=${build}`) +
-        (device === undefined ? '' : `&device=${encodeURIComponent(device)}`)
+        (device === undefined ? '' : `&device=${encodeURIComponent(device)}`) +
+        (deviceName === undefined
+          ? ''
+          : `&deviceName=${encodeURIComponent(deviceName)}`)
     );
     this.socket.on('message', (raw) => {
       this.received.push(JSON.parse(String(raw)) as ServerMessage);
@@ -1408,6 +1418,116 @@ describe('websocket', () => {
 
     const sawDisplaced = (client: Client) =>
       client.received.some((m) => m.type === 'displaced');
+
+    describe('choosing which device shows a film', () => {
+      /** Alice on two named devices, the phone in the channel. */
+      async function withScreens() {
+        const { alice, bob, channelId } = await pairInSession();
+        const phone = new Client(
+          alice.token,
+          baseUrl,
+          80,
+          'dev-phone',
+          'iPhone 15 Pro'
+        );
+        const laptop = new Client(
+          secondSession(alice.account.id),
+          baseUrl,
+          80,
+          'dev-laptop',
+          'Chrome on macOS'
+        );
+        await Promise.all([phone.open(), laptop.open()]);
+        await Promise.all([phone.next('hello'), laptop.next('hello')]);
+        return { alice, bob, channelId, phone, laptop };
+      }
+
+      it('lists this account\'s own live instances, and marks which is asking', async () => {
+        const { phone, laptop } = await withScreens();
+        phone.send({ type: 'screens.list' });
+        const { screens } = await phone.next('screens');
+
+        expect(screens).toHaveLength(2);
+        const self = screens.find((s) => s.self);
+        expect(self?.name).toBe('iPhone 15 Pro');
+        const other = screens.find((s) => !s.self);
+        expect(other?.name).toBe('Chrome on macOS');
+        expect(other?.device).toBe('dev-laptop');
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('says which instances are actually showing something', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.showing', channelId });
+        // Waited out rather than raced: the report sets connection state and
+        // answers nothing, so there is no message to await.
+        await new Promise((r) => setTimeout(r, 50));
+
+        phone.send({ type: 'screens.list' });
+        const { screens } = await phone.next('screens');
+        expect(screens.find((s) => !s.self)?.watching).toBe(true);
+        expect(screens.find((s) => s.self)?.watching).toBe(false);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('hands a film to the chosen instance without moving anybody', async () => {
+        const { alice, channelId, phone, laptop } = await withScreens();
+        await enter(phone, channelId, alice.account.id);
+
+        phone.send({ type: 'screens.use', channelId, device: 'dev-laptop' });
+        const told = await laptop.next('screen');
+        expect(told.channelId).toBe(channelId);
+
+        // **The whole point**: being a screen is not being in the room. The
+        // laptop was never displaced, the phone still holds the presence, and
+        // nothing about the channel changed.
+        expect(sawDisplaced(phone)).toBe(false);
+        expect(app.channels.get(channelId)!.present).toContain(
+          alice.account.id
+        );
+        expect(app.channels.get(channelId)!.watchingHere).toEqual([]);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('refuses a device that is not signed in, rather than going quiet', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        phone.send({ type: 'screens.use', channelId, device: 'dev-television' });
+        const refusal = await phone.next('error');
+        expect(refusal.code).toBe('no-such-device');
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('counts a device once while it is reconnecting', async () => {
+        const { alice, phone, laptop } = await withScreens();
+        // The same device id on a second socket, which is what a reconnection
+        // looks like for the moment before the old one closes.
+        const again = new Client(
+          alice.token,
+          baseUrl,
+          80,
+          'dev-phone',
+          'iPhone 15 Pro'
+        );
+        await again.open();
+        await again.next('hello');
+
+        phone.send({ type: 'screens.list' });
+        const { screens } = await phone.next('screens');
+        expect(screens.filter((s) => s.device === 'dev-phone')).toHaveLength(1);
+
+        phone.close();
+        laptop.close();
+        again.close();
+      });
+    });
 
     it('tells the phone when the tablet steps into the same channel', async () => {
       const { alice, channelId, phone, tablet } = await twoDevices();
