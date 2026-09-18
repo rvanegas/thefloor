@@ -272,8 +272,19 @@ function Root() {
    * See `modules/live-activity` for why this is a Live Activity and not a
    * notification, and `state/useLockScreen.ts` for what the two controls read.
    */
-  useLockScreen(here, me, audio.inputAvailable, (channelId, muted) =>
-    app.act(channelId, { type: 'SET_SELF_MUTE', muted })
+  useLockScreen(
+    here,
+    me,
+    audio.inputAvailable,
+    // Still in touch with the room, by either route that can prove it. The
+    // control socket is what snapshots arrive on, so while it is open `here`
+    // is current and answers for itself; the media room is what the server
+    // now reads presence *from*, so a phone still in it is present whatever
+    // the socket is doing. Neither, for longer than the grace, means the
+    // server has stepped this account out and the card is describing a
+    // conversation it cannot hear — see `state/useLockScreen.ts`.
+    app.status === 'open' || audio.status === 'connected',
+    (channelId, muted) => app.act(channelId, { type: 'SET_SELF_MUTE', muted })
   );
 
   /**

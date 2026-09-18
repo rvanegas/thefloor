@@ -4,6 +4,7 @@ import renderer, {
   type ReactTestRenderer,
 } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import { DISCONNECT_GRACE_MS } from '../../../../core/constants';
 import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { ChannelState } from '../../../../core/types';
 import type { ChannelView } from '../../../../core/protocol';
@@ -138,11 +139,22 @@ function harness() {
   function Probe({
     view,
     inputAvailable = true,
+    inTouch = true,
   }: {
     view: ChannelView | null;
     inputAvailable?: boolean;
+    inTouch?: boolean;
   }) {
-    useLockScreen(view, ME, inputAvailable, onSetMute, show, hide, subscribe);
+    useLockScreen(
+      view,
+      ME,
+      inputAvailable,
+      inTouch,
+      onSetMute,
+      show,
+      hide,
+      subscribe
+    );
     return null;
   }
 
@@ -225,6 +237,94 @@ describe('useLockScreen', () => {
     expect(h.acted).toHaveLength(0);
   });
 
+  it('holds the card through a blip and takes it down once the grace is out', () => {
+    jest.useFakeTimers();
+    try {
+      const h = harness();
+      const view = viewOf(channelWith([ME, THEM]));
+      let tree!: ReactTestRenderer;
+      reactAct(() => {
+        tree = renderer.create(<h.Probe view={view} />);
+      });
+      expect(h.shown).toHaveLength(1);
+
+      // Out of touch. The last snapshot still says this account is in the
+      // room, and for the length of the server's grace it still is.
+      reactAct(() => {
+        tree.update(<h.Probe view={view} inTouch={false} />);
+      });
+      reactAct(() => {
+        jest.advanceTimersByTime(DISCONNECT_GRACE_MS - 1);
+      });
+      expect(h.hidden()).toBe(0);
+
+      // And out of it. The server has run `DISCONNECT_EXPIRED` by now, so the
+      // card is describing a conversation this device is no longer in.
+      reactAct(() => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(h.hidden()).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('puts the card back when contact returns inside the grace', () => {
+    jest.useFakeTimers();
+    try {
+      const h = harness();
+      const view = viewOf(channelWith([ME, THEM]));
+      let tree!: ReactTestRenderer;
+      reactAct(() => {
+        tree = renderer.create(<h.Probe view={view} />);
+      });
+      reactAct(() => {
+        tree.update(<h.Probe view={view} inTouch={false} />);
+      });
+      reactAct(() => {
+        jest.advanceTimersByTime(DISCONNECT_GRACE_MS / 2);
+      });
+      reactAct(() => {
+        tree.update(<h.Probe view={view} />);
+      });
+      reactAct(() => {
+        jest.advanceTimersByTime(DISCONNECT_GRACE_MS);
+      });
+      // A tunnel is not a departure: nothing was taken down and nothing was
+      // pushed a second time.
+      expect(h.hidden()).toBe(0);
+      expect(h.shown).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('ignores a tap that arrives after the grace has run out', () => {
+    jest.useFakeTimers();
+    try {
+      const h = harness();
+      const view = viewOf(channelWith([ME, THEM]));
+      let tree!: ReactTestRenderer;
+      reactAct(() => {
+        tree = renderer.create(<h.Probe view={view} />);
+      });
+      reactAct(() => {
+        tree.update(<h.Probe view={view} inTouch={false} />);
+      });
+      reactAct(() => {
+        jest.advanceTimersByTime(DISCONNECT_GRACE_MS);
+      });
+      // iOS may not have taken the card down yet, and the button on it is
+      // for a channel this account has been removed from.
+      reactAct(() => {
+        h.tap(true);
+      });
+      expect(h.acted).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('carries the word that was on the button rather than a toggle', () => {
     const h = harness();
     reactAct(() => {
@@ -254,7 +354,7 @@ describe('useLockScreen, on its own defaults', () => {
     const show = jest.spyOn(liveActivity, 'showLockScreen');
     show.mockResolvedValue(true);
     function Probe({ view }: { view: ChannelView | null }) {
-      useLockScreen(view, ME, true, () => {});
+      useLockScreen(view, ME, true, true, () => {});
       return null;
     }
     let tree!: ReactTestRenderer;

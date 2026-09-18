@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { canSetSelfMute } from '../../../core/channel';
+import { DISCONNECT_GRACE_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import type { ChannelView } from '../../../core/protocol';
 import type { UserId } from '../../../core/types';
@@ -21,10 +22,20 @@ import {
  * on a *locked* phone is everybody. It follows `live`, the channel this device
  * is standing in, exactly as the audio does.
  *
- * The card exists iff there is a channel to be in. There is no second
- * condition and deliberately no check on whether the screen is actually
- * locked: iOS decides when to draw a Live Activity, and a card that tried to
- * appear at the lock would have to guess at a moment the system already knows.
+ * The card exists iff there is a channel to be in *and* this device is still
+ * in touch with it — `inTouch`, which the caller answers from the control
+ * socket and the media room together. There is deliberately no check on
+ * whether the screen is actually locked: iOS decides when to draw a Live
+ * Activity, and a card that tried to appear at the lock would have to guess at
+ * a moment the system already knows.
+ *
+ * **Neither condition survives the process, and the card does.** An activity
+ * outlives the app that started it, so a force-quit or a crash leaves one on
+ * the lock screen describing a room the server has since stepped this account
+ * out of. Nothing in JavaScript can reach that card; the answer is in
+ * `targets/lock-screen/LockScreenController.swift`, which adopts whatever is
+ * still running at launch and ends the card when the process is told it is
+ * going away.
  */
 
 /** What the two controls read, derived once so the hook and its test agree. */
@@ -96,6 +107,7 @@ export function useLockScreen(
   view: ChannelView | null,
   me: UserId,
   inputAvailable: boolean | undefined,
+  inTouch: boolean,
   onSetMute: (channelId: string, muted: boolean) => void,
   show: (state: LockScreenState) => void = SHOW,
   hide: () => void = HIDE,
@@ -103,7 +115,38 @@ export function useLockScreen(
     handle: (muted: boolean) => void
   ) => () => void = addLockScreenToggleListener
 ): void {
-  const state = view ? lockScreenStateFor(view, me, inputAvailable) : null;
+  /**
+   * Whether this device has been out of contact long enough that the server
+   * has stopped counting it as present.
+   *
+   * **`view` is the last snapshot that arrived, and a snapshot stops being
+   * evidence once nothing is arriving.** Presence is the server's answer, and
+   * since 2026-09-08 it is falsified by not being in the media room: a phone
+   * that loses the network keeps a `view` saying it is in the room while the
+   * server runs the grace down and removes it by `DISCONNECT_EXPIRED`. The
+   * conversation carries on without it and the card carries on describing
+   * one, with a Mute button that can reach neither end of it.
+   *
+   * So the card is held for exactly the grace the server gives, and no
+   * longer. Held rather than dropped at once because losing touch is
+   * ordinarily a blip — a tunnel, a handover, a deploy rounding up to a
+   * retry — and a card that flickered off and on at the lock screen for every
+   * one of those would be worse than one that is a minute stale. The server
+   * makes the same bargain with the same number, which is the point: until it
+   * expires this device is still in the room, and after it, it is not.
+   */
+  const [adrift, setAdrift] = useState(false);
+  useEffect(() => {
+    if (inTouch) {
+      setAdrift(false);
+      return;
+    }
+    const timer = setTimeout(() => setAdrift(true), DISCONNECT_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [inTouch]);
+
+  const state =
+    view && !adrift ? lockScreenStateFor(view, me, inputAvailable) : null;
 
   /**
    * The payload as a string, which is what the effect actually depends on.

@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import LiveActivity
+import UIKit
 
 /**
  Owns the card: starts it, moves it, ends it.
@@ -36,6 +37,75 @@ import LiveActivity
    */
   @objc public static func register() {
     LiveActivityModule.host = shared
+    shared.adopt()
+    shared.endWhenThisProcessDoes()
+  }
+
+  /**
+   Takes ownership of a card this app left running in a *previous* process.
+
+   **An activity outlives the process that started it, and that is the whole
+   bug this exists for.** The card is only ever up while somebody is stepped
+   in, which on iOS means the process is alive holding an audio session rather
+   than suspended — so it dies by a force-quit, a crash, or jetsam, and in
+   every one of those the server drops the socket, the grace period runs out
+   and the account is no longer present. The conversation carries on without
+   them and the card carries on describing it, with a Mute button for a
+   microphone this app is not holding.
+
+   A fresh process knows nothing about it: `activity` is nil, so `hide()` ends
+   nothing and `show()` would `request` a *second* card beside the first. So
+   the first thing a launch does is pick up whatever is still running. The
+   hook then settles it within a snapshot or two — `hide()` if the account is
+   not present, which is the case this fixes, and `show()` if they are, which
+   updates the card in place rather than flickering it.
+
+   More than one can be running, if a process died between `endRunning` and
+   `request` or an older build orphaned two. `activities` comes in no stated
+   order, so which one is kept is arbitrary — and it does not matter, because
+   the rest are ended here and the survivor is either updated or ended within
+   a snapshot or two. What would matter is keeping none of them, which is the
+   state this method exists to leave behind.
+
+   Only `.active` ones are adopted: an activity that has already ended can
+   still be listed while iOS draws it on its way out, and holding one as
+   `activity` would make `show()` try to update a card that is finished.
+   */
+  private func adopt() {
+    guard #available(iOS 16.1, *) else { return }
+    let running = Activity<FloorActivityAttributes>.activities.filter {
+      $0.activityState == .active
+    }
+    guard let keep = running.first else { return }
+    for other in running.dropFirst() {
+      Task { await other.end(using: nil, dismissalPolicy: .immediate) }
+    }
+    activity = keep
+    channelId = keep.attributes.channelId
+  }
+
+  /**
+   Ends the card when the app is killed, while there is still time to.
+
+   `willTerminateNotification` is not delivered to a *suspended* app, which is
+   why this is worth having rather than hopeless: a card is only up while the
+   app is running in the background holding the audio session, and that is
+   precisely the state iOS does tell before tearing down. A swipe out of the
+   app switcher lands here.
+
+   Best effort, and the launch-time `adopt()` above is the backstop for the
+   deaths that arrive without a word — a crash, or jetsam. Nothing is awaited
+   because there is nothing useful to do with the answer and no time to wait
+   for it.
+   */
+  private func endWhenThisProcessDoes() {
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.willTerminateNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      _ = self?.hide()
+    }
   }
 
   /**
