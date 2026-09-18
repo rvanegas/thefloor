@@ -923,10 +923,16 @@ This said *there is no animation* until 2026-09-18, and the sentence earned its
 keep for as long as nothing needed motion to be understood. A swipe does: a
 screen that replaced another with no travel between them would not say which
 way the gesture went, and a gesture whose direction is invisible is one nobody
-learns. So the arriving screen crosses from the edge the swipe came from, in
-220ms, on the native driver — and the screen being left does not move, because
-both of them moving means both of them mounted. See
-`decisions/2026-09-18-a-screen-arrives-from-the-side-it-was-asked-for.md`.
+learns. So the arriving screen crosses from the edge it came from, in 220ms, on
+the native driver — and the screen being left does not move, because both of
+them moving means both of them mounted.
+
+**The motion belongs to the journey and not to the gesture**: going into a
+screen and coming back out travel the same way whether a thumb or a tap did it,
+because `Panes` animates on the pane changing hands rather than on the swipe.
+Nothing moves in a split, and nothing moves on the web. See
+`decisions/2026-09-18-a-screen-arrives-from-the-side-it-was-asked-for.md` and
+`decisions/2026-09-18-the-motion-belongs-to-the-journey.md`.
 
 **It is not a licence for the rest.** A transition that carries information is
 the case; a fade on a card, a spring on a button and a shimmer on a list are

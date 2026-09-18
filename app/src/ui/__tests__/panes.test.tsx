@@ -41,6 +41,26 @@ function responderOf(tree: ReactTestRenderer): boolean {
   ).length > 0;
 }
 
+/**
+ * How far the detail slot is from where it belongs, read off the `Animated`
+ * value the transform is hung on rather than off a rendered number — which is
+ * what a native-driven transform leaves behind to look at.
+ */
+function offsetOf(tree: ReactTestRenderer): number {
+  const styled = tree.root.findAll(
+    (node) =>
+      Array.isArray(node.props?.style) &&
+      node.props.style.some(
+        (entry: unknown) =>
+          !!entry && typeof entry === 'object' && 'transform' in entry
+      )
+  );
+  const style = styled[0]!.props.style.find(
+    (entry: unknown) => !!entry && typeof entry === 'object' && 'transform' in entry
+  );
+  return style.transform[0].translateX.__getValue();
+}
+
 function textOf(tree: ReactTestRenderer): string[] {
   return tree.root
     .findAll((node) => node.type === Text)
@@ -129,6 +149,62 @@ describe('the two arrangements', () => {
     // Gaining and losing the gesture is what navigating does, and it must not
     // cost the screen underneath its state.
     expect(mounts).toBe(1);
+  });
+
+  /**
+   * The one thing that moves, and what decides that it does.
+   *
+   * **Not the gesture.** A tap on a channel card and a swipe into the same
+   * room are the same journey, and `open` is how both of them arrive here — so
+   * what is asserted is that the slot is put at an edge when it changes, and
+   * which edge. `-x` is a screen that came from the left, which is going out;
+   * `+x` came from the right, which is going in. See the arrival effect.
+   */
+  it('starts an arriving screen at the edge it came from', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <Panes layout="stack" list={<List />} detail={<Detail />} open={false} />
+      );
+    });
+    expect(offsetOf(tree)).toBe(0);
+
+    act(() => {
+      tree.update(
+        <Panes layout="stack" list={<List />} detail={<Detail />} open />
+      );
+    });
+    // In from the right, and on its way home rather than parked there.
+    expect(offsetOf(tree)).toBeGreaterThan(0);
+
+    act(() => {
+      tree.update(
+        <Panes layout="stack" list={<List />} detail={<Detail />} open={false} />
+      );
+    });
+    expect(offsetOf(tree)).toBeLessThan(0);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * Both screens are already up in a split, so there is no arrival to draw —
+   * and a window dragged across the breakpoint with something open changes
+   * `open` for reasons that have nothing to do with anybody navigating.
+   */
+  it('moves nothing in a split', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <Panes layout="split" list={<List />} detail={<Detail />} open={false} />
+      );
+    });
+    act(() => {
+      tree.update(
+        <Panes layout="split" list={<List />} detail={<Detail />} open />
+      );
+    });
+    expect(offsetOf(tree)).toBe(0);
+    act(() => tree.unmount());
   });
 
   it('gives the list a fixed width and the screen the rest', () => {

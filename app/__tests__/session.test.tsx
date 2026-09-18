@@ -175,6 +175,7 @@ jest.mock('../src/audio/useSessionAudio', () => ({
 
 import { createChannel } from '../../core/channel';
 import App from '../App';
+import { Panes } from '../src/ui/Panes';
 
 function textOf(tree: ReactTestRenderer): string {
   const strings: string[] = [];
@@ -796,5 +797,129 @@ describe('a window wide enough for two panes', () => {
     expect(textOf(tree)).toContain('Add a contact');
     // One pane, so there is no empty one beside it — the list is the screen.
     expect(textOf(tree)).not.toContain('Pick a conversation on the left');
+  });
+});
+
+/**
+ * Which way the two gestures go, and what is waiting when you come back.
+ *
+ * **Asserted on the handlers rather than on a fake drag.** What a thumb has to
+ * do to count as a swipe is a table in `ui/swipe.ts`, tested there against
+ * every threshold it has; what is left for this file is the half only `Root`
+ * knows — which direction is *out*, which is *in*, when each is offered at
+ * all, and what the way back in remembers. Building a `touchHistory` to reach
+ * the same two calls would test `PanResponder`.
+ */
+describe('the swipes', () => {
+  const CHANNEL = 'chan_1';
+
+  beforeEach(() => {
+    mockApp.ready = true;
+    mockApp.token = 'token';
+    mockApp.notificationTap = null;
+    mockApp.leaderboard = false;
+    mockApp.channelViews = {
+      [CHANNEL]: {
+        channel: createChannel({
+          id: CHANNEL,
+          initiator: 'acct_me',
+          invitees: ['acct_them'],
+          now: NOW,
+          // Standing in it, which is the only thing the swipe in is offered
+          // into — see `Swipes` in App.tsx.
+          present: ['acct_me'],
+        }),
+        participants: [
+          { id: 'acct_me', displayName: 'Me' },
+          { id: 'acct_them', displayName: 'Them' },
+        ],
+        recordings: [],
+        pingableAt: {},
+        serverNow: NOW,
+      },
+    };
+    mockApp.standingIn = CHANNEL;
+  });
+
+  /** The handlers `Root` hands down, which are the whole of the routing. */
+  function swipesOf(tree: ReactTestRenderer) {
+    return tree.root.findAll((node) => node.type === Panes)[0]!.props.swipes as
+      | { left?: () => void; right?: () => void }
+      | undefined;
+  }
+
+  /**
+   * Right is out and left is in, which is the way round every other phone has
+   * it — and each is offered only where it goes somewhere, so a direction with
+   * nothing in it is never taken from whatever was under the thumb.
+   */
+  it('goes out to the right and in to the left', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    // On Home, standing in a room: in is available, out is not.
+    expect(swipesOf(tree)?.left).toBeDefined();
+    expect(swipesOf(tree)?.right).toBeUndefined();
+
+    act(() => swipesOf(tree)!.left!());
+    // The channel screen, asserted on a tab only it has.
+    expect(textOf(tree)).toContain('Notepad');
+
+    // And from a channel it is the other way round.
+    expect(swipesOf(tree)?.right).toBeDefined();
+    expect(swipesOf(tree)?.left).toBeUndefined();
+
+    act(() => swipesOf(tree)!.right!());
+    expect(textOf(tree)).toContain('Start a channel');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The way back in lands where you left.** Swiping out of the notepad and
+   * straight back in put you on the roster, which is a gesture undoing rather
+   * less than it appears to. Only the swipe remembers: opening the same
+   * channel by tapping it still lands on the roster, which `ChannelView` owns
+   * and argues for.
+   */
+  it('comes back to the tab it was swiped away from', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+
+    act(() => swipesOf(tree)!.left!());
+    pressButton(tree, 'Notepad');
+    // A heading the notepad tab has and the roster does not.
+    expect(textOf(tree)).toContain('Shared clipboard');
+
+    act(() => swipesOf(tree)!.right!());
+    expect(textOf(tree)).toContain('Start a channel');
+
+    act(() => swipesOf(tree)!.left!());
+    expect(textOf(tree)).toContain('Shared clipboard');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * What makes a screen travel, which is this and not the gesture: a tap on a
+   * channel card and a swipe into the same room are the same journey, so they
+   * are the same 220ms. `Panes` reads nothing else.
+   */
+  it('tells the pane whether it is holding a screen or the tier', () => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    const openOf = () =>
+      tree.root.findAll((node) => node.type === Panes)[0]!.props.open;
+
+    expect(openOf()).toBe(false);
+    act(() => swipesOf(tree)!.left!());
+    expect(openOf()).toBe(true);
+    act(() => swipesOf(tree)!.right!());
+    expect(openOf()).toBe(false);
+    act(() => tree.unmount());
   });
 });

@@ -189,6 +189,7 @@ export function ChannelView({
   channelId,
   audio,
   tab: asked,
+  onTab,
   onClose,
   onExit,
   onEnterChannel,
@@ -255,6 +256,18 @@ export function ChannelView({
    * whatever was asked for and is never undone by a rerender.
    */
   tab?: ChannelTab;
+  /**
+   * Told when the tab changes, for a caller that wants to bring somebody back
+   * to where they were.
+   *
+   * **This screen still owns the tab**, which is why this is a report rather
+   * than the other half of a controlled pair: nothing above can set it except
+   * by asking for one at mount through `tab`, and a caller that ignores this
+   * entirely behaves exactly as before. `App.tsx` is the only listener, and
+   * uses it for the swipe out of a channel and straight back into it — see
+   * `Swipes` there for why that pair and nothing else.
+   */
+  onTab?: (tab: ChannelTab) => void;
 }) {
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
@@ -471,6 +484,19 @@ export function ChannelView({
   useEffect(() => {
     if (asked) setTab(asked);
   }, [asked]);
+
+  /**
+   * A tab chosen on the bar, which is the only thing anybody above is told
+   * about.
+   *
+   * Deliberately not an effect on `tab`: a seed from `asked` is something the
+   * caller already knows, and reporting it back would be this screen telling
+   * `App.tsx` what `App.tsx` just said.
+   */
+  const chooseTab = (next: ChannelTab) => {
+    setTab(next);
+    onTab?.(next);
+  };
 
   /**
    * **The notepad is written when the field goes away, not only when it is
@@ -1693,7 +1719,7 @@ export function ChannelView({
         planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
       */}
       <View style={[styles.tabs, styles.tabsHeader]}>
-        <Segmented options={tabs} value={tab} onChange={setTab} />
+        <Segmented options={tabs} value={tab} onChange={chooseTab} />
       </View>
       </View>
     </View>

@@ -1,5 +1,13 @@
 # 2026-09-18 — A screen arrives from the side it was asked for
 
+**The two directions below are reversed by
+`2026-09-18-the-back-swipe-goes-the-way-every-other-phone-goes.md`**, written
+hours later on the first report that the gesture felt backwards — which the
+closing paragraph of *The direction is the task's* predicted. Everything else
+here stands: the thresholds, the gates, the commit-on-release, and the motion
+argument. Read *left* as out and *right* as in below, and the other way round
+in the code.
+
 Swiping, from `tasks/swiping.md`: left from a channel goes to Home, right from
 Home goes back into the channel you are standing in. Both were already one tap
 — the channel header names Home, and the tier's live bar has been a permanent
@@ -56,7 +64,8 @@ and nothing to explain.
 means Home is the page to the right of the channel; iOS's system back gesture
 is a swipe *right*. This app has no navigation stack and no system back gesture
 to collide with, so there is nothing to break — but the muscle memory is real,
-and if the gesture is reported as backwards this is the line to reread.
+and if the gesture is reported as backwards this is the line to reread. *It
+was, and this is the line that was reread.*
 
 ## Motion, which was a standing commitment until today
 

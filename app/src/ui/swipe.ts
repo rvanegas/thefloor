@@ -10,7 +10,7 @@
  *
  * **It answers a direction and nothing else.** Whether there is anywhere to go
  * in that direction is `App.tsx`'s question: the channel you are standing in
- * is the only thing a right swipe can open, and that is a fact about presence
+ * is the only thing a left swipe can open, and that is a fact about presence
  * rather than about a thumb. See `Panes`.
  */
 

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
@@ -97,6 +97,29 @@ function Root() {
    * the pane.
    */
   const [detail, setDetail] = useState<Detail>(NO_DETAIL);
+  /**
+   * The tab each channel was last left on, for the swipe that goes straight
+   * back into the one you just swiped out of.
+   *
+   * **A ref rather than state, because nothing renders from it.** It is read
+   * once, in the handler that re-opens the channel, and seeds `ChannelView`'s
+   * own tab through `tab` — the same one-shot request the introduction
+   * checklist makes. Holding it in state would rerender the application on
+   * every tap of the tab bar for a value no render reads.
+   *
+   * **Only the swipe reads it, and that is the point.** Opening a channel by
+   * tapping it still lands on the roster: a channel opened is a channel
+   * somebody is about to stand in, which is the argument `ChannelView` makes
+   * for keeping its tab local and unremembered, and it is untouched. A swipe
+   * out and straight back in is the one journey where that argument does not
+   * hold — nobody swiped away from the notepad in order to arrive at the
+   * roster — and it is short enough that the tab you left is still the one you
+   * meant.
+   *
+   * Keyed by channel, so swiping out of one and into another is not a
+   * restoration of the wrong screen's tab.
+   */
+  const lastTab = useRef(new Map<string, ChannelTab>());
   /**
    * Which of Home's two lists is in its body.
    *
@@ -665,6 +688,9 @@ function Root() {
             channelId={detail.channelId}
             audio={audio}
             tab={detail.tab}
+            // Remembered for the swipe back in, and for nothing else. See
+            // `lastTab`.
+            onTab={(tab) => lastTab.current.set(detail.channelId, tab)}
             // Off this screen without leaving the channel. Deliberately not
             // `leaveChannelView`: that unwatches, and the snapshot it drops is
             // what tells this component you are still present.
@@ -836,23 +862,36 @@ function Root() {
    * is a way back that a phone does not have. `useRoute.web.ts` is the sibling
    * that makes that true; this is the half of it that declines to compete.
    *
-   * **Left is out, right is in, and the asymmetry is deliberate.** Left is
+   * **Right is out, left is in, and the asymmetry is deliberate.** Right is
    * offered from a channel screen and nowhere else: settings, help and a
    * profile have unambiguous back buttons and no return gesture to pair with,
-   * so a swipe off them would be a way out with no way back. Right is offered
+   * so a swipe off them would be a way out with no way back. Left is offered
    * only into `live` — the room this device is *standing in*, not the last one
-   * somebody looked at — so it is not the undo of the left swipe and does not
+   * somebody looked at — so it is not the undo of the right swipe and does not
    * pretend to be. Looking at a channel without stepping into it and swiping
    * away is therefore a one-way trip, by the same tap it always was.
+   *
+   * **Right goes back because every other phone does.** The first version had
+   * these the other way round, reasoning from the layout — Home is the column
+   * on the left in a split, so going to it is looking left. That reasoning is
+   * about a screen nobody is looking at while they swipe, and it lost to the
+   * thumb: iOS's system back gesture is a swipe right, Android's is an edge
+   * pull rightwards, and a back gesture that runs the other way reads as
+   * broken before it reads as different.
+   *
+   * **The way back in lands where you left.** Swiping out of the notepad and
+   * back in put you on the roster, which is a gesture undoing less than it
+   * appears to; `lastTab` is the whole of the fix, and it is deliberately not
+   * how tapping into a channel behaves.
    */
   const swipes: Swipes | undefined =
     split || Platform.OS === 'web'
       ? undefined
       : {
-          left: detail.kind === 'channel' ? close : undefined,
-          right:
+          right: detail.kind === 'channel' ? close : undefined,
+          left:
             detail.kind === 'none' && live
-              ? () => enterChannel(live.id)
+              ? () => enterChannel(live.id, lastTab.current.get(live.id))
               : undefined,
         };
 
@@ -862,6 +901,11 @@ function Root() {
       list={listPane}
       detail={showing ?? (layout === 'split' ? <NoDetailView /> : listPane)}
       swipes={swipes}
+      // Whether the pane is holding a screen or the tier it falls back to,
+      // which is the only thing `Panes` needs in order to know that something
+      // has arrived and which side it came from. A tap on a channel card and
+      // the swipe that does the same thing both come through here.
+      open={detail.kind !== 'none'}
     />
   );
 }
