@@ -458,6 +458,32 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  it('says nothing about the room from a device that is not in it', () => {
+    /*
+      **The second screen, which used to unsay what the first one said.**
+
+      `watchingHere` is a list of people and *this device is the screen* is a
+      fact about an instance, so a laptop merely holding the channel open read
+      the phone's answer as its own and disagreed with it. Each report pushed a
+      snapshot that made the other device wrong again; the flag flipped between
+      them for as long as both screens were up, and `isScreening` reads it — so
+      the phone's microphone opened and closed under a film that was playing on
+      it. The picture stuttered until the laptop was closed.
+
+      The room is present, the party is running, and somebody is watching it on
+      the device they are in it on. All of that is the other device's business.
+    */
+    showChannel(playing((s) => reduce(s, { type: 'WATCH_HERE', userId: ME, watching: true }, NOW)));
+    mockApp.standingIn = null;
+    mockApp.screenFor = null;
+    const tree = open();
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
+      type: 'WATCH_HERE',
+      watching: false,
+    });
+    act(() => tree.unmount());
+  });
+
   /*
     **Full screen, and the four ways back out of it.**
 

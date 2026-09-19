@@ -670,11 +670,34 @@ export function ChannelView({
    * and a party ending all converge on the truth without any of them having to
    * remember to. The reducer ignores a report that says what it already holds,
    * so this settles in one round trip and then says nothing.
+   *
+   * **Only from the device standing in the room, which is the whole of the
+   * protocol this used to break.** `watchingHere` is a list of *people* — the
+   * reducer keys it on `userId` — while `screenIsMine` is a fact about an
+   * instance, so a second instance of one account reading the flag reads
+   * somebody else's answer as its own. It then disagreed with it: the phone
+   * showing the film reported true, the laptop that had merely opened the
+   * channel reported false, each report pushed a snapshot that made the other
+   * one wrong again, and the two flipped the flag between them for as long as
+   * both screens were open.
+   *
+   * What that cost is not a flicker. `isScreening` in core/micNeeded.ts reads
+   * this list, so every flip opened and closed the phone's microphone —
+   * `LISTENING` to `CALL` and back, at the speed of a round trip, under a film
+   * that was playing on it. The picture stuttered for as long as the other
+   * device had the channel up, which is exactly how it was reported.
+   *
+   * `steppedIn` is the guard because it is what the wire already says:
+   * *sent only by the instance that holds this account's presence, and only
+   * about itself* — see `ChannelAction.WATCH_HERE`. A device that is not in
+   * the room has no business describing who is watching in it, and the
+   * account's departure clears the flag anyway, `watchingHere` being filtered
+   * by `present` wherever it is read.
    */
   useEffect(() => {
-    if (!partyLoaded || screenIsMine === screenSaid) return;
+    if (!partyLoaded || !steppedIn || screenIsMine === screenSaid) return;
     app.act(channelId, { type: 'WATCH_HERE', watching: screenIsMine });
-  }, [app, channelId, partyLoaded, screenIsMine, screenSaid]);
+  }, [app, channelId, partyLoaded, steppedIn, screenIsMine, screenSaid]);
 
   /**
    * **Collapses the expanded picture when there is nothing left in it.**
