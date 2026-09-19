@@ -70,6 +70,25 @@ function laggyPlayer(lag: number) {
       durationMs = seconds * 1000;
       positionMs = 1_000;
     },
+    /**
+     * The connection going away for a while.
+     *
+     * The player stops where it is and reports `buffering` until it has
+     * refilled — it does not move, so the transport's wall clock runs on
+     * without it and the drift is real rather than staged. This is the one
+     * thing a phone on a poor connection does that nothing else here models.
+     */
+    stall(ms: number) {
+      state = 'buffering';
+      want = null;
+      pending = {
+        at: Date.now() + ms,
+        run: () => {
+          state = 'playing';
+          want = 'playing';
+        },
+      };
+    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       if (pending && now >= pending.at) {
@@ -354,6 +373,58 @@ describe('an advert in the frame', () => {
 
     sim.player.advert(null);
     sim.advance(4_000);
+    expect(inStep(sim.where())).toBe(true);
+  });
+});
+
+describe('a player that cannot keep up', () => {
+  /*
+    **The stutter three phones showed on one party**, and the reason it is
+    tested here rather than in `core/`: the rule is one clause in
+    `followInstructions`, but what made it a stutter is this file's subject —
+    a fuse, a tick and a latency arranged so that the cure kept re-arming the
+    disease.
+
+    A stall is not a fault. The transport is a wall clock, so a player that
+    stops for a second is a second behind and can never win it back on its
+    own; the only repair available is a forward seek. A seek **discards the
+    buffer** and starts fetching somewhere else, so correcting a player that
+    is still refilling stalls it again — and `WATCH_OBEDIENCE_MS` brings the
+    follower back to do it once more. The picture never gets the second it
+    needs, and somebody watching sees it stop and start every second or two.
+  */
+  it('is left alone while it refills, however far behind it falls', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.player.calls.length = 0;
+
+    // Four seconds of nothing, which is past `WATCH_DRIFT_MS` and past the
+    // fuse twice over — the window in which every correction was a relapse.
+    // Stopping short of the end of it on purpose: the seek owed to a player
+    // that has *finished* refilling is the next test's subject, and it is
+    // owed.
+    sim.player.stall(4_000);
+    sim.advance(3_500);
+
+    expect(sim.player.calls).toEqual([]);
+  });
+
+  it('corrects it once, on the far side, and comes back in step', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.player.calls.length = 0;
+
+    sim.player.stall(4_000);
+    sim.advance(4_000);
+    // Playing again, and four seconds behind the channel's clock. *Now* the
+    // seek is owed, and one is enough.
+    sim.advance(3_000);
+
+    expect(sim.player.calls.filter((c) => c.startsWith('seek'))).toHaveLength(
+      1
+    );
     expect(inStep(sim.where())).toBe(true);
   });
 });

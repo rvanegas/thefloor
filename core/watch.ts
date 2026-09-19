@@ -429,9 +429,39 @@ export function followInstructions(
 
   if (want.status === 'playing') {
     const instructions: WatchInstruction[] = [];
-    if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });
-    // A buffering player is already on its way to playing and needs nothing
-    // said to it.
+    /*
+      **A buffering player is told nothing at all, the seek included.**
+
+      The `play` half of this has been true since the first follower, on the
+      reasoning that a buffering player is already on its way. The seek beside
+      it was not, and that gap is the stutter: a seek does not merely fail to
+      help a player that is refilling, it **throws away what it has
+      collected** and starts fetching somewhere else.
+
+      A player that cannot keep up therefore never gets to finish. It stalls;
+      the transport is a wall clock and runs on without it; the drift passes
+      `WATCH_DRIFT_MS`; the follower seeks; the seek discards the part-filled
+      buffer and stalls it again. The freeze somebody sees is a second of
+      refilling, and the period is however long it takes the drift to come
+      back — which is no time at all, because the seek spent it. Three phones
+      on one party showed it at a second or two apart, each one on its own.
+
+      **Falling behind is not a fault and catching up is not urgent.** The
+      cure is to let the buffer fill: say nothing while it does, and correct
+      the drift on the far side, from a player that is playing and can answer.
+      That is one seek per stall rather than one per `WATCH_OBEDIENCE_MS`, and
+      it is the difference between a picture that recovers and one that never
+      gets the chance to.
+
+      `unstarted` and `ended` are deliberately not covered. Neither is on its
+      way anywhere and neither leaves by itself — a `cued` player is how a
+      screen arrives, and waiting for it to settle would be waiting for ever.
+      The exclusion is `buffering` alone, for the same reason the wait in
+      `drive.ts` is.
+    */
+    if (adrift && player.state !== 'buffering') {
+      instructions.push({ do: 'seek', positionMs: want.positionMs });
+    }
     if (player.state !== 'playing' && player.state !== 'buffering') {
       instructions.push({ do: 'play' });
     }
