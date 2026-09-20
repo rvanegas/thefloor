@@ -743,6 +743,11 @@ export const appProviderMock = () => ({
 
 /** What the old file's `beforeEach` did. Every test file calls it in one. */
 export function resetHarness(): void {
+  // Who the app thinks it is. Reset like everything else here, because a test
+  // that renders a channel from a *guest's* side has to say so by setting it
+  // and would otherwise leave every later test in the file signed in as
+  // somebody who is not in the room.
+  mockApp.me = { id: ME, displayName: 'Me' };
   mockApp.home = null;
   mockApp.channelViews = {};
   mockApp.goneChannels = [];

@@ -639,7 +639,21 @@ export function ChannelView({
   // comment above. A channel nobody has been sent yet has no party, nobody in
   // it and no screens, which is what these answer.
   const partyLoaded = !!channel?.watch?.party;
-  const screenIsHere = app.screenFor === channelId && partyLoaded;
+  /**
+   * Whether this *account* is in the room, on this device or any other.
+   *
+   * The account's half of `steppedIn`, on its own, because the rules below
+   * need exactly this and not the per-device fact: a laptop showing the film
+   * while the phone holds the presence is not stepped in here and must go on
+   * showing it.
+   *
+   * **`inRoom` rather than `isPresent`, for the reason the roster asks it
+   * that way**: a guest is in the room without ever being in `present`, so a
+   * film gated on presence alone would be one a guest could never see — on a
+   * link somebody sent them in order to watch something together. *Nearby*
+   * and *stepped out* fail this; a guest does not, having no rung to be on.
+   */
+  const inTheRoom = !!channel && inRoom(channel, me);
   /**
    * Whether this device is the one standing in this channel.
    *
@@ -649,17 +663,32 @@ export function ChannelView({
    * also have open is *not* stepped in here. Which is exactly the question
    * *Watch on* has to answer: the film belongs on the device you are in the
    * room on.
-   */
-  /**
-   * Whether this *account* is in the room, on this device or any other.
    *
-   * The account's half of `steppedIn`, on its own, because two rules below
-   * need exactly this and not the per-device fact: a laptop showing the film
-   * while the phone holds the presence is not stepped in here and must go on
-   * showing it.
+   * A guest passes the first half by being a guest — see `inTheRoom` — which
+   * is the same standing `WATCH_HERE` is given in the reducer, `inRoom` there
+   * too. So a guest sent a link to watch something gets the film on the
+   * browser they opened it in, and reports it like anybody else.
    */
-  const presentHere = !!channel && isPresent(channel, me);
-  const steppedIn = presentHere && app.standingIn === channelId;
+  const steppedIn = inTheRoom && app.standingIn === channelId;
+  /**
+   * Whether this device is showing the party's film.
+   *
+   * **Being in the room is part of it, and is a precondition rather than a
+   * repair.** The effect below gives the role up when the account leaves, but
+   * an effect runs after a commit — so a rule written only there would mount
+   * the player for a render, load the page and take it away again, on a
+   * screen belonging to somebody who is *nearby* or *out*. Everything that
+   * draws or expands the picture reads this, so the whole of it obeys the one
+   * rule: **no film mounts, or plays, for somebody who is not in the
+   * channel.**
+   *
+   * *Nearby* is not a half-measure here. It is `waiting` rather than
+   * `present` — the rung is reachability and not attendance — so it fails
+   * this the same way stepping out does, which is what makes it an answer to
+   * *I do not want to watch this*.
+   */
+  const screenIsHere =
+    app.screenFor === channelId && partyLoaded && inTheRoom;
   const screenIsMine = screenIsHere && steppedIn;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
   /**
@@ -757,19 +786,19 @@ export function ChannelView({
    * and out are the two answers to not wanting to watch, and both of them are
    * a statement to the room rather than a silent withdrawal behind a tab.
    *
-   * **The account's presence and not this device's**, which is the whole care
-   * in this: a film handed to the laptop is being watched by a person whose
-   * phone is what holds their presence, and a rule written against
-   * `steppedIn` would take it off that laptop the moment it arrived.
+   * **The account's standing in the room and not this device's**, which is
+   * the whole care in this: a film handed to the laptop is being watched by a
+   * person whose phone is what holds their presence, and a rule written
+   * against `steppedIn` would take it off that laptop the moment it arrived.
    *
    * The server agrees rather than being told — `watchingHere` is filtered by
    * `present` wherever it is read — so this is the device doing locally what
    * the room already believes about it.
    */
   useEffect(() => {
-    if (presentHere || app.screenFor !== channelId) return;
+    if (inTheRoom || app.screenFor !== channelId) return;
     app.showScreenFor(null);
-  }, [app, channelId, presentHere]);
+  }, [app, channelId, inTheRoom]);
 
   /**
    * **The film comes up on the device you are looking at.**
@@ -839,7 +868,7 @@ export function ChannelView({
     // picture away — the effect above — so stepping back in has to be able to
     // bring it back, and a mark that outlived the departure would make the
     // second visit the one where nothing happens.
-    if (filmOn === null || !presentHere) {
+    if (filmOn === null || !inTheRoom) {
       defaulted.current = null;
       return;
     }
@@ -847,7 +876,7 @@ export function ChannelView({
     defaulted.current = filmOn;
     if (app.screenFor === channelId || screenElsewhere) return;
     app.showScreenFor(channelId);
-  }, [app, channelId, filmOn, presentHere, screenElsewhere, steppedIn]);
+  }, [app, channelId, filmOn, inTheRoom, screenElsewhere, steppedIn]);
 
   /**
    * A film playing on this screen is somebody being here.
@@ -3544,14 +3573,32 @@ export function ChannelView({
                     which is the thing somebody looking for the picture most
                     needs to read.
 
-                    It is the only refusal on this switch. The *floor* governs
-                    what the channel is attending to and has no business
-                    saying which of your own devices shows it, which is the
-                    rule the disabled transport above already asserts from the
-                    other side.
+                    The *floor* is not the other one. It governs what the
+                    channel is attending to and has no business saying which
+                    of your own devices shows a film, which is the rule the
+                    disabled transport above already asserts from the other
+                    side.
+
+                    **Being out of the room is, as of 2026-09-19.** *This
+                    device* would otherwise be a way to start a film playing
+                    at somebody who is *nearby* or *stepped out* — the two
+                    rungs that mean they do not want to watch one — and the
+                    rule that takes the picture away from them would then fire
+                    a tick later, which reads as a switch that does not work.
+                    Both halves go: with nothing of this account showing the
+                    film, there is nothing to move and no question for this to
+                    answer.
                   */
-                  disabled={watch.status === 'playing'}
+                  disabled={watch.status === 'playing' || !inTheRoom}
                 />
+                {!inTheRoom ? (
+                  // The same shape as the sentence below: beside the refused
+                  // control, saying which rung answers it.
+                  <Text style={type.muted}>
+                    Step in to watch — a film does not play for somebody who
+                    is nearby or stepped out.
+                  </Text>
+                ) : null}
                 {watch.status === 'playing' ? (
                   // Beside the refused control rather than up in a summary,
                   // which is what every disabled control here does. See

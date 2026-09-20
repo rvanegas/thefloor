@@ -1772,6 +1772,99 @@ describe('Channel', () => {
   });
 
   /*
+    **And nearby is the same answer as out**, which is the half that could be
+    mistaken for a middle. That rung is `waiting` rather than `present` —
+    reachability, not attendance — so a film neither mounts nor plays for
+    somebody on it. Asserted on the picture rather than on the role, because
+    the role is given up by an effect and an effect runs after a commit: a
+    rule written only there would load the page and take it away again.
+  */
+  it('draws no picture for somebody nearby, whatever this device was showing', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          reduce(
+            s,
+            {
+              type: 'START_WATCH',
+              userId: ME,
+              videoId: 'dQw4w9WgXcQ',
+              url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            },
+            NOW
+          ),
+          { type: 'DECLARE_NEARBY', userId: ME },
+          NOW
+        )
+      )
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    expect(tree.root.findAll((node) => node.type === WatchDock)).toHaveLength(0);
+
+    // And the switch that would put one here says which rung answers it.
+    showWatch(tree);
+    expect(tree.root.findAll((node) => node.type === WatchDock)).toHaveLength(0);
+    expect(textOf(tree)).toContain('Step in to watch');
+    act(() => tree.unmount());
+  });
+
+  /*
+    **A guest is in the room without ever being in `present`**, which is the
+    trap in writing the rule above as a presence check: a guest link is very
+    often sent in order to watch something together, and gating the picture on
+    `isPresent` would have made that the one thing the link cannot do. The
+    reducer draws the same line — `WATCH_HERE` asks `inRoom` — so this is the
+    screen agreeing with it rather than a second rule.
+  */
+  it('gives a guest the picture, having no rung to be off', () => {
+    mockApp.screenFor = 'sess_1';
+    mockApp.me = { id: 'guest_dana', displayName: 'Dana' };
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          reduce(
+            s,
+            {
+              type: 'START_WATCH',
+              userId: ME,
+              videoId: 'dQw4w9WgXcQ',
+              url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            },
+            NOW
+          ),
+          {
+            type: 'GUEST_ENTERED',
+            guest: {
+              id: 'guest_dana',
+              name: 'Dana',
+              admittedAt: NOW,
+              maySpeak: false,
+              request: 'asking',
+            },
+          },
+          NOW
+        )
+      )
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    expect(
+      tree.root.findAll((node) => node.type === WatchDock)[0]?.props.place
+    ).toBe('floating');
+    act(() => tree.unmount());
+  });
+
+  /*
     The tabs themselves: two views of one channel, one at a time, and the
     roster is the one you land on. Asserted from both directions — what each
     tab shows *and* what it hides — because a switch that renders both bodies

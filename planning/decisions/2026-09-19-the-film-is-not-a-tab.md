@@ -60,6 +60,25 @@ do you stop watching without stopping the party? — and the ladder already
 answers it. *Nearby* and *out* are the two ways of not wanting to watch, and
 both of them say so to the room instead of withdrawing behind a tab.
 
+**It is a precondition and not only a repair**, which is the correction of the
+same day: being in the room is part of what makes this device the screen, read
+where the picture is drawn rather than only in the effect that gives the role
+up. An effect runs after a commit, so a rule written only there mounts the
+player for a render — loading the page, on a screen belonging to somebody who
+has just said they do not want one. The *Watch on* switch is refused from
+outside the room for the same reason; *this device* was otherwise a way to
+start a film playing at somebody who is nearby. **And nearby is the same
+answer as out**, the half that could be mistaken for a middle: that rung is
+`waiting` rather than `present`, reachability rather than attendance.
+
+**`inRoom` and not `isPresent`**, which is the trap in writing that rule the
+obvious way: a guest is in the room without ever being in `present`, and a
+guest link is very often the one somebody sends in order to watch something
+together — so a presence check would have made that the single thing the link
+cannot do. The reducer already draws the line there, `WATCH_HERE` asking
+`inRoom`, so this is the screen agreeing with the rules rather than keeping a
+second copy of them.
+
 So this device gives up the screen role when the **account** leaves the room,
 and the mark that makes the default *once per film* is cleared with it, so
 stepping back in brings the picture back. The account and not the device is

@@ -88,7 +88,7 @@ caused; the list carries the meaning.
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
-- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle in the corner of the other five tabs, or *full screen*. Mounted for as long as this device is the *screen*, so since 2026-09-19 leaving the Watch tab no longer stops a film — going *nearby* or *out* is what does
+- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle in the corner of the other five tabs, or *full screen*. Mounted for as long as this device is the *screen*, so since 2026-09-19 leaving the Watch tab no longer stops a film — going *nearby* or *out* is what does. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device, in landscape, with the transport over it and the channel's own bar below; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -1806,6 +1806,12 @@ than hidden, so the answer goes on saying where the film is. The *floor* does
 not govern it at any point — which of your own devices shows a film is not
 what the channel is attending to.
 
+**And refused from outside the room, since 2026-09-19.** *This device* would
+otherwise be a way to start a film playing at somebody who is *nearby* or
+*stepped out*, which are the two rungs that mean they do not want to watch
+one. Both halves go rather than the one: with nothing of this account showing
+the film, there is nothing to move and no question for the switch to answer.
+
 **The chosen answer is the same fact on every device, said in each one's own
 terms.** Hand the film to the laptop and the laptop shows *this device* while
 the phone shows *other device*: both are describing where the film is. The
@@ -1828,6 +1834,19 @@ element in two styles rather than two renders in two branches of the screen.
 The one exception is full screen, which replaces the screen and does mount its
 own; that costs a few seconds of black to the person who pressed it, and it is
 written down where it is paid.
+
+**Nobody outside the room gets one.** Being in the room is part of what makes
+this device the *screen*, checked where the picture is drawn rather than only
+in the rule that gives the role up — an effect runs after a commit, so a rule
+written only there would load the page and take it away again. *Nearby* fails
+it exactly as *out* does: that rung is reachability rather than attendance,
+which is what makes it an answer to *I do not want to watch this*.
+
+**In the room rather than *present*, which is the distinction that matters
+here**: a *guest* is in the room without ever being in `present`, and a guest
+link is very often the one sent in order to watch something together. The
+reducer draws the line the same way — `WATCH_HERE` asks `inRoom` — so the
+screen is agreeing with it rather than keeping a second rule.
 
 **The tab decides where it is, not whether it exists**, and that is the whole
 of the 2026-09-19 change. It was a child of the *Watch* tab's card until then,
