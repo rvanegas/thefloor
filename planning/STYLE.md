@@ -32,7 +32,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, split panes, the one screen that overlays its chrome |
+| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states, when a refused control is greyed and when it is removed |
@@ -947,6 +947,36 @@ not tidiness. *Two columns when the controls would not otherwise fit* is a rule
 whose answer changes what it measured — two columns shrink the picture, the
 picture fits in one column again, and the layout flips under a finger for ever.
 The body's height is the pane's less the chrome, and no picture changes it.
+
+### The second device draws a screen of its own
+
+**A watch party can be spread across two instances of one account**, and since
+2026-09-20 the one holding the film draws neither the channel screen nor a tab
+of it. See GLOSSARY § *First device / second device*, which is the rule; this
+is what it looks like.
+
+It is an ordinary `Screen` and takes the three slots the way everything else
+does — there is nothing novel in its shape, which is the point:
+
+- **Header:** the kind (*Watching*), the channel's name, and `Home`. No
+  settings gear, no recording pill, no tab strip.
+- **Aside:** a `DockSlot`, with the same `watchShapeFor` answer and the same
+  `asidePlace` the *Watch* tab passes — so the film is the same size in the
+  same place on both devices, and moving between them moves nothing.
+- **Body:** the transport, *Full screen*, and one muted sentence saying where
+  the rest of the controls are.
+- **Footer:** the three rungs and nothing else.
+
+**Three footer slots rather than four does not bend rule 6.** That rule is that
+a control never moves under a thumb already on its way to it, across every
+state *one screen* can be in — and this bar is three rungs in all of them,
+each still `flex: 1`. A screen with a footer of its own is not the channel's
+footer changing shape; Home has no footer at all.
+
+**The sentence is a readout and earns its place the way § *The cards a footer
+made redundant* asks.** It repeats no control. What it says is why a screen
+somebody is looking at has almost nothing on it, which is not guessable from
+the absence itself.
 
 ### The expanded picture, which is where a pinned row goes over the body
 

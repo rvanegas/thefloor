@@ -1,1 +1,0 @@
-# Second Device, Different Chrome

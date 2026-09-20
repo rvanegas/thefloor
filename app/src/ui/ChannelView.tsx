@@ -721,6 +721,39 @@ export function ChannelView({
   const screenIsHere =
     app.screenFor === channelId && partyLoaded && inTheRoom;
   const screenIsMine = screenIsHere && steppedIn;
+  /**
+   * **Whether this is the party's *second device*, which is a whole screen.**
+   *
+   * A party can be spread across two instances of one account, and when it is
+   * they are not interchangeable: one holds the room — the presence, the
+   * microphone, the floor — and the other holds the film. The first is the
+   * remote control and the second is the television. `screenIsMine` is the
+   * single-device case, both roles on one instance, and this is the other one:
+   * the screen, with the room somewhere else.
+   *
+   * **It replaces the channel screen rather than sitting on a tab of it.**
+   * Until 2026-09-20 the second device drew the whole of the channel — six
+   * tabs, the roster, the floor, *Watch on*, *Stop watching*, the field for
+   * swapping the video — with the film docked on the sixth of them. So every
+   * control of the party existed twice, in two places, on two devices, and
+   * the one thing a television is for was one tab in.
+   *
+   * What is drawn instead is the film and the controls that are about the
+   * film: the transport and *Full screen*, which is what somebody sitting in
+   * front of it reaches for. Everything else stays on the device holding the
+   * room, which is where the person is.
+   *
+   * **The three rungs are the exception, and they are the exception for a
+   * mechanical reason rather than a tasteful one.** *In* on this device is
+   * what makes it the first one, and *Nearby* and *Out* are what end the
+   * film. Without them a second device could neither take the room nor give
+   * the picture back, and the switch that put the film here lives on the
+   * other device — so this state would be one nothing on this screen could
+   * leave.
+   *
+   * See `planning/decisions/2026-09-20-the-second-device-is-a-television.md`.
+   */
+  const secondDevice = screenIsHere && !steppedIn;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
   /**
    * Whether the film is on one of this account's *other* devices.
@@ -869,7 +902,18 @@ export function ChannelView({
    * the whole of the film rather than only on the way in.
    */
   const atTheFilm =
-    tab === 'watch' &&
+    /*
+      **The *Watch* tab, or the second device, which has no tabs at all.**
+
+      The tab was the whole of this term until 2026-09-20, and on a second
+      device it is a question about a switch that is not drawn: that screen is
+      the film and its transport and nothing else, so *which of six* has no
+      answer there and the default one — *Members* — is the answer `tab`
+      happens to hold. Left as it was, a laptop showing the film could not be
+      expanded and a phone showing it could not be turned, on the one surface
+      whose entire purpose is the picture.
+    */
+    (tab === 'watch' || secondDevice) &&
     partyLoaded &&
     screenIsHere &&
     !filmRefused &&
@@ -2125,46 +2169,20 @@ export function ChannelView({
     becomes "Release", nor the door when a rung changes the word beside it. **Stability of position is the rule; reach was
     only ever the reason a phone had for wanting it.**
   */
-  const footer = (
-    <View style={styles.footer}>
-      <View style={styles.footerInner}>
-      <FooterAction
-        label={iAmSelfMuted ? 'Unmute' : 'Mute'}
-        hint={
-          noInput
-            ? 'This device has no microphone'
-            : iAmSelfMuted
-              ? 'Your microphone is muted'
-              : 'Your microphone is open'
-        }
-        icon={(color) => <MicIcon color={color} muted={iAmSelfMuted} />}
-        // The same guard the card's button uses. Holding the floor is holding
-        // it open to speak, and the reducer refuses the mute either way. A
-        // device with no input is disabled on top of that: there is nothing to
-        // unmute, and the control would otherwise promise one.
-        disabled={
-          noInput || !iAmPresent || !canSetSelfMute(channel, me, !iAmSelfMuted)
-        }
-        // Being force-muted by somebody else's claim is not the same state as
-        // muting yourself, and it is the one worth colouring: the microphone
-        // is shut and you did not shut it.
-        tone={iAmSilenced ? 'silenced' : iAmSelfMuted ? 'active' : 'idle'}
-        onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
-      />
-      <FooterAction
-        label={iHoldFloor ? 'Release' : 'Claim'}
-        hint={iHoldFloor ? 'You have the floor' : 'Claim the floor'}
-        icon={(color) => <FloorIcon color={color} />}
-        disabled={!iHoldFloor && !claimable}
-        tone={iHoldFloor ? 'active' : 'idle'}
-        onPress={() => {
-          // The checklist's `floor` rung, ticked on the claim and not on the
-          // release: claiming is the thing somebody has to be shown once, and
-          // releasing is what anybody who has claimed will do next anyway.
-          if (!iHoldFloor) app.markTried('floor');
-          act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' });
-        }}
-      />
+  /**
+   * **The three rungs, which are one slot each and are drawn in two places.**
+   *
+   * The channel's own footer has them after the microphone and the floor, and
+   * the second device's footer has them and nothing else — the same elements
+   * rather than two sets that must be kept in step, for the reason
+   * {@link watchTransport} is one row: a rung that learnt something in one of
+   * them and not the other is the drift this extraction exists to prevent.
+   *
+   * **Only one of the two footers is ever mounted**, the second device being
+   * an early return, so there is no question of these appearing twice.
+   */
+  const rungs = (
+    <>
       {/*
         The ladder itself, one slot per rung, in its own order: in, nearby,
         out. **Three slots rather than two**, since 2026-09-09, replacing the
@@ -2252,6 +2270,50 @@ export function ChannelView({
         // one answer for the footer and the card alike.
         onPress={stepOut}
       />
+    </>
+  );
+
+  const footer = (
+    <View style={styles.footer}>
+      <View style={styles.footerInner}>
+      <FooterAction
+        label={iAmSelfMuted ? 'Unmute' : 'Mute'}
+        hint={
+          noInput
+            ? 'This device has no microphone'
+            : iAmSelfMuted
+              ? 'Your microphone is muted'
+              : 'Your microphone is open'
+        }
+        icon={(color) => <MicIcon color={color} muted={iAmSelfMuted} />}
+        // The same guard the card's button uses. Holding the floor is holding
+        // it open to speak, and the reducer refuses the mute either way. A
+        // device with no input is disabled on top of that: there is nothing to
+        // unmute, and the control would otherwise promise one.
+        disabled={
+          noInput || !iAmPresent || !canSetSelfMute(channel, me, !iAmSelfMuted)
+        }
+        // Being force-muted by somebody else's claim is not the same state as
+        // muting yourself, and it is the one worth colouring: the microphone
+        // is shut and you did not shut it.
+        tone={iAmSilenced ? 'silenced' : iAmSelfMuted ? 'active' : 'idle'}
+        onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
+      />
+      <FooterAction
+        label={iHoldFloor ? 'Release' : 'Claim'}
+        hint={iHoldFloor ? 'You have the floor' : 'Claim the floor'}
+        icon={(color) => <FloorIcon color={color} />}
+        disabled={!iHoldFloor && !claimable}
+        tone={iHoldFloor ? 'active' : 'idle'}
+        onPress={() => {
+          // The checklist's `floor` rung, ticked on the claim and not on the
+          // release: claiming is the thing somebody has to be shown once, and
+          // releasing is what anybody who has claimed will do next anyway.
+          if (!iHoldFloor) app.markTried('floor');
+          act({ type: iHoldFloor ? 'RELEASE_FLOOR' : 'CLAIM_FLOOR' });
+        }}
+      />
+      {rungs}
       </View>
     </View>
   );
@@ -2481,6 +2543,118 @@ export function ChannelView({
           />
         }
       />
+    );
+  }
+
+  /*
+    **The second device, which is a television and is drawn as one.**
+
+    An early return, the same shape as the one above it and as the settings,
+    the profile and the transcript: this codebase replaces a screen rather
+    than putting a layer over it, and there is no `Modal` in the application
+    at all.
+
+    **Everything on it is about the film.** The transport — the scrubber, the
+    two fifteen-second seeks and play/pause — and *Full screen*, and the three
+    rungs in the footer. What is deliberately not here is every other control
+    of the party: *Watch on*, *Stop watching*, the field that swaps the video,
+    the room's mute, the share links, and the five other tabs with the roster
+    and the floor and the microphone on them. Those all stayed where the
+    person is, which is the device holding the room — and the whole of the
+    reason a party has two devices is that the film is not there.
+
+    **The rungs are the exception and are the way out of this state.** *In*
+    takes the room, which makes this the first device and hands back the
+    ordinary channel screen a render later; *Nearby* and *Out* both leave the
+    room, which gives up the screen role and stops the film. Nothing else on
+    this screen can reach any of the three, and the switch that sent the film
+    here is on the other device — see {@link secondDevice}.
+
+    **The header keeps *Home* and loses everything else.** A way off a screen
+    is navigation rather than a control, and without one the second device
+    would be an application that cannot be used for anything else until
+    somebody stops watching. Pressing it leaves the picture floating in the
+    corner exactly as it does from the *Watch* tab — `watch/Picture.tsx` — and
+    a tap on the corner comes back here. The settings gear is a channel
+    control and is not drawn; so is the recording pill, which is a fact about
+    the room rather than about the film.
+
+    **The hole, not the player.** `DockSlot` reserves the height and reports
+    where it landed, and the one `WebView` above the route table lays itself
+    over it — mounting a second player here would be two pages, two buffers
+    and two sets of audio on one party. Same slot, same two shapes, same
+    arithmetic as the *Watch* tab's; see `watchShapeFor`.
+  */
+  if (secondDevice && party) {
+    return (
+      <Screen
+        header={
+          <View style={styles.header}>
+            <View style={styles.headerInner}>
+              <View style={styles.headerTop}>
+                <View style={styles.headerMain}>
+                  <Text style={styles.headerKind}>Watching</Text>
+                  <Text style={styles.otherName} numberOfLines={1}>
+                    {channel.name ?? derivedTitle}
+                  </Text>
+                </View>
+                <View style={styles.headerActions}>
+                  <IconButton
+                    label="Home"
+                    icon={(color) => <HomeIcon color={color} />}
+                    onPress={() => {
+                      app.recordNav('home');
+                      onClose();
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+        }
+        /*
+          **Three slots rather than four, which does not bend the footer's
+          rule.** That rule is that a control never moves under a thumb
+          already on its way to it, and it is about one bar on one screen
+          across every state that screen can be in — this bar is three rungs
+          in all of them. A screen with its own footer is not the channel's
+          footer changing shape: Home has none at all.
+        */
+        footer={
+          <View style={styles.footer}>
+            <View style={styles.footerInner}>{rungs}</View>
+          </View>
+        }
+        aside={<DockSlot />}
+        asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
+        contentStyle={styles.secondDeviceBody}
+      >
+        {watchTransport}
+        {/*
+          Ungated by the floor, like the one on the watch card and unlike the
+          transport beside it: how big the film is on this device is nobody
+          else's business and nothing about it reaches the channel.
+        */}
+        <Button label="Full screen" onPress={() => setPressedFullScreen(true)} />
+        {/*
+          The one sentence on the screen, and it is here because the state is
+          not self-evident: a device showing a film with almost nothing beside
+          it has to say where the rest of the controls went. It names the
+          other device rather than listing what is missing — and it is a
+          readout, so § *The cards a footer made redundant* has no claim on
+          it: it repeats no control on this screen or any other.
+
+          **No *room* in it**, which is the one word it wanted and may not
+          have: the interface never calls a channel that, the media layer's
+          `Room` being LiveKit's noun for a LiveKit thing. See
+          `planning/decisions/README.md` § *On vocabulary*.
+        */}
+        <Text style={type.muted}>
+          The film is on this device. Everything else about the channel — who
+          is here, the floor, your microphone — is on the device you stepped in
+          on.
+        </Text>
+      </Screen>
     );
   }
 
@@ -5148,6 +5322,20 @@ const styles = StyleSheet.create({
   // truncates against is that column's, which the row constrains.
   otherName: { fontSize: 20, fontWeight: '700', color: colors.text },
   container: { padding: spacing(2), paddingBottom: spacing(2) },
+  /**
+   * The second device's body, which is not a stack of cards and so needs the
+   * gap the cards would otherwise have brought with them.
+   *
+   * The same padding as {@link container}, deliberately: the transport lines
+   * up with the cards on the *Watch* tab, and the picture above it is the same
+   * hole measured the same way, so moving between the two devices does not
+   * move the film or its controls.
+   */
+  secondDeviceBody: {
+    padding: spacing(2),
+    paddingBottom: spacing(2),
+    gap: spacing(1.5),
+  },
   /**
    * The getting-started card. `gap` rather than margins between its three
    * children, and the dismissal pushed to the end of its own row so it sits

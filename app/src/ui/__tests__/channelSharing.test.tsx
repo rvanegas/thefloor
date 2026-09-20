@@ -1469,6 +1469,135 @@ describe('Channel, watching together', () => {
     });
   });
 
+  /**
+   * **The second device, which is a television and not a channel screen.**
+   *
+   * Two instances of one account, and the party split across them: the film
+   * on this one, the room on the other. Until 2026-09-20 this device drew the
+   * whole channel with the film docked on the sixth tab, so every control of
+   * the party existed twice on two devices; it draws the film, the transport,
+   * *Full screen* and the three rungs now, and that is the whole of it.
+   *
+   * **`standingIn` is the variable and it is the only one.** `showChannel`
+   * sets it whenever ME is present, which is the single-device case every
+   * other test in this file is about — so what makes a device the second one
+   * is clearing it afterwards, leaving the account in the room by way of some
+   * other instance.
+   *
+   * **Not the follower page**, which is the other thing conversation calls a
+   * second screen: `follow()` in `server/src/watch-page.ts`, the script a
+   * guest browser runs, is untouched by any of this and still has the backlog
+   * entry saying it has no test.
+   */
+  describe('the second device', () => {
+    /** The screen here, the room elsewhere, which is the whole of the state. */
+    function asSecondDevice(state = watching()) {
+      showChannel(state);
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      // `openOnMembers` rather than `open`: there is no tab strip to tap, and
+      // `showWatch` would throw — which is itself asserted below.
+      return openOnMembers();
+    }
+
+    it('draws the film\u2019s controls and nothing else of the party', () => {
+      const tree = asSecondDevice();
+      // The transport, which is the same row the watch card has.
+      expect(findButton(tree, 'Play')).toBeDefined();
+      expect(findButton(tree, '\u221215s')).toBeDefined();
+      expect(findButton(tree, '+15s')).toBeDefined();
+      expect(findButton(tree, 'Full screen')).toBeDefined();
+      /*
+        And none of the party's other controls, all of which belong to the
+        device holding the room. *Watch on* is the one that would be actively
+        wrong here: the switch that sent the film to this device is on the
+        other one, and a second copy of it pointing at itself is the remote
+        control being in two places.
+      */
+      expect(findChoice(tree, 'This device')).toBeUndefined();
+      expect(findChoice(tree, 'Other device')).toBeUndefined();
+      expect(findButton(tree, 'Stop')).toBeUndefined();
+      expect(findButton(tree, 'Change video')).toBeUndefined();
+      expect(findButton(tree, 'Settings')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('offers no tabs, the five other ones not being the film', () => {
+      const tree = asSecondDevice();
+      expect(findTab(tree, 'Watch')).toBeUndefined();
+      expect(findTab(tree, 'Members')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('keeps the three rungs, which are how this state is left', () => {
+      /*
+        The exception, and it is mechanical rather than tasteful: *In* is what
+        makes this the first device, and *Nearby* and *Out* are what end the
+        film. Take them away and a second device can neither take the room nor
+        give the picture back, and nothing on the screen reaches the switch
+        that sent it here.
+      */
+      const tree = asSecondDevice();
+      expect(findButton(tree, 'In')).toBeDefined();
+      expect(findButton(tree, 'Nearby')).toBeDefined();
+      expect(findButton(tree, 'Out')).toBeDefined();
+      // And not the other two, which are about the room rather than the film.
+      expect(findButton(tree, 'Mute')).toBeUndefined();
+      expect(findButton(tree, 'Claim')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('steps in from the rung, which is what swaps the two devices', () => {
+      const tree = asSecondDevice();
+      act(() => findButton(tree, 'In')!.props.onPress());
+      expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'ENTER' });
+      act(() => tree.unmount());
+    });
+
+    it('leaves the rest of the app reachable by way of Home', () => {
+      // Without it the second device is an application that cannot be used
+      // for anything else until somebody stops watching. Pressing it leaves
+      // the film floating in the corner, as it does from the *Watch* tab.
+      const tree = asSecondDevice();
+      expect(findButton(tree, 'Home')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    it('expands, there being no Watch tab left to gate that on', () => {
+      /*
+        `atTheFilm` was `tab === 'watch'` and everything else, and on a screen
+        with no tab strip the tab is whichever one `tab` happens to hold —
+        *Members*. So the one surface whose entire purpose is the picture was
+        the one that could not expand it.
+      */
+      const tree = asSecondDevice();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      act(() =>
+        tree.update(<ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />)
+      );
+      expect(findButton(tree, 'Exit full screen')).toBeDefined();
+      // Expanded, the rungs go with everything else: the scrim is the
+      // transport and the way out, which is what 2026-09-20 settled.
+      expect(findButton(tree, 'Nearby')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('is the ordinary channel screen once the room is on this device too', () => {
+      // The single-device case, which is what every other test here is, and
+      // the state pressing *In* above arrives at.
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const tree = openOnMembers();
+      expect(findTab(tree, 'Watch')).toBeDefined();
+      act(() => tree.unmount());
+    });
+  });
+
 });
 
 describe('the channel clipboard', () => {
