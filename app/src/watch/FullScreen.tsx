@@ -11,11 +11,7 @@ import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
 import { isTap } from './Dock';
-import { useLandscapeWhile } from './orientation';
-
-/** How far a finger has to have travelled down for a release to be a swipe. */
-export const swipeCompleted = (gesture: { dy: number }): boolean =>
-  gesture.dy > 80;
+import { returnToPortrait } from './orientation';
 
 /**
  * How long the chrome stays up with nothing being pressed.
@@ -42,24 +38,30 @@ const FADE_MS = 200;
  * something this application does to its own layout, and nothing about it is
  * asked of the player.
  *
- * **Which means the way out is ours to draw as well.** There is no `esc` on a
- * phone and no system full-screen to escape from, so a person who cannot find
- * the control we drew has no second way of leaving. That is the whole design
- * of this component, and it is why there are four ways out of it rather than
- * one:
+ * ## Since 2026-09-19 nothing is pressed to get in or out of it
  *
- * - **The button**, in the chrome, saying the words. Not a glyph: the exit
- *   from a state with no other exit is not the place to be teaching a shape,
- *   and the accessibility label of an icon is no help to somebody looking at
- *   the screen.
- * - **A swipe down** over the picture, which is what the gesture means
- *   everywhere else on the phone — and which is the way out that does not
- *   depend on the chrome being up.
- * - **A tap**, which brings the chrome back from anywhere on the picture.
- * - **The exits nobody presses**, which are the caller's: the party stopping,
- *   the film being refused, the picture moving to another device. See
- *   `ChannelView`, which collapses this rather than leaving somebody holding a
- *   black rectangle with nothing on it.
+ * **The phone is the control.** This state is entered by turning the phone
+ * sideways on the *Watch* tab and left by turning it upright; `ChannelView`
+ * derives it from the shape of the window and mounts this, and there is no
+ * flag anybody sets. What that removes is the pair of controls that used to
+ * say what the glass already said — a *Full screen* button on the card and an
+ * *Exit full screen* button over the picture — and with them the bug that made
+ * the change worth making: the expanded state locked the phone sideways, and
+ * collapsing released the lock, so somebody who exited while still holding the
+ * phone sideways got the channel screen sideways and nothing to say otherwise
+ * with.
+ *
+ * **Which leaves exactly one control here, and it is about the hardware rather
+ * than about this state.** *Back to portrait* turns the interface upright —
+ * {@link returnToPortrait} — and the picture collapses because the window
+ * changed shape, not because a button said so. It is the way out for somebody
+ * lying down, or holding the phone flat on a table, or anywhere else the
+ * accelerometer will not help them.
+ *
+ * The exits nobody presses are unchanged and are the caller's: the party
+ * stopping, the film being refused, the picture moving to another device. See
+ * `ChannelView`, which stops deriving this rather than leaving somebody
+ * holding a black rectangle.
  *
  * ## The chrome fades, which it did not until 2026-09-19
  *
@@ -79,17 +81,16 @@ const FADE_MS = 200;
  * down**: somebody arriving in this state is shown the way out of it before it
  * goes, so the exit is learnt and then hidden rather than never seen.
  *
- * And the reason the original worry is survivable is the swipe. It is the one
- * way out that never depended on the chrome, it is the gesture this phone uses
- * for dismissing everything else, and it is unchanged. The film has no
- * controls of its own to compete with a touch — YouTube's bar is off — so
- * there is no ambiguity about what a tap on the picture means.
+ * And the reason the original worry is survivable is that the way out is no
+ * longer a control at all. Somebody who never finds the button turns the phone
+ * upright, which is what they would do with any other film on any other phone.
+ * The film has no controls of its own to compete with a touch — YouTube's bar
+ * is off — so there is no ambiguity about what a tap on the picture means.
  */
 export function FullScreen({
   picture,
   chrome,
   footer,
-  onCollapse,
 }: {
   /** The player, which fills whatever it is given. */
   picture: React.ReactNode;
@@ -104,15 +105,13 @@ export function FullScreen({
    * bar that is permanently there is a fifth of the film.
    */
   footer: React.ReactNode;
-  onCollapse: () => void;
 }): React.ReactElement {
-  useLandscapeWhile(true);
   /*
-    And the window, for as long as this is up.
+    The window, for as long as this is up.
 
-    **The turn sideways is what makes this necessary.** An iPhone on its side
-    is wider than `SPLIT_AT`, so without this the rotation that was meant to
-    give the film the glass puts Home back beside it and leaves the picture
+    **The phone being sideways is what makes this necessary.** An iPhone on its
+    side is wider than `SPLIT_AT`, so without this the rotation that is meant
+    to give the film the glass puts Home back beside it and leaves the picture
     smaller than it was in portrait — which is the thing this state exists to
     prevent, arriving by the other door. See `WholeWindowContext`.
   */
@@ -150,27 +149,24 @@ export function FullScreen({
   }, [shown, fade, arm]);
 
   /**
-   * The touch surface over the picture, which is now two gestures rather than
-   * one.
+   * The touch surface over the picture, which is one gesture now rather than
+   * two.
    *
-   * It claims on the **start** and no longer only on a downward move: a tap on
-   * the picture is a control now — it is how the chrome comes back — so this
-   * surface has to be offered every touch rather than only the ones that are
-   * already travelling. Nothing is taken away by that: the frame beneath
-   * answers no touch at all, `WatchPlayer` making it inert wherever there is
-   * nothing on it to press, and the chrome is drawn above this rather than
-   * below it.
+   * A swipe down used to be the way out, back when leaving was something this
+   * component did to a flag. Leaving is a rotation now, so the gesture had
+   * nothing left to mean and is gone — and a tap is all this surface tells
+   * apart: it is how the chrome comes back, and a drag that travels is a
+   * finger that changed its mind and correctly does nothing.
    *
-   * What the release does is decide which of the two it was — far enough down
-   * is the way out, barely anywhere is the tap — and a drag that is neither is
-   * a finger that changed its mind, which correctly does nothing.
+   * It claims on the **start** rather than on a move, since every touch here is
+   * a candidate. Nothing is taken away by that: the frame beneath answers no
+   * touch at all, `WatchPlayer` making it inert wherever there is nothing on it
+   * to press, and the chrome is drawn above this rather than below it.
    *
    * `PanResponder` rather than `react-native-gesture-handler`, which this app
-   * does not carry and which these two gestures are not worth adding.
+   * does not carry and which this one gesture is not worth adding.
    */
-  const collapse = useRef(onCollapse);
-  collapse.current = onCollapse;
-  const swipe = useMemo(
+  const touch = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
@@ -178,10 +174,6 @@ export function FullScreen({
           _event: GestureResponderEvent,
           gesture: PanResponderGestureState
         ) => {
-          if (swipeCompleted(gesture)) {
-            collapse.current();
-            return;
-          }
           if (isTap(gesture)) setShown((was) => !was);
         },
       }),
@@ -208,7 +200,7 @@ export function FullScreen({
         <View
           style={StyleSheet.absoluteFill}
           pointerEvents="box-only"
-          {...swipe.panHandlers}
+          {...touch.panHandlers}
         />
         {/*
           Inert while it is down, so that a tap aimed at bringing it back is
@@ -222,7 +214,15 @@ export function FullScreen({
           pointerEvents={shown ? 'box-none' : 'none'}
         >
           {chrome}
-          <Button label="Exit full screen" onPress={onCollapse} />
+          {/*
+            Words rather than a glyph, for the reason the exit used to be: this
+            is the way out for somebody the accelerometer cannot help, and it is
+            not the place to be teaching a shape. It says what it does to the
+            phone rather than what it does to the picture — the picture
+            collapsing is a consequence of the turn, and a button promising to
+            collapse it would be naming the wrong half of what happens.
+          */}
+          <Button label="Back to portrait" onPress={returnToPortrait} />
           {footer}
         </Animated.View>
       </View>

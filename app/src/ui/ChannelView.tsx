@@ -89,6 +89,7 @@ import {
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
 import { DockSlot, usePicture } from '../watch/Picture';
+import { useIsLandscape } from '../watch/orientation';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -554,15 +555,20 @@ export function ChannelView({
    */
   const [changing, setChanging] = useState(false);
   /**
-   * Whether the picture has been expanded to fill this device.
+   * Whether the picture is filling this device.
    *
-   * **Local to one device and to one session of it**, like `changing` above
-   * and unlike everything else on this card: how big the film is on somebody's
+   * **Local to one device and to one moment of it**, like `changing` above and
+   * unlike everything else on this card: how big the film is on somebody's
    * phone is not a fact about the party, and a channel that carried it would be
    * one where standing up to fetch a drink resized four other people's screens.
-   * It is not in `core`, not in a snapshot, and deliberately not remembered
-   * across a screen being closed — a person who comes back to a channel comes
-   * back to the card, where the rest of it is.
+   * It is not in `core` and not in a snapshot.
+   *
+   * **And since 2026-09-19 nobody sets it** — it is derived from the shape of
+   * the window, below. Turning the phone sideways on *Watch* is what expands
+   * the picture and turning it upright is what collapses it; the *Full screen*
+   * and *Exit full screen* buttons are both gone, and so is the landscape lock
+   * that used to make exiting sideways hand back a sideways channel screen.
+   * See `watch/orientation.ts`.
    */
   /*
     **Held by the picture rather than here, since the picture outlives this
@@ -752,29 +758,49 @@ export function ChannelView({
   }, [app, channelId, partyLoaded, steppedIn, screenIsMine, screenSaid]);
 
   /**
-   * **Collapses the expanded picture when there is nothing left in it.**
+   * **Sideways on *Watch* is full screen, and nothing else is.**
    *
-   * Full screen is a state with no chrome but its own, so the three ways it
-   * can be emptied out from underneath somebody all end with a black
-   * rectangle and two controls that no longer do anything: the party stopping,
-   * the film moving to another device, and YouTube refusing to play it. None
-   * of the three is something the person expanding the picture did, and none
-   * of them is announced by anything they can see from inside it.
+   * The whole of the rule, in one expression, which is the point of writing it
+   * this way: there is no press that opens this state and none that closes it,
+   * so there is no path by which the flag and the glass can end up saying
+   * different things. Turn the phone and the picture follows.
    *
-   * So the collapse is automatic and lands them back on the card, which has
-   * the rest of the channel around it — the Stop that ended the party, the
-   * switch that moved the screen, and the refusal in words. The two ways out
-   * they press are `FullScreen`'s; these are the ones they never asked for.
+   * Every term after the first is a way of having nothing to expand, and each
+   * one used to need its own collapse:
+   *
+   * - **The *Watch* tab**, because the other five tabs are not the film. A
+   *   phone turned sideways on *Members* is a sideways roster, which is what
+   *   an app with `orientation: "default"` is supposed to give.
+   * - **A party, screening here, playable** — the three ways the state could
+   *   be emptied out from underneath somebody, all of which ended in a black
+   *   rectangle with controls over it that no longer did anything: the party
+   *   stopping, the film moving to another device, and YouTube refusing to
+   *   play it. None of the three is something the person watching did, and
+   *   none is announced by anything visible from inside the picture. Falling
+   *   out of full screen lands them on the card, where the Stop, the switch
+   *   and the refusal in words all are.
+   * - **Nothing else covering the channel.** The settings, a profile and a
+   *   transcript are early returns above this one and would still be showing;
+   *   expanding underneath them would take the corner player down for a film
+   *   nobody could see.
    *
    * Above the early returns with its siblings, so it reads the channel
    * directly rather than the derived constants further down. See the block
    * comment above.
    */
+  const landscape = useIsLandscape();
+  const wantsFullScreen =
+    landscape &&
+    tab === 'watch' &&
+    partyLoaded &&
+    screenIsHere &&
+    !filmRefused &&
+    !settingsOpen &&
+    !viewing &&
+    !transcriptFor;
   useEffect(() => {
-    if (!fullScreen) return;
-    if (partyLoaded && screenIsHere && !filmRefused) return;
-    setFullScreen(false);
-  }, [fullScreen, partyLoaded, screenIsHere, filmRefused, setFullScreen]);
+    if (fullScreen !== wantsFullScreen) setFullScreen(wantsFullScreen);
+  }, [fullScreen, wantsFullScreen, setFullScreen]);
 
   /*
     And collapsed when this screen goes, which is the one exit the effect above
@@ -2284,7 +2310,6 @@ export function ChannelView({
   if (fullScreen && party && screeningHere) {
     return (
       <FullScreen
-        onCollapse={() => setFullScreen(false)}
         chrome={watchTransport}
         footer={footer}
         picture={
@@ -3362,35 +3387,26 @@ export function ChannelView({
                 */}
                 {watchTransport}
                 {/*
-                  **Full screen, which has to be the app's control now.**
+                  **There is no *Full screen* button here, and that is the
+                  design rather than an omission.**
 
-                  YouTube's own bar carried this button, and the bar went on
-                  2026-09-18 — see `WatchPlayer`, which has the whole of why.
-                  Nothing gives it back from inside the player: the IFrame API
-                  has no method for it, and the browser's `requestFullscreen`
-                  needs a `WKWebView` preference `react-native-webview` does
-                  not set. So expanding the picture is something this
-                  application does to its own layout, and `FullScreen` is the
-                  layout.
+                  It stood here until 2026-09-19 and did what the phone was
+                  already able to say: turning the device sideways on this tab
+                  expands the picture now, and turning it upright collapses it
+                  — see the derivation above and `watch/orientation.ts`. What
+                  went with it is the pair of states that could disagree. The
+                  old control locked the phone into landscape for as long as it
+                  was up, and exiting released the lock, so somebody who
+                  pressed *Exit full screen* while still holding the phone
+                  sideways got the channel screen sideways with nothing to say
+                  otherwise with.
 
-                  **On the device showing the film and nowhere else.** A phone
-                  that handed the picture to the laptop still drives the party
-                  from the row above — that is what makes the transport worth
-                  having on every device — but it has no picture to expand,
-                  and a control that filled the screen with black would be
-                  offering the film to whoever has the fewest reasons to want
-                  it.
-
-                  Not gated on the floor. Nothing about how big the film is on
-                  one person's phone is the channel's business, which is the
-                  same reasoning that keeps *Watch on* ungated.
+                  Nothing replaces it on a device that is not showing the film.
+                  A phone that handed the picture to the laptop still drives
+                  the party from the transport above — which is what makes that
+                  row worth having everywhere — and has no picture of its own
+                  to expand, so turning it sideways is a sideways card.
                 */}
-                {screeningHere ? (
-                  <Button
-                    label="Full screen"
-                    onPress={() => setFullScreen(true)}
-                  />
-                ) : null}
                 {/*
                   Muting the room, which is a different act from muting yourself
                   and says so. Watching something together is mostly not talking,

@@ -918,15 +918,24 @@ thing the state is for: a bar that is permanently there is a fifth of the
 film, and the picture fitted into the rest is well short of the glass. They
 now go after three seconds of nothing being pressed and come back at a touch
 anywhere, which is the gesture every other player on this phone has taught
-already; they start up, so the exit is seen before it goes; and the swipe down
-— the way out that never depended on anything being drawn — is what makes it
-safe. See `watch/FullScreen.tsx`, which carries the reversal in full.
+already, and they start up, so what is there is seen before it goes. See
+`watch/FullScreen.tsx`, which carries the reversal in full.
 
-**One thing there is still deliberate.** The way out is a `Button` with its
-word on it rather than an `IconButton`, against § *Icons*' licence for a
-header glyph: an icon is findable once it has been learnt, and the only exit
-from a state somebody may not know they can leave is not where they learn
-one.
+**What makes that safe is that the state is not entered or left by a control
+at all, since 2026-09-19.** Turning the phone sideways on *Watch* is what
+expands the picture and turning it upright is what collapses it —
+`watch/orientation.ts` — so a person who never finds a button does what they
+would do with any other film on any other phone. The *Full screen* button on
+the card and the *Exit full screen* button over the picture are both gone, and
+so is the swipe down that was the third way out.
+
+**The one control left is deliberate in the same way the exit was.** *Back to
+portrait* turns the interface upright for somebody the accelerometer cannot
+help, and it is a `Button` with its word on it rather than an `IconButton`,
+against § *Icons*' licence for a header glyph: an icon is findable once it has
+been learnt, and the way out of a state somebody may not know they can leave is
+not where they learn one. It names what it does to the phone rather than what
+it does to the picture, the collapse being a consequence of the turn.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
 is: what shows beside a film is letterbox, which belongs to the film.

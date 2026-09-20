@@ -47,6 +47,30 @@ jest.mock('../../state/AppProvider', () =>
 );
 
 /**
+ * The window, which is a fourth mock and the newest of them.
+ *
+ * Full screen is derived from the shape of it since 2026-09-19 — sideways on
+ * *Watch* and nothing else — so a test that wants the expanded picture turns
+ * the phone rather than pressing anything. The factory closes over nothing;
+ * the reading is taken at render, which is why `expand` sets this before it
+ * renders and `upright` sets it before an update.
+ *
+ * The default is jest's own 750×1334, so every other test in this file gets
+ * exactly the portrait window it got before this existed.
+ */
+let mockWindow = { width: 750, height: 1334, scale: 2, fontScale: 1 };
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => mockWindow,
+}));
+const PORTRAIT = { width: 750, height: 1334, scale: 2, fontScale: 1 };
+/** An iPhone 16 Pro Max on its side, which is the widest a phone gets. */
+const LANDSCAPE = { width: 956, height: 440, scale: 3, fontScale: 1 };
+beforeEach(() => {
+  mockWindow = PORTRAIT;
+});
+
+/**
  * The three things a channel carries besides audio: a watch link somebody
  * else is following, the one-slot clipboard, and the diagnostic panel.
  * Together rather than with the roster because each is gated — on a link, on
@@ -485,66 +509,29 @@ describe('Channel, watching together', () => {
   });
 
   /*
-    **Full screen, and the four ways back out of it.**
+    **Full screen, which is the phone being sideways and nothing else.**
 
     The picture fills the device because this application makes it fill the
     device: YouTube's own bar went on 2026-09-18 and took its full-screen
-    button with it, and nothing inside the player gives one back. What that
-    buys is a state whose only exits are the ones written here — so the two a
-    person presses are asserted in watch/__tests__/fullScreen.test.tsx, and the
-    ones nobody presses are asserted below, each being a way for the film to
-    leave the screen without the person who expanded it doing anything.
+    button with it, and nothing inside the player gives one back. Since
+    2026-09-19 this application does not draw a button for it either — the
+    state is derived from the shape of the window, so what these tests turn is
+    the phone. The one control left inside it is about the hardware rather than
+    about the picture and is asserted in watch/__tests__/fullScreen.test.tsx;
+    what is asserted here is the derivation, and in particular every way the
+    film can leave the screen without the person watching it doing anything.
   */
   describe('Full screen', () => {
-    /** Expanded, from the card, on the device showing the film. */
+    /** Sideways, on the *Watch* tab, on the device showing the film. */
     function expand() {
+      mockWindow = LANDSCAPE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
-      const tree = open();
-      act(() => findButton(tree, 'Full screen')!.props.onPress());
-      return tree;
+      return open();
     }
 
-    /** What the card has and the expanded picture does not. */
-    const onTheCard = (tree: ReactTestRenderer) =>
-      findButton(tree, 'Change video') !== undefined;
-
-    it('is offered on the device showing the film and on no other', () => {
-      // A phone that handed the picture to the laptop still drives the party
-      // — that is what the transport is for — but it has no picture, and a
-      // control that filled its screen with black would be offering the film
-      // to whoever has the least reason to want it.
-      showChannel(watching());
-      const away = open();
-      expect(findButton(away, '−15s')).toBeDefined();
-      expect(findButton(away, 'Full screen')).toBeUndefined();
-      act(() => away.unmount());
-
-      mockApp.screenFor = 'sess_1';
-      showChannel(watching());
-      const here = open();
-      expect(findButton(here, 'Full screen')).toBeDefined();
-      act(() => here.unmount());
-    });
-
-    it('takes the transport with it, and leaves the card behind', () => {
-      const tree = expand();
-      // One row drawn in two places rather than two rows: the seek and the
-      // three buttons are the same element the card had.
-      expect(findButton(tree, '−15s')).toBeDefined();
-      expect(findButton(tree, 'Play')).toBeDefined();
-      expect(findButton(tree, 'Exit full screen')).toBeDefined();
-      // And everything that is about arranging a party rather than watching
-      // one is not on the screen at all.
-      expect(onTheCard(tree)).toBe(false);
-      act(() => tree.unmount());
-    });
-
-    it('collapses when the party stops under it', () => {
-      // Otherwise Stop, pressed on somebody else's phone, leaves this one
-      // holding a black rectangle and two controls that do nothing.
-      const tree = expand();
-      showChannel(channelOf());
+    /** Whatever has changed, drawn again — the reading is taken at render. */
+    const again = (tree: ReactTestRenderer) =>
       act(() =>
         tree.update(<ChannelView
             channelId="sess_1"
@@ -553,7 +540,88 @@ describe('Channel, watching together', () => {
             onExit={() => {}}
           />)
       );
-      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+
+    /** What the card has and the expanded picture does not. */
+    const onTheCard = (tree: ReactTestRenderer) =>
+      findButton(tree, 'Change video') !== undefined;
+    /** What the expanded picture has and the card does not. */
+    const expanded = (tree: ReactTestRenderer) =>
+      findButton(tree, 'Back to portrait') !== undefined;
+
+    it('is turned into rather than pressed into', () => {
+      /*
+        **The control that used to be here is gone and nothing replaced it.**
+        It said what the phone already knew, and it locked the device sideways
+        while it was up — so exiting released the lock and handed back the
+        channel screen in landscape, which is the disagreement this design
+        cannot have.
+      */
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const upright = open();
+      expect(findButton(upright, 'Full screen')).toBeUndefined();
+      expect(expanded(upright)).toBe(false);
+      expect(onTheCard(upright)).toBe(true);
+      act(() => upright.unmount());
+
+      const tree = expand();
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('collapses when the phone comes back upright', () => {
+      // The way out, and the only one anybody uses: the same turn, undone.
+      const tree = expand();
+      mockWindow = PORTRAIT;
+      again(tree);
+      expect(expanded(tree)).toBe(false);
+      expect(onTheCard(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('leaves the other tabs sideways rather than expanding them', () => {
+      // A sideways roster is what an app with `orientation: "default"` is for.
+      // Only the tab with the film on it turns into a film.
+      mockWindow = LANDSCAPE;
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = openOnMembers();
+      expect(expanded(tree)).toBe(false);
+      act(() => tree.unmount());
+    });
+
+    it('expands on the device showing the film and on no other', () => {
+      // A phone that handed the picture to the laptop still drives the party
+      // — that is what the transport is for — but it has no picture, and a
+      // sideways phone filled with black would be offering the film to
+      // whoever has the least reason to want it.
+      mockWindow = LANDSCAPE;
+      showChannel(watching());
+      const away = open();
+      expect(findButton(away, '−15s')).toBeDefined();
+      expect(expanded(away)).toBe(false);
+      act(() => away.unmount());
+    });
+
+    it('takes the transport with it, and leaves the card behind', () => {
+      const tree = expand();
+      // One row drawn in two places rather than two rows: the seek and the
+      // three buttons are the same element the card had.
+      expect(findButton(tree, '−15s')).toBeDefined();
+      expect(findButton(tree, 'Play')).toBeDefined();
+      // And everything that is about arranging a party rather than watching
+      // one is not on the screen at all.
+      expect(onTheCard(tree)).toBe(false);
+      act(() => tree.unmount());
+    });
+
+    it('collapses when the party stops under it', () => {
+      // Otherwise Stop, pressed on somebody else's phone, leaves this one
+      // holding a black rectangle and a row of controls that do nothing.
+      const tree = expand();
+      showChannel(channelOf());
+      again(tree);
+      expect(expanded(tree)).toBe(false);
       act(() => tree.unmount());
     });
 
@@ -563,15 +631,8 @@ describe('Channel, watching together', () => {
       const tree = expand();
       mockApp.screenFor = null;
       showChannel(watching());
-      act(() =>
-        tree.update(<ChannelView
-            channelId="sess_1"
-            audio={AUDIO}
-            onClose={() => {}}
-            onExit={() => {}}
-          />)
-      );
-      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      again(tree);
+      expect(expanded(tree)).toBe(false);
       expect(onTheCard(tree)).toBe(true);
       act(() => tree.unmount());
     });
@@ -586,7 +647,7 @@ describe('Channel, watching together', () => {
       const tree = expand();
       const player = tree.root.findAll((n) => n.type === WatchPlayer)[0]!;
       act(() => player.props.onRefusal('This video is gone — deleted, or private.'));
-      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      expect(expanded(tree)).toBe(false);
       expect(onTheCard(tree)).toBe(true);
       act(() => tree.unmount());
     });

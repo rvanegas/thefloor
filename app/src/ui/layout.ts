@@ -130,12 +130,13 @@ export function useWholeWindowClaimed(): boolean {
 /**
  * Claim it for as long as this component is mounted.
  *
- * **A mirror of `useLandscapeWhile`, deliberately**, down to the release
- * living in the cleanup rather than beside the collapse: the exits nobody
- * presses — the party stopping, the film moving to another device, the channel
- * closing underneath — all arrive as an unmount, and a window left with no
- * list in it by a picture that is no longer there is the same bug with no
- * visible cause that a phone left locked sideways would be.
+ * **The release lives in the cleanup rather than beside a collapse**, which is
+ * what makes it survive the exits nobody presses: the party stopping, the film
+ * moving to another device, the channel closing underneath, and — since
+ * 2026-09-19, when full screen became a reading of the window rather than a
+ * flag — the phone simply being turned upright. Every one of those arrives as
+ * an unmount, and a window left with no list in it by a picture that is no
+ * longer there is a bug with no visible cause.
  *
  * Outside a provider it does nothing, which is what a test rendering the
  * picture on its own should get.

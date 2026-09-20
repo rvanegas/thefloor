@@ -89,7 +89,7 @@ caused; the list carries the meaning.
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
-- **Full screen** — The film filling one device, in landscape, with the transport and the channel's own bar over it and fading together after three seconds, brought back by a touch anywhere; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
+- **Full screen** — The film filling one device, which since 2026-09-19 *is* the phone being sideways on *Watch*: nothing is pressed to enter it and nothing to leave it, the shape of the window being the whole of the rule. The transport and the channel's own bar lie over it and fade together after three seconds, brought back by a touch anywhere. One control inside it, *Back to portrait*, which turns the interface upright for whoever the accelerometer cannot help; three automatic collapses besides. One device's own business and never the party's
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1719,24 +1719,36 @@ whole one; *intent* carries the account. Anybody in the room may drive, no
 claim being possible while a film is on. The cost of the bar going is dragging
 to a point in a film, which the progress bar took over.
 
-**Full screen is the app's control, for the same reason.** The player's
+**Full screen is the app's layout, for the same reason.** The player's
 full-screen button was on the bar that went, the IFrame API offers no method
 for one, and the browser's `requestFullscreen` is unreachable inside a
 `WKWebView` nobody has enabled it on — so expanding the picture is something
-the app does to its own layout, and nothing is asked of the player. It is
-offered only on the device actually showing the film, since a phone that
-handed the picture to the laptop has nothing to expand; it is ungated by the
-*floor*, how big a film is on somebody's phone being nobody else's business;
-and it is not in any snapshot, so nobody else's screen changes when you press
-it. The phone turns landscape while it is up and back when it is not.
+the app does to its own layout, and nothing is asked of the player. It happens
+only on the device actually showing the film, since a phone that handed the
+picture to the laptop has nothing to expand; it is ungated by the *floor*, how
+big a film is on somebody's phone being nobody else's business; and it is not
+in any snapshot, so nobody else's screen changes with yours.
 
-**The way out is the app's too, which is what makes it a design rather than a
-button.** There is no `esc` on a phone and no system full-screen to dismiss,
-so a control nobody finds is a person stuck. There are four: the *Exit full
-screen* button, which says its words rather than drawing a shape; a swipe
-down over the picture, which is the one that never depended on anything being
-drawn; a tap, which brings the chrome back from anywhere on the picture; and
-the three automatic collapses — the party stopping, the picture moving to
+**And since 2026-09-19 it is not a control at all: it is the phone being
+sideways.** Turning the device on the *Watch* tab expands the picture and
+turning it upright collapses it; the state is derived from the shape of the
+window and nothing sets it. What went was a pair of buttons saying what the
+glass already said — *Full screen* on the card, *Exit full screen* over the
+picture — and with them the disagreement they made possible: the expanded
+state locked the phone landscape, exiting released the lock, and an unlocked
+phone goes back to the way it is being held, so anybody who exited while still
+sideways got the channel screen sideways with nothing to say otherwise with.
+Landscape on any other tab is an ordinary sideways screen, which is what an app
+with `orientation: "default"` is for.
+
+**One control survives inside it, and it is about the hardware.** *Back to
+portrait* locks the interface upright — for somebody lying down, holding the
+phone flat, or anywhere else the accelerometer will not agree — and the picture
+collapses as a consequence of the turn rather than because a button said so.
+The lock is released five seconds later, that being the only way there is: iOS
+reports the *interface* orientation, so while it is locked there is no reading
+of how the phone is actually being held and no event to wait for. Besides it
+are the three automatic collapses — the party stopping, the picture moving to
 another device, and YouTube refusing the film — each of which would otherwise
 leave somebody holding a black rectangle.
 
@@ -1751,7 +1763,7 @@ player on the phone has already taught — and they start up rather than down,
 so the way out is seen before it goes. The film is fitted, never cropped: what
 is left at the sides is the film's own letterbox. Expanding and collapsing each rebuild the
 player, so the film reloads and the follower drives it back to where everybody
-is; the cost is a few seconds of black for the one person who pressed it.
+is; the cost is a few seconds of black for the one person who turned the phone.
 
 ## Screen
 
@@ -1843,7 +1855,7 @@ application, dragged to any of them and tapped to go back to the controls; and
 from black and the follower drives it back — so docked and floating are one
 element in two styles rather than two renders in two branches of the screen.
 The one exception is full screen, which replaces the screen and does mount its
-own; that costs a few seconds of black to the person who pressed it, and it is
+own; that costs a few seconds of black to the person who turned the phone, and it is
 written down where it is paid.
 
 **Its parent is the application rather than any screen**, since 2026-09-19 and
