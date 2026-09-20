@@ -91,6 +91,10 @@ makes the handover land the right way round in both directions.
 The settings gear never survived any of this: it is a channel control, and this
 screen has none.
 
+What replaced *Home* is not navigation at all —
+`2026-09-20-declining-to-be-the-second-device.md`, which is also where the rule
+that a television never has a corner is argued.
+
 ## What had to move with it
 
 **`atTheFilm` was gated on `tab === 'watch'`.** A screen with no tab strip has

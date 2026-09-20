@@ -964,8 +964,12 @@ does — there is nothing novel in its shape, which is the point:
 - **Aside:** a `DockSlot`, with the same `watchShapeFor` answer and the same
   `asidePlace` the *Watch* tab passes — so the film is the same size in the
   same place on both devices, and moving between them moves nothing.
-- **Body:** the transport, *Full screen*, and one muted sentence saying where
-  the rest of the controls are.
+- **Body:** the transport, *Full screen*, *Not on this device* — a full-width
+  `ghost` under it, which hands the screen role back and is the only way off
+  this screen that says nothing to the room — and one muted sentence saying
+  where the rest of the controls are. Full width rather than a `flexButton`
+  beside *Full screen*: half a phone's card is about 140pt and the label does
+  not survive it.
 - **Footer:** the three rungs and nothing else.
 
 **Three footer slots rather than four does not bend rule 6.** That rule is that
@@ -973,6 +977,12 @@ a control never moves under a thumb already on its way to it, across every
 state *one screen* can be in — and this bar is three rungs in all of them,
 each still `flex: 1`. A screen with a footer of its own is not the channel's
 footer changing shape; Home has no footer at all.
+
+**And no corner, either.** Leaving this screen by any route — on the web the
+browser's own back button is one — gives the screen role up, so the floating
+picture § *The picture* describes is a state a second device has no version of.
+A television shrunk into a corner with the channel list back beside it is what
+this screen was made to stop being.
 
 **And no list beside it, however wide the window.** It claims the window the
 way the expanded picture does — `WholeWindowContext`, the second and last

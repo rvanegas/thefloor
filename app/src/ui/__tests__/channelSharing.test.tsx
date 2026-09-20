@@ -1612,6 +1612,61 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
+    it('declines the job, which is the way out that leaves the room alone', () => {
+      /*
+        The three rungs are all answers to the *room*: *In* takes the
+        presence, *Nearby* and *Out* leave. Somebody who simply does not want
+        the film on this particular glass had to change their standing in the
+        channel to say so. This ends nothing — not the party, not anybody's
+        presence — it hands the screen role back, and the *Watch on* switch on
+        the device holding the room learns it from the server.
+      */
+      const tree = asSecondDevice();
+      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+      // And says nothing to the channel: no STOP_WATCH, no pause, no rung.
+      expect(mockApp.act).not.toHaveBeenCalled();
+      act(() => tree.unmount());
+    });
+
+    it('offers it on the television and nowhere else', () => {
+      // The ordinary channel screen has the *Watch on* switch, which is the
+      // same act said the other way round; two of them is the remote control
+      // in two places, which is what this screen exists to stop.
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const tree = openOnMembers();
+      expect(findButton(tree, 'Not on this device')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    it('gives the screen up when it goes, there being no corner for it', () => {
+      /*
+        The picture floats when no screen leaves it a hole, which is right on
+        the device somebody is standing in the room on and wrong here: a
+        television shrunk into a corner with the channel list back beside it
+        is the state this screen was cleaned up to stop being. Nothing on the
+        screen reaches that — but on the web the browser's back button leaves
+        any screen in this application, and that route was reaching it.
+      */
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      const tree = openOnMembers();
+      act(() => tree.unmount());
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+    });
+
+    it('keeps it on the way out of the ordinary channel screen', () => {
+      // The first device, where going Home is meant to leave the film in the
+      // corner and a tap on it is meant to come back.
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const tree = openOnMembers();
+      act(() => tree.unmount());
+      expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
+    });
+
     it('expands, there being no Watch tab left to gate that on', () => {
       /*
         `atTheFilm` was `tab === 'watch'` and everything else, and on a screen

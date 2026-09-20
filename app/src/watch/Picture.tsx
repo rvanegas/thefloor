@@ -296,6 +296,19 @@ export function Picture({
   const picture =
     channelId && channel && watch && party && inRoom(channel, me) && !fullScreen ? (
       <WatchDock
+        /*
+          **No second device ever reaches `floating`**, and the rule is kept
+          where the role is rather than here. A television is a screen showing
+          one film; shrunk into a corner with the channel list back beside it,
+          it is the thing that screen was cleaned up to stop being. So leaving
+          it gives the screen role up — `ChannelView`, the layout effect beside
+          the two that clear it for a party ending and for leaving the room —
+          and `channelId` is null here a moment later. Kept there because this
+          component cannot tell the two meanings of a null `slot` apart: a
+          screen that has gone away, and one whose `onLayout` has not landed
+          yet. The second is every arrival, and a rule written here would stop
+          the film on the frame it started.
+        */
         place={slot ? 'docked' : 'floating'}
         slot={
           slot

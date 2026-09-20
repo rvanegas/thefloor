@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -1017,6 +1017,52 @@ export function ChannelView({
     if (inTheRoom || app.screenFor !== channelId) return;
     app.showScreenFor(null);
   }, [app, channelId, inTheRoom]);
+
+  /**
+   * **A television is the screen or it is nothing: it never has a corner.**
+   *
+   * The picture floats when no screen leaves it a hole — `Picture`'s
+   * `place`, which is `slot ? 'docked' : 'floating'` — and that is right for
+   * the device somebody is standing in the room on. Going Home there leaves
+   * the film in the corner and a tap on it comes back, which is the whole
+   * point of the player hanging above the route table.
+   *
+   * **It is wrong for a second device, which is a screen showing one film and
+   * nothing else.** A corner rectangle on a television is the state that
+   * screen was cleaned up to stop being: the film on the glass, shrunk, with
+   * the channel list back beside it and every control of it on the other
+   * device. There is no control here that reaches it — no Home, no tab — but
+   * on the web the browser's own back button and address bar leave any screen
+   * in this application, and that route was reaching it.
+   *
+   * So leaving the television gives the screen role up, which stops the film
+   * on this device and tells the server, so that the *Watch on* switch on the
+   * device holding the room stops saying the picture is over here. **The act
+   * is the same one that switch performs** and not a new kind of withdrawal:
+   * it says nothing about the room, the account stays present on the other
+   * instance, and the party's clock runs on for anybody else watching. It is
+   * the fourth way out of this state and the only one that leaves your
+   * standing in the channel alone — the three rungs all change it.
+   *
+   * **A layout effect rather than an effect**, which is the one subtlety: the
+   * cleanup of a passive effect runs after the frame is painted, so the corner
+   * this exists to forbid would be drawn once on the way out. This one runs
+   * inside the commit, and the state it sets is flushed before the paint.
+   *
+   * **Refs because the cleanup has no deps**, the same shape as `collapse`
+   * above: what is wanted is the last thing that was true while this screen
+   * was on the glass, not the value some render closed over.
+   */
+  const television = useRef(false);
+  television.current = secondDevice;
+  const releaseScreen = useRef(app.showScreenFor);
+  releaseScreen.current = app.showScreenFor;
+  useLayoutEffect(
+    () => () => {
+      if (television.current) releaseScreen.current(null);
+    },
+    []
+  );
 
   /**
    * **The film comes up on the device you are looking at.**
@@ -2582,12 +2628,14 @@ export function ChannelView({
     person is, which is the device holding the room — and the whole of the
     reason a party has two devices is that the film is not there.
 
-    **The rungs are the exception and are the way out of this state.** *In*
-    takes the room, which makes this the first device and hands back the
-    ordinary channel screen a render later; *Nearby* and *Out* both leave the
-    room, which gives up the screen role and stops the film. Nothing else on
-    this screen can reach any of the three, and the switch that sent the film
-    here is on the other device — see {@link secondDevice}.
+    **The rungs are one way out of this state, and *Not on this device* is the
+    other.** *In* takes the room, which makes this the first device and hands
+    back the ordinary channel screen a render later; *Nearby* and *Out* both
+    leave the room, which gives up the screen role and stops the film. All
+    three are answers to the room, which is why the fourth exists: declining
+    the job is a fact about this glass and leaves the account standing exactly
+    where it stood. The switch that sent the film here is still on the other
+    device — see {@link secondDevice}.
 
     **The header is a caption and holds no controls at all.** *Home* was there
     for a day, on the argument that a way off a screen is navigation rather
@@ -2654,6 +2702,46 @@ export function ChannelView({
           else's business and nothing about it reaches the channel.
         */}
         <Button label="Full screen" onPress={() => setPressedFullScreen(true)} />
+        {/*
+          **The one control here that is not about the film, and it is about
+          this device rather than about the party.** It declines the job: the
+          film stops being on this glass, the screen role goes back, and the
+          *Watch on* switch on the device holding the room stops saying the
+          picture is over here. Nothing else moves — the account stays present
+          on the other instance, the party's clock runs on for anybody else
+          watching, and nobody's microphone changes.
+
+          **It is here because the rungs were the only way out and all three
+          of them are answers to the room.** *In* takes the presence, *Nearby*
+          and *Out* leave; a person who simply does not want the film on this
+          particular screen had to change their standing in the channel to say
+          so. This is the fourth way out and the only one that leaves that
+          standing alone.
+
+          **Not *Home*, which is what this was first**, and not a second
+          *Stop*: Home is navigation and would have been carrying a second
+          meaning it does not carry anywhere else in the app, and *Stop* on
+          the watch card is `STOP_WATCH`, which ends the film for the whole
+          channel. This ends nothing. The words are the *Watch on* switch's
+          own answers in the negative, which is the vocabulary somebody chose
+          this device with — see GLOSSARY § *Screen*.
+
+          **Full width under *Full screen* rather than beside it.** Two
+          `flexButton`s would put this in half a phone's card, which is about
+          140 points, and the label does not survive it; STYLE.md § *Button*
+          carries the arithmetic.
+
+          Ghost, because it is the exit on a screen whose one commitment is
+          the picture. The sublabel says *leaves this screen* rather than
+          *stops*: what a reader needs before the tap is that this is not the
+          film ending, and *screen* is the role being handed back.
+        */}
+        <Button
+          label="Not on this device"
+          sublabel="The film leaves this screen; the party plays on"
+          variant="ghost"
+          onPress={() => app.showScreenFor(null)}
+        />
         {/*
           The one sentence on the screen, and it is here because the state is
           not self-evident: a device showing a film with almost nothing beside
