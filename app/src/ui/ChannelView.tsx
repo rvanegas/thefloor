@@ -1525,12 +1525,6 @@ export function ChannelView({
   const party = watch.party;
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
-  // The room without the floor clause. It governs the card's prose rather than
-  // any control now: choosing which of your own devices shows a film changes
-  // nothing about the channel, so nothing about it is gated — but somebody
-  // outside a conversation that is going on is still told that first, ahead of
-  // whose floor it is.
-  const mayWatchHere = iHaveTheRoom;
   const mayStartWatch = canStartWatch(channel, me);
   /**
    * Whether *this* device is the one showing the film.
@@ -3756,13 +3750,17 @@ export function ChannelView({
             ) : null}
 
             <Text style={type.muted}>
-              {!mayWatchHere
-                ? // First, because it outranks the rest: somebody outside a
-                  // conversation that is going on has no use for being told whose
-                  // floor it is or that a recording is running. It is also the
-                  // only reason here that greys the second screen as well as
-                  // everything else.
-                  'Step in to start a watch party. What everybody is watching is for whoever is here.'
+              {!mayControlWatch
+                ? // First, because it outranks the rest: somebody who is not in
+                  // the room has no use for being told whose floor it is or that
+                  // a recording is running. **And since 2026-09-20 it is the one
+                  // reason that greys every control on the card** — the transport,
+                  // the room's mute and Stop included, which used to stay live
+                  // for an absent member on the reasoning that an empty channel
+                  // is nobody's conversation. See `canControlWatch`.
+                  party
+                  ? 'Step in to drive the film. What everybody is watching is for whoever is here.'
+                  : 'Step in to start a watch party. What everybody is watching is for whoever is here.'
                 : recordingLive
                   ? // Said out loud rather than left as a dead button. The two are
                     // exclusive because the video's sound never reaches The Floor,
@@ -3774,12 +3772,12 @@ export function ChannelView({
                     : iHoldFloor
                       ? 'You have the floor — only you can change what plays.'
                       : !mayStartWatch
-                        ? // The empty channel, from outside it. Starting asks
-                          // presence and the transport does not, so Stop is live
-                          // beside a greyed Change video — see `canStartWatch`.
-                          party
-                          ? 'Step in to put something else on. What is here you can still stop.'
-                          : 'Step in to start a watch party. Everybody watches in the app, here or on another of their own devices.'
+                        ? // Whatever is left, which after the branches above is
+                          // little: presence is asked first now, so this is no
+                          // longer the empty channel read from outside it. It
+                          // said *step in* until 2026-09-20 and would have been
+                          // addressing somebody already here.
+                          'Putting something on is not available just now.'
                         : party
                           ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
                           : 'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.'}

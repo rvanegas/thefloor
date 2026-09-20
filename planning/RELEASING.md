@@ -139,12 +139,26 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
 - **Orientation is per-platform, and Expo has no key for that.** `orientation`
   is `default` — not `portrait` — solely so prebuild writes no array of its
   own, and the two `infoPlist` keys say it instead:
-  `UISupportedInterfaceOrientations` is portrait, for the iPhone, and
-  `UISupportedInterfaceOrientations~ipad` is all four, which Apple requires of
-  an app that can share the screen. **`UIRequiresFullScreen` is not set true**,
-  which is what allows that sharing — prebuild writes it `<false/>` rather than
-  omitting it, so finding the key in the plist is not evidence of compatibility
-  mode.
+  `UISupportedInterfaceOrientations` is portrait plus both landscapes, for the
+  iPhone, and `UISupportedInterfaceOrientations~ipad` is all four, which Apple
+  requires of an app that can share the screen. **`UIRequiresFullScreen` is not
+  set true**, which is what allows that sharing — prebuild writes it `<false/>`
+  rather than omitting it, so finding the key in the plist is not evidence of
+  compatibility mode.
+
+  **The phone's key said portrait alone until 2026-09-20, and that is what made
+  *sideways is full screen* do nothing.** The feature landed on 2026-09-19
+  deriving full screen from the shape of the window, on the stated premise that
+  `orientation: "default"` was enough. It is not: an explicit `infoPlist` key
+  wins over what Expo's orientation plugin would have written — the plugin is
+  wrapped in `createInfoPlistPluginWithPropertyGuard`, which stands down when
+  the property is already spelled out — so iOS never handed the phone a
+  landscape window, `useIsLandscape` was false forever, and the whole feature
+  was unreachable. **Nothing in JavaScript could have shown that**, which is the
+  general lesson: a rule derived from the shape of the window is only as true as
+  the plist that decides which shapes exist, and checking it means a prebuild
+  and a rebuild rather than a reload. Upside-down stays out on the phone
+  deliberately — nothing on any screen wants it.
 
   **There is no retreat, and this bullet promised one until 2026-09-15.**
   Setting it true was supposed to be the one-line way out if multitasking ever

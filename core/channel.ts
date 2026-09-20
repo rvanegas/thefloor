@@ -1068,15 +1068,30 @@ export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether `userId` may drive the watch party's transport.
+ * Whether `userId` may drive the watch party's transport — the five actions
+ * the reducer guards as one: play, pause, seek, the room's mute, and stop.
  *
- * The same rule as `canControlPlayback`, deliberately — see
- * `holdsSharedControl`. A claim confers control of the video without pausing
- * it: the film keeps running and stops being anybody else's to change.
+ * **Presence, since 2026-09-20, and that is the whole of it besides
+ * membership.** Watching together is the one feature where driving it and
+ * being in it are the same act: every control here moves a film that other
+ * people are looking at, in real time, on their own screens. Somebody who is
+ * not in the room is not watching, so a scrub from them is not participation
+ * — it is reaching into a scene they are not in and moving it.
  *
- * Starting one is `canStartWatch` and is stricter. **Stopping is here rather
- * than there**, which is the line `mayPutSomethingOn` draws: ending what
- * somebody left running is available to whoever the room belongs to.
+ * **This is where it stops matching `canControlPlayback`, which still asks
+ * `hasTheRoom`.** That rule's second half — nobody is present, so there is no
+ * conversation to interrupt — was carried here as *tidying up after a room
+ * that has gone home*. Two things are wrong with it. The tidying is already
+ * done: `settleEmpty` pauses the party the moment the last member steps out,
+ * so the film an absent member would be stopping is a film that has stopped
+ * itself. And the case it licensed is the one where stepping in costs
+ * nothing, an empty channel being nobody's conversation to walk into. So it
+ * bought no reachability and left the transport live for anybody merely
+ * looking at the channel screen.
+ *
+ * Starting one is `canStartWatch`, which asks the same presence plus no
+ * recording in progress. **Stopping is here rather than there**, and the two
+ * now agree about presence either way, which they did not before.
  */
 export function canControlWatch(
   state: ChannelState,
@@ -1098,11 +1113,14 @@ export function canControlWatch(
     is nothing left for `floorPermits` to say here. Whoever is in the room
     may drive, and the thing that keeps a room quiet during a film is the
     room's mute rather than a claim.
+
+    `isPresent` rather than `inRoom`: a guest is refused by `isParticipant`
+    above in any case, and saying presence directly is what the rule means.
   */
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
-    hasTheRoom(state, userId)
+    isPresent(state, userId)
   );
 }
 

@@ -306,17 +306,25 @@ describe('Channel, watching together', () => {
     const tree = open();
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Step in to start a watch party');
+    // The transport too, which is the half a party makes visible: these three
+    // move a film other people are looking at.
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
+    expect(findButton(tree, '−15s')!.props.disabled).toBe(true);
+    expect(findButton(tree, '+15s')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Step in to drive the film');
     act(() => tree.unmount());
   });
 
   /**
-   * The same person on an *empty* channel, where the two halves of the rule
-   * come apart: what is already on is theirs to drive, and putting something
-   * else on is not. Two live controls beside two greyed ones is exactly the
-   * arrangement that reads as a bug, so the card says which is which.
+   * The same person on an *empty* channel, which **stopped being the case
+   * where the rule comes apart on 2026-09-20**. Stop was live here beside a
+   * greyed *Change video*, on the reasoning that a film left running on a
+   * channel nobody is in is tidying rather than interruption — and two live
+   * controls beside two greyed ones is exactly the arrangement that reads as a
+   * bug. The whole card greys now, for one sentence and one tap: an empty
+   * channel is the one it costs least to step into. See `canControlWatch`.
    */
-  it('lets somebody outside an empty channel stop what is on, not change it', () => {
+  it('greys the card for somebody outside an empty channel too', () => {
     showChannel(
       watching((s) =>
         reduce(
@@ -327,9 +335,12 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
+    expect(findButton(tree, 'Stop')!.props.disabled).toBe(true);
     expect(findButton(tree, 'Change video')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Step in to put something else on');
+    expect(findButton(tree, 'Play')!.props.disabled).toBe(true);
+    // One sentence rather than two, there being one rule to explain now.
+    expect(textOf(tree)).toContain('Step in to drive the film');
+    expect(textOf(tree)).not.toContain('you can still stop');
     act(() => tree.unmount());
   });
 

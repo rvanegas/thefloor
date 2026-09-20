@@ -16,10 +16,20 @@ import { useWindowDimensions } from 'react-native';
  * turning it upright is what collapses it, and neither can disagree with the
  * glass.
  *
- * **Only possible because `app.json` says `orientation: "default"`** — iOS
- * takes its supported orientations from the Info.plist, and a portrait-locked
- * app would never be handed a landscape window to notice. That is a rebuild
- * and a different decision about every other screen.
+ * **Only possible because the Info.plist lets the phone turn**, which is a
+ * rebuild and a different decision about every other screen. iOS takes the
+ * supported orientations from the plist, and a portrait-locked app is never
+ * handed a landscape window to notice — so this hook returns false forever and
+ * nothing here is reachable.
+ *
+ * `orientation: "default"` in `app.json` is *not* what does it, which cost a
+ * day: this shipped on 2026-09-19 on that premise and did nothing at all on a
+ * phone. `ios.infoPlist.UISupportedInterfaceOrientations` is spelled out
+ * there — for the iPad's sake, orientation being per-platform and Expo having
+ * no key for that — and an explicit entry stands the orientation plugin down
+ * rather than merging with it. The phone's array is the one that has to list
+ * the landscapes; see planning/RELEASING.md § *Orientation is per-platform*,
+ * and read the generated plist rather than the JSON.
  *
  * Width against height rather than `getOrientationAsync`: the window is what
  * the layout is drawn into, it is what `useLayout` already reads, and on an

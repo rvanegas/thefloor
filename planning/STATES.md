@@ -417,13 +417,23 @@ things that this file keeps apart:
   self-mute, starting a recording, answering the door.
 
   **Since 2026-08-24 it governs *driving* what the channel attends to but not
-  *putting something on*.** `canControlPlayback` and `canControlWatch` are
-  occupation plus the floor and are the same function; `canLoadTrack` and
-  `canStartWatch` add presence on top, through `mayPutSomethingOn`. The seam is
-  that driving is tidying — an absent member stopping a film somebody left
-  running on an empty channel is clearing up after a room that has gone home —
-  while starting leaves something behind for whoever steps in next, chosen by
-  somebody who is not there. There was a third combination, occupation without
+  *putting something on*.** `canControlPlayback` is occupation plus the floor;
+  `canLoadTrack` and `canStartWatch` add presence on top, through
+  `mayPutSomethingOn`. The seam is that driving is tidying — an absent member
+  pausing a track somebody left loaded on an empty channel is clearing up after
+  a room that has gone home — while starting leaves something behind for
+  whoever steps in next, chosen by somebody who is not there.
+
+  **The watch party left that arrangement on 2026-09-20 and now asks presence
+  for everything.** `canControlWatch` was `canControlPlayback`'s twin and is
+  not any more: a film is watched by other people in real time, so a seek from
+  outside the room moves a picture somebody is looking at, which is not what
+  *tidying* describes. The empty-channel half bought nothing either —
+  `settleEmpty` pauses the party as the last member leaves, so there is no film
+  still running to clear up after, and stepping into an empty channel
+  interrupts nobody. Driving and starting a party therefore agree about
+  presence, where playback's two halves still differ.
+  decisions/2026-09-20-watching-is-something-you-are-in.md. There was a third combination, occupation without
   the floor — `canOpenWatchScreen`, for a follower page that changed nothing —
   and it went on 2026-09-17 with the page: which of your own devices shows a
   film is not a question the channel answers.

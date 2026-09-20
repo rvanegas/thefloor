@@ -262,11 +262,12 @@ describe('who may drive it', () => {
 });
 
 /**
- * Where the line falls for somebody outside the room, which is in two places
- * rather than one: putting something on asks presence, driving what is already
- * on asks only `hasTheRoom`, and the follower screen asks the room without the
- * floor. Playback answers all three the same way, and the parity is asserted
- * here rather than left to be noticed.
+ * Where the line falls for somebody outside the room, which since 2026-09-20
+ * is one place for the watch party and two for shared playback. **Every watch
+ * control asks presence now** — driving as well as putting something on — so
+ * the empty channel is no longer an exception to anything here. Playback keeps
+ * the older split, `hasTheRoom` to drive and presence to load, and the
+ * divergence is asserted below rather than left to be noticed.
  */
 describe('a member who has not stepped in', () => {
   /** Nobody present, a party still loaded, and A outside it. */
@@ -304,17 +305,29 @@ describe('a member who has not stepped in', () => {
   });
 
   describe('while the channel is empty', () => {
-    it('may drive what is already on, which is nobody else\'s conversation', () => {
+    it('may not drive what is already on either', () => {
+      // **The empty channel stopped being an exception on 2026-09-20.** It
+      // bought reachability that was not needed: `settleEmpty` pauses the
+      // party as the last member leaves, so the film an absent member would
+      // be tidying up after has already stopped itself — and stepping into an
+      // empty channel interrupts nobody, which is the same premise the
+      // exception rested on, read the other way.
       const s = reduce(empty(), { type: 'WATCH_PLAY', userId: A }, T0 + 3_000);
-      expect(canControlWatch(empty(), A)).toBe(true);
-      expect(s.watch.status).toBe('playing');
+      expect(canControlWatch(empty(), A)).toBe(false);
+      expect(s.watch.status).toBe('paused');
     });
 
-    it('may stop a party somebody left running', () => {
-      // Stopping is driving rather than starting, deliberately: a film left
-      // running on an empty channel should be clearable by whoever the room
-      // belongs to, without stepping in to do it.
+    it('may not stop a party somebody left running', () => {
       const s = reduce(empty(), { type: 'STOP_WATCH', userId: A }, T0 + 3_000);
+      expect(s.watch.party).not.toBeNull();
+    });
+
+    it('gets the transport back by stepping in', () => {
+      // Which is the whole cost of the rule above: one tap, on a channel
+      // there is nobody in to interrupt.
+      const back = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
+      expect(canControlWatch(back, A)).toBe(true);
+      const s = reduce(back, { type: 'STOP_WATCH', userId: A }, T0 + 4_000);
       expect(s.watch.party).toBeNull();
     });
 
@@ -349,11 +362,21 @@ describe('a member who has not stepped in', () => {
       of the split is the two guards above.
     */
 
-    it('is held to the same split on shared playback', () => {
-      // Driving yes, loading no — the same two answers as the party above.
+    it('keeps the older split on shared playback, which is the divergence', () => {
+      // Driving yes, loading no — where the party above now says no to both.
+      // The two features were deliberately one rule until 2026-09-20 and are
+      // not any more: a film is watched by other people in real time and a
+      // loaded track sits waiting, so reaching into one from outside the room
+      // is an interruption and reaching into the other is tidying.
+      //
       // Asked of a channel with no film on, since a film refuses the audio
-      // player to everybody and would answer before the split did.
-      const quiet = reduce(empty(), { type: 'STOP_WATCH', userId: A }, T0);
+      // player to everybody and would answer before the split did. Stopped by
+      // somebody present, the empty channel's own transport being refused now.
+      const quiet = apply(watching(), [
+        [{ type: 'STOP_WATCH', userId: A }, T0 + 500],
+        [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
+        [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
+      ]);
       expect(canControlPlayback(quiet, A)).toBe(true);
       expect(canLoadTrack(quiet, A)).toBe(false);
     });

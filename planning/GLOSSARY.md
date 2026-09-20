@@ -86,7 +86,7 @@ caused; the list carries the meaning.
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
-- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
+- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device, which since 2026-09-19 *is* the phone being sideways on *Watch*: nothing is pressed to enter it and nothing to leave it, the shape of the window being the whole of the rule. The transport and the channel's own bar lie over it and fade together after three seconds, brought back by a touch anywhere. One control inside it, *Back to portrait*, which turns the interface upright for whoever the accelerometer cannot help; three automatic collapses besides. One device's own business and never the party's
@@ -1715,8 +1715,10 @@ excepted, where the only thing left in it is YouTube's own explanation and the
 way out it offers.
 
 The bar was the party's controls for two days and never once worked for a
-whole one; *intent* carries the account. Anybody in the room may drive, no
-claim being possible while a film is on. The cost of the bar going is dragging
+whole one; *intent* carries the account. Anybody *present* may drive, no claim
+being possible while a film is on — presence rather than occupation since
+2026-09-20, so that no control here moves a film for somebody standing outside
+the room it is being watched in. The cost of the bar going is dragging
 to a point in a film, which the progress bar took over.
 
 **Full screen is the app's layout, for the same reason.** The player's
@@ -2193,6 +2195,12 @@ channel is called, who gets in, what is on the clipboard. Membership is
 standing over a channel, not over an occupation of it.
 
 Not presence: an empty channel belongs to all its members equally.
+
+**The watch party stopped asking it on 2026-09-20** and asks presence instead,
+for its transport as well as for starting one — `canControlWatch`. Every
+control there moves a film other people are watching in real time, which is not
+the kind of act the empty-channel half was written for. It still governs the
+audio player's transport, which is the pair's divergence; see *Watch party*.
 
 ## Heartbeat
 
