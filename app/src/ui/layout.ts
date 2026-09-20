@@ -67,7 +67,10 @@ export function layoutFor(width: number): Layout {
  * under your finger rather than at the next launch.
  */
 export function useLayout(): Layout {
-  return layoutFor(useWindowDimensions().width);
+  const width = useWindowDimensions().width;
+  const { taken } = React.useContext(WholeWindowContext);
+  // A claimed window is one screen however wide it is; see `WholeWindowContext`.
+  return taken ? 'stack' : layoutFor(width);
 }
 
 /**
@@ -86,4 +89,61 @@ export const PaneContext = React.createContext<'list' | 'detail' | null>(null);
 /** Null outside a split, where there are no sides and asking is not an error. */
 export function usePane(): 'list' | 'detail' | null {
   return React.useContext(PaneContext);
+}
+
+/**
+ * Whether something on screen has claimed the whole window.
+ *
+ * **Because rotating a phone crosses the breakpoint.** Full screen turns the
+ * phone sideways, and sideways an iPhone is 852 to 932 points wide — past
+ * `SPLIT_AT` — so the very gesture that was meant to give the film the window
+ * handed Home a third of it and left the picture *smaller* than it had been in
+ * portrait, with the transport covering most of what was left. The breakpoint
+ * was not wrong: a 900-point window is one that a list and a screen share
+ * happily, and that is true of every screen in this application except the one
+ * whose entire purpose is to be the only thing on the glass.
+ *
+ * So the width rule keeps a second input, and it has exactly one caller. This
+ * is not a general override and must not become one — a screen that wants a
+ * little more room wants a narrower list or a better layout, not the list
+ * gone.
+ */
+export const WholeWindowContext = React.createContext<{
+  taken: boolean;
+  claim: (taken: boolean) => void;
+}>({ taken: false, claim: () => {} });
+
+/**
+ * Whether it is claimed right now, for the two or three things that have to
+ * stand aside while it is.
+ *
+ * `useLayout` is one; the swipe that slides a channel out from under a finger
+ * is the other. That gesture was unreachable in landscape until this existed —
+ * a sideways phone was a split, and a split has no swipes — so switching the
+ * layout back to one screen would have handed the expanded picture a gesture
+ * nobody designed for it, and one the picture explicitly declines for itself.
+ */
+export function useWholeWindowClaimed(): boolean {
+  return React.useContext(WholeWindowContext).taken;
+}
+
+/**
+ * Claim it for as long as this component is mounted.
+ *
+ * **A mirror of `useLandscapeWhile`, deliberately**, down to the release
+ * living in the cleanup rather than beside the collapse: the exits nobody
+ * presses — the party stopping, the film moving to another device, the channel
+ * closing underneath — all arrive as an unmount, and a window left with no
+ * list in it by a picture that is no longer there is the same bug with no
+ * visible cause that a phone left locked sideways would be.
+ *
+ * Outside a provider it does nothing, which is what a test rendering the
+ * picture on its own should get.
+ */
+export function useWholeWindow(): void {
+  const { claim } = React.useContext(WholeWindowContext);
+  React.useEffect(() => {
+    claim(true);
+    return () => claim(false);
+  }, [claim]);
 }

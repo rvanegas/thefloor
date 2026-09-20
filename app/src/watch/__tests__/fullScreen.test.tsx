@@ -7,6 +7,7 @@ import renderer, {
 } from 'react-test-renderer';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { FullScreen, swipeCompleted, swipeStarted } from '../FullScreen';
+import { WholeWindowContext } from '../../ui/layout';
 
 jest.mock('expo-screen-orientation', () => ({
   lockAsync: jest.fn(async () => {}),
@@ -54,6 +55,35 @@ function draw(onCollapse: () => void) {
 }
 
 describe('The expanded picture', () => {
+  it('takes the window off the list beside it, and gives it back', () => {
+    /*
+      **The other half of the hardware, and the same trap.** Turning the phone
+      sideways makes it wider than the breakpoint, so the gesture that was
+      meant to hand the film the glass handed Home a third of it — a picture
+      *smaller* than it had been in portrait, which is the one outcome the
+      layout rule exists to prevent. And a window left with no list in it by a
+      picture that is no longer there is as invisible a bug as a phone left
+      locked sideways, so the release is asserted too.
+    */
+    const claim = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <WholeWindowContext.Provider value={{ taken: false, claim }}>
+          <FullScreen
+            onCollapse={() => {}}
+            picture={<Text>picture</Text>}
+            chrome={<Text>transport</Text>}
+            footer={<Text>footer</Text>}
+          />
+        </WholeWindowContext.Provider>
+      );
+    });
+    expect(claim).toHaveBeenCalledWith(true);
+    act(() => tree.unmount());
+    expect(claim).toHaveBeenLastCalledWith(false);
+  });
+
   it('says the words on the way out rather than drawing a shape', () => {
     // A glyph is findable once it has been learnt, and the exit from a state
     // with no other exit is not where somebody learns one.

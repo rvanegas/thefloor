@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
+import { useWholeWindow } from '../ui/layout';
 import { useLandscapeWhile } from './orientation';
 
 /**
@@ -83,6 +84,17 @@ export function FullScreen({
   onCollapse: () => void;
 }): React.ReactElement {
   useLandscapeWhile(true);
+  /*
+    And the window, for as long as this is up.
+
+    **The turn sideways is what makes this necessary.** An iPhone on its side
+    is wider than `SPLIT_AT`, so without this the rotation that was meant to
+    give the film the glass puts Home back beside it and leaves the picture
+    smaller than it was in portrait — which is the thing the `chrome` note
+    below says is not a feature, arriving by the other door. See
+    `WholeWindowContext`.
+  */
+  useWholeWindow();
 
   /**
    * The swipe, which has to be a responder rather than a `Pressable`.

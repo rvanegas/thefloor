@@ -16,6 +16,14 @@ const WIDTHS: Array<[string, number, 'stack' | 'split']> = [
   ['iPhone 16 Pro Max, portrait', 440, 'stack'],
   ['an iPad window dragged narrow', 507, 'stack'],
   ['iPad mini, portrait', 744, 'stack'],
+  /*
+    **Every phone on its side is a split**, which is not a mistake and is the
+    fact behind the full-screen bug: a window this wide is one a list and a
+    screen share happily, so the expanded picture overrules the rule rather
+    than moving it. See `wholeWindow.test.tsx`.
+  */
+  ['iPhone 16, landscape', 852, 'split'],
+  ['iPhone 16 Pro Max, landscape', 956, 'split'],
   ['iPad 11", portrait', 820, 'split'],
   ['iPad mini, landscape', 1133, 'split'],
   ['iPad Pro 13", portrait', 1032, 'split'],

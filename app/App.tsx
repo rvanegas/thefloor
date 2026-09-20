@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useSessionAudio } from './src/audio/useSessionAudio';
@@ -32,7 +32,11 @@ import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
-import { useLayout } from './src/ui/layout';
+import {
+  useLayout,
+  useWholeWindowClaimed,
+  WholeWindowContext,
+} from './src/ui/layout';
 import { useRoute } from './src/ui/useRoute';
 import { channelOf, NO_DETAIL, type Detail, type List } from './src/ui/detail';
 import { takeHandover } from './src/ui/handover';
@@ -588,6 +592,8 @@ function Root() {
    */
   const layout = useLayout();
   const split = layout === 'split';
+  /** Whether the expanded picture has the glass to itself. */
+  const wholeWindow = useWholeWindowClaimed();
 
   /**
    * Below the server's floor, and therefore not an app any more.
@@ -933,8 +939,13 @@ function Root() {
     screen is comparable with a tap that actually moves the screen. See
     `core/navigation.ts`.
   */
+  /*
+    And no swipe out from under an expanded picture, which is a gesture that
+    did not exist there until the layout stopped splitting in landscape. See
+    `useWholeWindowClaimed`.
+  */
   const swipes: Swipes | undefined =
-    split || Platform.OS === 'web'
+    split || wholeWindow || Platform.OS === 'web'
       ? undefined
       : {
           right:
@@ -1019,6 +1030,27 @@ function Attending({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Somewhere for the expanded picture to say that it is the only thing here.
+ *
+ * **Above `Root`, because `Root` is what asks how wide the window is.** The
+ * claim has to be in force before the split is decided or the answer arrives a
+ * render late, with Home drawn beside the film for a frame. Holding it here
+ * also means nothing between the two has to pass it down: the picture is four
+ * levels below `ChannelView`, and threading a boolean through every one of
+ * them to switch off a list is a prop that four components would carry and
+ * none would read. See `WholeWindowContext`, which is the whole of the rule.
+ */
+function WholeWindow({ children }: { children: React.ReactNode }) {
+  const [taken, setTaken] = useState(false);
+  const value = useMemo(() => ({ taken, claim: setTaken }), [taken]);
+  return (
+    <WholeWindowContext.Provider value={value}>
+      {children}
+    </WholeWindowContext.Provider>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -1026,7 +1058,9 @@ export default function App() {
         <StatusBar style="auto" />
         <AppProvider>
           <Attending>
-            <Root />
+            <WholeWindow>
+              <Root />
+            </WholeWindow>
           </Attending>
         </AppProvider>
       </SafeAreaView>
