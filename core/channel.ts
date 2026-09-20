@@ -1174,9 +1174,17 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
 /**
  * Whether the room's mute may be lifted.
  *
- * Read by the reducer to refuse `SET_WATCH_MUTE` and by the Watch tab to grey
- * the button with a sentence under it — the same division every guard here
- * makes, so that a greyed control and a refused action cannot disagree.
+ * Read by the reducer to refuse `SET_WATCH_MUTE` and by the Watch tab to take
+ * *Unmute the room* off the card entirely, leaving the sentence beneath to
+ * say why — the same division every guard here makes, so that a refused
+ * control and a refused action cannot disagree.
+ *
+ * **Removed rather than greyed, which is the one guard here that is**, and
+ * deliberately: every other refusal on that card is about the reader and has
+ * an action that lifts it, where this one is a condition of the run that
+ * nothing on the screen can reach before the film is paused. See
+ * planning/decisions/2026-09-20-an-enforced-mute-has-no-button.md and
+ * STYLE.md § *Words on controls*.
  *
  * `enforced` rather than `anyScreenInTheRoom`, which is the sampling and is
  * the point: the question was asked when the run began, and asking it again

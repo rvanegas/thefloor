@@ -1119,6 +1119,69 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * A run that began with somebody's screen in the room — the one shape of
+   * party whose mute is nobody's to lift. `WATCH_HERE` before `WATCH_PLAY`
+   * because the question is sampled at the edge of the run.
+   */
+  const enforced = (mutate: (s: ChannelState) => ChannelState = (s) => s) =>
+    watching((s) =>
+      mutate(
+        reduce(
+          reduce(s, { type: 'WATCH_HERE', userId: ME, watching: true }, NOW),
+          { type: 'WATCH_PLAY', userId: ME },
+          NOW
+        )
+      )
+    );
+
+  it('takes the unmute away when the mute is not anybody\'s to lift', () => {
+    // Gone rather than grey. Every other refusal on this card is about the
+    // reader and changes when they step in or somebody lets go of the floor;
+    // this one is a fact about the run, and a button that is grey for the
+    // whole of a film offers something that is not on offer.
+    showChannel(enforced());
+    const tree = open();
+    expect(findButton(tree, 'Unmute the room')).toBeUndefined();
+    expect(findButton(tree, 'Mute the room')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('says why, the button not being there to say it', () => {
+    // The sentence is what is left, so it has to carry the reason as well as
+    // the state. It names the condition and not the person.
+    showChannel(enforced());
+    const tree = open();
+    const text = textOf(tree);
+    expect(text).toContain('The room is muted');
+    expect(text).toContain('watching on the device they are in the room on');
+    act(() => tree.unmount());
+  });
+
+  it('gives it back at the pause, which is when the question is re-asked', () => {
+    showChannel(
+      enforced((s) => reduce(s, { type: 'WATCH_PAUSE', userId: ME }, NOW))
+    );
+    const tree = open();
+    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(textOf(tree)).not.toContain(
+      'watching on the device they are in the room on'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('keeps the unmute when everybody is watching on a second device', () => {
+    // Nobody's screen is in the room, so the quiet is a preference and the
+    // control that set it is the control that clears it.
+    showChannel(muted());
+    const tree = open();
+    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(textOf(tree)).not.toContain(
+      'watching on the device they are in the room on'
+    );
+    act(() => tree.unmount());
+  });
+
   it('copies the video link, which is the public one', async () => {
     (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
     showChannel(watching());

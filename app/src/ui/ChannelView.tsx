@@ -42,6 +42,7 @@ import {
   canLoadTrack,
   canStartWatch,
   canControlWatch,
+  canUnmuteRoom,
   isPartyMuted,
   isWithheld,
   partyMuteRequested,
@@ -1688,6 +1689,17 @@ export function ChannelView({
   // true right now, which is what the roster reports.
   const muteRequested = partyMuteRequested(channel);
   const partyMuted = isPartyMuted(channel);
+  /**
+   * Whether the room's mute is anybody's to lift, which is a third question
+   * and not a rewording of either above.
+   *
+   * False for a run that began with somebody watching on the device they are
+   * in the room on: their screen cannot serve the film in stereo and hold a
+   * microphone open at once, so the quiet is the party's condition rather
+   * than a preference of whoever pressed the button. See `canUnmuteRoom`,
+   * which is the same guard the reducer refuses `SET_WATCH_MUTE` with.
+   */
+  const mayUnmuteRoom = canUnmuteRoom(channel);
 
   /**
    * The tabs this account is offered, which is six, always the same six.
@@ -3590,18 +3602,47 @@ export function ChannelView({
                   theirs and comes back exactly as they left it. See
                   `WatchState.mutedAll`.
                 */}
-                <Button
-                  label={muteRequested ? 'Unmute the room' : 'Mute the room'}
-                  sublabel={
-                    muteRequested
-                      ? 'Everyone can speak again; your own mute is unchanged'
-                      : 'Quiet while the video plays; pause to talk'
-                  }
-                  disabled={!mayControlWatch}
-                  onPress={() =>
-                    act({ type: 'SET_WATCH_MUTE', muted: !muteRequested })
-                  }
-                />
+                {/*
+                  **Gone rather than greyed while the mute is enforced**, and
+                  it is the one refusal on this card that earns that.
+                  Everything else here is refused by something about *you* —
+                  you are not in the room, somebody else has the floor — and
+                  a grey button with a sentence under it is how this
+                  application says so, because the answer changes when you
+                  step in or they let go.
+
+                  An enforced mute is not about the reader at all. It is a
+                  fact about the run: somebody is watching on the device they
+                  are in the room on, the question was asked when Play was
+                  pressed, and nothing anybody on this screen does will
+                  change the answer before the film is paused. An *Unmute the
+                  room* that is grey for the whole of a two-hour film is a
+                  control offering something that is not on offer, which is
+                  the shape § *Copy on controls* is about. What stands in its
+                  place is the sentence below, which says the room is muted
+                  and now says why.
+
+                  Only the Unmute half disappears: a party that is *not*
+                  muted cannot be enforced, so the Mute button is always
+                  here. See `canUnmuteRoom`, and `WatchState.enforced` for
+                  why the question is sampled at the edge of a run rather
+                  than asked continuously — which is also what stops this
+                  button vanishing under somebody's finger.
+                */}
+                {muteRequested && !mayUnmuteRoom ? null : (
+                  <Button
+                    label={muteRequested ? 'Unmute the room' : 'Mute the room'}
+                    sublabel={
+                      muteRequested
+                        ? 'Everyone can speak again; your own mute is unchanged'
+                        : 'Quiet while the video plays; pause to talk'
+                    }
+                    disabled={!mayControlWatch}
+                    onPress={() =>
+                      act({ type: 'SET_WATCH_MUTE', muted: !muteRequested })
+                    }
+                  />
+                )}
 
                 {/*
                   Changing what is on without stopping first.
@@ -3909,6 +3950,16 @@ export function ChannelView({
                   <Text style={styles.emphasis}>The room is muted.</Text> No
                   microphone is open, so nothing leaks in from anybody's screen.
                   Pause the video to talk.
+                  {!mayUnmuteRoom
+                    ? // The second half of the button that is not there. It is
+                      // only ever said on a run where it is true, and it names
+                      // the condition rather than the person: whose device it
+                      // is is nobody else's business, and *somebody* is the
+                      // whole of what anyone needs to know to understand why
+                      // the previous sentence cannot be argued with.
+                      ' Somebody is watching on the device they are in the' +
+                      ' room on, so it stays muted until the video is paused.'
+                    : ''}
                 </Text>
               ) : muteRequested ? (
                 // Muted, but paused — so everybody has their voice back without

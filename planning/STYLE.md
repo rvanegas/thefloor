@@ -35,7 +35,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
-| *Words on controls* | labels, busy states, confirmations, empty states |
+| *Words on controls* | labels, busy states, confirmations, empty states, when a refused control is greyed and when it is removed |
 | *The lock screen card* | the one surface outside the app, and what it transcribes |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
 | *The rules that are actually load-bearing* | the nine things to not break |
@@ -1151,6 +1151,22 @@ rules.
   pill, the list below and the channel's settings each answer in their own
   place. What replaced them is the word under the glyph: refusals a rule can
   enumerate are worth a sentence, a permanent condition of the row is not.
+- **And when the refusal is a condition rather than a permission, the control
+  goes and the sentence stays.** Adopted 2026-09-20 with *Unmute the room*.
+  The rule above assumes a grey button is worth keeping because the reader can
+  do something about it — step in, wait for the floor, stop the recording —
+  and the sentence is what tells them which. A refusal nothing on the screen
+  can lift is a different shape: *Unmute the room* is grey for the whole of a
+  two-hour film whenever somebody is watching on the device they are in the
+  room on, because that device cannot serve the film in stereo and hold a
+  microphone open at once. A control that offers what is not on offer, for
+  hours, is worse than no control. So it is removed, and the sentence that
+  would have sat under it absorbs the reason — which is § *The cards a footer
+  made redundant*'s third case, a button that goes and a sentence that stays,
+  arriving at the scale of one control. **Ask which of the two it is**: a
+  refusal a rule can enumerate against *you* is grey with a sentence; a
+  refusal that is a fact about the state everybody is in is gone with a
+  sentence.
 - **Destructive and irreversible acts confirm through `Alert.alert`**, with
   `style: 'cancel'` first and `style: 'destructive'` second, and the body says
   what is actually lost and for how long. There are 28 of these; there are no
