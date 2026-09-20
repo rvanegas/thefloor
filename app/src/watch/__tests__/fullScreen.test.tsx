@@ -5,17 +5,9 @@ import renderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { FullScreen, HIDE_AFTER_MS } from '../FullScreen';
-import { PORTRAIT_HOLD_MS, returnToPortrait } from '../orientation';
 import { isTap } from '../Dock';
 import { WholeWindowContext } from '../../ui/layout';
-
-jest.mock('expo-screen-orientation', () => ({
-  lockAsync: jest.fn(async () => {}),
-  unlockAsync: jest.fn(async () => {}),
-  OrientationLock: { PORTRAIT_UP: 3 },
-}));
 
 /**
  * What is over the film, which since 2026-09-20 is the transport and nothing.
@@ -27,12 +19,18 @@ jest.mock('expo-screen-orientation', () => ({
  * phone itself: `ChannelView` derives this state from the shape of the window,
  * and turning the device upright collapses it.
  *
- * **And since 2026-09-20 that is the only way out, there being no control here
- * at all beyond the transport.** The channel's own pinned bar and the *Back to
- * portrait* button both went: sideways, the only controls are the film's. What
- * this file asserts is therefore as much about what is absent as about what is
- * there — a room control that creeps back onto the scrim is the regression,
- * and the last test below is the one that catches it.
+ * **And since 2026-09-20 the turn is not the only way out, because it is not
+ * available on most surfaces.** A browser window and a tablet are landscape
+ * sitting still and have no turn to perform, so *Exit full screen* is back —
+ * on every platform, the phone included, since one control that means the same
+ * thing everywhere beats one that appears on some surfaces. It is the only
+ * thing on the scrim besides the transport: the channel's own pinned bar went
+ * the same day and stays gone, and *Back to portrait* was replaced by this
+ * rather than kept beside it.
+ *
+ * What this file asserts is therefore as much about what is absent as about
+ * what is there — a room control creeping back onto the scrim is the
+ * regression this catches.
  */
 /**
  * A button by the word it draws, which for these is the point: a `Button`
@@ -48,11 +46,15 @@ const press = (tree: ReactTestRenderer, label: string) =>
         .some((t: ReactTestInstance) => t.props.children === label)
     );
 
-function draw() {
+function draw(onExit: () => void = () => {}) {
   let tree!: ReactTestRenderer;
   act(() => {
     tree = renderer.create(
-      <FullScreen picture={<Text>picture</Text>} chrome={<Text>transport</Text>} />
+      <FullScreen
+        picture={<Text>picture</Text>}
+        chrome={<Text>transport</Text>}
+        onExit={onExit}
+      />
     );
   });
   return tree;
@@ -77,6 +79,7 @@ describe('The expanded picture', () => {
           <FullScreen
             picture={<Text>picture</Text>}
             chrome={<Text>transport</Text>}
+            onExit={() => {}}
           />
         </WholeWindowContext.Provider>
       );
@@ -86,27 +89,28 @@ describe('The expanded picture', () => {
     expect(claim).toHaveBeenLastCalledWith(false);
   });
 
-  it('carries the transport and no control belonging to the room', () => {
+  it('carries the transport, the way out, and nothing of the room', () => {
     /*
-      **The rule this asserts is one sentence: sideways, the only controls are
-      the film's.** Pause and play, the progress bar and the two seeks — which
-      arrive as `chrome` and are the caller's — and nothing else.
+      **Two things on the scrim and no third.** The transport, which arrives as
+      `chrome` and is the caller's, and *Exit full screen*.
 
-      Two things were here on 2026-09-19 and are not now. The channel's own
-      pinned bar was kept on the argument that this is a talking application
-      before it is a video one; what it actually bought was reachability that
-      was never more than a turn of the wrist away, at a fifth of a sideways
-      phone. And *Back to portrait* went with it.
+      The channel's own pinned bar — mute, the floor, the three rungs of
+      presence — was here for a day on the argument that this is a talking
+      application before it is a video one. What it bought was reachability
+      that was never more than one press away; what it cost was a fifth of a
+      sideways phone.
 
       Named rather than counted, because the regression is a control creeping
       back one at a time: every word listed here is one that was over the film
-      within the last two days, and a test that merely counted buttons would
-      pass while the wrong one was showing.
+      within the last two days, and a test that counted buttons would pass
+      while the wrong one showed. *Back to portrait* is in the list because it
+      was replaced by the exit rather than joined by it — two ways out on one
+      scrim is the thing the channel's bar was taken off for.
     */
     const tree = draw();
+    expect(press(tree, 'Exit full screen')).toBeDefined();
     for (const word of [
       'Back to portrait',
-      'Exit full screen',
       'Full screen',
       'Mute',
       'Unmute',
@@ -121,12 +125,29 @@ describe('The expanded picture', () => {
     act(() => tree.unmount());
   });
 
+  it('reports the press rather than collapsing itself', () => {
+    /*
+      **The state is the caller's, which is what stops the old bug coming
+      back.** The pair of controls removed on 2026-09-19 set a flag this
+      component owned, and the flag could disagree with the glass: the expanded
+      picture locked the phone sideways, exiting released the lock, and an
+      unlocked phone goes back to how it is being held. There is no lock now
+      and nothing here decides anything — `ChannelView` holds what was pressed
+      and weighs it against the shape of the window.
+    */
+    const onExit = jest.fn();
+    const tree = draw(onExit);
+    act(() => press(tree, 'Exit full screen')!.props.onPress());
+    expect(onExit).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('shows the transport before hiding it', () => {
     /*
       **Up first, then away.** Somebody arriving here is shown the transport
-      before it goes, rather than having to discover that a tap produces one.
-      It is drawn throughout and it is its opacity that changes; what a test
-      can hold is that it was not left out of the tree.
+      and the way out before either goes, rather than having to discover that a
+      tap produces them. Both are drawn throughout and it is their opacity that
+      changes; what a test can hold is that neither was left out of the tree.
     */
     const tree = draw();
     const text = tree.root
@@ -134,38 +155,6 @@ describe('The expanded picture', () => {
       .flatMap((n: ReactTestInstance) => n.props.children);
     expect(text).toContain('transport');
     act(() => tree.unmount());
-  });
-
-  it('turns the interface upright and then lets the lock go', () => {
-    /*
-      **Kept although nothing calls it, which is the unusual half.** The
-      *Back to portrait* button went on 2026-09-20 and `returnToPortrait` did
-      not: a window that is landscape because it is a browser, or an iPad, or
-      a phone flat on a table, is the open question — see `ChannelView` — and
-      whatever answers it is likely to want a way to turn the interface that
-      does not involve turning the device. The mechanism stays proven in the
-      meantime, since the half that goes missing is not the lock but the
-      release, and a phone left locked upright by a picture that is no longer
-      on the screen is a bug with no visible cause.
-
-      The release cannot live in a component's cleanup — the rotation is what
-      unmounts the caller, so the cleanup would fire on the frame the lock was
-      applied. It is a timer above the tree.
-    */
-    jest.useFakeTimers();
-    try {
-      returnToPortrait();
-      expect(ScreenOrientation.lockAsync).toHaveBeenCalledWith(
-        ScreenOrientation.OrientationLock.PORTRAIT_UP
-      );
-      expect(ScreenOrientation.unlockAsync).not.toHaveBeenCalled();
-      act(() => {
-        jest.advanceTimersByTime(PORTRAIT_HOLD_MS + 1);
-      });
-      expect(ScreenOrientation.unlockAsync).toHaveBeenCalled();
-    } finally {
-      jest.useRealTimers();
-    }
   });
 
   /*

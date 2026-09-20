@@ -66,6 +66,12 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
 const PORTRAIT = { width: 750, height: 1334, scale: 2, fontScale: 1 };
 /** An iPhone 16 Pro Max on its side, which is the widest a phone gets. */
 const LANDSCAPE = { width: 956, height: 440, scale: 3, fontScale: 1 };
+/**
+ * An iPad mini on its side, which is landscape and is *not* somebody turning
+ * anything. The distinction this window exists to draw is the whole of the
+ * 2026-09-20 fix; see `isHandheld` in `../layout`.
+ */
+const TABLET_LANDSCAPE = { width: 1133, height: 744, scale: 2, fontScale: 1 };
 beforeEach(() => {
   mockWindow = PORTRAIT;
 });
@@ -569,24 +575,124 @@ describe('Channel, watching together', () => {
     const expanded = (tree: ReactTestRenderer) =>
       tree.root.findAll((n) => n.props?.testID === 'chrome').length > 0;
 
-    it('is turned into rather than pressed into', () => {
-      /*
-        **The control that used to be here is gone and nothing replaced it.**
-        It said what the phone already knew, and it locked the device sideways
-        while it was up — so exiting released the lock and handed back the
-        channel screen in landscape, which is the disagreement this design
-        cannot have.
-      */
+    it('is turned into on a phone', () => {
+      // The route a handheld gets on top of the button: the same tab, the same
+      // party, and the only difference is which way up the window is.
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
       const upright = open();
-      expect(findButton(upright, 'Full screen')).toBeUndefined();
-      expect(findButton(upright, 'Back to portrait')).toBeUndefined();
       expect(expanded(upright)).toBe(false);
       expect(onTheCard(upright)).toBe(true);
       act(() => upright.unmount());
 
       const tree = expand();
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('is pressed into, upright, on the device showing the film', () => {
+      /*
+        **The button is back, on every platform including the phone.** It was
+        removed on 2026-09-19 as a control saying what the phone already knew,
+        and what that missed is that most surfaces cannot say it: a browser
+        window and a tablet have no turn to perform. One control that means the
+        same thing everywhere beats one that appears on some surfaces — and a
+        phone held upright that wants the film big has no other way to ask.
+      */
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      expect(expanded(tree)).toBe(false);
+      const button = findButton(tree, 'Full screen');
+      expect(button).toBeDefined();
+      act(() => button!.props.onPress());
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('offers no Full screen on a device that is not the screen', () => {
+      // A phone that handed the picture to the laptop has no picture of its
+      // own to expand. It still drives the party from the transport.
+      showChannel(watching());
+      const tree = open();
+      expect(findButton(tree, 'Full screen')).toBeUndefined();
+      expect(findButton(tree, '−15s')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    /*
+      **The bug the handheld rule exists for, from both ends.**
+
+      `width > height` was read as *somebody turned this* for a day. A desktop
+      browser window satisfies it sitting still, and so does an iPad held the
+      way iPads are held — so both went full screen the moment somebody opened
+      *Watch*, and then had no way out: there is no device to turn in a
+      browser, and the only control on the scrim turned a device.
+    */
+    it('leaves a tablet alone until it is asked', () => {
+      mockWindow = TABLET_LANDSCAPE;
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      // Landscape, and emphatically not expanded.
+      expect(expanded(tree)).toBe(false);
+      expect(onTheCard(tree)).toBe(true);
+      // And the button is how it gets there, which is the whole point of
+      // restoring it.
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('keeps a tablet expanded when it is turned', () => {
+      /*
+        **A press outlives a rotation on anything but a handheld**, which is
+        the other half of the tri-state. Somebody who asked a tablet for full
+        screen and then turned it over has not asked for anything; a picture
+        that collapsed there would be the new bug in place of the old one.
+      */
+      mockWindow = TABLET_LANDSCAPE;
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(true);
+      mockWindow = { width: 744, height: 1133, scale: 2, fontScale: 1 };
+      again(tree);
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('lets a press out of a sideways phone, and the next turn back in', () => {
+      /*
+        **The sequence the tri-state exists for.** A press says something about
+        now and must not say it forever, or the first *Exit full screen* would
+        kill the turn for the rest of the party.
+
+        Sideways, expanded by the turn; press the exit and the channel screen
+        comes back sideways — an ordinary supported screen, with *Full screen*
+        on the card to get back in with, which is precisely what the 2026-09-19
+        note meant by "nothing to say otherwise with" and what made the old
+        arrangement a bug. Turn upright and the press is forgotten. Turn
+        sideways again and the film expands as it did the first time.
+      */
+      const tree = expand();
+      expect(expanded(tree)).toBe(true);
+
+      act(() => findButton(tree, 'Exit full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(false);
+      // Still sideways, and no longer a trap.
+      expect(onTheCard(tree)).toBe(true);
+      expect(findButton(tree, 'Full screen')).toBeDefined();
+
+      // Upright forgets the press...
+      mockWindow = PORTRAIT;
+      again(tree);
+      expect(expanded(tree)).toBe(false);
+
+      // ...so the turn works again.
+      mockWindow = LANDSCAPE;
+      again(tree);
       expect(expanded(tree)).toBe(true);
       act(() => tree.unmount());
     });
@@ -610,14 +716,16 @@ describe('Channel, watching together', () => {
       for (const word of ['Nearby', 'In', 'Out', 'Mute', 'Unmute', 'Claim']) {
         expect(findButton(tree, word)).toBeUndefined();
       }
-      // The transport is the exception and is the whole of it.
+      // The transport and the way out are the exceptions and are the whole of
+      // them.
       expect(findButton(tree, '+15s')).toBeDefined();
       expect(findButton(tree, '−15s')).toBeDefined();
+      expect(findButton(tree, 'Exit full screen')).toBeDefined();
       act(() => tree.unmount());
     });
 
     it('collapses when the phone comes back upright', () => {
-      // The way out, and the only one anybody uses: the same turn, undone.
+      // The way out a phone has that nothing else does: the same turn, undone.
       const tree = expand();
       mockWindow = PORTRAIT;
       again(tree);

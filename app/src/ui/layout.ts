@@ -11,9 +11,15 @@
  * is already a dependency and either would read more directly. A narrow window
  * on an iPad Pro is a phone-shaped surface — the app can be dragged to a third
  * of the screen beside a browser, and it is resized live while that happens —
- * so device identity answers a question nobody asked. Width is the only thing
- * that is true, and it is true on the web as well, which is why nothing here
- * is gated on `Platform.OS`.
+ * so device identity answers a question nobody asked. The window's own
+ * measurements are the only thing that is true, and they are true on the web
+ * as well, which is why nothing here is gated on `Platform.OS`.
+ *
+ * **Two rules live here and they are different questions.** `SPLIT_AT` is a
+ * width and asks how much room there is. `HANDHELD_UNDER` is a short side and
+ * asks whether the window is one somebody is holding — which is to say whether
+ * turning it is a gesture. A phone on its side satisfies the first and is
+ * still the second, and nothing would work if they shared a number.
  */
 import React from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -45,6 +51,54 @@ export type Layout = 'stack' | 'split';
 export const SPLIT_AT = 800;
 
 /**
+ * The short side below which a window is something somebody *holds*.
+ *
+ * **The second rule this file keeps, and it answers a different question from
+ * `SPLIT_AT`.** That one asks how much room there is; this one asks whether
+ * turning the thing is a *gesture*. They are not the same question and cannot
+ * share a number: every phone on its side is already past `SPLIT_AT`, which is
+ * the whole reason `WholeWindowContext` exists.
+ *
+ * **It exists because `width > height` is not somebody asking for anything.**
+ * Full screen on *Watch* is entered by turning a phone sideways — see
+ * `watch/orientation.ts` — and for a day that rule was applied to every window
+ * that happened to be wider than it was tall. A desktop browser window is one.
+ * So is an iPad held the way iPads are held. Both went full screen on the
+ * *Watch* tab and stayed there, because neither has a way to become portrait
+ * that anybody would think to perform. The turn is only a statement on a
+ * surface small enough that turning it is something you do with your wrist.
+ *
+ * **The short side rather than the width**, so that one number covers both
+ * orientations and nothing has to know which way up it is being asked about.
+ *
+ * ## Why 500
+ *
+ * It has to sit above the widest phone's short side and below the narrowest
+ * tablet's. The table in `__tests__/layout.test.ts` has both: an iPhone 16 Pro
+ * Max is 440 across, which is its short side in either orientation, and an
+ * iPad mini is 744. That is a gap of three hundred points and the number is
+ * near the bottom of it deliberately.
+ *
+ * **Erring low is the safe direction**, which is the whole of why it is not
+ * 600. A surface this calls handheld gets the turn as a *route in*, and a
+ * surface it does not gets the buttons — which work everywhere, on every
+ * platform, and cannot strand anybody. Being wrong about a tablet costs a
+ * button press; being wrong about a browser window cost a state nobody could
+ * leave.
+ */
+export const HANDHELD_UNDER = 500;
+
+/**
+ * Whether a window is one somebody is holding, by its short side.
+ *
+ * Pure and exhaustively tested, for the reason `layoutFor` is: the hook around
+ * it is two lines that no test in this repository can reach.
+ */
+export function isHandheld(size: { width: number; height: number }): boolean {
+  return Math.min(size.width, size.height) < HANDHELD_UNDER;
+}
+
+/**
  * The list pane, fixed rather than a fraction.
  *
  * A fraction would make the list grow with the window, which is the one thing
@@ -71,6 +125,19 @@ export function useLayout(): Layout {
   const { taken } = React.useContext(WholeWindowContext);
   // A claimed window is one screen however wide it is; see `WholeWindowContext`.
   return taken ? 'stack' : layoutFor(width);
+}
+
+/**
+ * The handheld rule, against this window, now.
+ *
+ * **Not `WholeWindowContext`-aware, unlike `useLayout`.** A claim on the window
+ * changes how much room a screen has; it does not change what the window is
+ * sitting in. A phone is a phone whether or not the film has taken the glass,
+ * and this is read while the film has.
+ */
+export function useIsHandheld(): boolean {
+  const { width, height } = useWindowDimensions();
+  return isHandheld({ width, height });
 }
 
 /**

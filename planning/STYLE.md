@@ -920,31 +920,47 @@ anywhere, which is the gesture every other player on this phone has taught
 already, and it starts up, so what is there is seen before it goes. See
 `watch/FullScreen.tsx`, which carries the reversal in full.
 
-**What makes that safe is that the state is not entered or left by a control
-at all, since 2026-09-19.** Turning the phone sideways on *Watch* is what
-expands the picture and turning it upright is what collapses it —
-`watch/orientation.ts` — so a person who never finds a button does what they
-would do with any other film on any other phone. The *Full screen* button on
-the card and the *Exit full screen* button over the picture are both gone, and
-so is the swipe down that was the third way out.
+**What makes that safe is that on a phone the state is not only left by a
+control.** Turning the phone sideways on *Watch* expands the picture and
+turning it upright collapses it — `watch/orientation.ts` — so a person who
+never finds a button does what they would do with any other film on any other
+phone. That is the *handheld's* extra route and not the rule: `HANDHELD_UNDER`
+in `ui/layout.ts` is where the line between a window somebody turned and a
+window that is merely wide is drawn. Elsewhere the button is the way out and a
+touch is what brings it back, which is what every player on every laptop does.
+The swipe down that was once a third way out is gone and is not coming back.
 
-**And since 2026-09-20 there is no control on the scrim but the transport.**
-The rule is one sentence — *sideways, the only controls are the film's* — and
-what it admits is pause and play, the progress bar, and the two fifteen-second
-seeks. Two things went to make it true. The channel's own pinned bar was
+**Since 2026-09-20 the scrim carries the transport and the way out, and
+nothing else.** What it admits is pause and play, the progress bar, the two
+fifteen-second seeks, and *Exit full screen*. The channel's own pinned bar was
 overlaid here for a day, on the argument that this is a talking application
 before it is a video one; what it bought was reachability that was never more
-than a turn of the wrist away, and what it cost was a fifth of a sideways
-phone spent on five controls about the room rather than about the film. And
-*Back to portrait* went with it, having been the way out for somebody the
-accelerometer cannot help.
+than one press away, and what it cost was a fifth of a sideways phone spent on
+five controls about the room rather than about the film.
 
-**That last one is a debt rather than a tidy.** A phone flat on a table, and
-any browser window, are landscape without anybody having asked for a film, and
-they now have no way out of this state at all. The answer is not a button here
-— it is that the state should not have been entered — and it belongs to
-`useIsLandscape` rather than to this section. `returnToPortrait` is still in
-`watch/orientation.ts`, uncalled, for whatever answers it.
+**And the pair of buttons is back on every platform**, having been removed the
+day before as two controls saying what the phone already knew. They were —
+about a phone. A tablet and a browser window are landscape sitting still and
+have no turn to perform, so for a day both entered this state on the *Watch*
+tab and could not leave it. So *Full screen* is on the watch card and *Exit
+full screen* is on the scrim, on every surface including the phone: one
+control that means the same thing everywhere beats one that appears on some of
+them, and a phone held upright that wants the film big has no other way to ask.
+*Back to portrait* is gone, replaced by the exit rather than joined by it —
+two ways out on one scrim is what the channel's bar was taken off for.
+
+**Both are `Button`s with their words on them** rather than `IconButton`s,
+against § *Icons*' licence for a header glyph and for the reason the exit had
+its word the first time: an icon is findable once it has been learnt, and the
+way out of a state somebody may not know they can leave is not where they
+learn one.
+
+**What killed the pair the first time cannot happen now.** The old *Full
+screen* locked the phone into landscape while it was up and exiting released
+the lock, so a pressed exit while still sideways handed back the channel screen
+sideways with nothing to say otherwise with. The lock is gone and so is every
+call this project made to `expo-screen-orientation`; the sideways channel
+screen is an ordinary supported screen, and it has *Full screen* on the card.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
 is: what shows beside a film is letterbox, which belongs to the film.

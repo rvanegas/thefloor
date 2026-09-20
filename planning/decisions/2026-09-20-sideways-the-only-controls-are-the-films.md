@@ -38,11 +38,17 @@ cannot tell any of them from a person deliberately turning a phone to watch
 something. Full screen is entered for all four. The three that did not ask for
 it are the bug, and giving them an exit would be dressing it.
 
-So the exit is not restored and the derivation is the open question — see
-`ChannelView`'s `wantsFullScreen`, which is where it will be answered. `returnToPortrait` and
-`PORTRAIT_HOLD_MS` are left in `watch/orientation.ts`, uncalled and still
-under test, because whatever answers that question is likely to want a way to
-turn the interface that does not involve turning the device.
+So the exit was not restored here and the derivation was left as the open
+question.
+
+**It was answered the same day** — *A window is not landscape because somebody
+turned it* — and the answer was the button pair on every platform plus a
+handheld test on the turn, which makes the paragraph above the argument for a
+state those three surfaces no longer enter. `returnToPortrait` and
+`PORTRAIT_HOLD_MS` went with that change rather than surviving it: *Exit full
+screen* collapses the picture directly, which is a thing that works in a
+browser, and turning the device turned out to be the wrong mechanism to hang an
+exit on at all.
 
 ## What the tests hold
 

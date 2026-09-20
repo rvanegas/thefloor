@@ -90,6 +90,7 @@ import {
 import { FullScreen } from '../watch/FullScreen';
 import { DockSlot, usePicture } from '../watch/Picture';
 import { useIsLandscape } from '../watch/orientation';
+import { useIsHandheld } from './layout';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -758,15 +759,59 @@ export function ChannelView({
   }, [app, channelId, partyLoaded, steppedIn, screenIsMine, screenSaid]);
 
   /**
-   * **Sideways on *Watch* is full screen, and nothing else is.**
+   * **Two ways in, and the second one is only a phone's.**
    *
-   * The whole of the rule, in one expression, which is the point of writing it
-   * this way: there is no press that opens this state and none that closes it,
-   * so there is no path by which the flag and the glass can end up saying
-   * different things. Turn the phone and the picture follows.
+   * A button press, which every platform has, or turning the device sideways
+   * on *Watch*, which only a handheld gets. `pressedFullScreen` is the press
+   * and `handheld && landscape` is the turn, and the `??` is which of them is
+   * speaking: a press overrules the shape of the window until the window
+   * changes shape, and then the window has the floor again.
+   *
+   * ## Why the turn is not enough on its own
+   *
+   * It was, from 2026-09-19 to 2026-09-20, and the rule was `landscape` with
+   * no `handheld` beside it — which quietly asserted that a window wider than
+   * it is tall is somebody asking for a film. **Three surfaces are landscape
+   * without anybody having asked.** Every desktop browser window is. An iPad
+   * held the way iPads are held is. A phone lying flat on a table is, near
+   * enough, and the accelerometer will not help. All three went full screen on
+   * *Watch* and then had no way out, the web worst of all: there is no device
+   * to turn and `returnToPortrait` was a deliberate no-op there.
+   *
+   * So the turn is now what it always should have been — *an* action, on the
+   * one surface where turning is a gesture rather than a rearrangement — and
+   * `HANDHELD_UNDER` in `ui/layout.ts` is where that line is drawn and why.
+   *
+   * ## Why the press is a tri-state and not a boolean
+   *
+   * `null` is *nobody has said*, and it is what lets the two routes coexist on
+   * a phone without fighting. A press says one thing about right now; it must
+   * not say it forever, or the first *Exit full screen* on a phone would kill
+   * the turn for the rest of the party. So a change of orientation clears it —
+   * **on a handheld only**, since on an iPad or in a browser the turn means
+   * nothing and clearing would collapse the picture the moment somebody
+   * rotated the tablet they were watching on.
+   *
+   * What that buys, read as a sequence: sideways, expanded by the turn; press
+   * *Exit full screen* and the channel screen comes back, sideways, which is
+   * an ordinary screen this app has supported since the plist was fixed and
+   * has a *Full screen* button on the card to get back in with. Turn upright
+   * and the press is forgotten. Turn sideways again and the film expands, as
+   * it did the first time.
+   *
+   * **This is the old exit bug's ghost, and it is laid rather than avoided.**
+   * The 2026-09-19 note says a pressed exit while sideways gave back "the
+   * channel screen sideways, with nothing on it to say otherwise with". The
+   * fault was never the sideways channel screen; it was the *nothing to say
+   * otherwise with* — the button had removed itself, and the landscape lock it
+   * released is gone too. A sideways channel screen with a *Full screen*
+   * button on it is not a trap.
+   *
+   * ## The rest of the terms
    *
    * Every term after the first is a way of having nothing to expand, and each
-   * one used to need its own collapse:
+   * one used to need its own collapse. They apply to the press exactly as they
+   * apply to the turn, which is why they sit outside the `??`:
    *
    * - **The *Watch* tab**, because the other five tabs are not the film. A
    *   phone turned sideways on *Members* is a sideways roster, which is what
@@ -789,8 +834,22 @@ export function ChannelView({
    * comment above.
    */
   const landscape = useIsLandscape();
+  const handheld = useIsHandheld();
+  /** What was last pressed, or `null` if the window is to decide. */
+  const [pressedFullScreen, setPressedFullScreen] = useState<boolean | null>(
+    null
+  );
+  /*
+    A turn is a statement, and it supersedes the last press — but only where
+    turning is a statement, which is a handheld. On a tablet or in a browser a
+    rotation is somebody moving furniture, and a picture that collapsed every
+    time an iPad was turned over would be unusable.
+  */
+  useEffect(() => {
+    if (handheld) setPressedFullScreen(null);
+  }, [handheld, landscape]);
   const wantsFullScreen =
-    landscape &&
+    (pressedFullScreen ?? (handheld && landscape)) &&
     tab === 'watch' &&
     partyLoaded &&
     screenIsHere &&
@@ -2305,16 +2364,17 @@ export function ChannelView({
     argument that this is a talking application before it is a video one and
     that an evening where nobody can reach their own microphone without first
     leaving the film is the wrong trade. What is passed now is the transport
-    and nothing else: sideways, the only controls are the film's. The room's
-    five — mute, the floor, and the three rungs — are one turn of the wrist
-    away, and that turn is the same gesture whatever it is you want the room
-    for, so the bar was buying reachability that was never more than a second
-    off. See `FullScreen`, which carries the rest of it and the cost.
+    and the way out, and nothing else: expanded, the only controls are the
+    film's and the one that ends the state. The room's five — mute, the floor,
+    and the three rungs — are one press or one turn of the wrist away, so the
+    bar was buying reachability that was never more than a second off, at a
+    fifth of a sideways phone. See `FullScreen`, which carries the rest of it.
   */
   if (fullScreen && party && screeningHere) {
     return (
       <FullScreen
         chrome={watchTransport}
+        onExit={() => setPressedFullScreen(false)}
         picture={
           <WatchPlayer
             watch={watch}
@@ -3390,26 +3450,47 @@ export function ChannelView({
                 */}
                 {watchTransport}
                 {/*
-                  **There is no *Full screen* button here, and that is the
-                  design rather than an omission.**
+                  **Full screen, which is a button again on every platform as
+                  of 2026-09-20.**
 
-                  It stood here until 2026-09-19 and did what the phone was
-                  already able to say: turning the device sideways on this tab
-                  expands the picture now, and turning it upright collapses it
-                  — see the derivation above and `watch/orientation.ts`. What
-                  went with it is the pair of states that could disagree. The
-                  old control locked the phone into landscape for as long as it
-                  was up, and exiting released the lock, so somebody who
-                  pressed *Exit full screen* while still holding the phone
-                  sideways got the channel screen sideways with nothing to say
-                  otherwise with.
+                  It stood here until 2026-09-19, when turning the phone
+                  replaced it, and the replacement was right about a phone and
+                  wrong about everything else: a tablet and a browser window
+                  are landscape without anybody having asked, and neither has a
+                  turn to perform. So the press is back, and it is back
+                  *everywhere* rather than only where the turn is missing —
+                  one control that means the same thing on every surface beats
+                  a control that appears on some of them, and a phone in
+                  portrait that wants the film big has no other way to say so.
+                  The turn is the extra route a handheld gets; see the
+                  derivation above.
 
-                  Nothing replaces it on a device that is not showing the film.
-                  A phone that handed the picture to the laptop still drives
-                  the party from the transport above — which is what makes that
-                  row worth having everywhere — and has no picture of its own
-                  to expand, so turning it sideways is a sideways card.
+                  **What killed it the first time cannot happen now.** The old
+                  control locked the phone into landscape for as long as it was
+                  up, and exiting released the lock, so somebody who pressed
+                  *Exit full screen* while still sideways got the channel
+                  screen sideways with nothing to say otherwise with. There is
+                  no lock any more — `returnToPortrait` and the whole of
+                  `expo-screen-orientation` went with this change — and the
+                  sideways channel screen is an ordinary supported screen with
+                  this button on it.
+
+                  **On the device showing the film and nowhere else.** A phone
+                  that handed the picture to the laptop still drives the party
+                  from the transport above — which is what makes that row worth
+                  having everywhere — and has no picture of its own to expand.
+
+                  Ungated by the floor, like *Watch on* and unlike the
+                  transport: how big the film is on one person's device is
+                  nobody else's business, and nothing about this reaches the
+                  channel.
                 */}
+                {screeningHere ? (
+                  <Button
+                    label="Full screen"
+                    onPress={() => setPressedFullScreen(true)}
+                  />
+                ) : null}
                 {/*
                   Muting the room, which is a different act from muting yourself
                   and says so. Watching something together is mostly not talking,

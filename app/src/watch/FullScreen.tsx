@@ -7,6 +7,7 @@ import {
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
+import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
 import { isTap } from './Dock';
@@ -36,45 +37,46 @@ const FADE_MS = 200;
  * something this application does to its own layout, and nothing about it is
  * asked of the player.
  *
- * ## Since 2026-09-19 nothing is pressed to get in or out of it
+ * ## What is on the scrim, which is two things
  *
- * **The phone is the control.** This state is entered by turning the phone
- * sideways on the *Watch* tab and left by turning it upright; `ChannelView`
- * derives it from the shape of the window and mounts this, and there is no
- * flag anybody sets. What that removes is the pair of controls that used to
- * say what the glass already said — a *Full screen* button on the card and an
- * *Exit full screen* button over the picture — and with them the bug that made
- * the change worth making: the expanded state locked the phone sideways, and
- * collapsing released the lock, so somebody who exited while still holding the
- * phone sideways got the channel screen sideways and nothing to say otherwise
- * with.
+ * **The transport and the way out.** Pause and play, the progress bar, the two
+ * fifteen-second seeks — and *Exit full screen*. Nothing else, and in
+ * particular nothing about the room: the channel's own pinned bar was drawn
+ * here for a day on the argument that this is a talking application before it
+ * is a video one, and what that bought was reachability that was never more
+ * than one press away, at a fifth of a sideways phone.
  *
- * **Which since 2026-09-20 leaves no control here at all beyond the
- * transport.** Two things went that day, and the rule that took them out is
- * one sentence: *sideways, the only controls are the film's*. Pause and play,
- * the progress bar, and the two fifteen-second seeks — and nothing else,
- * because everything else on this screen is about the room rather than about
- * the film, and a room is something you attend to upright.
+ * ## Two ways in, and only a phone has the second
  *
- * What went was the channel's own pinned bar — mute, the floor, and the three
- * rungs of presence — and the *Back to portrait* button that sat above it.
- * The bar was kept on the argument that this is a talking application before
- * it is a video one, and that argument is still true; what it is not is a
- * reason to spend a fifth of a sideways phone on five controls that are one
- * turn of the wrist away. The turn is the gesture that gets you back to the
- * room, and it is the same turn whether you want the microphone or the
- * roster or the Stop.
+ * **The button, on every platform, and the turn, on a handheld.** A press of
+ * *Full screen* on the watch card opens this anywhere; turning a phone
+ * sideways on the *Watch* tab opens it as well, and turning it upright closes
+ * it again. `ChannelView` holds which of the two is speaking and mounts this;
+ * see its derivation, which is where the whole rule is written out.
  *
- * **What that costs is the person the accelerometer cannot help**, and it is
- * a real cost rather than a rounding error: somebody lying down, or holding
- * the phone flat on a table, has no way out of this state, and on the web
- * there is no way out at all because there is no device to turn. *Back to
- * portrait* was for exactly them. It is gone here because this state should
- * not exist for them in the first place — a window that is landscape because
- * it is a browser, or an iPad, or a phone on a table, is not somebody asking
- * for a film — and that is `ChannelView`'s question rather than this file's.
- * `returnToPortrait` in `orientation.ts` is still there, uncalled, for whatever
- * answers it.
+ * **The turn alone was tried, for a day, and it was right about one surface in
+ * four.** From 2026-09-19 this state had no controls at all: the phone was the
+ * whole of it, on the reasoning that two buttons saying what the glass already
+ * said were two buttons too many, and that the pair had left a real bug —
+ * the expanded state locked the phone sideways, exiting released the lock, and
+ * an unlocked phone goes back to how it is being held, so exiting while
+ * sideways handed back the channel screen sideways with nothing to say
+ * otherwise with.
+ *
+ * What that missed is that **a window is not landscape because somebody turned
+ * it**. A desktop browser window is landscape. An iPad held the way iPads are
+ * held is landscape. Both entered this state on the *Watch* tab and could not
+ * leave it — the web worst of all, having no device to turn and a
+ * `returnToPortrait` that was a deliberate no-op. The turn is a statement only
+ * where turning is a gesture, which is a handheld, and `HANDHELD_UNDER` in
+ * `ui/layout.ts` is where that line is drawn.
+ *
+ * **And the old bug does not come back with the button.** What made it a bug
+ * was never the sideways channel screen — landscape is a supported shape for
+ * every screen in this app — but that the control had removed itself and left
+ * nothing to press. The landscape lock is gone, `expo-screen-orientation` with
+ * it, and what a pressed exit gives back is a channel screen with a *Full
+ * screen* button on the card.
  *
  * The exits nobody presses are unchanged and are the caller's: the party
  * stopping, the film being refused, the picture moving to another device. See
@@ -99,23 +101,36 @@ const FADE_MS = 200;
  * somebody arriving here is shown the transport before it goes rather than
  * having to discover that a tap produces one.
  *
- * And the reason the original worry is survivable is that the way out is no
- * longer a control at all. Somebody who never finds the button turns the phone
- * upright, which is what they would do with any other film on any other phone.
- * The film has no controls of its own to compete with a touch — YouTube's bar
- * is off — so there is no ambiguity about what a tap on the picture means.
+ * And the reason the original worry is survivable is that on a phone the way
+ * out is not only a control: somebody who never finds the button turns the
+ * device upright, which is what they would do with any other film on any other
+ * phone. Elsewhere the button is the way out and a touch is what brings it
+ * back, which is the arrangement every player on every laptop has. The film
+ * has no controls of its own to compete with a touch — YouTube's bar is off —
+ * so there is no ambiguity about what a tap on the picture means.
  */
 export function FullScreen({
   picture,
   chrome,
+  onExit,
 }: {
   /** The player, which fills whatever it is given. */
   picture: React.ReactNode;
   /**
    * The transport — the same row the card has, drawn over the picture, and
-   * since 2026-09-20 the whole of what is drawn over the picture.
+   * with {@link onExit} the whole of what is drawn over the picture.
    */
   chrome: React.ReactNode;
+  /**
+   * The way out, which every platform has and only a phone has an alternative
+   * to.
+   *
+   * It is the caller's because the state is: `ChannelView` holds what was
+   * pressed, and this reports the press rather than deciding anything. See
+   * that file's derivation for what a press means against a window that is
+   * also entitled to an opinion.
+   */
+  onExit: () => void;
 }): React.ReactElement {
   /*
     The window, for as long as this is up.
@@ -225,6 +240,21 @@ export function FullScreen({
           pointerEvents={shown ? 'box-none' : 'none'}
         >
           {chrome}
+          {/*
+            **Words rather than a glyph**, against § *Icons*' licence for a
+            header glyph and for the reason this button existed the first time:
+            an icon is findable once it has been learnt, and the way out of a
+            state somebody may not know they can leave is not where they learn
+            one.
+
+            It says what it does to the picture rather than what it does to the
+            device, which is the opposite of what *Back to portrait* said and
+            is the right way round now: this collapses the picture directly on
+            every platform, where that one turned the phone and let the collapse
+            follow. There is no phone to turn in a browser, which is how the
+            other one came to be useless on half the surfaces that needed it.
+          */}
+          <Button label="Exit full screen" onPress={onExit} />
         </Animated.View>
       </View>
     </View>
@@ -252,9 +282,9 @@ const styles = StyleSheet.create({
    * never covered, and here it would buy a *smaller picture in landscape than
    * in portrait*. Expanding a picture to make it smaller is not a feature. So
    * the transport sits on a scrim, as every video player's does, and fades
-   * rather than standing over the film for the whole of it. It is the only
-   * thing on the scrim since 2026-09-20; the channel's own footer shared it
-   * for a day and is upright-only now.
+   * rather than standing over the film for the whole of it. It shares the
+   * scrim with the way out and with nothing else; the channel's own footer was
+   * on it for a day and is upright-only now.
    */
   chrome: {
     position: 'absolute',
