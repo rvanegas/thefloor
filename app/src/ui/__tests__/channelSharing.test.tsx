@@ -10,7 +10,7 @@ import { type ChannelState } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { WatchPlayer } from '../../watch/WatchPlayer';
-import { Share, TextInput } from 'react-native';
+import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
   AUDIO,
@@ -169,36 +169,62 @@ describe('Channel, watching together', () => {
     mockApp.labs = false;
   });
 
-  /** The link field, which is the only TextInput in the empty card. */
-  function pasteLink(tree: ReactTestRenderer, text: string) {
-    const field = tree.root
-      .findAll((node) => node.type === TextInput)
-      .find((n) => n.props.placeholder === 'Paste a YouTube link');
-    act(() => field!.props.onChangeText(text));
+  /**
+   * What is on the device's clipboard when the button is pressed.
+   *
+   * There is no field to type into since 2026-09-20 — see `watchPasteError`
+   * in `ChannelView` — so the fixture a watch test sets is the clipboard.
+   */
+  function onClipboard(text: string) {
+    (Clipboard.getStringAsync as jest.Mock).mockImplementation(
+      async () => text
+    );
   }
 
-  it('will not start on something that is not a YouTube link', () => {
+  /** Presses a button and lets the clipboard read settle. */
+  async function press(tree: ReactTestRenderer, label: string) {
+    await act(async () => {
+      findButton(tree, label)!.props.onPress();
+    });
+  }
+
+  it('will not start on something that is not a YouTube link', async () => {
     showChannel(channelOf());
     const tree = open();
-    expect(
-      findButton(tree, 'Watch something together')!.props.disabled
-    ).toBe(true);
+    onClipboard('https://vimeo.com/123456');
 
-    pasteLink(tree, 'https://vimeo.com/123456');
+    // Lit, unlike the old field's button: whether the clipboard holds a link
+    // is not knowable without reading it, and reading it unasked is a paste
+    // notification on iOS. The refusal is in words, after the press.
     expect(
       findButton(tree, 'Watch something together')!.props.disabled
-    ).toBe(true);
+    ).toBe(false);
+    await press(tree, 'Watch something together');
+
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('That is not a YouTube link');
     act(() => tree.unmount());
   });
 
-  it('lights up on one, and sends the link as typed', () => {
+  it('says so when there is nothing on the clipboard at all', async () => {
     showChannel(channelOf());
     const tree = open();
-    pasteLink(tree, URL);
+    // The jest.setup default, stated here because it is the fixture: an empty
+    // clipboard and an unreadable one are the same answer from `pasteText`.
+    onClipboard('');
+    await press(tree, 'Watch something together');
 
-    const start = findButton(tree, 'Watch something together')!;
-    expect(start.props.disabled).toBe(false);
-    act(() => start.props.onPress());
+    expect(mockApp.act).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain('There is nothing on your clipboard');
+    act(() => tree.unmount());
+  });
+
+  it('starts on the link that is on the clipboard, trimmed', async () => {
+    showChannel(channelOf());
+    const tree = open();
+    onClipboard(`  ${URL}\n`);
+    await press(tree, 'Watch something together');
+
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'START_WATCH',
       url: URL,
@@ -1141,16 +1167,15 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('swaps the video without stopping the party first', () => {
+  it('swaps the video without stopping the party first', async () => {
     showChannel(watching());
     const tree = open();
+    onClipboard('https://youtu.be/abcdefghijk');
+    // Two presses, and the clipboard is read only on the second: a swap
+    // empties everybody's picture, so it is not something one press on a
+    // stale clipboard can do.
     act(() => findButton(tree, 'Change video')!.props.onPress());
-
-    const field = tree.root
-      .findAll((node) => node.type === TextInput)
-      .find((n) => n.props.placeholder === 'Paste a YouTube link');
-    act(() => field!.props.onChangeText('https://youtu.be/abcdefghijk'));
-    act(() => findButton(tree, 'Watch this instead')!.props.onPress());
+    await press(tree, 'Watch this instead');
 
     // START_WATCH replaces a party in place, so the followers never see
     // "Nothing is playing" between one video and the next.

@@ -537,21 +537,32 @@ export function ChannelView({
   /** Where a link went when there was no share sheet to hand it to. */
   const [shareNote, setShareNote] = useState<string | null>(null);
   /**
-   * The link somebody is typing into the watch card, before it is anything.
+   * Why the last press of the watch card's paste button did nothing.
    *
-   * Local rather than in the channel: a half-typed URL is not something the
-   * other people in the room should be watching arrive character by character,
-   * and the party begins when Start is pressed.
+   * **There is no field here any more, as of 2026-09-20.** A YouTube link is
+   * machine text arriving from somewhere else — a share sheet, a browser, a
+   * message — so what everybody actually did with the field was paste into
+   * it, and on a phone that is a long press, a magnifier and a popover
+   * aimed at a box whose contents nobody can proofread anyway. The button
+   * reads the clipboard itself. What is lost is typing a link out by hand,
+   * which nobody was doing.
+   *
+   * So the two ways it can fail have to be said, an empty clipboard and one
+   * holding something that is not a link being indistinguishable from a
+   * button that is simply broken. Local and transient, like `changing`: it
+   * is about one press on one device.
    */
-  const [watchUrl, setWatchUrl] = useState('');
+  const [watchPasteError, setWatchPasteError] = useState<string | null>(null);
   /** While a follower link is being minted, which is a round trip. */
   const [linking, setLinking] = useState(false);
   /**
    * Whether the field for swapping the video is open over a loaded party.
    *
-   * Local and transient, like `watchUrl` itself: somebody halfway through
-   * pasting a link has not changed what the channel is watching, and the other
-   * people in it have no business seeing the field appear on their screens.
+   * Local and transient, like `watchPasteError`: somebody who has pressed
+   * *Change video* has not changed what the channel is watching, and the
+   * other people in it have no business seeing that press at all. It is the
+   * confirmation step of a swap — the press that reads the clipboard is the
+   * one under it.
    */
   const [changing, setChanging] = useState(false);
   /**
@@ -1640,10 +1651,37 @@ export function ChannelView({
   /** This account's other live instances — the ones a film could go to. */
   const otherScreens = myScreens;
 
-  // The whole of why `parseYouTubeUrl` is in core: this decides whether the
-  // button lights up and the server decides whether to accept, and a greyed
-  // control and a refused action must not disagree about what a link is.
-  const pastedIsLink = parseYouTubeUrl(watchUrl) !== null;
+  /**
+   * Takes the YouTube link off the clipboard and starts the party on it.
+   *
+   * **The clipboard is read on the press rather than watched.** Reading it
+   * to decide whether a button is enabled would mean polling it — and on iOS
+   * every read a person did not ask for is a paste notification, which is the
+   * system telling them an app went through their clipboard. So the button is
+   * lit whenever the floor allows a film to be put on, and whether there is a
+   * link is answered afterwards, in words.
+   *
+   * The whole of why `parseYouTubeUrl` is in core: this decides whether the
+   * press does anything and the server decides whether to accept, and a
+   * refusal here and a refusal there must not disagree about what a link is.
+   */
+  const pasteWatchUrl = async () => {
+    setWatchPasteError(null);
+    const text = await pasteText();
+    if (text === null) {
+      setWatchPasteError('There is nothing on your clipboard to paste.');
+      return;
+    }
+    const url = text.trim();
+    if (parseYouTubeUrl(url) === null) {
+      setWatchPasteError(
+        'That is not a YouTube link. Copy one from YouTube, then press this again.'
+      );
+      return;
+    }
+    act({ type: 'START_WATCH', url });
+    setChanging(false);
+  };
   // Two questions, and the interface needs both. `muteRequested` is what the
   // toggle shows — a button that flipped itself back every time the video
   // paused would be a control fighting its owner. `partyMuted` is what is
@@ -3577,31 +3615,34 @@ export function ChannelView({
                 */}
                 {changing ? (
                   <>
-                    <Field
-                      value={watchUrl}
-                      onChangeText={setWatchUrl}
-                      placeholder="Paste a YouTube link"
-                      autoFocus
-                      editable={mayStartWatch}
-                    />
+                    {/*
+                      **Two presses, with no field between them.** The field
+                      was the step that made this deliberate — a swap empties
+                      four other people's picture and starts it again from
+                      black — and reading the clipboard on the first press
+                      would put that on whatever link happened to be sitting
+                      there. So *Change video* asks and this answers, and the
+                      clipboard is read only once somebody has said twice
+                      that they mean it.
+                    */}
+                    {watchPasteError ? (
+                      <Text style={styles.warning}>{watchPasteError}</Text>
+                    ) : null}
                     <View style={styles.buttonRow}>
                       <Button
                         label="Watch this instead"
+                        sublabel="Plays the YouTube link on your clipboard"
                         variant="primary"
                         style={styles.flexButton}
-                        disabled={!mayStartWatch || !pastedIsLink}
-                        onPress={() => {
-                          act({ type: 'START_WATCH', url: watchUrl.trim() });
-                          setWatchUrl('');
-                          setChanging(false);
-                        }}
+                        disabled={!mayStartWatch}
+                        onPress={() => void pasteWatchUrl()}
                       />
                       <Button
                         label="Cancel"
                         variant="ghost"
                         style={styles.flexButton}
                         onPress={() => {
-                          setWatchUrl('');
+                          setWatchPasteError(null);
                           setChanging(false);
                         }}
                       />
@@ -3820,20 +3861,22 @@ export function ChannelView({
               </>
             ) : (
               <>
-                <Field
-                  value={watchUrl}
-                  onChangeText={setWatchUrl}
-                  placeholder="Paste a YouTube link"
-                  editable={mayStartWatch}
-                />
+                {/*
+                  The one press that starts a party, and it is the paste.
+                  Nothing is typed here — see `watchPasteError` for why the
+                  field went — so the link is named in the sublabel rather
+                  than in a placeholder, and the two ways the clipboard can
+                  disappoint are said above the button.
+                */}
+                {watchPasteError ? (
+                  <Text style={styles.warning}>{watchPasteError}</Text>
+                ) : null}
                 <Button
                   label="Watch something together"
+                  sublabel="Plays the YouTube link on your clipboard"
                   variant="primary"
-                  disabled={!mayStartWatch || !pastedIsLink}
-                  onPress={() => {
-                    act({ type: 'START_WATCH', url: watchUrl.trim() });
-                    setWatchUrl('');
-                  }}
+                  disabled={!mayStartWatch}
+                  onPress={() => void pasteWatchUrl()}
                 />
                 {/*
                   Nothing offers a screen until there is something to show on
