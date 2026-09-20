@@ -1050,6 +1050,12 @@ function Attending({ children }: { children: React.ReactNode }) {
  * levels below `ChannelView`, and threading a boolean through every one of
  * them to switch off a list is a prop that four components would carry and
  * none would read. See `WholeWindowContext`, which is the whole of the rule.
+ *
+ * **It sits above {@link Glass} as well, since 2026-09-20**, which is one
+ * level higher again: the safe-area gutter is part of what a claim on the
+ * window takes, so the component that decides the insets has to be able to
+ * read the claim. Nothing else moved with it — a provider with no opinion of
+ * its own is free to be as high as its highest reader.
  */
 function WholeWindow({ children }: { children: React.ReactNode }) {
   const [taken, setTaken] = useState(false);
@@ -1061,19 +1067,57 @@ function WholeWindow({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The glass the application is drawn on, inset from the hardware that is not
+ * glass.
+ *
+ * **It gives the bottom inset back while the picture has the window**, which
+ * is the one state where the gutter is wrong. Everywhere else the home
+ * indicator sits on a strip of `colors.bg` below the footer, which is what
+ * keeps the last row of controls off it; under an expanded film that same
+ * strip is a light bar across the foot of a black screen, and it is the
+ * brightest thing on a sideways phone in a dark room. A film fitted above it
+ * is also a film shorter than the glass by that much, for nothing.
+ *
+ * So the inset is dropped rather than painted black: black would hide it and
+ * still cost the height. The indicator then floats over the film as it does
+ * over every other player on the phone, and the transport keeps clear of it
+ * on its own — see `FullScreen`'s scrim, which pads by the same inset from
+ * the inside.
+ *
+ * **The top stays**, which is not symmetry but the two edges being different
+ * problems: sideways there is no top inset to drop, and upright — a phone
+ * flat on a table, which {@link FullScreen} supports — the status bar is
+ * still drawn and content under it is content behind the clock.
+ *
+ * Inside {@link WholeWindow} rather than outside it, which is why that
+ * provider moved above this: the claim has to be readable here.
+ */
+function Glass({ children }: { children: React.ReactNode }) {
+  const wholeWindow = useWholeWindowClaimed();
+  return (
+    <SafeAreaView
+      style={styles.root}
+      edges={wholeWindow ? ['top'] : ['top', 'bottom']}
+    >
+      {children}
+    </SafeAreaView>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-        <StatusBar style="auto" />
-        <AppProvider>
-          <Attending>
-            <WholeWindow>
+      <WholeWindow>
+        <Glass>
+          <StatusBar style="auto" />
+          <AppProvider>
+            <Attending>
               <Root />
-            </WholeWindow>
-          </Attending>
-        </AppProvider>
-      </SafeAreaView>
+            </Attending>
+          </AppProvider>
+        </Glass>
+      </WholeWindow>
     </SafeAreaProvider>
   );
 }

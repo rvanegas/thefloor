@@ -7,6 +7,7 @@ import {
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
@@ -143,6 +144,21 @@ export function FullScreen({
   */
   useWholeWindow();
 
+  /*
+    What the hardware takes out of the bottom of the window, which nothing
+    else is subtracting any more.
+
+    `App.tsx` drops its bottom inset for exactly this state — the gutter was a
+    light bar across the foot of a black screen and a film shorter than the
+    glass for no reason — so the film is fitted to all of it and the home
+    indicator floats over the picture, as it does over every other player on
+    the phone. The one thing that must not be under it is the transport: a
+    row of buttons with a white bar lying across them is what that trade
+    looks like when nobody pays for it here. So the scrim pays, and the
+    picture does not.
+  */
+  const inset = useSafeAreaInsets();
+
   /** Whether the chrome is up. It starts up; see the header. */
   const [shown, setShown] = useState(true);
   const fade = useRef(new Animated.Value(1)).current;
@@ -236,7 +252,10 @@ export function FullScreen({
         */}
         <Animated.View
           testID="chrome"
-          style={[styles.chrome, { opacity: fade }]}
+          style={[
+            styles.chrome,
+            { opacity: fade, paddingBottom: spacing(1.5) + inset.bottom },
+          ]}
           pointerEvents={shown ? 'box-none' : 'none'}
         >
           {chrome}
