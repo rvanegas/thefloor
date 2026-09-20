@@ -88,9 +88,10 @@ caused; the list carries the meaning.
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
-- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
+- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, or a column beside its transport where the pane is wide enough (see *watch shape*), a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device. One way in on every platform: the *Full screen* button on the watch card, and *Exit full screen* on the scrim to leave. The only state a *handheld* may be landscape in, and it may be either way up in it — see *portrait lock*, which removed the turning-sideways route the button shared with for two days. On the scrim, the transport and *Exit full screen* and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. Three automatic collapses besides. One device's own business and never the party's
 - **Handheld** — A window whose short side is under 500 points, which is to say one somebody is holding: every iPhone in either orientation, a phone browser, and nothing else this app is opened on. The one surface this app turns — see *portrait lock* — a tablet and a browser window being landscape sitting still. `isHandheld` in `ui/layout.ts`; a different question from the layout breakpoint, which a phone on its side is already past
+- **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *full screen*, where both orientations are permitted. A tablet and a browser window are never turned. Adopted 2026-09-20, replacing the landscape lock that pinned full screen sideways and the turn-to-expand route that lock made possible. `usePortraitUnlessFullScreen` in `watch/orientation.ts`
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -1918,6 +1919,39 @@ What used to stop a film — tapping another tab — is the ladder now.
 
 `app/src/watch/Picture.tsx` for the player and its four corners, `Dock.tsx`
 for the rectangle itself; the hole is `DockSlot`, in `Screen`'s `aside` slot.
+
+## Watch shape
+
+**How the *Watch* tab lays itself out at a given size**, which is one pure
+function — `watchShapeFor` in `ui/layout.ts` — and two answers: how many
+columns, and how big the picture may be.
+
+**One column stacks the picture over its transport; two put them side by
+side.** They compete for height stacked and for nothing at all beside each
+other, so a pane with room for both gets both. `TWO_COLUMN_AT` is the
+turnover and is **a sum rather than a chosen number**: the narrowest picture
+worth having (440, a phone's widest) plus the narrowest control column worth
+having (300) plus the gap. Move either minimum and the breakpoint follows.
+**It is not `SPLIT_AT`** — that asks how wide the window is and answers
+whether a list fits beside a screen.
+
+**Stacked, `RESERVE_UNDER_PICTURE` is kept below the film**: 150 points, being
+the section label, the progress bar with its two times, and the transport row.
+The promise is that **the scrubber and the three transport buttons are
+reachable without scrolling on every surface**; the rest of the card is some
+four hundred points and is meant to scroll. The picture takes what is left,
+capped at 620 wide.
+
+**The height is the half that was missing**, and the web is what makes it
+obvious: a browser window is short and wide, has no rotation to rescue it, and
+nothing in a width-only cap stops a 16:9 picture taking the whole viewport. An
+iPad on build 251 was the report; the fold landing mid-button was the symptom.
+
+**Both inputs are given rather than produced.** *Two columns when the controls
+would not otherwise fit* is the obvious rule and oscillates — two columns
+shrink the picture, the picture fits in one column again, and the layout flips
+under a finger for ever. The pane's width and the body's height are moved by
+the window and by the chrome, never by the answer.
 
 ## Portrait lock
 

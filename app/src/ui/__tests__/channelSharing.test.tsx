@@ -8,6 +8,7 @@ import { reduce } from '../../../../core/channel';
 import { MAX_CLIP_LENGTH } from '../../../../core/constants';
 import { type ChannelState } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
+import { Screen } from '../components';
 import { WatchPlayer } from '../../watch/WatchPlayer';
 import { Share, TextInput } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -538,6 +539,50 @@ describe('Channel, watching together', () => {
     what is asserted here is the derivation, and in particular every way the
     film can leave the screen without the person watching it doing anything.
   */
+  /**
+   * **Where the transport sits relative to the film**, which is the half of
+   * `watchShapeFor` that reaches a screen as a prop rather than as a style.
+   *
+   * The arithmetic itself is proved in `layout.test.ts` against a table of
+   * surfaces; what is left to show here is that the channel screen asks for
+   * the answer and hands it to `Screen` — the wiring, which a pure test
+   * cannot see and which is where this would break.
+   */
+  describe('the watch body’s two columns', () => {
+    /** iPad 10.2" in landscape: a 740-point pane, under the turnover. */
+    const PANE_740 = { width: 1080, height: 810, scale: 2, fontScale: 1 };
+    /** iPad Pro 12.9" in landscape: 1026, over it. */
+    const PANE_1026 = { width: 1366, height: 1024, scale: 2, fontScale: 1 };
+
+    const placeOn = (window: typeof PORTRAIT) => {
+      mockWindow = window;
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      const place = tree.root.findAll((node) => node.type === Screen)[0]?.props
+        .asidePlace;
+      act(() => tree.unmount());
+      return place;
+    };
+
+    it('stacks the transport under the film on a pane too narrow for both', () => {
+      // The iPad this was reported from. 740 is short of the sum of the two
+      // minimums, and a picture shrunk to 430 to buy a column would be the
+      // trade the wrong way round.
+      expect(placeOn(PANE_740)).toBe('above');
+    });
+
+    it('puts it beside the film once there is room for both', () => {
+      expect(placeOn(PANE_1026)).toBe('beside');
+    });
+
+    it('leaves a phone stacked', () => {
+      // Nothing about any of this reaches a phone, which is the surface this
+      // application is mostly used on and the one with no room to spare.
+      expect(placeOn(PORTRAIT)).toBe('above');
+    });
+  });
+
   describe('Full screen', () => {
     /**
      * On the *Watch* tab, on the device showing the film, asked for.

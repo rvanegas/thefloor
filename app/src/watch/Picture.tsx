@@ -9,6 +9,7 @@ import React, {
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { inRoom } from '../../../core/guests';
 import { useApp } from '../state/AppProvider';
+import { COLUMN_GAP, useWatchShape } from '../ui/layout';
 import { colors } from '../ui/theme';
 import { WatchDock, type Rect } from './Dock';
 import { usePortraitUnlessFullScreen } from './orientation';
@@ -155,7 +156,29 @@ export function DockSlot(): React.ReactElement {
     [undock, owner]
   );
 
-  return <View ref={box} onLayout={measure} style={styles.slot} />;
+  /*
+    **The box, decided rather than constrained.** This was `width: '100%'`, a
+    `maxWidth` and an `aspectRatio` — three style rules that between them
+    answered *how wide*, and nothing at all about how tall. On a short window
+    that is a picture taking the whole body and a transport below the fold,
+    which is a browser's ordinary shape and was an iPad's on build 251. See
+    `watchShapeFor`, which answers both sides at once and is where the
+    reasoning is.
+  */
+  const { picture: size, columns } = useWatchShape();
+  return (
+    <View
+      ref={box}
+      onLayout={measure}
+      style={[
+        styles.slot,
+        size,
+        // Beside the scroll, the gap is the aside's; above it, the hairline
+        // that separates the picture from the card is.
+        columns === 2 ? styles.slotBeside : styles.slotAbove,
+      ]}
+    />
+  );
 }
 
 export function Picture({
@@ -304,15 +327,30 @@ export function Picture({
 
 const styles = StyleSheet.create({
   layer: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
-  /** 16:9, capped at the measure, and centred so the cap is a column rather
-      than a left-hand picture with a black margin on an iPad. */
-  slot: {
-    width: '100%',
-    maxWidth: 620,
-    alignSelf: 'center',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#000',
+  /**
+   * The hole, black so that the frame between the measurement and the picture
+   * arriving is the colour of the film rather than a gap in the screen.
+   *
+   * **Its size comes from `watchShapeFor` and not from here**, which is the
+   * 2026-09-20 change: a width cap and an aspect ratio cannot say anything
+   * about height, and height is the axis that runs out. Centred, so what the
+   * cap leaves over is a margin either side rather than a picture shoved
+   * against the left edge of an iPad.
+   */
+  slot: { alignSelf: 'center', backgroundColor: '#000' },
+  /** Under the tabs and over the card, with the hairline that separates them. */
+  slotAbove: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  /**
+   * Beside the card, where the separator would be a vertical hairline and is
+   * not drawn at all: two columns of a body are not two surfaces, and the film
+   * is already a black rectangle against the page.
+   *
+   * `COLUMN_GAP` is spent here because the arithmetic that chose the widths
+   * subtracted it here; the scroll beside this takes the slack and knows
+   * nothing about it.
+   */
+  slotBeside: { marginRight: COLUMN_GAP, alignSelf: 'flex-start' },
 });

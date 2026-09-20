@@ -220,3 +220,186 @@ export function useWholeWindow(): void {
     return () => claim(false);
   }, [claim]);
 }
+
+/**
+ * The narrowest a segment may be and still hold a word.
+ *
+ * **The number `MAX_PER_ROW` was standing in for.** That rule reads "four at
+ * most" and argues its case in points — "a fifth on a phone leaves each of
+ * them about forty points, which is not a word" — so what it actually asserts
+ * is a *width*, with a phone's width assumed throughout. Assume nothing and
+ * the same sentence is this constant, true on every surface rather than on the
+ * one it was written against.
+ *
+ * **90 because that is what the old rule already tolerated**, read off the
+ * phone it was written for: four segments across a 393-point iPhone are 98
+ * points each and were allowed, five are 78 and were not. Anything higher
+ * would be this change quietly making phones worse — a set of four that has
+ * always been one row becoming two — and that is not what it is for.
+ * `segmented.test.tsx` pins the phone against every count from one to six for
+ * exactly that reason.
+ *
+ * It leaves *Recordings*, the longest of the six tabs, about 76 points of
+ * caption in a 90-point segment, which is the tightest case that occurs.
+ */
+export const MIN_SEGMENT = 90;
+
+/**
+ * How many rows a set of segments needs, at this width.
+ *
+ * One when they fit, two when they do not, and never three — a caller wanting
+ * more than two rows wants a menu. `segmentRows` in `components.tsx` does the
+ * splitting; this decides only how many rows there are to split into.
+ *
+ * **A width of zero asks for the cautious answer.** A control that has not
+ * been laid out yet reports nothing, and the wrong guess in that frame is the
+ * one that draws six segments at eighteen points each.
+ */
+export function segmentRowsFor(count: number, width: number): 1 | 2 {
+  if (count <= 1) return 1;
+  return width >= count * MIN_SEGMENT ? 1 : 2;
+}
+
+/**
+ * How wide the picture may ever be, however much room there is.
+ *
+ * Moved here from `watch/Picture.tsx` on 2026-09-20, the sizing having stopped
+ * being a style and become a rule with a height in it. A film wider than this
+ * on a desk is one nobody is sitting far enough back for; what the extra room
+ * buys past this point is margin, and the picture is centred in it.
+ */
+export const PICTURE_MAX_WIDTH = 620;
+
+/**
+ * The narrowest picture worth giving a column of its own to.
+ *
+ * A phone's widest, and the same argument `SPLIT_AT` makes about the detail
+ * pane: **two columns must never leave the film worse off than one column
+ * would have.** Below this the picture has been shrunk to buy room for
+ * controls, which is the trade the wrong way round.
+ */
+export const PICTURE_MIN_WIDTH = 440;
+
+/** The narrowest the controls' own column may be: a full-width button with its
+    words on it, unwrapped. */
+export const COLUMN_MIN = 300;
+
+/** Between the two columns. `spacing(2)`, written out because this file has no
+    business importing the theme. */
+export const COLUMN_GAP = 16;
+
+/**
+ * The width at which the transport moves beside the picture instead of under
+ * it.
+ *
+ * **A sum rather than a chosen number**, which is the whole of why it can be
+ * trusted on a surface nobody has opened yet: the narrowest picture worth
+ * having, plus the narrowest column worth having, plus the gap. Move either
+ * minimum and this follows.
+ *
+ * It lands near `SPLIT_AT` and is emphatically not it. That one asks how wide
+ * the *window* is and answers whether a list fits beside a screen; this asks
+ * how wide the *pane* is and answers whether a transport fits beside a film. A
+ * window at 800 has a 460-point pane and is nowhere near this.
+ */
+export const TWO_COLUMN_AT = PICTURE_MIN_WIDTH + COLUMN_MIN + COLUMN_GAP;
+
+/**
+ * What must stay above the fold under a stacked picture.
+ *
+ * The section label, the progress bar with its two times, and the transport
+ * row. **The rest of the card is allowed below it** — *Full screen*, *Unmute
+ * the room*, *Change video*, *Stop* and the copy buttons come to some four
+ * hundred points, which do not fit under a 16:9 picture at any size and are
+ * not meant to; the card scrolls.
+ *
+ * So this is a promise rather than a target: **the scrubber and the three
+ * transport buttons are reachable without scrolling, on every surface.** What
+ * went wrong on an iPad on build 251 was not that the card was long but that
+ * the fold landed in the middle of a button.
+ */
+export const RESERVE_UNDER_PICTURE = 150;
+
+/** How the watch body is laid out: the picture's box, and where it sits. */
+export type WatchShape = {
+  /** One column, the picture above the scroll; or two, beside it. */
+  columns: 1 | 2;
+  /** The picture's box, 16:9 exactly — the caller sets both sides rather than
+      an aspect and a cap, since the binding side is this function's answer. */
+  picture: { width: number; height: number };
+};
+
+/**
+ * The whole of the watch body's arithmetic, as a function of the room it has.
+ *
+ * **Pure, and decided from the pane rather than from anything it produces.**
+ * That is not tidiness, it is the only thing standing between this and an
+ * oscillation: *two columns when the controls would not otherwise fit* is a
+ * rule whose answer changes what it measured — two columns shrink the picture,
+ * the picture fits in one column again, and the layout flips under a finger
+ * forever. Both inputs here are given by the window and by the chrome around
+ * the body, and neither moves when the answer does.
+ *
+ * `bodyHeight` is the room the picture and the scroll *share*: what is left of
+ * the pane once the header, the tabs and the pinned footer have taken theirs.
+ * It is measured rather than computed from constants, so the tabs collapsing
+ * to one row on a wide pane arrives here on its own.
+ *
+ * **Zero means not yet measured**, and the answer then is the old one: fit the
+ * width and let the height fall where it may. A first frame with a collapsed
+ * picture in it is worse than a first frame with a tall one.
+ */
+export function watchShapeFor(pane: {
+  width: number;
+  bodyHeight: number;
+}): WatchShape {
+  const columns = pane.width >= TWO_COLUMN_AT ? 2 : 1;
+  /*
+    Beside the picture, the controls take width rather than height — so the
+    whole body is the picture's to fill and nothing has to be kept under it.
+    Above them, the reserve is the fold.
+  */
+  const room = {
+    width:
+      columns === 2
+        ? Math.min(PICTURE_MAX_WIDTH, pane.width - COLUMN_MIN - COLUMN_GAP)
+        : Math.min(PICTURE_MAX_WIDTH, pane.width),
+    height:
+      columns === 2
+        ? pane.bodyHeight
+        : Math.max(0, pane.bodyHeight - RESERVE_UNDER_PICTURE),
+  };
+  // 16:9 inside that room, by whichever side binds. An unmeasured body binds
+  // on nothing and leaves the width rule alone, which is what shipped before
+  // there was a height rule at all.
+  const width =
+    pane.bodyHeight > 0
+      ? Math.min(room.width, (room.height * 16) / 9)
+      : room.width;
+  return { columns, picture: { width, height: (width * 9) / 16 } };
+}
+
+/**
+ * The room the picture and the scroll share, published by `Screen`.
+ *
+ * **The body rather than the scroll**, which is the distinction that keeps
+ * this out of a feedback loop: the scroll's height is what is left after the
+ * picture, so sizing the picture from it would be sizing it from itself. The
+ * body's height is the pane's less the chrome, and the picture's size has no
+ * bearing on it.
+ *
+ * Zero outside a `Screen`, which is what a test rendering the picture on its
+ * own gets — and is the unmeasured case `watchShapeFor` answers for.
+ */
+export const BodyHeightContext = React.createContext(0);
+
+/** The shape, against this pane, now. */
+export function useWatchShape(): WatchShape {
+  const { width } = useWindowDimensions();
+  const layout = useLayout();
+  const bodyHeight = React.useContext(BodyHeightContext);
+  // The pane rather than the window: in a split the picture lives in the
+  // detail pane, and the list is not room it may have.
+  const pane = layout === 'split' ? width - LIST_WIDTH : width;
+  return watchShapeFor({ width: pane, bodyHeight });
+}

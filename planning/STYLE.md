@@ -13,7 +13,7 @@ source of truth for *what a thing looks like*. Neither settles the other.
 **Read a section, not the file.** The index below says what each answers. The
 common ones are § *Colour* and § *Controls*; the one most often wanted and
 least often found is § *The rules that are actually load-bearing*, at the end,
-which is the half-dozen things somebody breaks by accident.
+which is the eight things somebody breaks by accident.
 
 The authority for every number here is the code, and the code says why: the
 style blocks in `app/src/ui/` carry the reasoning in comments, at length. This
@@ -32,13 +32,13 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, split panes, the one screen that overlays its chrome |
+| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
 | *The lock screen card* | the one surface outside the app, and what it transcribes |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
-| *The rules that are actually load-bearing* | the seven things to not break |
+| *The rules that are actually load-bearing* | the eight things to not break |
 
 ---
 
@@ -417,12 +417,23 @@ One track on `surface` at `radius.md` with 3pt padding and 3pt gaps; the
 selected segment is *raised* into `surfaceRaised` rather than coloured, for
 the reason in § *The economy of colour*.
 
-**One row or two, and never a scroller.** Four segments per row at most, and a
-set larger than that splits *balanced* rather than filled: six is three and
-three, five is three and two. Two rows maximum — a caller wanting a third row
-wants a menu. A strip that drags sideways would break the same rule the footer
-is built on: a tab you have to find by dragging is a tab most people never
-learn is there.
+**One row or two, and never a scroller.** A set splits when its segments would
+come out under `MIN_SEGMENT` — 90 points, which is what a word needs — and it
+splits *balanced* rather than filled: six is three and three, five is three
+and two. Two rows maximum, a caller wanting a third wanting a menu. A strip
+that drags sideways would break the same rule the footer is built on: a tab
+you have to find by dragging is a tab most people never learn is there.
+
+**It was a count until 2026-09-20 and is a width now**, which changes nothing
+on a phone and one thing everywhere else. *Four per row at most* argued its
+own case in points — a fifth on a phone leaves each of them about forty — with
+a phone's width assumed throughout, so the channel screen's six tabs were two
+rows deep on a 740-point iPad pane where they would have fitted in one, and
+the row they did not need came out of the watch card's fold. 90 is the old
+rule's own tolerance read off the phone it was written for: four across 393
+are 98 points each and were allowed, five are 78 and were not. `segmentRowsFor`
+in `ui/layout.ts`; `segmented.test.tsx` pins every count on a phone against
+what the count rule did.
 
 An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
@@ -813,11 +824,14 @@ into: a pinned row still **takes its own height out of the body** exactly as
 the two bars do and covers nothing, and since the picture cannot reserve
 anything from up there, the hole is what does.
 
-- **Docked**, on the *Watch* tab: full bleed, capped at `measure` and centred,
-  16:9 on `#000`, with the pinned header's hairline under it and for the same
-  reason. The transport and the cards scroll beneath it; the film does not
-  scroll away from its own controls. The hole carries the size and the hairline
-  and the picture is laid over it, so the two must agree.
+- **Docked**, on the *Watch* tab: 16:9 on `#000`, centred, with the pinned
+  header's hairline under it and for the same reason. The transport and the
+  cards scroll beneath it; the film does not scroll away from its own
+  controls. The hole carries the size and the hairline and the picture is laid
+  over it, so the two must agree.
+- **Docked beside the scroll**, on a pane wide enough for both — see § *The
+  watch body has two shapes*. Same hole, same picture; what changes is whether
+  the transport is under the film or next to it.
 - **Floating**, everywhere else: 168pt wide at 16:9, `radius.md`, a hairline
   because a dark scene over a dark card has no edge otherwise, and a shadow. It
   **rests in one of the four corners of the application** — over the pinned
@@ -895,6 +909,44 @@ label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED
 AUDIO and *Recordings* keeps only the one over the list, the transport above
 it having no heading at all.
+
+### The watch body has two shapes, and one number decides which
+
+**The film and its transport compete for height in one column and for nothing
+at all in two.** So a pane wide enough for both gets both: the picture beside
+the scroll rather than above it, `asidePlace="beside"` on `Screen`.
+`watchShapeFor` in `ui/layout.ts` is the whole rule, and it is pure — one
+function, one table test, every surface in it.
+
+**`TWO_COLUMN_AT` is a sum rather than a chosen number**, which is why it can
+be trusted on a surface nobody has opened yet: `PICTURE_MIN_WIDTH` (440, a
+phone's widest) plus `COLUMN_MIN` (300, a full-width button with its words on
+it) plus the gap. Move either minimum and the breakpoint follows. **It is not
+`SPLIT_AT`** and must never be given that number: that one asks how wide the
+*window* is and answers whether a list fits beside a screen; this asks how
+wide the *pane* is and answers whether a transport fits beside a film. A
+window at `SPLIT_AT` has a 460-point pane and is nowhere near it.
+
+**Stacked, the picture may not take the whole body.** `RESERVE_UNDER_PICTURE`
+— 150 points, the section label, the progress bar with its two times and the
+transport row — is kept below it at every size. What the reserve promises is
+**the scrubber and the three transport buttons above the fold, always**; the
+rest of the card is four hundred points and is meant to scroll. What went
+wrong on an iPad on build 251 was not that the card was long but that the fold
+landed in the middle of a button.
+
+**The picture's box is decided, not constrained.** It was `width: 100%`, a
+`maxWidth` and an `aspectRatio` — three style rules that between them answered
+*how wide* and nothing at all about *how tall*, which is the axis that runs
+out. A browser window is the case that makes it obvious: short and wide, with
+no rotation to rescue it, and nothing in a width-only cap to stop a 16:9
+picture taking the entire viewport.
+
+**Both inputs come from the pane, never from what the rule produces.** That is
+not tidiness. *Two columns when the controls would not otherwise fit* is a rule
+whose answer changes what it measured — two columns shrink the picture, the
+picture fits in one column again, and the layout flips under a finger for ever.
+The body's height is the pane's less the chrome, and no picture changes it.
 
 ### The expanded picture, which is where a pinned row goes over the body
 
@@ -1211,7 +1263,7 @@ single `floor`-tinted glyph.
 
 ## The rules that are actually load-bearing
 
-Seven things that look like tidying and are not:
+Eight things that look like tidying and are not:
 
 1. **Violet is the floor and nothing else.** Every other coloured thing on the
    palette is claimed by exactly one meaning. Adding a colour, or reusing one of
@@ -1238,15 +1290,28 @@ Seven things that look like tidying and are not:
    header and footer; `measure` on the inner row, hairline on the outer. The
    docked picture is the third of these and is built the same way.
 6. **Position never changes on a fixed control.** `flex: 1` on every footer
-   action, a fixed-height disc whether accented or not, two static rows of tabs
+   action, a fixed-height disc whether accented or not, static rows of tabs
    rather than a scroller. A target that moves under a thumb already on its way
-   is the wrong one pressed.
+   is the wrong one pressed. **How many rows those tabs take is a function of
+   the width** since 2026-09-20, which does not bend this: at a given width it
+   is fixed, and the width changes only when somebody resizes the window or
+   turns the device.
 7. **A card that repeats a pinned control earns its place with a sentence, or
    not at all.** When the sentence goes the card goes; when the button goes and
    the sentence stays it becomes a readout, and a readout may not be hidden by
    a preference about repetition. See § *The cards a footer made redundant*,
    which is what four cards on the channel screen cost before anybody counted
    them.
+
+8. **A layout rule is decided from what it is given, never from what it
+   produces.** *Two columns when the controls would not otherwise fit* reads
+   as the obvious rule and oscillates: two columns shrink the picture, the
+   picture then fits in one column, and the layout flips under a finger for
+   ever. `watchShapeFor` takes the pane's width and the body's height — two
+   things no answer of its own can move — and every future rule of this kind
+   has to be able to say the same. The same reasoning is why `Segmented` may
+   measure itself and the picture may not: a row count does not change how
+   wide a control is, and a height does change what is left below it.
 
 And one that is about this file: **a departure from any of the above is
 written down where it is made.** The style blocks in `app/src/ui/` are

@@ -22,6 +22,13 @@ function render(element: React.ReactElement): ReactTestRenderer {
   return tree;
 }
 
+/**
+ * A phone's width, which is what every case below was written against and is
+ * now said out loud. The rule took the count alone until 2026-09-20 and the
+ * width was the assumption underneath it; see `segmentRowsFor`.
+ */
+const PHONE = 393;
+
 describe('segmentRows', () => {
   /**
    * One row for anything that fits, which is the whole of what this has to
@@ -29,8 +36,8 @@ describe('segmentRows', () => {
    * channel screen's Roster/Invite pair render exactly as they did.
    */
   it('keeps a set that fits on one row', () => {
-    expect(segmentRows(['a', 'b'])).toEqual([['a', 'b']]);
-    expect(segmentRows(['a', 'b', 'c', 'd'])).toEqual([['a', 'b', 'c', 'd']]);
+    expect(segmentRows(['a', 'b'], PHONE)).toEqual([['a', 'b']]);
+    expect(segmentRows(['a', 'b', 'c', 'd'], PHONE)).toEqual([['a', 'b', 'c', 'd']]);
   });
 
   /**
@@ -39,14 +46,14 @@ describe('segmentRows', () => {
    * stuck on the end rather than as a second row.
    */
   it('balances a set that does not, rather than filling the first row', () => {
-    expect(segmentRows(['a', 'b', 'c', 'd', 'e', 'f'])).toEqual([
+    expect(segmentRows(['a', 'b', 'c', 'd', 'e', 'f'], PHONE)).toEqual([
       ['a', 'b', 'c'],
       ['d', 'e', 'f'],
     ]);
     // The closest balance an odd number has, and the longer row first. No
     // tab strip is this shape since the watch tab left Labs, but the choice
     // rows still can be.
-    expect(segmentRows(['a', 'b', 'c', 'd', 'e'])).toEqual([
+    expect(segmentRows(['a', 'b', 'c', 'd', 'e'], PHONE)).toEqual([
       ['a', 'b', 'c'],
       ['d', 'e'],
     ]);
@@ -56,7 +63,37 @@ describe('segmentRows', () => {
   it('drops nothing and reorders nothing', () => {
     for (let n = 1; n <= 8; n += 1) {
       const options = Array.from({ length: n }, (_, i) => i);
-      expect(segmentRows(options).flat()).toEqual(options);
+      expect(segmentRows(options, PHONE).flat()).toEqual(options);
+    }
+  });
+
+  /**
+   * **The same six on a pane that can spell them, which is the 2026-09-20
+   * change.** A 740-point iPad pane was given two rows because six is more
+   * than four, and the second row cost the watch card a third of what it had
+   * left below the picture. Nothing about a phone moves; see
+   * `segmentRowsFor`, and `layout.test.ts` for the table of panes.
+   */
+  it('keeps six on one row where six will fit', () => {
+    const six = ['a', 'b', 'c', 'd', 'e', 'f'];
+    expect(segmentRows(six, 740)).toEqual([six]);
+    expect(segmentRows(six, PHONE)).toHaveLength(2);
+  });
+
+  /**
+   * **The phone is exactly as it was, at every count.**
+   *
+   * A width rule replacing a count rule can widen or narrow what fits, and
+   * narrowing it here would mean a set of four that has always been one row
+   * becoming two on the surface this application is mostly used on — a
+   * regression bought with a change meant for iPads. `MIN_SEGMENT` is chosen
+   * against this table rather than the other way round; see its own comment.
+   */
+  it('lays a phone out exactly as the count rule did', () => {
+    const was: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2 };
+    for (let n = 1; n <= 6; n += 1) {
+      const options = Array.from({ length: n }, (_, i) => String(i));
+      expect(segmentRows(options, PHONE)).toHaveLength(was[n]);
     }
   });
 });

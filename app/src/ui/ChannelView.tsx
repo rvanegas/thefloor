@@ -88,6 +88,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
+import { useWatchShape } from './layout';
 import { DockSlot, usePicture } from '../watch/Picture';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
@@ -809,6 +810,21 @@ export function ChannelView({
    */
   /** Whether the picture was asked for, which is the whole of the rule. */
   const [pressedFullScreen, setPressedFullScreen] = useState(false);
+  /*
+    **How the watch body is laid out, read here for `columns` alone.**
+
+    Above the early returns with its siblings — a hook below one is a hook the
+    settings screen does not run, and React counts them. That is not a style
+    rule in this file, it is the defect this line arrived with.
+
+    This sits above `Screen`, so the body height it sees is the unmeasured
+    zero, and that is correct rather than tolerated: whether there is room for
+    two columns is a question about the pane's *width* and nothing else. The
+    picture's own box, which does read the height, is decided inside
+    `DockSlot`, where the measurement is. Two readings of one pure function,
+    each taken where it can answer the half it needs.
+  */
+  const watchShape = useWatchShape();
   const wantsFullScreen =
     pressedFullScreen &&
     tab === 'watch' &&
@@ -2354,6 +2370,15 @@ export function ChannelView({
       header={header}
       footer={footer}
       aside={dockSlot}
+      /*
+        **Beside the card on a wide pane, above it otherwise.** The picture and
+        the transport compete for height in one column and for nothing at all
+        in two, so a pane with room for both gets both; `watchShapeFor` in
+        `ui/layout.ts` holds the rule and the arithmetic. Passed even when
+        there is no hole, which costs nothing and keeps this from being a
+        second place that decides when there is one.
+      */
+      asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
       contentStyle={styles.container}
     >
         {/*

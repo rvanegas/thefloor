@@ -20,7 +20,7 @@ import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
 import { CheckIcon } from './icons';
-import { usePane } from './layout';
+import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
@@ -320,6 +320,7 @@ export function Screen({
   header,
   footer,
   aside,
+  asidePlace = 'above',
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -373,10 +374,30 @@ export function Screen({
    * longer reserve anything. Before the scroll rather than after it so the row
    * reads as pinned under the header rather than as a footer, and outside the
    * frame because that one is what `reveal` measures against.
+   *
+   * **Above the scroll or beside it, since 2026-09-20.** See {@link asidePlace}
+   * — a wide pane puts the film next to its transport rather than on top of
+   * it, and every sentence above about taking height out of the body is the
+   * `above` case.
    */
   aside?: React.ReactNode;
+  /**
+   * Which way the aside and the scroll are stacked.
+   *
+   * `above` is the original and the default: the aside takes its own height
+   * out of the body, and the scroll gets what is left. `beside` puts the two
+   * in a row, so the aside takes *width* and the scroll keeps the full height
+   * — which is what a pane wide enough for both is for. `watchShapeFor` in
+   * `layout.ts` decides which, and `ChannelView` passes the answer down.
+   *
+   * It changes nothing about `reveal`: the frame is measured in window
+   * coordinates and only its top is read, which a row leaves alone.
+   */
+  asidePlace?: 'above' | 'beside';
 }) {
   const scroll = React.useRef<ScrollView>(null);
+  /** The room the aside and the scroll share; see the `onLayout` below. */
+  const [bodyHeight, setBodyHeight] = React.useState(0);
   /**
    * The scroll view's own frame, which has to be measured rather than
    * inferred: `reveal` works in window coordinates, and this is what converts
@@ -444,7 +465,25 @@ export function Screen({
           `aside` that floats is `position: absolute` within this, so it
           covers the scroll and never the pinned rows above and below it.
         */}
-        <View style={styles.screen}>
+        <View
+          style={[
+            styles.screen,
+            asidePlace === 'beside' && styles.bodyBeside,
+          ]}
+          /*
+            **The room the aside and the scroll share**, published so the
+            picture can size itself against it. The body's own height, not the
+            scroll's: the scroll is what is left after the aside, so sizing the
+            aside from it would be sizing it from itself, and the picture would
+            shrink towards nothing a frame at a time. This one is the pane less
+            the header, the tabs and the footer, and no aside changes it.
+          */
+          onLayout={(event) => {
+            const next = event.nativeEvent.layout.height;
+            setBodyHeight((was) => (was === next ? was : next));
+          }}
+        >
+        <BodyHeightContext.Provider value={bodyHeight}>
         {aside}
         {/* `collapsable={false}` keeps this view in the native tree, without
             which it cannot be measured. **And it is around the scroll alone,
@@ -475,6 +514,7 @@ export function Screen({
           {children}
         </ScrollView>
         </View>
+        </BodyHeightContext.Provider>
         </View>
         {footer}
       </RevealContext.Provider>
@@ -611,16 +651,6 @@ export function Card({
 }
 
 /**
- * How many segments a row of this control may hold before it is worth
- * breaking into two.
- *
- * Four, because a segment is `flex: 1` and what sits in one is a word rather
- * than a glyph: a fifth on a phone leaves each of them about forty points,
- * which is not a word. See `segmentRows`.
- */
-const MAX_PER_ROW = 4;
-
-/**
  * The rows a set of options is laid out in, which is one until it cannot be.
  *
  * **Balanced rather than filled.** Six options are three and three, not four
@@ -633,9 +663,20 @@ const MAX_PER_ROW = 4;
  * tabs and a third row would be a menu. Exported for its own test: the
  * arithmetic is two lines and the shape it produces is the whole of how the
  * channel screen's tabs look.
+ *
+ * **Whether to split at all is a width now, and was a count until
+ * 2026-09-20.** `MAX_PER_ROW = 4` is gone; it argued its own case in points —
+ * "a fifth on a phone leaves each of them about forty points, which is not a
+ * word" — with a phone's width assumed throughout, so on a 740-point iPad
+ * pane it bought a second row nothing needed and the watch card paid for it in
+ * fold. `segmentRowsFor` in `layout.ts` is that sentence with the assumption
+ * taken out.
  */
-export function segmentRows<T>(options: readonly T[]): T[][] {
-  if (options.length <= MAX_PER_ROW) return [options.slice()];
+export function segmentRows<T>(
+  options: readonly T[],
+  width: number
+): T[][] {
+  if (segmentRowsFor(options.length, width) === 1) return [options.slice()];
   const perRow = Math.ceil(options.length / 2);
   return [options.slice(0, perRow), options.slice(perRow)];
 }
@@ -754,6 +795,18 @@ export function Segmented<T extends string>({
   disabled?: boolean;
 }) {
   const tabs = role !== 'choice';
+  /*
+    **How wide this control is, which is what decides how many rows it takes.**
+    Measured rather than assumed: the same six tabs are two rows on a phone and
+    one on any iPad pane, and nothing but the width tells them apart.
+
+    Measuring itself is safe here and would not be for the picture — the row
+    count does not change how wide this is, so there is no answer feeding back
+    into its own input. Zero until the first layout, which `segmentRowsFor`
+    reads as *be cautious* and answers with two rows; a set that fits then
+    settles into one on the frame after, which nobody sees.
+  */
+  const [width, setWidth] = React.useState(0);
   return (
     // `tablist`, so a screen reader announces the set as one switch rather
     // than as loose buttons — and so a test can tell a tab from a control on
@@ -763,8 +816,12 @@ export function Segmented<T extends string>({
     <View
       accessibilityRole={tabs ? 'tablist' : 'radiogroup'}
       style={styles.segmented}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.width;
+        setWidth((was) => (was === next ? was : next));
+      }}
     >
-      {segmentRows(options).map((row) => (
+      {segmentRows(options, width).map((row) => (
         // Keyed by the row's own first option rather than by its index, so a
         // set that gains or loses one does not hand a row's identity to a
         // different row. The channel screen's six tabs are fixed since the
@@ -856,6 +913,16 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  /**
+   * The aside beside the scroll rather than above it.
+   *
+   * A row, and nothing else: the aside sizes itself and the scroll takes the
+   * slack, which is `flex: 1` on the frame around it and already true. The gap
+   * belongs to the aside — `COLUMN_GAP` is inside the arithmetic that decided
+   * this — so nothing here spends one and the two columns cannot disagree
+   * about how far apart they are.
+   */
+  bodyBeside: { flexDirection: 'row' },
   measure,
   button: {
     paddingVertical: spacing(1.5),
