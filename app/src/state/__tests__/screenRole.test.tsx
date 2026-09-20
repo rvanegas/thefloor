@@ -22,6 +22,8 @@ const T0 = 1_700_000_000_000;
 let handlers: RealtimeHandlers = {};
 /** Every `screens.showing` this provider has sent, in order. */
 const reported: Array<string | null> = [];
+/** Every `watch.channel` it has sent, in order. */
+const watched: string[] = [];
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => 'stored-token'),
@@ -50,7 +52,9 @@ jest.mock('../../api/socket', () => ({
       handlers = h;
     }
     watchHome() {}
-    watchChannel() {}
+    watchChannel(channelId: string) {
+      watched.push(channelId);
+    }
     unwatchChannel() {}
     showingScreen(channelId: string | null) {
       reported.push(channelId);
@@ -64,7 +68,11 @@ let latest: ReturnType<typeof useApp> | null = null;
 function Screen() {
   const app = useApp();
   latest = app;
-  return <Text>screen:{app.screenFor ?? 'nowhere'}</Text>;
+  return (
+    <Text>
+      screen:{app.screenFor ?? 'nowhere'} asked:{app.screenAsked ?? 'nothing'}
+    </Text>
+  );
 }
 
 function textOf(tree: ReactTestRenderer): string {
@@ -96,6 +104,7 @@ async function open(): Promise<ReactTestRenderer> {
 beforeEach(() => {
   handlers = {};
   reported.length = 0;
+  watched.length = 0;
   latest = null;
   jest.useFakeTimers({ now: T0, doNotFake: ['nextTick'] });
 });
@@ -137,5 +146,60 @@ describe('being handed a film', () => {
     await open();
     act(() => latest?.showScreenFor('sess_1'));
     expect(reported).toEqual(['sess_1']);
+  });
+
+  it('subscribes to the channel, having nothing to draw otherwise', async () => {
+    /*
+      `Picture` reads the film off `channelViews[screenFor]`, and that map is
+      filled only by snapshots for channels this socket has asked to watch. So
+      a device handed a film it did not already have open took the role, told
+      the server it was busy, and drew nothing whatsoever.
+    */
+    await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    expect(watched).toContain('sess_1');
+  });
+
+  it('asks nothing of the socket when the film is taken away', async () => {
+    await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    watched.length = 0;
+    act(() => handlers.onScreenAsked?.(null));
+    expect(watched).toEqual([]);
+  });
+
+  it('records the arrival, which is what opens the channel', async () => {
+    /*
+      `screenAsked` is the role's other half: a one-shot that `App.tsx` turns
+      into the channel screen, because a television is a whole screen and the
+      person who sent the film here is looking at their other device.
+    */
+    const shown = await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    expect(textOf(shown)).toContain('asked:sess_1');
+  });
+
+  it('spends it once taken, so the next arrival is a new one', async () => {
+    const shown = await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    act(() => latest?.takeScreenAsked());
+    expect(textOf(shown)).toContain('asked:nothing');
+    // And the same channel again is an arrival again, which is the sequence a
+    // latched string gets wrong: sent here, sent away, sent back.
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    expect(textOf(shown)).toContain('asked:sess_1');
+  });
+
+  it('records no arrival for a role this device took itself', async () => {
+    /*
+      The whole reason this is a field rather than a reading of `screenFor`.
+      Pressing *This device* is the device you are already holding, and a rule
+      written against the role would drag somebody who had pressed Home back
+      into the channel they had just left.
+    */
+    const shown = await open();
+    act(() => latest?.showScreenFor('sess_1'));
+    expect(textOf(shown)).toContain('screen:sess_1');
+    expect(textOf(shown)).toContain('asked:nothing');
   });
 });

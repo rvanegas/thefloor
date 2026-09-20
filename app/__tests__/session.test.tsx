@@ -42,6 +42,13 @@ const mockApp = {
   screens: [] as unknown[],
   screensElsewhere: [] as string[],
   screenFor: null as string | null,
+  /**
+   * And the arrival beside the role, which App.tsx turns into the channel
+   * screen — null in every test here, nothing in this file being about a film
+   * sent from another device, but read on every render.
+   */
+  screenAsked: null as string | null,
+  takeScreenAsked: jest.fn(),
   showScreenFor: jest.fn(),
   listScreens: jest.fn(),
   useScreen: jest.fn(),

@@ -148,9 +148,12 @@ export const mockApp = {
   screensElsewhere: [] as string[],
   /** The channel this device has been asked to show a film for. */
   screenFor: null as string | null,
+  /** A channel this device has just been asked to show, not yet opened. */
+  screenAsked: null as string | null,
   listScreens: jest.fn(),
   useScreen: jest.fn(),
   showScreenFor: jest.fn(),
+  takeScreenAsked: jest.fn(),
   /**
    * Below the compatibility floor, which stops anything from being live
    * however present the roster says you are — the socket is already hung up.
@@ -757,6 +760,7 @@ export function resetHarness(): void {
   mockApp.displaced = false;
   mockApp.screens = [];
   mockApp.screenFor = null;
+  mockApp.screenAsked = null;
   // **Reset with its two neighbours**, which it was not until 2026-09-18: a
   // test that set it left every later test in the file believing another of
   // this account's devices was showing a film, which is exactly the state

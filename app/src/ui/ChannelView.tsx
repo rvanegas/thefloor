@@ -671,6 +671,14 @@ export function ChannelView({
   // it and no screens, which is what these answer.
   const partyLoaded = !!channel?.watch?.party;
   /**
+   * Whether a first snapshot of this channel has arrived at all.
+   *
+   * The half that tells *no party* apart from *not told yet* — see the effect
+   * that gives the screen role up, which is the one rule that has to know the
+   * difference.
+   */
+  const channelHere = !!channel;
+  /**
    * Whether this *account* is in the room, on this device or any other.
    *
    * The account's half of `steppedIn`, on its own, because the rules below
@@ -987,11 +995,22 @@ export function ChannelView({
    * film nobody is watching — and the picker would go on offering it as busy.
    * Cleared here rather than by the reducer: this is connection state, and
    * nobody's business but this device's.
+   *
+   * **Only once there is a snapshot to read it off, which is the repair of
+   * 2026-09-20.** `partyLoaded` is false for two quite different reasons —
+   * the party is over, and the first snapshot has not arrived yet — and this
+   * screen mounts in the second of them every time: opening a channel sends
+   * `watch.channel` and the view lands a round trip later. So a second device
+   * that was handed the film while looking at anything else gave the role
+   * straight back on the frame it opened the channel to watch it on, which is
+   * a television that goes blank the moment you walk up to it. It is
+   * `Picture`'s rule about a null `slot` in the other layer: a thing that has
+   * gone away and one that has not landed yet are not the same absence.
    */
   useEffect(() => {
-    if (partyLoaded || app.screenFor !== channelId) return;
+    if (!channelHere || partyLoaded || app.screenFor !== channelId) return;
     app.showScreenFor(null);
-  }, [app, channelId, partyLoaded]);
+  }, [app, channelHere, channelId, partyLoaded]);
 
   /**
    * **Stepping out is how you stop watching, and it is the only way.**
@@ -1012,11 +1031,19 @@ export function ChannelView({
    * The server agrees rather than being told — `watchingHere` is filtered by
    * `present` wherever it is read — so this is the device doing locally what
    * the room already believes about it.
+   *
+   * **And not before there is a snapshot to read it off**, which is the same
+   * repair as the effect above and the same mistake twice: `inRoom` is
+   * answered by the channel, so with no channel it answers *no*, and every
+   * mount before the first snapshot looked exactly like somebody who had
+   * stepped out. Of the two this is the worse one — it is the rule that no
+   * film plays for somebody who is not in the room, and *we have not been
+   * told yet* is not that person.
    */
   useEffect(() => {
-    if (inTheRoom || app.screenFor !== channelId) return;
+    if (!channelHere || inTheRoom || app.screenFor !== channelId) return;
     app.showScreenFor(null);
-  }, [app, channelId, inTheRoom]);
+  }, [app, channelHere, channelId, inTheRoom]);
 
   /**
    * **A television is the screen or it is nothing: it never has a corner.**

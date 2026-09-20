@@ -441,6 +441,43 @@ function Root() {
   }, [notificationTap, ready, token, clearNotificationTap]);
 
   /**
+   * A film sent here from another of this account's devices, which opens the
+   * channel it belongs to.
+   *
+   * **Because a television is a whole screen and never a corner.** The second
+   * device draws the picture, the transport and the three rungs in place of
+   * the channel — see `ChannelView`'s `secondDevice` — and that screen only
+   * exists while the channel is the one open. Without this the film arrived
+   * as `Picture`'s floating rectangle over whatever this device happened to
+   * be showing, most often the channel list: the film on the glass, shrunk,
+   * with every other conversation beside it, which is precisely the state
+   * that screen was cleaned up on 2026-09-20 to stop being.
+   *
+   * **The Watch tab, though nothing on the television has tabs.** It is the
+   * tab this screen falls back to if the role is ever given up while the
+   * channel is still open — `atTheFilm` reads `tab === 'watch' ||
+   * secondDevice` — so landing anywhere else would mean the picture
+   * disappearing into a tab strip at the moment somebody declined it.
+   *
+   * **`screenAsked` rather than `screenFor`, which is the whole care in
+   * this.** Only the server's ask sets it, so pressing *This device* on the
+   * device in your hand opens nothing: that device is where the person
+   * already is, and if they have pressed Home since, the corner picture is
+   * the designed answer and dragging them back into the channel would not be.
+   *
+   * Deferred until signed in and ready for the notification tap's reason: the
+   * effect that clears every screen while there is no token cannot tell a
+   * sign-out from a session still being read out of storage.
+   */
+  const { screenAsked, takeScreenAsked } = app;
+  useEffect(() => {
+    if (!screenAsked || !ready || !token) return;
+    setDetail({ kind: 'channel', channelId: screenAsked, tab: 'watch' });
+    setList('channels');
+    takeScreenAsked();
+  }, [screenAsked, ready, token, takeScreenAsked]);
+
+  /**
    * A tap on the lock screen card, which is the same intention by another
    * road.
    *

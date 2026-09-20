@@ -315,6 +315,29 @@ interface AppState {
    */
   screenFor: string | null;
   /**
+   * A channel this device has just been *asked* to show, waiting to be opened.
+   *
+   * **`screenFor`'s other half, and the two are not the same question.** That
+   * one is a role and holds for as long as the film is here; this one is an
+   * arrival, and it is spent the moment something has acted on it — see
+   * `takeScreenAsked`, which is what spends it.
+   *
+   * It exists because a television is a whole screen rather than a picture in
+   * a corner, and nothing else in the app can put this device on that screen.
+   * The person who sent the film here is looking at their other device; there
+   * is no tap to come on this one, and until 2026-09-20 there was nothing at
+   * all — the picture floated over whatever this device happened to be
+   * showing, which is the state the second device was cleaned up to stop
+   * being.
+   *
+   * **Set only by the server's ask, never by a local declaration**, which is
+   * the whole of why it is a field rather than a reading of `screenFor`.
+   * Pressing *This device* on the device you are holding sets `screenFor` too,
+   * and a rule written against that would drag somebody who had pressed Home
+   * back into the channel they had just left.
+   */
+  screenAsked: string | null;
+  /**
    * The channel *this device* is standing in, or null.
    *
    * **The account's presence and this device's are different facts, and only
@@ -586,6 +609,18 @@ interface AppValue extends AppState {
    * device itself, which is what draws the player.
    */
   showScreenFor: (channelId: string | null) => void;
+  /**
+   * Spends {@link AppState.screenAsked}, the caller having acted on it.
+   *
+   * **Spent rather than latched**, which matters for the one sequence a
+   * latched string gets wrong: a film sent here, sent away, and sent back
+   * again names the same channel both times, so nothing would change and the
+   * second arrival would open nothing. The eviction that comes between them
+   * sets this to null by itself — the server asks with a null channel — but
+   * a television that let go of the picture on its own, by being navigated
+   * away from, gets no such message.
+   */
+  takeScreenAsked: () => void;
   leaveChannelView: (channelId: string) => void;
   /**
    * Dispatches a channel action, returning whether it reached the socket.
@@ -1088,6 +1123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     screens: [],
     screensElsewhere: [],
     screenFor: null,
+    screenAsked: null,
     standingIn: null,
     nearbyIn: [],
     nearbyArrival: {},
@@ -1257,7 +1293,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         */
         onScreenAsked: (channelId) => {
           realtime.showingScreen(channelId);
-          setState((s) => ({ ...s, screenFor: channelId }));
+          /*
+            **And subscribed to, which is what makes the sentence above true.**
+            The film is drawn off `channelViews[screenFor]` — `Picture` reads
+            it there and nowhere else — and that map is filled by snapshots,
+            which arrive only for a channel this socket has asked to watch. So
+            a device asked to show a film it did not already have open took the
+            role, told the server it was busy, and drew nothing at all: the
+            switch on the other device said the picture was over here and there
+            was no picture anywhere.
+
+            `realtime.watchChannel` rather than the app's, which also sweeps
+            the channel's notifications. Being handed a film is not somebody
+            reading the room, and a television must not mark a ping answered
+            on behalf of a person who is looking at their phone.
+
+            Nothing unwatches it afterwards, deliberately: a snapshot
+            outliving the screen that wanted it is what `channelViews` already
+            does everywhere else — see its declaration — and `leaveChannelView`
+            stays the one thing that drops one.
+          */
+          if (channelId !== null) realtime.watchChannel(channelId);
+          setState((s) => ({
+            ...s,
+            screenFor: channelId,
+            // And the arrival beside the role, which is what puts this device
+            // on the channel's screen rather than a rectangle in its corner.
+            // Null here is the eviction, and it spends a pending ask that
+            // nothing got to: the film went somewhere else before this device
+            // had drawn it.
+            screenAsked: channelId,
+          }));
         },
         onDisplaced: () =>
           setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
@@ -1630,6 +1696,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         screens: [],
         screensElsewhere: [],
         screenFor: null,
+        screenAsked: null,
         home: null,
         channelViews: {},
         goneChannels: [],
@@ -1911,6 +1978,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screens: [],
           screensElsewhere: [],
           screenFor: null,
+          screenAsked: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -1968,6 +2036,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screens: [],
           screensElsewhere: [],
           screenFor: null,
+          screenAsked: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -2172,6 +2241,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           s.screenFor === channelId ? s : { ...s, screenFor: channelId }
         );
       },
+
+      takeScreenAsked: () =>
+        setState((s) => (s.screenAsked === null ? s : { ...s, screenAsked: null })),
 
       // Only this channel's snapshot goes: leaving one is not leaving the
       // others, and dropping the lot would hang up on a conversation being

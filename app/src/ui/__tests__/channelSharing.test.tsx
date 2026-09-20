@@ -1501,6 +1501,36 @@ describe('Channel, watching together', () => {
       return openOnMembers();
     }
 
+    it('keeps the role while the first snapshot is still on its way', () => {
+      /*
+        **The repair of 2026-09-20, and the reason a television went blank as
+        you walked up to it.** The effect that stops being a screen when there
+        is nothing to show reads `partyLoaded`, which is false for two quite
+        different reasons: the party is over, and the view has not arrived
+        yet. Opening a channel sends `watch.channel` and the snapshot lands a
+        round trip later, so this screen mounts in the second state every
+        time — and a device handed a film while it was looking at anything
+        else gave the role straight back on the frame it opened the channel
+        to watch it on.
+      */
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      // No `showChannel`: this is the gap, and it is the ordinary one.
+      const tree = openOnMembers();
+      expect(mockApp.showScreenFor).not.toHaveBeenCalled();
+      act(() => tree.unmount());
+    });
+
+    it('gives it up once a snapshot says the party is over', () => {
+      // The case the effect is actually for, which must still work.
+      showChannel(channelOf());
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      const tree = openOnMembers();
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+      act(() => tree.unmount());
+    });
+
     it('draws the film\u2019s controls and nothing else of the party', () => {
       const tree = asSecondDevice();
       // The transport, which is the same row the watch card has.
