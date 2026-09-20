@@ -1,6 +1,7 @@
 import {
   HANDHELD_UNDER,
   isHandheld,
+  isTurned,
   LIST_WIDTH,
   layoutFor,
   MIN_SEGMENT,
@@ -152,6 +153,52 @@ describe('which windows are held', () => {
    */
   it("treats jest's mocked window as not handheld", () => {
     expect(isHandheld({ width: 750, height: 1334 })).toBe(false);
+  });
+});
+
+/**
+ * Which windows have been turned, which is the reading the whole feature
+ * rests on: a turned window is full screen on *Watch*, and an untuned one is
+ * not.
+ *
+ * **The rule is `isHandheld` and a comparison**, and the table is the same one
+ * — every row of it, so that the three surfaces that broke this the first
+ * time are asserted by name rather than by reasoning. A laptop is landscape
+ * and has not been turned; an iPad is landscape and has not been turned; a
+ * phone lying in a drawer is whatever it last was and that is the platform's
+ * business.
+ */
+describe('which windows have been turned', () => {
+  for (const [what, width, height, handheld] of SIZES) {
+    const turned = handheld && width > height;
+    it(`${what} (${width}×${height}) is ${turned ? '' : 'not '}turned`, () => {
+      expect(isTurned({ width, height })).toBe(turned);
+    });
+  }
+
+  it('is never true of a window nobody can turn', () => {
+    // The defect of 2026-09-20, asserted rather than reasoned about: every
+    // non-handheld window is untuned however wide it is.
+    for (const [, width, height, handheld] of SIZES) {
+      if (handheld) continue;
+      expect(isTurned({ width, height })).toBe(false);
+    }
+  });
+
+  it('is exactly one of the two orientations of a handheld', () => {
+    // Turning a phone changes this answer and turning anything else does not,
+    // which is the pair of properties the feature is built on.
+    for (const [, width, height, handheld] of SIZES) {
+      const flipped = isTurned({ width: height, height: width });
+      expect(isTurned({ width, height }) !== flipped).toBe(handheld);
+    }
+  });
+
+  it('is a square window upright, since nobody turned it into one', () => {
+    // No device is square; the tie goes to portrait because this reads as a
+    // request and a window that is not wider than it is tall is not making
+    // one.
+    expect(isTurned({ width: 400, height: 400 })).toBe(false);
   });
 });
 

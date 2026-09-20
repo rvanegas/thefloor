@@ -50,14 +50,16 @@ jest.mock('../../state/AppProvider', () =>
 /**
  * The window, which is a fourth mock and the newest of them.
  *
- * Full screen is derived from the shape of it since 2026-09-19 — sideways on
- * *Watch* and nothing else — so a test that wants the expanded picture turns
- * the phone rather than pressing anything. The factory closes over nothing;
- * the reading is taken at render, which is why `expand` sets this before it
- * renders and `upright` sets it before an update.
+ * Full screen has two ways in and the window decides which a surface gets: a
+ * *handheld* turned sideways is expanded and nothing else is, so a test that
+ * wants the picture either turns a phone or presses a button, and which one
+ * is the point of most of what is below. The factory closes over nothing; the
+ * reading is taken at render, which is why every test sets this before the
+ * render or the update that should see it.
  *
- * The default is jest's own 750×1334, so every other test in this file gets
- * exactly the portrait window it got before this existed.
+ * The default is jest's own 750×1334, which is deliberately *not* handheld —
+ * see `layout.test.ts` — so every other test in this file gets exactly the
+ * window it got before this existed, and a test has to ask for a phone.
  */
 let mockWindow = { width: 750, height: 1334, scale: 2, fontScale: 1 };
 jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
@@ -65,7 +67,13 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
   default: () => mockWindow,
 }));
 const PORTRAIT = { width: 750, height: 1334, scale: 2, fontScale: 1 };
-/** An iPhone 16 Pro Max on its side, which is the widest a phone gets. */
+/** The same window turned, which is still nobody's phone and still upright-ish. */
+const PORTRAIT_TURNED = { width: 1334, height: 750, scale: 2, fontScale: 1 };
+/** An iPhone 16 Pro Max held upright, which is the only shape the lock allows
+    a phone away from the film. */
+const PHONE = { width: 440, height: 956, scale: 3, fontScale: 1 };
+/** The same phone on its side, which is the widest a phone gets and is the
+    one window in this file that means *somebody turned something*. */
 const LANDSCAPE = { width: 956, height: 440, scale: 3, fontScale: 1 };
 /**
  * An iPad mini on its side, which is landscape and is *not* somebody turning
@@ -587,10 +595,10 @@ describe('Channel, watching together', () => {
     /**
      * On the *Watch* tab, on the device showing the film, asked for.
      *
-     * **Pressed rather than turned, and upright.** It was a sideways window
-     * until the portrait lock: a phone outside full screen is upright now, so
-     * the window this starts from is the only window a phone has there, and
-     * the press is the only way in from it.
+     * **Pressed rather than turned**, from the default window, which is not
+     * handheld — so this is how a laptop and an iPad get there, and how a
+     * phone held upright or lying flat does. The turn has its own tests
+     * below and needs a `PHONE`.
      */
     function expand() {
       mockApp.screenFor = 'sess_1';
@@ -628,23 +636,99 @@ describe('Channel, watching together', () => {
     const expanded = (tree: ReactTestRenderer) =>
       tree.root.findAll((n) => n.props?.testID === 'chrome').length > 0;
 
-    it('is not turned into, a sideways phone being nobody asking', () => {
-      /*
-        **The route that existed for a day, and the lock is what removed it.**
-        Turning a phone sideways on *Watch* expanded the picture from
-        2026-09-19; a handheld outside full screen is locked upright now — see
-        `watch/orientation.ts` — so the window below is one iOS will not hand
-        this screen any more, and the rule that read it is gone rather than
-        merely unreachable. Asserted from a landscape phone all the same,
-        since the renderer will hand it one and the assertion is that nothing
-        reads it.
-      */
-      mockWindow = LANDSCAPE;
+    /** The same, from a phone, which starts upright because the lock says so. */
+    function phone() {
+      mockWindow = PHONE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
-      const tree = open();
+      return open();
+    }
+
+    it('is turned into on a handheld, the wrist being the gesture', () => {
+      /*
+        **The route the narrowed lock brought back.** It existed from
+        2026-09-19, went on 2026-09-20 with an application-wide portrait lock
+        — a phone that may not be sideways anywhere is never handed the window
+        this reads — and is here again because the lock is the film's alone
+        now: the watch card and the picture are the two screens a phone may
+        turn on, and nothing else is.
+      */
+      const tree = phone();
       expect(expanded(tree)).toBe(false);
       expect(onTheCard(tree)).toBe(true);
+
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('is turned back out of, which is the exit on a handheld', () => {
+      // The half that makes it a toggle rather than a trap, and the half the
+      // 2026-09-19 arrangement got right.
+      const tree = phone();
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(true);
+
+      mockWindow = PHONE;
+      again(tree);
+      expect(expanded(tree)).toBe(false);
+      expect(onTheCard(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('draws no way out on the scrim while the phone is the way out', () => {
+      /*
+        **A dead button is worse than an absent one.** While the phone is
+        sideways the state is the window's, so a press of an exit would set a
+        flag the window immediately overrules and nothing at all would happen.
+        The transport is still there — it is the film's, not the state's.
+      */
+      const tree = phone();
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(true);
+      expect(findButton(tree, 'Exit full screen')).toBeUndefined();
+      expect(findButton(tree, '−15s')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    it('expires a press when the phone is turned, so the turn back lands', () => {
+      /*
+        **The one thing a press has to give way to.** Somebody who pressed
+        *Full screen* upright and then turned the phone is holding a press and
+        a turn at once; if the press survived, turning back would leave the
+        picture expanded for a gesture that visibly should collapse it. The
+        turn is the stronger statement and takes the flag with it.
+      */
+      const tree = phone();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(true);
+
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(true);
+
+      mockWindow = PHONE;
+      again(tree);
+      expect(expanded(tree)).toBe(false);
+      act(() => tree.unmount());
+    });
+
+    it('answers a press on a phone that is never turned', () => {
+      /*
+        **A phone lying flat is what the button is for there.** iOS holds the
+        interface orientation it had when the gravity vector stops saying
+        anything, so a phone on a table never turns and never turns back —
+        and portrait is a supported way to be here, reached and left by the
+        button exactly as on a laptop.
+      */
+      const tree = phone();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(true);
+      act(() => findButton(tree, 'Exit full screen')!.props.onPress());
+      expect(expanded(tree)).toBe(false);
       act(() => tree.unmount());
     });
 
@@ -721,17 +805,17 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('lets a press out and a press back in, and nothing else moves it', () => {
+    it('lets a press out and a press back in, and no shape moves it', () => {
       /*
-        **A press is the whole of the state now, and it was a tri-state for a
-        day.** `null` meant *nobody has said*, so that a press and the shape of
-        the window could take turns on a handheld; with the turn gone there is
-        nobody to take turns with, and a boolean that only a button writes is
-        what is left.
+        **On anything without a wrist, a press is the whole of the state.**
+        Out, and it stays out across a resize — a browser window dragged
+        wider, an iPad app rotated — which is the defect of 2026-09-20 from
+        the other side: `width > height` was read as a request on three
+        surfaces that had made none. And back in from the card, which is where
+        *Full screen* is.
 
-        Out, and it stays out — including across a rotation, which is the half
-        the old arrangement got wrong from the other side. And back in from the
-        card, which is where *Full screen* is.
+        Both windows here are deliberately not handheld. The turn on a phone
+        is a different rule with its own tests above.
       */
       const tree = expand();
       expect(expanded(tree)).toBe(true);
@@ -740,8 +824,7 @@ describe('Channel, watching together', () => {
       expect(expanded(tree)).toBe(false);
       expect(onTheCard(tree)).toBe(true);
 
-      // A window that changes shape under it says nothing either way.
-      mockWindow = LANDSCAPE;
+      mockWindow = PORTRAIT_TURNED;
       again(tree);
       expect(expanded(tree)).toBe(false);
       mockWindow = PORTRAIT;
@@ -780,22 +863,23 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('keeps the film through a turn, both ways up being permitted', () => {
+    it('never turns a window that cannot have been turned', () => {
       /*
-        **The point of unlocking rather than locking sideways.** Full screen is
-        the one state a phone may turn in, and it may turn *either* way in it:
-        somebody watching flat on a table or upright in bed has not asked to be
-        put back on the card. Turning upright collapsed this from 2026-09-19 to
-        the lock, which is the behaviour this replaces.
+        **The whole of the 2026-09-20 defect, asserted from this end.** The
+        default window is short of `HANDHELD_UNDER` in neither orientation, so
+        neither shape is a gesture and the press is the only thing that has
+        said anything. This is a laptop being dragged about, an iPad app
+        rotated, and a phone browser is expressly not covered by it — that one
+        is handheld and turns.
       */
-      const tree = expand();
-      mockWindow = LANDSCAPE;
-      again(tree);
-      expect(expanded(tree)).toBe(true);
+      mockWindow = PORTRAIT_TURNED;
+      mockApp.screenFor = 'sess_1';
+      showChannel(watching());
+      const tree = open();
+      expect(expanded(tree)).toBe(false);
       mockWindow = PORTRAIT;
       again(tree);
-      expect(expanded(tree)).toBe(true);
-      expect(findButton(tree, 'Exit full screen')).toBeDefined();
+      expect(expanded(tree)).toBe(false);
       act(() => tree.unmount());
     });
 

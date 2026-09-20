@@ -88,7 +88,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
-import { useWatchShape } from './layout';
+import { useIsTurned, useWatchShape } from './layout';
 import { DockSlot, usePicture } from '../watch/Picture';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
@@ -757,33 +757,50 @@ export function ChannelView({
   }, [app, channelId, partyLoaded, steppedIn, screenIsMine, screenSaid]);
 
   /**
-   * **One way in, and it is a button on every platform.**
+   * **Two ways in, and which one a surface has depends on whether it has a
+   * wrist.**
    *
-   * *Full screen* on the watch card, and *Exit full screen* over the picture.
-   * There is no second route and no window rule: this is a boolean that says
-   * what was last pressed, and nothing but a press moves it.
+   * *Full screen* on the watch card is the press, on every platform. And on a
+   * handheld, **turning the phone sideways is the other**, which is the
+   * gesture every other film on that phone already answers to.
    *
-   * ## The turn was a route for one day, and the lock took it away
+   * ## What the turn costs the flag, which is that a press expires
    *
-   * From 2026-09-19 turning a phone sideways on *Watch* is what expanded the
-   * picture, and this was a tri-state — `null` for *nobody has said* — so
-   * that a press and the shape of the window could take turns. Both are gone
-   * with the rule they served.
+   * `turned` is not stored. It is `useIsTurned` against the window, and it is
+   * the whole state on a phone somebody is holding sideways — so the picture
+   * and the glass cannot disagree, and there is no flag to be left set by a
+   * rotation nobody told it about.
    *
-   * **A handheld is portrait unless the film has the glass**, which
-   * `usePortraitUnlessFullScreen` keeps from `Picture` for the whole
-   * application; `watch/orientation.ts` is the rule and why. A phone outside
-   * full screen is therefore never handed a landscape window, so reading one
-   * as a request would be reading something that cannot arrive — and the
-   * clearing effect that let a press expire on rotation would have been worse
-   * than dead: inside full screen, where the phone *may* turn, it would have
-   * collapsed the picture the moment somebody watching in bed held the phone
-   * upright. **Portrait is a supported way to be full screen**, deliberately.
-   * That is the whole of what the two orientations are for.
+   * So this boolean is the *other* route and means one thing only: **somebody
+   * asked for the picture without turning anything.** It is what a phone held
+   * upright asks with, what a phone lying flat asks with — iOS holds the
+   * interface orientation it had when the gravity vector stops saying
+   * anything, so a flat phone never turns and never turns back — and what a
+   * laptop and an iPad ask with, neither of them having a turn to perform.
    *
-   * The turn is not missed. It was only ever a route a phone had; the button
-   * is the one every other surface used and is the only thing a phone held
-   * upright ever had to ask with.
+   * **And it expires the moment the phone is turned**, in the effect below.
+   * Without that, somebody who pressed *Full screen* upright and then turned
+   * the phone would be holding a press *and* a turn, and turning back would
+   * leave the press standing: the picture would refuse to collapse for a
+   * gesture that visibly should collapse it. The turn is the stronger
+   * statement and it takes the flag with it.
+   *
+   * ## Why the window can be read at all, which it could not for a few hours
+   *
+   * **A handheld is portrait unless it is at the film** —
+   * `usePortraitUnlessAtTheFilm`, kept from `Picture` for the whole
+   * application, and `watch/orientation.ts` is the rule. The condition it
+   * locks against is {@link atTheFilm} below, which is these same terms: the
+   * phone may turn on the watch card and inside the picture, and nowhere
+   * else.
+   *
+   * That is what makes `isTurned` honest. A landscape window on a handheld
+   * cannot be a browser window, cannot be an iPad, and cannot be some other
+   * screen that happened to be wide — the only handheld screens allowed to be
+   * landscape are these two, so the window being landscape means a wrist
+   * moved. When the lock was the whole application's, this route was not
+   * merely unused but unreachable; when there was no lock at all, it fired on
+   * three surfaces that never asked.
    *
    * ## The rest of the terms
    *
@@ -808,7 +825,7 @@ export function ChannelView({
    * directly rather than the derived constants further down. See the block
    * comment above.
    */
-  /** Whether the picture was asked for, which is the whole of the rule. */
+  /** Whether the picture was asked for without a turn; see above. */
   const [pressedFullScreen, setPressedFullScreen] = useState(false);
   /*
     **How the watch body is laid out, read here for `columns` alone.**
@@ -825,8 +842,21 @@ export function ChannelView({
     each taken where it can answer the half it needs.
   */
   const watchShape = useWatchShape();
-  const wantsFullScreen =
-    pressedFullScreen &&
+  /**
+   * Whether there is a film here to be at, which is two questions in one.
+   *
+   * **It is what full screen is guarded by and what the portrait lock is
+   * opened by**, deliberately the same expression: a phone is allowed to be
+   * sideways exactly where being sideways means something, so there is no
+   * state in which the window is landscape and the turn is ignored. Every
+   * term after the tab is a way of having nothing to expand — see the block
+   * above for what each one is and what it costs to leave out.
+   *
+   * It stays true while the picture is expanded, the tab and the party and
+   * the rest being unchanged by it. That is what keeps the phone unlocked for
+   * the whole of the film rather than only on the way in.
+   */
+  const atTheFilm =
     tab === 'watch' &&
     partyLoaded &&
     screenIsHere &&
@@ -834,9 +864,35 @@ export function ChannelView({
     !settingsOpen &&
     !viewing &&
     !transcriptFor;
+  const turned = useIsTurned();
+  const wantsFullScreen = (pressedFullScreen || turned) && atTheFilm;
   useEffect(() => {
     if (fullScreen !== wantsFullScreen) setFullScreen(wantsFullScreen);
   }, [fullScreen, wantsFullScreen, setFullScreen]);
+  /*
+    A press expires on the turn, which is the one thing that can overrule it.
+    Guarded on `turned` rather than run on every change of it, so that turning
+    back is the window's statement and not a second clearing of a flag that is
+    already down. See the block above for what it costs to leave out.
+  */
+  useEffect(() => {
+    if (turned) setPressedFullScreen(false);
+  }, [turned]);
+  /*
+    And the lock is told, from the one screen that can answer the question.
+    Same shape as the full-screen effect above and for the same reason: the
+    flag lives in the picture, which outlives this screen, so it is written
+    rather than held — and cleared on the way out below, since a channel
+    screen that closes while the phone is unlocked would leave every other
+    screen in the application turnable.
+  */
+  const tellPicture = picture?.setAtTheFilm;
+  useEffect(() => {
+    tellPicture?.(atTheFilm);
+  }, [tellPicture, atTheFilm]);
+  const leaveTheFilm = useRef(tellPicture);
+  leaveTheFilm.current = tellPicture;
+  useEffect(() => () => leaveTheFilm.current?.(false), []);
 
   /*
     And collapsed when this screen goes, which is the one exit the effect above
@@ -2351,7 +2407,20 @@ export function ChannelView({
     return (
       <FullScreen
         chrome={watchTransport}
-        onExit={() => setPressedFullScreen(false)}
+        /*
+          **No way out on the scrim while the phone is the way out.** A press
+          of an exit here would set a flag that is already down — the state is
+          the window's while `turned`, and the window does not change because
+          somebody pressed something — so the button would be visibly dead,
+          which is worse than absent. Turning the phone upright is what leaves,
+          and it is the gesture every other film on the phone answers to.
+
+          Everywhere else it is the whole of the control, and that is most
+          surfaces: a laptop, an iPad, and a phone held upright or lying flat,
+          all of which reached this state by pressing and none of which has a
+          turn that would get them out. See `FullScreen`.
+        */
+        onExit={turned ? null : () => setPressedFullScreen(false)}
         picture={
           <WatchPlayer
             watch={watch}

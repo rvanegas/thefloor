@@ -46,34 +46,36 @@ const FADE_MS = 200;
  * is a video one, and what that bought was reachability that was never more
  * than one press away, at a fifth of a sideways phone.
  *
- * ## One way in, one way out, and they are the same control
+ * ## Two ways in and two ways out, and a surface has whichever it can perform
  *
- * **A press of *Full screen* on the watch card opens this, and *Exit full
- * screen* here closes it, on every platform.** `ChannelView` holds the flag
- * and mounts this; see its derivation.
+ * **A press of *Full screen* on the watch card opens this and {@link onExit}
+ * closes it**, on a laptop, on an iPad, and on a phone held upright or lying
+ * flat. **A turn of the wrist opens and closes it on a handheld**, which is
+ * the gesture every other film on that phone answers to, and there the button
+ * is not drawn: while the phone is sideways the state *is* the window, and an
+ * exit that set a flag the window overrules would be a control that visibly
+ * did nothing. `ChannelView` holds both and mounts this; see its derivation.
  *
- * **Turning the phone was a second route for a day and is not one now.** From
- * 2026-09-19 this state had no controls at all: the phone was the whole of
- * it, on the reasoning that two buttons saying what the glass already said
- * were two buttons too many. That was right about one surface in four — a
- * desktop browser window is landscape, an iPad held the way iPads are held is
- * landscape, and both entered this state on the *Watch* tab with no device to
- * turn — so the buttons came back on 2026-09-20 with the turn beside them on
- * a handheld.
+ * That pairing took three tries. From 2026-09-19 the turn was the whole of
+ * it and there were no controls at all, which was right about one surface in
+ * four: a desktop browser window is landscape, an iPad held the way iPads are
+ * held is landscape, and both entered this state on the *Watch* tab with no
+ * device to turn. Then the buttons were the whole of it for a few hours,
+ * under an application-wide portrait lock that left a phone no way to be
+ * turned. The lock is the film's alone now — `watch/orientation.ts` — so both
+ * routes hold at once and each is offered where it can be performed.
  *
- * The turn went with the portrait lock. **A phone outside full screen is
- * upright** — `watch/orientation.ts` — so there is no sideways channel screen
- * left for a turn to be read on. What the lock buys in here is the opposite of
- * what it takes away: **both orientations are permitted while this is up**, so
- * a phone flat on a table or held upright in bed keeps the film rather than
- * being rotated out of it, and the picture is fitted to whichever shape the
- * glass is.
+ * **Portrait is still a supported way to be here**, which is what the press
+ * is for: a phone lying flat has no gravity vector to read, iOS holds
+ * whatever orientation it last had, and somebody watching a phone on a table
+ * is not asking to be rotated.
  *
  * **And the old bug cannot come back.** What made it one was a *landscape*
  * lock — this state pinned the phone sideways, exiting released the pin, and
  * an unlocked phone goes back to how it is being held, so a pressed exit
  * handed back the channel screen sideways with nothing to say otherwise with.
- * The lock runs the other way now: exiting locks portrait, and the card
+ * Nothing is pinned to landscape now: leaving the film locks portrait, which
+ * is a rotation towards what the screen underneath wanted, and the card
  * arrives upright.
  *
  * The exits nobody presses are unchanged and are the caller's: the party
@@ -119,13 +121,15 @@ export function FullScreen({
    */
   chrome: React.ReactNode;
   /**
-   * The way out, which is the same on every platform.
+   * The way out, or `null` when the phone is.
    *
    * It is the caller's because the state is: `ChannelView` holds what was
-   * pressed, and this reports the press rather than deciding anything. See
-   * that file's derivation.
+   * pressed, and this reports the press rather than deciding anything. Null
+   * on a handheld that has been turned, where the state is the window's and a
+   * press could not move it — see that file's derivation for why a dead
+   * button is worse than no button.
    */
-  onExit: () => void;
+  onExit: (() => void) | null;
 }): React.ReactElement {
   /*
     The window, for as long as this is up.
@@ -250,7 +254,7 @@ export function FullScreen({
             follow. There is no phone to turn in a browser, which is how the
             other one came to be useless on half the surfaces that needed it.
           */}
-          <Button label="Exit full screen" onPress={onExit} />
+          {onExit ? <Button label="Exit full screen" onPress={onExit} /> : null}
         </Animated.View>
       </View>
     </View>

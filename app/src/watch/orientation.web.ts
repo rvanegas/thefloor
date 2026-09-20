@@ -6,12 +6,16 @@
  * refuses on a phone browser that is not in the platform's own full-screen
  * element — which this application never enters, `requestFullscreen` being
  * unreachable from the layout that stands in for it. So a phone browser stays
- * whichever way it is held, on *Watch* and everywhere else, and the buttons
- * are the whole of the control there.
+ * whichever way it is held, on *Watch* and everywhere else.
  *
- * That is the same conclusion the web reached about the old landscape lock:
- * `returnToPortrait` was a documented no-op here too, which was the first sign
- * that hanging behaviour on turning the device was the wrong mechanism. See
- * orientation.ts for the rule this keeps on a phone.
+ * **The turn still works here, and is the one thing this no-op does not take
+ * away.** A phone browser turned sideways is handed a landscape window by the
+ * platform without being asked, which is exactly the reading `isTurned` makes;
+ * what is missing is the other half, the righting of the phone on leaving the
+ * film. So a phone browser can turn into the picture and turn back out of it,
+ * and a laptop — never handheld — has the buttons, which are the whole of the
+ * control on every surface with no wrist.
+ *
+ * See orientation.ts for the rule this keeps on a phone.
  */
-export function usePortraitUnlessFullScreen(_fullScreen: boolean): void {}
+export function usePortraitUnlessAtTheFilm(_atTheFilm: boolean): void {}

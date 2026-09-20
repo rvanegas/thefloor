@@ -38,7 +38,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Words on controls* | labels, busy states, confirmations, empty states |
 | *The lock screen card* | the one surface outside the app, and what it transcribes |
 | *Accessibility* | the roles, the targets, the states not spelt into labels |
-| *The rules that are actually load-bearing* | the eight things to not break |
+| *The rules that are actually load-bearing* | the nine things to not break |
 
 ---
 
@@ -974,17 +974,28 @@ already, and it starts up, so what is there is seen before it goes. See
 
 **What makes that safe is the touch, which every player has taught.** A tap
 anywhere brings the row back, on every platform, and the button on it is the
-way out. Turning the phone was a second way out for two days and is not one
-now: the *portrait lock* keeps a handheld upright everywhere but here — see
-`watch/orientation.ts` — so there is no sideways channel screen left for a
-turn to be read on. The swipe down that was once a third way out is gone and
-is not coming back.
+way out where there is a button. The swipe down that was once a third way out
+is gone and is not coming back.
 
-**This is the one state a phone may be landscape in, and it may be either way
-up in it.** The lock is *released* here rather than reversed: somebody
-watching flat on a table or propped up in bed keeps the film rather than being
+**On a handheld the way out is the wrist, and the button is not drawn.**
+Turning the phone sideways on the watch card is what opens this, turning it
+upright is what closes it, and while the phone is sideways the state *is* the
+window — so an *Exit full screen* there would set a flag the window overrules
+and would visibly do nothing. A dead control is worse than an absent one. See
+§ *The rules that are actually load-bearing*.
+
+**The turn is readable only because the lock is narrow.** The *portrait lock*
+keeps a handheld upright everywhere except the film's two screens — the watch
+card with a film this device can expand, and this one — so a landscape window
+on a handheld can only be somebody's wrist. `watch/orientation.ts`. A lock
+that covered the whole application, which is what shipped for a few hours on
+2026-09-20, makes the turn unreachable rather than merely unused; no lock at
+all makes every laptop and every iPad a request.
+
+**Both ways up are permitted here**, the lock being released rather than
+reversed: somebody watching flat on a table keeps the film rather than being
 rotated onto the card, and the picture is fitted to whichever shape the glass
-is.
+is. Portrait full screen on a phone is what the card's button is for there.
 
 **Since 2026-09-20 the scrim carries the transport and the way out, and
 nothing else.** What it admits is pause and play, the progress bar, the two
@@ -994,17 +1005,17 @@ before it is a video one; what it bought was reachability that was never more
 than one press away, and what it cost was a fifth of a sideways phone spent on
 five controls about the room rather than about the film.
 
-**And the pair of buttons is the whole of the control on every platform**,
-having been removed on 2026-09-19 as two controls saying what the phone
-already knew. They were — about a phone. A tablet and a browser window are
+**The buttons are the control wherever there is no wrist**, having been
+removed on 2026-09-19 as two controls saying what the phone already knew.
+They were — about a phone being held. A tablet and a browser window are
 landscape sitting still and have no turn to perform, so for a day both entered
 this state on the *Watch* tab and could not leave it. So *Full screen* is on
-the watch card and *Exit full screen* is on the scrim, on every surface
-including the phone: one control that means the same thing everywhere beats
-one that appears on some of them, and a phone held upright that wants the film
-big has no other way to ask. *Back to portrait* is gone, replaced by the exit
-rather than joined by it — two ways out on one scrim is what the channel's bar
-was taken off for.
+the watch card on every surface, and *Exit full screen* is on the scrim on
+every surface but a turned handheld: a laptop, an iPad, and a phone held
+upright or lying flat, which never turns because iOS holds the orientation it
+had when the gravity vector stops saying anything. *Back to portrait* is gone,
+replaced by the exit rather than joined by it — two ways out on one scrim is
+what the channel's bar was taken off for.
 
 **Both are `Button`s with their words on them** rather than `IconButton`s,
 against § *Icons*' licence for a header glyph and for the reason the exit had
@@ -1015,8 +1026,9 @@ learn one.
 **What killed the pair the first time cannot happen now.** The old *Full
 screen* locked the phone into landscape while it was up and exiting released
 the lock, so a pressed exit while still sideways handed back the channel screen
-sideways with nothing to say otherwise with. The lock runs the other way round
-now — exiting locks *portrait* — so the press lands on the card upright
+sideways with nothing to say otherwise with. Nothing is pinned to landscape
+now: leaving the film — a tab, a stopped party, a refusal — locks *portrait*,
+which is a rotation towards what the next screen wanted, so it arrives upright
 however the phone is being held.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
@@ -1263,7 +1275,7 @@ single `floor`-tinted glyph.
 
 ## The rules that are actually load-bearing
 
-Eight things that look like tidying and are not:
+Nine things that look like tidying and are not:
 
 1. **Violet is the floor and nothing else.** Every other coloured thing on the
    palette is claimed by exactly one meaning. Adding a colour, or reusing one of
@@ -1312,6 +1324,16 @@ Eight things that look like tidying and are not:
    has to be able to say the same. The same reasoning is why `Segmented` may
    measure itself and the picture may not: a row count does not change how
    wide a control is, and a height does change what is left below it.
+
+9. **A control the state would overrule is not drawn.** Where a state is
+   derived from something a press cannot move — the shape of the window, on a
+   handheld, being the one case — the button for it is absent rather than
+   present and inert. *Exit full screen* is on the scrim on every surface
+   except a phone that has been turned, where turning it back is the way out
+   and a press could do nothing at all. The instinct is that one control
+   everywhere is kinder than one that comes and goes; a control that is there
+   and dead is worse than both, because the person presses it, nothing
+   happens, and there is nothing to tell them why.
 
 And one that is about this file: **a departure from any of the above is
 written down where it is made.** The style blocks in `app/src/ui/` are

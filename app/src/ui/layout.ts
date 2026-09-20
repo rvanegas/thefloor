@@ -60,19 +60,18 @@ export const SPLIT_AT = 800;
  * the whole reason `WholeWindowContext` exists.
  *
  * **It exists because a phone is the only surface this app turns.** A handheld
- * is locked upright everywhere but full screen — see `watch/orientation.ts` —
+ * is locked upright everywhere but the film — see `watch/orientation.ts` —
  * and a tablet and a browser window are landscape sitting still, so telling
  * either of them which way up to be would be moving somebody's furniture. This
  * is the line between the two.
  *
- * **It was drawn for the route that is gone**, which is worth knowing because
- * the number was chosen against it: full screen was entered by turning a phone
- * sideways, and for a day that rule was applied to every window that happened
- * to be wider than it was tall. A desktop browser window is one. So is an iPad
- * held the way iPads are held. Both went full screen on the *Watch* tab and
- * stayed there. The turn is not a route any more — the lock removed the
- * sideways channel screen it was read on — but the question this constant
- * answers is the same one, and so is the answer.
+ * **It was drawn for the turn, and the turn is what it still serves.** Full
+ * screen is entered by turning a phone sideways, and for a day that rule was
+ * applied to every window that happened to be wider than it was tall. A
+ * desktop browser window is one. So is an iPad held the way iPads are held.
+ * Both went full screen on the *Watch* tab and stayed there. This constant is
+ * what keeps the reading to the surfaces that have a wrist; see `isTurned`
+ * below, which is the reading.
  *
  * **The short side rather than the width**, so that one number covers both
  * orientations and nothing has to know which way up it is being asked about.
@@ -143,6 +142,46 @@ export function useLayout(): Layout {
 export function useIsHandheld(): boolean {
   const { width, height } = useWindowDimensions();
   return isHandheld({ width, height });
+}
+
+/**
+ * Whether somebody has turned the device, which is the only thing a landscape
+ * window can mean on a handheld.
+ *
+ * **Both halves are load-bearing and the second one is the lesson.** A window
+ * is not landscape because somebody turned it — a desktop browser window is
+ * landscape, an iPad held the way iPads are held is landscape, and neither has
+ * a turn to perform. `isHandheld` is the line that excludes them, and the
+ * decision of 2026-09-20 is the afternoon that drew it.
+ *
+ * **And a handheld is landscape only where it is allowed to be**, which is
+ * the other half and is not in this file: `watch/orientation.ts` locks a phone
+ * upright on every screen except the film's. So a `true` from this is not
+ * merely *a handheld that happens to be wide*, it is a handheld on the one
+ * screen the turn was permitted for, having been turned. That is what makes
+ * it safe to read as a gesture, and it is why this went away for a day —
+ * between 2026-09-20 and this, the lock was the whole application's and a
+ * phone could never be turned at all.
+ *
+ * The window rather than `getOrientationAsync`: the window is what the layout
+ * is drawn into, it is what `useLayout` already reads, and `expo-screen-orientation`
+ * reports an *interface* orientation that an iPad in a split does not share
+ * with its pane.
+ */
+export function isTurned(size: { width: number; height: number }): boolean {
+  return isHandheld(size) && size.width > size.height;
+}
+
+/**
+ * The turn, against this window, now.
+ *
+ * Not `WholeWindowContext`-aware, for `useIsHandheld`'s reason and one more:
+ * the expanded picture claims the window, and this is read from inside it to
+ * decide whether the way out is a button or the wrist.
+ */
+export function useIsTurned(): boolean {
+  const { width, height } = useWindowDimensions();
+  return isTurned({ width, height });
 }
 
 /**

@@ -12,7 +12,7 @@ import { useApp } from '../state/AppProvider';
 import { COLUMN_GAP, useWatchShape } from '../ui/layout';
 import { colors } from '../ui/theme';
 import { WatchDock, type Rect } from './Dock';
-import { usePortraitUnlessFullScreen } from './orientation';
+import { usePortraitUnlessAtTheFilm } from './orientation';
 import { WatchPlayer } from './WatchPlayer';
 
 /**
@@ -66,6 +66,23 @@ type PictureApi = {
   /** Whether the expanded picture is up, and so whether this one stands down. */
   fullScreen: boolean;
   setFullScreen: (taken: boolean) => void;
+  /**
+   * Whether somebody is at the film, which is what decides the portrait lock.
+   *
+   * **It is not `fullScreen` and it is not the dock.** It is the watch card
+   * with a film on it that this device can expand — the same set of terms
+   * `ChannelView` guards full screen with, reported from there because this
+   * component knows nothing about tabs, settings screens or transcripts. The
+   * lock is the whole application's, and so has to be decided somewhere that
+   * outlives the channel screen; that is here.
+   *
+   * Reading `slot !== null` instead was the near miss. A hole is left by the
+   * *Watch* tab and by nothing else, which is the right condition, but it is
+   * a layout measurement — it is null for a frame before `onLayout` lands and
+   * it went null once for a bug — and a lock that flickers rotates a phone.
+   */
+  atTheFilm: boolean;
+  setAtTheFilm: (there: boolean) => void;
   /** What the player last said about being refused, for whoever must react. */
   refused: boolean;
 };
@@ -192,17 +209,23 @@ export function Picture({
   const app = useApp();
   const [slot, setSlot] = useState<{ owner: object; at: Measured } | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
+  const [atTheFilm, setAtTheFilm] = useState(false);
   const [refused, setRefused] = useState(false);
   /*
     Which way up the phone may be, which is decided here because this is the
     only place that knows the answer for the whole application. The rule is
     about *every* screen — a phone is upright on Home and on a transcript as
-    much as on the roster — and the one exception is the expanded picture,
-    whose flag this component holds precisely because the picture outlives the
-    screen that asked for it. See orientation.ts; on a tablet and in a browser
-    it does nothing.
+    much as on the roster — and the exception is the film, whose two flags
+    this component holds precisely because the picture outlives the screen
+    that asked for it. See orientation.ts; on a tablet and in a browser it
+    does nothing.
+
+    Both flags rather than `atTheFilm` alone, though the terms make the second
+    imply the first: the expanded picture is this component's own state and
+    the other is a report from a screen, so a phone with the film on the glass
+    is never left locked by a report that has not arrived yet.
   */
-  usePortraitUnlessFullScreen(fullScreen);
+  usePortraitUnlessAtTheFilm(atTheFilm || fullScreen);
   /** Where the host itself is, which is what turns a window measurement into
       one of its own. */
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
@@ -225,8 +248,16 @@ export function Picture({
   }, []);
 
   const api = useMemo<PictureApi>(
-    () => ({ dock, undock, fullScreen, setFullScreen, refused }),
-    [dock, undock, fullScreen, refused]
+    () => ({
+      dock,
+      undock,
+      fullScreen,
+      setFullScreen,
+      atTheFilm,
+      setAtTheFilm,
+      refused,
+    }),
+    [dock, undock, fullScreen, atTheFilm, refused]
   );
 
   /**

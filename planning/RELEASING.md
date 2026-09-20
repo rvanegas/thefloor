@@ -147,11 +147,12 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   compatibility mode.
 
   **Both landscapes have to stay in the phone's key even though a phone is
-  locked upright**, which looks contradictory and is not. The lock is
-  `lockAsync` at runtime — the *portrait lock*, GLOSSARY.md — and it can only
-  narrow what the plist allows, never widen it. Take the landscapes out and
-  full screen becomes a bigger portrait picture, with nothing in the JavaScript
-  to say why.
+  mostly locked upright**, which looks contradictory and is not. The lock is
+  `lockAsync` at runtime — the *portrait lock*, GLOSSARY.md — it applies only
+  away from the film, and it can only narrow what the plist allows, never
+  widen it. Take the landscapes out and turning the phone on the watch card
+  does nothing and full screen becomes a bigger portrait picture, with nothing
+  in the JavaScript to say why.
 
   **The phone's key said portrait alone until 2026-09-20, and that is what made
   the turn-into-full-screen route do nothing.** The feature landed on
@@ -161,8 +162,8 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   the plugin is wrapped in `createInfoPlistPluginWithPropertyGuard`, which
   stands down when the property is already spelled out — so iOS never handed
   the phone a landscape window and the whole feature was unreachable. That
-  route is gone with the portrait lock, but **nothing in JavaScript could have
-  shown the fault**, which is the general lesson and outlives it: a rule about
+  route is back and this key is what it runs on, but **nothing in JavaScript
+  could have shown the fault**, which is the general lesson: a rule about
   the shape of the window is only as true as the plist that decides which
   shapes exist, and checking it means a prebuild and a rebuild rather than a
   reload. Upside-down stays out on the phone deliberately — nothing on any
