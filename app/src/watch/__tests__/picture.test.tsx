@@ -1,6 +1,6 @@
 import React from 'react';
-import { Text } from 'react-native';
-import { act } from 'react-test-renderer';
+import { Text, View } from 'react-native';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
 import {
   ME,
@@ -103,6 +103,72 @@ describe('The picture outlives the screen it was started from', () => {
     // The page was built once and has not been built again, which is the
     // difference between a film that kept playing and one that went black.
     expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The hole survives everything that is not this slot's own unmounting.**
+   *
+   * Reported from an iPad on build 251: the film floating in a corner while
+   * the *Watch* tab showed the black rectangle it should have been sitting
+   * in. The way in was a film that was refused and then was not — a VPN came
+   * off and the same link loaded — and nothing put the picture back, because
+   * re-docking needs a fresh `onLayout` and the layout had not changed.
+   *
+   * The cause was `DockSlot` keying its cleanup on the whole context object,
+   * which is rebuilt whenever `fullScreen` or `refused` changes; the cleanup
+   * is an `undock`. So the assertion is that a refusal arriving and clearing
+   * leaves the slot exactly where it was. The *Full screen* flip hid this by
+   * self-healing — that route unmounts this component and mounts it again.
+   *
+   * **Docking is reachable in a test, which the source used to say it was
+   * not.** Nothing here lays anything out, so `onLayout` never fires on its
+   * own — but the node mock the preset already attaches carries a
+   * `measureInWindow` that answers nothing, and replacing that one method is
+   * enough to drive the whole path by hand. `createNodeMock` is not the way
+   * in: the preset's own mock wins, and handing every node a measuring one
+   * sends the dock into a loop.
+   */
+  it('keeps its hole when a refusal comes and goes', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(
+        <Picture onOpen={() => {}}>
+          <DockSlot />
+        </Picture>
+      );
+    });
+    const dock = () => tree.root.findAll((node) => node.type === WatchDock)[0];
+    const slot = tree.root
+      .findAll((node) => node.type === DockSlot)[0]
+      .findAll((node) => node.type === View)[0];
+    // The one method, on the node the preset already attached. `instance` is
+    // not in this repository's typings for the renderer, which is why it is
+    // reached through a cast rather than read straight off.
+    const node = (slot as unknown as { instance: Record<string, unknown> })
+      .instance;
+    node.measureInWindow = (
+      cb: (x: number, y: number, w: number, h: number) => void
+    ) => cb(10, 20, 620, 349);
+
+    act(() => {
+      slot.props.onLayout({
+        nativeEvent: { layout: { width: 620, height: 349 } },
+      });
+    });
+    expect(dock()?.props.place).toBe('docked');
+
+    // The player's own report, which is the path the provider takes: a code
+    // from the embed, and then a clean load of the same link.
+    const player = tree.root.findAll((node) => node.type === WatchPlayer)[0];
+    act(() => player.props.onRefusal('The owner of this video…'));
+    expect(dock()?.props.place).toBe('docked');
+    act(() => player.props.onRefusal(null));
+    expect(dock()?.props.place).toBe('docked');
+    expect(dock()?.props.slot).not.toBeNull();
     act(() => tree.unmount());
   });
 

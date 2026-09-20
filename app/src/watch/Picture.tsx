@@ -103,6 +103,28 @@ export function DockSlot(): React.ReactElement {
   /** Identity, so this slot's own removal cannot cancel another's arrival. */
   const owner = useRef({}).current;
 
+  /**
+   * The two calls, taken off the context object deliberately.
+   *
+   * **Depending on `picture` itself is a bug, and it shipped.** The value is
+   * rebuilt whenever `fullScreen` or `refused` changes — they are fields on
+   * it — so an effect keyed on the object runs its cleanup on a flip that has
+   * nothing to do with this slot, and the cleanup here is an `undock`. The
+   * picture then has no hole to sit in and goes to a corner, on the *Watch*
+   * tab, over the black rectangle that is this slot; and nothing puts it
+   * back, because re-docking needs a fresh `onLayout` and the layout did not
+   * change. The way in was a film being refused and then not — turn a VPN
+   * off, the film loads, `refused` goes true → false — which is a flip the
+   * slot survives mounted. The *Full screen* route flips it too and self-heals
+   * only because this component is unmounted for the duration of that one.
+   *
+   * `dock` and `undock` are `useCallback([])` in the provider and never
+   * change, so keyed on these the effect runs exactly when this slot is
+   * mounted and unmounted, which is what it was always for.
+   */
+  const dock = picture?.dock;
+  const undock = picture?.undock;
+
   const measure = useCallback(
     (_event: LayoutChangeEvent) => {
       const node = box.current;
@@ -110,7 +132,7 @@ export function DockSlot(): React.ReactElement {
       // without laying them out has none. Nothing measures in a test today —
       // `onLayout` never fires there — but a harness that grew a layout pass
       // would otherwise take the whole screen down over a picture.
-      if (!node || !picture || typeof node.measureInWindow !== 'function') {
+      if (!node || !dock || typeof node.measureInWindow !== 'function') {
         return;
       }
       // In window coordinates, deliberately: `onLayout` reports a position
@@ -120,17 +142,17 @@ export function DockSlot(): React.ReactElement {
       // `reveal` makes, and for the same reason.
       node.measureInWindow((x, y, width, height) => {
         if (!width || !height) return;
-        picture.dock(owner, { x, y, width, height });
+        dock(owner, { x, y, width, height });
       });
     },
-    [picture, owner]
+    [dock, owner]
   );
 
   React.useEffect(
     () => () => {
-      picture?.undock(owner);
+      undock?.(owner);
     },
-    [picture, owner]
+    [undock, owner]
   );
 
   return <View ref={box} onLayout={measure} style={styles.slot} />;
