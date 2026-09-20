@@ -7,11 +7,9 @@ import {
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
-import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
 import { isTap } from './Dock';
-import { returnToPortrait } from './orientation';
 
 /**
  * How long the chrome stays up with nothing being pressed.
@@ -51,12 +49,32 @@ const FADE_MS = 200;
  * phone sideways got the channel screen sideways and nothing to say otherwise
  * with.
  *
- * **Which leaves exactly one control here, and it is about the hardware rather
- * than about this state.** *Back to portrait* turns the interface upright —
- * {@link returnToPortrait} — and the picture collapses because the window
- * changed shape, not because a button said so. It is the way out for somebody
- * lying down, or holding the phone flat on a table, or anywhere else the
- * accelerometer will not help them.
+ * **Which since 2026-09-20 leaves no control here at all beyond the
+ * transport.** Two things went that day, and the rule that took them out is
+ * one sentence: *sideways, the only controls are the film's*. Pause and play,
+ * the progress bar, and the two fifteen-second seeks — and nothing else,
+ * because everything else on this screen is about the room rather than about
+ * the film, and a room is something you attend to upright.
+ *
+ * What went was the channel's own pinned bar — mute, the floor, and the three
+ * rungs of presence — and the *Back to portrait* button that sat above it.
+ * The bar was kept on the argument that this is a talking application before
+ * it is a video one, and that argument is still true; what it is not is a
+ * reason to spend a fifth of a sideways phone on five controls that are one
+ * turn of the wrist away. The turn is the gesture that gets you back to the
+ * room, and it is the same turn whether you want the microphone or the
+ * roster or the Stop.
+ *
+ * **What that costs is the person the accelerometer cannot help**, and it is
+ * a real cost rather than a rounding error: somebody lying down, or holding
+ * the phone flat on a table, has no way out of this state, and on the web
+ * there is no way out at all because there is no device to turn. *Back to
+ * portrait* was for exactly them. It is gone here because this state should
+ * not exist for them in the first place — a window that is landscape because
+ * it is a browser, or an iPad, or a phone on a table, is not somebody asking
+ * for a film — and that is `ChannelView`'s question rather than this file's.
+ * `returnToPortrait` in `orientation.ts` is still there, uncalled, for whatever
+ * answers it.
  *
  * The exits nobody presses are unchanged and are the caller's: the party
  * stopping, the film being refused, the picture moving to another device. See
@@ -75,11 +93,11 @@ const FADE_MS = 200;
  * be. A control whose purpose is a bigger picture cannot be built on a layout
  * that keeps a bar over it.
  *
- * So both fade together after {@link HIDE_AFTER_MS}, and a touch anywhere
- * brings them back — which is what every other player on the phone does, and
- * therefore the gesture a person already has. **They start up rather than
- * down**: somebody arriving in this state is shown the way out of it before it
- * goes, so the exit is learnt and then hidden rather than never seen.
+ * So it fades after {@link HIDE_AFTER_MS}, and a touch anywhere brings it
+ * back — which is what every other player on the phone does, and therefore
+ * the gesture a person already has. **It starts up rather than down**, so
+ * somebody arriving here is shown the transport before it goes rather than
+ * having to discover that a tap produces one.
  *
  * And the reason the original worry is survivable is that the way out is no
  * longer a control at all. Somebody who never finds the button turns the phone
@@ -90,21 +108,14 @@ const FADE_MS = 200;
 export function FullScreen({
   picture,
   chrome,
-  footer,
 }: {
   /** The player, which fills whatever it is given. */
   picture: React.ReactNode;
-  /** The transport — the same row the card has, drawn over the picture. */
-  chrome: React.ReactNode;
   /**
-   * The channel's own pinned bar, kept because this is a talking application
-   * before it is a video one: an evening where nobody can reach their own
-   * microphone without first leaving the film is the wrong trade. Over the
-   * picture with the transport rather than below it since 2026-09-19, and
-   * fading with it — a bar that is one touch away is still reachable, and a
-   * bar that is permanently there is a fifth of the film.
+   * The transport — the same row the card has, drawn over the picture, and
+   * since 2026-09-20 the whole of what is drawn over the picture.
    */
-  footer: React.ReactNode;
+  chrome: React.ReactNode;
 }): React.ReactElement {
   /*
     The window, for as long as this is up.
@@ -128,8 +139,8 @@ export function FullScreen({
    * A row that vanished three seconds after this state opened — while somebody
    * was still reaching for the scrubber — would be the fading control at its
    * worst. So the countdown is against *inactivity* rather than against the
-   * state, and any touch at all, on the transport or the footer or the picture,
-   * starts it again.
+   * state, and any touch at all, on the transport or on the picture, starts it
+   * again.
    */
   const arm = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -214,16 +225,6 @@ export function FullScreen({
           pointerEvents={shown ? 'box-none' : 'none'}
         >
           {chrome}
-          {/*
-            Words rather than a glyph, for the reason the exit used to be: this
-            is the way out for somebody the accelerometer cannot help, and it is
-            not the place to be teaching a shape. It says what it does to the
-            phone rather than what it does to the picture — the picture
-            collapsing is a consequence of the turn, and a button promising to
-            collapse it would be naming the wrong half of what happens.
-          */}
-          <Button label="Back to portrait" onPress={returnToPortrait} />
-          {footer}
         </Animated.View>
       </View>
     </View>
@@ -250,9 +251,10 @@ const styles = StyleSheet.create({
    * the body and take their own height out of it; that rule buys a body that is
    * never covered, and here it would buy a *smaller picture in landscape than
    * in portrait*. Expanding a picture to make it smaller is not a feature. So
-   * the transport sits on a scrim, as every video player's does — and since
-   * 2026-09-19 the channel's own footer sits on it too, both of them fading
-   * together rather than standing over the film for the whole of it.
+   * the transport sits on a scrim, as every video player's does, and fades
+   * rather than standing over the film for the whole of it. It is the only
+   * thing on the scrim since 2026-09-20; the channel's own footer shared it
+   * for a day and is upright-only now.
    */
   chrome: {
     position: 'absolute',

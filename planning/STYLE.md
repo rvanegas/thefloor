@@ -908,17 +908,16 @@ it buys here is a *smaller picture in landscape than in portrait* — a stacked
 transport and footer leave about 200pt of a sideways phone, where portrait
 full width gives 219 — and a control whose purpose is a bigger picture cannot
 be built on a layout that shrinks it. So the transport is overlaid, as every
-video player's is, and **since 2026-09-19 the channel's own footer is overlaid
-with it** rather than kept as a sibling below.
+video player's is.
 
-**And both fade, which this section said they deliberately did not.** The rule
+**And it fades, which this section said it deliberately did not.** The rule
 was that the chrome never hides, on the grounds that the row which exits is
 also the row that pauses and this state has no other way out. It cost the
 thing the state is for: a bar that is permanently there is a fifth of the
-film, and the picture fitted into the rest is well short of the glass. They
-now go after three seconds of nothing being pressed and come back at a touch
+film, and the picture fitted into the rest is well short of the glass. It now
+goes after three seconds of nothing being pressed and comes back at a touch
 anywhere, which is the gesture every other player on this phone has taught
-already, and they start up, so what is there is seen before it goes. See
+already, and it starts up, so what is there is seen before it goes. See
 `watch/FullScreen.tsx`, which carries the reversal in full.
 
 **What makes that safe is that the state is not entered or left by a control
@@ -929,13 +928,23 @@ would do with any other film on any other phone. The *Full screen* button on
 the card and the *Exit full screen* button over the picture are both gone, and
 so is the swipe down that was the third way out.
 
-**The one control left is deliberate in the same way the exit was.** *Back to
-portrait* turns the interface upright for somebody the accelerometer cannot
-help, and it is a `Button` with its word on it rather than an `IconButton`,
-against § *Icons*' licence for a header glyph: an icon is findable once it has
-been learnt, and the way out of a state somebody may not know they can leave is
-not where they learn one. It names what it does to the phone rather than what
-it does to the picture, the collapse being a consequence of the turn.
+**And since 2026-09-20 there is no control on the scrim but the transport.**
+The rule is one sentence — *sideways, the only controls are the film's* — and
+what it admits is pause and play, the progress bar, and the two fifteen-second
+seeks. Two things went to make it true. The channel's own pinned bar was
+overlaid here for a day, on the argument that this is a talking application
+before it is a video one; what it bought was reachability that was never more
+than a turn of the wrist away, and what it cost was a fifth of a sideways
+phone spent on five controls about the room rather than about the film. And
+*Back to portrait* went with it, having been the way out for somebody the
+accelerometer cannot help.
+
+**That last one is a debt rather than a tidy.** A phone flat on a table, and
+any browser window, are landscape without anybody having asked for a film, and
+they now have no way out of this state at all. The answer is not a button here
+— it is that the state should not have been entered — and it belongs to
+`useIsLandscape` rather than to this section. `returnToPortrait` is still in
+`watch/orientation.ts`, uncalled, for whatever answers it.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
 is: what shows beside a film is letterbox, which belongs to the film.

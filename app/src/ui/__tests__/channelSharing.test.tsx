@@ -555,9 +555,19 @@ describe('Channel, watching together', () => {
     /** What the card has and the expanded picture does not. */
     const onTheCard = (tree: ReactTestRenderer) =>
       findButton(tree, 'Change video') !== undefined;
-    /** What the expanded picture has and the card does not. */
+    /**
+     * What the expanded picture has and the card does not.
+     *
+     * **The scrim itself, rather than a control on it.** It was *Back to
+     * portrait* until 2026-09-20, when the last control over the film went and
+     * left this state with nothing in it that the card has not also got — the
+     * transport being deliberately the same row in both places. What is left
+     * to recognise it by is the thing that is structural rather than
+     * cosmetic: the fading bar `FullScreen` draws over the picture, which no
+     * other screen in this application has.
+     */
     const expanded = (tree: ReactTestRenderer) =>
-      findButton(tree, 'Back to portrait') !== undefined;
+      tree.root.findAll((n) => n.props?.testID === 'chrome').length > 0;
 
     it('is turned into rather than pressed into', () => {
       /*
@@ -571,12 +581,38 @@ describe('Channel, watching together', () => {
       showChannel(watching());
       const upright = open();
       expect(findButton(upright, 'Full screen')).toBeUndefined();
+      expect(findButton(upright, 'Back to portrait')).toBeUndefined();
       expect(expanded(upright)).toBe(false);
       expect(onTheCard(upright)).toBe(true);
       act(() => upright.unmount());
 
       const tree = expand();
       expect(expanded(tree)).toBe(true);
+      act(() => tree.unmount());
+    });
+
+    it('takes the room’s own bar off the film', () => {
+      /*
+        **Sideways, the only controls are the film's.** The channel's pinned
+        bar — mute, the floor, and the three rungs of presence — was drawn over
+        the picture with the transport for a day, on the argument that this is
+        a talking application before it is a video one. It is upright-only as
+        of 2026-09-20: what the bar bought was reachability that was never more
+        than a turn of the wrist away, and what it cost was a fifth of a
+        sideways phone spent on controls nobody had asked the film for.
+
+        Asserted from this end as well as from `FullScreen`'s, because the two
+        halves fail differently: that file can only prove it draws nothing it
+        is not given, and this one proves the footer is not given.
+      */
+      const tree = expand();
+      expect(expanded(tree)).toBe(true);
+      for (const word of ['Nearby', 'In', 'Out', 'Mute', 'Unmute', 'Claim']) {
+        expect(findButton(tree, word)).toBeUndefined();
+      }
+      // The transport is the exception and is the whole of it.
+      expect(findButton(tree, '+15s')).toBeDefined();
+      expect(findButton(tree, '−15s')).toBeDefined();
       act(() => tree.unmount());
     });
 

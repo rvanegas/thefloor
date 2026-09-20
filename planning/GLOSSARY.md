@@ -89,7 +89,7 @@ caused; the list carries the meaning.
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
-- **Full screen** — The film filling one device, which since 2026-09-19 *is* the phone being sideways on *Watch*: nothing is pressed to enter it and nothing to leave it, the shape of the window being the whole of the rule. The transport and the channel's own bar lie over it and fade together after three seconds, brought back by a touch anywhere. One control inside it, *Back to portrait*, which turns the interface upright for whoever the accelerometer cannot help; three automatic collapses besides. One device's own business and never the party's
+- **Full screen** — The film filling one device, which since 2026-09-19 *is* the phone being sideways on *Watch*: nothing is pressed to enter it and nothing to leave it, the shape of the window being the whole of the rule. Since 2026-09-20 the only controls in it are the film's — pause and play, the progress bar, the two fifteen-second seeks — on a scrim that fades after three seconds and comes back at a touch anywhere; the channel's own bar and *Back to portrait* both went, and turning the device upright is the only way out a person presses. Three automatic collapses besides. One device's own business and never the party's
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1743,26 +1743,38 @@ sideways got the channel screen sideways with nothing to say otherwise with.
 Landscape on any other tab is an ordinary sideways screen, which is what an app
 with `orientation: "default"` is for.
 
-**One control survives inside it, and it is about the hardware.** *Back to
-portrait* locks the interface upright — for somebody lying down, holding the
-phone flat, or anywhere else the accelerometer will not agree — and the picture
-collapses as a consequence of the turn rather than because a button said so.
-The lock is released five seconds later, that being the only way there is: iOS
-reports the *interface* orientation, so while it is locked there is no reading
-of how the phone is actually being held and no event to wait for. Besides it
-are the three automatic collapses — the party stopping, the picture moving to
-another device, and YouTube refusing the film — each of which would otherwise
-leave somebody holding a black rectangle.
+**And since 2026-09-20 no control survives inside it but the film's own.**
+Pause and play, the progress bar, and the two fifteen-second seeks; nothing
+else. Two went that day. The channel's pinned bar — mute, the floor, the three
+rungs — had been overlaid here on the argument that this is a talking
+application before it is a video one, and what it bought was reachability that
+was never more than a turn of the wrist away. *Back to portrait* went with it:
+it locked the interface upright for somebody lying down or holding the phone
+flat, releasing five seconds later because iOS reports the *interface*
+orientation and while it is locked there is no reading of how the phone is
+actually held and no event to wait for.
+
+**What that leaves open is the window that is landscape without anybody having
+asked.** A phone flat on a table, an iPad held the way iPads are held, and
+every desktop browser window are all landscape, and none of them is a person
+asking for a film — yet each of them enters this state and now has no control
+that leaves it. The answer belongs to the derivation rather than to the
+chrome: the state should not have been entered. `returnToPortrait` remains in
+`watch/orientation.ts`, uncalled, against whatever answers it.
+
+Besides all that are the three automatic collapses — the party stopping, the
+picture moving to another device, and YouTube refusing the film — each of
+which would otherwise leave somebody holding a black rectangle.
 
 **The chrome fades, since 2026-09-19, having been built not to.** For a day
 the transport and the channel's bar stayed up for the whole of a film, on the
 argument that fading them would hide the only way out behind a gesture nobody
 was told about. What that cost was the point of the state: the two together
-take about a fifth of a sideways phone, and a 16:9 film fitted into the rest
-falls well short of the glass. Both now fade after three seconds of nothing
-being pressed and come back at a touch anywhere — the gesture every other
-player on the phone has already taught — and they start up rather than down,
-so the way out is seen before it goes. The film is fitted, never cropped: what
+took about a fifth of a sideways phone, and a 16:9 film fitted into the rest
+falls well short of the glass. What is left on the scrim fades after three
+seconds of nothing being pressed and comes back at a touch anywhere — the
+gesture every other player on the phone has already taught — and it starts up
+rather than down, so it is seen before it goes. The film is fitted, never cropped: what
 is left at the sides is the film's own letterbox. Expanding and collapsing each rebuild the
 player, so the film reloads and the follower drives it back to where everybody
 is; the cost is a few seconds of black for the one person who turned the phone.

@@ -2300,12 +2300,21 @@ export function ChannelView({
     render is impossible to reach with nothing in it — the effect above
     collapses these away, and this is what holds between the state changing and
     the effect running.
+
+    **The footer is not passed, as of 2026-09-20.** It was, for a day, on the
+    argument that this is a talking application before it is a video one and
+    that an evening where nobody can reach their own microphone without first
+    leaving the film is the wrong trade. What is passed now is the transport
+    and nothing else: sideways, the only controls are the film's. The room's
+    five — mute, the floor, and the three rungs — are one turn of the wrist
+    away, and that turn is the same gesture whatever it is you want the room
+    for, so the bar was buying reachability that was never more than a second
+    off. See `FullScreen`, which carries the rest of it and the cost.
   */
   if (fullScreen && party && screeningHere) {
     return (
       <FullScreen
         chrome={watchTransport}
-        footer={footer}
         picture={
           <WatchPlayer
             watch={watch}
