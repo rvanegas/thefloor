@@ -958,8 +958,9 @@ is what it looks like.
 It is an ordinary `Screen` and takes the three slots the way everything else
 does — there is nothing novel in its shape, which is the point:
 
-- **Header:** the kind (*Watching*), the channel's name, and `Home`. No
-  settings gear, no recording pill, no tab strip.
+- **Header:** the kind (*Watching*) and the channel's name, and nothing else —
+  it is a caption rather than a bar. No `Home`, no settings gear, no recording
+  pill, no tab strip.
 - **Aside:** a `DockSlot`, with the same `watchShapeFor` answer and the same
   `asidePlace` the *Watch* tab passes — so the film is the same size in the
   same place on both devices, and moving between them moves nothing.
@@ -972,6 +973,13 @@ a control never moves under a thumb already on its way to it, across every
 state *one screen* can be in — and this bar is three rungs in all of them,
 each still `flex: 1`. A screen with a footer of its own is not the channel's
 footer changing shape; Home has no footer at all.
+
+**And no list beside it, however wide the window.** It claims the window the
+way the expanded picture does — `WholeWindowContext`, the second and last
+caller — so a laptop showing a film does not draw every other channel down its
+left. The claim is the smaller of the two, `list` rather than `glass`: the
+hardware's bottom inset stays, because this screen has a footer and the rungs
+have to clear the home indicator.
 
 **The sentence is a readout and earns its place the way § *The cards a footer
 made redundant* asks.** It repeats no control. What it says is why a screen

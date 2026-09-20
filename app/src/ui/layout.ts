@@ -214,15 +214,41 @@ export function usePane(): 'list' | 'detail' | null {
  * happily, and that is true of every screen in this application except the one
  * whose entire purpose is to be the only thing on the glass.
  *
- * So the width rule keeps a second input, and it has exactly one caller. This
- * is not a general override and must not become one — a screen that wants a
- * little more room wants a narrower list or a better layout, not the list
- * gone.
+ * So the width rule keeps a second input, and it has two callers: the expanded
+ * picture, and the second device — the television — which is the same claim
+ * made by a whole screen rather than by a film. This is not a general override
+ * and must not become one — a screen that wants a little more room wants a
+ * narrower list or a better layout, not the list gone. What earns the claim is
+ * being the only thing somebody is looking at, which is a fact about why the
+ * screen exists and not about how much room it would like. See
+ * {@link WindowClaim} for the two sizes of it.
  */
 export const WholeWindowContext = React.createContext<{
-  taken: boolean;
-  claim: (taken: boolean) => void;
-}>({ taken: false, claim: () => {} });
+  taken: WindowClaim | null;
+  claim: (taken: WindowClaim | null) => void;
+}>({ taken: null, claim: () => {} });
+
+/**
+ * How much a claim takes, there being two surfaces that want the window and
+ * only one of them that wants the hardware's gutter with it.
+ *
+ * - `list` takes the list beside it and nothing else. The second device — the
+ *   television, `ChannelView`'s `secondDevice` — is this one: it is the only
+ *   thing on the glass, and it still has a footer of three rungs that must
+ *   stay off the home indicator.
+ * - `glass` takes the bottom inset as well, which is `FullScreen` and is meant
+ *   to stay `FullScreen` alone. A strip of `colors.bg` under an expanded film
+ *   is the brightest thing on a sideways phone in a dark room; see `Glass` in
+ *   `App.tsx` for the whole of that argument.
+ *
+ * **One claim at a time, which is a fact about the two callers rather than a
+ * rule this enforces.** Both are early returns from `ChannelView` and the full
+ * screen one comes first, so the television never draws while the film is
+ * expanded. React runs every cleanup in a commit before every mount, so the
+ * handover in both directions lands the right way round without either of them
+ * knowing about the other.
+ */
+export type WindowClaim = 'list' | 'glass';
 
 /**
  * Whether it is claimed right now, for the two or three things that have to
@@ -235,11 +261,25 @@ export const WholeWindowContext = React.createContext<{
  * nobody designed for it, and one the picture explicitly declines for itself.
  */
 export function useWholeWindowClaimed(): boolean {
+  return React.useContext(WholeWindowContext).taken !== null;
+}
+
+/**
+ * What the claim takes, for the one reader that cares which of the two it is.
+ *
+ * `Glass` in `App.tsx`, and nothing else: every other reader is asking whether
+ * the window is spoken for, which is {@link useWholeWindowClaimed}.
+ */
+export function useWindowClaim(): WindowClaim | null {
   return React.useContext(WholeWindowContext).taken;
 }
 
 /**
  * Claim it for as long as this component is mounted.
+ *
+ * Claim `null` and it claims nothing, which is how a screen that is only
+ * sometimes the television — `ChannelView` is every other channel screen too —
+ * asks for this from an unconditional hook call.
  *
  * **The release lives in the cleanup rather than beside a collapse**, which is
  * what makes it survive the exits nobody presses: the party stopping, the film
@@ -252,12 +292,13 @@ export function useWholeWindowClaimed(): boolean {
  * Outside a provider it does nothing, which is what a test rendering the
  * picture on its own should get.
  */
-export function useWholeWindow(): void {
+export function useWholeWindow(take: WindowClaim | null = 'glass'): void {
   const { claim } = React.useContext(WholeWindowContext);
   React.useEffect(() => {
-    claim(true);
-    return () => claim(false);
-  }, [claim]);
+    if (!take) return;
+    claim(take);
+    return () => claim(null);
+  }, [claim, take]);
 }
 
 /**

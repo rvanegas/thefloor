@@ -1,7 +1,12 @@
 import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act } from 'react-test-renderer';
-import { useLayout, WholeWindowContext, type Layout } from '../layout';
+import {
+  useLayout,
+  WholeWindowContext,
+  type Layout,
+  type WindowClaim,
+} from '../layout';
 
 /**
  * The window a sideways phone presents, which is the whole of this bug.
@@ -25,7 +30,7 @@ function Probe({ seen }: { seen: (layout: Layout) => void }) {
   return <Text>probe</Text>;
 }
 
-const layoutWith = (taken: boolean): Layout => {
+const layoutWith = (taken: WindowClaim | null): Layout => {
   let seen!: Layout;
   act(() => {
     renderer.create(
@@ -40,12 +45,18 @@ const layoutWith = (taken: boolean): Layout => {
 describe('a window somebody has claimed', () => {
   it('is one screen however wide it is', () => {
     expect(PHONE_LANDSCAPE).toBeGreaterThan(800);
-    expect(layoutWith(true)).toBe('stack');
+    expect(layoutWith('glass')).toBe('stack');
+  });
+
+  it('is one screen for the smaller claim too, the television\u2019s', () => {
+    // `list` keeps the hardware gutter and takes the list, which is the whole
+    // of the difference; the layout reads any claim the same way.
+    expect(layoutWith('list')).toBe('stack');
   });
 
   it('splits again the moment the claim is released', () => {
     // The width rule is not being changed, only overruled while a picture is
     // expanded — a sideways phone is a split for every other screen.
-    expect(layoutWith(false)).toBe('split');
+    expect(layoutWith(null)).toBe('split');
   });
 });

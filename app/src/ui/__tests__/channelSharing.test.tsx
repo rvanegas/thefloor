@@ -9,6 +9,7 @@ import { MAX_CLIP_LENGTH } from '../../../../core/constants';
 import { type ChannelState } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
+import { WholeWindowContext } from '../layout';
 import { WatchPlayer } from '../../watch/WatchPlayer';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -1554,12 +1555,60 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('leaves the rest of the app reachable by way of Home', () => {
-      // Without it the second device is an application that cannot be used
-      // for anything else until somebody stops watching. Pressing it leaves
-      // the film floating in the corner, as it does from the *Watch* tab.
+    it('offers no Home, a television not being a way into the app', () => {
+      /*
+        *Home* was here for a day, on the argument that without it this device
+        is an application that cannot be used for anything else until somebody
+        stops watching — which is what a television is. The way off it is to
+        stop watching, and that is a rung; every other way into the rest of
+        the application is on the device holding the room, which is the one
+        the account is actually holding.
+      */
       const tree = asSecondDevice();
-      expect(findButton(tree, 'Home')).toBeDefined();
+      expect(findButton(tree, 'Home')).toBeUndefined();
+      act(() => tree.unmount());
+    });
+
+    /** The same screen, with somebody listening to what it claims. */
+    function claimWatcher() {
+      const claim = jest.fn();
+      const tree = render(
+        <WholeWindowContext.Provider value={{ taken: null, claim }}>
+          <ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />
+        </WholeWindowContext.Provider>
+      );
+      return { claim, tree };
+    }
+
+    it('takes the window, a list beside it being the remote control twice', () => {
+      /*
+        Above `SPLIT_AT` — a laptop, which is where a party is actually watched
+        — the channel list was two thirds of this window, on the one device
+        that exists because the rest of the channel is somewhere else. `list`
+        rather than `glass`: the three rungs stay off the home indicator.
+      */
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      const { claim, tree } = claimWatcher();
+      expect(claim).toHaveBeenCalledWith('list');
+      // And gives it back, by the unmount rather than by any press — the
+      // party ending and the film moving both arrive that way.
+      act(() => tree.unmount());
+      expect(claim).toHaveBeenLastCalledWith(null);
+    });
+
+    it('claims nothing from the ordinary channel screen', () => {
+      // The single-device case, which is a channel screen and wants its list.
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const { claim, tree } = claimWatcher();
+      expect(claim).not.toHaveBeenCalled();
       act(() => tree.unmount());
     });
 

@@ -75,7 +75,7 @@ describe('The expanded picture', () => {
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <WholeWindowContext.Provider value={{ taken: false, claim }}>
+        <WholeWindowContext.Provider value={{ taken: null, claim }}>
           <FullScreen
             picture={<Text>picture</Text>}
             chrome={<Text>transport</Text>}
@@ -84,9 +84,11 @@ describe('The expanded picture', () => {
         </WholeWindowContext.Provider>
       );
     });
-    expect(claim).toHaveBeenCalledWith(true);
+    // `glass` rather than `list`: the expanded picture takes the hardware
+    // gutter with it, which is the half the television does not ask for.
+    expect(claim).toHaveBeenCalledWith('glass');
     act(() => tree.unmount());
-    expect(claim).toHaveBeenLastCalledWith(false);
+    expect(claim).toHaveBeenLastCalledWith(null);
   });
 
   it('carries the transport, the way out, and nothing of the room', () => {

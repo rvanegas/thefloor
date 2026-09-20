@@ -36,7 +36,9 @@ import { colors } from './src/ui/theme';
 import {
   useLayout,
   useWholeWindowClaimed,
+  useWindowClaim,
   WholeWindowContext,
+  type WindowClaim,
 } from './src/ui/layout';
 import { useRoute } from './src/ui/useRoute';
 import { channelOf, NO_DETAIL, type Detail, type List } from './src/ui/detail';
@@ -1058,7 +1060,7 @@ function Attending({ children }: { children: React.ReactNode }) {
  * its own is free to be as high as its highest reader.
  */
 function WholeWindow({ children }: { children: React.ReactNode }) {
-  const [taken, setTaken] = useState(false);
+  const [taken, setTaken] = useState<WindowClaim | null>(null);
   const value = useMemo(() => ({ taken, claim: setTaken }), [taken]);
   return (
     <WholeWindowContext.Provider value={value}>
@@ -1090,15 +1092,21 @@ function WholeWindow({ children }: { children: React.ReactNode }) {
  * flat on a table, which {@link FullScreen} supports — the status bar is
  * still drawn and content under it is content behind the clock.
  *
+ * **Only for the claim that asked for it**, which is `glass` and is the
+ * expanded picture. The television — the second device — claims the window as
+ * well and keeps its gutter: it has a footer of three rungs, and dropping the
+ * inset under a row of controls is the trade this comment says nobody pays for
+ * here. See {@link WindowClaim}.
+ *
  * Inside {@link WholeWindow} rather than outside it, which is why that
  * provider moved above this: the claim has to be readable here.
  */
 function Glass({ children }: { children: React.ReactNode }) {
-  const wholeWindow = useWholeWindowClaimed();
+  const claim = useWindowClaim();
   return (
     <SafeAreaView
       style={styles.root}
-      edges={wholeWindow ? ['top'] : ['top', 'bottom']}
+      edges={claim === 'glass' ? ['top'] : ['top', 'bottom']}
     >
       {children}
     </SafeAreaView>

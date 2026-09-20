@@ -88,7 +88,7 @@ caused; the list carries the meaning.
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
-- **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen*, the three rungs and *Home*, and nothing else of the channel or of the party
+- **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home*, and no channel list beside it however wide the window
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch* — or under the header alone on a *second device*, which has no tabs — or a column beside its transport where the pane is wide enough (see *watch shape*), a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device. Two ways in, and a surface gets whichever it can perform: the *Full screen* button on the watch card everywhere, and on a *handheld*, *turning* the device sideways. *Exit full screen* on the scrim leaves — except on a turned handheld, where it is not drawn and the wrist is the way out. On the scrim, the transport and that button and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. Three automatic collapses besides. One device's own business and never the party's
 - **Handheld** — A window whose short side is under 500 points, which is to say one somebody is holding: every iPhone in either orientation, a phone browser, and nothing else this app is opened on. The one surface this app turns — see *portrait lock* — a tablet and a browser window being landscape sitting still. `isHandheld` in `ui/layout.ts`; a different question from the layout breakpoint, which a phone on its side is already past
@@ -1887,10 +1887,12 @@ the second device takes the presence and makes it the first one.
 
 **Since 2026-09-20 the second device draws a view of its own** rather than the
 channel screen with the film docked on its sixth tab. On it: the picture, the
-transport, *Full screen*, the three rungs, and *Home*. Not on it: *Watch on*,
-*Stop watching*, the field that swaps the video, the room mute, the share
-links, the settings gear, the recording pill, and the five tabs that are not
-the film. The principle is that **only controls about the film are on both
+transport, *Full screen*, and the three rungs; the header is a caption and
+holds no control at all. Not on it: *Watch on*, *Stop watching*, the field that
+swaps the video, the room mute, the share links, the settings gear, the
+recording pill, the five tabs that are not the film, *Home*, and the channel
+list `Panes` would draw beside it above `SPLIT_AT` — it claims the window the
+way the expanded picture does. The principle is that **only controls about the film are on both
 devices** — the first device stays the remote control, and a second copy of a
 switch like *Watch on*, pointing at the device it is drawn on, is that remote
 control being in two places at once.
@@ -1899,9 +1901,11 @@ control being in two places at once.
 are the only way out of the state: *In* takes the presence, *Nearby* and *Out*
 leave and so give up the screen role and stop the film. The switch that sent
 the film here is on the other device, so without them the second device is a
-picture that cannot be put down. *Home* is on the header for a smaller version
-of the same reason — it is navigation rather than a control, and without it
-this device cannot be used for anything else until somebody stops watching.
+picture that cannot be put down. **They are also the only way off the screen**,
+*Home* having lasted a single afternoon: a television is exactly an application
+that cannot be used for anything else until somebody stops watching, and the
+account is holding the other device, where every way into the rest of the app
+already is.
 
 **A film on a second device sounds best**, which is the configuration the
 design prefers: a screen does not step in, so it claims no audio session and

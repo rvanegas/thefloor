@@ -27,12 +27,13 @@ screen and as the settings, the profile and the transcript above it. On it:
 - **Full screen**, ungated by the floor as it is on the card: how big the film
   is on one device is nobody else's business.
 - **The three rungs**, in a footer of their own.
-- **Home**, in the header, and nothing else in it.
+- **The header**, which is a caption — *Watching* and the channel's name — and
+  holds no control at all.
 
 What is deliberately absent is every other control of the party and of the
 channel: *Watch on*, *Stop watching*, the swap field, the room mute, the share
-links, the settings gear, the recording pill, and the five tabs that are not
-the film.
+links, the settings gear, the recording pill, the five tabs that are not the
+film, *Home*, and — above `SPLIT_AT` — the channel list beside all of it.
 
 ## Why the rungs are the exception, which is mechanical
 
@@ -49,15 +50,46 @@ They are also what *decides* which device is which, which is the other half of
 it: first and second are not stored anywhere. `secondDevice` is
 `screenIsHere && !steppedIn`, read at render.
 
-## The header keeps Home, which the rule did not ask for
+## Home and the list beside it, which went the same afternoon
 
-A way off a screen is navigation rather than a control. Without one the second
-device is an application that cannot be used for anything else until somebody
-stops watching, and there is no reason to buy the tidier statement at that
-price. Pressing it leaves the film floating in the corner exactly as leaving
-the *Watch* tab does — `watch/Picture.tsx` — and a tap on the corner comes
-back. The settings gear did not survive the same argument: it is a channel
-control, and this screen has none.
+The first version of this kept *Home* in the header, on the argument that a way
+off a screen is navigation rather than a control: without one the second device
+is an application that cannot be used for anything else until somebody stops
+watching, and there was no reason to buy the tidier statement at that price.
+Both halves of that are true and the conclusion was wrong. **That price is what
+a television costs, and it is the thing being bought.** The way off this screen
+is to stop watching, which is a rung; and the account is holding the other
+device, where every way into the rest of the application already is. A second
+device is not a phone somebody is also reading on.
+
+The list went with it, and it was the larger half. Above `SPLIT_AT` — a laptop,
+which is where a watch party is actually watched — `Panes` drew every other
+channel in a column down the left of this screen, two thirds of the window, on
+the one device that exists *because* the rest of the channel is somewhere else.
+It is the remote control drawn a second time, which is the whole of what this
+entry is about; it simply survived the first pass because the split is decided
+above `ChannelView` and nothing about the television reached it.
+
+**The mechanism was already there, and this is its second caller.**
+`WholeWindowContext` was written for the expanded picture, with a comment
+saying it had exactly one caller and must not become a general override. It
+still must not: what earns a claim is being the only thing somebody is looking
+at, which is a fact about why a screen exists rather than about how much room
+it would like, and the television is the second screen in this application of
+which that is true.
+
+**But it wanted a smaller claim than the film's**, so the claim now says which:
+`glass` takes the hardware's bottom inset as well and stays `FullScreen`'s
+alone, `list` takes the list and nothing else. The television keeps its gutter
+because it keeps a footer, and three rungs lying across the home indicator is
+exactly the trade `Glass` says nobody pays for here. One claim is in force at a
+time, which is a fact about the two callers rather than a rule the context
+enforces — both are early returns from `ChannelView` and full screen comes
+first — and React running every cleanup in a commit before every mount is what
+makes the handover land the right way round in both directions.
+
+The settings gear never survived any of this: it is a channel control, and this
+screen has none.
 
 ## What had to move with it
 
@@ -71,6 +103,11 @@ now.
 reason the transport is one row drawn in two places: two sets kept in step by
 hand are two sets that drift. Only one of the two footers is ever mounted.
 
+**The claim is gated on `fullScreen`, not on `wantsFullScreen`.** The two are a
+render apart while the effect that syncs them settles, and the early return
+above reads the first — so claiming on the second puts the list back for one
+render on the way into full screen.
+
 **Three slots in that footer rather than four does not bend STYLE.md's rule 6.**
 That rule is that a control never moves under a thumb already on its way to it,
 across every state *one screen* can be in — and this bar is three rungs in all
@@ -80,7 +117,7 @@ shape; Home has no footer at all.
 ## What is not covered
 
 **Nobody has watched a party on two devices since this landed.** The tests are
-seven cases in `app/src/ui/__tests__/channelSharing.test.tsx` § *the second
+nine cases in `app/src/ui/__tests__/channelSharing.test.tsx` § *the second
 device*, and they are assertions about what a second device draws and what it
 does not. What they cannot settle is what the state feels like with a real film
 on a real laptop; that is the walk in

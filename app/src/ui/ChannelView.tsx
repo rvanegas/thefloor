@@ -89,7 +89,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
-import { useIsTurned, useWatchShape } from './layout';
+import { useIsTurned, useWatchShape, useWholeWindow } from './layout';
 import { DockSlot, usePicture } from '../watch/Picture';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
@@ -922,6 +922,25 @@ export function ChannelView({
     !transcriptFor;
   const turned = useIsTurned();
   const wantsFullScreen = (pressedFullScreen || turned) && atTheFilm;
+  /*
+    **The television takes the window, for the reason the expanded picture
+    does.** A second device is one screen showing one film; a list of every
+    other channel beside it is the remote control drawn a second time, on the
+    device that exists precisely because the remote control is elsewhere. Above
+    `SPLIT_AT` — a laptop, which is where a watch party is actually watched —
+    that list was two thirds of the window.
+
+    **`list` rather than `glass`**, which is the smaller of the two claims:
+    this screen keeps a footer of three rungs, and they have to stay off the
+    home indicator. See `WindowClaim`.
+
+    Gated on `fullScreen` rather than on `wantsFullScreen` so that it reads the
+    same term the early return above does — the two are a render apart while
+    the effect settles, and claiming on the other one would put the list back
+    for that render on the way into full screen. The handover is safe in both
+    directions because React runs every cleanup in a commit before every mount.
+  */
+  useWholeWindow(secondDevice && !fullScreen ? 'list' : null);
   useEffect(() => {
     if (fullScreen !== wantsFullScreen) setFullScreen(wantsFullScreen);
   }, [fullScreen, wantsFullScreen, setFullScreen]);
@@ -2570,14 +2589,23 @@ export function ChannelView({
     this screen can reach any of the three, and the switch that sent the film
     here is on the other device — see {@link secondDevice}.
 
-    **The header keeps *Home* and loses everything else.** A way off a screen
-    is navigation rather than a control, and without one the second device
-    would be an application that cannot be used for anything else until
-    somebody stops watching. Pressing it leaves the picture floating in the
-    corner exactly as it does from the *Watch* tab — `watch/Picture.tsx` — and
-    a tap on the corner comes back here. The settings gear is a channel
-    control and is not drawn; so is the recording pill, which is a fact about
-    the room rather than about the film.
+    **The header is a caption and holds no controls at all.** *Home* was there
+    for a day, on the argument that a way off a screen is navigation rather
+    than a control and that without one this device is an application that
+    cannot be used for anything else until somebody stops watching. That is
+    true of a television, which is the thing this screen is: the way off it is
+    to stop watching, and that is a rung. A second device is not a phone
+    somebody is also reading on — it is the screen in the corner of the room,
+    and the account is holding the other device, where every way into the rest
+    of the application already is. The settings gear went for the same reason
+    it always had: it is a channel control. So is the recording pill, which is
+    a fact about the room rather than about the film.
+
+    **The list beside it goes too, and by the same claim the expanded picture
+    makes** — see the `useWholeWindow` call above. Above `SPLIT_AT` this screen
+    had every other channel in a column down its left, which is the remote
+    control drawn a second time on the device that exists because the remote
+    control is somewhere else.
 
     **The hole, not the player.** `DockSlot` reserves the height and reports
     where it landed, and the one `WebView` above the route table lays itself
@@ -2597,16 +2625,6 @@ export function ChannelView({
                   <Text style={styles.otherName} numberOfLines={1}>
                     {channel.name ?? derivedTitle}
                   </Text>
-                </View>
-                <View style={styles.headerActions}>
-                  <IconButton
-                    label="Home"
-                    icon={(color) => <HomeIcon color={color} />}
-                    onPress={() => {
-                      app.recordNav('home');
-                      onClose();
-                    }}
-                  />
                 </View>
               </View>
             </View>
