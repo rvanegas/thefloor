@@ -1,5 +1,6 @@
-import { useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   PanResponder,
   StyleSheet,
   View,
@@ -9,25 +10,28 @@ import {
 import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
+import { isTap } from './Dock';
 import { useLandscapeWhile } from './orientation';
 
-/**
- * How far a finger has to travel down before it is a swipe at all.
- *
- * Exported with `swipeCompleted` because the two numbers are the whole of the
- * gesture and a responder is not reachable from a test renderer: what a test
- * can hold is the pair of decisions, and what it must be able to say is that a
- * sideways drag and a short one both leave the picture alone.
- */
-export const swipeStarted = (gesture: { dx: number; dy: number }): boolean =>
-  gesture.dy > 12 && gesture.dy > Math.abs(gesture.dx);
-
-/** And how far it has to have travelled by the time it is let go. */
+/** How far a finger has to have travelled down for a release to be a swipe. */
 export const swipeCompleted = (gesture: { dy: number }): boolean =>
   gesture.dy > 80;
 
 /**
- * The film, filling the phone, with the channel still underneath it.
+ * How long the chrome stays up with nothing being pressed.
+ *
+ * Exported because a responder and a timer are both out of a test renderer's
+ * reach: what a test can hold is the numbers and the decisions, and this is one
+ * of them. Three seconds is long enough to read the row and reach for it, and
+ * the same figure every other player on the phone uses.
+ */
+export const HIDE_AFTER_MS = 3000;
+
+/** How long the fade itself takes, either way. */
+const FADE_MS = 200;
+
+/**
+ * The film, filling the phone.
  *
  * **An app control, because there is no other kind left.** YouTube's own bar
  * went on 2026-09-18 — `WatchPlayer`, and the decision of that date — and its
@@ -49,20 +53,37 @@ export const swipeCompleted = (gesture: { dy: number }): boolean =>
  *   and the accessibility label of an icon is no help to somebody looking at
  *   the screen.
  * - **A swipe down** over the picture, which is what the gesture means
- *   everywhere else on the phone.
- * - **The chrome never hides.** Every other video player fades its controls
- *   after a few seconds and brings them back on a tap; here that would hide
- *   the only way out behind a gesture nobody was told about — and the same row
- *   is how a floor-holder pauses. It costs the bottom inch of the picture,
- *   which is the price of a way out that is always visible.
+ *   everywhere else on the phone — and which is the way out that does not
+ *   depend on the chrome being up.
+ * - **A tap**, which brings the chrome back from anywhere on the picture.
  * - **The exits nobody presses**, which are the caller's: the party stopping,
  *   the film being refused, the picture moving to another device. See
  *   `ChannelView`, which collapses this rather than leaving somebody holding a
  *   black rectangle with nothing on it.
  *
- * Some of these will look like too many with a month's use. That is the
- * expected outcome and the cheap direction to be wrong in: a redundant way out
- * costs a row of pixels, and a missing one costs somebody the app.
+ * ## The chrome fades, which it did not until 2026-09-19
+ *
+ * **This file argued the other way for a day and the argument was wrong.** It
+ * said that fading the row would hide the only way out behind a gesture nobody
+ * was told about, and kept the transport and the channel's own footer up for as
+ * long as the picture was. What that cost was the thing full screen is *for*:
+ * the two of them together take about a fifth of a sideways phone, and a 16:9
+ * film fitted into what is left is smaller than the glass by a wide margin —
+ * black down both sides, and the picture noticeably smaller than it needed to
+ * be. A control whose purpose is a bigger picture cannot be built on a layout
+ * that keeps a bar over it.
+ *
+ * So both fade together after {@link HIDE_AFTER_MS}, and a touch anywhere
+ * brings them back — which is what every other player on the phone does, and
+ * therefore the gesture a person already has. **They start up rather than
+ * down**: somebody arriving in this state is shown the way out of it before it
+ * goes, so the exit is learnt and then hidden rather than never seen.
+ *
+ * And the reason the original worry is survivable is the swipe. It is the one
+ * way out that never depended on the chrome, it is the gesture this phone uses
+ * for dismissing everything else, and it is unchanged. The film has no
+ * controls of its own to compete with a touch — YouTube's bar is off — so
+ * there is no ambiguity about what a tap on the picture means.
  */
 export function FullScreen({
   picture,
@@ -77,8 +98,10 @@ export function FullScreen({
   /**
    * The channel's own pinned bar, kept because this is a talking application
    * before it is a video one: an evening where nobody can reach their own
-   * microphone without first leaving the film is the wrong trade. A sibling
-   * below the picture rather than another overlay, as `Screen` documents.
+   * microphone without first leaving the film is the wrong trade. Over the
+   * picture with the transport rather than below it since 2026-09-19, and
+   * fading with it — a bar that is one touch away is still reachable, and a
+   * bar that is permanently there is a fifth of the film.
    */
   footer: React.ReactNode;
   onCollapse: () => void;
@@ -90,64 +113,119 @@ export function FullScreen({
     **The turn sideways is what makes this necessary.** An iPhone on its side
     is wider than `SPLIT_AT`, so without this the rotation that was meant to
     give the film the glass puts Home back beside it and leaves the picture
-    smaller than it was in portrait — which is the thing the `chrome` note
-    below says is not a feature, arriving by the other door. See
-    `WholeWindowContext`.
+    smaller than it was in portrait — which is the thing this state exists to
+    prevent, arriving by the other door. See `WholeWindowContext`.
   */
   useWholeWindow();
 
+  /** Whether the chrome is up. It starts up; see the header. */
+  const [shown, setShown] = useState(true);
+  const fade = useRef(new Animated.Value(1)).current;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /**
-   * The swipe, which has to be a responder rather than a `Pressable`.
+   * Puts the clock back to the start, which every touch does.
    *
-   * It claims the gesture on the *move* and only downwards, so a finger that
-   * travels sideways or barely at all is left alone — there is nothing else to
-   * press on the picture today, but a picture that swallows every touch is one
-   * that cannot be given anything later.
+   * A row that vanished three seconds after this state opened — while somebody
+   * was still reaching for the scrubber — would be the fading control at its
+   * worst. So the countdown is against *inactivity* rather than against the
+   * state, and any touch at all, on the transport or the footer or the picture,
+   * starts it again.
+   */
+  const arm = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShown(false), HIDE_AFTER_MS);
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(fade, {
+      toValue: shown ? 1 : 0,
+      duration: FADE_MS,
+      useNativeDriver: true,
+    }).start();
+    if (shown) arm();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [shown, fade, arm]);
+
+  /**
+   * The touch surface over the picture, which is now two gestures rather than
+   * one.
+   *
+   * It claims on the **start** and no longer only on a downward move: a tap on
+   * the picture is a control now — it is how the chrome comes back — so this
+   * surface has to be offered every touch rather than only the ones that are
+   * already travelling. Nothing is taken away by that: the frame beneath
+   * answers no touch at all, `WatchPlayer` making it inert wherever there is
+   * nothing on it to press, and the chrome is drawn above this rather than
+   * below it.
+   *
+   * What the release does is decide which of the two it was — far enough down
+   * is the way out, barely anywhere is the tap — and a drag that is neither is
+   * a finger that changed its mind, which correctly does nothing.
    *
    * `PanResponder` rather than `react-native-gesture-handler`, which this app
-   * does not carry and which this one gesture is not worth adding.
+   * does not carry and which these two gestures are not worth adding.
    */
   const collapse = useRef(onCollapse);
   collapse.current = onCollapse;
   const swipe = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (
-          _event: GestureResponderEvent,
-          gesture: PanResponderGestureState
-        ) => swipeStarted(gesture),
+        onStartShouldSetPanResponder: () => true,
         onPanResponderRelease: (
           _event: GestureResponderEvent,
           gesture: PanResponderGestureState
         ) => {
-          if (swipeCompleted(gesture)) collapse.current();
+          if (swipeCompleted(gesture)) {
+            collapse.current();
+            return;
+          }
+          if (isTap(gesture)) setShown((was) => !was);
         },
       }),
     []
   );
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={styles.screen}
+      /*
+        Every touch in this state, offered to nothing and recorded. Capture
+        rather than a handler, and it always declines — so the transport's own
+        buttons keep their presses and the scrubber keeps its drag, and pressing
+        any of them still counts as somebody being here. The same move
+        `Attending` makes in `App.tsx`, for the same reason.
+      */
+      onStartShouldSetResponderCapture={() => {
+        if (shown) arm();
+        return false;
+      }}
+    >
       <View style={styles.stage}>
         {picture}
-        {/*
-          The gesture surface, over the picture and under the chrome. The
-          frame beneath it answers no touch at all — `WatchPlayer` makes it
-          inert wherever there is nothing on it to press — so this takes
-          nothing away, and a refused film is one of the exits above rather
-          than something to reach through this.
-        */}
         <View
           style={StyleSheet.absoluteFill}
           pointerEvents="box-only"
           {...swipe.panHandlers}
         />
-        <View style={styles.chrome}>
+        {/*
+          Inert while it is down, so that a tap aimed at bringing it back is
+          not swallowed by the invisible row it is aimed through. Opacity alone
+          would leave a full-width bar catching every touch along the bottom of
+          the film.
+        */}
+        <Animated.View
+          testID="chrome"
+          style={[styles.chrome, { opacity: fade }]}
+          pointerEvents={shown ? 'box-none' : 'none'}
+        >
           {chrome}
           <Button label="Exit full screen" onPress={onCollapse} />
-        </View>
+          {footer}
+        </Animated.View>
       </View>
-      {footer}
     </View>
   );
 }
@@ -159,17 +237,22 @@ const styles = StyleSheet.create({
    * what shows here is letterbox, which belongs to the film rather than to the
    * application, and a light strip down each side of a picture is the one
    * place this palette would be read as a mistake.
+   *
+   * **It is the whole window now**, the footer having stopped being a sibling
+   * that takes its own height: the film is fitted to all the glass there is and
+   * cropped by nothing. What is left over at the sides of a 16:9 film on a
+   * phone that is wider than that is the film's letterbox and stays black.
    */
   stage: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
   /**
    * **Over the picture, which is the one departure this file makes from
    * § *The shape of a screen*.** The rule is that pinned rows are siblings of
-   * the body and take their own height out of it; that rule buys a body that
-   * is never covered, and here it would buy a *smaller picture in landscape
-   * than in portrait* — a stacked transport and footer leave about 200pt of a
-   * sideways phone, where portrait full width gives 219. Expanding a picture
-   * to make it smaller is not a feature. So the transport sits on a scrim, as
-   * every video player's does, and the footer below stays a sibling.
+   * the body and take their own height out of it; that rule buys a body that is
+   * never covered, and here it would buy a *smaller picture in landscape than
+   * in portrait*. Expanding a picture to make it smaller is not a feature. So
+   * the transport sits on a scrim, as every video player's does — and since
+   * 2026-09-19 the channel's own footer sits on it too, both of them fading
+   * together rather than standing over the film for the whole of it.
    */
   chrome: {
     position: 'absolute',

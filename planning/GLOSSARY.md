@@ -89,7 +89,7 @@ caused; the list carries the meaning.
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
-- **Full screen** — The film filling one device, in landscape, with the transport over it and the channel's own bar below; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
+- **Full screen** — The film filling one device, in landscape, with the transport and the channel's own bar over it and fading together after three seconds, brought back by a touch anywhere; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1734,11 +1734,22 @@ it. The phone turns landscape while it is up and back when it is not.
 button.** There is no `esc` on a phone and no system full-screen to dismiss,
 so a control nobody finds is a person stuck. There are four: the *Exit full
 screen* button, which says its words rather than drawing a shape; a swipe
-down over the picture; chrome that never hides, unlike every other player's,
-because the row that exits is also the row that pauses; and the three
-automatic collapses — the party stopping, the picture moving to another
-device, and YouTube refusing the film — each of which would otherwise leave
-somebody holding a black rectangle. Expanding and collapsing each rebuild the
+down over the picture, which is the one that never depended on anything being
+drawn; a tap, which brings the chrome back from anywhere on the picture; and
+the three automatic collapses — the party stopping, the picture moving to
+another device, and YouTube refusing the film — each of which would otherwise
+leave somebody holding a black rectangle.
+
+**The chrome fades, since 2026-09-19, having been built not to.** For a day
+the transport and the channel's bar stayed up for the whole of a film, on the
+argument that fading them would hide the only way out behind a gesture nobody
+was told about. What that cost was the point of the state: the two together
+take about a fifth of a sideways phone, and a 16:9 film fitted into the rest
+falls well short of the glass. Both now fade after three seconds of nothing
+being pressed and come back at a touch anywhere — the gesture every other
+player on the phone has already taught — and they start up rather than down,
+so the way out is seen before it goes. The film is fitted, never cropped: what
+is left at the sides is the film's own letterbox. Expanding and collapsing each rebuild the
 player, so the film reloads and the follower drives it back to where everybody
 is; the cost is a few seconds of black for the one person who pressed it.
 

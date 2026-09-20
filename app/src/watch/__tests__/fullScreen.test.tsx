@@ -6,7 +6,8 @@ import renderer, {
   type ReactTestRenderer,
 } from 'react-test-renderer';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { FullScreen, swipeCompleted, swipeStarted } from '../FullScreen';
+import { FullScreen, HIDE_AFTER_MS, swipeCompleted } from '../FullScreen';
+import { isTap } from '../Dock';
 import { WholeWindowContext } from '../../ui/layout';
 
 jest.mock('expo-screen-orientation', () => ({
@@ -96,11 +97,14 @@ describe('The expanded picture', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps the transport and the channel’s own bar on the screen', () => {
-    // The chrome never hides, which is the departure from every other video
-    // player: the row that exits is also the row that pauses, and a floor
-    // holder who cannot pause without first finding a hidden control has been
-    // given a film instead of a conversation.
+  it('shows the transport and the channel’s own bar before hiding them', () => {
+    /*
+      **Up first, then away.** The row that exits is also the row that pauses,
+      so somebody arriving here is shown both before either goes — the exit is
+      learnt and then hidden rather than never seen. Both are drawn throughout
+      and it is their opacity that changes; what a test can hold is that
+      neither was left out of the tree.
+    */
     const tree = draw(() => {});
     const text = tree.root
       .findAll((n: ReactTestInstance) => n.type === Text)
@@ -110,16 +114,45 @@ describe('The expanded picture', () => {
     act(() => tree.unmount());
   });
 
-  it('takes a downward swipe and leaves every other drag alone', () => {
-    expect(swipeStarted({ dx: 0, dy: 40 })).toBe(true);
-    // Sideways, and upwards: neither is this gesture, and a picture that
-    // swallowed them could never be given anything else to do.
-    expect(swipeStarted({ dx: 60, dy: 20 })).toBe(false);
-    expect(swipeStarted({ dx: 0, dy: -40 })).toBe(false);
-    // Started is not finished. A finger that moves an inch and stops has
-    // scrolled nothing and must not close anything.
-    expect(swipeCompleted({ dy: 40 })).toBe(false);
+  /*
+    **The chrome goes, and that reverses what this file said for a day.** It
+    argued that fading the row would hide the only way out behind a gesture
+    nobody was told about. What it cost was the thing full screen is for: the
+    transport and the footer together take about a fifth of a sideways phone,
+    and a 16:9 film fitted into the rest is well short of the glass. The swipe
+    is what makes the original worry survivable — it never depended on the
+    chrome and is unchanged — and a touch anywhere brings the row back.
+  */
+  it('takes the chrome down after a spell with nothing pressed', () => {
+    jest.useFakeTimers();
+    try {
+      const tree = draw(() => {});
+      const chrome = () =>
+        tree.root.findAll(
+          (n: ReactTestInstance) => n.props?.testID === 'chrome'
+        )[0]!.props;
+      // Up on arrival, so the way out is seen at least once.
+      expect(chrome().pointerEvents).toBe('box-none');
+
+      act(() => {
+        jest.advanceTimersByTime(HIDE_AFTER_MS + 1);
+      });
+      // Down, and inert with it — an invisible full-width bar that still
+      // caught touches would swallow the tap aimed at bringing it back.
+      expect(chrome().pointerEvents).toBe('none');
+      act(() => tree.unmount());
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('tells a swipe out from a tap that asks for the controls back', () => {
+    // Far enough down is the way out; barely anywhere is the tap. A finger
+    // that moves an inch and stops has changed its mind and does neither.
     expect(swipeCompleted({ dy: 120 })).toBe(true);
+    expect(swipeCompleted({ dy: 40 })).toBe(false);
+    expect(isTap({ dx: 2, dy: -3 })).toBe(true);
+    expect(isTap({ dx: 0, dy: 40 })).toBe(false);
   });
 
   it('puts the phone back the way it found it', () => {

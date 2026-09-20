@@ -908,17 +908,24 @@ it buys here is a *smaller picture in landscape than in portrait* — a stacked
 transport and footer leave about 200pt of a sideways phone, where portrait
 full width gives 219 — and a control whose purpose is a bigger picture cannot
 be built on a layout that shrinks it. So the transport is overlaid, as every
-video player's is, and the channel's own footer stays a sibling below, because
-being able to reach your own microphone is not something a film should cost
-you.
+video player's is, and **since 2026-09-19 the channel's own footer is overlaid
+with it** rather than kept as a sibling below.
 
-**Two things there are deliberately not.** The chrome does not fade after a
-few seconds, which is what every other player does: the row that exits is also
-the row that pauses, and this state has no other way out — there is no `esc`
-on a phone and no system full-screen to dismiss. And the way out is a `Button`
-with its word on it rather than an `IconButton`, against § *Icons*' licence
-for a header glyph: an icon is findable once it has been learnt, and the only
-exit from a state somebody may not know they can leave is not where they learn
+**And both fade, which this section said they deliberately did not.** The rule
+was that the chrome never hides, on the grounds that the row which exits is
+also the row that pauses and this state has no other way out. It cost the
+thing the state is for: a bar that is permanently there is a fifth of the
+film, and the picture fitted into the rest is well short of the glass. They
+now go after three seconds of nothing being pressed and come back at a touch
+anywhere, which is the gesture every other player on this phone has taught
+already; they start up, so the exit is seen before it goes; and the swipe down
+— the way out that never depended on anything being drawn — is what makes it
+safe. See `watch/FullScreen.tsx`, which carries the reversal in full.
+
+**One thing there is still deliberate.** The way out is a `Button` with its
+word on it rather than an `IconButton`, against § *Icons*' licence for a
+header glyph: an icon is findable once it has been learnt, and the only exit
+from a state somebody may not know they can leave is not where they learn
 one.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
