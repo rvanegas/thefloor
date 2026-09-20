@@ -32,7 +32,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, split panes, the one screen that overlays its chrome |
+| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states |
@@ -804,6 +804,33 @@ iOS and leaves a gap that tall under the card. The symptom that sends somebody
 looking for one — a box under the keyboard — is a scrolling problem, not an
 avoidance problem, and `useRevealOnKeyboard` is its answer.
 
+### The picture, which is pinned on one tab and floats on the others
+
+`Screen`'s third slot, `aside`, and the watch party's film is its only caller.
+It sits between the header and the scroll, so a picture **in flow takes its own
+height out of the body** exactly as the two bars do and covers nothing — the
+rule the rest of this section is about.
+
+- **Docked**, on the *Watch* tab: full bleed, capped at `measure` and centred,
+  16:9 on `#000`, with the pinned header's hairline under it and for the same
+  reason. The transport and the cards scroll beneath it; the film does not
+  scroll away from its own controls.
+- **Floating**, on the other five: 168pt wide at 16:9, `radius.md`, a hairline
+  because a dark scene over a dark card has no edge otherwise, and a shadow.
+  Anchored bottom-right — the corner a thumb covers least on the way to the
+  footer, and the one furthest from the notepad's field — and dragged anywhere
+  in the body from there. A tap opens the *Watch* tab, the rectangle being far
+  too small to carry a transport.
+
+**The two are one element in two styles, and that is load-bearing rather than
+elegant.** The picture is a `WebView`, and a `WebView` that is reparented is
+rebuilt: the page reloads and the film restarts from black. So there is one
+slot at one depth, and what changes between the places is a style object —
+the same argument § *Two panes* makes for the detail pane's fixed depth.
+Floating, it is `position: absolute` over the scroll and must therefore say
+`zIndex`, being drawn before it; the footer is a later sibling still, so the
+microphone stays reachable with a film on the screen. See `watch/Dock.tsx`.
+
 ### The pinned header
 
 Two screens have one and they are built identically:
@@ -1155,7 +1182,8 @@ Seven things that look like tidying and are not:
    `theme.ts`, and let `cssVariables.web.ts` generate the CSS. A hand-written
    stylesheet reintroduces the drift the mapping exists to prevent.
 5. **A pinned bar's edge is full-bleed and its contents are capped.** Both
-   header and footer; `measure` on the inner row, hairline on the outer.
+   header and footer; `measure` on the inner row, hairline on the outer. The
+   docked picture is the third of these and is built the same way.
 6. **Position never changes on a fixed control.** `flex: 1` on every footer
    action, a fixed-height disc whether accented or not, two static rows of tabs
    rather than a scroller. A target that moves under a thumb already on its way

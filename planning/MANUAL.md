@@ -178,7 +178,11 @@ audio out, so who asked is always shown. Everybody gets one free.
 YouTube link everybody watches in step on their own
 screens — nothing is fetched, stored or recorded here. **Mute the room**
 withholds everybody's microphone while the video plays and gives them all back
-when you pause it, because you pause a film to talk about it.
+when you pause it, because you pause a film to talk about it. The film follows
+you around the channel: it is pinned above the *Watch* tab and sits in the
+corner of the others, where it can be dragged out of the way or tapped to go
+back to the controls. To stop watching, go *nearby* or step *out* — the same
+two rungs that say so to everybody else.
 
 **The clipboard** is one piece of text the channel holds, which anybody in it
 can read, replace or clear. It is silent, so the floor does not govern it.

@@ -88,6 +88,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
+import { WatchDock } from '../watch/Dock';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -649,8 +650,16 @@ export function ChannelView({
    * *Watch on* has to answer: the film belongs on the device you are in the
    * room on.
    */
-  const steppedIn =
-    !!channel && isPresent(channel, me) && app.standingIn === channelId;
+  /**
+   * Whether this *account* is in the room, on this device or any other.
+   *
+   * The account's half of `steppedIn`, on its own, because two rules below
+   * need exactly this and not the per-device fact: a laptop showing the film
+   * while the phone holds the presence is not stepped in here and must go on
+   * showing it.
+   */
+  const presentHere = !!channel && isPresent(channel, me);
+  const steppedIn = presentHere && app.standingIn === channelId;
   const screenIsMine = screenIsHere && steppedIn;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
   /**
@@ -738,6 +747,31 @@ export function ChannelView({
   }, [app, channelId, partyLoaded]);
 
   /**
+   * **Stepping out is how you stop watching, and it is the only way.**
+   *
+   * The picture used to exist only while the *Watch* tab was showing, which
+   * made tapping another tab a way to leave a film without leaving the room.
+   * It is mounted for as long as this device is the screen now — see
+   * `watch/Dock.tsx` — so *the tab bar has stopped being a transport*, and
+   * something else has to be. The ladder already is: in, nearby, out. Nearby
+   * and out are the two answers to not wanting to watch, and both of them are
+   * a statement to the room rather than a silent withdrawal behind a tab.
+   *
+   * **The account's presence and not this device's**, which is the whole care
+   * in this: a film handed to the laptop is being watched by a person whose
+   * phone is what holds their presence, and a rule written against
+   * `steppedIn` would take it off that laptop the moment it arrived.
+   *
+   * The server agrees rather than being told — `watchingHere` is filtered by
+   * `present` wherever it is read — so this is the device doing locally what
+   * the room already believes about it.
+   */
+  useEffect(() => {
+    if (presentHere || app.screenFor !== channelId) return;
+    app.showScreenFor(null);
+  }, [app, channelId, presentHere]);
+
+  /**
    * **The film comes up on the device you are looking at.**
    *
    * *Watch on* had a third answer until 2026-09-18 — neither segment chosen,
@@ -776,8 +810,12 @@ export function ChannelView({
    *
    * Not marked as taken while stepped out, deliberately, so that stepping in
    * later is what the default waits for rather than something it has already
-   * missed. Stepping out again does not undo it: an existing screen is left
-   * where it is, this being a default and not an invariant.
+   * missed. **And stepping out again does undo it, which is the change of
+   * 2026-09-19** — it used to leave an existing screen where it was, on the
+   * grounds that this is a default rather than an invariant, and that was
+   * affordable while the picture only existed on one tab. It is mounted
+   * wherever you are in the channel now, so leaving the room has to be what
+   * turns it off; see the effect above.
    */
   /**
    * How wide the scrubber is, so a tap on it can be turned into a position.
@@ -796,7 +834,12 @@ export function ChannelView({
   // to stay above this screen's early returns.
   const filmOn = channel?.watch?.party?.videoId ?? null;
   useEffect(() => {
-    if (filmOn === null) {
+    // Two things clear the mark, and the second is new as of 2026-09-19:
+    // there is no film, or this account has left the room. Leaving takes the
+    // picture away — the effect above — so stepping back in has to be able to
+    // bring it back, and a mark that outlived the departure would make the
+    // second visit the one where nothing happens.
+    if (filmOn === null || !presentHere) {
       defaulted.current = null;
       return;
     }
@@ -804,7 +847,7 @@ export function ChannelView({
     defaulted.current = filmOn;
     if (app.screenFor === channelId || screenElsewhere) return;
     app.showScreenFor(channelId);
-  }, [app, channelId, filmOn, screenElsewhere, steppedIn]);
+  }, [app, channelId, filmOn, presentHere, screenElsewhere, steppedIn]);
 
   /**
    * A film playing on this screen is somebody being here.
@@ -2135,6 +2178,48 @@ export function ChannelView({
     </>
   ) : null;
 
+  /**
+   * **The film, which is mounted for as long as this device is the screen.**
+   *
+   * It is not on the *Watch* tab, and until 2026-09-19 it was: the player was
+   * a child of that tab's card, so it existed only while the card was drawn.
+   * What that meant in a room is the defect this replaces — somebody stepping
+   * into a channel with a film running landed on *Members*, saw no picture,
+   * heard nothing, and was reported to everybody else as watching, their
+   * microphone closed by `isScreening` on the strength of a player that did
+   * not exist. Tapping any other tab mid-film did the same to somebody who
+   * had been watching, and the party went on without them.
+   *
+   * So the tab decides where the picture is and no longer whether there is
+   * one. `Dock` is the two places — pinned under the tabs on *Watch*, a small
+   * draggable rectangle in the corner everywhere else — and it is one element
+   * in two styles rather than two renders, a `WebView` being rebuilt whenever
+   * it is reparented.
+   *
+   * **Null in exactly the three cases there is nothing to show**: no party, a
+   * film on another device of this account's, and full screen — which is an
+   * early return below with a player of its own, and rendering this as well
+   * would put two of them on one channel.
+   *
+   * What stops it is the ladder rather than the tab bar: see the effect that
+   * clears this device's screen role when the account leaves the room.
+   */
+  const picture =
+    party && screeningHere && !fullScreen ? (
+      <WatchDock
+        place={tab === 'watch' ? 'docked' : 'floating'}
+        onOpen={() => chooseTab('watch')}
+      >
+        <WatchPlayer
+          watch={watch}
+          channelId={channelId}
+          fill
+          onDuration={(durationMs) => act({ type: 'WATCH_READY', durationMs })}
+          onRefusal={(message) => setFilmRefused(message !== null)}
+        />
+      </WatchDock>
+    ) : null;
+
   /*
     **The picture, filling the phone, and the channel still under it.**
 
@@ -2179,7 +2264,12 @@ export function ChannelView({
   }
 
   return (
-    <Screen header={header} footer={footer} contentStyle={styles.container}>
+    <Screen
+      header={header}
+      footer={footer}
+      aside={picture}
+      contentStyle={styles.container}
+    >
         {/*
           Why you are in a room with people you have never met.
 
@@ -3191,34 +3281,25 @@ export function ChannelView({
             {party ? (
               <>
                 {/*
-                  The film itself, when this device is the one showing it.
+                  **The picture is not in this card and has not been since
+                  2026-09-19.** It is pinned above the tab, over the whole
+                  body — see `picture` and `watch/Dock.tsx` — because a player
+                  that lives on a tab is a player that stops when somebody
+                  taps another one. What is left here is everything that is
+                  not the film: the transport, the switch that says which
+                  device is showing it, the room's mute, and the way out.
 
-                  **The Floor still carries no video.** This is YouTube's own
-                  player, unmodified and unobscured, playing its own picture
-                  with its own sound; what travels through this application is
-                  a position and a clock, exactly as it was when the player
-                  lived on a laptop. What changed is the window.
+                  **The Floor still carries no video**, wherever the frame is
+                  drawn. It is YouTube's own player, unmodified and
+                  unobscured, playing its own picture with its own sound, and
+                  what travels through this application is a position and a
+                  clock. And there is nothing to press on it: YouTube's bar is
+                  off (`controls: 0`) because it was an input surface on a
+                  player this channel drives as an output surface, and the API
+                  never says which of the two caused a state change. The
+                  transport below is unambiguous because a button press *is*
+                  an action.
                 */}
-                {screeningHere ? (
-                  /*
-                    **The picture, and nothing to press on it.** YouTube's own
-                    bar is off since 2026-09-18 (`controls: 0`): it was an
-                    input surface on the player the channel drives as an
-                    output surface, and the API never says which of the two
-                    caused a state change, so four days of arrangements to
-                    tell a thumb from the echo of our own command each traded
-                    a misread against a swallowed press. The transport is the
-                    row below, which is unambiguous because a button press
-                    *is* an action.
-                  */
-                  <WatchPlayer
-                    watch={watch}
-                    channelId={channelId}
-                    onDuration={(durationMs) =>
-                      act({ type: 'WATCH_READY', durationMs })
-                    }
-                  />
-                ) : null}
                 {/*
                   **The URL was the heading here and is gone as of
                   2026-09-18.** A YouTube link is machine text: it names the

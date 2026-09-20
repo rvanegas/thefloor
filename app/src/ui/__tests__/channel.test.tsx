@@ -6,6 +6,7 @@ import { type RecordingView } from '../../../../core/protocol';
 import { ChannelView, uploadingLabel } from '../ChannelView';
 import { Screen, SectionLabel, Segmented } from '../components';
 import { BellIcon, StepIcon } from '../icons';
+import { WatchDock } from '../../watch/Dock';
 import {
   Alert,
   Keyboard,
@@ -1675,6 +1676,99 @@ describe('Channel', () => {
     showWatch(party);
     expect(findButton(party, 'Stop')).toBeDefined();
     act(() => party.unmount());
+  });
+
+  /*
+    **The film is not on the watch tab, and the defect it was is worth
+    stating.** Until 2026-09-19 the player was a child of that tab's card, so
+    somebody who stepped into a room with a party running — landing on
+    *Members*, which is where everybody lands — saw no picture and heard
+    nothing, while `watchingHere` said they were watching and `isScreening`
+    closed their microphone on the strength of it. The tab decides where the
+    picture is drawn now and no longer whether there is one.
+  */
+  it('shows the film on every tab, and moves it rather than dropping it', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(
+      channelOf((s) =>
+        reduce(
+          s,
+          {
+            type: 'START_WATCH',
+            userId: ME,
+            videoId: 'dQw4w9WgXcQ',
+            url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          },
+          NOW
+        )
+      )
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    // The roster, which is the tab a newcomer lands on: the picture is there,
+    // in the corner.
+    const place = () =>
+      tree.root.findAll((node) => node.type === WatchDock)[0]?.props.place;
+    expect(place()).toBe('floating');
+
+    // And on the tab the controls are on it is the pinned row under them.
+    showWatch(tree);
+    expect(place()).toBe('docked');
+
+    // Back out again, and it is a rectangle rather than nothing at all.
+    showNotepad(tree);
+    expect(place()).toBe('floating');
+    act(() => tree.unmount());
+  });
+
+  /*
+    **So the ladder is what stops a film, the tab bar having stopped being
+    able to.** Nearby and out are the two answers to not wanting to watch, and
+    both say so to the room rather than withdrawing behind a tab. Asserted on
+    the call rather than on the picture, this device's screen role being
+    connection state that the snapshot does not carry.
+  */
+  it('stops being the screen when the account leaves the room', () => {
+    mockApp.screenFor = 'sess_1';
+    const watching = channelOf((s) =>
+      reduce(
+        s,
+        {
+          type: 'START_WATCH',
+          userId: ME,
+          videoId: 'dQw4w9WgXcQ',
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        },
+        NOW
+      )
+    );
+    showChannel(watching);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
+
+    // Stepping out, which is the same snapshot with this account no longer in
+    // the room.
+    showChannel(reduce(watching, { type: 'STEP_OUT', userId: ME }, NOW));
+    act(() => {
+      tree.update(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    });
+    expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+    act(() => tree.unmount());
   });
 
   /*

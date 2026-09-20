@@ -87,7 +87,8 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
-- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused
+- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
+- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle in the corner of the other five tabs, or *full screen*. Mounted for as long as this device is the *screen*, so since 2026-09-19 leaving the Watch tab no longer stops a film — going *nearby* or *out* is what does
 - **Full screen** — The film filling one device, in landscape, with the transport over it and the channel's own bar below; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -1698,6 +1699,14 @@ confers nothing.
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own
 player, unmodified and unobscured, and The Floor still carries no video.
 
+**And since 2026-09-19 it does not live on the *Watch* tab**, only on the
+device that is showing it: the picture is pinned under the tabs there and is a
+small draggable rectangle in the corner of the other five. It was a child of
+that tab's card until then, so somebody stepping into a room with a film
+running — landing on *Members*, as everybody does — saw nothing, heard
+nothing, and was reported to the room as watching. See *the picture* below and
+decisions/2026-09-19-the-film-is-not-a-tab.md.
+
 **The video's own controls are off**, and have been since 2026-09-18:
 `controls: 0`, with `disablekb` beside it. The picture is not a control. The
 transport is the app's own row — Play, ±15s, and a progress bar that seeks
@@ -1765,8 +1774,15 @@ The default is taken **once per film**, and only while stepped in. Not an
 invariant: handing the picture away clears this device's role a moment before
 the server says where the film went, and a standing rule would read that gap
 as *nobody is showing it* and take the film straight back. Not marked as taken
-while stepped out either, so stepping in later is what it waits for; stepping
-out again leaves an existing screen alone.
+while stepped out either, so stepping in later is what it waits for.
+
+**Leaving the room gives the role up, which is the change of 2026-09-19** —
+it used to leave an existing screen where it was. The picture is mounted
+wherever you are in the channel now rather than on one tab, so the tab bar has
+stopped being a way to stop a film and the ladder is what is left: *nearby*
+and *out* are the two answers to not wanting to watch, and both of them say so
+to the room. It is the **account's** presence that decides, not the instance's,
+or the laptop somebody handed the film to would lose it the moment it arrived.
 
 **One device shows the film at a time.** Taking it here takes it off whatever
 else of yours was showing it — the video moves, not merely the controls — and
@@ -1796,6 +1812,31 @@ the phone shows *other device*: both are describing where the film is. The
 phone can only say so because the server pushes which channels this account's
 *other* instances are showing — the picker's list is frozen at the moment of
 choosing and could not answer this.
+
+## The picture
+
+**Where a party's film is drawn, on the device that is the *screen*.** Three
+places and no fourth: **docked**, a pinned row under the tabs on the *Watch*
+tab; **floating**, a 168pt rectangle in the corner of the other five, dragged
+anywhere in the body and tapped to go back to the controls; and *full screen*,
+which is the entry above.
+
+**It is one player throughout, which is why the word is worth having.** A
+`WebView` that is reparented is rebuilt — the page reloads, the film starts
+from black and the follower drives it back — so docked and floating are one
+element in two styles rather than two renders in two branches of the screen.
+The one exception is full screen, which replaces the screen and does mount its
+own; that costs a few seconds of black to the person who pressed it, and it is
+written down where it is paid.
+
+**The tab decides where it is, not whether it exists**, and that is the whole
+of the 2026-09-19 change. It was a child of the *Watch* tab's card until then,
+so it existed only while that card was drawn: a person who stepped into a room
+with a film running saw no picture and heard no film, while the room was told
+they were watching and their own microphone was closed on the strength of it.
+What used to stop a film — tapping another tab — is the ladder now.
+
+`app/src/watch/Dock.tsx`, in `Screen`'s `aside` slot.
 
 ## Watching here
 

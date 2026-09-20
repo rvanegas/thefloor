@@ -319,6 +319,7 @@ export function Screen({
   contentStyle,
   header,
   footer,
+  aside,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -353,6 +354,30 @@ export function Screen({
    * the home indicator is already accounted for above this.
    */
   footer?: React.ReactNode;
+  /**
+   * Something that lives between the header and the body, or over the body,
+   * and survives whatever the body does.
+   *
+   * **One slot at one depth, which is the whole point of it.** Its only
+   * caller is the watch party's picture, which is a `WebView` and is
+   * therefore rebuilt the instant it is reparented — so it cannot be rendered
+   * in one place on one tab and another place on the others. It is rendered
+   * here, once, and moves by changing its own style: in flow as a pinned row,
+   * or `position: absolute` over the body. See `watch/Dock.tsx`.
+   *
+   * **Above the scroll and outside the measured frame**, so that a row in
+   * flow takes its own height out of the body exactly as the header takes its
+   * own out of the viewport, and nothing is ever hidden beneath it — the rule
+   * this component exists to keep. Before the scroll rather than after it so
+   * the row reads as pinned under the header rather than as a footer; a slot
+   * that floats therefore has to say `zIndex`, which is what `Dock` does.
+   * Outside the frame because that one is what `reveal` measures against.
+   *
+   * It is below the footer in both arrangements, the footer being a later
+   * sibling still, which is what keeps the microphone reachable with a film
+   * on the screen.
+   */
+  aside?: React.ReactNode;
 }) {
   const scroll = React.useRef<ScrollView>(null);
   /**
@@ -416,8 +441,20 @@ export function Screen({
     >
       <RevealContext.Provider value={reveal}>
         {header}
+        {/*
+          The body: whatever the `aside` is, and the scroll under or behind
+          it. **The wrapper is what the aside is positioned against** — an
+          `aside` that floats is `position: absolute` within this, so it
+          covers the scroll and never the pinned rows above and below it.
+        */}
+        <View style={styles.screen}>
+        {aside}
         {/* `collapsable={false}` keeps this view in the native tree, without
-            which it cannot be measured. */}
+            which it cannot be measured. **And it is around the scroll alone,
+            not around the aside**: `reveal` converts window coordinates into
+            offsets within the content by subtracting this view's own top, so
+            a pinned row inside it would put every reveal out by the height of
+            that row. */}
         <View ref={frame} collapsable={false} style={styles.screen}>
         <ScrollView
           ref={scroll}
@@ -440,6 +477,7 @@ export function Screen({
         >
           {children}
         </ScrollView>
+        </View>
         </View>
         {footer}
       </RevealContext.Provider>
