@@ -46,37 +46,35 @@ const FADE_MS = 200;
  * is a video one, and what that bought was reachability that was never more
  * than one press away, at a fifth of a sideways phone.
  *
- * ## Two ways in, and only a phone has the second
+ * ## One way in, one way out, and they are the same control
  *
- * **The button, on every platform, and the turn, on a handheld.** A press of
- * *Full screen* on the watch card opens this anywhere; turning a phone
- * sideways on the *Watch* tab opens it as well, and turning it upright closes
- * it again. `ChannelView` holds which of the two is speaking and mounts this;
- * see its derivation, which is where the whole rule is written out.
+ * **A press of *Full screen* on the watch card opens this, and *Exit full
+ * screen* here closes it, on every platform.** `ChannelView` holds the flag
+ * and mounts this; see its derivation.
  *
- * **The turn alone was tried, for a day, and it was right about one surface in
- * four.** From 2026-09-19 this state had no controls at all: the phone was the
- * whole of it, on the reasoning that two buttons saying what the glass already
- * said were two buttons too many, and that the pair had left a real bug —
- * the expanded state locked the phone sideways, exiting released the lock, and
- * an unlocked phone goes back to how it is being held, so exiting while
- * sideways handed back the channel screen sideways with nothing to say
- * otherwise with.
+ * **Turning the phone was a second route for a day and is not one now.** From
+ * 2026-09-19 this state had no controls at all: the phone was the whole of
+ * it, on the reasoning that two buttons saying what the glass already said
+ * were two buttons too many. That was right about one surface in four — a
+ * desktop browser window is landscape, an iPad held the way iPads are held is
+ * landscape, and both entered this state on the *Watch* tab with no device to
+ * turn — so the buttons came back on 2026-09-20 with the turn beside them on
+ * a handheld.
  *
- * What that missed is that **a window is not landscape because somebody turned
- * it**. A desktop browser window is landscape. An iPad held the way iPads are
- * held is landscape. Both entered this state on the *Watch* tab and could not
- * leave it — the web worst of all, having no device to turn and a
- * `returnToPortrait` that was a deliberate no-op. The turn is a statement only
- * where turning is a gesture, which is a handheld, and `HANDHELD_UNDER` in
- * `ui/layout.ts` is where that line is drawn.
+ * The turn went with the portrait lock. **A phone outside full screen is
+ * upright** — `watch/orientation.ts` — so there is no sideways channel screen
+ * left for a turn to be read on. What the lock buys in here is the opposite of
+ * what it takes away: **both orientations are permitted while this is up**, so
+ * a phone flat on a table or held upright in bed keeps the film rather than
+ * being rotated out of it, and the picture is fitted to whichever shape the
+ * glass is.
  *
- * **And the old bug does not come back with the button.** What made it a bug
- * was never the sideways channel screen — landscape is a supported shape for
- * every screen in this app — but that the control had removed itself and left
- * nothing to press. The landscape lock is gone, `expo-screen-orientation` with
- * it, and what a pressed exit gives back is a channel screen with a *Full
- * screen* button on the card.
+ * **And the old bug cannot come back.** What made it one was a *landscape*
+ * lock — this state pinned the phone sideways, exiting released the pin, and
+ * an unlocked phone goes back to how it is being held, so a pressed exit
+ * handed back the channel screen sideways with nothing to say otherwise with.
+ * The lock runs the other way now: exiting locks portrait, and the card
+ * arrives upright.
  *
  * The exits nobody presses are unchanged and are the caller's: the party
  * stopping, the film being refused, the picture moving to another device. See
@@ -101,13 +99,12 @@ const FADE_MS = 200;
  * somebody arriving here is shown the transport before it goes rather than
  * having to discover that a tap produces one.
  *
- * And the reason the original worry is survivable is that on a phone the way
- * out is not only a control: somebody who never finds the button turns the
- * device upright, which is what they would do with any other film on any other
- * phone. Elsewhere the button is the way out and a touch is what brings it
- * back, which is the arrangement every player on every laptop has. The film
- * has no controls of its own to compete with a touch — YouTube's bar is off —
- * so there is no ambiguity about what a tap on the picture means.
+ * And the original worry is answered by the gesture rather than by a second
+ * route: the button is the only way out on every surface, and a touch anywhere
+ * brings it back, which is the arrangement every player on every phone and
+ * every laptop has. The film has no controls of its own to compete with a
+ * touch — YouTube's bar is off — so there is no ambiguity about what a tap on
+ * the picture means.
  */
 export function FullScreen({
   picture,
@@ -122,24 +119,23 @@ export function FullScreen({
    */
   chrome: React.ReactNode;
   /**
-   * The way out, which every platform has and only a phone has an alternative
-   * to.
+   * The way out, which is the same on every platform.
    *
    * It is the caller's because the state is: `ChannelView` holds what was
    * pressed, and this reports the press rather than deciding anything. See
-   * that file's derivation for what a press means against a window that is
-   * also entitled to an opinion.
+   * that file's derivation.
    */
   onExit: () => void;
 }): React.ReactElement {
   /*
     The window, for as long as this is up.
 
-    **The phone being sideways is what makes this necessary.** An iPhone on its
-    side is wider than `SPLIT_AT`, so without this the rotation that is meant
-    to give the film the glass puts Home back beside it and leaves the picture
-    smaller than it was in portrait — which is the thing this state exists to
-    prevent, arriving by the other door. See `WholeWindowContext`.
+    **The phone being sideways is what makes this necessary**, and sideways is
+    a shape only this state lets a phone have. An iPhone on its side is wider
+    than `SPLIT_AT`, so without this the turn that is meant to give the film
+    the glass puts Home back beside it and leaves the picture smaller than it
+    was in portrait — which is the thing this state exists to prevent,
+    arriving by the other door. See `WholeWindowContext`.
   */
   useWholeWindow();
 
@@ -179,8 +175,8 @@ export function FullScreen({
    * two.
    *
    * A swipe down used to be the way out, back when leaving was something this
-   * component did to a flag. Leaving is a rotation now, so the gesture had
-   * nothing left to mean and is gone — and a tap is all this surface tells
+   * component did to a flag. Leaving is a press on the scrim, so the gesture
+   * had nothing left to mean and is gone — and a tap is all this surface tells
    * apart: it is how the chrome comes back, and a drag that travels is a
    * finger that changed its mind and correctly does nothing.
    *

@@ -146,19 +146,27 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   rather than omitting it, so finding the key in the plist is not evidence of
   compatibility mode.
 
+  **Both landscapes have to stay in the phone's key even though a phone is
+  locked upright**, which looks contradictory and is not. The lock is
+  `lockAsync` at runtime — the *portrait lock*, GLOSSARY.md — and it can only
+  narrow what the plist allows, never widen it. Take the landscapes out and
+  full screen becomes a bigger portrait picture, with nothing in the JavaScript
+  to say why.
+
   **The phone's key said portrait alone until 2026-09-20, and that is what made
-  *sideways is full screen* do nothing.** The feature landed on 2026-09-19
-  deriving full screen from the shape of the window, on the stated premise that
-  `orientation: "default"` was enough. It is not: an explicit `infoPlist` key
-  wins over what Expo's orientation plugin would have written — the plugin is
-  wrapped in `createInfoPlistPluginWithPropertyGuard`, which stands down when
-  the property is already spelled out — so iOS never handed the phone a
-  landscape window, `useIsLandscape` was false forever, and the whole feature
-  was unreachable. **Nothing in JavaScript could have shown that**, which is the
-  general lesson: a rule derived from the shape of the window is only as true as
-  the plist that decides which shapes exist, and checking it means a prebuild
-  and a rebuild rather than a reload. Upside-down stays out on the phone
-  deliberately — nothing on any screen wants it.
+  the turn-into-full-screen route do nothing.** The feature landed on
+  2026-09-19 deriving full screen from the shape of the window, on the stated
+  premise that `orientation: "default"` was enough. It is not: an explicit
+  `infoPlist` key wins over what Expo's orientation plugin would have written —
+  the plugin is wrapped in `createInfoPlistPluginWithPropertyGuard`, which
+  stands down when the property is already spelled out — so iOS never handed
+  the phone a landscape window and the whole feature was unreachable. That
+  route is gone with the portrait lock, but **nothing in JavaScript could have
+  shown the fault**, which is the general lesson and outlives it: a rule about
+  the shape of the window is only as true as the plist that decides which
+  shapes exist, and checking it means a prebuild and a rebuild rather than a
+  reload. Upside-down stays out on the phone deliberately — nothing on any
+  screen wants it, the lock being `PORTRAIT_UP`.
 
   **There is no retreat, and this bullet promised one until 2026-09-15.**
   Setting it true was supposed to be the one-line way out if multitasking ever

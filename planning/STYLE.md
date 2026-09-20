@@ -920,15 +920,19 @@ anywhere, which is the gesture every other player on this phone has taught
 already, and it starts up, so what is there is seen before it goes. See
 `watch/FullScreen.tsx`, which carries the reversal in full.
 
-**What makes that safe is that on a phone the state is not only left by a
-control.** Turning the phone sideways on *Watch* expands the picture and
-turning it upright collapses it — `watch/orientation.ts` — so a person who
-never finds a button does what they would do with any other film on any other
-phone. That is the *handheld's* extra route and not the rule: `HANDHELD_UNDER`
-in `ui/layout.ts` is where the line between a window somebody turned and a
-window that is merely wide is drawn. Elsewhere the button is the way out and a
-touch is what brings it back, which is what every player on every laptop does.
-The swipe down that was once a third way out is gone and is not coming back.
+**What makes that safe is the touch, which every player has taught.** A tap
+anywhere brings the row back, on every platform, and the button on it is the
+way out. Turning the phone was a second way out for two days and is not one
+now: the *portrait lock* keeps a handheld upright everywhere but here — see
+`watch/orientation.ts` — so there is no sideways channel screen left for a
+turn to be read on. The swipe down that was once a third way out is gone and
+is not coming back.
+
+**This is the one state a phone may be landscape in, and it may be either way
+up in it.** The lock is *released* here rather than reversed: somebody
+watching flat on a table or propped up in bed keeps the film rather than being
+rotated onto the card, and the picture is fitted to whichever shape the glass
+is.
 
 **Since 2026-09-20 the scrim carries the transport and the way out, and
 nothing else.** What it admits is pause and play, the progress bar, the two
@@ -938,16 +942,17 @@ before it is a video one; what it bought was reachability that was never more
 than one press away, and what it cost was a fifth of a sideways phone spent on
 five controls about the room rather than about the film.
 
-**And the pair of buttons is back on every platform**, having been removed the
-day before as two controls saying what the phone already knew. They were —
-about a phone. A tablet and a browser window are landscape sitting still and
-have no turn to perform, so for a day both entered this state on the *Watch*
-tab and could not leave it. So *Full screen* is on the watch card and *Exit
-full screen* is on the scrim, on every surface including the phone: one
-control that means the same thing everywhere beats one that appears on some of
-them, and a phone held upright that wants the film big has no other way to ask.
-*Back to portrait* is gone, replaced by the exit rather than joined by it —
-two ways out on one scrim is what the channel's bar was taken off for.
+**And the pair of buttons is the whole of the control on every platform**,
+having been removed on 2026-09-19 as two controls saying what the phone
+already knew. They were — about a phone. A tablet and a browser window are
+landscape sitting still and have no turn to perform, so for a day both entered
+this state on the *Watch* tab and could not leave it. So *Full screen* is on
+the watch card and *Exit full screen* is on the scrim, on every surface
+including the phone: one control that means the same thing everywhere beats
+one that appears on some of them, and a phone held upright that wants the film
+big has no other way to ask. *Back to portrait* is gone, replaced by the exit
+rather than joined by it — two ways out on one scrim is what the channel's bar
+was taken off for.
 
 **Both are `Button`s with their words on them** rather than `IconButton`s,
 against § *Icons*' licence for a header glyph and for the reason the exit had
@@ -958,9 +963,9 @@ learn one.
 **What killed the pair the first time cannot happen now.** The old *Full
 screen* locked the phone into landscape while it was up and exiting released
 the lock, so a pressed exit while still sideways handed back the channel screen
-sideways with nothing to say otherwise with. The lock is gone and so is every
-call this project made to `expo-screen-orientation`; the sideways channel
-screen is an ordinary supported screen, and it has *Full screen* on the card.
+sideways with nothing to say otherwise with. The lock runs the other way round
+now — exiting locks *portrait* — so the press lands on the card upright
+however the phone is being held.
 
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
 is: what shows beside a film is letterbox, which belongs to the film.

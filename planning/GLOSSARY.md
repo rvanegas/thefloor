@@ -89,8 +89,9 @@ caused; the list carries the meaning.
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
-- **Full screen** — The film filling one device. Two ways in: the *Full screen* button on the watch card, on every platform, or — on a *handheld* only — turning the device sideways on *Watch*, which also collapses it when turned upright. On the scrim, the transport and *Exit full screen* and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. A press overrules the window's shape until the window changes shape, and on anything but a handheld it simply stands. Three automatic collapses besides. One device's own business and never the party's
-- **Handheld** — A window whose short side is under 500 points, which is to say one somebody is holding: every iPhone in either orientation, a phone browser, and nothing else this app is opened on. The one place *turning the device* is a statement rather than a rearrangement, and therefore the only place the turn enters *full screen*. `isHandheld` in `ui/layout.ts`; a different question from the layout breakpoint, which a phone on its side is already past
+- **Full screen** — The film filling one device. One way in on every platform: the *Full screen* button on the watch card, and *Exit full screen* on the scrim to leave. The only state a *handheld* may be landscape in, and it may be either way up in it — see *portrait lock*, which removed the turning-sideways route the button shared with for two days. On the scrim, the transport and *Exit full screen* and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. Three automatic collapses besides. One device's own business and never the party's
+- **Handheld** — A window whose short side is under 500 points, which is to say one somebody is holding: every iPhone in either orientation, a phone browser, and nothing else this app is opened on. The one surface this app turns — see *portrait lock* — a tablet and a browser window being landscape sitting still. `isHandheld` in `ui/layout.ts`; a different question from the layout breakpoint, which a phone on its side is already past
+- **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *full screen*, where both orientations are permitted. A tablet and a browser window are never turned. Adopted 2026-09-20, replacing the landscape lock that pinned full screen sideways and the turn-to-expand route that lock made possible. `usePortraitUnlessFullScreen` in `watch/orientation.ts`
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -1732,42 +1733,32 @@ picture to the laptop has nothing to expand; it is ungated by the *floor*, how
 big a film is on somebody's phone being nobody else's business; and it is not
 in any snapshot, so nobody else's screen changes with yours.
 
-**And since 2026-09-19 it is not only a control: on a phone it is also the
-device being sideways.** Turning a handheld on the *Watch* tab expands the
-picture and turning it upright collapses it. For one day that was the whole
-rule and the buttons were gone, on the reasoning that a pair saying what the
-glass already said made a disagreement possible: the expanded state locked the
-phone landscape, exiting released the lock, and an unlocked phone goes back to
-the way it is being held, so anybody who exited while still sideways got the
-channel screen sideways with nothing to say otherwise with.
-Landscape on any other tab is an ordinary sideways screen, which is what an app
-with `orientation: "default"` is for.
+**The way in is a button, and it is the same button everywhere.** *Full
+screen* on the watch card, *Exit full screen* on the scrim. There is no second
+route and no window rule: a boolean that only a press writes.
 
-**And since 2026-09-20 that is half the rule rather than all of it, because a
-window is not landscape because somebody turned it.** A desktop browser window
-is landscape. An iPad held the way iPads are held is landscape. Both entered
-this state the moment somebody opened *Watch* and then could not leave it —
-the web worst of all, having no device to turn. So the turn is now the extra
-route a **handheld** gets, and the pair of buttons is back on every platform:
-*Full screen* on the watch card, *Exit full screen* on the scrim. *Back to
-portrait* was replaced by the exit rather than joined by it.
+**Turning the phone was a route for two days and the portrait lock took it
+away.** From 2026-09-19 turning a handheld sideways on *Watch* expanded the
+picture and turning it upright collapsed it; for one of those days that was
+the whole rule and the buttons were gone, which stranded every surface that is
+landscape sitting still — a desktop browser window, an iPad held the way iPads
+are held — in a state with no device to turn out of it. The buttons came back
+on 2026-09-20 with the turn beside them on a handheld.
 
-**A press and the window can disagree, and which wins is the whole of the
-arrangement.** The press is held as three states — pressed in, pressed out, or
-nobody has said — and *nobody has said* is what defers to the shape of the
-window. A change of orientation puts it back to that, **on a handheld only**:
-a press must not outlive the party, or the first *Exit full screen* would kill
-the turn for the rest of it, and on a tablet a rotation means nothing and
-collapsing there would be the new bug in place of the old one.
+**Since the *portrait lock*, a handheld outside full screen is upright**, so
+there is no sideways channel screen left for a turn to be read on and the
+route is gone rather than merely unreachable. What the lock buys inside full
+screen is the opposite: **both orientations are permitted there**, so a phone
+watched flat on a table or held upright in bed keeps the film instead of being
+rotated out of it. The state is one boolean again, and the tri-state that let
+a press and a window take turns went with the turn.
 
-Read as a sequence on a phone: sideways, expanded by the turn; press the exit
-and the channel screen comes back sideways, which is an ordinary supported
-screen with *Full screen* on the card; turn upright and the press is forgotten;
-turn sideways again and it expands as it did the first time. **That is the old
-exit bug laid rather than avoided** — what made it a bug was never the sideways
-channel screen but that the control had removed itself, and the landscape lock
-it released is gone too, along with every call this project made to
-`expo-screen-orientation`.
+**And the old exit bug cannot come back.** What made it one was that the
+expanded state locked the phone *landscape*: exiting released the lock, an
+unlocked phone goes back to the way it is being held, and a press of the exit
+while sideways handed back the channel screen sideways with nothing to say
+otherwise with. The lock runs the other way now — exiting locks portrait, and
+the card arrives upright however the phone is being held.
 
 Besides all that are the three automatic collapses — the party stopping, the
 picture moving to another device, and YouTube refusing the film — each of
@@ -1927,6 +1918,47 @@ What used to stop a film — tapping another tab — is the ladder now.
 
 `app/src/watch/Picture.tsx` for the player and its four corners, `Dock.tsx`
 for the rectangle itself; the hole is `DockSlot`, in `Screen`'s `aside` slot.
+
+## Portrait lock
+
+**A phone is upright unless the film has the glass.** Every screen this
+application has apart from *full screen* is a column of rows read upright —
+the roster, the settings, a transcript, Home — and a phone turned sideways on
+one of them gets a short, wide version of a layout that wanted height. The
+film is the one thing that is better for the turn, so it is the one thing the
+turn is permitted for.
+
+**And inside it, both ways up are permitted**, which is the half that is easy
+to get backwards. The obvious implementation of *the film is landscape* is a
+landscape lock, and this project had one until 2026-09-20; what it costs is
+somebody watching a phone flat on a table or propped upright in bed, who is
+not asking to be rotated. The lock is released in full screen rather than
+reversed, and the picture is fitted to whichever shape the glass is.
+
+**Only a *handheld***, by the short side — `isHandheld` in `ui/layout.ts`, and
+500 is the number. A tablet and a browser window are landscape sitting still
+and have no turn to perform, so telling either which way up to be would be
+moving somebody's furniture; they are unlocked, which is what they would have
+had anyway. On the web it is a no-op entirely: `screen.orientation.lock`
+refuses outside the browser's own full-screen element, which this application
+never enters.
+
+**It is what killed the turn-to-expand route.** Turning a phone sideways on
+*Watch* entered full screen from 2026-09-19; a phone outside full screen is
+never handed a landscape window now, so the route is gone rather than
+unreachable and *full screen* is a button on every platform. It also lays the
+old exit bug for good: the landscape lock made exiting hand back a sideways
+channel screen, where this one turns the phone upright onto a screen that
+wanted upright.
+
+**The plist is what makes it possible at all.** `lockAsync` narrows the set of
+orientations `ios.infoPlist.UISupportedInterfaceOrientations` allows and cannot
+widen it, so both landscapes have to stay listed in `app.json` or full screen
+would be a bigger portrait picture. See planning/RELEASING.md § *Orientation is
+per-platform*.
+
+`app/src/watch/orientation.ts`, called once from `Picture.tsx` so that it
+covers every screen rather than the channel alone.
 
 ## Watching here
 

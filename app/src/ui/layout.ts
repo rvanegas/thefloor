@@ -59,14 +59,20 @@ export const SPLIT_AT = 800;
  * share a number: every phone on its side is already past `SPLIT_AT`, which is
  * the whole reason `WholeWindowContext` exists.
  *
- * **It exists because `width > height` is not somebody asking for anything.**
- * Full screen on *Watch* is entered by turning a phone sideways — see
- * `watch/orientation.ts` — and for a day that rule was applied to every window
- * that happened to be wider than it was tall. A desktop browser window is one.
- * So is an iPad held the way iPads are held. Both went full screen on the
- * *Watch* tab and stayed there, because neither has a way to become portrait
- * that anybody would think to perform. The turn is only a statement on a
- * surface small enough that turning it is something you do with your wrist.
+ * **It exists because a phone is the only surface this app turns.** A handheld
+ * is locked upright everywhere but full screen — see `watch/orientation.ts` —
+ * and a tablet and a browser window are landscape sitting still, so telling
+ * either of them which way up to be would be moving somebody's furniture. This
+ * is the line between the two.
+ *
+ * **It was drawn for the route that is gone**, which is worth knowing because
+ * the number was chosen against it: full screen was entered by turning a phone
+ * sideways, and for a day that rule was applied to every window that happened
+ * to be wider than it was tall. A desktop browser window is one. So is an iPad
+ * held the way iPads are held. Both went full screen on the *Watch* tab and
+ * stayed there. The turn is not a route any more — the lock removed the
+ * sideways channel screen it was read on — but the question this constant
+ * answers is the same one, and so is the answer.
  *
  * **The short side rather than the width**, so that one number covers both
  * orientations and nothing has to know which way up it is being asked about.
@@ -80,11 +86,10 @@ export const SPLIT_AT = 800;
  * near the bottom of it deliberately.
  *
  * **Erring low is the safe direction**, which is the whole of why it is not
- * 600. A surface this calls handheld gets the turn as a *route in*, and a
- * surface it does not gets the buttons — which work everywhere, on every
- * platform, and cannot strand anybody. Being wrong about a tablet costs a
- * button press; being wrong about a browser window cost a state nobody could
- * leave.
+ * 600. A surface this calls handheld is one this app rotates; a surface it
+ * does not is left exactly as the platform had it. Being wrong about a tablet
+ * means holding an iPad upright against its will, which is the kind of thing
+ * this constant exists to keep narrow.
  */
 export const HANDHELD_UNDER = 500;
 

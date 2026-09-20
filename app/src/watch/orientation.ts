@@ -1,54 +1,67 @@
-import { useWindowDimensions } from 'react-native';
+import { useEffect } from 'react';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { useIsHandheld } from '../ui/layout';
 
 /**
- * Which way up the window is, which is half of what decides whether the film
- * is full screen on a phone and none of what decides it anywhere else.
+ * Which way up a phone is allowed to be, which is one rule with one exception.
  *
- * **The hardware is *a* control, and since 2026-09-20 not the only one.** For
- * a day it was: a *Full screen* button on the watch card and an *Exit full
- * screen* button over the picture had both been removed as two controls saying
- * what the phone already knew, and because between them they left a real bug —
- * the expanded state locked the phone sideways, the release is an
- * `unlockAsync`, and an unlocked phone goes back to the way it is being held,
- * so collapsing while sideways gave back the channel screen in landscape.
+ * **A handheld is portrait unless the film has the glass.** Every screen this
+ * application has apart from the expanded picture is a column of rows read
+ * upright — the roster, the settings, a transcript — and a phone turned
+ * sideways on one of them gets a short, wide version of a layout that wanted
+ * height. The film is the one thing that is better for the turn, so it is the
+ * one thing the turn is permitted for, and inside it **both** orientations
+ * are: somebody watching a phone flat on a table, or in bed, is not asking to
+ * be rotated out of full screen.
  *
- * What that missed is that a window is not landscape because somebody turned
- * it. A browser window and an iPad are landscape sitting still, and neither
- * has a turn to perform — so both entered a state they could not leave. The
- * buttons are back on every platform and the turn is an extra route on a
- * handheld, which is the one surface where turning is a gesture. `ChannelView`
- * holds the rule; `isHandheld` in `ui/layout.ts` holds the line.
+ * **Only a handheld**, by the short side — `isHandheld` in `ui/layout.ts`
+ * holds that line and why it is 500. A tablet and a browser window are
+ * landscape sitting still, and nothing here has any business telling an iPad
+ * which way up to be; `unlockAsync` is what they get, which is what they would
+ * have had anyway.
  *
- * **The landscape lock is gone and is not coming back**, and with it
- * `returnToPortrait`, `PORTRAIT_HOLD_MS` and every call this project made to
- * `expo-screen-orientation`. Nothing here turns the device any more: the
- * buttons collapse the picture directly, which is a thing that works in a
- * browser. The dependency is still in `app/package.json` because dropping it
- * is a prebuild; it has no importer.
+ * ## What this replaced, which was a gesture rather than a lock
  *
- * **The turn is only possible because the Info.plist lets the phone turn**,
- * which is a rebuild and a different decision about every other screen. iOS
- * takes the supported orientations from the plist, and a portrait-locked app is
- * never handed a landscape window to notice — so this hook would return false
- * forever and that route would be unreachable. The buttons would still work,
- * which is now the difference between a bug and a missing shortcut.
+ * From 2026-09-19 to 2026-09-20 turning a phone sideways on *Watch* is what
+ * expanded the picture, and `useIsLandscape` lived here to say so. It cannot
+ * survive this: a phone that may not become landscape outside full screen is
+ * never handed the window that route read, so the turn is not a route any
+ * more. The buttons are — *Full screen* on the watch card and *Exit full
+ * screen* over the picture, which is what every platform already used and
+ * what a phone held upright always needed. `ChannelView` holds that rule.
  *
- * `orientation: "default"` in `app.json` is *not* what does it, which cost a
- * day: this shipped on 2026-09-19 on that premise and did nothing at all on a
- * phone. `ios.infoPlist.UISupportedInterfaceOrientations` is spelled out
- * there — for the iPad's sake, orientation being per-platform and Expo having
- * no key for that — and an explicit entry stands the orientation plugin down
- * rather than merging with it. The phone's array is the one that has to list
- * the landscapes; see planning/RELEASING.md § *Orientation is per-platform*,
- * and read the generated plist rather than the JSON.
+ * **And the old exit bug is gone rather than laid.** What made it one was a
+ * *landscape* lock: full screen pinned the phone sideways, exiting released
+ * the pin, and an unlocked phone goes back to how it is being held — so a
+ * press of the exit handed back the channel screen sideways. This lock runs
+ * the other way. Exiting locks portrait, which is a rotation *towards* the
+ * shape the screen underneath wants, and the phone arrives on the card
+ * upright however it is being held.
  *
- * Width against height rather than `getOrientationAsync`: the window is what
- * the layout is drawn into, it is what `useLayout` already reads, and on an
- * iPad in a split the interface orientation is not the shape of the pane.
- * `useWindowDimensions` re-renders on rotation, which is what makes this a
- * hook rather than a reading.
+ * ## The plist is what makes any of this possible
+ *
+ * iOS takes the orientations an app may adopt from
+ * `ios.infoPlist.UISupportedInterfaceOrientations`, and `lockAsync` narrows
+ * that set rather than widening it. The landscapes have to stay listed in
+ * `app.json` — for full screen, and for the iPad, which has its own array —
+ * or the lock would be locking something already locked and full screen would
+ * be a bigger portrait picture. `orientation: "default"` is not what does it;
+ * that cost a day once. See planning/RELEASING.md § *Orientation is
+ * per-platform*, and read the generated plist rather than the JSON.
+ *
+ * Fire and forget, like `useKeepAwake`: a device that refuses to rotate is a
+ * layout that is not what was wanted, and throwing here would take the
+ * application down over it.
  */
-export function useIsLandscape(): boolean {
-  const { width, height } = useWindowDimensions();
-  return width > height;
+export function usePortraitUnlessFullScreen(fullScreen: boolean): void {
+  const handheld = useIsHandheld();
+  useEffect(() => {
+    if (!handheld || fullScreen) {
+      void ScreenOrientation.unlockAsync().catch(() => {});
+      return;
+    }
+    void ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.PORTRAIT_UP
+    ).catch(() => {});
+  }, [handheld, fullScreen]);
 }

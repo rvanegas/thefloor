@@ -539,12 +539,20 @@ describe('Channel, watching together', () => {
     film can leave the screen without the person watching it doing anything.
   */
   describe('Full screen', () => {
-    /** Sideways, on the *Watch* tab, on the device showing the film. */
+    /**
+     * On the *Watch* tab, on the device showing the film, asked for.
+     *
+     * **Pressed rather than turned, and upright.** It was a sideways window
+     * until the portrait lock: a phone outside full screen is upright now, so
+     * the window this starts from is the only window a phone has there, and
+     * the press is the only way in from it.
+     */
     function expand() {
-      mockWindow = LANDSCAPE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
-      return open();
+      const tree = open();
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
+      return tree;
     }
 
     /** Whatever has changed, drawn again — the reading is taken at render. */
@@ -575,18 +583,23 @@ describe('Channel, watching together', () => {
     const expanded = (tree: ReactTestRenderer) =>
       tree.root.findAll((n) => n.props?.testID === 'chrome').length > 0;
 
-    it('is turned into on a phone', () => {
-      // The route a handheld gets on top of the button: the same tab, the same
-      // party, and the only difference is which way up the window is.
+    it('is not turned into, a sideways phone being nobody asking', () => {
+      /*
+        **The route that existed for a day, and the lock is what removed it.**
+        Turning a phone sideways on *Watch* expanded the picture from
+        2026-09-19; a handheld outside full screen is locked upright now — see
+        `watch/orientation.ts` — so the window below is one iOS will not hand
+        this screen any more, and the rule that read it is gone rather than
+        merely unreachable. Asserted from a landscape phone all the same,
+        since the renderer will hand it one and the assertion is that nothing
+        reads it.
+      */
+      mockWindow = LANDSCAPE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
-      const upright = open();
-      expect(expanded(upright)).toBe(false);
-      expect(onTheCard(upright)).toBe(true);
-      act(() => upright.unmount());
-
-      const tree = expand();
-      expect(expanded(tree)).toBe(true);
+      const tree = open();
+      expect(expanded(tree)).toBe(false);
+      expect(onTheCard(tree)).toBe(true);
       act(() => tree.unmount());
     });
 
@@ -663,36 +676,34 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('lets a press out of a sideways phone, and the next turn back in', () => {
+    it('lets a press out and a press back in, and nothing else moves it', () => {
       /*
-        **The sequence the tri-state exists for.** A press says something about
-        now and must not say it forever, or the first *Exit full screen* would
-        kill the turn for the rest of the party.
+        **A press is the whole of the state now, and it was a tri-state for a
+        day.** `null` meant *nobody has said*, so that a press and the shape of
+        the window could take turns on a handheld; with the turn gone there is
+        nobody to take turns with, and a boolean that only a button writes is
+        what is left.
 
-        Sideways, expanded by the turn; press the exit and the channel screen
-        comes back sideways — an ordinary supported screen, with *Full screen*
-        on the card to get back in with, which is precisely what the 2026-09-19
-        note meant by "nothing to say otherwise with" and what made the old
-        arrangement a bug. Turn upright and the press is forgotten. Turn
-        sideways again and the film expands as it did the first time.
+        Out, and it stays out — including across a rotation, which is the half
+        the old arrangement got wrong from the other side. And back in from the
+        card, which is where *Full screen* is.
       */
       const tree = expand();
       expect(expanded(tree)).toBe(true);
 
       act(() => findButton(tree, 'Exit full screen')!.props.onPress());
       expect(expanded(tree)).toBe(false);
-      // Still sideways, and no longer a trap.
       expect(onTheCard(tree)).toBe(true);
-      expect(findButton(tree, 'Full screen')).toBeDefined();
 
-      // Upright forgets the press...
+      // A window that changes shape under it says nothing either way.
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(false);
       mockWindow = PORTRAIT;
       again(tree);
       expect(expanded(tree)).toBe(false);
 
-      // ...so the turn works again.
-      mockWindow = LANDSCAPE;
-      again(tree);
+      act(() => findButton(tree, 'Full screen')!.props.onPress());
       expect(expanded(tree)).toBe(true);
       act(() => tree.unmount());
     });
@@ -724,19 +735,28 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('collapses when the phone comes back upright', () => {
-      // The way out a phone has that nothing else does: the same turn, undone.
+    it('keeps the film through a turn, both ways up being permitted', () => {
+      /*
+        **The point of unlocking rather than locking sideways.** Full screen is
+        the one state a phone may turn in, and it may turn *either* way in it:
+        somebody watching flat on a table or upright in bed has not asked to be
+        put back on the card. Turning upright collapsed this from 2026-09-19 to
+        the lock, which is the behaviour this replaces.
+      */
       const tree = expand();
+      mockWindow = LANDSCAPE;
+      again(tree);
+      expect(expanded(tree)).toBe(true);
       mockWindow = PORTRAIT;
       again(tree);
-      expect(expanded(tree)).toBe(false);
-      expect(onTheCard(tree)).toBe(true);
+      expect(expanded(tree)).toBe(true);
+      expect(findButton(tree, 'Exit full screen')).toBeDefined();
       act(() => tree.unmount());
     });
 
-    it('leaves the other tabs sideways rather than expanding them', () => {
-      // A sideways roster is what an app with `orientation: "default"` is for.
-      // Only the tab with the film on it turns into a film.
+    it('leaves the other tabs alone', () => {
+      // Belt and braces against the rule that is gone: a window wider than it
+      // is tall is not a request anywhere, and least of all on the roster.
       mockWindow = LANDSCAPE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());

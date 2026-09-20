@@ -11,6 +11,7 @@ import { inRoom } from '../../../core/guests';
 import { useApp } from '../state/AppProvider';
 import { colors } from '../ui/theme';
 import { WatchDock, type Rect } from './Dock';
+import { usePortraitUnlessFullScreen } from './orientation';
 import { WatchPlayer } from './WatchPlayer';
 
 /**
@@ -147,6 +148,16 @@ export function Picture({
   const [slot, setSlot] = useState<{ owner: object; at: Measured } | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [refused, setRefused] = useState(false);
+  /*
+    Which way up the phone may be, which is decided here because this is the
+    only place that knows the answer for the whole application. The rule is
+    about *every* screen — a phone is upright on Home and on a transcript as
+    much as on the roster — and the one exception is the expanded picture,
+    whose flag this component holds precisely because the picture outlives the
+    screen that asked for it. See orientation.ts; on a tablet and in a browser
+    it does nothing.
+  */
+  usePortraitUnlessFullScreen(fullScreen);
   /** Where the host itself is, which is what turns a window measurement into
       one of its own. */
   const [origin, setOrigin] = useState({ x: 0, y: 0 });

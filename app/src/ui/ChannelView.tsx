@@ -89,8 +89,6 @@ import {
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
 import { DockSlot, usePicture } from '../watch/Picture';
-import { useIsLandscape } from '../watch/orientation';
-import { useIsHandheld } from './layout';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -564,12 +562,11 @@ export function ChannelView({
    * one where standing up to fetch a drink resized four other people's screens.
    * It is not in `core` and not in a snapshot.
    *
-   * **And since 2026-09-19 nobody sets it** — it is derived from the shape of
-   * the window, below. Turning the phone sideways on *Watch* is what expands
-   * the picture and turning it upright is what collapses it; the *Full screen*
-   * and *Exit full screen* buttons are both gone, and so is the landscape lock
-   * that used to make exiting sideways hand back a sideways channel screen.
-   * See `watch/orientation.ts`.
+   * **A press is what sets it, on every platform.** It was derived from the
+   * shape of the window for a day — a phone turned sideways on *Watch* — and
+   * that route is gone with the portrait lock, which stops a phone outside
+   * full screen being sideways at all. What it decides now is which way up the
+   * phone *may* be: see `watch/orientation.ts`, and the derivation below.
    */
   /*
     **Held by the picture rather than here, since the picture outlives this
@@ -759,63 +756,40 @@ export function ChannelView({
   }, [app, channelId, partyLoaded, steppedIn, screenIsMine, screenSaid]);
 
   /**
-   * **Two ways in, and the second one is only a phone's.**
+   * **One way in, and it is a button on every platform.**
    *
-   * A button press, which every platform has, or turning the device sideways
-   * on *Watch*, which only a handheld gets. `pressedFullScreen` is the press
-   * and `handheld && landscape` is the turn, and the `??` is which of them is
-   * speaking: a press overrules the shape of the window until the window
-   * changes shape, and then the window has the floor again.
+   * *Full screen* on the watch card, and *Exit full screen* over the picture.
+   * There is no second route and no window rule: this is a boolean that says
+   * what was last pressed, and nothing but a press moves it.
    *
-   * ## Why the turn is not enough on its own
+   * ## The turn was a route for one day, and the lock took it away
    *
-   * It was, from 2026-09-19 to 2026-09-20, and the rule was `landscape` with
-   * no `handheld` beside it — which quietly asserted that a window wider than
-   * it is tall is somebody asking for a film. **Three surfaces are landscape
-   * without anybody having asked.** Every desktop browser window is. An iPad
-   * held the way iPads are held is. A phone lying flat on a table is, near
-   * enough, and the accelerometer will not help. All three went full screen on
-   * *Watch* and then had no way out, the web worst of all: there is no device
-   * to turn and `returnToPortrait` was a deliberate no-op there.
+   * From 2026-09-19 turning a phone sideways on *Watch* is what expanded the
+   * picture, and this was a tri-state — `null` for *nobody has said* — so
+   * that a press and the shape of the window could take turns. Both are gone
+   * with the rule they served.
    *
-   * So the turn is now what it always should have been — *an* action, on the
-   * one surface where turning is a gesture rather than a rearrangement — and
-   * `HANDHELD_UNDER` in `ui/layout.ts` is where that line is drawn and why.
+   * **A handheld is portrait unless the film has the glass**, which
+   * `usePortraitUnlessFullScreen` keeps from `Picture` for the whole
+   * application; `watch/orientation.ts` is the rule and why. A phone outside
+   * full screen is therefore never handed a landscape window, so reading one
+   * as a request would be reading something that cannot arrive — and the
+   * clearing effect that let a press expire on rotation would have been worse
+   * than dead: inside full screen, where the phone *may* turn, it would have
+   * collapsed the picture the moment somebody watching in bed held the phone
+   * upright. **Portrait is a supported way to be full screen**, deliberately.
+   * That is the whole of what the two orientations are for.
    *
-   * ## Why the press is a tri-state and not a boolean
-   *
-   * `null` is *nobody has said*, and it is what lets the two routes coexist on
-   * a phone without fighting. A press says one thing about right now; it must
-   * not say it forever, or the first *Exit full screen* on a phone would kill
-   * the turn for the rest of the party. So a change of orientation clears it —
-   * **on a handheld only**, since on an iPad or in a browser the turn means
-   * nothing and clearing would collapse the picture the moment somebody
-   * rotated the tablet they were watching on.
-   *
-   * What that buys, read as a sequence: sideways, expanded by the turn; press
-   * *Exit full screen* and the channel screen comes back, sideways, which is
-   * an ordinary screen this app has supported since the plist was fixed and
-   * has a *Full screen* button on the card to get back in with. Turn upright
-   * and the press is forgotten. Turn sideways again and the film expands, as
-   * it did the first time.
-   *
-   * **This is the old exit bug's ghost, and it is laid rather than avoided.**
-   * The 2026-09-19 note says a pressed exit while sideways gave back "the
-   * channel screen sideways, with nothing on it to say otherwise with". The
-   * fault was never the sideways channel screen; it was the *nothing to say
-   * otherwise with* — the button had removed itself, and the landscape lock it
-   * released is gone too. A sideways channel screen with a *Full screen*
-   * button on it is not a trap.
+   * The turn is not missed. It was only ever a route a phone had; the button
+   * is the one every other surface used and is the only thing a phone held
+   * upright ever had to ask with.
    *
    * ## The rest of the terms
    *
    * Every term after the first is a way of having nothing to expand, and each
-   * one used to need its own collapse. They apply to the press exactly as they
-   * apply to the turn, which is why they sit outside the `??`:
+   * one used to need its own collapse:
    *
-   * - **The *Watch* tab**, because the other five tabs are not the film. A
-   *   phone turned sideways on *Members* is a sideways roster, which is what
-   *   an app with `orientation: "default"` is supposed to give.
+   * - **The *Watch* tab**, because the other five tabs are not the film.
    * - **A party, screening here, playable** — the three ways the state could
    *   be emptied out from underneath somebody, all of which ended in a black
    *   rectangle with controls over it that no longer did anything: the party
@@ -833,23 +807,10 @@ export function ChannelView({
    * directly rather than the derived constants further down. See the block
    * comment above.
    */
-  const landscape = useIsLandscape();
-  const handheld = useIsHandheld();
-  /** What was last pressed, or `null` if the window is to decide. */
-  const [pressedFullScreen, setPressedFullScreen] = useState<boolean | null>(
-    null
-  );
-  /*
-    A turn is a statement, and it supersedes the last press — but only where
-    turning is a statement, which is a handheld. On a tablet or in a browser a
-    rotation is somebody moving furniture, and a picture that collapsed every
-    time an iPad was turned over would be unusable.
-  */
-  useEffect(() => {
-    if (handheld) setPressedFullScreen(null);
-  }, [handheld, landscape]);
+  /** Whether the picture was asked for, which is the whole of the rule. */
+  const [pressedFullScreen, setPressedFullScreen] = useState(false);
   const wantsFullScreen =
-    (pressedFullScreen ?? (handheld && landscape)) &&
+    pressedFullScreen &&
     tab === 'watch' &&
     partyLoaded &&
     screenIsHere &&
@@ -3450,30 +3411,25 @@ export function ChannelView({
                 */}
                 {watchTransport}
                 {/*
-                  **Full screen, which is a button again on every platform as
-                  of 2026-09-20.**
+                  **Full screen, and the only way in.**
 
                   It stood here until 2026-09-19, when turning the phone
-                  replaced it, and the replacement was right about a phone and
-                  wrong about everything else: a tablet and a browser window
-                  are landscape without anybody having asked, and neither has a
-                  turn to perform. So the press is back, and it is back
-                  *everywhere* rather than only where the turn is missing —
-                  one control that means the same thing on every surface beats
-                  a control that appears on some of them, and a phone in
-                  portrait that wants the film big has no other way to say so.
-                  The turn is the extra route a handheld gets; see the
-                  derivation above.
+                  replaced it; the replacement was right about a phone and
+                  wrong about everything else — a tablet and a browser window
+                  are landscape without anybody having asked — and it came
+                  back on 2026-09-20 with the turn beside it. The turn is gone
+                  as of the portrait lock: a phone outside full screen is
+                  upright, so there is no sideways window left to read as a
+                  request. One control, the same on every surface.
 
                   **What killed it the first time cannot happen now.** The old
-                  control locked the phone into landscape for as long as it was
-                  up, and exiting released the lock, so somebody who pressed
-                  *Exit full screen* while still sideways got the channel
-                  screen sideways with nothing to say otherwise with. There is
-                  no lock any more — `returnToPortrait` and the whole of
-                  `expo-screen-orientation` went with this change — and the
-                  sideways channel screen is an ordinary supported screen with
-                  this button on it.
+                  control locked the phone into *landscape* for as long as it
+                  was up, and exiting released the lock, so somebody who
+                  pressed *Exit full screen* while still sideways got the
+                  channel screen sideways with nothing to say otherwise with.
+                  The lock runs the other way round now — see
+                  `watch/orientation.ts` — and exiting turns the phone upright
+                  onto a screen that wanted upright.
 
                   **On the device showing the film and nowhere else.** A phone
                   that handed the picture to the laptop still drives the party
