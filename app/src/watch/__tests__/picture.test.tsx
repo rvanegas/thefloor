@@ -76,6 +76,25 @@ describe('The picture outlives the screen it was started from', () => {
       )
     );
 
+  /** The same party, running — which is the only state with a corner. */
+  const playing = () =>
+    channelOf((s) =>
+      reduce(
+        reduce(
+          s,
+          {
+            type: 'START_WATCH',
+            userId: ME,
+            videoId: 'dQw4w9WgXcQ',
+            url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          },
+          NOW
+        ),
+        { type: 'WATCH_PLAY', userId: ME },
+        NOW
+      )
+    );
+
   it('keeps one player across a change of screen', () => {
     mockApp.screenFor = 'sess_1';
     showChannel(watching());
@@ -256,6 +275,71 @@ describe('The picture outlives the screen it was started from', () => {
     the picture docked reserves the height and reports where it ended up. It is
     rendered here rather than by the picture, so that the body still has its
     height taken out of it exactly as a pinned header does.
+  */
+  /*
+    **A paused film has no corner.** The floating rectangle is for a film that
+    goes on running while somebody is somewhere else in the application; paused,
+    it is a still frame parked over the notepad, with its transport a tab away.
+    So it stops being painted — and stays mounted, because a `WebView` that
+    goes away reloads and pausing is the most ordinary thing anybody does to a
+    film.
+  */
+  it('hides the floating picture while the film is paused', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+
+    const tree = render(
+      <Picture onOpen={() => {}}>
+        <Text>home</Text>
+      </Picture>
+    );
+    const dock = () => tree.root.findAll((node) => node.type === WatchDock)[0];
+    expect(dock()?.props.place).toBe('floating');
+    expect(dock()?.props.hidden).toBe(true);
+    // Still the one page, which is the half that must not be traded for it.
+    expect(tree.root.findAll((node) => node.type === WatchPlayer)).toHaveLength(
+      1
+    );
+    expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /*
+    And comes back when the film does, which is a reading of the channel rather
+    than of what was pressed here: somebody else in the party presses play while
+    this device is on another tab, and the picture reappears in its corner.
+  */
+  it('shows it again the moment the film is playing', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+
+    const tree = render(
+      <Picture onOpen={() => {}}>
+        <Text>home</Text>
+      </Picture>
+    );
+    const dock = () => tree.root.findAll((node) => node.type === WatchDock)[0];
+    expect(dock()?.props.hidden).toBe(true);
+
+    act(() => {
+      showChannel(playing());
+      tree.update(
+        <Picture onOpen={() => {}}>
+          <Text>home</Text>
+        </Picture>
+      );
+    });
+    expect(dock()?.props.place).toBe('floating');
+    expect(dock()?.props.hidden).toBe(false);
+    expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /*
+    Docked is the other half and is untouched: a paused film on the *Watch* tab
+    is the card with the transport under it, which is where somebody goes to
+    press play. A hole left for a picture that then refused to appear would be a
+    black gap in the screen.
   */
   it('leaves the hole to the screen that wants one', () => {
     mockApp.screenFor = 'sess_1';

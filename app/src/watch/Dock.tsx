@@ -135,6 +135,7 @@ export function WatchDock({
   place,
   slot,
   box,
+  hidden = false,
   onOpen,
   children,
 }: {
@@ -151,6 +152,25 @@ export function WatchDock({
   slot: Rect | null;
   /** The application's own box, which is what the corners are corners of. */
   box: { width: number; height: number };
+  /**
+   * Drawn but not shown, and not touchable either.
+   *
+   * **A paused film has no corner**, which is what this is for: the floating
+   * rectangle is how a film that somebody walked away from keeps playing where
+   * they can see it, and a film that is not playing is not doing that — it is
+   * a still frame sitting over whatever tab they went to. `Picture` decides
+   * when, and the rule is only about the floating half: docked, a paused film
+   * is the *Watch* tab's card with the transport under it, which is exactly
+   * where a person goes to press play.
+   *
+   * **Hidden rather than unmounted, which is this file's one rule.** A
+   * `WebView` that goes away is a `WebView` that reloads — black rectangle,
+   * a few seconds of buffering, the follower driving it back to position —
+   * and pausing is the most ordinary thing anybody does to a film. So it
+   * keeps its place and its page and stops being painted, the same handling
+   * `unplaced` already gets a few lines down.
+   */
+  hidden?: boolean;
   /**
    * The tap on the floating picture, which goes to the *Watch* tab.
    *
@@ -259,15 +279,26 @@ export function WatchDock({
   */
   const unplaced = !floating && !slot;
 
+  /*
+    The two ways a picture is here and not on show, and they are one style:
+    the docked one whose hole has not been measured yet, and the floating one
+    whose film is paused. Neither may answer a finger — an invisible 168-point
+    rectangle that opens a tab when tapped is worse than no rectangle at all —
+    so the drag surface goes with the paint, and the view itself takes no
+    touches.
+  */
+  const unshown = unplaced || (floating && hidden);
+
   return (
     <Animated.View
+      pointerEvents={unshown ? 'none' : undefined}
       style={
-        floating
+        floating && !hidden
           ? [
               styles.pip,
               { left: at.x, top: at.y, transform: pan.getTranslateTransform() },
             ]
-          : unplaced
+          : unshown
             ? [styles.pip, { left: at.x, top: at.y, opacity: 0 }]
             : [
                 styles.picture,
@@ -281,7 +312,7 @@ export function WatchDock({
       }
     >
       {children}
-      {floating ? (
+      {floating && !hidden ? (
         // Over the picture rather than around it, for `FullScreen`'s reason:
         // the frame beneath is a native view that answers a touch whatever the
         // page inside it says about pointer events, so the gesture has to be

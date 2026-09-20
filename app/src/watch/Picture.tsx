@@ -310,6 +310,28 @@ export function Picture({
           the film on the frame it started.
         */
         place={slot ? 'docked' : 'floating'}
+        /*
+          **A paused film has no corner.** The floating rectangle is for a film
+          that is still running while somebody is somewhere else in the
+          application — that is the whole of what it is for, and it is why it
+          followed them off the *Watch* tab in the first place. Paused, it is a
+          still frame parked over the notepad, and there is nothing in it to
+          miss: the transport is on the tab it came from, and the tap that goes
+          back there is the tab bar.
+
+          Only the floating half. Docked, a paused film is the card with the
+          transport under it, which is where somebody goes to press play; a
+          hole left for a picture that then refused to appear would be a black
+          gap in the screen.
+
+          **Not unmounted**, which is `Dock`'s standing rule — a `WebView` that
+          goes away reloads, and pausing is the most ordinary thing anybody
+          does to a film. It keeps its page and stops being painted, and comes
+          straight back if somebody else presses play while this device is on
+          another tab, this being a reading of the channel rather than of what
+          was pressed here.
+        */
+        hidden={watch.status !== 'playing'}
         slot={
           slot
             ? {

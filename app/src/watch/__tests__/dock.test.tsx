@@ -220,4 +220,48 @@ describe('Moving the picture does not rebuild it', () => {
     expect(mounts).toBe(1);
     act(() => tree.unmount());
   });
+
+  /*
+    **A paused film is floating and not shown, by the same handling.** The
+    corner exists so that a film goes on running where somebody can see it
+    while they are somewhere else in the application; a still frame parked over
+    the notepad is not that. Unmounting it would be the reload again — and
+    pausing is the most ordinary thing anybody does to a film, so this is the
+    one place that could not afford it.
+
+    The drag surface goes with the paint: an invisible 168-point rectangle that
+    answers a tap by opening the *Watch* tab is worse than no rectangle at all.
+  */
+  it('stays mounted and invisible floating while the film is paused', () => {
+    mounts = 0;
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <WatchDock place="floating" slot={null} box={box} hidden onOpen={() => {}}>
+          <Film />
+        </WatchDock>
+      );
+    });
+    expect(mounts).toBe(1);
+    const view = () => tree.root.findAll((node) => node.type === 'View')[0]!;
+    expect(StyleSheet.flatten(view().props.style).opacity).toBe(0);
+    expect(view().props.pointerEvents).toBe('none');
+    // Nothing to take a finger: the surface that opens the tab is gone with it.
+    expect(
+      tree.root.findAll(
+        (node) => node.props.accessibilityLabel === 'Open the watch tab'
+      )
+    ).toHaveLength(0);
+
+    // And play puts it back in its corner, the same element throughout.
+    act(() => tree.update(floating));
+    expect(StyleSheet.flatten(view().props.style).opacity).toBeUndefined();
+    expect(
+      tree.root.findAll(
+        (node) => node.props.accessibilityLabel === 'Open the watch tab'
+      ).length
+    ).toBeGreaterThan(0);
+    expect(mounts).toBe(1);
+    act(() => tree.unmount());
+  });
 });

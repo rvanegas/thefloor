@@ -840,7 +840,13 @@ anything from up there, the hole is what does.
   covers least on the way to the footer and the one furthest from the notepad's
   field. Dragged, it snaps to whichever corner's quadrant it was let go in. A
   tap opens the *Watch* tab, the rectangle being far too small to carry a
-  transport.
+  transport. **Only while the film is playing**, as of 2026-09-20: the corner
+  exists so that a film goes on running where somebody can see it while they
+  are elsewhere in the application, and a paused one is a still frame parked
+  over whatever they went to — with its transport a tab away and nothing in it
+  to miss. It is hidden rather than taken down, the reload below being the
+  reason, and comes back the moment anybody presses play. Docked is untouched:
+  a paused film there is the card with the transport under it.
 
 **The two are one element in two styles, and that is load-bearing rather than
 elegant.** The picture is a `WebView`, and a `WebView` that is reparented is
