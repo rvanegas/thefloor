@@ -1654,8 +1654,59 @@ describe('Channel, watching together', () => {
       const tree = asSecondDevice();
       act(() => findButton(tree, 'Not on this device')!.props.onPress());
       expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
-      // And says nothing to the channel: no STOP_WATCH, no pause, no rung.
-      expect(mockApp.act).not.toHaveBeenCalled();
+      // The room is untouched: no STOP_WATCH and no rung. The transport is
+      // the one thing it does say to the channel, and only while the film is
+      // running — see the two cases below.
+      expect(mockApp.act).not.toHaveBeenCalledWith(
+        'sess_1',
+        expect.objectContaining({ type: 'STOP_WATCH' })
+      );
+      act(() => tree.unmount());
+    });
+
+    it('pauses a running film rather than tearing it off the scene', () => {
+      /*
+        **The *Watch on* switch thrown from the far end.** That switch refuses
+        a move while the film is running — *pause the film to move it to
+        another device* — so a press here, which is the same move made from
+        the television, does the pause the person would have done first.
+      */
+      const tree = asSecondDevice(playing());
+      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+        type: 'WATCH_PAUSE',
+      });
+      act(() => tree.unmount());
+    });
+
+    it('says nothing to the transport when the film is already paused', () => {
+      // A paused film needs no pause, and a channel told to pause one twice
+      // is this screen inventing traffic.
+      const tree = asSecondDevice();
+      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
+        type: 'WATCH_PAUSE',
+      });
+      act(() => tree.unmount());
+    });
+
+    it('sends the picture back to the device holding the room', () => {
+      /*
+        **The second half of the switch, and without it the film lands on
+        nothing.** No device showing it, and — before the pause above — the
+        control that would move it disabled precisely because it was still
+        running. So the picture follows the person who walked away from the
+        television: paused, on the device in their hand, taken without asking
+        because one other device is not a choice.
+      */
+      mockApp.screens = [
+        { device: 'dev-tv', name: 'Apple TV', client: 'native', self: true, watching: true },
+        { device: 'dev-me', name: 'iPhone 15 Pro', client: 'native', self: false, watching: false },
+      ];
+      const tree = asSecondDevice(playing());
+      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      expect(mockApp.listScreens).toHaveBeenCalled();
+      expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-me');
       act(() => tree.unmount());
     });
 

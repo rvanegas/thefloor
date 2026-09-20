@@ -2661,8 +2661,9 @@ export function ChannelView({
     leave the room, which gives up the screen role and stops the film. All
     three are answers to the room, which is why the fourth exists: declining
     the job is a fact about this glass and leaves the account standing exactly
-    where it stood. The switch that sent the film here is still on the other
-    device — see {@link secondDevice}.
+    where it stood — it pauses the film and sends the picture back to the
+    device holding the room, which is the *Watch on* switch thrown the other
+    way rather than anything new. See the button below.
 
     **The header is a caption and holds no controls at all.** *Home* was there
     for a day, on the argument that a way off a screen is navigation rather
@@ -2734,9 +2735,47 @@ export function ChannelView({
           this device rather than about the party.** It declines the job: the
           film stops being on this glass, the screen role goes back, and the
           *Watch on* switch on the device holding the room stops saying the
-          picture is over here. Nothing else moves — the account stays present
-          on the other instance, the party's clock runs on for anybody else
-          watching, and nobody's microphone changes.
+          picture is over here. The account stays present on the other
+          instance, nobody's microphone changes, and nothing about the room
+          moves at all.
+
+          **It is the *Watch on* switch thrown the other way, and so it does
+          what throwing that switch does — both halves of it.** The switch
+          refuses a move while the film is running, and says so: *pause the
+          film to move it to another device*. A press here is that move, made
+          from the far end, so it pauses first rather than tearing the picture
+          off a running scene — and then asks another of this account's
+          devices to take it, which is the *other device* answer said from a
+          television, where the other device is the one holding the room.
+
+          **Without the second half the film lands on nothing, playing**, and
+          that is a dead end rather than a state: no device is showing it, and
+          the switch that would move it somewhere is disabled precisely
+          because it is still running. The person who walked away from the
+          television then has to find the transport on their phone and pause a
+          film they cannot see in order to get it back. So the picture follows
+          them: paused, on the device in their hand.
+
+          **The pause is the channel's**, which is the one thing here that
+          everybody else feels: a film has one clock and pausing it stops it
+          for the party. That is not a cost this press invents — it is what
+          the switch has always charged for moving a picture between devices,
+          and the sublabel now says it rather than promising the party plays
+          on, which it did and which was the half that was untrue.
+
+          The pause is best-effort and the hand-off does not wait on it. A
+          television without the floor cannot pause anything — `mayControlWatch`
+          governs the transport above — and the server refuses that press; the
+          decline is about this glass either way and is not the channel's to
+          allow.
+
+          `listScreens` and `choosing`, the same pair the switch presses, so
+          that one other device is taken without asking and two or more draw
+          the picker on the channel screen this device drops back to. Releasing
+          the role here rather than leaving it to the eviction — the reverse of
+          `handOver`'s rule — because the film going off *this* screen is the
+          whole of what was asked for, and waiting a round trip for a device
+          that may never answer is the one outcome a decline may not have.
 
           **It is here because the rungs were the only way out and all three
           of them are answers to the room.** *In* takes the presence, *Nearby*
@@ -2765,9 +2804,14 @@ export function ChannelView({
         */}
         <Button
           label="Not on this device"
-          sublabel="The film leaves this screen; the party plays on"
+          sublabel="Pauses the film and moves it back to your other device"
           variant="ghost"
-          onPress={() => app.showScreenFor(null)}
+          onPress={() => {
+            if (watch.status === 'playing') act({ type: 'WATCH_PAUSE' });
+            app.showScreenFor(null);
+            setChoosing(true);
+            app.listScreens();
+          }}
         />
         {/*
           The one sentence on the screen, and it is here because the state is
