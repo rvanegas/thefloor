@@ -359,23 +359,20 @@ export function Screen({
    * and survives whatever the body does.
    *
    * **One slot at one depth, which is the whole point of it.** Its only
-   * caller is the watch party's picture, which is a `WebView` and is
-   * therefore rebuilt the instant it is reparented — so it cannot be rendered
-   * in one place on one tab and another place on the others. It is rendered
-   * here, once, and moves by changing its own style: in flow as a pinned row,
-   * or `position: absolute` over the body. See `watch/Dock.tsx`.
+   * caller is the watch party's picture, and since 2026-09-19 what goes in
+   * here is the *hole* the picture is drawn into rather than the picture
+   * itself. The player hangs above the route table — `watch/Picture.tsx` —
+   * because a `WebView` is rebuilt the instant it is reparented, and a player
+   * mounted inside a screen is one that going Home tears down.
    *
-   * **Above the scroll and outside the measured frame**, so that a row in
-   * flow takes its own height out of the body exactly as the header takes its
-   * own out of the viewport, and nothing is ever hidden beneath it — the rule
-   * this component exists to keep. Before the scroll rather than after it so
-   * the row reads as pinned under the header rather than as a footer; a slot
-   * that floats therefore has to say `zIndex`, which is what `Dock` does.
-   * Outside the frame because that one is what `reveal` measures against.
-   *
-   * It is below the footer in both arrangements, the footer being a later
-   * sibling still, which is what keeps the microphone reachable with a film
-   * on the screen.
+   * **Above the scroll and outside the measured frame**, so that the row takes
+   * its own height out of the body exactly as the header takes its own out of
+   * the viewport, and nothing is ever hidden beneath it — the rule this
+   * component exists to keep. Taking that height out is now the whole of the
+   * slot's job: the picture is positioned over the application and can no
+   * longer reserve anything. Before the scroll rather than after it so the row
+   * reads as pinned under the header rather than as a footer, and outside the
+   * frame because that one is what `reveal` measures against.
    */
   aside?: React.ReactNode;
 }) {

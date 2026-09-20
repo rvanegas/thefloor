@@ -29,6 +29,7 @@ import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
+import { Picture } from './src/watch/Picture';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
@@ -964,7 +965,15 @@ function Root() {
               : undefined,
         };
 
+  /*
+    **The picture is above the route table, which is what keeps a film alive
+    across a screen.** It was a child of the channel screen until 2026-09-19,
+    so going Home tore the `WebView` down and the party lost its screen at the
+    tap that was meant to leave it for a moment. Here it is a sibling of the
+    panes and outlives every one of them. See `watch/Picture.tsx`.
+  */
   return (
+    <Picture onOpen={(id) => enterChannel(id, 'watch')}>
     <Panes
       layout={layout}
       list={listPane}
@@ -976,6 +985,7 @@ function Root() {
       // the swipe that does the same thing both come through here.
       open={detail.kind !== 'none'}
     />
+    </Picture>
   );
 }
 

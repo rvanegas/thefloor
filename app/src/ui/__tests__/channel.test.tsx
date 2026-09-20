@@ -6,7 +6,7 @@ import { type RecordingView } from '../../../../core/protocol';
 import { ChannelView, uploadingLabel } from '../ChannelView';
 import { Screen, SectionLabel, Segmented } from '../components';
 import { BellIcon, StepIcon } from '../icons';
-import { WatchDock } from '../../watch/Dock';
+import { DockSlot } from '../../watch/Picture';
 import {
   Alert,
   Keyboard,
@@ -1684,10 +1684,15 @@ describe('Channel', () => {
     somebody who stepped into a room with a party running — landing on
     *Members*, which is where everybody lands — saw no picture and heard
     nothing, while `watchingHere` said they were watching and `isScreening`
-    closed their microphone on the strength of it. The tab decides where the
-    picture is drawn now and no longer whether there is one.
+    closed their microphone on the strength of it.
+
+    The player is not on this screen at all now — it hangs above the route
+    table, so going Home does not take it either, and `watch/__tests__/
+    picture.test.tsx` is where that is held. What is left here is the *Watch*
+    tab's half: a hole for the docked row, and no hole anywhere else, the
+    absence of one being how the picture knows to float.
   */
-  it('shows the film on every tab, and moves it rather than dropping it', () => {
+  it('leaves room for the film on the watch tab and nowhere else', () => {
     mockApp.screenFor = 'sess_1';
     showChannel(
       channelOf((s) =>
@@ -1710,19 +1715,18 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
-    // The roster, which is the tab a newcomer lands on: the picture is there,
-    // in the corner.
-    const place = () =>
-      tree.root.findAll((node) => node.type === WatchDock)[0]?.props.place;
-    expect(place()).toBe('floating');
+    // The roster, which is the tab a newcomer lands on: no hole, so the
+    // picture is a rectangle in a corner rather than a row in this body.
+    const holes = () => tree.root.findAll((node) => node.type === DockSlot);
+    expect(holes()).toHaveLength(0);
 
-    // And on the tab the controls are on it is the pinned row under them.
+    // And on the tab the controls are on, the row under them is made room for.
     showWatch(tree);
-    expect(place()).toBe('docked');
+    expect(holes()).toHaveLength(1);
 
-    // Back out again, and it is a rectangle rather than nothing at all.
+    // Back out again, and the room is given back.
     showNotepad(tree);
-    expect(place()).toBe('floating');
+    expect(holes()).toHaveLength(0);
     act(() => tree.unmount());
   });
 
@@ -1805,11 +1809,11 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    expect(tree.root.findAll((node) => node.type === WatchDock)).toHaveLength(0);
+    expect(tree.root.findAll((node) => node.type === DockSlot)).toHaveLength(0);
 
     // And the switch that would put one here says which rung answers it.
     showWatch(tree);
-    expect(tree.root.findAll((node) => node.type === WatchDock)).toHaveLength(0);
+    expect(tree.root.findAll((node) => node.type === DockSlot)).toHaveLength(0);
     expect(textOf(tree)).toContain('Step in to watch');
     act(() => tree.unmount());
   });
@@ -1858,9 +1862,8 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    expect(
-      tree.root.findAll((node) => node.type === WatchDock)[0]?.props.place
-    ).toBe('floating');
+    showWatch(tree);
+    expect(tree.root.findAll((node) => node.type === DockSlot)).toHaveLength(1);
     act(() => tree.unmount());
   });
 

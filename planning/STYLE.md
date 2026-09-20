@@ -804,32 +804,39 @@ iOS and leaves a gap that tall under the card. The symptom that sends somebody
 looking for one — a box under the keyboard — is a scrolling problem, not an
 avoidance problem, and `useRevealOnKeyboard` is its answer.
 
-### The picture, which is pinned on one tab and floats on the others
+### The picture, which is pinned on one tab and floats over everything else
 
-`Screen`'s third slot, `aside`, and the watch party's film is its only caller.
-It sits between the header and the scroll, so a picture **in flow takes its own
-height out of the body** exactly as the two bars do and covers nothing — the
-rule the rest of this section is about.
+**It is not on any screen.** The film hangs above the route table, over Home,
+the settings, a profile and the channel alike — `watch/Picture.tsx`. What
+`Screen`'s third slot, `aside`, holds is the *hole* the docked picture is drawn
+into: a pinned row still **takes its own height out of the body** exactly as
+the two bars do and covers nothing, and since the picture cannot reserve
+anything from up there, the hole is what does.
 
 - **Docked**, on the *Watch* tab: full bleed, capped at `measure` and centred,
   16:9 on `#000`, with the pinned header's hairline under it and for the same
   reason. The transport and the cards scroll beneath it; the film does not
-  scroll away from its own controls.
-- **Floating**, on the other five: 168pt wide at 16:9, `radius.md`, a hairline
-  because a dark scene over a dark card has no edge otherwise, and a shadow.
-  Anchored bottom-right — the corner a thumb covers least on the way to the
-  footer, and the one furthest from the notepad's field — and dragged anywhere
-  in the body from there. A tap opens the *Watch* tab, the rectangle being far
-  too small to carry a transport.
+  scroll away from its own controls. The hole carries the size and the hairline
+  and the picture is laid over it, so the two must agree.
+- **Floating**, everywhere else: 168pt wide at 16:9, `radius.md`, a hairline
+  because a dark scene over a dark card has no edge otherwise, and a shadow. It
+  **rests in one of the four corners of the application** — over the pinned
+  header and footer as readily as over a body, which is what makes it reachable
+  on a screen that has neither — starting bottom-right, the corner a thumb
+  covers least on the way to the footer and the one furthest from the notepad's
+  field. Dragged, it snaps to whichever corner's quadrant it was let go in. A
+  tap opens the *Watch* tab, the rectangle being far too small to carry a
+  transport.
 
 **The two are one element in two styles, and that is load-bearing rather than
 elegant.** The picture is a `WebView`, and a `WebView` that is reparented is
 rebuilt: the page reloads and the film restarts from black. So there is one
-slot at one depth, and what changes between the places is a style object —
-the same argument § *Two panes* makes for the detail pane's fixed depth.
-Floating, it is `position: absolute` over the scroll and must therefore say
-`zIndex`, being drawn before it; the footer is a later sibling still, so the
-microphone stays reachable with a film on the screen. See `watch/Dock.tsx`.
+element at one depth — the highest one there is — and what changes between the
+places is a style object: the same argument § *Two panes* makes for the detail
+pane's fixed depth, taken one level further out. Both places are `position:
+absolute` now, over a layer that answers no touch of its own; the picture is
+the one thing in the application drawn above the pinned footer, which is the
+price of a corner that a screen without a footer can also use.
 
 ### The pinned header
 

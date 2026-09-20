@@ -88,7 +88,7 @@ caused; the list carries the meaning.
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed, no recording begun and no track put on. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and anybody in the room may drive
 - **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which only moves while the film is paused. Given up when the account leaves the room, that being how somebody stops watching
-- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle in the corner of the other five tabs, or *full screen*. Mounted for as long as this device is the *screen*, so since 2026-09-19 leaving the Watch tab no longer stops a film — going *nearby* or *out* is what does. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
+- **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch*, a small draggable rectangle resting in one of the four corners of the application everywhere else, or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device, in landscape, with the transport over it and the channel's own bar below; an app control since 2026-09-18, the player's having gone with its bar. One device's own business and never the party's; four ways out, two pressed and two not
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -1823,9 +1823,9 @@ choosing and could not answer this.
 
 **Where a party's film is drawn, on the device that is the *screen*.** Three
 places and no fourth: **docked**, a pinned row under the tabs on the *Watch*
-tab; **floating**, a 168pt rectangle in the corner of the other five, dragged
-anywhere in the body and tapped to go back to the controls; and *full screen*,
-which is the entry above.
+tab; **floating**, a 168pt rectangle resting in one of the four corners of the
+application, dragged to any of them and tapped to go back to the controls; and
+*full screen*, which is the entry above.
 
 **It is one player throughout, which is why the word is worth having.** A
 `WebView` that is reparented is rebuilt — the page reloads, the film starts
@@ -1834,6 +1834,31 @@ element in two styles rather than two renders in two branches of the screen.
 The one exception is full screen, which replaces the screen and does mount its
 own; that costs a few seconds of black to the person who pressed it, and it is
 written down where it is paid.
+
+**Its parent is the application rather than any screen**, since 2026-09-19 and
+for exactly the reason above: wherever the player is mounted is the furthest
+anybody can walk without losing the film. It was mounted on the *Watch* tab
+until earlier that day, and a tab bar was far enough; mounted on the channel
+screen, Home was. So it hangs above the route table, and Home, the settings, a
+profile and a transcript all draw underneath it. `watch/Picture.tsx`.
+
+**Floating, it rests against a corner rather than at a remembered offset**, and
+the corners are the application's — so it sits over the pinned header and the
+pinned footer as readily as over a body, which is what makes it reachable on a
+screen that has neither. It starts bottom-right, snaps to whichever corner's
+quadrant it is let go in, and stays there for the life of the party. By
+quadrant rather than by nearest corner: a phone is more than twice as tall as
+the picture is wide, so a rectangle let go halfway up the left edge is nearer
+where it came from than either corner on the left, and a snap measuring
+distance would send it back and read as a failed drag.
+
+**Docked, what is in the flow is a hole rather than the picture.** A pinned row
+has to take its own height out of the body so nothing is hidden beneath it, and
+a picture positioned over the whole application cannot do that — so the *Watch*
+tab leaves an empty black rectangle of the right size, measures where it landed,
+and the picture lays itself over it. **The absence of a hole is the instruction
+to float**, which is why no other screen in the application says anything about
+the picture at all.
 
 **Nobody outside the room gets one.** Being in the room is part of what makes
 this device the *screen*, checked where the picture is drawn rather than only
@@ -1848,14 +1873,16 @@ link is very often the one sent in order to watch something together. The
 reducer draws the line the same way — `WATCH_HERE` asks `inRoom` — so the
 screen is agreeing with it rather than keeping a second rule.
 
-**The tab decides where it is, not whether it exists**, and that is the whole
-of the 2026-09-19 change. It was a child of the *Watch* tab's card until then,
+**The tab decides where it is, not whether it exists — and so does the screen**,
+which is the whole of the 2026-09-19 change. It was a child of the *Watch* tab's
+card until then,
 so it existed only while that card was drawn: a person who stepped into a room
 with a film running saw no picture and heard no film, while the room was told
 they were watching and their own microphone was closed on the strength of it.
 What used to stop a film — tapping another tab — is the ladder now.
 
-`app/src/watch/Dock.tsx`, in `Screen`'s `aside` slot.
+`app/src/watch/Picture.tsx` for the player and its four corners, `Dock.tsx`
+for the rectangle itself; the hole is `DockSlot`, in `Screen`'s `aside` slot.
 
 ## Watching here
 

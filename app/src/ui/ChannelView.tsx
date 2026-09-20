@@ -88,7 +88,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
-import { WatchDock } from '../watch/Dock';
+import { DockSlot, usePicture } from '../watch/Picture';
 import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
@@ -564,14 +564,28 @@ export function ChannelView({
    * across a screen being closed — a person who comes back to a channel comes
    * back to the card, where the rest of it is.
    */
-  const [fullScreen, setFullScreen] = useState(false);
+  /*
+    **Held by the picture rather than here, since the picture outlives this
+    screen.** The one player is mounted above the route table, and expanding
+    replaces it with `FullScreen`'s own — so the flag that says which of the
+    two is up cannot live in a component that either of them can outlast.
+    Local state is the fallback for a harness that renders this screen with no
+    picture above it, where there is no second player to collide with.
+  */
+  const picture = usePicture();
+  const [ownFullScreen, setOwnFullScreen] = useState(false);
+  const fullScreen = picture ? picture.fullScreen : ownFullScreen;
+  const setFullScreen = picture ? picture.setFullScreen : setOwnFullScreen;
   /**
    * That the film will not play, as the player found out.
    *
    * Only the expanded picture reads it; see the collapse below, and
-   * `WatchPlayer`'s `onRefusal` for why it is reported at all.
+   * `WatchPlayer`'s `onRefusal` for why it is reported at all. Either player
+   * may be the one that found out — the corner's, which reports through the
+   * picture, or the expanded one's, which is this screen's own.
    */
-  const [filmRefused, setFilmRefused] = useState(false);
+  const [ownFilmRefused, setOwnFilmRefused] = useState(false);
+  const filmRefused = ownFilmRefused || !!picture?.refused;
   const [watchError, setWatchError] = useState<string | null>(null);
   const [watchNote, setWatchNote] = useState<string | null>(null);
   /**
@@ -760,7 +774,18 @@ export function ChannelView({
     if (!fullScreen) return;
     if (partyLoaded && screenIsHere && !filmRefused) return;
     setFullScreen(false);
-  }, [fullScreen, partyLoaded, screenIsHere, filmRefused]);
+  }, [fullScreen, partyLoaded, screenIsHere, filmRefused, setFullScreen]);
+
+  /*
+    And collapsed when this screen goes, which is the one exit the effect above
+    cannot see. The flag lives above the route table now, so a screen closed
+    while the picture was expanded would leave it set with nobody left to
+    answer for it — and the corner player, which stands down for the duration,
+    would never come back.
+  */
+  const collapse = useRef(setFullScreen);
+  collapse.current = setFullScreen;
+  useEffect(() => () => collapse.current(false), []);
 
   /**
    * Stops being a screen when there is nothing to show.
@@ -2208,46 +2233,29 @@ export function ChannelView({
   ) : null;
 
   /**
-   * **The film, which is mounted for as long as this device is the screen.**
+   * **The hole the docked picture is drawn into, and nothing else.**
    *
-   * It is not on the *Watch* tab, and until 2026-09-19 it was: the player was
-   * a child of that tab's card, so it existed only while the card was drawn.
-   * What that meant in a room is the defect this replaces — somebody stepping
-   * into a channel with a film running landed on *Members*, saw no picture,
-   * heard nothing, and was reported to everybody else as watching, their
-   * microphone closed by `isScreening` on the strength of a player that did
-   * not exist. Tapping any other tab mid-film did the same to somebody who
-   * had been watching, and the party went on without them.
+   * The film itself is not mounted here and has not been since 2026-09-19. It
+   * hangs above the route table — `watch/Picture.tsx` — because a `WebView` is
+   * rebuilt the instant it is reparented, so wherever it is mounted is the
+   * furthest anybody can go without losing the film. Mounted on this screen,
+   * going Home lost it; mounted on the *Watch* tab before that, a tab bar did.
    *
-   * So the tab decides where the picture is and no longer whether there is
-   * one. `Dock` is the two places — pinned under the tabs on *Watch*, a small
-   * draggable rectangle in the corner everywhere else — and it is one element
-   * in two styles rather than two renders, a `WebView` being rebuilt whenever
-   * it is reparented.
+   * What is left here is the *Watch* tab's half of the arrangement: a pinned
+   * row has to take its own height out of the body so that nothing is hidden
+   * beneath it, and a picture positioned over the whole application cannot do
+   * that. So this reserves the height and reports where it ended up, and the
+   * picture lays itself over it. See `DockSlot`, which is both halves.
    *
-   * **Null in exactly the three cases there is nothing to show**: no party, a
-   * film on another device of this account's, and full screen — which is an
-   * early return below with a player of its own, and rendering this as well
-   * would put two of them on one channel.
+   * **Null in exactly the three cases there is nothing to make room for**: no
+   * party, a film on another device of this account's, and full screen — which
+   * is an early return below with a player of its own.
    *
-   * What stops it is the ladder rather than the tab bar: see the effect that
-   * clears this device's screen role when the account leaves the room.
+   * Every other tab leaves no hole, which is the whole of how the picture
+   * knows to float: the absence of one *is* the instruction.
    */
-  const picture =
-    party && screeningHere && !fullScreen ? (
-      <WatchDock
-        place={tab === 'watch' ? 'docked' : 'floating'}
-        onOpen={() => chooseTab('watch')}
-      >
-        <WatchPlayer
-          watch={watch}
-          channelId={channelId}
-          fill
-          onDuration={(durationMs) => act({ type: 'WATCH_READY', durationMs })}
-          onRefusal={(message) => setFilmRefused(message !== null)}
-        />
-      </WatchDock>
-    ) : null;
+  const dockSlot =
+    party && screeningHere && !fullScreen && tab === 'watch' ? <DockSlot /> : null;
 
   /*
     **The picture, filling the phone, and the channel still under it.**
@@ -2285,7 +2293,7 @@ export function ChannelView({
             channelId={channelId}
             fill
             onDuration={(durationMs) => act({ type: 'WATCH_READY', durationMs })}
-            onRefusal={(message) => setFilmRefused(message !== null)}
+            onRefusal={(message) => setOwnFilmRefused(message !== null)}
           />
         }
       />
@@ -2296,7 +2304,7 @@ export function ChannelView({
     <Screen
       header={header}
       footer={footer}
-      aside={picture}
+      aside={dockSlot}
       contentStyle={styles.container}
     >
         {/*
