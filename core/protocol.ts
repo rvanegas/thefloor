@@ -1416,8 +1416,18 @@ export type ClientMessage =
    * connect. The server refuses anything else — not because a forged id could
    * reach another account's device, which it could not, but because a message
    * that silently did nothing is worse to debug than one that says no.
+   *
+   * **Null names the device standing in the channel**, which is the one the
+   * picker cannot name: a list of this account's instances says which are
+   * signed in and nothing about where the person is. A television handing the
+   * film back wants the device holding the room — the phone the account
+   * stepped in on — and that fact lives on the server, which is the only
+   * thing that can see every instance at once. So it is asked for by
+   * description rather than by id. See `screens.use` in server/src/ws.ts;
+   * an account whose room is held by a socket that has since gone gets the
+   * same refusal a named device that has gone would.
    */
-  | { type: 'screens.use'; channelId: string; device: string }
+  | { type: 'screens.use'; channelId: string; device: string | null }
   /**
    * This instance is, or is no longer, showing a film.
    *

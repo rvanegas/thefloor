@@ -1652,7 +1652,7 @@ describe('Channel, watching together', () => {
         the device holding the room learns it from the server.
       */
       const tree = asSecondDevice();
-      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      act(() => findButton(tree, 'Other device')!.props.onPress());
       expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
       // The room is untouched: no STOP_WATCH and no rung. The transport is
       // the one thing it does say to the channel, and only while the film is
@@ -1672,7 +1672,7 @@ describe('Channel, watching together', () => {
         the television, does the pause the person would have done first.
       */
       const tree = asSecondDevice(playing());
-      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      act(() => findButton(tree, 'Other device')!.props.onPress());
       expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
         type: 'WATCH_PAUSE',
       });
@@ -1683,7 +1683,7 @@ describe('Channel, watching together', () => {
       // A paused film needs no pause, and a channel told to pause one twice
       // is this screen inventing traffic.
       const tree = asSecondDevice();
-      act(() => findButton(tree, 'Not on this device')!.props.onPress());
+      act(() => findButton(tree, 'Other device')!.props.onPress());
       expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
         type: 'WATCH_PAUSE',
       });
@@ -1696,17 +1696,63 @@ describe('Channel, watching together', () => {
         nothing.** No device showing it, and — before the pause above — the
         control that would move it disabled precisely because it was still
         running. So the picture follows the person who walked away from the
-        television: paused, on the device in their hand, taken without asking
-        because one other device is not a choice.
+        television: paused, on the device in their hand.
+
+        **Asked for by description and not chosen from a list.** A null device
+        is *the one standing in this channel*, which the server resolves —
+        `screens.use` in server/src/ws.ts. The picker's list says which of the
+        account's instances are signed in and nothing about where the person
+        is, so a television reading it would be choosing between devices when
+        it already knows the answer.
       */
       mockApp.screens = [
         { device: 'dev-tv', name: 'Apple TV', client: 'native', self: true, watching: true },
         { device: 'dev-me', name: 'iPhone 15 Pro', client: 'native', self: false, watching: false },
+        { device: 'dev-pad', name: 'iPad', client: 'native', self: false, watching: false },
       ];
       const tree = asSecondDevice(playing());
-      act(() => findButton(tree, 'Not on this device')!.props.onPress());
-      expect(mockApp.listScreens).toHaveBeenCalled();
-      expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-me');
+      act(() => findButton(tree, 'Other device')!.props.onPress());
+      expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', null);
+      // No list and no picker: two other devices signed in is not a question
+      // for the person who has walked away from this one.
+      expect(mockApp.listScreens).not.toHaveBeenCalled();
+      expect(findButton(tree, 'iPad')).toBeUndefined();
+      // And the role goes at the press: the film leaving this glass is the
+      // whole of what was asked for, and may not wait on a device that might
+      // never answer.
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+      act(() => tree.unmount());
+    });
+
+    it('takes the device over, whatever it was showing', () => {
+      /*
+        **The ask is an assignment, not an offer.** Somebody at another of
+        this account's devices has decided the picture belongs on this glass
+        and there is no tap coming on this one, so the arrival opens the
+        channel — `App.tsx` — and the second device replaces whatever this one
+        was on. What that alone does not reach is this screen's own three: the
+        profile, the settings screen and a transcript are early returns
+        *above* the television and are state this component holds, so a device
+        sitting in one of them was handed a film and went on drawing it.
+      */
+      showChannel(watching());
+      const tree = openOnMembers();
+      act(() => findButton(tree, 'Settings')!.props.onPress());
+      expect(findButton(tree, 'Settings')).toBeUndefined();
+
+      // And now the film is sent here, which is the role arriving.
+      mockApp.screenFor = 'sess_1';
+      mockApp.standingIn = null;
+      act(() =>
+        tree.update(<ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />)
+      );
+      expect(textOf(tree)).toContain('Watching');
+      expect(findButton(tree, 'Other device')).toBeDefined();
       act(() => tree.unmount());
     });
 
@@ -1717,7 +1763,7 @@ describe('Channel, watching together', () => {
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
       const tree = openOnMembers();
-      expect(findButton(tree, 'Not on this device')).toBeUndefined();
+      expect(findButton(tree, 'Other device')).toBeUndefined();
       act(() => tree.unmount());
     });
 

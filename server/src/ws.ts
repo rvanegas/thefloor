@@ -147,6 +147,25 @@ interface Connection {
    */
   screening: string | null;
   /**
+   * The channel this instance is *standing in*, or null.
+   *
+   * **The account's presence is not this**, and the difference is the whole
+   * reason it is here. A channel's `present` names accounts: it says somebody
+   * is in the room and nothing about which of their devices is holding it.
+   * This is that missing half, and it is what a television asks for when it
+   * hands the film back — *the device the person is on*, which no list of
+   * signed-in instances can name.
+   *
+   * Written where displacement is decided, and by the same actions: an
+   * `ENTER` sets it here and clears it on every other device of the account,
+   * because one voice means one place; a Step Out, an expiry, a nearby
+   * declaration from inside the room and a departure all clear it. Connection
+   * state like `screening`, dying with the socket — a device that has gone is
+   * not holding a room, and a reconnection re-sends `ENTER` from the client's
+   * own belief, which is what fills this in again.
+   */
+  standing: string | null;
+  /**
    * When this socket was accepted, which is the start of the only clock that
    * says how long it lasted.
    *
@@ -561,12 +580,52 @@ export function registerWebsocket(deps: {
     return undefined;
   };
 
+  /**
+   * The connection standing in this channel, which is where a film handed
+   * back goes.
+   *
+   * **Described rather than named**, and that is the point: the television
+   * asking has a list of the account's instances and no way to tell which of
+   * them the person is holding. The room is held by one device at a time —
+   * `displaceOtherSessions` is what makes that true — so this is a lookup and
+   * not a choice.
+   *
+   * Itself included, deliberately: a device that is both the screen and the
+   * room is the single-device case, where the answer to *hand it back* is
+   * that it is already there. Nothing asks in that state — the television
+   * only exists while the room is elsewhere — and an exclusion here would be
+   * a rule about a case that cannot arise, written where a reader would take
+   * it for one that can.
+   */
+  const standingConnectionFor = (
+    connection: Connection,
+    channelId: string
+  ): Connection | undefined => {
+    for (const other of connections) {
+      if (other.scope.kind !== 'session') continue;
+      if (other.userId !== connection.userId) continue;
+      if (other.standing === channelId) return other;
+    }
+    return undefined;
+  };
+
   const displaceOtherSessions = (connection: Connection): void => {
     const key = deviceKey(connection);
     for (const other of connections) {
       if (other.scope.kind !== 'session') continue;
       if (other.userId !== connection.userId) continue;
       if (deviceKey(other) === key) continue;
+      // **The fact as well as the message**, since 2026-09-20. `standing` is
+      // what a television hands the film back to, so a device that has just
+      // been told it is no longer standing anywhere must stop answering that
+      // question — otherwise the picture goes to the phone somebody left in
+      // another room rather than to the one in their hand.
+      // **The fact as well as the message**, since 2026-09-20. `standing` is
+      // what a television hands the film back to, so a device that has just
+      // been told it is no longer standing anywhere must stop answering that
+      // question — otherwise the picture goes to the phone somebody left in
+      // another room rather than to the one in their hand.
+      other.standing = null;
       send(other, { type: 'displaced' });
     }
   };
@@ -1171,6 +1230,7 @@ export function registerWebsocket(deps: {
       // `claimedDeviceName` for who may see it, which is one person.
       deviceName: claimedDeviceName(url.searchParams.get('deviceName')),
       screening: null,
+      standing: null,
       openedAt: now(),
       endedBy: null,
     };
@@ -1450,11 +1510,24 @@ export function registerWebsocket(deps: {
           // at sockets sharing this `userId` — but a message that silently did
           // nothing would be indistinguishable from a device that had just
           // gone away, and those want different answers.
-          const target = screenConnectionFor(connection, message.device);
+          //
+          // **A null device names the one standing in the channel**, which is
+          // the television's way of handing the picture back: it wants the
+          // device the person is on, and a list of signed-in instances cannot
+          // say which that is. Resolved here because this is the only place
+          // that can see every one of somebody's sockets at once. See
+          // `Connection.standing`.
+          const target =
+            message.device === null
+              ? standingConnectionFor(connection, message.channelId)
+              : screenConnectionFor(connection, message.device);
           if (!target) {
             send(connection, {
               type: 'error',
-              message: 'That device is not signed in any more.',
+              message:
+                message.device === null
+                  ? 'The device holding this channel is not signed in any more.'
+                  : 'That device is not signed in any more.',
               code: 'no-such-device',
             });
             return;
@@ -1555,6 +1628,21 @@ export function registerWebsocket(deps: {
           // is present, and `onopen` in the app's socket re-sends ENTER from
           // exactly that belief — so a Step Out taken on the phone in somebody's
           // hand is undone by another device reconnecting.
+          // Where this device is standing, which is the same set of actions
+          // read for what they say about *this* socket rather than about the
+          // others. See `Connection.standing`.
+          if (message.action.type === 'ENTER') {
+            connection.standing = message.channelId;
+          } else if (
+            message.action.type === 'STEP_OUT' ||
+            message.action.type === 'ATTENTION_EXPIRED' ||
+            message.action.type === 'DECLARE_NEARBY' ||
+            message.action.type === 'LEAVE_CHANNEL'
+          ) {
+            if (connection.standing === message.channelId) {
+              connection.standing = null;
+            }
+          }
           if (
             message.action.type === 'ENTER' ||
             (message.action.type === 'STEP_OUT' && wasPresent) ||

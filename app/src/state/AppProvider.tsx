@@ -599,8 +599,12 @@ interface AppValue extends AppState {
   watchChannel: (channelId: string) => void;
   /** Asks the server which of this account's instances could show a film. */
   listScreens: () => void;
-  /** Hands the film to one of them. */
-  useScreen: (channelId: string, device: string) => void;
+  /**
+   * Hands the film to one of them — or, with a null device, to whichever is
+   * standing in the channel, which is how a television gives the picture back
+   * to the device holding the room. See `ClientMessage.screens.use`.
+   */
+  useScreen: (channelId: string, device: string | null) => void;
   /**
    * Says this device is showing a film for that channel, or for none.
    *

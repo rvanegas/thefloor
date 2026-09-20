@@ -590,8 +590,15 @@ function Root() {
     if (!ready || !token) return;
     if (app.notifications.ask !== 'pitch') return;
     if (detail.kind !== 'none' || live) return;
+    // **And not on a device that is showing a film**, which is the fourth of
+    // these and the only one that is not about the person being busy: the
+    // pitch and the arrival of a film both answer an empty pane, they are set
+    // in the same commit when a film lands on a device nobody is holding, and
+    // this one is written second — so a television covered itself with a
+    // notification pitch at the moment somebody sent it a picture.
+    if (app.screenFor !== null) return;
     setDetail({ kind: 'notifications' });
-  }, [ready, token, app.notifications.ask, detail.kind, live]);
+  }, [ready, token, app.notifications.ask, detail.kind, live, app.screenFor]);
 
   /**
    * The address bar, which on a phone does not exist and in a browser *is* the

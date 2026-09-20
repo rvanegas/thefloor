@@ -819,8 +819,14 @@ export class Realtime {
     this.send({ type: 'screens.list' });
   }
 
-  /** Hands the film to one of this account's other instances. */
-  useScreen(channelId: string, device: string): void {
+  /**
+   * Hands the film to one of this account's other instances.
+   *
+   * A null device names the one standing in the channel rather than an id —
+   * see `ClientMessage`. It is what a television sends: the picture goes back
+   * to the device the person is on, which the picker cannot name.
+   */
+  useScreen(channelId: string, device: string | null): void {
     this.send({ type: 'screens.use', channelId, device });
   }
 

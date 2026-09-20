@@ -970,7 +970,7 @@ does — there is nothing novel in its shape, which is the point:
 - **Aside:** a `DockSlot`, with the same `watchShapeFor` answer and the same
   `asidePlace` the *Watch* tab passes — so the film is the same size in the
   same place on both devices, and moving between them moves nothing.
-- **Body:** the transport, *Full screen*, *Not on this device* — a full-width
+- **Body:** the transport, *Full screen*, *Other device* — a full-width
   `ghost` under it, which hands the screen role back and is the only way off
   this screen that says nothing to the room — and one muted sentence saying
   where the rest of the controls are. Full width rather than a `flexButton`

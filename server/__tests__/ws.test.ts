@@ -1583,6 +1583,100 @@ describe('websocket', () => {
         laptop.close();
       });
 
+      it('hands a film back to whichever device is standing in the channel', async () => {
+        /*
+          **The television's way of giving the picture back.** It has a list of
+          the account's instances and no way to tell which of them the person
+          is holding — that fact is here, on the connection that entered — so
+          it asks by description: a null device is *the one standing in this
+          channel*. See `Connection.standing`.
+        */
+        const { alice, channelId, phone, laptop } = await withScreens();
+        await enter(phone, channelId, alice.account.id);
+
+        // The laptop is the television, and it declines.
+        laptop.send({ type: 'screens.showing', channelId });
+        laptop.send({ type: 'screens.showing', channelId: null });
+        laptop.send({ type: 'screens.use', channelId, device: null });
+
+        const told = await phone.next('screen');
+        expect(told.channelId).toBe(channelId);
+        // Nothing about the room moved: this is a screen role and not a place
+        // to be.
+        expect(sawDisplaced(phone)).toBe(false);
+        expect(app.channels.get(channelId)!.present).toContain(
+          alice.account.id
+        );
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('follows the room to the device that took it', async () => {
+        /*
+          One voice, one place: entering on the tablet takes the room off the
+          phone, so a film handed back afterwards has to land on the tablet.
+          A `standing` left behind on the displaced device would send the
+          picture to a phone somebody had put down in another room.
+        */
+        const { alice, channelId, phone, laptop } = await withScreens();
+        await enter(phone, channelId, alice.account.id);
+        const tablet = new Client(
+          secondSession(alice.account.id),
+          baseUrl,
+          80,
+          'dev-tablet',
+          'iPad mini'
+        );
+        await tablet.open();
+        await tablet.next('hello');
+        await enter(tablet, channelId, alice.account.id);
+
+        laptop.send({ type: 'screens.use', channelId, device: null });
+        const told = await tablet.next('screen');
+        expect(told.channelId).toBe(channelId);
+        expect(phone.received.some((m) => m.type === 'screen')).toBe(false);
+
+        phone.close();
+        laptop.close();
+        tablet.close();
+      });
+
+      it('says so when nobody is standing in the channel at all', async () => {
+        // The account can be present while the socket that entered has gone —
+        // a grace period is exactly that state. A refusal names it rather than
+        // the message going quiet, which is indistinguishable from a device
+        // that simply never drew anything.
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.use', channelId, device: null });
+        const refusal = await laptop.next('error');
+        expect(refusal.code).toBe('no-such-device');
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('stops answering for a device that stepped out', async () => {
+        const { alice, channelId, phone, laptop } = await withScreens();
+        await enter(phone, channelId, alice.account.id);
+        phone.send({
+          type: 'channel.action',
+          channelId,
+          action: { type: 'STEP_OUT' },
+        });
+        await phone.next(
+          'channel',
+          (m) => !m.view.channel.present.includes(alice.account.id)
+        );
+
+        laptop.send({ type: 'screens.use', channelId, device: null });
+        const refusal = await laptop.next('error');
+        expect(refusal.code).toBe('no-such-device');
+
+        phone.close();
+        laptop.close();
+      });
+
       it('refuses a device that is not signed in, rather than going quiet', async () => {
         const { channelId, phone, laptop } = await withScreens();
         phone.send({ type: 'screens.use', channelId, device: 'dev-television' });

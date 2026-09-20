@@ -1080,6 +1080,32 @@ export function ChannelView({
    * above: what is wanted is the last thing that was true while this screen
    * was on the glass, not the value some render closed over.
    */
+  /**
+   * **A film sent here takes the device, whatever it was showing.**
+   *
+   * The ask is somebody at another of this account's devices deciding that
+   * the picture belongs on this glass, and there is no tap coming on this one
+   * — so it is an assignment rather than an offer, and `App.tsx` answers it by
+   * opening the channel. What that alone does not reach is this screen's own
+   * three: the profile, the settings screen and a transcript are early
+   * returns *above* the television, and all three are component state that a
+   * change of `channelId` does not touch. A browser sitting in another
+   * channel's settings, handed a film, went on drawing a settings screen —
+   * now for the channel the film is in, which is the one state worse than
+   * having ignored the ask.
+   *
+   * Cleared when this device becomes the second device rather than when the
+   * ask lands, because the ask is spent by `App.tsx` before this screen is
+   * mounted and cannot be read here. Becoming a television is the same fact a
+   * render later, and it is the one this screen can see.
+   */
+  useEffect(() => {
+    if (!secondDevice) return;
+    setViewing(null);
+    setSettingsOpen(false);
+    setTranscriptFor(null);
+  }, [secondDevice]);
+
   const television = useRef(false);
   television.current = secondDevice;
   const releaseScreen = useRef(app.showScreenFor);
@@ -2655,7 +2681,7 @@ export function ChannelView({
     person is, which is the device holding the room — and the whole of the
     reason a party has two devices is that the film is not there.
 
-    **The rungs are one way out of this state, and *Not on this device* is the
+    **The rungs are one way out of this state, and *Other device* is the
     other.** *In* takes the room, which makes this the first device and hands
     back the ordinary channel screen a render later; *Nearby* and *Out* both
     leave the room, which gives up the screen role and stops the film. All
@@ -2769,13 +2795,19 @@ export function ChannelView({
           decline is about this glass either way and is not the channel's to
           allow.
 
-          `listScreens` and `choosing`, the same pair the switch presses, so
-          that one other device is taken without asking and two or more draw
-          the picker on the channel screen this device drops back to. Releasing
-          the role here rather than leaving it to the eviction — the reverse of
-          `handOver`'s rule — because the film going off *this* screen is the
-          whole of what was asked for, and waiting a round trip for a device
-          that may never answer is the one outcome a decline may not have.
+          **The device standing in the channel, asked for by description.**
+          Not the picker's pair of `listScreens` and `choosing`, which is what
+          this did for half a day: that list says which of the account's
+          instances are signed in and nothing about where the person is, so a
+          television reading it was choosing between devices when it already
+          knew the answer — the film goes back to the one holding the room.
+          The server resolves it, being the only thing that can see all of
+          somebody's sockets at once; see `screens.use` in server/src/ws.ts.
+          Releasing the role here rather than leaving it to the eviction — the
+          reverse of `handOver`'s rule — because the film going off *this*
+          screen is the whole of what was asked for, and waiting a round trip
+          for a device that may never answer is the one outcome a decline may
+          not have.
 
           **It is here because the rungs were the only way out and all three
           of them are answers to the room.** *In* takes the presence, *Nearby*
@@ -2788,9 +2820,16 @@ export function ChannelView({
           *Stop*: Home is navigation and would have been carrying a second
           meaning it does not carry anywhere else in the app, and *Stop* on
           the watch card is `STOP_WATCH`, which ends the film for the whole
-          channel. This ends nothing. The words are the *Watch on* switch's
-          own answers in the negative, which is the vocabulary somebody chose
-          this device with — see GLOSSARY § *Screen*.
+          channel. This ends nothing.
+
+          **The switch's own words, and since 2026-09-20 they are exactly
+          its own words.** It read *Not on this device* first, which is the
+          answer said in the negative — a third phrasing of a question the
+          app already asks in two segments, and one that names what it is
+          not rather than where the film goes. *Other device* is what the
+          switch would say from here, said from here, and it is the answer
+          this press actually gives: the film moves to the account's other
+          device. See GLOSSARY § *Screen*.
 
           **Full width under *Full screen* rather than beside it.** Two
           `flexButton`s would put this in half a phone's card, which is about
@@ -2803,14 +2842,15 @@ export function ChannelView({
           film ending, and *screen* is the role being handed back.
         */}
         <Button
-          label="Not on this device"
-          sublabel="Pauses the film and moves it back to your other device"
+          label="Other device"
+          sublabel="Pauses the film and moves it back to the device you stepped in on"
           variant="ghost"
           onPress={() => {
             if (watch.status === 'playing') act({ type: 'WATCH_PAUSE' });
             app.showScreenFor(null);
-            setChoosing(true);
-            app.listScreens();
+            // Null is *the device standing in this channel*, which is the one
+            // the person is holding and the one no list can name.
+            app.useScreen(channelId, null);
           }}
         />
         {/*

@@ -567,6 +567,25 @@ describe('the explanation, unbidden', () => {
     act(() => tree.unmount());
   });
 
+  it('stays away from a device that is showing a film', () => {
+    /*
+      **The fourth of these, and the only one that is not about the person
+      being busy.** A film sent to another of this account's devices opens the
+      channel on it, and that device is most often one nobody is holding — an
+      empty pane a moment earlier. The two answers are set in the same commit
+      and this one is written second, so a television covered the picture it
+      had just been sent with an explanation of notifications.
+    */
+    mockApp.screenFor = CHANNEL;
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<App />);
+    });
+    expect(textOf(tree)).not.toContain('Being reachable');
+    mockApp.screenFor = null;
+    act(() => tree.unmount());
+  });
+
   it('stays away while nothing is due', () => {
     mockApp.notifications.ask = 'none';
     let tree!: ReactTestRenderer;
