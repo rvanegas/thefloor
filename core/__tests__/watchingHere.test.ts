@@ -490,11 +490,11 @@ describe('what the channel wants a player to be', () => {
 
 /**
  * A watch party is a mode the channel is in, and since 2026-09-18 an
- * exclusive one.
+ * exclusive one — **of the floor and the recording for as long as it is
+ * loaded, and of the audio player only while it is running.**
  *
- * Each of these was refused separately or not at all before, and the one that
- * was not — the floor — was reaching into the video's transport and deciding
- * who could press a bar that everybody watching can see.
+ * The split is of 2026-09-20: the transports are exclusive of each other, the
+ * mode is exclusive of the rest. See `watchIsPlaying`.
  */
 describe('a channel with a film on', () => {
   const withFilm = () => watching();
@@ -510,14 +510,18 @@ describe('a channel with a film on', () => {
     expect(canClaimFloor(withFilm(), A, T0)).toBe(false);
   });
 
-  it('refuses a track', () => {
+  const playingFilm = () => reduce(withFilm(), { type: 'WATCH_PLAY', userId: A }, T0);
+
+  it('takes a track while it sits paused, and refuses one while it runs', () => {
     expect(canLoadTrack(withoutFilm(), A)).toBe(true);
-    expect(canLoadTrack(withFilm(), A)).toBe(false);
+    expect(canLoadTrack(withFilm(), A)).toBe(true);
+    expect(canLoadTrack(playingFilm(), A)).toBe(false);
   });
 
-  it('refuses the audio player', () => {
+  it('leaves the audio player live until it plays', () => {
     expect(canControlPlayback(withoutFilm(), A)).toBe(true);
-    expect(canControlPlayback(withFilm(), A)).toBe(false);
+    expect(canControlPlayback(withFilm(), A)).toBe(true);
+    expect(canControlPlayback(playingFilm(), A)).toBe(false);
   });
 
   it('refuses a recording, as it always did', () => {

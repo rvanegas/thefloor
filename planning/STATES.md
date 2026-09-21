@@ -444,6 +444,16 @@ things that this file keeps apart:
   half. The reasoning is decisions/ § *Nobody reaches into a
   conversation they are not in*.
 
+- **And each of the two asks whether the *other* is playing**, since
+  2026-09-20 — `watchIsPlaying` on the audio player's guards,
+  `trackIsPlaying` on the film's. A film and a track may both be loaded; only
+  one may run, and what refuses the other's controls is a transport's
+  `'playing'` rather than a party's existence. Two layers say this and must
+  not drift: the guard in `core/channel.ts`, and the sentence under each card
+  in `ChannelView` — which is why the card reads the same predicate rather
+  than a `watch.status` of its own.
+  decisions/2026-09-20-two-transports-one-run.md.
+
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at
 all. Anyone ordering on it must ask about occupancy separately.

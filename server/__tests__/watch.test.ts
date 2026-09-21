@@ -228,7 +228,7 @@ describe('starting and stopping', () => {
 });
 
 describe('a party and the rest of the channel', () => {
-  it('stops the shared audio when it replaces a track', async () => {
+  it('waits for the shared audio rather than replacing it', async () => {
     const { alice, channelId } = await channelOfTwo();
     const path = join(scratch, 'tone.mp3');
     await new Promise<void>((resolve, reject) => {
@@ -254,23 +254,36 @@ describe('a party and the rest of the channel', () => {
     app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
     await new Promise((r) => setTimeout(r, 0));
 
+    // **Refused rather than granted, since 2026-09-20**, and this is the
+    // half of the change the media plane can see. A film that started here
+    // would be a second thing to attend to over a track that is audibly
+    // running, so `canStartWatch` says no until the track is paused — see
+    // `watchIsPlaying` in core/channel.ts.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(app.channels.get(channelId)?.watch.party).toBeNull();
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE' });
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'START_WATCH',
       url: URL,
     } as never);
     await new Promise((r) => setTimeout(r, 0));
 
-    // No `applyWatchToMedia` exists, and none is needed. Clearing the track in
-    // the reducer is the whole of it: the media plane follows committed state,
-    // so the pause is issued by the path that was already watching.
-    //
-    // The participant itself stays, which is not this feature's doing —
-    // `applyPlaybackToMedia` keeps it for the channel's life, publishing
-    // silence between tracks so a recording's stem keeps its place. Only the
-    // channel ending closes it.
+    // The pause is the one the person made, not one the party issued: no
+    // `applyWatchToMedia` exists and none is needed, the media plane
+    // following committed state either way.
     expect(media.playbacks[0].commands).toContainEqual({ type: 'pause' });
     expect(media.playbacks[0].closed).toBe(false);
-    expect(app.channels.get(channelId)?.playback.track).toBeNull();
+    // **And the track is still loaded**, which is what stopped being true of
+    // a party start. The participant stays for the channel's life in any
+    // case — `applyPlaybackToMedia` publishes silence between tracks so a
+    // recording's stem keeps its place.
+    expect(app.channels.get(channelId)?.playback.track).not.toBeNull();
+    expect(app.channels.get(channelId)?.watch.party).not.toBeNull();
   });
 
   it('refuses a link that is not YouTube, before the reducer sees it', async () => {

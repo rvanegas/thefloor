@@ -42,6 +42,8 @@ import {
   canLoadTrack,
   canStartWatch,
   canControlWatch,
+  watchIsPlaying,
+  trackIsPlaying,
   canUnmuteRoom,
   isPartyMuted,
   isWithheld,
@@ -1815,6 +1817,16 @@ export function ChannelView({
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
   const mayStartWatch = canStartWatch(channel, me);
+  /**
+   * The two transports, each of which is asked after by the other's card.
+   *
+   * Read from the same predicates the guards read rather than from `watch`
+   * and `playback` here, so the sentence under a greyed control and the rule
+   * that greyed it cannot drift apart — which is what the guards live in
+   * `core/` for.
+   */
+  const filmPlaying = watchIsPlaying(channel);
+  const trackPlaying = trackIsPlaying(channel);
   /**
    * Whether *this* device is the one showing the film.
    *
@@ -3718,26 +3730,33 @@ export function ChannelView({
           ) : null}
 
           <Text style={type.muted}>
-            {theyHoldFloor
-              ? // The point of the mechanic, stated where it bites: the track
-                // does not stop, but it stops being yours to change.
-                `${holderName} has the floor, so they decide what plays.`
-              : iHoldFloor
-                ? 'You have the floor — only you can change what plays.'
-                : !mayControlPlayback
-                  ? // The only remaining way these are disabled, the floor
-                    // having been ruled out by the two branches above.
-                    'Step in to put something on. What everybody is listening to is for whoever is listening.'
-                  : !mayLoadTrack
-                    ? // In the room's sense but not in the room: the channel is
-                      // empty, so what is here is yours to drive and is not
-                      // yours to replace. Said because two controls on this
-                      // card are now greyed while the rest are live, which is
-                      // otherwise the sort of thing that reads as a bug.
-                      'Step in to put something on. What is already here you can still play or clear.'
-                    : track
-                      ? 'Everyone hears this, and anyone present can change it.'
-                      : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+            {filmPlaying
+              ? // First, because it greys every control on this card and no other
+                // branch here would explain why. **Pausing is the way out**, not
+                // stopping the party — said in those words because the control
+                // that lifts this is on another tab, and a reader who is not told
+                // which one goes looking for it here. See `watchIsPlaying`.
+                'The film is playing. Pause it to put something on here.'
+              : theyHoldFloor
+                ? // The point of the mechanic, stated where it bites: the track
+                  // does not stop, but it stops being yours to change.
+                  `${holderName} has the floor, so they decide what plays.`
+                : iHoldFloor
+                  ? 'You have the floor — only you can change what plays.'
+                  : !mayControlPlayback
+                    ? // The only remaining way these are disabled, the floor
+                      // and the film having been ruled out above.
+                      'Step in to put something on. What everybody is listening to is for whoever is listening.'
+                    : !mayLoadTrack
+                      ? // In the room's sense but not in the room: the channel is
+                        // empty, so what is here is yours to drive and is not
+                        // yours to replace. Said because two controls on this
+                        // card are now greyed while the rest are live, which is
+                        // otherwise the sort of thing that reads as a bug.
+                        'Step in to put something on. What is already here you can still play or clear.'
+                      : track
+                        ? 'Everyone hears this, and anyone present can change it.'
+                        : 'Whatever you play, everyone hears — and it is kept in the recording.'}
           </Text>
         </Card>
 
@@ -4446,37 +4465,46 @@ export function ChannelView({
             ) : null}
 
             <Text style={type.muted}>
-              {!mayControlWatch
-                ? // First, because it outranks the rest: somebody who is not in
-                  // the room has no use for being told whose floor it is or that
-                  // a recording is running. **And since 2026-09-20 it is the one
-                  // reason that greys every control on the card** — the transport,
-                  // the room's mute and Stop included, which used to stay live
-                  // for an absent member on the reasoning that an empty channel
-                  // is nobody's conversation. See `canControlWatch`.
-                  party
-                  ? 'Step in to drive the film. What everybody is watching is for whoever is here.'
-                  : 'Step in to start a watch party. What everybody is watching is for whoever is here.'
-                : recordingLive
-                  ? // Said out loud rather than left as a dead button. The two are
-                    // exclusive because the video's sound never reaches The Floor,
-                    // so a recording made alongside one would be missing the thing
-                    // everybody was reacting to.
-                    'Stop the recording first — a watch party is not recorded.'
-                  : theyHoldFloor
-                    ? `${holderName} has the floor, so they decide what plays.`
-                    : iHoldFloor
-                      ? 'You have the floor — only you can change what plays.'
-                      : !mayStartWatch
-                        ? // Whatever is left, which after the branches above is
-                          // little: presence is asked first now, so this is no
-                          // longer the empty channel read from outside it. It
-                          // said *step in* until 2026-09-20 and would have been
-                          // addressing somebody already here.
-                          'Putting something on is not available just now.'
-                        : party
-                          ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
-                          : 'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.'}
+              {trackPlaying
+                ? // First, and ahead of presence, because `canControlWatch`
+                  // refuses on this ground too — so the branch below would
+                  // otherwise answer *step in* to somebody standing in the
+                  // room. The mirror of the sentence the *Listen* card leads
+                  // with, in the same position for the same reason: it greys
+                  // every control here, and the way out is a control on
+                  // another tab. See `trackIsPlaying`.
+                  'Something is playing on Listen. Pause it to watch together.'
+                : !mayControlWatch
+                  ? // Next, because it outranks the rest: somebody who is not in
+                    // the room has no use for being told whose floor it is or that
+                    // a recording is running. **And since 2026-09-20 it is a
+                    // reason that greys every control on the card** — the transport,
+                    // the room's mute and Stop included, which used to stay live
+                    // for an absent member on the reasoning that an empty channel
+                    // is nobody's conversation. See `canControlWatch`.
+                    party
+                    ? 'Step in to drive the film. What everybody is watching is for whoever is here.'
+                    : 'Step in to start a watch party. What everybody is watching is for whoever is here.'
+                  : recordingLive
+                    ? // Said out loud rather than left as a dead button. The two are
+                      // exclusive because the video's sound never reaches The Floor,
+                      // so a recording made alongside one would be missing the thing
+                      // everybody was reacting to.
+                      'Stop the recording first — a watch party is not recorded.'
+                    : theyHoldFloor
+                      ? `${holderName} has the floor, so they decide what plays.`
+                      : iHoldFloor
+                        ? 'You have the floor — only you can change what plays.'
+                        : !mayStartWatch
+                          ? // Whatever is left, which after the branches above is
+                            // little: presence is asked first now, so this is no
+                            // longer the empty channel read from outside it. It
+                            // said *step in* until 2026-09-20 and would have been
+                            // addressing somebody already here.
+                            'Putting something on is not available just now.'
+                          : party
+                            ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
+                            : 'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.'}
             </Text>
           </Card>
           </>

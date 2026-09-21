@@ -425,9 +425,10 @@ describe('a member who has not stepped in', () => {
       // loaded track sits waiting, so reaching into one from outside the room
       // is an interruption and reaching into the other is tidying.
       //
-      // Asked of a channel with no film on, since a film refuses the audio
-      // player to everybody and would answer before the split did. Stopped by
-      // somebody present, the empty channel's own transport being refused now.
+      // Asked of a channel with no film *playing*, since a running film
+      // refuses the audio player to everybody and would answer before the
+      // split did. Stopped by somebody present, the empty channel's own
+      // transport being refused now.
       const quiet = apply(watching(), [
         [{ type: 'STOP_WATCH', userId: A }, T0 + 500],
         [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
@@ -440,37 +441,85 @@ describe('a member who has not stepped in', () => {
     it('gets starting back by stepping in', () => {
       const s = reduce(empty(), { type: 'ENTER', userId: A }, T0 + 3_000);
       expect(canStartWatch(s, A)).toBe(true);
-      // The film is still on, so the track is refused for that reason now.
-      expect(canLoadTrack(s, A)).toBe(false);
-      const quiet = reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 4_000);
-      expect(canLoadTrack(quiet, A)).toBe(true);
+      // The film is loaded and paused, which since 2026-09-20 refuses
+      // nothing on the other card: a track may be lined up beside it.
+      expect(canLoadTrack(s, A)).toBe(true);
+      const playing = reduce(s, { type: 'WATCH_PLAY', userId: A }, T0 + 3_500);
+      expect(canLoadTrack(playing, A)).toBe(false);
     });
   });
 });
 
 describe('a channel attends to one thing', () => {
-  it('clears the loaded track when a party starts', () => {
+  it('leaves a loaded track alone when a party starts', () => {
+    // **Neither replaces the other, since 2026-09-20.** A party starts
+    // paused, so nothing is playing over anything, and throwing the track
+    // away would discard a choice on the strength of a tap that made no
+    // sound. See `watchIsPlaying`.
     const s = apply(joined(), [
       [{ type: 'SET_TRACK', userId: A, track: TRACK }, T0],
       [{ type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL }, T0 + 1_000],
     ]);
-    expect(s.playback.track).toBeNull();
-    expect(s.playback.status).toBe('idle');
+    expect(s.playback.track).not.toBeNull();
     expect(s.watch.party?.videoId).toBe(VIDEO);
   });
 
-  it('refuses a track while a party is on, rather than ending it', () => {
-    // **The replacement runs one way now.** Starting a party still clears a
-    // track; a track no longer ends a party, because it cannot be loaded
-    // while one is on. The audio button is dead during a film, deliberately
-    // and visibly — see `watchPartyIsOn`.
+  it('takes a track while a party sits paused', () => {
     const s = reduce(
       watching(),
       { type: 'SET_TRACK', userId: B, track: TRACK },
       T0 + 1_000
     );
     expect(s.watch.party).not.toBeNull();
+    expect(s.playback.track?.id).toBe(TRACK.id);
+  });
+
+  it('refuses a track while the film is playing, rather than ending it', () => {
+    const playing = reduce(watching(), { type: 'WATCH_PLAY', userId: A }, T0);
+    const s = reduce(
+      playing,
+      { type: 'SET_TRACK', userId: B, track: TRACK },
+      T0 + 1_000
+    );
+    expect(s.watch.status).toBe('playing');
     expect(s.playback.track).toBeNull();
+  });
+
+  it('refuses a party over a track that is playing', () => {
+    // The mirror, and the whole of the exclusivity as it now stands: two
+    // transports, one run between them.
+    const s = apply(joined(), [
+      [{ type: 'SET_TRACK', userId: A, track: TRACK }, T0],
+      [{ type: 'PLAY', userId: A }, T0 + 500],
+    ]);
+    expect(canStartWatch(s, A)).toBe(false);
+    expect(
+      reduce(
+        s,
+        { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+        T0 + 1_000
+      ).watch.party
+    ).toBeNull();
+    // And it comes back the moment the track is paused, rather than needing
+    // the track cleared.
+    const paused = reduce(s, { type: 'PAUSE', userId: A }, T0 + 2_000);
+    expect(canStartWatch(paused, A)).toBe(true);
+  });
+
+  it('refuses the film transport while a track is playing', () => {
+    // Loaded together, then the track started while the film sits paused:
+    // the film's own controls, Stop included, are what goes dead.
+    const s = apply(joined(), [
+      [{ type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL }, T0],
+      [{ type: 'SET_TRACK', userId: A, track: TRACK }, T0 + 500],
+      [{ type: 'PLAY', userId: A }, T0 + 1_000],
+    ]);
+    expect(canControlWatch(s, A)).toBe(false);
+    expect(
+      reduce(s, { type: 'WATCH_PLAY', userId: A }, T0 + 2_000).watch.status
+    ).toBe('paused');
+    const paused = reduce(s, { type: 'PAUSE', userId: A }, T0 + 3_000);
+    expect(canControlWatch(paused, A)).toBe(true);
   });
 
   it('refuses a party while a recording is running', () => {

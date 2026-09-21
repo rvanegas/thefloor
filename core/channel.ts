@@ -971,6 +971,51 @@ export function watchPartyIsOn(state: ChannelState): boolean {
 }
 
 /**
+ * Whether a film is actually running.
+ *
+ * **The exclusivity is between the two transports rather than between the two
+ * things loaded**, since 2026-09-20. A film and a track may both be loaded at
+ * once; what may not happen is both *playing*, which is the only arrangement
+ * in which the channel is attending to two things at the same time. Loading
+ * one while the other sits paused is somebody lining the next thing up, and
+ * that was never the failure exclusivity was written to refuse — it was the
+ * two sounds over each other.
+ *
+ * What it cost as written was a whole card of dead controls for anybody who
+ * had put a film on and paused it: the audio player could not be played,
+ * cleared or loaded, and the screen's explanation for that was a sentence
+ * about the floor that had nothing to do with it.
+ *
+ * So each transport asks after the other's *run* rather than its presence —
+ * `canControlPlayback` and `canLoadTrack` ask this, `canControlWatch` and
+ * `canStartWatch` ask `trackIsPlaying`. Neither run can be entered while the
+ * other is on, so both playing is unreachable rather than merely discouraged,
+ * and either one is escaped by pausing the thing that is playing.
+ *
+ * `watchPartyIsOn` remains the question for the rules that are about the film
+ * being *a mode the channel is in* rather than about sound: no floor may be
+ * claimed and no recording begun while one is loaded, paused or not. A claim
+ * is a demand that the room be quiet and the party's own mute already governs
+ * that; a recording alongside a party would be missing the thing everybody is
+ * reacting to whether or not the film is between scenes.
+ */
+export function watchIsPlaying(state: ChannelState): boolean {
+  return state.watch.status === 'playing';
+}
+
+/**
+ * Whether the shared track is actually running.
+ *
+ * The mirror of `watchIsPlaying`, and what the watch party's controls ask
+ * before letting anybody start or drive a film. Written as its own predicate
+ * rather than inlined so the two halves of one rule are named the same way
+ * and read as a pair.
+ */
+export function trackIsPlaying(state: ChannelState): boolean {
+  return state.playback.status === 'playing';
+}
+
+/**
  * Whether `userId` may load, play, pause, seek, re-level or clear the shared
  * track.
  *
@@ -990,9 +1035,10 @@ export function canControlPlayback(
   state: ChannelState,
   userId: UserId
 ): boolean {
-  // A second thing to attend to, played over the first. See
-  // `watchPartyIsOn`.
-  if (watchPartyIsOn(state)) return false;
+  // A second sound over the first — and only while there is a first. A film
+  // sitting paused is not being listened to, so it refuses nothing here. See
+  // `watchIsPlaying`.
+  if (watchIsPlaying(state)) return false;
   return holdsSharedControl(state, userId);
 }
 
@@ -1064,7 +1110,8 @@ function mayPutSomethingOn(state: ChannelState, userId: UserId): boolean {
  * are written as one call for that reason.
  */
 export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
-  if (watchPartyIsOn(state)) return false;
+  // Pause the film and you may line the next track up. See `watchIsPlaying`.
+  if (watchIsPlaying(state)) return false;
   return mayPutSomethingOn(state, userId);
 }
 
@@ -1072,8 +1119,8 @@ export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
  * Whether `userId` may drive the watch party's transport — the five actions
  * the reducer guards as one: play, pause, seek, the room's mute, and stop.
  *
- * **Presence, since 2026-09-20, and that is the whole of it besides
- * membership.** Watching together is the one feature where driving it and
+ * **Presence, since 2026-09-20, plus no track playing.** Watching together is
+ * the one feature where driving it and
  * being in it are the same act: every control here moves a film that other
  * people are looking at, in real time, on their own screens. Somebody who is
  * not in the room is not watching, so a scrub from them is not participation
@@ -1118,18 +1165,20 @@ export function canControlWatch(
     `isPresent` rather than `inRoom`: a guest is refused by `isParticipant`
     above in any case, and saying presence directly is what the rule means.
   */
-  return (
-    state.status === 'active' &&
-    isParticipant(state, userId) &&
-    isPresent(state, userId)
-  );
+  if (state.status !== 'active') return false;
+  // **The other half of the transports' exclusivity, added 2026-09-20.** A
+  // track that is playing is what the channel is attending to, and a film is
+  // escaped by pausing it rather than by being refused outright — the mirror
+  // of what `canControlPlayback` asks of the film. See `trackIsPlaying`.
+  if (trackIsPlaying(state)) return false;
+  return isParticipant(state, userId) && isPresent(state, userId);
 }
 
 /**
  * Whether `userId` may start a watch party.
  *
  * Being in the room — see `mayPutSomethingOn`, which `canLoadTrack` shares —
- * **and** no recording in progress. The two are mutually exclusive because a
+ * **and** no recording in progress, **and** no track playing. The two are mutually exclusive because a
  * party is watched on YouTube's own player with its own audio, which The Floor
  * never touches — so a recording made alongside one would be a recording of
  * people reacting to something it does not contain, and could not be made to
@@ -1141,6 +1190,9 @@ export function canControlWatch(
  * reason rather than either surprising anyone.
  */
 export function canStartWatch(state: ChannelState, userId: UserId): boolean {
+  // Not over a track that is playing — `canLoadTrack`'s mirror, and the same
+  // sentence in the other direction. See `watchIsPlaying`.
+  if (trackIsPlaying(state)) return false;
   return mayPutSomethingOn(state, userId) && state.recording.status === 'idle';
 }
 
@@ -2192,19 +2244,16 @@ export function reduce(
       switch (action.type) {
         case 'SET_TRACK':
           /*
-            **The replacement runs one way now.** Starting a party still
-            clears any track — a channel attends to one thing — but a track
-            no longer ends a party, because since 2026-09-18 it cannot be
-            loaded while one is on: `canLoadTrack` refuses at the route and
-            `canControlPlayback` refuses here.
+            **Neither replaces the other any more, since 2026-09-20.** A
+            track may be loaded while a film sits paused, and starting a film
+            leaves a loaded track where it is; what neither may do is begin
+            while the other is running. So this branch replaces the track and
+            nothing else — see `watchIsPlaying` for why the exclusivity moved
+            from the two things loaded to the two transports.
 
-            That reverses the argument this branch was written for, which was
-            that mutual replacement stops either button ever being dead. The
-            audio button *is* dead during a film now, deliberately and
-            visibly, and the reason is the one that made the party exclusive
-            at all — see `watchPartyIsOn`. A film is a mode, and a second
-            thing to attend to playing over it was never the useful reading
-            of that tap.
+            The mutual replacement this was originally written for went in
+            2026-09-18, on the argument that a film is a mode; the dead audio
+            card it left behind is what sent the rule here.
           */
           return { ...state, playback: setTrack(playback, action.track) };
         case 'CLEAR_TRACK':
@@ -2235,11 +2284,13 @@ export function reduce(
           // anything this application asks anybody for. See `WatchParty`.
           title: null,
         }),
-        // The other half of the mutual replacement `SET_TRACK` makes. The
-        // server's media plane follows committed state, so this is the whole
-        // of what tears the playback participant down — there is no
-        // `applyWatchToMedia` and nothing here has to know there is a room.
-        playback: clearTrack(state.playback),
+        // **The track is left exactly where it is**, which is the change of
+        // 2026-09-20. A film starts paused, so nothing is playing over
+        // anything; whoever put a track on may still want it after the
+        // credits, and clearing it here threw away a choice on the strength
+        // of a tap that made no sound. The track cannot be *played* until the
+        // film pauses, which is `canControlPlayback`'s business rather than
+        // this branch's.
         // A new film is a new question. Somebody who watched the last one on
         // this phone may want the television for this one, and inheriting the
         // answer would put a film on a screen nobody chose.
