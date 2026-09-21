@@ -644,8 +644,16 @@ function render(next: GuestView): void {
   // words rather than with a dot.
   $('recording').hidden = !next.recording;
 
+  // Two conditions, and the second is the two-guest ceiling. `canAsk` is the
+  // server's reading of `canRequestSpeech`, so the button is absent in exactly
+  // the case the reducer would refuse the action — a tap that did nothing is
+  // the one outcome worth engineering away here.
+  const wouldAsk = next.you.mic === 'listening' || next.you.mic === 'refused';
   const asking = $('ask-button') as HTMLButtonElement;
-  asking.hidden = next.you.mic !== 'listening' && next.you.mic !== 'refused';
+  asking.hidden = !wouldAsk || !next.you.canAsk;
+  // Said only to somebody who would otherwise have a button. A guest holding
+  // the microphone does not need to be told the room is full of them.
+  $('mic-full').hidden = !wouldAsk || next.you.canAsk;
 
   const mute = $('mute-button') as HTMLButtonElement;
   mute.hidden = next.you.mic !== 'open' && next.you.mic !== 'muted';

@@ -1131,6 +1131,20 @@ export interface GuestView {
      * and an ask below can be answered without signing in first.
      */
     accountId: string | null;
+    /**
+     * Whether there is a microphone left to ask for.
+     *
+     * False while two guests already hold one — `MAX_SPEAKING_GUESTS` — which
+     * is where that ceiling is meant to be felt. The alternative was letting
+     * the ask through and having a member refuse it, which puts
+     * administration in a room designed to have a boundary there instead.
+     *
+     * Sent rather than derived, because the page cannot count what it cannot
+     * see: `others` carries whether somebody is *speaking*, which is the
+     * sound rather than the grant, and a guest holding a live microphone in
+     * silence is exactly the case that would be miscounted.
+     */
+    canAsk: boolean;
   };
   /**
    * Everybody else in the room: members by name, and any other guests. Names

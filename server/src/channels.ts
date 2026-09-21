@@ -21,6 +21,7 @@ import { recordedMs } from '../../core/recording';
 import {
   autoRecordStarter,
   canAnswerKnock,
+  canRequestSpeech,
   canClaimFloor,
   canDeleteChannel,
   canLoadTrack,
@@ -5706,6 +5707,9 @@ export class ChannelRegistry {
         mic,
         silenced: holder !== null && holder !== guestId,
         accountId: guest.accountId ?? null,
+        // Asked of core rather than computed here, so the control the page
+        // draws and the action the reducer accepts cannot disagree.
+        canAsk: canRequestSpeech(channel, guestId),
       },
       others: [
         ...channel.present.map((id) => ({

@@ -48,6 +48,37 @@ export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 export const MAX_CHANNEL_PARTICIPANTS = 6;
 
 /**
+ * The most guests a channel may hold at once, counting every seat in the room
+ * whether or not it has an account behind it.
+ *
+ * Separate from `MAX_CHANNEL_PARTICIPANTS` rather than folded into it, because
+ * the two bound different things. Six is what a *conversation* holds — the
+ * claim-delay ladder stops meaning anything beyond it. Forty is what the room
+ * can carry as an audience: guests mostly listen, and a listener costs a
+ * subscription rather than a place in the argument.
+ *
+ * So a full room is forty-six people, and that is the number to check a
+ * capacity question against rather than either constant alone.
+ */
+export const MAX_CHANNEL_GUESTS = 40;
+
+/**
+ * How many guests may hold a microphone at once.
+ *
+ * **Drawn from `MAX_CHANNEL_GUESTS` rather than added to it**: a guest granted
+ * the microphone occupies one of the forty, not a forty-first place. Eight
+ * people can be audible in a channel — six members and two guests — which sits
+ * under the box's recording ceiling of about ten simultaneous participants
+ * with two to spare. See planning/INFRASTRUCTURE.md § *What the box can carry*.
+ *
+ * Two for the reason six is: it is the number past which a panel stops being a
+ * conversation. The ceiling is enforced at the guest's *request* rather than
+ * at the member's grant, so that a full room refuses the ask and no member has
+ * to arbitrate — see `canRequestSpeech`.
+ */
+export const MAX_SPEAKING_GUESTS = 2;
+
+/**
  * How many people a *getting-started channel* holds: its host, and four
  * arrivals.
  *

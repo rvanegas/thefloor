@@ -62,6 +62,31 @@ export function inRoom(state: ChannelState, id: UserId): boolean {
 }
 
 /**
+ * How many guests are in the room.
+ *
+ * What `MAX_CHANNEL_GUESTS` is checked against, and deliberately not a count
+ * of anything else: members are bounded by `MAX_CHANNEL_PARTICIPANTS` and the
+ * two ceilings are asked separately. `roomOccupants` mixes the two and is the
+ * wrong thing to measure either with.
+ */
+export function guestCount(state: ChannelState): number {
+  return Object.keys(state.guests ?? {}).length;
+}
+
+/**
+ * How many guests are holding a microphone.
+ *
+ * The grant rather than the sound: a guest who has been given the microphone
+ * and is saying nothing still occupies one of the two, because what is scarce
+ * is the standing to speak rather than the speaking. Withdrawing the grant is
+ * what frees it, which is why a member may always withdraw even when full.
+ */
+export function speakingGuests(state: ChannelState): number {
+  return Object.values(state.guests ?? {}).filter((guest) => guest.maySpeak)
+    .length;
+}
+
+/**
  * Whether a guest has been granted the microphone.
  *
  * False for anybody who is not a guest, which is the answer that makes this

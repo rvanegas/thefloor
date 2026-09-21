@@ -3,8 +3,10 @@ import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
+  MAX_CHANNEL_GUESTS,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
+  MAX_SPEAKING_GUESTS,
   SELF_UNMUTE_GRACE_MS,
   WAITING_WINDOW_MS,
 } from './constants';
@@ -52,7 +54,14 @@ import {
   startRecording,
   stopRecording,
 } from './recording';
-import { guestMaySpeak, inRoom, isGuest, roomOccupants } from './guests';
+import {
+  guestCount,
+  guestMaySpeak,
+  inRoom,
+  isGuest,
+  roomOccupants,
+  speakingGuests,
+} from './guests';
 import { hasMicrophone } from './micNeeded';
 import type {
   ChannelAction,
@@ -1437,9 +1446,38 @@ export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
  * Presence, and membership — a guest cannot let another guest in. That is what
  * keeps a link from being self-propagating: anybody with the address may
  * knock, and only somebody already in the room may open it.
+ *
+ * **And the room's capacity**, which is here so the control goes away rather
+ * than the refusal arriving after somebody taps it. `GUEST_ENTERED` is what
+ * actually enforces the cap — a knock is not the only way in — so this is the
+ * belt to that action's braces, and the two have to say the same thing.
  */
 export function canAnswerKnock(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isPresent(state, userId);
+  return (
+    state.status === 'active' &&
+    isPresent(state, userId) &&
+    guestCount(state) < MAX_CHANNEL_GUESTS
+  );
+}
+
+/**
+ * Whether a guest may ask for the microphone.
+ *
+ * **Where the two-guest ceiling is enforced, and deliberately not at the
+ * grant.** A cap on the member's answer would mean a member tapping *grant*
+ * and being told no — administration surfacing in a room whose whole design
+ * puts a boundary there instead. Asked here, a full room simply has no ask in
+ * it: the guest sees no control, and no member has to arbitrate.
+ *
+ * The three clauses under the ceiling are the ones that were inline in the
+ * `REQUEST_SPEECH` case before this guard existed — there is nobody to refuse
+ * if they are not a guest, somebody already holding the microphone has nothing
+ * to ask for, and asking twice is not a second question.
+ */
+export function canRequestSpeech(state: ChannelState, guestId: GuestId): boolean {
+  const guest = state.guests?.[guestId];
+  if (!guest || guest.maySpeak || guest.request === 'asking') return false;
+  return speakingGuests(state) < MAX_SPEAKING_GUESTS;
 }
 
 /**
@@ -1685,6 +1723,23 @@ export function reduce(
     // into a room everybody has left would otherwise be alone in a channel
     // they cannot be admitted to.
     if (state.present.length === 0) return state;
+    // **The room can be full, and this is where that is said.**
+    //
+    // Here rather than at `ANSWER_KNOCK`, because admission is two steps and
+    // this is the only one every arrival passes through: answering the door
+    // merely removes the knock, and a guest whose page reconnects re-enters
+    // through this action with no knock at all. A cap at the door would let a
+    // full room refill on the next blip.
+    //
+    // Somebody already in `guests` is reconnecting rather than arriving, and
+    // must not be refused a room they are standing in — which is what the
+    // first half of this says.
+    if (
+      !(action.guest.id in state.guests) &&
+      guestCount(state) >= MAX_CHANNEL_GUESTS
+    ) {
+      return state;
+    }
     // **The asks survive a reconnection, and have to.** This action is built
     // from the seat's database row, which has no column for them — so a
     // straight replacement would erase a member's ask every time a page
@@ -1694,8 +1749,22 @@ export function reduce(
     //
     // `invites` and `asks` both, for one reason: the seat's row holds neither.
     const held = state.guests[action.guest.id];
+    // **A microphone does not survive a room that filled up meanwhile.**
+    //
+    // `maySpeak` arrives on this action from the seat's database row, which
+    // remembers the grant across a disconnection — so a guest who drops while
+    // holding the microphone, and whose two slots are taken by the time they
+    // come back, would otherwise restore a third one. They come back able to
+    // listen, and may ask again.
+    //
+    // A guest already holding it is already counted, which is what the first
+    // clause says: their own grant must not be read as the thing blocking it.
+    const maySpeak =
+      action.guest.maySpeak &&
+      (held?.maySpeak === true || speakingGuests(state) < MAX_SPEAKING_GUESTS);
     const carried: Guest = {
       ...action.guest,
+      maySpeak,
       ...(held?.asks ? { asks: held.asks } : {}),
       ...(held?.invites ? { invites: held.invites } : {}),
     };
@@ -1937,6 +2006,20 @@ export function reduce(
       // out of the blue is allowed — but repeating one changes nothing, and a
       // no-op has to return the same object for `commit` to leave the media
       // plane alone.
+      // **A grant is refused when the two slots are taken; a withdrawal never
+      // is.** The ceiling is meant to be met at the ask rather than here, so
+      // this is the second lock rather than the one a member should ever feel
+      // — a grant out of the blue is still allowed, and it is the only way
+      // this path is reached with the room full. Withdrawing and ejecting stay
+      // available at the ceiling, which is why neither can be guarded by a
+      // capacity term in `canManageGuest`: that one is shared by all three.
+      if (
+        action.maySpeak &&
+        !guest.maySpeak &&
+        speakingGuests(state) >= MAX_SPEAKING_GUESTS
+      ) {
+        return state;
+      }
       const request = action.maySpeak
         ? 'none'
         : guest.request === 'asking'
@@ -1960,9 +2043,11 @@ export function reduce(
       // in GUEST_ACTIONS and a member is refused it by the same check that
       // refuses guests everything else — but the reducer says so itself rather
       // than relying on that.
-      if (!asking || asking.maySpeak || asking.request === 'asking') {
-        return state;
-      }
+      //
+      // The three clauses that were here are in `canRequestSpeech` now, with
+      // the two-guest ceiling beside them: one guard, so the control the app
+      // draws and the action the reducer accepts cannot disagree.
+      if (!asking || !canRequestSpeech(state, action.userId)) return state;
       return {
         ...state,
         guests: {

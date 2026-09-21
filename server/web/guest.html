@@ -208,6 +208,16 @@
         <button id="mic-retry-button" type="button">Try the microphone again</button>
       </p>
       <button id="ask-button" hidden>Ask to speak</button>
+      <!--
+        Why there is no button, when there is none. Two guests may hold a
+        microphone at once, and the ceiling is met here rather than by a
+        member refusing the ask — so somebody who cannot ask is owed the
+        reason, or the control has simply gone missing.
+      -->
+      <p id="mic-full" class="muted" hidden>
+        Two guests already have the microphone. You can ask when one of them
+        is done.
+      </p>
       <button id="mute-button" hidden>Mute</button>
 
       <!--
