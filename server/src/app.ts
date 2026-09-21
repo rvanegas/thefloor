@@ -21,7 +21,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
-import { describeChannel } from '../../core/naming';
+import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
@@ -43,7 +43,10 @@ import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
-import { RECORDING_CONTENT_TYPE } from './export';
+import { PUBLISHED_CONTENT_TYPE, RECORDING_CONTENT_TYPE } from './export';
+import { renderFeed, type FeedEpisode } from './feed';
+import { Publication, publishedKeyFor } from './publication';
+import { publicChannelPage } from './public-page';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
@@ -683,6 +686,22 @@ export function buildApp(options: BuildOptions = {}): App {
       accounts.byId(userId)?.notifications === 'granted' &&
       devices.tokensFor([userId]).length > 0
   );
+
+  // Publishing, which is the one thing this server does that the world can
+  // see. Constructed here beside the registry rather than inside it, on the
+  // composition root's usual terms: it needs the registry's mix and the
+  // registry's snapshots and owns neither, and a channel that never goes
+  // public never touches it.
+  const publication = new Publication(db, now, {
+    store: options.store ?? null,
+    usage: channels.usage,
+    announce: (channelId) => channels.announce(channelId),
+    // The floor-gated Opus mix, and the only audio publication is ever handed
+    // — see `transcodeToPublished` on why nothing here may read a stem.
+    recordingAudio: (recordingId) => channels.recordingAudio(recordingId),
+    onError: (error, context) =>
+      fastify.log.error({ err: error, context }, 'publication failed'),
+  });
 
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
@@ -3902,6 +3921,477 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   const BUILD_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+
+  // --- Publication ----------------------------------------------------------
+
+  /**
+   * Everything a public channel's page and feed are made of, or null.
+   *
+   * One function behind both so that the page and the feed cannot come to
+   * disagree about what is published — which is the same argument
+   * `recordingsFor` settles for the private side, and matters more here
+   * because the two consumers are read by different audiences and a
+   * divergence would be invisible until somebody compared them.
+   *
+   * **`public_at` is checked on every request rather than cached.** A channel
+   * going private has to stop answering now, not at the end of a TTL.
+   */
+  function publicChannel(channelId: string): {
+    channel: {
+      id: string;
+      name: string;
+      description: string | null;
+      language: string | null;
+      explicit: boolean | null;
+    };
+    episodes: Array<{
+      id: string;
+      title: string;
+      startedAt: number;
+      durationMs: number;
+      byteLength: number;
+      ready: boolean;
+      hasTranscript: boolean;
+    }>;
+  } | null {
+    const row = db
+      .prepare(
+        `SELECT id, name, description, language, explicit FROM channels
+          WHERE id = ? AND public_at IS NOT NULL AND deleted_at IS NULL`
+      )
+      .get(channelId) as
+      | {
+          id: string;
+          name: string | null;
+          description: string | null;
+          language: string | null;
+          explicit: number | null;
+        }
+      | undefined;
+    if (!row) return null;
+
+    // `deleted_at IS NULL` here as well as on the channel, and it is an
+    // ordering constraint rather than belt and braces: the sweep removes a
+    // marked recording's objects a week later, and a feed item whose
+    // enclosure 404s is a broken episode in every subscriber's client. So a
+    // recording leaves the feed the moment it is marked — a week before its
+    // bytes go — which is the order that never shows anybody a dead link.
+    const rows = db
+      .prepare(
+        `SELECT id, name, participant_names, started_at, duration_ms,
+                aac_state, published_bytes
+           FROM recordings
+          WHERE channel_id = ? AND published_at IS NOT NULL
+            AND deleted_at IS NULL
+          ORDER BY started_at DESC`
+      )
+      .all(channelId) as unknown as Array<{
+      id: string;
+      name: string | null;
+      participant_names: string | null;
+      started_at: number;
+      duration_ms: number;
+      aac_state: string | null;
+      published_bytes: number | null;
+    }>;
+
+    return {
+      channel: {
+        id: row.id,
+        // A channel nobody named still has a page, and it is called this.
+        // `describeChannel` is not available and would be wrong if it were:
+        // it names the *viewer's* others, and there is no viewer here.
+        name: row.name ?? 'A conversation',
+        description: row.description,
+        language: row.language,
+        explicit: row.explicit === null ? null : row.explicit === 1,
+      },
+      episodes: rows.map((recording) => ({
+        id: recording.id,
+        title: publicTitle(recording),
+        startedAt: recording.started_at,
+        durationMs: recording.duration_ms,
+        byteLength: recording.published_bytes ?? 0,
+        ready:
+          recording.aac_state === 'ready' &&
+          (recording.published_bytes ?? 0) > 0,
+        hasTranscript: transcripts.linesFor(recording.id).length > 0,
+      })),
+    };
+  }
+
+  /**
+   * What one episode is called on a page where no member may be named.
+   *
+   * **This is a privacy guard and not a formatting choice.** A recording in
+   * an unnamed channel is filed under `nameRecording(displayNames)` — "Alice
+   * Appleby and Bob Barker" — which is the right label in the app, where
+   * everybody reading it was in the room, and is a byline the moment the same
+   * string reaches a public page. The task entry is explicit that members
+   * remain private though they may be described in the description, so the
+   * only words about who these people are must be words they wrote.
+   *
+   * The default is recognised by recomputing it rather than recorded by a
+   * flag, which is what makes it exact: the row carries the display names it
+   * was filed with, so the same function that produced the name reproduces
+   * it, and a match means nobody has since chosen a title. Somebody who
+   * renames a recording to precisely the auto-generated string loses it here,
+   * which is the failure worth having — it is silent and safe, where the
+   * other direction is silent and publishes a name.
+   *
+   * The fallback is the date. `toRecordingView` falls back to
+   * `describeChannel(others)` instead, which is computed from the *viewer's*
+   * others — and there is no viewer here.
+   */
+  function publicTitle(recording: {
+    name: string | null;
+    participant_names: string | null;
+    started_at: number;
+  }): string {
+    if (!recording.name) return publicDate(recording.started_at);
+    const names: Record<string, string> = recording.participant_names
+      ? JSON.parse(recording.participant_names)
+      : {};
+    const derived = nameRecording(Object.values(names));
+    if (recording.name === derived) return publicDate(recording.started_at);
+    return recording.name;
+  }
+
+  /** The date a conversation happened, which is true for every reader. */
+  function publicDate(ms: number): string {
+    return new Date(ms).toLocaleDateString('en-GB', {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  /** The public page: what the task asks for, in one route. */
+  fastify.get('/c/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const found = publicChannel(id);
+    if (!found) return reply.code(404).send({ error: 'No such page.' });
+
+    const base = origin(request);
+    return reply.header('content-type', 'text/html; charset=utf-8').send(
+      publicChannelPage({
+        id: found.channel.id,
+        name: found.channel.name,
+        description: found.channel.description,
+        episodes: found.episodes.map((episode) => ({
+          id: episode.id,
+          title: episode.title,
+          startedAt: episode.startedAt,
+          durationMs: episode.durationMs,
+          audioUrl: `${base}/c/${id}/e/${episode.id}.m4a`,
+          ready: episode.ready,
+        })),
+        feedUrl: `${base}/c/${id}/feed.xml`,
+        contactEmail: options.contactEmail,
+        origin: base,
+      })
+    );
+  });
+
+  /**
+   * The feed a podcast client subscribes to.
+   *
+   * Only episodes whose transcode has landed are offered, which is the same
+   * rule the page applies: a feed item whose enclosure is not there yet is a
+   * broken episode, and a subscriber's client caches the failure.
+   */
+  fastify.get('/c/:id/feed.xml', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const found = publicChannel(id);
+    if (!found) return reply.code(404).send({ error: 'No such feed.' });
+
+    const base = origin(request);
+    const episodes: FeedEpisode[] = found.episodes
+      .filter((episode) => episode.ready)
+      .map((episode) => ({
+        id: episode.id,
+        title: episode.title,
+        startedAt: episode.startedAt,
+        durationMs: episode.durationMs,
+        enclosureUrl: `${base}/c/${id}/e/${episode.id}.m4a`,
+        contentType: PUBLISHED_CONTENT_TYPE,
+        byteLength: episode.byteLength,
+        ...(episode.hasTranscript
+          ? { transcriptUrl: `${base}/c/${id}/e/${episode.id}.vtt` }
+          : {}),
+      }));
+
+    return reply
+      .header('content-type', 'application/rss+xml; charset=utf-8')
+      .send(
+        renderFeed(
+          {
+            id: found.channel.id,
+            title: found.channel.name,
+            description:
+              found.channel.description ??
+              'Recorded conversations, published in full.',
+            language: found.channel.language,
+            explicit: found.channel.explicit,
+          },
+          episodes,
+          {
+            selfUrl: `${base}/c/${id}/feed.xml`,
+            pageUrl: `${base}/c/${id}`,
+          }
+        )
+      );
+  });
+
+  /**
+   * One published episode's audio.
+   *
+   * **The only unauthenticated route in this server that serves a
+   * conversation**, and every guard it has is on this path: the channel must
+   * be public, the recording must be published and not deleted, and its
+   * transcode must have landed. All four are read per request rather than
+   * cached, so withdrawing consent stops the next byte.
+   *
+   * **Ranged, because a podcast client is not a browser.** Apple's crawler
+   * and most players issue byte-range requests and expect a `206` with a
+   * `Content-Range`; several will not let a listener seek without one, and
+   * some will not download at all. `Accept-Ranges` is advertised on the full
+   * response too, which is how a client learns it may ask.
+   *
+   * The bytes come off this box rather than out of S3 directly, which is the
+   * trade PODCAST.md argued: the accounting stays honest, the enclosure URL
+   * stays ours, and the privacy story stays one sentence. Moving it later is
+   * a change of URL rather than a change of design.
+   */
+  fastify.get('/c/:id/e/:file', async (request, reply) => {
+    const params = request.params as { id: string; file: string };
+    const match = /^(.+)\.(m4a|vtt)$/.exec(params.file);
+    if (!match) return reply.code(404).send({ error: 'No such episode.' });
+    const [, recordingId, extension] = match;
+
+    const found = publicChannel(params.id);
+    const episode = found?.episodes.find(
+      (candidate) => candidate.id === recordingId
+    );
+    if (!episode?.ready) {
+      return reply.code(404).send({ error: 'No such episode.' });
+    }
+
+    if (extension === 'vtt') {
+      return sendTranscript(reply, recordingId, episode.hasTranscript);
+    }
+    if (!options.store) {
+      return reply
+        .code(503)
+        .send({ error: 'Recording storage is not configured.' });
+    }
+
+    const key = publishedKeyFor(params.id, recordingId);
+    const range = parseRange(request.headers.range, episode.byteLength);
+    try {
+      if (!range) {
+        const data = await options.store.get(key);
+        channels.usage.recordBytes({
+          kind: 'episode-fetch',
+          bytes: data.length,
+          recordingId,
+        });
+        return reply
+          .header('content-type', PUBLISHED_CONTENT_TYPE)
+          .header('accept-ranges', 'bytes')
+          .header('content-length', String(data.length))
+          .send(data);
+      }
+      const { data, totalBytes } = await options.store.getRange(
+        key,
+        range.start,
+        range.end
+      );
+      channels.usage.recordBytes({
+        kind: 'episode-fetch',
+        bytes: data.length,
+        recordingId,
+      });
+      return reply
+        .code(206)
+        .header('content-type', PUBLISHED_CONTENT_TYPE)
+        .header('accept-ranges', 'bytes')
+        .header(
+          'content-range',
+          `bytes ${range.start}-${range.end}/${totalBytes}`
+        )
+        .header('content-length', String(data.length))
+        .send(data);
+    } catch (error) {
+      request.log.error(
+        { err: error, recording: recordingId },
+        'episode fetch failed'
+      );
+      return reply.code(404).send({ error: 'No such episode.' });
+    }
+  });
+
+  /**
+   * A published episode's transcript, as the VTT the app already exports.
+   *
+   * **Per stem, and so it knows who spoke** — which is the one element of a
+   * published episode that is better here than the same audio published
+   * anywhere else. `<podcast:transcript>` in the feed points at this, and
+   * Apple and Overcast both read it.
+   */
+  function sendTranscript(
+    reply: FastifyReply,
+    recordingId: string,
+    hasTranscript: boolean
+  ) {
+    if (!hasTranscript) {
+      return reply.code(404).send({ error: 'No such transcript.' });
+    }
+    const row = db
+      .prepare('SELECT participant_names FROM recordings WHERE id = ?')
+      .get(recordingId) as { participant_names: string | null } | undefined;
+    const names: Record<string, string> = row?.participant_names
+      ? JSON.parse(row.participant_names)
+      : {};
+    const file = formatTranscript(
+      transcripts.linesFor(recordingId),
+      names,
+      'vtt',
+      transcripts.voicesFor(recordingId)
+    );
+    return reply
+      .header('content-type', `${file.contentType}; charset=utf-8`)
+      .send(file.body);
+  }
+
+  /**
+   * Reads a `Range` header, or null for a request that wants the whole file.
+   *
+   * Deliberately narrow: one range, `bytes=` only, and anything else is
+   * treated as no range at all rather than as an error. A `416` is correct
+   * for a multi-range or unsatisfiable request and is also a response some
+   * clients handle by giving up entirely, where sending the whole file is
+   * always right and merely less efficient. An open-ended `bytes=N-` — which
+   * is what most players send to resume — is clamped to the end.
+   */
+  function parseRange(
+    header: string | string[] | undefined,
+    totalBytes: number
+  ): { start: number; end: number } | null {
+    const raw = Array.isArray(header) ? header[0] : header;
+    const match = /^bytes=(\d*)-(\d*)$/.exec(raw?.trim() ?? '');
+    if (!match || totalBytes <= 0) return null;
+    const [, rawStart, rawEnd] = match;
+    if (rawStart === '' && rawEnd === '') return null;
+
+    // A suffix range — `bytes=-500`, the last 500 bytes — which ffprobe and
+    // several players send to read the moov atom of a file they have not
+    // downloaded.
+    if (rawStart === '') {
+      const length = Math.min(Number(rawEnd), totalBytes);
+      if (length <= 0) return null;
+      return { start: totalBytes - length, end: totalBytes - 1 };
+    }
+    const start = Number(rawStart);
+    if (start >= totalBytes) return null;
+    const end =
+      rawEnd === '' ? totalBytes - 1 : Math.min(Number(rawEnd), totalBytes - 1);
+    return end < start ? null : { start, end };
+  }
+
+  // --- Publication, from the inside -----------------------------------------
+
+  /** Whether this channel has a page at all. Any member may decide. */
+  fastify.post('/channels/:id/public', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { public?: unknown } | undefined;
+    if (typeof body?.public !== 'boolean') {
+      return reply.code(400).send({ error: 'public must be true or false.' });
+    }
+    const result = publication.setPublic(id, account.id, body.public);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return {
+      publicAt: result.publicAt,
+      url: result.publicAt ? `${origin(request)}/c/${id}` : null,
+      feedUrl: result.publicAt ? `${origin(request)}/c/${id}/feed.xml` : null,
+    };
+  });
+
+  /** The two things a feed requires and nothing can derive. */
+  fastify.post('/channels/:id/declarations', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as
+      | { language?: unknown; explicit?: unknown }
+      | undefined;
+    if (
+      body?.language !== undefined &&
+      body.language !== null &&
+      typeof body.language !== 'string'
+    ) {
+      return reply.code(400).send({ error: 'language must be a string.' });
+    }
+    if (
+      body?.explicit !== undefined &&
+      body.explicit !== null &&
+      typeof body.explicit !== 'boolean'
+    ) {
+      return reply.code(400).send({ error: 'explicit must be true or false.' });
+    }
+    const result = publication.setDeclarations(id, account.id, {
+      language: body?.language as string | null | undefined,
+      explicit: body?.explicit as boolean | null | undefined,
+    });
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
+   * Agrees that one recording may be published, and publishes it if that was
+   * the last agreement outstanding.
+   *
+   * **Not `mayManageRecording`.** That is the bar for changing a shared
+   * artefact for the people who can already reach it; this shows it to
+   * everybody, and publication.ts argues at length why one member's
+   * judgement is not standing for that.
+   */
+  fastify.post('/recordings/:id/consent', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = publication.consent(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return result.state;
+  });
+
+  /**
+   * Withdraws this person's agreement, taking the recording down if it was up.
+   *
+   * Any one participant, with no appeal to the others — the mirror of
+   * unanimity. What it cannot do is reach a file somebody already has, and
+   * the app says so in those words before anybody publishes anything.
+   */
+  fastify.delete('/recordings/:id/consent', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = publication.withdraw(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return result.state;
+  });
+
   fastify.get('/healthz', async () => {
     // The declaration and the measurement, side by side, which is the whole
     // point of putting it here. `minBuild` is what this server promises to
@@ -3991,7 +4481,46 @@ export function buildApp(options: BuildOptions = {}): App {
       // answer — a failed mix, or a run that predates mixing — and those play
       // and export by encoding on demand, exactly as everything used to.
       mixing: row.mix_state === 'pending',
+      ...publicationViewOf(row, userId),
       ...transcriptViewOf(row, userId),
+    };
+  }
+
+  /**
+   * Where publishing this recording stands, for the card that offers it.
+   *
+   * **Offered only on a channel that has declared itself public.** Publishing
+   * is two decisions — the page exists, and this conversation is on it — and
+   * a consent control on a channel with no page would be asking people to
+   * agree to something that cannot happen. It appears when somebody turns the
+   * channel public, which is also when it starts to mean anything.
+   */
+  function publicationViewOf(
+    row: RecordingRow,
+    viewerId: string
+  ): Pick<RecordingView, 'publication'> {
+    const channel = db
+      .prepare('SELECT public_at FROM channels WHERE id = ?')
+      .get(row.channel_id) as { public_at: number | null } | undefined;
+    if (!channel?.public_at) return {};
+
+    const state = publication.stateOf(row);
+    const named = (ids: string[]): PublicAccount[] =>
+      ids
+        .map((id) => accounts.public(id))
+        .filter((account): account is PublicAccount => !!account);
+    return {
+      publication: {
+        required: named(state.required),
+        consented: named(state.consented),
+        mine: state.consented.includes(viewerId),
+        publishedAt: state.publishedAt,
+        guestsPresent: state.guestsPresent,
+        // 'failed' is not "preparing" and is not surfaced as its own state:
+        // the recording is published and has no audio yet, which is what a
+        // reader needs to know either way, and a retry is the next consent.
+        preparing: !!state.publishedAt && state.audioState !== 'ready',
+      },
     };
   }
 

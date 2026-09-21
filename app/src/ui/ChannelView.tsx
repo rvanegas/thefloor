@@ -1482,6 +1482,10 @@ export function ChannelView({
       <ChannelSettingsView
         channel={channel}
         derivedTitle={derivedTitle}
+        // Passed in rather than read there, on `derivedTitle`'s terms: it
+        // lives on the snapshot rather than on `ChannelState`, and this
+        // screen has already resolved the snapshot.
+        publicAt={view.publicAt ?? null}
         onBack={() => setSettingsOpen(false)}
         onLeft={() => {
           app.leaveChannelView(channelId);

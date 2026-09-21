@@ -1267,6 +1267,13 @@ export function RecordingRow({
           />
           <DeleteButton recording={recording} disabled={!manageable} />
           {/*
+            Only on a channel that has declared itself public — the server
+            sends this field only then, so an ordinary channel's rows are
+            untouched. Below Delete because it is the rarer act and the one
+            that wants a deliberate reach.
+          */}
+          <PublishControl recording={recording} />
+          {/*
             Said once, beside the two controls it applies to. Renaming and
             deleting are unaffected — they are about the row rather than the
             audio — so a recording that has only just stopped is not a card you
@@ -1426,6 +1433,104 @@ function DeleteButton({
         )
       }
     />
+  );
+}
+
+/**
+ * The viewer's own agreement that this recording may be published, and the
+ * state of everybody else's.
+ *
+ * **Not a publish button, and the difference is the whole design.** Nobody
+ * here can publish a recording; a recording publishes itself once every
+ * participant has agreed, which is why the control is a checkbox about you
+ * and the line beneath it is about everybody. The alternative — a Publish
+ * button that refuses until the others catch up — would offer an act that is
+ * not yours to perform and then decline to perform it.
+ *
+ * **The warning is on the way in, not the way out.** Withdrawing takes the
+ * episode off the page and out of the feed and reaches no copy anybody has
+ * already downloaded, and that asymmetry is the one fact somebody needs
+ * *before* they agree rather than after. So it is in the confirmation, in
+ * those words, and agreeing is the tap that carries it.
+ *
+ * Absent entirely on a channel that has not declared itself public: the
+ * server sends the field only then, and a consent control on a channel with
+ * no page would be asking somebody to agree to something that cannot happen.
+ */
+function PublishControl({ recording }: { recording: RecordingView }) {
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+  const publication = recording.publication;
+  if (!publication) return null;
+
+  // A guest has no account and so no surface on which to have agreed to
+  // anything. There is nobody to ask, so the recording is not publishable at
+  // all — said here rather than left as a refusal after the tap, because it
+  // is a fact about the conversation that no amount of agreeing will change.
+  if (publication.guestsPresent) {
+    return (
+      <Text style={type.muted}>
+        Somebody was here as a guest, so this one cannot be published — a guest
+        has no account to agree with.
+      </Text>
+    );
+  }
+
+  const outstanding = publication.required.filter(
+    (person) => !publication.consented.some((agreed) => agreed.id === person.id)
+  );
+
+  const set = async (agreed: boolean) => {
+    setBusy(true);
+    try {
+      await app.setPublishConsent(recording.id, agreed);
+      // Nothing locally: the server announces the channel either way, so
+      // every member's card moves together rather than only this one.
+    } catch (e) {
+      Alert.alert(
+        'Could not change that',
+        e instanceof Error ? e.message : String(e)
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Checkbox
+        label={busy ? 'Saving…' : 'I agree this can be published'}
+        checked={publication.mine}
+        onChange={(next) => {
+          if (busy) return;
+          if (!next) return void set(false);
+          Alert.alert(
+            'Publish this conversation?',
+            'It goes on this channel’s public page, where anyone with the ' +
+              'address can listen — and into its feed, where podcast apps can ' +
+              'subscribe. It goes up once everybody in it has agreed.\n\n' +
+              'You can take your agreement back at any time, and that removes ' +
+              'it from the page and the feed. It cannot reach a copy somebody ' +
+              'has already downloaded.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'I agree', onPress: () => void set(true) },
+            ]
+          );
+        }}
+      />
+      <Text style={type.muted}>
+        {publication.publishedAt
+          ? publication.preparing
+            ? 'Published — the audio is still being prepared.'
+            : 'Published. Anybody with the address can listen.'
+          : outstanding.length === 0
+            ? 'Everybody has agreed — this is going up now.'
+            : `Waiting on ${outstanding
+                .map((person) => person.displayName)
+                .join(', ')}. It goes up when everybody has agreed.`}
+      </Text>
+    </>
   );
 }
 

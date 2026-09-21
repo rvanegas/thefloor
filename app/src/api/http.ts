@@ -568,6 +568,40 @@ export const api = {
       token,
     }),
 
+  /**
+   * Turns this channel's public page on or off. Any member may — it decides
+   * whether a page exists, not what is on it, and nothing reaches the page
+   * without every participant of that recording agreeing separately.
+   */
+  setChannelPublic: (token: string, channelId: string, isPublic: boolean) =>
+    request<{ publicAt: number | null; url: string | null; feedUrl: string | null }>(
+      `/channels/${channelId}/public`,
+      { method: 'POST', token, body: { public: isPublic } }
+    ),
+
+  /**
+   * Agrees that one recording may be published. It goes public when the last
+   * participant does this and not before.
+   */
+  consentToPublish: (token: string, recordingId: string) =>
+    request<void>(`/recordings/${recordingId}/consent`, {
+      method: 'POST',
+      token,
+    }),
+
+  /**
+   * Withdraws this person's agreement, taking the recording down if it was up.
+   *
+   * Any one participant, with no appeal to the others. What it cannot do is
+   * reach a copy somebody has already downloaded, which is why the control
+   * that calls it says so before anybody publishes anything.
+   */
+  withdrawFromPublishing: (token: string, recordingId: string) =>
+    request<void>(`/recordings/${recordingId}/consent`, {
+      method: 'DELETE',
+      token,
+    }),
+
   mediaToken: (token: string, channelId: string) =>
     request<{ token: string; url?: string }>(
       `/channels/${channelId}/media-token`,

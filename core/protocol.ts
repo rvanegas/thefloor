@@ -628,6 +628,34 @@ export interface RecordingView {
    */
   mixing?: boolean;
   /**
+   * Where publishing this recording stands, or absent on a server that
+   * predates publication — which reads as "not offered", the same answer such
+   * a server would have given.
+   *
+   * **`consented` and `required` are both here because the rule is
+   * unanimity.** A control that said only "you have agreed" would leave
+   * everybody waiting on each other with nothing on screen to say so; the
+   * card names who is outstanding, which is the whole of what makes the rule
+   * workable rather than mysterious.
+   */
+  publication?: {
+    /** Everybody whose agreement is needed, the viewer included. */
+    required: PublicAccount[];
+    /** Who has agreed so far. */
+    consented: PublicAccount[];
+    /** Whether the viewer is one of those who has. */
+    mine: boolean;
+    /** When it went public, or null. */
+    publishedAt: number | null;
+    /**
+     * Whether a guest spoke in it, which makes it unpublishable however many
+     * members agree — a guest has no account on which to have agreed.
+     */
+    guestsPresent: boolean;
+    /** Whether the published audio is still being prepared. */
+    preparing: boolean;
+  };
+  /**
    * Where its transcript stands, or absent when this server cannot transcribe
    * at all.
    *
@@ -930,6 +958,20 @@ export interface ChannelView {
    * Always sent; absent from the map means now.
    */
   pingableAt: Partial<Record<UserId, number>>;
+  /**
+   * When this channel declared itself public, or null — which is every
+   * channel that has not.
+   *
+   * Here rather than on `ChannelState` for the reason `pingableAt` is: no
+   * reducer knows about it, `core/` has never heard of it, and it is a fact
+   * the server holds about the channel rather than a rule of the
+   * conversation. It rides on this snapshot because settings is where the
+   * question is asked from.
+   *
+   * Optional, so a server that predates publication sends nothing and reads
+   * as not public — which is the same answer such a server would give.
+   */
+  publicAt?: number | null;
   /**
    * Which *getting-started cohort* this channel is, and null for every
    * ordinary one — which is nearly all of them.

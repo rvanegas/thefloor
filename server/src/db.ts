@@ -371,6 +371,24 @@ export interface RecordingRow {
   failure: string | null;
   /** When its channel was deleted. Null until then; the sweep reads it. */
   deleted_at: number | null;
+  /**
+   * When this recording became readable by the world, or null.
+   *
+   * Non-null is the feed's filter and the page's. Setting it requires every
+   * participant's consent and refuses outright if a guest spoke; clearing it
+   * takes the item down and recalls nothing. publication.ts holds all of it.
+   */
+  published_at: number | null;
+  /**
+   * Where the AAC transcode stands — `'pending'`, `'ready'` or `'failed'` —
+   * or null for a recording nobody has published.
+   *
+   * Separate from `mix_state` because they describe two files: the Opus mix
+   * the app plays, and the M4A a podcast client can. See the schema.
+   */
+  aac_state: string | null;
+  /** How long the published M4A is, in bytes. Null until it exists. */
+  published_bytes: number | null;
 }
 
 /**
@@ -881,7 +899,24 @@ CREATE TABLE IF NOT EXISTS channels (
   -- mark by a week so that a mistake is recoverable and the foreign key stays
   -- pointing at something; the sweep is what actually removes them. Distinct
   -- from ended_at, which pre-dates deletion existing.
-  deleted_at INTEGER
+  deleted_at INTEGER,
+  -- When this channel declared itself public, or null for the overwhelming
+  -- majority that never do. A timestamp rather than a flag for the reason
+  -- deleted_at is one: the interesting question later is never "is it" but
+  -- "since when", and a boolean cannot be asked it.
+  --
+  -- Public means only that the channel HAS a page. What is ON that page is
+  -- every recording with a published_at, which is a separate decision taken
+  -- per recording by every participant — see recording_consents. A public
+  -- channel with nothing published is a page saying so, and that is the
+  -- correct intermediate state rather than a bug.
+  public_at INTEGER,
+  -- The two declarations a feed requires and nothing can derive. Both are
+  -- somebody's statement about their own channel: the language its
+  -- conversations are in, as RFC 5646, and whether they are explicit.
+  -- Null means undeclared, and the feed falls back — see feed.ts.
+  language TEXT,
+  explicit INTEGER
 );
 
 -- Where to reach a person when their app is not running: one row per install
@@ -1045,10 +1080,69 @@ CREATE TABLE IF NOT EXISTS recordings (
   -- Set with the channel's, never on its own: a recording belongs to its
   -- channel and is deleted with it. The sweep reads this, and the objects in
   -- the bucket go at the same time.
-  deleted_at INTEGER
+  deleted_at INTEGER,
+  -- When this recording became readable by the world, or null. This is the
+  -- feed's filter and the audit trail of when, and it is the only column in
+  -- this schema whose transition to non-null cannot be undone in the sense
+  -- that matters: clearing it stops new listeners and recalls nothing from
+  -- the ones who already have the file. See publication.ts, which says so in
+  -- the words the interface has to use.
+  published_at INTEGER,
+  -- 'pending', 'ready' or 'failed' for the AAC transcode, or null for a
+  -- recording nobody has published.
+  --
+  -- **A second column rather than a fourth value in mix_state.** They
+  -- describe two files with two lifecycles, and "the Opus mix is ready and
+  -- the AAC one is not" is a state every published recording passes through
+  -- — which one column could not represent without encoding a pair as a
+  -- vocabulary.
+  aac_state TEXT,
+  -- How many bytes the published M4A is, set when it is stored.
+  --
+  -- Stored rather than measured on demand because a feed's <enclosure> must
+  -- carry a length and a HEAD per episode per poll is a request this box
+  -- would serve for every subscriber for ever. Null until the transcode
+  -- lands, which is what the feed reads to know it has nothing to offer yet.
+  published_bytes INTEGER
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
+
+-- Who has agreed that one recording may be published, one row per person.
+--
+-- **The whole of the consent model, and the reason publishing is not just a
+-- fourth thing mayManageRecording gates.** Deleting, renaming and
+-- transcribing are changes to a shared artefact, and any member may make
+-- them because any member could already reach it. Publishing is different in
+-- kind: it shows what everybody said to anybody at all, and one member's
+-- judgement is not standing to make that choice on behalf of the rest.
+-- So a recording becomes published when EVERY account that participated in
+-- it has a row here, and not before.
+--
+-- Consent is per recording rather than per channel. A channel is a standing
+-- place and its members' willingness to be broadcast is not a property they
+-- have once; it is a view about one conversation, and somebody who agreed to
+-- publish last Tuesday's has said nothing about this one.
+--
+-- **Withdrawal is a delete, and it unpublishes.** That is honest about what
+-- it can and cannot do — it takes the item out of the feed and off the page,
+-- and it does not reach a file somebody has already downloaded. The row is
+-- removed rather than marked because there is no question a historical "they
+-- consented and then withdrew" answers that the absence does not, and
+-- keeping it would be keeping a record of somebody's revoked agreement for
+-- no purpose.
+--
+-- Guests have no row here and cannot have one: they have no account, which
+-- is why publication refuses a recording a guest spoke in outright rather
+-- than asking somebody else on their behalf. publication.ts § consent.
+CREATE TABLE IF NOT EXISTS recording_consents (
+  recording_id TEXT NOT NULL REFERENCES recordings(id),
+  account_id   TEXT NOT NULL REFERENCES accounts(id),
+  at           INTEGER NOT NULL,
+  PRIMARY KEY (recording_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS recording_consents_account
+  ON recording_consents(account_id);
 
 -- What this box actually carried, for the last thirty days and no longer.
 --
@@ -2132,6 +2226,50 @@ function migrate(db: Db): void {
   // rather than every channel ever created.
   db.exec(
     'CREATE INDEX IF NOT EXISTS channels_cohort ON channels(cohort) WHERE cohort IS NOT NULL'
+  );
+
+  /*
+    Publication, 2026-09-21. Null on every row that exists, and that is the
+    only safe backfill there could be: a recording made when nothing was
+    public was made by people who were never asked, and inferring consent
+    from the fact that they recorded something would be inventing the one
+    thing this whole model exists to require.
+
+    `public_at` and `published_at` are timestamps rather than flags for the
+    reason `deleted_at` is — see the schema above. `explicit` is a boolean
+    stored as INTEGER, undeclared while null.
+  */
+  for (const column of ['public_at', 'explicit']) {
+    if (!hasColumn(db, 'channels', column)) {
+      db.exec(`ALTER TABLE channels ADD COLUMN ${column} INTEGER`);
+    }
+  }
+  if (!hasColumn(db, 'channels', 'language')) {
+    db.exec('ALTER TABLE channels ADD COLUMN language TEXT');
+  }
+  if (!hasColumn(db, 'recordings', 'published_at')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN published_at INTEGER');
+  }
+  if (!hasColumn(db, 'recordings', 'aac_state')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN aac_state TEXT');
+  }
+  if (!hasColumn(db, 'recordings', 'published_bytes')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN published_bytes INTEGER');
+  }
+  // The feed reads published recordings of one channel, in `started_at`
+  // order, on every poll by every subscriber and every aggregator. Partial
+  // so it covers the few rows that are published rather than every recording
+  // ever made.
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS recordings_published
+       ON recordings(channel_id, started_at)
+       WHERE published_at IS NOT NULL`
+  );
+  // A column added by migration can only be indexed by migration, and the
+  // table itself may predate this boot — CREATE TABLE IF NOT EXISTS in SCHEMA
+  // has already made it if it did not.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS recording_consents_account ON recording_consents(account_id)'
   );
 }
 

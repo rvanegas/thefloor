@@ -881,6 +881,12 @@ export function registerWebsocket(deps: {
         // reason exactly: no reducer knows about it and `core/` has never
         // heard of it. The screen is the only thing that asks.
         cohort: channels.cohortNumberOf(channelId),
+        // Whether this channel has a public page, on the same terms and for
+        // the same reason: it is a fact the server holds about the channel
+        // rather than a rule of the conversation, and settings is the only
+        // thing that asks. Null for every channel that has not declared
+        // itself public, which is nearly all of them.
+        publicAt: channels.publicAtOf(channelId),
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

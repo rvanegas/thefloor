@@ -2446,6 +2446,30 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM otp_codes WHERE identifier = ? COLLATE NOCASE')
       .run(account.identifier);
+    // **Leaving withdraws your consent, and that takes down anything it was
+    // holding up.** A published recording stands on every participant having
+    // agreed; somebody deleting their account has stopped agreeing in the most
+    // complete way available, and leaving the episode up would mean it was
+    // published on the word of an account that no longer exists. This is the
+    // ordinary withdrawal, performed on the way out — it takes the episode off
+    // the page and out of the feed, and like every withdrawal it reaches no
+    // file anybody has already downloaded. See publication.ts.
+    //
+    // The unpublish comes first: the DELETE below removes the rows this reads.
+    this.db
+      .prepare(
+        `UPDATE recordings SET published_at = NULL
+          WHERE published_at IS NOT NULL
+            AND id IN (SELECT recording_id FROM recording_consents
+                        WHERE account_id = ?)`
+      )
+      .run(accountId);
+    // And the rows themselves, which are also a foreign key onto this account:
+    // leaving them would refuse the deletion outright, exactly as the invite
+    // budget above would.
+    this.db
+      .prepare('DELETE FROM recording_consents WHERE account_id = ?')
+      .run(accountId);
     this.db.prepare('DELETE FROM tokens WHERE account_id = ?').run(accountId);
     this.db
       .prepare(

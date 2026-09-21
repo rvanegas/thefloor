@@ -79,6 +79,7 @@ import {
   type RecordingRow,
 } from './db';
 import { encodeRecording } from './export';
+import { publishedKeyFor } from './publication';
 import type { MediaServer, PlaybackSession } from './media';
 import { getWhenReady, type RecordingStore } from './storage';
 import { createPushNotifier, notifications, type PushNotifier } from './push';
@@ -1544,6 +1545,20 @@ export class ChannelRegistry {
   /** The cohort number of a channel, for the snapshot. */
   cohortNumberOf(channelId: string): number | null {
     return this.cohortNumbers.get(channelId) ?? null;
+  }
+
+  /**
+   * When this channel declared itself public, or null, for the snapshot.
+   *
+   * Read from the row rather than held in memory, unlike the cohort numbers
+   * above: publication is rare, changed from a settings screen rather than
+   * by the reducer, and a cache would be a second place for it to be wrong.
+   */
+  publicAtOf(channelId: string): number | null {
+    const row = this.db
+      .prepare('SELECT public_at FROM channels WHERE id = ?')
+      .get(channelId) as { public_at: number | null } | undefined;
+    return row?.public_at ?? null;
   }
 
   /** Whether any cohort channel is still standing. See `policyOptions`. */
@@ -3153,7 +3168,21 @@ export class ChannelRegistry {
       // before the crash that lost the state update — leaves a conversation in
       // the bucket after its row has gone, which is the failure this whole
       // ordering exists to prevent.
-      const keys = [...objectKeysOf(row), mixKeyFor(row.channel_id, row.id)];
+      // The published episode goes with the rest, and unconditionally for
+      // the same reason the mix does: it is derived, so deleting one that was
+      // never made costs a no-op, where skipping one that was leaves a
+      // conversation in the bucket after its row — and therefore the only
+      // record of which keys belong to it — has gone.
+      //
+      // Nothing is serving it by now. A recording leaves the page and the
+      // feed the moment it is *marked* deleted, a week before this runs;
+      // see `publicChannel` in app.ts, where that ordering is stated as the
+      // constraint it is. A subscriber never meets a dead enclosure.
+      const keys = [
+        ...objectKeysOf(row),
+        mixKeyFor(row.channel_id, row.id),
+        publishedKeyFor(row.channel_id, row.id),
+      ];
       // Without a store configured there is nothing to empty and no way to
       // know the objects are gone, so the row stays: a marked recording is
       // already unreachable, and keeping it costs a row rather than an
@@ -3169,6 +3198,14 @@ export class ChannelRegistry {
         }
       }
       if (!emptied) continue;
+      // Before the row, because `recording_consents` has a real foreign key
+      // to it — the same constraint that makes this whole sweep an ordering
+      // problem rather than three deletes. A consent is a fact about a
+      // recording and has no meaning once there is no recording; nothing
+      // reads these rows except publication, and publication is over.
+      this.db
+        .prepare('DELETE FROM recording_consents WHERE recording_id = ?')
+        .run(row.id);
       this.db.prepare('DELETE FROM recordings WHERE id = ?').run(row.id);
       recordings += 1;
     }

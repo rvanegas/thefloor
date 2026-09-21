@@ -59,6 +59,7 @@ function open() {
   mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
   tree = render(
     <ChannelSettingsView
+      publicAt={null}
       channel={channel}
       derivedTitle="Dana Chu"
       onBack={onBack}

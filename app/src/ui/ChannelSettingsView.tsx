@@ -17,6 +17,7 @@ import { useApp } from '../state/AppProvider';
 import {
   Button,
   Card,
+  Checkbox,
   Field,
   IconButton,
   Screen,
@@ -42,6 +43,7 @@ import { colors, spacing, type } from './theme';
 export function ChannelSettingsView({
   channel,
   derivedTitle,
+  publicAt,
   onBack,
   onLeft,
 }: {
@@ -55,11 +57,25 @@ export function ChannelSettingsView({
    * channel. It is the field's placeholder; see the note there.
    */
   derivedTitle: string;
+  /**
+   * When this channel declared itself public, or null. On the snapshot rather
+   * than on `ChannelState` — no reducer knows about it — so it arrives the
+   * same way `derivedTitle` does, resolved by the screen that already has it.
+   */
+  publicAt: number | null;
   onBack: () => void;
   /** Called once membership is given up, to get off this channel's screens. */
   onLeft: () => void;
 }) {
   const app = useApp();
+  /**
+   * Held locally as well as on the snapshot, so the switch answers the tap
+   * rather than the round trip. The snapshot is the authority and arrives
+   * moments later; this is initialised from it and replaced by what the
+   * server actually stored.
+   */
+  const [isPublic, setIsPublic] = useState(publicAt !== null);
+  useEffect(() => setIsPublic(publicAt !== null), [publicAt]);
   // Alone, the same tap destroys the channel rather than merely removing you
   // from it. Nothing else on screen would say so.
   const lastMember = channel.participants.length === 1;
@@ -363,6 +379,22 @@ export function ChannelSettingsView({
         conversation, and it is read when somebody has a reason to wonder who
         can get in.
       */}
+      {/*
+        Before Guest links rather than after, because it is the larger door:
+        a guest link admits somebody you handed it to, and this makes a page
+        anybody with the address can read. The two belong together — they are
+        the only two ways anything here leaves the channel — and the bigger
+        one is read first.
+      */}
+      <SectionLabel>Public page</SectionLabel>
+      <Card style={styles.stack}>
+        <Publishing
+          channelId={channel.id}
+          isPublic={isPublic}
+          onChanged={(next) => setIsPublic(next)}
+        />
+      </Card>
+
       <SectionLabel>Guest links</SectionLabel>
       <Card style={styles.stack}>
         {/*
@@ -513,6 +545,96 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * imagined making it. The two ways one dies read differently on purpose —
  * somebody revoked it, or the channel emptied and the rule did.
  */
+/**
+ * Whether this channel has a public page, and where it is.
+ *
+ * **Two decisions, and this is only the first of them.** Turning it on makes
+ * a page exist; it puts nothing on that page. Every recording is agreed to
+ * separately, by everybody who was in it, on its own card in the channel —
+ * which is why the line under the switch says so rather than leaving somebody
+ * to discover that their conversations did not appear.
+ *
+ * The address is shown rather than hidden behind a share sheet, because it is
+ * the thing somebody came to this screen to get: it carries the channel id,
+ * which is unguessable, so it is handed to people the way a guest link is.
+ */
+function Publishing({
+  channelId,
+  isPublic,
+  onChanged,
+}: {
+  channelId: string;
+  isPublic: boolean;
+  /** Called with the new state, so the screen's own copy stays in step. */
+  onChanged: (next: boolean, url: string | null) => void;
+}) {
+  const app = useApp();
+  const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = async (next: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await app.setChannelPublic(channelId, next);
+      setUrl(result.url);
+      onChanged(next, result.url);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : 'That did not work.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Checkbox
+        label={busy ? 'Saving…' : 'This channel has a public page'}
+        checked={isPublic}
+        onChange={(next) => {
+          if (busy) return;
+          if (!next) return void set(false);
+          Alert.alert(
+            'Give this channel a public page?',
+            'The page shows the channel’s name and description to anyone ' +
+              'with the address. Members are not named.\n\n' +
+              'No recording appears on it until everybody who was in that ' +
+              'recording has agreed to publish it, one at a time, from its ' +
+              'card on the channel screen.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Create the page', onPress: () => void set(true) },
+            ]
+          );
+        }}
+      />
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
+      {isPublic ? (
+        <>
+          {url ? (
+            <Text style={type.body} numberOfLines={1}>
+              {url.replace(/^https?:\/\//, '')}
+            </Text>
+          ) : null}
+          <Text style={type.muted}>
+            Nothing is on the page until everybody in a recording agrees to
+            publish it. Each recording is asked about separately, on its own
+            card.
+          </Text>
+        </>
+      ) : (
+        <Text style={type.muted}>
+          Off, which is how every channel starts. Nothing here is reachable by
+          anybody outside it.
+        </Text>
+      )}
+    </>
+  );
+}
+
 function GuestLinks({
   channelId,
   mayRevoke,

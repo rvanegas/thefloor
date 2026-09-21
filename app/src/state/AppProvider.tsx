@@ -572,6 +572,27 @@ interface AppValue extends AppState {
   ) => Promise<NotificationLevel>;
   revokeGuestLink: (channelId: string, linkToken: string) => Promise<void>;
   /**
+   * Turns this channel's public page on or off, resolving to the page's
+   * address or null.
+   *
+   * Any member may. It decides whether there is a page at all — nothing
+   * appears on it until every participant of a given recording has agreed to
+   * that recording separately.
+   */
+  setChannelPublic: (
+    channelId: string,
+    isPublic: boolean
+  ) => Promise<{ url: string | null; feedUrl: string | null }>;
+  /**
+   * Agrees that one recording may be published, or takes that agreement back.
+   *
+   * One call rather than two because the card offers one control: the
+   * viewer's own agreement, on or off. What it does to the recording depends
+   * on everybody else's, which is the server's business and the card reads
+   * back off the snapshot.
+   */
+  setPublishConsent: (recordingId: string, agreed: boolean) => Promise<void>;
+  /**
    * Asks somebody you share a channel with to be a contact. Resolves to
    * whether it went straight through, which happens when they had already
    * asked you.
@@ -2176,6 +2197,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       revokeGuestLink: async (channelId, linkToken) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         await api.revokeGuestLink(state.token, channelId, linkToken);
+      },
+
+      setChannelPublic: async (channelId, isPublic) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const result = await api.setChannelPublic(
+          state.token,
+          channelId,
+          isPublic
+        );
+        return { url: result.url, feedUrl: result.feedUrl };
+      },
+
+      setPublishConsent: async (recordingId, agreed) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        // Nothing is returned to the caller. The server announces the channel
+        // on both paths, so the card's own state arrives on the next snapshot
+        // — which is also what keeps every member's card in step rather than
+        // only the one whose finger it was.
+        if (agreed) await api.consentToPublish(state.token, recordingId);
+        else await api.withdrawFromPublishing(state.token, recordingId);
       },
 
       connectWith: async (accountId) => {

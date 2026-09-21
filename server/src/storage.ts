@@ -23,10 +23,33 @@ import {
 export interface RecordingStore {
   get(key: string): Promise<Buffer>;
   /**
+   * One byte range of an object, and how long the whole object is.
+   *
+   * Added for published episodes and wanted by nothing else. A podcast client
+   * is not a browser: Apple's crawler and most players issue byte-range
+   * requests and expect a `206` with a `Content-Range`, and several will not
+   * let a listener seek at all without one. `get` buffers the whole object,
+   * which is right for an export somebody asked for and wrong for a file
+   * strangers stream.
+   *
+   * `end` is inclusive, as it is in HTTP, so that the route can pass what
+   * arrived through without an off-by-one in the translation.
+   */
+  getRange(
+    key: string,
+    start: number,
+    end: number
+  ): Promise<{ data: Buffer; totalBytes: number }>;
+  /**
    * Stores an object, replacing whatever was there. Awaited, unlike `delete`:
    * the caller is making something a later read depends on.
+   *
+   * `contentType` defaults to the recording type, which is what every caller
+   * but publication wants. A published episode is AAC and must say so: S3
+   * serves back what it was told, and a feed enclosure whose type is wrong is
+   * one some clients refuse to play.
    */
-  put(key: string, data: Buffer): Promise<void>;
+  put(key: string, data: Buffer, contentType?: string): Promise<void>;
   /**
    * Removes an object. Fire-and-forget by design: the sweep that calls this
    * runs on a timer with nobody waiting, and a failure leaves the row in place
@@ -67,7 +90,11 @@ export class S3RecordingStore implements RecordingStore {
       : null;
   }
 
-  async put(key: string, data: Buffer): Promise<void> {
+  async put(
+    key: string,
+    data: Buffer,
+    contentType = 'audio/ogg'
+  ): Promise<void> {
     if (!this.writer) {
       throw new Error('No credentials for writing to the recordings bucket.');
     }
@@ -76,9 +103,45 @@ export class S3RecordingStore implements RecordingStore {
         Bucket: this.bucket,
         Key: key,
         Body: data,
-        ContentType: 'audio/ogg',
+        ContentType: contentType,
       })
     );
+  }
+
+  /**
+   * One range, by asking S3 for it rather than fetching the object and
+   * slicing — which is the entire point: the bytes this box never reads are
+   * bytes it never pays for in memory, and an episode is megabytes served to
+   * strangers.
+   *
+   * `ContentRange` comes back as `bytes <start>-<end>/<total>`; the total is
+   * what the caller needs and is not otherwise knowable without a HEAD.
+   */
+  async getRange(
+    key: string,
+    start: number,
+    end: number
+  ): Promise<{ data: Buffer; totalBytes: number }> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Range: `bytes=${start}-${end}`,
+      })
+    );
+    const body = response.Body;
+    if (!body) throw new Error(`Empty object: ${key}`);
+    const chunks: Buffer[] = [];
+    for await (const chunk of body as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const total = Number(response.ContentRange?.split('/')[1]);
+    return {
+      data: Buffer.concat(chunks),
+      totalBytes: Number.isFinite(total)
+        ? total
+        : start + chunks.reduce((n, c) => n + c.length, 0),
+    };
   }
 
   async get(key: string): Promise<Buffer> {
@@ -118,6 +181,18 @@ export class MemoryRecordingStore implements RecordingStore {
     const found = this.objects.get(key);
     if (!found) throw new Error(`No such object: ${key}`);
     return found;
+  }
+
+  async getRange(
+    key: string,
+    start: number,
+    end: number
+  ): Promise<{ data: Buffer; totalBytes: number }> {
+    const found = await this.get(key);
+    return {
+      data: found.subarray(start, end + 1),
+      totalBytes: found.length,
+    };
   }
 
   delete(key: string): void {

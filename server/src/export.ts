@@ -183,6 +183,13 @@ export type FetchObject = (key: string) => Promise<Buffer>;
  */
 export const RECORDING_CONTENT_TYPE = 'audio/ogg';
 
+/**
+ * What a published episode is served as. Beside the constant above for the
+ * same reason that one is a constant: two places describing the same bytes
+ * differently is the bug this shape prevents.
+ */
+export const PUBLISHED_CONTENT_TYPE = 'audio/mp4';
+
 export interface EncodeResult {
   data: Buffer;
   contentType: string;
@@ -333,6 +340,77 @@ export async function encodeStem(
       data: await readFile(output),
       contentType: RECORDING_CONTENT_TYPE,
       durationMs: await duration(output, ffmpegPath),
+    };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Re-encodes a finished mix as AAC in an MP4 container, for a podcast client.
+ *
+ * **A transcode, not a re-mix, and that distinction is the whole safety
+ * argument.** The input is `mixed.ogg` — the object `encodeRecording` already
+ * produced, with `buildStemGraph` having gated every speaker to silence
+ * across every window in which they held no floor. Reading that file means a
+ * published episode inherits the floor's guarantee by construction, from the
+ * same code path as a private export.
+ *
+ * So: **nothing here may ever take stems as its input.** Anything that
+ * rendered its own audio for publication would be a second place the floor
+ * could be got wrong, and getting it wrong here means broadcasting to the
+ * world a remark somebody was silenced for. If this function ever needs to
+ * know what a stem is, the change is wrong.
+ *
+ * Ogg/Opus is the right choice for the app, which fetches and decodes it, and
+ * the wrong one for a feed: Apple Podcasts accepts M4A and MP3, Opus-in-Ogg
+ * is on neither list, and third-party support is patchy enough that serving
+ * it would work for some subscribers and not others — which is worse than
+ * failing outright.
+ *
+ * 64k mono is speech-grade and roughly doubles the Opus size, which does not
+ * move the sizing argument in planning/MIGRATION.md because only recordings
+ * somebody actually published get one. `+faststart` moves the moov atom to
+ * the front, without which a client cannot begin playing until it has the
+ * whole file — the single most common complaint about self-hosted episodes.
+ */
+export async function transcodeToPublished(
+  mixed: Buffer,
+  ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg'
+): Promise<EncodeResult> {
+  const dir = await mkdtemp(join(tmpdir(), 'thefloor-publish-'));
+  try {
+    const input = join(dir, 'mixed.ogg');
+    await writeFile(input, mixed);
+    const output = join(dir, 'mixed.m4a');
+    await run(
+      ffmpegPath,
+      [
+        '-v',
+        'error',
+        // One core, so the other stays free for the SFU. See `run` below.
+        '-threads',
+        '1',
+        '-filter_threads',
+        '1',
+        '-i',
+        input,
+        '-c:a',
+        'aac',
+        '-b:a',
+        '64k',
+        '-ac',
+        '1',
+        '-movflags',
+        '+faststart',
+        '-y',
+        output,
+      ],
+      dir
+    );
+    return {
+      data: await readFile(output),
+      contentType: PUBLISHED_CONTENT_TYPE,
     };
   } finally {
     await rm(dir, { recursive: true, force: true });
