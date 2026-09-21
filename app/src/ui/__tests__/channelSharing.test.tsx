@@ -618,6 +618,28 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * **A pause is when nobody is watching anything**, and the declaration does
+   * not know that: `screening` is a device offering to show a film, not a
+   * picture in motion, so it stands unchanged across a pause on every device
+   * in the room. The film is stopped so that the room can talk about it, and
+   * whoever put their phone down while it was stopped is reported exactly like
+   * the person still looking at it — which is the wrong answer to the only
+   * question the line was added to answer.
+   */
+  it('says nothing about watching while the film is paused', () => {
+    showChannel(
+      playing((s) => reduce(s, { type: 'WATCH_PAUSE', userId: ME }, NOW)),
+      [],
+      { watching: [THEM] }
+    );
+    const tree = openOnMembers();
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu Present ');
+    expect(text).not.toContain('· watching');
+    act(() => tree.unmount());
+  });
+
   it('says nothing about the room from a device that is not in it', () => {
     /*
       **The second screen, which used to unsay what the first one said.**

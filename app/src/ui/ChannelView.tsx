@@ -1530,17 +1530,26 @@ export function ChannelView({
   /**
    * Who in this room has the film up, as the server counts screens.
    *
-   * **Only while there is a film**, which is the guard rather than a tidiness:
-   * `screening` is a device saying which channel it would show a film for, and
-   * it is set from the moment somebody opens a party's channel — so without
-   * this the roster would read *watching* at people looking at a room where
-   * nothing is playing. A party that has just stopped leaves the declaration
-   * standing on every one of those devices until each of them notices.
+   * **Only while the film is running**, which is the guard rather than a
+   * tidiness: `screening` is a device saying which channel it would show a
+   * film for, and it is set from the moment somebody opens a party's channel —
+   * so without this the roster would read *watching* at people looking at a
+   * room where nothing is playing. A party that has just stopped leaves the
+   * declaration standing on every one of those devices until each of them
+   * notices.
+   *
+   * **And a pause says the same thing a stop does**, which is why this asks
+   * `status` rather than merely whether there is a party. A film is paused so
+   * that the room can talk about it, and everybody's picture is sitting still:
+   * *watching* is then a claim about attention that the screen has no evidence
+   * for, since a declaration survives the person putting the phone down. The
+   * line exists to answer *did the room come with me*, and that question is
+   * only live while something is actually playing.
    *
    * Empty from a server older than the field, which draws the roster the way
    * it drew before there was one. See SHIMS.md.
    */
-  const watchingNow = channel.watch?.party ? (view.watching ?? []) : [];
+  const watchingNow = channel.watch?.status === 'playing' ? (view.watching ?? []) : [];
   /**
    * Standing here, but not on this device.
    *

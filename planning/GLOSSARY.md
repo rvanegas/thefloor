@@ -96,7 +96,7 @@ caused; the list carries the meaning.
 - **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *at the film* — the watch card with a film this device can expand, and *full screen* — where both orientations are permitted. A tablet and a browser window are never turned. It is what makes *turned* readable as a gesture, and narrowing it from *full screen alone* to *the film* is what gave the turn back its way in. `usePortraitUnlessAtTheFilm` in `watch/orientation.ts`; on the web a no-op
 - **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say, the way its length is, and never asked of YouTube
-- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while a party is loaded, and a wider fact than *watching here* — a *second device* is on this and not on that
+- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -2144,9 +2144,16 @@ the trip, so the picture is where it was on the way back.
 
 **Two things it cannot say.** A *guest* watching is never on it — a guest
 socket is a scope of its own and carries no declaration — and neither is
-anybody at all once the party stops, the roster asking about the film rather
-than about the list, since a device goes on offering itself as a screen until
-it notices.
+anybody at all unless the film is *running*, the roster asking about the party
+rather than about the list, since a device goes on offering itself as a screen
+until it notices.
+
+**A pause counts as stopped**, from 2026-09-20: the guard is `status ===
+'playing'` and not merely that a party exists. A film is paused so that the
+room can talk about it, every picture in it is sitting still, and a declaration
+survives somebody putting the phone down — so *watching* across a pause is a
+claim about attention with nothing behind it. The question the line answers,
+*did the room come with me*, is live only while something is actually playing.
 
 See decisions/2026-09-20-the-roster-says-who-is-watching.md.
 
