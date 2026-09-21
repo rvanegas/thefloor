@@ -4160,9 +4160,10 @@ export function buildApp(options: BuildOptions = {}): App {
    * response too, which is how a client learns it may ask.
    *
    * The bytes come off this box rather than out of S3 directly, which is the
-   * trade PODCAST.md argued: the accounting stays honest, the enclosure URL
-   * stays ours, and the privacy story stays one sentence. Moving it later is
-   * a change of URL rather than a change of design.
+   * trade planning/decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md
+   * argues: the accounting stays honest, the enclosure URL stays ours, and the
+   * privacy story stays one sentence. Moving it later is a change of URL
+   * rather than a change of design.
    */
   fastify.get('/c/:id/e/:file', async (request, reply) => {
     const params = request.params as { id: string; file: string };

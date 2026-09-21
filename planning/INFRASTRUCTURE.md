@@ -15,7 +15,7 @@ rebuilding or re-hosting, RELEASING.md for getting a build to a phone.
 | --- | --- |
 | *What is where* | anything about the instance, DNS, TLS, ports or logs |
 | *The two media settings that fail silently* | rooms connecting with no audio |
-| *What the box can carry* | recording capacity, before it bites |
+| *What the box can carry* | recording capacity, and published-episode traffic, before either bites |
 | *Known rough edges* | before a deploy, and before believing a restart is free |
 
 ---
@@ -66,6 +66,23 @@ The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 participants**, every stem being its own egress job. That is a chosen figure and
 raising it is the first move if it ever bites, not a hardware limit —
 `bin/usage peak` says how close it has ever come.
+
+**Since 2026-09-21 there is a second load on this box that nobody controls.**
+A published recording's audio is served from here — `/c/<id>/e/<id>.m4a`,
+ranged, off S3 through this process — so a channel that publishes is a channel
+whose listeners are this box's traffic, beside the SFU and the egress jobs.
+Unlike everything else here it has **no upper bound**: the cap above is about
+how many people can be *in* conversations, and this is about how many strangers
+are listening to one that already happened.
+
+It is expected to be small for a long time and is deliberately not optimised
+for. What to watch is `bin/usage` — the `episode-fetch` kind, which is the
+first traffic class in that table not attributable to an account at all. **When
+it stops being small, the move is a separate published-audio bucket with the
+enclosure URL pointing at it**, which is a change of URL rather than a change
+of design; a public path on the existing recordings bucket is not the answer,
+that one being `GetObject`-only precisely so a leak is bounded. See
+planning/decisions/ for 2026-09-21.
 
 ## Known rough edges
 

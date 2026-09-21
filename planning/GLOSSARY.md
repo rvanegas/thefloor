@@ -77,6 +77,12 @@ caused; the list carries the meaning.
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
+- **Public channel** — A channel that has given itself a *public page*; any member may, and it puts nothing on that page by itself
+- **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody who has the address and naming no *member*
+- **Published** — A *recording* anybody with the address can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
+- **Agree to publish** — One person's consent that one recording may be *published*; everybody's is needed, yours alone is withdrawable at any moment, and a *guest* has no account to give one with — so a recording a guest spoke in cannot be published at all
+- **Feed** — The *public page*'s machine-readable half, at the same address plus `/feed.xml`: what a podcast app subscribes to, listing the same *episodes* the page does
+- **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet
@@ -1457,6 +1463,101 @@ being nearby means.
 **In a browser it can also end without anybody doing anything.** A tab nobody
 has attended for fifteen minutes steps itself out, there being no suspended
 process to infer an absence from — see *Attention*.
+
+## Public channel, public page
+
+A channel that has declared itself public has a page on the web, at an
+address carrying the channel's id. Any member may make one, and going back is
+one tap.
+
+**Making the page is not publishing anything**, and that separation is the
+whole shape of the feature. The page exists; what is on it is every recording
+whose participants have each *agreed to publish* it, which is a different
+decision taken a different way. A public channel with nothing on its page is
+the ordinary state on the day somebody turns it on, and is not a bug.
+
+**No member is named on it, ever.** The name, the *notepad* and the
+recordings, and nothing else — the task entry this was built from is explicit
+that members stay private though they may be described in the description, so
+the only words about who these people are are words they wrote. The episode
+titles obey it too: a recording still carrying its participant-derived default
+name is shown by its date instead.
+
+The address is unguessable rather than secret, and is shared the way a *guest
+link* is shared — by being handed to somebody. There is no directory, and
+nothing here is listed in Apple's or anybody's.
+
+See also *published*, *feed*, and publication.ts.
+
+## Published
+
+A *recording* anybody holding the *public page*'s address can listen to,
+through the page or through the *feed*.
+
+**It goes up when every *participant* has *agreed to publish* it, and not
+before.** No member can publish a recording on their own; that is the point,
+not a limitation. Every other act on a shared recording — renaming, deleting,
+transcribing — shows it to people who could already reach it, and any member
+may. Publishing shows everybody's voice to anybody at all.
+
+**Coming down is not the opposite of going up, and the interface says so in
+those words.** Any one participant may take their agreement back at any
+moment, with no appeal to the others, and that removes the recording from the
+page and the feed at once. It does not reach a copy a subscriber's podcast app
+has already downloaded, and nothing in this system ever will. Publishing is
+the first act here that a later act cannot undo.
+
+Deleting the recording takes it down too, immediately — a week before the
+sweep removes the audio, so no subscriber meets a dead link. Deleting your
+account withdraws your agreement, which is the same act performed on the way
+out.
+
+## Agree to publish
+
+One person's consent that one recording may be *published*. The control is a
+checkbox on the recording's own card, and the line under it says who is still
+outstanding.
+
+**Per recording, never per channel.** Agreeing to publish last Tuesday's
+conversation says nothing whatever about this one, and a standing permission
+would quietly turn one judgement into every future judgement.
+
+**A *guest* cannot give one.** A guest who spoke is recorded on purpose, and
+has no account, no lasting identity, and no surface on which to have agreed to
+anything — so there is nobody to ask. A recording a guest spoke in therefore
+cannot be published at all. The alternatives were dropping their audio, which
+changes what the conversation was, and asking the members on their behalf,
+which is exactly the standing unanimity denies.
+
+## Feed
+
+The *public page*'s machine-readable half: an RSS feed at the page's address
+plus `/feed.xml`, carrying the same *episodes* the page lists.
+
+It is what a podcast app subscribes to, and it is unlisted — pasted into an
+app by somebody who was given the address, rather than found in a directory.
+Artwork, an iTunes category and submission to Apple or Spotify are what a
+*listed* podcast would additionally need; none of them is needed to hear an
+episode, and each adds a review cycle rather than a capability.
+
+`pubDate` is when the conversation happened, not when it was published, so
+backfilling a year of them lands each where it belongs rather than presenting
+all of them as today's news.
+
+## Episode
+
+A *published* recording as a listener meets it.
+
+The audio is the same floor-gated mix the app plays — the one
+`buildStemGraph` produced, with every speaker silenced across every window in
+which they held no floor — re-encoded as M4A. The re-encode is a transcode of
+that finished file and never a fresh render from the stems, because the floor
+is applied in exactly one place and a second place it could be got wrong is a
+place remarks somebody was silenced for get broadcast to the world.
+
+M4A rather than the Ogg/Opus everything else here uses: Opus-in-Ogg is on
+neither Apple's list nor most clients', and a feed that works for some
+subscribers and not others is worse than one that fails outright.
 
 ## Record automatically
 

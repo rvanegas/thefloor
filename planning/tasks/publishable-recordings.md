@@ -1,20 +1,52 @@
 # Publishable Recordings
 
-A channel may declare itself public. If public, then it has a page at 
-thefloor.rvanegas.co where anyone can listen to selected recordings. 
-Settings would include image. Name and description would show on the 
-page. Contacts remain private, though they may be explicitly described 
-in the description.
+**Mostly built, 2026-09-21.** A channel may declare itself public and has a
+page at thefloor.rvanegas.co/c/&lt;id&gt; where anyone with the address can
+listen to recordings every participant has agreed to publish, plus a feed a
+podcast client can subscribe to. Name and description show on the page;
+members remain private, though they may be explicitly described in the
+description. How and why is
+`decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`,
+which also carries what `PODCAST.md` argued before it was deleted.
 
-PODCAST.md designs an RSS feed as the machine-readable half of the same 
-publication — an addition to this entry rather than a reading of it, and 
-it carries what publishing costs: the Ogg/Opus mix no podcast client plays, 
-the consent a guest cannot give, and the fact that unpublishing recalls 
-nothing.
+**Read that before touching any of this.** The consent model is the half that
+is not obvious from the code — unanimity, one-sided withdrawal, and a guest
+being a refusal rather than a gap — and each of the three was chosen against a
+plausible alternative.
 
-It is also the event that reopens
-`decisions/2026-09-16-nothing-here-knows-what-a-track-is.md`, which retired the
-copyright question on the strength of there being no public surface — a
-recording may contain a track somebody played into it, and serving one to the
-world is a different posture from handing it back to the two people who made
-it. Read that before building this; it says what changes.
+What is left is the rest of that document's fork: **(b), a podcast anybody can
+find**, as against the unlisted feed you paste into an app.
+
+**Settings would include image.** The one clause that is still one clause
+covering an upload endpoint, validation of dimensions and format, a bucket key
+and a public serve route. Apple requires channel artwork — 1400×1400 to
+3000×3000, square, JPEG or PNG, RGB — and a feed without it is not listed and
+renders as a blank tile in any client showing a grid. There is still no image
+anywhere in the schema: no avatars, no channel image, no upload path, and
+nothing in `RecordingStore` that stores anything but audio. It is the largest
+piece of new code left and the least interesting, which is exactly why it was
+not allowed to gate the rest.
+
+**The two declarations have everything but a control.** `channels.language`
+and `channels.explicit` exist, `POST /channels/:id/declarations` writes them,
+and the feed reads them — falling back to `en` and `false`. Neither is
+derivable and both are required for a listed feed, so they belong in channel
+settings beside the image, as the same screenful of work.
+
+**Then `itunes:category`, `itunes:author`, and pressing a button on somebody
+else's website.** Submission to Apple and to Spotify, each with its own review.
+
+Two questions the built half deliberately left open:
+
+**A guest link that says so up front.** A conversation a guest spoke in
+currently cannot be published at all, because a guest has no account on which
+to have agreed to anything and the alternatives — dropping their audio, or
+asking the members on their behalf — are each worse. The only honest fix is a
+guest link that carries the possibility before somebody uses it, which is a
+design rather than a guard.
+
+**Where the bytes come from, when there is enough traffic to care.** Episodes
+are served off this box, ranged, which keeps the accounting honest and the
+enclosure URL ours. It is a change of URL rather than a change of design: a
+separate published-audio bucket is the version to reach for, not a public path
+on the existing one. The decision entry says what to watch.

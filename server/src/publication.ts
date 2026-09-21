@@ -46,7 +46,7 @@ import type { UsageMeter } from './usage';
  *    and making the channel public again is not a fresh decision anybody has
  *    to retake.
  *
- * **On what is in the audio.** `decisions/2026-09-16-nothing-here-knows-what-a-track-is.md`
+ * **On what is in the audio.** `planning/decisions/2026-09-16-nothing-here-knows-what-a-track-is.md`
  * retired the copyright question on the explicit strength of there being no
  * public surface, and named this feature as the one thing that would reopen
  * it. It is reopened here, and the answer is not to start inspecting uploads

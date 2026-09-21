@@ -253,7 +253,20 @@ application collects little.</p>
   the channel starts it, and everybody in the channel can see that it is
   running. Recordings are stored in Amazon S3, in the United States. Everyone
   in the channel the recording was made in can play it, rename it, share it and
-  delete it.</li>
+  delete it.
+  <br><br>
+  A recording can also be <strong>published</strong>, which is the one thing
+  that puts it in front of people who were never in the channel: it then has a
+  page on this site that anybody holding the address can listen to, and a feed
+  a podcast app can subscribe to. That never happens without you. It requires
+  that everybody who was in that recording has separately agreed to publish it
+  — one refusal is enough to stop it, and taking your agreement back at any
+  time removes it from the page and the feed. What taking it back cannot do is
+  reach a copy somebody has already downloaded, and nothing here ever will.
+  Somebody who joined as a guest has no account to agree with, so a recording
+  a guest spoke in cannot be published at all. A published page names the
+  channel and whatever its members wrote about it, and never names a
+  member.</li>
   <li><strong>Your channels and who is in them</strong>, so that a conversation
   survives the app being closed.</li>
   <li><strong>A notification token</strong>, if you allow notifications, so the

@@ -1,13 +1,13 @@
 /**
  * The little that the served pages have in common.
  *
- * There are four: the privacy policy and the support page, which exist because
+ * There are five: the privacy policy and the support page, which exist because
  * App Store Connect will not accept a submission without a URL for them; the
- * landing page; and the invitation a link opens. None is an interface — they
- * are documents, served by the server they describe so that they deploy with
- * the code and cannot drift from it. (`/open` and the guest page are not among
- * them: those are doors into the app rather than documents, and each carries
- * its own chrome for that reason.)
+ * landing page; the invitation a link opens; and, since 2026-09-21, a public
+ * channel's page. None is an interface — they are documents, served by the
+ * server they describe so that they deploy with the code and cannot drift from
+ * it. (`/open` and the guest page are not among them: those are doors into the
+ * app rather than documents, and each carries its own chrome for that reason.)
  *
  * What is shared is the escaping and the chrome, and nothing else. The prose is
  * the point of each page and belongs in the file that is about that page.
@@ -16,10 +16,20 @@
 /**
  * Escapes a value interpolated into a page.
  *
- * Both pages interpolate exactly one thing — a contact address from this
- * server's own configuration rather than from a user — so this is belt and
- * braces. It is shared anyway, because two copies of an escaping function is
- * how one of them comes to be missing a case the other has.
+ * **This stopped being belt and braces on 2026-09-21.** Until the public
+ * channel page existed, every page here interpolated exactly one thing — a
+ * contact address from this server's own configuration — and this function
+ * was shared on the general principle that two copies of an escaping function
+ * is how one of them comes to be missing a case the other has. The public
+ * page interpolates a channel's name and its notepad, which are text somebody
+ * typed, so it is now the only thing standing between what a member writes
+ * and what a stranger's browser parses. Every value on that page goes through
+ * it, and any new one must.
+ *
+ * The feed does *not* use this and must not: XML needs `&apos;`, which HTML
+ * does not care about, and a channel called "Nick's kitchen" would produce a
+ * feed no client could parse. See `escapeXml` in feed.ts, where the
+ * difference is argued.
  */
 export function escapeHtml(value: string): string {
   return value
