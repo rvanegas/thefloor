@@ -923,7 +923,24 @@ CREATE TABLE IF NOT EXISTS channels (
   -- conversations are in, as RFC 5646, and whether they are explicit.
   -- Null means undeclared, and the feed falls back — see feed.ts.
   language TEXT,
-  explicit INTEGER
+  explicit INTEGER,
+  -- The channel's cover art, for its public page and its feed. image_at is
+  -- when it was last replaced and doubles as "there is one"; image_type is
+  -- the media type it must be served back as.
+  --
+  -- The bytes are in the recordings bucket under the channel's own prefix,
+  -- which is what makes deleting a channel take its cover with it — see
+  -- artworkKeyFor. Two columns rather than a key, for the reason mixKeyFor is
+  -- derived rather than stored: there is exactly one of these per channel and
+  -- it is rewritten in place, so a stored key would only be a second place for
+  -- the same fact to be wrong.
+  -- (No backticks: this is a template literal, as the note on usage_spans says.)
+  image_at INTEGER,
+  image_type TEXT,
+  -- The iTunes category this channel declares itself under, from Apple's
+  -- top-level list. Null until somebody picks one, and required only for a
+  -- feed that wants to be listed in a directory.
+  category TEXT
 );
 
 -- Where to reach a person when their app is not running: one row per install
@@ -2266,8 +2283,13 @@ function migrate(db: Db): void {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} INTEGER`);
     }
   }
-  if (!hasColumn(db, 'channels', 'language')) {
-    db.exec('ALTER TABLE channels ADD COLUMN language TEXT');
+  for (const column of ['language', 'image_type', 'category']) {
+    if (!hasColumn(db, 'channels', column)) {
+      db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);
+    }
+  }
+  if (!hasColumn(db, 'channels', 'image_at')) {
+    db.exec('ALTER TABLE channels ADD COLUMN image_at INTEGER');
   }
   if (!hasColumn(db, 'recordings', 'published_at')) {
     db.exec('ALTER TABLE recordings ADD COLUMN published_at INTEGER');

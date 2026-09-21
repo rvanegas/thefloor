@@ -43,6 +43,7 @@ import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
+import { artworkKeyFor, MAX_ARTWORK_BYTES, readArtwork } from './artwork';
 import { PUBLISHED_CONTENT_TYPE, RECORDING_CONTENT_TYPE } from './export';
 import { renderFeed, type FeedEpisode } from './feed';
 import { Publication, publishedKeyFor } from './publication';
@@ -403,19 +404,24 @@ export function buildApp(options: BuildOptions = {}): App {
     }
   );
 
-  // Uploaded tracks arrive as raw bytes rather than multipart: there is exactly
-  // one file and no fields, so a multipart parser would be a dependency earning
-  // nothing. The body is kept as a Buffer for the one route that wants it.
-  const rawAudio = (
+  // Uploaded tracks and cover art arrive as raw bytes rather than multipart:
+  // there is exactly one file and no fields, so a multipart parser would be a
+  // dependency earning nothing. The body is kept as a Buffer for the two
+  // routes that want it.
+  const rawBytes = (
     _request: FastifyRequest,
     body: Buffer,
     done: (error: Error | null, body?: unknown) => void
   ) => done(null, body);
-  fastify.addContentTypeParser(/^audio\//, { parseAs: 'buffer' }, rawAudio);
+  fastify.addContentTypeParser(/^audio\//, { parseAs: 'buffer' }, rawBytes);
+  // Cover art, on the same terms. The route validates what it actually got
+  // from the bytes rather than trusting this header — see artwork.ts, which
+  // is why a lying content-type costs a 400 rather than a wrong image.
+  fastify.addContentTypeParser(/^image\//, { parseAs: 'buffer' }, rawBytes);
   fastify.addContentTypeParser(
     'application/octet-stream',
     { parseAs: 'buffer' },
-    rawAudio
+    rawBytes
   );
 
   // Ko-fi posts form-encoded, with the whole payload as JSON in a single
@@ -3956,6 +3962,19 @@ export function buildApp(options: BuildOptions = {}): App {
       description: string | null;
       language: string | null;
       explicit: boolean | null;
+      category: string | null;
+      /** Whether there is cover art to point at. */
+      hasImage: boolean;
+      /**
+       * When it was last replaced, appended to the artwork address as a query
+       * so that a new cover is a new URL.
+       *
+       * Directories and clients cache a cover hard and several never re-fetch
+       * one whose address has not changed — which is the same argument
+       * html.ts makes for renaming the social card image, arriving where it
+       * can be solved rather than only warned about.
+       */
+      imageAt: number | null;
     };
     episodes: Array<{
       id: string;
@@ -3969,7 +3988,9 @@ export function buildApp(options: BuildOptions = {}): App {
   } | null {
     const row = db
       .prepare(
-        `SELECT id, name, description, language, explicit FROM channels
+        `SELECT id, name, description, language, explicit, category,
+                image_at, image_type
+           FROM channels
           WHERE id = ? AND public_at IS NOT NULL AND deleted_at IS NULL`
       )
       .get(channelId) as
@@ -3979,6 +4000,9 @@ export function buildApp(options: BuildOptions = {}): App {
           description: string | null;
           language: string | null;
           explicit: number | null;
+          category: string | null;
+          image_at: number | null;
+          image_type: string | null;
         }
       | undefined;
     if (!row) return null;
@@ -4018,6 +4042,9 @@ export function buildApp(options: BuildOptions = {}): App {
         description: row.description,
         language: row.language,
         explicit: row.explicit === null ? null : row.explicit === 1,
+        category: row.category,
+        hasImage: row.image_at !== null && row.image_type !== null,
+        imageAt: row.image_at,
       },
       episodes: rows.map((recording) => ({
         id: recording.id,
@@ -4092,6 +4119,7 @@ export function buildApp(options: BuildOptions = {}): App {
         id: found.channel.id,
         name: found.channel.name,
         description: found.channel.description,
+        imageUrl: artworkUrl(base, found.channel),
         episodes: found.episodes.map((episode) => ({
           id: episode.id,
           title: episode.title,
@@ -4147,6 +4175,8 @@ export function buildApp(options: BuildOptions = {}): App {
               'Recorded conversations, published in full.',
             language: found.channel.language,
             explicit: found.channel.explicit,
+            category: found.channel.category,
+            imageUrl: artworkUrl(base, found.channel),
           },
           episodes,
           {
@@ -4156,6 +4186,91 @@ export function buildApp(options: BuildOptions = {}): App {
         )
       );
   });
+
+  /**
+   * Where a channel's cover art is, or undefined when it has none.
+   *
+   * The timestamp is in the address on purpose: directories and clients cache
+   * a cover hard and several never re-fetch one whose URL has not changed, so
+   * a replaced cover that kept its address would go on being the old one for
+   * as long as anybody's cache lived.
+   */
+  function artworkUrl(
+    base: string,
+    channel: { id: string; hasImage: boolean; imageAt: number | null }
+  ): string | undefined {
+    if (!channel.hasImage) return undefined;
+    return `${base}/c/${channel.id}/artwork?v=${channel.imageAt}`;
+  }
+
+  /**
+   * A public channel's cover art.
+   *
+   * Unauthenticated and cached for a day. Guarded on the channel being public
+   * rather than on the image existing: a cover is part of the page, and a
+   * channel that has gone private should stop serving every part of it.
+   */
+  fastify.get('/c/:id/artwork', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const found = publicChannel(id);
+    if (!found?.channel.hasImage) {
+      return reply.code(404).send({ error: 'No cover art.' });
+    }
+    if (!options.store) {
+      return reply.code(503).send({ error: 'Storage is not configured.' });
+    }
+    const row = db
+      .prepare('SELECT image_type FROM channels WHERE id = ?')
+      .get(id) as { image_type: string | null } | undefined;
+    try {
+      const data = await options.store.get(artworkKeyFor(id));
+      return reply
+        .header('content-type', row?.image_type ?? 'image/jpeg')
+        // The address carries the cover's own timestamp, so a given URL's
+        // bytes never change and a long cache is free. See `artworkUrl`.
+        .header('cache-control', 'public, max-age=86400')
+        .send(data);
+    } catch (error) {
+      request.log.error({ err: error, channel: id }, 'artwork fetch failed');
+      return reply.code(404).send({ error: 'No cover art.' });
+    }
+  });
+
+  /**
+   * Uploads a channel's cover art, raw, as the track route takes a track.
+   *
+   * **Refused on the spot rather than at submission.** A feed with no artwork
+   * is not listed and one with the wrong shape is rejected by the directory,
+   * by which point somebody has waited on a review to be told — so the rules
+   * are enforced here, in the words of the rule. See artwork.ts.
+   */
+  fastify.post(
+    '/channels/:id/image',
+    { bodyLimit: MAX_ARTWORK_BYTES },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      const { id } = request.params as { id: string };
+
+      const body = request.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        return reply.code(400).send({ error: 'No image was uploaded.' });
+      }
+      const read = readArtwork(body);
+      if (!read.ok) return reply.code(400).send({ error: read.error });
+
+      const stored = await publication.setArtwork(
+        id,
+        account.id,
+        body,
+        read.artwork.contentType
+      );
+      if (!stored.ok) {
+        return reply.code(statusFor(stored.code)).send({ error: stored.error });
+      }
+      return { width: read.artwork.width, height: read.artwork.height };
+    }
+  );
 
   /**
    * One published episode's audio.
@@ -4342,7 +4457,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
     const body = request.body as
-      | { language?: unknown; explicit?: unknown }
+      | { language?: unknown; explicit?: unknown; category?: unknown }
       | undefined;
     if (
       body?.language !== undefined &&
@@ -4358,9 +4473,20 @@ export function buildApp(options: BuildOptions = {}): App {
     ) {
       return reply.code(400).send({ error: 'explicit must be true or false.' });
     }
+    if (
+      body?.category !== undefined &&
+      body.category !== null &&
+      typeof body.category !== 'string'
+    ) {
+      return reply.code(400).send({ error: 'category must be a string.' });
+    }
+    // Whether it is one of Apple's is `setDeclarations`' answer rather than
+    // this route's: the list is the rule, and the rule lives with the thing
+    // that stores it.
     const result = publication.setDeclarations(id, account.id, {
       language: body?.language as string | null | undefined,
       explicit: body?.explicit as boolean | null | undefined,
+      category: body?.category as string | null | undefined,
     });
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });

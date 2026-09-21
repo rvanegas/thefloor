@@ -417,6 +417,153 @@ describe('the public page', () => {
   }, 60_000);
 });
 
+describe('cover art', () => {
+  /** A solid square, made by ffmpeg — see artwork.test.ts on why not a stub. */
+  async function cover(side: number): Promise<Buffer> {
+    const path = join(dir, `cover-${side}.png`);
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('ffmpeg', [
+        '-v', 'error', '-f', 'lavfi', '-i', `color=c=navy:s=${side}x${side}`,
+        '-frames:v', '1', '-y', path,
+      ]);
+      child.on('error', reject);
+      child.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))
+      );
+    });
+    return readFile(path);
+  }
+
+  const upload = (token: string, channelId: string, bytes: Buffer) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/image`,
+      headers: { ...auth(token), 'content-type': 'image/png' },
+      payload: bytes,
+    });
+
+  it('reaches the page, the feed and its own route', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    const stored = await upload(alice.token, channelId, await cover(1500));
+    expect(stored.statusCode).toBe(200);
+    expect(stored.json()).toEqual({ width: 1500, height: 1500 });
+
+    const art = await app.fastify.inject({
+      method: 'GET',
+      url: `/c/${channelId}/artwork`,
+    });
+    expect(art.statusCode).toBe(200);
+    expect(art.headers['content-type']).toBe('image/png');
+
+    // Both elements, because different clients read different ones.
+    const feed = (await feedFor(channelId)).payload;
+    expect(feed).toContain('<itunes:image');
+    expect(feed).toContain('<image><url>');
+    // The address carries the cover's timestamp, so replacing it is a new URL
+    // rather than a cache nobody can bust.
+    expect(feed).toContain('/artwork?v=');
+    expect((await pageFor(channelId)).payload).toContain('class="cover"');
+  }, 120_000);
+
+  it('is refused when it breaks a rule, before anything is stored', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    const refused = await upload(alice.token, channelId, await cover(600));
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error).toContain('1400');
+
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'GET',
+          url: `/c/${channelId}/artwork`,
+        })
+      ).statusCode
+    ).toBe(404);
+  }, 120_000);
+
+  it('is not uploadable by somebody outside the channel', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    const stranger = await signIn('carol@example.com', 'Carol');
+    expect(
+      (await upload(stranger.token, channelId, await cover(1500))).statusCode
+    ).toBe(400);
+  }, 120_000);
+
+  it('stops being served when the channel goes private', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await upload(alice.token, channelId, await cover(1500));
+    await goPublic(alice.token, channelId, false);
+
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'GET',
+          url: `/c/${channelId}/artwork`,
+        })
+      ).statusCode
+    ).toBe(404);
+  }, 120_000);
+});
+
+describe('the declarations a directory requires', () => {
+  const declare = (token: string, channelId: string, body: unknown) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/declarations`,
+      headers: auth(token),
+      payload: body as Record<string, unknown>,
+    });
+
+  it('reaches the feed', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    expect(
+      (
+        await declare(alice.token, channelId, {
+          language: 'fr',
+          explicit: true,
+          category: 'Society & Culture',
+        })
+      ).statusCode
+    ).toBe(200);
+
+    const feed = (await feedFor(channelId)).payload;
+    expect(feed).toContain('<language>fr</language>');
+    expect(feed).toContain('<itunes:explicit>true</itunes:explicit>');
+    expect(feed).toContain('Society &amp; Culture');
+  }, 60_000);
+
+  /**
+   * Refused rather than stored: the directory matches these literally, so
+   * something near one would fail at submission instead of here.
+   */
+  it('refuses a category Apple does not have', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    const refused = await declare(alice.token, channelId, {
+      category: 'Podcasts About Podcasts',
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error).toContain('categories');
+  }, 60_000);
+
+  /** The author is the channel, never a member — the page names nobody. */
+  it('bylines the channel rather than anybody in it', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    const feed = (await feedFor(channelId)).payload;
+    expect(feed).toContain('<itunes:author>');
+    expect(feed).not.toContain('Alice');
+    expect(feed).not.toContain('Bob');
+  }, 60_000);
+});
+
 describe('the enclosure', () => {
   it('answers a byte range with a 206 and a Content-Range', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();

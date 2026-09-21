@@ -593,6 +593,20 @@ interface AppValue extends AppState {
    */
   setPublishConsent: (recordingId: string, agreed: boolean) => Promise<void>;
   /**
+   * Sets what this channel declares about itself for a podcast directory:
+   * its language, whether it is explicit, and which category it is under.
+   *
+   * Absent fields are unchanged, so a control sends only its own.
+   */
+  setChannelDeclarations: (
+    channelId: string,
+    declarations: {
+      language?: string | null;
+      explicit?: boolean | null;
+      category?: string | null;
+    }
+  ) => Promise<void>;
+  /**
    * Asks somebody you share a channel with to be a contact. Resolves to
    * whether it went straight through, which happens when they had already
    * asked you.
@@ -2207,6 +2221,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isPublic
         );
         return { url: result.url, feedUrl: result.feedUrl };
+      },
+
+      setChannelDeclarations: async (channelId, declarations) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.setChannelDeclarations(state.token, channelId, declarations);
+        // Nothing locally: the server announces the channel, and the
+        // snapshot carries these back.
       },
 
       setPublishConsent: async (recordingId, agreed) => {

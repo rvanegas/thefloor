@@ -53,6 +53,18 @@ export interface FeedChannel {
   language: string | null;
   /** Null when nobody has declared either way. */
   explicit: boolean | null;
+  /** One of Apple's top-level categories, or null. */
+  category: string | null;
+  /**
+   * Absolute address of the cover art, or undefined when there is none.
+   *
+   * A feed with no artwork is valid and unlistable: every directory requires
+   * one, and a client that draws a grid of subscribed shows renders a blank
+   * tile without it. So the element is omitted rather than pointed at a
+   * placeholder — a wrong cover is worse than an absent one, and the absence
+   * is what the settings screen is nagging about.
+   */
+  imageUrl?: string;
 }
 
 /**
@@ -81,7 +93,29 @@ export function renderFeed(
 <atom:link href="${escapeXml(urls.selfUrl)}" rel="self" type="application/rss+xml"/>
 <description>${escapeXml(channel.description)}</description>
 <language>${escapeXml(channel.language ?? DEFAULT_LANGUAGE)}</language>
-<itunes:explicit>${channel.explicit ? 'true' : 'false'}</itunes:explicit>
+<itunes:explicit>${channel.explicit ? 'true' : 'false'}</itunes:explicit>${
+    channel.imageUrl
+      ? `
+<itunes:image href="${escapeXml(channel.imageUrl)}"/>` +
+        // The RSS 2.0 element as well as the iTunes one: they are read by
+        // different clients, and several older readers know only this one.
+        `
+<image><url>${escapeXml(channel.imageUrl)}</url>` +
+        `<title>${escapeXml(channel.title)}</title>` +
+        `<link>${escapeXml(urls.pageUrl)}</link></image>`
+      : ''
+  }${
+    channel.category
+      ? `
+<itunes:category text="${escapeXml(channel.category)}"/>`
+      : ''
+  }
+<!--
+  The channel's own name, never a member's. A podcast's author is a public
+  byline and the page it points at names nobody, so naming somebody here
+  would undo that from the half nobody looks at.
+-->
+<itunes:author>${escapeXml(channel.title)}</itunes:author>
 <generator>The Floor</generator>
 ${items}
 </channel>

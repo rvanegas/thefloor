@@ -1486,6 +1486,7 @@ export function ChannelView({
         // lives on the snapshot rather than on `ChannelState`, and this
         // screen has already resolved the snapshot.
         publicAt={view.publicAt ?? null}
+        publication={view.publication}
         onBack={() => setSettingsOpen(false)}
         onLeft={() => {
           app.leaveChannelView(channelId);

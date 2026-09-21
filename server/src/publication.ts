@@ -1,3 +1,5 @@
+import { isItunesCategory } from '../../core/publication';
+import { artworkKeyFor } from './artwork';
 import { PUBLISHED_CONTENT_TYPE, transcodeToPublished } from './export';
 import { isGuestId } from './guests';
 import type { Db, RecordingRow } from './db';
@@ -117,22 +119,34 @@ export class Publication {
   }
 
   /**
-   * Sets the two declarations a feed requires and nothing can derive: the
-   * language its conversations are in, and whether they are explicit.
+   * Sets the declarations a feed requires and nothing can derive: the
+   * language its conversations are in, whether they are explicit, and which
+   * of Apple's categories it belongs under.
    *
-   * Neither is inferable and neither is guessed. A feed with no `<language>`
-   * falls back to the site default rather than to a detection, because a
-   * wrong declaration about somebody's own channel is worse than an absent
-   * one — see feed.ts.
+   * None is inferable and none is guessed. A feed with no `<language>` falls
+   * back to the site default rather than to a detection, because a wrong
+   * declaration about somebody's own channel is worse than an absent one —
+   * see feed.ts. A category is refused outright rather than corrected: it has
+   * to be one of Apple's exact strings or the directory rejects the feed, and
+   * silently storing something near it would fail at submission instead.
    */
   setDeclarations(
     channelId: string,
     userId: string,
-    declarations: { language?: string | null; explicit?: boolean | null }
+    declarations: {
+      language?: string | null;
+      explicit?: boolean | null;
+      category?: string | null;
+    }
   ): { ok: true } | Refusal {
     const channel = this.channelFor(channelId, userId);
     if (!channel) return refuse('No such channel.', 'not_found');
 
+    if (declarations.category !== undefined && declarations.category !== null) {
+      if (!isItunesCategory(declarations.category)) {
+        return refuse('That is not one of Apple’s categories.', 'invalid');
+      }
+    }
     if (declarations.language !== undefined) {
       const trimmed = declarations.language?.trim().slice(0, 32) || null;
       this.db
@@ -147,6 +161,41 @@ export class Publication {
           channelId
         );
     }
+    if (declarations.category !== undefined) {
+      this.db
+        .prepare('UPDATE channels SET category = ? WHERE id = ?')
+        .run(declarations.category, channelId);
+    }
+    this.options.announce(channelId);
+    return { ok: true };
+  }
+
+  /**
+   * Stores a channel's cover art, replacing whatever was there.
+   *
+   * Any member may, on the same terms as `setPublic`: it is the channel's
+   * public face rather than anybody's voice, and nothing about it is somebody
+   * else's to consent to.
+   *
+   * The object is written before the row, so a failure leaves a key nobody
+   * reads rather than a row promising a picture that is not there — the same
+   * ordering `mix` uses and for the same reason.
+   */
+  async setArtwork(
+    channelId: string,
+    userId: string,
+    bytes: Buffer,
+    contentType: string
+  ): Promise<{ ok: true } | Refusal> {
+    const channel = this.channelFor(channelId, userId);
+    if (!channel) return refuse('No such channel.', 'not_found');
+    const store = this.options.store;
+    if (!store) return refuse('Storage is not configured.', 'conflict');
+
+    await store.put(artworkKeyFor(channelId), bytes, contentType);
+    this.db
+      .prepare('UPDATE channels SET image_at = ?, image_type = ? WHERE id = ?')
+      .run(this.now(), contentType, channelId);
     this.options.announce(channelId);
     return { ok: true };
   }

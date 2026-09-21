@@ -168,6 +168,81 @@ export async function pickAndUploadTrack(
 }
 
 /**
+ * Picks a cover image and uploads it as this channel's artwork.
+ *
+ * **Much simpler than the track above, and the difference is the size.** A
+ * cover is a couple of megabytes, so there is no progress to report and
+ * nothing worth cancelling — which removes the upload task, the hooks and the
+ * two ways a cancellation resolves. What is left is pick, post, and hand back
+ * what the server measured.
+ *
+ * **Nothing is validated here.** The rules are Apple's, the server enforces
+ * them in the words of the rule, and a second copy of "square, 1400 to 3000,
+ * no transparency" in the app is a second copy to fall out of step. The track
+ * uploader checks a size locally for a reason that does not apply here: it is
+ * saving somebody two hundred megabytes over a phone connection, where this
+ * would save a couple.
+ */
+export async function pickAndUploadArtwork(
+  token: string,
+  channelId: string
+): Promise<{ cancelled: boolean; width?: number; height?: number }> {
+  if (!API_URL) throw new ApiError('No server configured.', 0);
+
+  const DocumentPicker = await loadPicker();
+  const picked = await DocumentPicker.getDocumentAsync({
+    // JPEG and PNG only, which is what a feed may carry. The picker filters
+    // rather than refuses, so somebody is not offered a HEIC to be told about
+    // afterwards — which is the ordinary iOS photo and the one most likely to
+    // be reached for.
+    type: ['image/jpeg', 'image/png'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (picked.canceled) return { cancelled: true };
+
+  const asset = picked.assets[0];
+  if (!asset) return { cancelled: true };
+
+  const result = await FileSystem.uploadAsync(
+    `${API_URL}/channels/${channelId}/image`,
+    asset.uri,
+    {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': asset.mimeType ?? 'application/octet-stream',
+      },
+    }
+  ).catch(() => {
+    throw new ApiError(`Cannot reach the server at ${API_URL}.`, 0);
+  });
+
+  if (result.status !== 200) {
+    if (result.status === 401) reportSignedOut();
+    let message = `The cover could not be uploaded (${result.status}).`;
+    try {
+      const body = JSON.parse(result.body);
+      // The server's sentence, not ours: it names the rule and the actual
+      // measurement, which is the whole of what sends somebody back to the
+      // picker with something to go on.
+      if (typeof body?.error === 'string') message = body.error;
+    } catch {
+      // Not JSON; the status alone will have to do.
+    }
+    throw new ApiError(message, result.status);
+  }
+
+  try {
+    const body = JSON.parse(result.body) as { width: number; height: number };
+    return { cancelled: false, width: body.width, height: body.height };
+  } catch {
+    return { cancelled: false };
+  }
+}
+
+/**
  * Whole percent, or `null` when the total is unknown.
  *
  * `totalBytesExpectedToSend` is `-1` when the platform cannot say how big the

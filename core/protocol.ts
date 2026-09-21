@@ -978,6 +978,29 @@ export interface ChannelView {
    */
   publicAt?: number | null;
   /**
+   * What this channel declares about itself for a podcast directory, and
+   * whether it has cover art yet.
+   *
+   * On the snapshot beside `publicAt` and for its reason: none of it is a
+   * rule of the conversation, and settings is the only thing that asks.
+   * Absent on a server that predates publication.
+   */
+  publication?: {
+    /** RFC 5646, or null when nobody has declared one. */
+    language: string | null;
+    /** Null when nobody has declared either way. */
+    explicit: boolean | null;
+    /** One of Apple's top-level categories, or null. */
+    category: string | null;
+    /**
+     * Whether cover art has been uploaded, and when it last changed.
+     *
+     * The timestamp is what lets the app show the current one rather than a
+     * cached copy of the one it replaced — the address carries it.
+     */
+    imageAt: number | null;
+  };
+  /**
    * Which *getting-started cohort* this channel is, and null for every
    * ordinary one — which is nearly all of them.
    *

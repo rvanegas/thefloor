@@ -29,6 +29,8 @@ export function publicChannelPage(channel: {
   id: string;
   name: string;
   description: string | null;
+  /** Absolute address of the cover art, or undefined when there is none. */
+  imageUrl?: string;
   episodes: Array<{
     id: string;
     title: string;
@@ -47,6 +49,16 @@ export function publicChannelPage(channel: {
 
   const description = channel.description
     ? `<p class="blurb">${escapeHtml(channel.description)}</p>`
+    : '';
+
+  // Alt text is the channel's name rather than a description of the picture,
+  // which is the honest answer: nothing here knows what the image shows, and
+  // inventing a description of somebody's cover would be worse than naming
+  // what it stands for.
+  const cover = channel.imageUrl
+    ? `<img class="cover" src="${escapeHtml(channel.imageUrl)}" alt="${escapeHtml(
+        channel.name
+      )}" width="400" height="400">`
     : '';
 
   // Only episodes whose audio exists are listed. A published recording whose
@@ -80,7 +92,8 @@ Write to <a href="mailto:${escapeHtml(channel.contactEmail)}">${escapeHtml(
       path: `/c/${channel.id}`,
     }),
     style: PAGE_STYLE,
-    body: `${description}
+    body: `${cover}
+${description}
 ${list}
 <p class="feed"><a href="${escapeHtml(channel.feedUrl)}">Subscribe in a podcast app</a>
 — paste this address into one: <code>${escapeHtml(channel.feedUrl)}</code></p>
@@ -146,6 +159,10 @@ function spoken(ms: number): string {
  * through the back door.
  */
 const PAGE_STYLE = `
+  .cover {
+    display: block; width: 100%; max-width: 20rem; height: auto;
+    border-radius: 0.5rem; margin: 0 0 1.5rem;
+  }
   .blurb { white-space: pre-wrap; }
   .episodes { list-style: none; padding-left: 0; }
   .episodes li { margin: 2rem 0; }

@@ -13,6 +13,8 @@ import {
 } from '../../../core/notifications';
 import type { ChannelState } from '../../../core/types';
 import { type GuestLinkSummary } from '../api/http';
+import { pickAndUploadArtwork } from '../api/upload';
+import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -44,6 +46,7 @@ export function ChannelSettingsView({
   channel,
   derivedTitle,
   publicAt,
+  publication,
   onBack,
   onLeft,
 }: {
@@ -63,6 +66,17 @@ export function ChannelSettingsView({
    * same way `derivedTitle` does, resolved by the screen that already has it.
    */
   publicAt: number | null;
+  /**
+   * What this channel declares about itself for a directory, and whether it
+   * has cover art. On the snapshot beside `publicAt`, and passed in here for
+   * the same reason `derivedTitle` is.
+   */
+  publication?: {
+    language: string | null;
+    explicit: boolean | null;
+    category: string | null;
+    imageAt: number | null;
+  };
   onBack: () => void;
   /** Called once membership is given up, to get off this channel's screens. */
   onLeft: () => void;
@@ -391,6 +405,7 @@ export function ChannelSettingsView({
         <Publishing
           channelId={channel.id}
           isPublic={isPublic}
+          settings={publication}
           onChanged={(next) => setIsPublic(next)}
         />
       </Card>
@@ -561,10 +576,17 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
 function Publishing({
   channelId,
   isPublic,
+  settings,
   onChanged,
 }: {
   channelId: string;
   isPublic: boolean;
+  settings?: {
+    language: string | null;
+    explicit: boolean | null;
+    category: string | null;
+    imageAt: number | null;
+  };
   /** Called with the new state, so the screen's own copy stays in step. */
   onChanged: (next: boolean, url: string | null) => void;
 }) {
@@ -624,6 +646,18 @@ function Publishing({
             publish it. Each recording is asked about separately, on its own
             card.
           </Text>
+          {/*
+            Everything below is only needed by a channel that wants to be
+            findable in Apple or Spotify. The page and the feed work without
+            any of it — a feed is pasted into an app by somebody who was given
+            the address — so it is grouped under one sentence saying so rather
+            than presented as four things left undone.
+          */}
+          <Text style={type.muted}>
+            To be listed in a podcast directory, a feed also needs these.
+          </Text>
+          <CoverArt channelId={channelId} imageAt={settings?.imageAt ?? null} />
+          <Declarations channelId={channelId} settings={settings} />
         </>
       ) : (
         <Text style={type.muted}>
@@ -631,6 +665,164 @@ function Publishing({
           anybody outside it.
         </Text>
       )}
+    </>
+  );
+}
+
+/**
+ * The channel's cover art, which a podcast directory will not list a feed
+ * without.
+ *
+ * **Nothing is validated here.** The rules are Apple's — square, 1400 to 3000
+ * pixels, no transparency — the server enforces them in the words of the
+ * rule, and a second copy in the app is a second copy to fall out of step.
+ * What this does is show the refusal, which already names the rule and the
+ * measurement that broke it.
+ */
+function CoverArt({
+  channelId,
+  imageAt,
+}: {
+  channelId: string;
+  imageAt: number | null;
+}) {
+  const app = useApp();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  const choose = async () => {
+    if (!app.token) return;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const result = await pickAndUploadArtwork(app.token, channelId);
+      if (result.cancelled) return;
+      setNote(
+        result.width
+          ? `Cover set — ${result.width}×${result.height}.`
+          : 'Cover set.'
+      );
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : 'That did not work.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        label={busy ? 'Uploading…' : imageAt ? 'Replace cover art' : 'Add cover art'}
+        sublabel={
+          imageAt
+            ? 'Square, 1400–3000 pixels, no transparency'
+            : 'Square JPEG or PNG, 1400–3000 pixels, no transparency'
+        }
+        disabled={busy}
+        onPress={() => void choose()}
+      />
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
+      {note ? <Text style={type.muted}>{note}</Text> : null}
+    </>
+  );
+}
+
+/**
+ * The three things a directory requires that nothing can derive: the language
+ * the conversations are in, whether they are explicit, and which of Apple's
+ * categories this belongs under.
+ *
+ * Each control sends only its own field, so two of them changed in quick
+ * succession cannot race each other into the same row.
+ *
+ * **The category list opens in place rather than in a picker.** Nineteen
+ * options is a wall if it is always drawn and a modal is a screen this app
+ * does not otherwise have; the recording row already establishes the idiom of
+ * a control that opens to reveal the rest of itself.
+ */
+function Declarations({
+  channelId,
+  settings,
+}: {
+  channelId: string;
+  settings?: {
+    language: string | null;
+    explicit: boolean | null;
+    category: string | null;
+    imageAt: number | null;
+  };
+}) {
+  const app = useApp();
+  const [error, setError] = useState<string | null>(null);
+  const [pickingCategory, setPickingCategory] = useState(false);
+  const [language, setLanguage] = useState(settings?.language ?? '');
+
+  useEffect(() => setLanguage(settings?.language ?? ''), [settings?.language]);
+
+  const send = (declarations: {
+    language?: string | null;
+    explicit?: boolean | null;
+    category?: string | null;
+  }) => {
+    setError(null);
+    void app
+      .setChannelDeclarations(channelId, declarations)
+      .catch((failure: unknown) =>
+        setError(
+          failure instanceof Error ? failure.message : 'That did not work.'
+        )
+      );
+  };
+
+  return (
+    <>
+      <Field
+        value={language}
+        onChangeText={setLanguage}
+        // Committed on blur rather than per keystroke, as the channel name
+        // is: a language tag is three characters and a request each would be
+        // three requests for one decision.
+        onBlur={() => send({ language: language.trim() || null })}
+        placeholder="en"
+        autoCapitalize="none"
+      />
+      <Text style={type.muted}>
+        The language these conversations are in, as a tag like “en” or
+        “pt-BR”. Left empty, the feed says English.
+      </Text>
+
+      <Checkbox
+        label="These conversations are explicit"
+        checked={settings?.explicit === true}
+        onChange={(next) => send({ explicit: next })}
+      />
+
+      <Button
+        label={pickingCategory ? 'Done' : 'Category'}
+        sublabel={settings?.category ?? 'Not set — a directory needs one'}
+        onPress={() => setPickingCategory((open) => !open)}
+      />
+      {pickingCategory
+        ? ITUNES_CATEGORIES.map((name) => (
+            <Button
+              key={name}
+              label={name}
+              variant={settings?.category === name ? 'primary' : 'default'}
+              onPress={() => {
+                // Tapping the one already chosen clears it, which is the only
+                // way back to none — and a channel that is not being listed
+                // has no reason to carry one.
+                send({ category: settings?.category === name ? null : name });
+                setPickingCategory(false);
+              }}
+            />
+          ))
+        : null}
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
     </>
   );
 }

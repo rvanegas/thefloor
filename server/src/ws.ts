@@ -887,6 +887,9 @@ export function registerWebsocket(deps: {
         // thing that asks. Null for every channel that has not declared
         // itself public, which is nearly all of them.
         publicAt: channels.publicAtOf(channelId),
+        // What a directory requires and nothing can derive, plus whether
+        // there is a cover yet. Same terms as the line above.
+        publication: channels.publicationSettingsOf(channelId),
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

@@ -580,6 +580,28 @@ export const api = {
     ),
 
   /**
+   * Sets what this channel declares about itself for a podcast directory.
+   *
+   * Each field is optional and absent means unchanged, so a screen that
+   * changes one control does not have to send the other two back — which is
+   * what stops two controls racing each other into the same row.
+   */
+  setChannelDeclarations: (
+    token: string,
+    channelId: string,
+    declarations: {
+      language?: string | null;
+      explicit?: boolean | null;
+      category?: string | null;
+    }
+  ) =>
+    request<{ ok: true }>(`/channels/${channelId}/declarations`, {
+      method: 'POST',
+      token,
+      body: declarations,
+    }),
+
+  /**
    * Agrees that one recording may be published. It goes public when the last
    * participant does this and not before.
    */

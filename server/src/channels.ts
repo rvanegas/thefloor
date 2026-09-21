@@ -1577,6 +1577,36 @@ export class ChannelRegistry {
     return row?.public_at ?? null;
   }
 
+  /**
+   * What this channel declares about itself for a directory, and whether it
+   * has a cover — read from the row for `publicAtOf`'s reason.
+   */
+  publicationSettingsOf(channelId: string): {
+    language: string | null;
+    explicit: boolean | null;
+    category: string | null;
+    imageAt: number | null;
+  } {
+    const row = this.db
+      .prepare(
+        'SELECT language, explicit, category, image_at FROM channels WHERE id = ?'
+      )
+      .get(channelId) as
+      | {
+          language: string | null;
+          explicit: number | null;
+          category: string | null;
+          image_at: number | null;
+        }
+      | undefined;
+    return {
+      language: row?.language ?? null,
+      explicit: row?.explicit == null ? null : row.explicit === 1,
+      category: row?.category ?? null,
+      imageAt: row?.image_at ?? null,
+    };
+  }
+
   /** Whether any cohort channel is still standing. See `policyOptions`. */
   hasCohorts(): boolean {
     return this.cohortNumbers.size > 0;
