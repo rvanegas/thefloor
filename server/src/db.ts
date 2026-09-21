@@ -290,6 +290,23 @@ export interface GuestSessionRow {
   account_id: string | null;
   admitted_at: number;
   admitted_by: string;
+  /**
+   * When this seat was *offered*, for one made by an invitation rather than by
+   * a knock. Null for every seat somebody knocked their way into.
+   *
+   * The pair below is what distinguishes the three shapes a row can have: no
+   * `invited_at` is an arrival, `invited_at` with no `accepted_at` is an
+   * invitation nobody has answered, and both is an invitation taken up.
+   */
+  invited_at: number | null;
+  /**
+   * When the invitation was taken up, which is the first time they entered.
+   *
+   * Null on an invited seat means the holder has never been in the room, which
+   * is what keeps a pending invitation out of `rejoinableFor`: there is no
+   * place to go *back* to yet.
+   */
+  accepted_at: number | null;
   /** 1 once a member has granted the microphone. Durable; see guests.ts. */
   may_speak: number;
   /** When a member removed them. Null means they were not thrown out. */
@@ -1920,6 +1937,24 @@ function migrate(db: Db): void {
   if (!guestSessionColumns.some((c) => c.name === 'account_id')) {
     db.exec('ALTER TABLE guest_sessions ADD COLUMN account_id TEXT');
   }
+
+  // The two halves of a *guest invitation*, added 2026-09-21. Both null for
+  // every seat that predates them, and that is the truthful reading rather
+  // than a default: every seat before this was made by somebody knocking and
+  // a member answering, which is an arrival and not an invitation. A row with
+  // `invited_at` set and `accepted_at` null is the one new state — asked, not
+  // yet taken up — and it is the only kind of seat whose holder has never been
+  // in the room.
+  for (const column of ['invited_at', 'accepted_at']) {
+    if (!hasColumn(db, 'guest_sessions', column)) {
+      db.exec(`ALTER TABLE guest_sessions ADD COLUMN ${column} INTEGER`);
+    }
+  }
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS guest_sessions_invited
+       ON guest_sessions(account_id, invited_at)
+       WHERE invited_at IS NOT NULL AND accepted_at IS NULL`
+  );
 
   // The session-scoped half of "which device is this", added 2026-08-24 when
   // several sessions per account became ordinary. Every existing row is null

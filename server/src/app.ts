@@ -1458,6 +1458,65 @@ export function buildApp(options: BuildOptions = {}): App {
    * — and the hand-over went with it.
    */
   /**
+   * Asking a contact in as a guest.
+   *
+   * Beside `/channels/:id/guest-links` rather than beside `INVITE`, because it
+   * is the same act as minting a link — opening the room to somebody who will
+   * not be a member of it — and the opposite of making somebody one.
+   */
+  fastify.post('/channels/:id/guest-invites', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { contactId?: string } | undefined;
+    if (!body?.contactId) {
+      return reply.code(400).send({ error: 'contactId is required' });
+    }
+
+    const invited = channels.inviteGuest(id, account.id, body.contactId);
+    if (!invited.ok) {
+      return reply.code(statusFor(invited.code)).send({ error: invited.error });
+    }
+    // Both ends: the invitee has something new on Home, and the members have a
+    // new row among what is outstanding in the room.
+    homeNotifier.notify([body.contactId]);
+    return { guestId: invited.session.id };
+  });
+
+  /** What has been offered in this channel and not yet taken up. */
+  fastify.get('/channels/:id/guest-invites', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    return {
+      invites: channels.guestInvitesFor(id, account.id).map((session) => ({
+        guestId: session.id,
+        invitedAt: session.invited_at,
+        invitedBy: session.admitted_by,
+        who: accounts.public(session.account_id ?? ''),
+      })),
+    };
+  });
+
+  /** Taking one back, which any member in the room may do. */
+  fastify.delete('/channels/:id/guest-invites/:guestId', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, guestId } = request.params as { id: string; guestId: string };
+
+    const session = channels.guests.byId(guestId);
+    const revoked = channels.revokeGuestInvite(id, account.id, guestId);
+    if (!revoked.ok) {
+      return reply.code(statusFor(revoked.code)).send({ error: revoked.error });
+    }
+    // The invitation leaves their Home the moment it is taken back, rather
+    // than at their next refresh: an offer that is gone should not still be
+    // tappable, and tapping it would answer with a seat that no longer exists.
+    if (session?.account_id) homeNotifier.notify([session.account_id]);
+    return { ok: true };
+  });
+
+  /**
    * Taking up a seat from the app.
    *
    * **The one door into a channel that does not go through a browser.** A seat

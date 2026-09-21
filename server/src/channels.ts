@@ -10,6 +10,7 @@ import {
   COHORT_SIZE,
   DELETED_RETENTION_MS,
   MAX_DISPLAY_NAME_LENGTH,
+  MAX_CHANNEL_GUESTS,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
@@ -44,7 +45,12 @@ import {
   subscribeable,
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
-import { inRoom, roomOccupants, statedIdentities } from '../../core/guests';
+import {
+  guestCount,
+  inRoom,
+  roomOccupants,
+  statedIdentities,
+} from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { initialPlaybackState } from '../../core/playback';
 import { initialRecordingState } from '../../core/recording';
@@ -2639,6 +2645,43 @@ export class ChannelRegistry {
         });
       }
     }
+
+    // **Guest invitations, which are not memberships and are not in any
+    // channel's state.** A pending one is a `guest_sessions` row and nothing
+    // else — putting it in `participants` is precisely what this feature
+    // exists to avoid, since that is what would spend one of the six and make
+    // somebody a member of a room they were offered a seat in.
+    //
+    // So they are gathered from the other side, and joined here because Home
+    // asks one question — *what am I being asked into* — and two lists would
+    // be two answers to it.
+    for (const session of this.guests.pendingFor(userId, this.now())) {
+      const channel = this.channels.get(session.channel_id);
+      if (!channel || channel.status !== 'active') continue;
+      // A member of the channel is already further in than this offer goes.
+      // The invitation stands in the table and simply is not shown.
+      if (isParticipant(channel, userId)) continue;
+      const from = this.accounts.public(session.admitted_by);
+      if (!from || from.id === userId) continue;
+      invites.push({
+        channelId: channel.id,
+        from,
+        createdAt: session.invited_at ?? session.admitted_at,
+        guest: true,
+        name: isNamed(channel) ? channel.name : null,
+        // **No `others`, deliberately**, which is the one field that does not
+        // transfer. A guest is shown names once they are in the room; who is
+        // standing in it is not something to tell somebody who has never been.
+        // `describeChannel` falling back to the sender's name is the right
+        // description for an offer made by a person.
+        presentCount: channel.present.length,
+        // Neither of these is a guest's to read, exactly as `rejoinableFor`
+        // withholds them from a seat: being nearby is a member's declaration
+        // about a room they belong to.
+        nearby: false,
+        nearbyCount: 0,
+      });
+    }
     return invites.sort((a, b) => a.createdAt - b.createdAt);
   }
 
@@ -5196,6 +5239,137 @@ export class ChannelRegistry {
     };
   }
 
+  /**
+   * Asks a contact into a channel **as a guest**, which is not an invitation.
+   *
+   * **The two are different offers and this is the one that was missing.**
+   * `INVITE` makes somebody a member: it writes them into `participants`,
+   * spends one of the six, and is permanent until they leave. This offers a
+   * seat — temporary, bounded by the room's life, carrying none of a member's
+   * standing — to somebody who happens to have an account. Until now the only
+   * way to offer that was a link, which cannot be addressed to anybody.
+   *
+   * **Contacts only, and that is the no-strangers rule rather than caution.**
+   * A guest *link* may reach anybody precisely because it cannot ring: it is
+   * inert until somebody in the room opens the door. This rings. So it is held
+   * to the same test `INVITE` is — nobody reaches you unless you have both
+   * agreed — and a non-contact is still reachable the way they always were.
+   *
+   * Guarded by `canInviteGuest`, the same question `mintGuestLink` asks,
+   * because it is the same act: deciding who may come into the room.
+   */
+  inviteGuest(
+    channelId: string,
+    userId: string,
+    contactId: string
+  ): { ok: true; session: GuestSessionRow } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (!isParticipant(channel, userId) || channel.status !== 'active') {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    if (!hasTheRoom(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to ask somebody.',
+        code: 'conflict',
+      };
+    }
+    if (!this.accounts.areContacts(userId, contactId)) {
+      return { ok: false, error: 'Not a contact.', code: 'forbidden' };
+    }
+    // A member is already further in than this offer goes. Said plainly rather
+    // than left to look like a capacity problem.
+    if (isParticipant(channel, contactId)) {
+      return { ok: false, error: 'Already in this channel.', code: 'conflict' };
+    }
+    const account = this.accounts.byId(contactId);
+    if (!account) {
+      return { ok: false, error: 'No such person.', code: 'not_found' };
+    }
+    const now = this.now();
+    if (this.guests.seatFor(contactId, channelId, now)) {
+      return {
+        ok: false,
+        error: 'They already have a seat here.',
+        code: 'conflict',
+      };
+    }
+    // **Seats in the room plus invitations out**, because forty people cannot
+    // be asked into a room that holds forty. `GUEST_ENTERED` is what actually
+    // enforces the ceiling — this only stops a member queueing a hundred
+    // people who would be turned away one at a time on arrival.
+    const promised =
+      guestCount(channel) + this.guests.pendingIn(channelId, now).length;
+    if (promised >= MAX_CHANNEL_GUESTS) {
+      return {
+        ok: false,
+        error: `Channels hold up to ${MAX_CHANNEL_GUESTS} guests.`,
+        code: 'conflict',
+      };
+    }
+
+    const invited = this.guests.invite(
+      channelId,
+      { id: account.id, display_name: account.display_name },
+      userId,
+      now
+    );
+    this.push.notify(
+      [contactId],
+      notifications.invitedAsGuest(
+        this.displayName(userId),
+        isNamed(channel) ? channel.name : null,
+        channelId
+      )
+    );
+    return { ok: true, session: invited.session };
+  }
+
+  /** Invitations outstanding in a channel, for whoever belongs to it. */
+  guestInvitesFor(channelId: string, userId: string): GuestSessionRow[] {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) return [];
+    return this.guests.pendingIn(channelId, this.now());
+  }
+
+  /**
+   * Takes back an invitation nobody has answered.
+   *
+   * `eject` rather than a delete, which is the file's own rule: a row is made
+   * unusable rather than removed, so that what happened stays legible. It
+   * revokes the link the seat came through, and an invited seat has none —
+   * `eject` already tolerates that, and there is no door here to close.
+   */
+  revokeGuestInvite(
+    channelId: string,
+    userId: string,
+    guestId: string
+  ): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    const session = this.guests.byId(guestId);
+    if (
+      !session ||
+      session.channel_id !== channelId ||
+      session.invited_at === null ||
+      session.accepted_at !== null
+    ) {
+      return { ok: false, error: 'No such invitation.', code: 'not_found' };
+    }
+    if (!hasTheRoom(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to take it back.',
+        code: 'conflict',
+      };
+    }
+    this.guests.eject(guestId, userId, this.now());
+    return { ok: true };
+  }
+
   /** Every link ever minted for a channel, for whoever belongs to it. */
   guestLinksFor(channelId: string, userId: string): GuestLinkRow[] {
     const channel = this.channels.get(channelId);
@@ -5442,9 +5616,10 @@ export class ChannelRegistry {
     accountId: string,
     channelId: string
   ): { ok: true; guestId: string } | Refused {
-    const session = this.guests
-      .liveForAccount(accountId, this.now())
-      .find((row) => row.channel_id === channelId);
+    // `seatFor` rather than `liveForAccount`, because walking in is how an
+    // invitation is *accepted* — the row this has to find is the one that list
+    // deliberately withholds until it has been answered.
+    const session = this.guests.seatFor(accountId, channelId, this.now());
     if (!session) {
       return { ok: false, error: 'You have no seat here.', code: 'not_found' };
     }
@@ -5476,6 +5651,11 @@ export class ChannelRegistry {
     if (!this.channels.get(channelId)?.guests[session.id]) {
       return { ok: false, error: 'This channel is full.', code: 'conflict' };
     }
+    // **Stamped only once the room has actually taken them**, which is why it
+    // is after the capacity check rather than before it. An invitation refused
+    // at the door for a full room is still an invitation, and marking it
+    // accepted would move it off Home and leave them nothing to tap.
+    this.guests.accept(session.id, this.now());
     return { ok: true, guestId: session.id };
   }
 

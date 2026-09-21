@@ -215,6 +215,112 @@ export class Guests {
   }
 
   /**
+   * A seat offered to somebody with an account, rather than one knocked for.
+   *
+   * **The same row as every other seat, and deliberately so.** A guest
+   * invitation needs a lifetime — it should stop meaning anything when the
+   * room empties, and a member should be able to take it back — and
+   * `guest_sessions` already has all of that: `channelEmptied` pulls
+   * `expires_at` back to the moment the last member leaves, `eject` is the
+   * manual revocation, and the six-hour TTL bounds the rest. A second table
+   * would have been a second set of the same rules to keep true.
+   *
+   * `link_token` is null, which is the shape the column was made nullable for:
+   * a seat that outlives the link that made it, and here one that never had a
+   * link at all. Nobody knocked, so there is no door to revoke — ejecting an
+   * invited guest revokes nothing, and `eject` already tolerates that.
+   *
+   * **The secret is minted anyway.** Nothing in the app will present it, since
+   * `enterSeat` takes the account token instead, but a seat whose secret was
+   * null would be a second shape for `reconnect` to reason about — and the
+   * invitee may well end up in a browser, which is the one client that does
+   * use it.
+   */
+  invite(
+    channelId: string,
+    account: { id: string; display_name: string },
+    invitedBy: string,
+    now: number
+  ): AdmittedGuest {
+    const id = newId('guest');
+    const secret = randomBytes(24).toString('base64url');
+    this.db
+      .prepare(
+        `INSERT INTO guest_sessions
+           (id, channel_id, link_token, secret_hash, display_name, account_id,
+            admitted_at, admitted_by, may_speak, last_seen_at, expires_at,
+            invited_at, accepted_at)
+         VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL)`
+      )
+      .run(
+        id,
+        channelId,
+        sha256(secret),
+        account.display_name,
+        account.id,
+        now,
+        invitedBy,
+        now,
+        now + GUEST_SESSION_TTL_MS,
+        now
+      );
+    return { session: this.byId(id)!, secret };
+  }
+
+  /**
+   * Invitations this account has been sent and has not answered.
+   *
+   * The same liveness test `liveForAccount` makes — not ejected, not expired —
+   * plus the one thing that separates the two: never entered. A seat that has
+   * been taken up is somewhere to go back to and belongs on the other list.
+   */
+  pendingFor(accountId: string, now: number): GuestSessionRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM guest_sessions
+         WHERE account_id = ? AND ejected_at IS NULL AND expires_at > ?
+           AND invited_at IS NOT NULL AND accepted_at IS NULL
+         ORDER BY invited_at DESC`
+      )
+      .all(accountId, now) as unknown as GuestSessionRow[];
+  }
+
+  /**
+   * Invitations outstanding in a channel, so members can see what they have
+   * offered and take it back.
+   *
+   * The counterpart of `linksFor`, and read for the same two reasons: showing
+   * them, and counting them against the room's capacity before offering
+   * another.
+   */
+  pendingIn(channelId: string, now: number): GuestSessionRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM guest_sessions
+         WHERE channel_id = ? AND ejected_at IS NULL AND expires_at > ?
+           AND invited_at IS NOT NULL AND accepted_at IS NULL
+         ORDER BY invited_at ASC`
+      )
+      .all(channelId, now) as unknown as GuestSessionRow[];
+  }
+
+  /**
+   * Stamps an invitation as taken up, the first time its holder walks in.
+   *
+   * Once, which is what the `accepted_at IS NULL` term is for: this is the
+   * moment the row stops being an invitation and starts being a seat, and a
+   * later entry is an ordinary return rather than a second acceptance.
+   */
+  accept(id: string, now: number): void {
+    this.db
+      .prepare(
+        `UPDATE guest_sessions SET accepted_at = ?
+         WHERE id = ? AND invited_at IS NOT NULL AND accepted_at IS NULL`
+      )
+      .run(now, id);
+  }
+
+  /**
    * Changes what the room calls a seat.
    *
    * **The seat, and only the seat.** One with an account behind it started
@@ -229,15 +335,46 @@ export class Guests {
       .run(name, id);
   }
 
-  /** Every live seat this account is sitting in, newest first. */
+  /**
+   * Every live seat this account is sitting in, newest first.
+   *
+   * **A seat they have actually taken up.** An invitation nobody has answered
+   * is live by every test here and is still not one of these: this list means
+   * *somewhere you can go back to*, and there is no back about a room you have
+   * never been in. It is `pendingFor` that carries those, and Home draws them
+   * as invitations rather than as seats.
+   */
   liveForAccount(accountId: string, now: number): GuestSessionRow[] {
     return this.db
       .prepare(
         `SELECT * FROM guest_sessions
          WHERE account_id = ? AND ejected_at IS NULL AND expires_at > ?
+           AND (invited_at IS NULL OR accepted_at IS NOT NULL)
          ORDER BY admitted_at DESC`
       )
       .all(accountId, now) as unknown as GuestSessionRow[];
+  }
+
+  /**
+   * The seat this account holds in one channel, answered or not.
+   *
+   * The union of the two lists above, and the one lookup that wants it:
+   * walking in is how an invitation is accepted, so `enterSeat` has to be able
+   * to find a row neither list alone would give it.
+   */
+  seatFor(
+    accountId: string,
+    channelId: string,
+    now: number
+  ): GuestSessionRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT * FROM guest_sessions
+         WHERE account_id = ? AND channel_id = ?
+           AND ejected_at IS NULL AND expires_at > ?
+         ORDER BY admitted_at DESC LIMIT 1`
+      )
+      .get(accountId, channelId, now) as unknown as GuestSessionRow | undefined;
   }
 
   /** One session, live or not. What `fileRun` asks for a name. */

@@ -312,6 +312,45 @@ export const notifications = {
   },
 
   /**
+   * Somebody asked you into a channel **as a guest**.
+   *
+   * **`kind: 'invited'`, and that is a decision rather than an oversight.**
+   * This file's own history says what a new kind would have to earn: the one
+   * that was merged into `invited` ended the day "differing from it in nothing
+   * a rule could see — same collapse key, same thread, same lifetime, same
+   * alert at every level". A guest invitation differs in none of those either.
+   * A separate kind would mean a new arm in `alertFor` and a new row in every
+   * preferences mapping, all of it to say exactly what `invited` says.
+   *
+   * So the difference is one sentence, which is the only place it is real: the
+   * offer is a seat rather than a membership, and somebody deciding whether to
+   * tap needs to know which they have been handed.
+   *
+   * It shares `invited`'s collapse key too — `${channelId}:you` — so being
+   * asked in twice about one channel leaves one notification. Being offered a
+   * seat and then a membership is one evolving question about one room, and
+   * the later word is the one worth waking up to.
+   */
+  invitedAsGuest(
+    inviter: string,
+    channelName: string | null,
+    channelId: string
+  ): PushMessage {
+    return {
+      kind: 'invited',
+      title: inviter,
+      body: channelName
+        ? `Invited you to ${channelName} as a guest.`
+        : 'Invited you to a channel as a guest.',
+      channelId,
+      collapseKey: `${channelId}:you`,
+      threadId: ASKING_THREAD,
+      lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      reachesInApp: false,
+    };
+  },
+
+  /**
    * Somebody stepped into a channel you belong to and were not in.
    *
    * `channelName` is what that one recipient calls it — an unnamed channel is

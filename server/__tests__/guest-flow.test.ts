@@ -1210,3 +1210,217 @@ describe('taking up a seat from the app', () => {
     member.close();
   });
 });
+
+describe('being asked in as a guest', () => {
+  /**
+   * The offer that did not exist: a seat, addressed to somebody by name.
+   *
+   * A guest link reaches anybody and rings nobody; `INVITE` rings somebody and
+   * makes them a member. Neither is a way to ask one particular person to come
+   * and listen, which is what these cover — including the two things that most
+   * want to go wrong, that it must not write a membership, and that it must
+   * not be offered to a stranger.
+   */
+  const invite = (token: string, channelId: string, contactId: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/guest-invites`,
+      headers: auth(token),
+      payload: { contactId },
+    });
+
+  const home = async (token: string) => {
+    const got = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(token),
+    });
+    return got.json() as {
+      invites: Array<{ channelId: string; guest?: boolean; from: { displayName: string } }>;
+      rejoinable: Array<{ channelId: string; seat?: boolean }>;
+    };
+  };
+
+  /** Alice in her channel, present, with Dana a contact of hers. */
+  async function withContact() {
+    const room = await channelWithLink();
+    const dana = await signIn('dana@example.com', 'Dana');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(room.alice.token),
+      payload: { identifier: 'dana@example.com' },
+    });
+    await app.fastify.inject({
+      method: 'POST',
+      url: `/contacts/${room.alice.account.id}/accept`,
+      headers: auth(dana.token),
+    });
+    return { ...room, dana };
+  }
+
+  it('offers a seat without spending one of the six', async () => {
+    // The whole point of the feature in one assertion. INVITE writes into
+    // participants; this must not, or the offer is a membership wearing
+    // different words.
+    const { alice, channelId, dana, member } = await withContact();
+
+    const offered = await invite(alice.token, channelId, dana.account.id);
+    expect(offered.statusCode).toBe(200);
+
+    const state = app.channels.get(channelId)!;
+    expect(state.participants).not.toContain(dana.account.id);
+    // And nobody is in the room yet: an invitation is not an arrival.
+    expect(Object.keys(state.guests)).toHaveLength(0);
+
+    member.close();
+  });
+
+  it('reaches them as a push that says which offer it is', async () => {
+    const { alice, channelId, dana, member } = await withContact();
+    // A push reaches a device rather than an account, so there has to be one.
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/devices',
+      headers: auth(dana.token),
+      payload: { token: 'dana-phone', platform: 'ios' },
+    });
+
+    await invite(alice.token, channelId, dana.account.id);
+    // The send is not awaited by the route — notifying is deliberately not
+    // something a reply waits on — so this is the same beat the suite's other
+    // push assertions take.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const sent = pusher.messagesFor('dana-phone');
+    expect(sent).toHaveLength(1);
+    // The kind it shares with an ordinary invitation, because no rule
+    // separates the two — and the sentence that is the whole difference.
+    expect(sent[0].kind).toBe('invited');
+    expect(sent[0].body).toContain('as a guest');
+    expect(sent[0].title).toBe('Alice');
+
+    member.close();
+  });
+
+  it('shows on their Home as an invitation, not as a seat', async () => {
+    // Before accepting there is nowhere to go back to, so it must not be in
+    // `rejoinable` — which is what `liveForAccount` withholding pending rows
+    // is for.
+    const { alice, channelId, dana, member } = await withContact();
+    await invite(alice.token, channelId, dana.account.id);
+
+    const view = await home(dana.token);
+    expect(view.rejoinable.map((r) => r.channelId)).not.toContain(channelId);
+    const asked = view.invites.find((i) => i.channelId === channelId);
+    expect(asked).toBeDefined();
+    expect(asked!.guest).toBe(true);
+    expect(asked!.from.displayName).toBe('Alice');
+
+    member.close();
+  });
+
+  it('becomes a seat when they walk in, and only then', async () => {
+    const { alice, channelId, dana, member } = await withContact();
+    await invite(alice.token, channelId, dana.account.id);
+
+    const entered = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/seat/enter`,
+      headers: auth(dana.token),
+    });
+    expect(entered.statusCode).toBe(200);
+
+    // In the room as a guest, still not a member of it.
+    const state = app.channels.get(channelId)!;
+    expect(state.participants).not.toContain(dana.account.id);
+    expect(Object.values(state.guests)[0]?.accountId).toBe(dana.account.id);
+
+    // And it has changed sides on Home: somewhere to go back to rather than
+    // something being offered.
+    const view = await home(dana.token);
+    expect(view.invites.map((i) => i.channelId)).not.toContain(channelId);
+    expect(view.rejoinable.find((r) => r.channelId === channelId)?.seat).toBe(true);
+
+    member.close();
+  });
+
+  it('will not ask a stranger', async () => {
+    // The no-strangers rule, which is why this is contacts-only where a link
+    // is not: a link cannot ring anybody and this can.
+    const room = await channelWithLink();
+    const stranger = await signIn('eve@example.com', 'Eve');
+    const refused = await invite(
+      room.alice.token,
+      room.channelId,
+      stranger.account.id
+    );
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json()).toEqual({ error: 'Not a contact.' });
+    room.member.close();
+  });
+
+  it('will not ask somebody who is already a member', async () => {
+    const { alice, bob, channelId, member } = await channelWithLink();
+    const refused = await invite(alice.token, channelId, bob.account.id);
+    expect(refused.statusCode).toBe(409);
+    member.close();
+  });
+
+  it('will not offer two seats to one person', async () => {
+    const { alice, channelId, dana, member } = await withContact();
+    expect((await invite(alice.token, channelId, dana.account.id)).statusCode).toBe(200);
+    const again = await invite(alice.token, channelId, dana.account.id);
+    expect(again.statusCode).toBe(409);
+    member.close();
+  });
+
+  it('is taken back by a member, and leaves their Home when it is', async () => {
+    const { alice, channelId, dana, member } = await withContact();
+    const offered = await invite(alice.token, channelId, dana.account.id);
+    const { guestId } = offered.json() as { guestId: string };
+
+    const listed = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/guest-invites`,
+      headers: auth(alice.token),
+    });
+    expect((listed.json() as { invites: unknown[] }).invites).toHaveLength(1);
+
+    const revoked = await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-invites/${guestId}`,
+      headers: auth(alice.token),
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    const view = await home(dana.token);
+    expect(view.invites.map((i) => i.channelId)).not.toContain(channelId);
+    // And it is no longer a way in.
+    const entered = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/seat/enter`,
+      headers: auth(dana.token),
+    });
+    expect(entered.statusCode).toBe(400);
+
+    member.close();
+  });
+
+  it('stops meaning anything once the room empties', async () => {
+    // The lifetime the seat row already had, which is why this needed no new
+    // clock: channelEmptied pulls every seat's expiry back to the moment the
+    // last member left, and a pending invitation is a seat row.
+    const { alice, channelId, dana, member } = await withContact();
+    await invite(alice.token, channelId, dana.account.id);
+    expect(alice).toBeDefined();
+
+    member.send({ type: 'channel.action', channelId, action: { type: 'STEP_OUT' } });
+    await member.next('channel', (m) => m.view.channel.present.length === 0);
+
+    const view = await home(dana.token);
+    expect(view.invites.map((i) => i.channelId)).not.toContain(channelId);
+
+    member.close();
+  });
+});

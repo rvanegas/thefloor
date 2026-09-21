@@ -291,6 +291,26 @@ export interface InviteView {
   from: PublicAccount;
   createdAt: number;
   /**
+   * Whether what is being offered is a **seat** rather than a membership.
+   *
+   * The two are different offers and a card that said the same words for both
+   * would be lying about one of them: a membership is permanent and spends one
+   * of the channel's six places; a seat lasts while the room does, carries no
+   * standing, and can be taken back by anybody in it. Somebody deciding
+   * whether to tap is owed the difference.
+   *
+   * **Absent means a membership**, which is what every invitation was before
+   * 2026-09-21 — so a client that predates this reads an omitted flag as the
+   * only kind it knows about, which is the right answer for it. The shim that
+   * makes that true is in SHIMS.md.
+   *
+   * Almost nothing else on this type transfers to a guest invitation, in the
+   * way `RejoinableView.seat` warns about its own: `others` is withheld,
+   * because who is standing in a room is not something to tell somebody who
+   * has never been in it.
+   */
+  guest?: boolean;
+  /**
    * What the channel is called, if anyone has named it — and who else is in
    * it, so an unnamed one can be described the way every other list describes
    * one.
