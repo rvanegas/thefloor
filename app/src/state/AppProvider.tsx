@@ -1175,6 +1175,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lookingAt = useRef<string | null>(null);
   const standing = useRef<string | null>(null);
   standing.current = state.standingIn;
+  /**
+   * The screen role, where a socket handler can read it.
+   *
+   * `standing`'s shape and `standing`'s reason: the handlers are built once,
+   * so a message that has to know what this device is currently showing
+   * cannot ask `state`. What reads it is the eviction — a null `screen` now
+   * reaches every instance of an account rather than only the ones the server
+   * has a record of, and an instance showing nothing has to be able to tell
+   * that the message takes nothing away.
+   */
+  const screenRole = useRef<string | null>(null);
+  screenRole.current = state.screenFor;
   const reportAttentive = useCallback(
     (force = false) => {
       const at = Date.now();
@@ -1296,6 +1308,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           through it.
         */
         onScreenAsked: (channelId) => {
+          /*
+            **A null that takes nothing away is not an event.** The server
+            tells every one of an account's instances to stop showing a film
+            when one of them declares, rather than only the ones it has a
+            record of — see `screens.showing` in server/src/ws.ts — so an
+            idle device now hears a null on every declaration anybody makes.
+            Answering it would send a retraction of nothing and re-render the
+            application to say what it already said.
+
+            Only the null is short-circuited. A grant is always acted on,
+            redundant or not: it carries an arrival, and spending it is what
+            opens the channel.
+          */
+          if (channelId === null && screenRole.current === null) return;
           realtime.showingScreen(channelId);
           /*
             **And subscribed to, which is what makes the sentence above true.**

@@ -1590,15 +1590,52 @@ describe('websocket', () => {
         phone.close();
       });
 
-      it('says nothing to a device that was showing nothing', async () => {
+      it('asks nothing of a device that was showing nothing', async () => {
         const { channelId, phone, laptop } = await withScreens();
         laptop.send({ type: 'screens.showing', channelId });
         await phone.next('screening', (m) => m.channelIds.includes(channelId));
 
-        // The phone was never a screen, so there is nothing to take off it.
-        // A `screen` message here would open the channel on a device whose
-        // owner never asked it to.
-        expect(phone.received.some((m) => m.type === 'screen')).toBe(false);
+        // The eviction reaches every instance — see below — so the phone does
+        // hear about this. What it must never hear is a channel: a non-null
+        // `screen` opens one on a device whose owner never asked it to.
+        expect(
+          phone.received.some((m) => m.type === 'screen' && m.channelId !== null)
+        ).toBe(false);
+
+        phone.close();
+        laptop.close();
+      });
+
+      /**
+       * **The invariant, and the half of it that was being enforced against
+       * the obedient.** Exactly one instance of an account shows a film, and
+       * the eviction used to be filtered on `Connection.screening` — a record
+       * of what a device last managed to *say*, which a socket takes with it
+       * when it goes.
+       *
+       * So the devices that were skipped were precisely the ones that had
+       * stopped agreeing with the server: a deploy, a tunnel or a lift, or a
+       * client below build 263, which had nothing that outlived the socket to
+       * restate the declaration with. A film playing on a second device, the
+       * app updated on the first, and the fresh process defaults itself to the
+       * screen and displaces nothing — two soundtracks in one room, and stable.
+       */
+      it('takes the film off every instance, whatever it was last told', async () => {
+        const { channelId, phone, laptop } = await withScreens();
+        laptop.send({ type: 'screens.showing', channelId });
+        await phone.next('screening', (m) => m.channelIds.includes(channelId));
+        // The record going, with the film still on the glass: this is what a
+        // socket dying does to it, said in one message rather than by killing
+        // a connection the test would then have to replace.
+        laptop.send({ type: 'screens.showing', channelId: null });
+        await phone.next('screening', (m) => m.channelIds.length === 0);
+
+        // The phone now believes nobody has the picture, which is exactly what
+        // a freshly launched app is told, and takes it.
+        phone.send({ type: 'screens.showing', channelId });
+
+        const told = await laptop.next('screen');
+        expect(told.channelId).toBeNull();
 
         phone.close();
         laptop.close();
@@ -1641,7 +1678,11 @@ describe('websocket', () => {
         laptop.send({ type: 'screens.showing', channelId: null });
         laptop.send({ type: 'screens.use', channelId, device: null });
 
-        const told = await phone.next('screen');
+        // The grant rather than the first `screen` to arrive: the laptop's
+        // own declaration evicted every other instance a moment earlier, so
+        // the phone — which was showing nothing, and does nothing about it —
+        // has a null in front of this.
+        const told = await phone.next('screen', (m) => m.channelId !== null);
         expect(told.channelId).toBe(channelId);
         // Nothing about the room moved: this is a screen role and not a place
         // to be.

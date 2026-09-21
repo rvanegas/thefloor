@@ -224,6 +224,24 @@ describe('being handed a film', () => {
     expect(reported).toEqual([null]);
   });
 
+  /**
+   * **An eviction that takes nothing away is not an event.** The server tells
+   * every one of an account's instances to stop showing a film when one of
+   * them declares — it cannot ask its own record who is playing what, that
+   * record being what a dropped socket takes with it — so a device showing
+   * nothing now hears a null on every declaration anybody makes. Answering
+   * one would retract nothing at the server and re-render the application to
+   * say what it already said.
+   */
+  it('says nothing when told to stop showing what it was not showing', async () => {
+    const shown = await open();
+    act(() => handlers.onScreenAsked?.(null));
+
+    expect(reported).toEqual([]);
+    expect(watched).toEqual([]);
+    expect(textOf(shown)).toContain('screen:nowhere');
+  });
+
   it('is the same fact the app can set for itself', async () => {
     await open();
     act(() => latest?.showScreenFor('sess_1'));

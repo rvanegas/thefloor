@@ -1849,7 +1849,11 @@ or the laptop somebody handed the film to would lose it the moment it arrived.
 **One device shows the film at a time.** Taking it here takes it off whatever
 else of yours was showing it — the video moves, not merely the controls — and
 the server is what enforces that, being the only thing that can see all of
-somebody's devices at once.
+somebody's devices at once. **Off every instance of the account, since
+2026-09-21, and not only the ones it has a record of**: what it holds is what
+each device last managed to *say*, which a dropped socket takes with it, so
+filtering the eviction on it skipped exactly the devices that had drifted. See
+decisions/2026-09-21-a-declaration-displaces-every-instance.md.
 
 **Handing it over only *asks*.** The film moves when the target instance
 declares itself the screen, and the eviction that follows is what takes it off

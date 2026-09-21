@@ -1551,6 +1551,27 @@ export function registerWebsocket(deps: {
             The account and never a channel: two films of one person's on two
             devices is the same room with two soundtracks in it, and which
             channel each belongs to does not make it less so.
+
+            **Told to every instance, and not only to the ones this server
+            believes are showing something.** `Connection.screening` is a
+            record of what a device last managed to say, which is not the same
+            fact as what it is playing: the declaration dies with its socket,
+            so a deploy, a tunnel or a lift leaves a device showing a film that
+            this server has no record of — and every client below build 263
+            never restates it at all, having nothing that survives the socket
+            to say it again. Filtering the eviction on that record is
+            therefore enforcing the invariant against the devices that are
+            already obeying it while skipping exactly the ones that are not.
+
+            What it cost: a film playing on a second device, the app updated
+            on the first — a fresh process, no `defaulted` mark, a `screening`
+            push saying nobody else has the picture — which defaults itself to
+            the screen, declares, displaces nothing, and plays. Two soundtracks
+            in one room, and stable, because nothing afterwards says otherwise.
+
+            A null to an instance showing nothing is ignored by it; a null to
+            one that is showing something is the whole point. See
+            planning/decisions/2026-09-21-a-declaration-displaces-every-instance.md.
           */
           const displacedFrom: (string | null)[] = [];
           if (message.channelId !== null) {
@@ -1558,8 +1579,10 @@ export function registerWebsocket(deps: {
               if (other === connection) continue;
               if (other.scope.kind !== 'session') continue;
               if (other.userId !== connection.userId) continue;
-              if (other.screening === null) continue;
-              displacedFrom.push(other.screening);
+              // The room is told about the ones that were on the record, that
+              // being the only half of this the roster can have been wrong
+              // about.
+              if (other.screening !== null) displacedFrom.push(other.screening);
               other.screening = null;
               send(other, { type: 'screen', channelId: null });
             }
