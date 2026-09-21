@@ -1457,6 +1457,36 @@ export function buildApp(options: BuildOptions = {}): App {
    * asked into the channel is a second act by a member — an ordinary `INVITE`
    * — and the hand-over went with it.
    */
+  /**
+   * Taking up a seat from the app.
+   *
+   * **The one door into a channel that does not go through a browser.** A seat
+   * made by knocking lives in the tab that knocked — its secret is in that
+   * tab's `sessionStorage` — and the app has no way to present it and never
+   * will. What the app does have is a session, and a seat bound to an account
+   * needs nothing more: `enterSeat` says why.
+   *
+   * It answers with the same `GuestView` the guest page renders, rather than
+   * the channel: a guest is shown names and no ids, no profiles and no
+   * recordings, and that boundary is the point of having a second shape at all.
+   * Handing the app a `ChannelState` here would widen it by accident.
+   */
+  fastify.post('/channels/:id/seat/enter', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+
+    const entered = channels.enterSeat(account.id, id);
+    if (!entered.ok) {
+      return reply.code(statusFor(entered.code)).send({ error: entered.error });
+    }
+    const view = channels.guestView(id, entered.guestId);
+    if (!view) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    return { guestId: entered.guestId, view };
+  });
+
   fastify.post('/contacts/guest-ask/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

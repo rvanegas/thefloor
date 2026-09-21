@@ -1093,3 +1093,120 @@ describe('a guest’s name', () => {
     member.close();
   });
 });
+
+describe('taking up a seat from the app', () => {
+  /**
+   * The walk the guest page cannot make, and the reason this route exists.
+   *
+   * A seat's secret lives in the browser tab that knocked. The app has no way
+   * to present one and never will — so for a seat with an account behind it,
+   * the account token is the credential, and these are the tests that say the
+   * narrowing is safe: a seat without an account is not reachable this way,
+   * and neither is somebody else's.
+   */
+  const enter = (token: string, channelId: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/seat/enter`,
+      headers: auth(token),
+    });
+
+  /** Dana, signed in, admitted as a guest of Alice's channel. */
+  async function seated() {
+    const room = await channelWithLink();
+    const dana = await signIn('dana@example.com', 'Dana');
+    const guest: Guest = guestSocket(`link=${room.link.token}`);
+    await guest.open();
+    await guest.next('door');
+    // The token at the door is what puts the account on the seat.
+    guest.send({ type: 'knock', name: 'Dana', token: dana.token });
+    await guest.next('knocking');
+    const knocked = await room.member.next(
+      'channel',
+      (m) => m.view.channel.knocks.length > 0
+    );
+    room.member.send({
+      type: 'channel.action',
+      channelId: room.channelId,
+      action: {
+        type: 'ANSWER_KNOCK',
+        knockId: knocked.view.channel.knocks[0].id,
+        accept: true,
+      },
+    });
+    const admission = await guest.next('admitted');
+    return { ...room, dana, guest, admission };
+  }
+
+  it('answers with what a guest is shown, and not with the channel', async () => {
+    // The boundary this route is built around. A member's snapshot carries
+    // every participant's account id, their profiles and the recordings; a
+    // guest gets names. Handing back a channel here would widen that silently.
+    const { dana, channelId, guest, member } = await seated();
+
+    const entered = await enter(dana.token, channelId);
+    expect(entered.statusCode).toBe(200);
+    const body = entered.json() as {
+      guestId: string;
+      view: {
+        channelId: string;
+        you: { name: string; accountId: string | null };
+      };
+    };
+    expect(body.view.channelId).toBe(channelId);
+    expect(body.view.you.name).toBe('Dana');
+    expect(body.view.you.accountId).toBe(dana.account.id);
+    expect(body).not.toHaveProperty('view.participants');
+    expect(body).not.toHaveProperty('view.recordings');
+
+    guest.close();
+    member.close();
+  });
+
+  it('refuses an account with no seat here', async () => {
+    const { bob, channelId, member } = await channelWithLink();
+    // Bob is a *member* of this channel and holds no seat in it. Both are
+    // reasons to refuse, and the seat lookup is the one that fires first.
+    // 400 rather than 404: `statusFor` answers `not_found` with 400, which is
+    // this server's convention and not this route's choice.
+    const refused = await enter(bob.token, channelId);
+    expect(refused.statusCode).toBe(400);
+    member.close();
+  });
+
+  it('will not take over a seat that has no account on it', async () => {
+    // An anonymous seat is reachable by its secret and by nothing else.
+    // Signing in afterwards must not be a way to walk into one.
+    const room = await admitted();
+    const dana = await signIn('dana@example.com', 'Dana');
+    const refused = await enter(dana.token, room.channelId);
+    expect(refused.statusCode).toBe(400);
+    room.guest.close();
+    room.member.close();
+  });
+
+  it('refuses once the room is empty of members', async () => {
+    // A seat is a place to come back to while the room is there. The guest
+    // link stops working when the channel empties and a seat is on the same
+    // clock, so this cannot be the way back into an empty one.
+    //
+    // **And the seat is gone before the presence check runs.**
+    // `channelEmptied` pulls every seat's `expires_at` back to the moment the
+    // last member left, so `liveForAccount` no longer finds it and the refusal
+    // is the seat lookup's rather than the room's. `enterSeat`'s presence test
+    // is the belt to that braces, and this asserts the order they fire in.
+    const { dana, channelId, guest, member } = await seated();
+    member.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'STEP_OUT' },
+    });
+    await member.next('channel', (m) => m.view.channel.present.length === 0);
+
+    const refused = await enter(dana.token, channelId);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toEqual({ error: 'You have no seat here.' });
+    guest.close();
+    member.close();
+  });
+});

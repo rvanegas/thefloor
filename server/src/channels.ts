@@ -5417,6 +5417,69 @@ export class ChannelRegistry {
   }
 
   /**
+   * Taking up a seat from the app, where there is no secret to present.
+   *
+   * **The account token is the whole credential here, and that is sound for
+   * exactly the seats this serves.** A seat's secret exists because an
+   * anonymous guest has nothing else to prove they are the same visitor —
+   * `guest_sessions.secret_hash` is the only thing standing between a seat and
+   * whoever guesses its id. A seat with `account_id` set has a second, better
+   * answer to that question, and `liveForAccount` is already trusted to give
+   * it: the Home card saying *you are a guest here* is drawn from precisely
+   * this query. So the app asks for a seat it already knows it holds.
+   *
+   * It is deliberately narrower than `claimSeat`, which authenticates three
+   * ways because it is reached by somebody who may be claiming a seat that has
+   * no account on it yet. Nothing here claims anything: a seat without an
+   * account is not found by this lookup at all, and cannot be taken over by
+   * signing in.
+   *
+   * **Presence is required, as it is for `resumeGuest`.** A seat is a place to
+   * come back to while the room is there — the guest link stops working once
+   * the channel is empty of members, and a seat is on the same clock.
+   */
+  enterSeat(
+    accountId: string,
+    channelId: string
+  ): { ok: true; guestId: string } | Refused {
+    const session = this.guests
+      .liveForAccount(accountId, this.now())
+      .find((row) => row.channel_id === channelId);
+    if (!session) {
+      return { ok: false, error: 'You have no seat here.', code: 'not_found' };
+    }
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'This channel is gone.', code: 'not_found' };
+    }
+    // A member of the channel is a member: the seat is the lesser standing and
+    // must not be the one they are put back into. `rejoinableFor` withholds
+    // the seat row from them for the same reason.
+    if (isParticipant(channel, accountId)) {
+      return {
+        ok: false,
+        error: 'You are a member of this channel.',
+        code: 'conflict',
+      };
+    }
+    if (channel.present.length === 0) {
+      return {
+        ok: false,
+        error: 'There is nobody in this channel.',
+        code: 'conflict',
+      };
+    }
+    // Before entering, so that a room which is full refuses on the way in
+    // rather than leaving a seat that looks live and never opens.
+    this.guests.touch(session.id, this.now());
+    this.enterGuest(channelId, session);
+    if (!this.channels.get(channelId)?.guests[session.id]) {
+      return { ok: false, error: 'This channel is full.', code: 'conflict' };
+    }
+    return { ok: true, guestId: session.id };
+  }
+
+  /**
    * The identity check every acceptance below makes, and it is the same one.
    *
    * **Authenticated three ways, and all three are cheap.** The caller's own
