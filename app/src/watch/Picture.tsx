@@ -349,8 +349,8 @@ export function Picture({
           watch={watch}
           channelId={channelId}
           fill
-          onDuration={(durationMs) =>
-            app.act(channelId, { type: 'WATCH_READY', durationMs })
+          onFilm={(durationMs, title) =>
+            app.act(channelId, { type: 'WATCH_READY', durationMs, title })
           }
           onRefusal={(message) => setRefused(message !== null)}
         />

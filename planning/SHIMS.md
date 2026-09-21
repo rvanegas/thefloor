@@ -47,11 +47,24 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 212 | `HomeView.cohortEligible` optionality | `core/protocol.ts`, `app/src/state/AppProvider.tsx`, `app/src/state/notificationAsk.ts` |
 | 215 | `Guest.asks` / `Guest.invites` optionality, and `'accepted'` | `core/types.ts`, `app/src/ui/ChannelView.tsx` |
 | 259 | `ChannelView.watching` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
+| 259 | `WATCH_READY.title` optionality | `core/protocol.ts`, `core/types.ts`, `core/channel.ts` |
+| — | `WatchParty.title` revived as null | `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
 `ChannelView.pingableAt` and `ChannelView.notificationLevel` — went in the same
 commit, so nothing above is free today.
+
+`WATCH_READY.title` is optional so that an app older than the field can go on
+reporting a duration alone, and the reducer leaves the party's name as it was
+when no title comes — which is also what a player with no `getVideoData` sends.
+Gated at 259 for the same reason as its neighbour.
+
+**`WatchParty.title` revived as null has no gate**, being about rows rather
+than builds: a party stored before 2026-09-20 has no title in its blob, and
+`revivedWatch` normalises the undefined to null so `learnTitle` can still write
+one. It goes when no such row can exist, which nothing measures — the same
+standing as `mediaRoom` above.
 
 `ChannelView.watching` is optional so that a client which draws the roster's
 *watching* suffix can meet a server which does not gather it, and reads an

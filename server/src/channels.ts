@@ -356,7 +356,12 @@ function silenceSignature(
 function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['watch'] {
   if (!stored?.party) return initialWatchState();
   return {
-    party: stored.party,
+    // **Normalised rather than carried whole**, for the one field a row
+    // written before 2026-09-20 does not have: a stored party has no `title`,
+    // and an undefined where the type says `string | null` is a party no
+    // player can ever name — `learnTitle` refuses to write over a title that
+    // is not null, and undefined is not null.
+    party: { ...stored.party, title: stored.party.title ?? null },
     status: 'paused',
     positionMs: stored.positionMs,
     startedAt: null,

@@ -1,4 +1,8 @@
-import { WATCH_DRIFT_MS, WATCH_LENGTH_SLACK_MS } from './constants';
+import {
+  MAX_FILM_TITLE,
+  WATCH_DRIFT_MS,
+  WATCH_LENGTH_SLACK_MS,
+} from './constants';
 import type { WatchParty, WatchState } from './types';
 
 /**
@@ -213,6 +217,33 @@ export function learnDuration(
   if (!watch.party || watch.party.durationMs !== null) return watch;
   if (!Number.isFinite(durationMs) || durationMs <= 0) return watch;
   return { ...watch, party: { ...watch.party, durationMs } };
+}
+
+/**
+ * The party takes the name the first player gives it.
+ *
+ * **The same rule as `learnDuration`, deliberately, and for the same reason.**
+ * Both facts come from a client rather than from here, both arrive in the same
+ * report, and a second player disagreeing is a disagreement no rule can
+ * settle. First answer wins, and the pair is therefore consistent: whatever
+ * the video the first reporter was showing, the channel holds its length and
+ * its name rather than one of each from two videos.
+ *
+ * **Which means an advert can name a party**, exactly as it can already give
+ * one its length — `getVideoData` describes the pre-roll while a pre-roll is
+ * running. It is the known cost of learning anything from a player, it is
+ * visible and self-correcting in the way a wrong duration is not (somebody
+ * reads a name that is not the film's; nothing breaks), and guessing around it
+ * with a timer is what `Intent` spent four days failing to do.
+ *
+ * Trimmed and capped, this being a string from outside. Empty after trimming
+ * is a player that could not say, and is not an answer.
+ */
+export function learnTitle(watch: WatchState, title: string): WatchState {
+  if (!watch.party || watch.party.title !== null) return watch;
+  const named = title.trim().slice(0, MAX_FILM_TITLE);
+  if (named === '') return watch;
+  return { ...watch, party: { ...watch.party, title: named } };
 }
 
 /**

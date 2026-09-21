@@ -331,10 +331,30 @@ export interface WatchParty {
   url: string;
   /**
    * How long it runs. Null until a follower's player says — nothing here ever
-   * asks YouTube anything, so this is the one fact the channel learns from a
-   * client rather than deciding.
+   * asks YouTube anything, so this is one of two facts the channel learns
+   * from a client rather than deciding.
    */
   durationMs: number | null;
+  /**
+   * What the video is called, or null until a player has said.
+   *
+   * **The second fact learnt from a player, and it arrives the same way the
+   * first does.** The embed already holds the name of what it is showing —
+   * `getVideoData().title` — so a device that is playing the film can report
+   * it in the report it was already making. Nothing asks YouTube anything:
+   * this is a player describing the video it has, not a request for a
+   * description of one.
+   *
+   * That distinction is the whole of why this exists, the card having gone
+   * without a title since 2026-09-18 on the grounds that fetching one would
+   * be the first request this project ever made to Google. It still is not
+   * one. See decisions/2026-09-20-the-film-says-what-it-is-called.md.
+   *
+   * Null is the ordinary state for the first seconds of a party and for the
+   * whole of one nobody is showing anywhere — a card with no title is what
+   * every card looked like before this, so nothing has to stand in for it.
+   */
+  title: string | null;
 }
 
 export type WatchStatus = 'idle' | 'playing' | 'paused';
@@ -893,7 +913,18 @@ export type ChannelAction =
    * `userId` all the same, because the socket it arrives on has one and the
    * reducer refuses anybody who is not a participant.
    */
-  | { type: 'WATCH_READY'; userId: UserId; durationMs: number }
+  | {
+      type: 'WATCH_READY';
+      userId: UserId;
+      durationMs: number;
+      /**
+       * What the player says the video is called, where it can say. Optional
+       * because a player that cannot name what it is showing still has a
+       * length worth reporting, and because a build older than the field
+       * sends the action without it.
+       */
+      title?: string | null;
+    }
   /**
    * This account's device in the room is, or is no longer, the screen.
    *

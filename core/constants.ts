@@ -574,6 +574,21 @@ export const FAST_HEARTBEAT_BUILD = 110;
 export const MAX_CLIP_LENGTH = 8_000;
 
 /**
+ * The longest film title a party will keep.
+ *
+ * **A cap on somebody else's string**, which is the whole reason for it: the
+ * title is whatever a player reports, and what a player reports is whatever
+ * was typed into YouTube. Two hundred is well past the hundred YouTube itself
+ * allows and well short of anything that could be used to push a snapshot
+ * around, and the card draws one line of it in any case.
+ *
+ * Truncated rather than refused, unlike a clip: a name that loses its end is
+ * still the film's name, and the alternative is a party with no title because
+ * somebody's video is called something absurd.
+ */
+export const MAX_FILM_TITLE = 200;
+
+/**
  * How long a presence announcement stays worth delivering.
  *
  * "Somebody is here now" is false within minutes, and Apple will hold an

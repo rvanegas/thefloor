@@ -2461,8 +2461,17 @@ export function ChannelView({
    * so `trackWidth` below is unambiguous either way.
    *
    * Null with no party, there being nothing to drive.
+   *
+   * **Taken as an argument since 2026-09-20, for the one thing the two places
+   * do not share.** The film's name is drawn under the progress bar in a
+   * body — on the card and on a *second device*, both of which are a page
+   * somebody is reading — and not on the expanded picture, where the scrim
+   * carries the transport and *Exit full screen* and nothing else. That rule
+   * is the day's other decision and this is the first thing it has had to
+   * refuse; a flag rather than a second copy of the row, which is what this
+   * extraction exists to prevent.
    */
-  const watchTransport = party ? (
+  const watchTransport = (withTitle: boolean) => party ? (
     <>
       {party.durationMs ? (
         <>
@@ -2533,6 +2542,35 @@ export function ChannelView({
           {formatDuration(watchAt)} in
         </Text>
       )}
+
+      {/*
+        **What is on, said in words, under the bar that says how far in it
+        is.**
+
+        The card went without a name from 2026-09-18, when the URL was taken
+        off it: a link is machine text, and fetching a title would have been
+        the first request this application ever made to Google. Neither of
+        those is what this is. The player already holds the name of the video
+        it is showing, and says so in the report it was already making — the
+        same path the duration takes, and the same rule, the channel keeping
+        the first answer. See `WatchParty.title`.
+
+        **Under the bar rather than over it**, which is where the *Listen*
+        tab draws a track's name. A track's title is the whole subject of
+        that card, there being nothing else on it; here the subject is the
+        picture, and a heading between the two would come between somebody
+        and the film. This is a caption on the transport, so it is drawn as
+        one.
+
+        Null for the first seconds of every party and for the whole of one
+        that nobody is showing anywhere — a player is what names a film, and
+        a room where nobody has one draws what it always drew.
+      */}
+      {withTitle && party.title ? (
+        <Text style={type.body} numberOfLines={1}>
+          {party.title}
+        </Text>
+      ) : null}
 
       {/*
         **The transport, and the film's own bar is the other way of
@@ -2650,7 +2688,9 @@ export function ChannelView({
   if (fullScreen && party && screeningHere) {
     return (
       <FullScreen
-        chrome={watchTransport}
+        // **No name on the scrim**, which carries the transport and the way
+        // out and nothing else — see the flag on `watchTransport`.
+        chrome={watchTransport(false)}
         /*
           **No way out on the scrim while the phone is the way out.** A press
           of an exit here would set a flag that is already down — the state is
@@ -2670,7 +2710,9 @@ export function ChannelView({
             watch={watch}
             channelId={channelId}
             fill
-            onDuration={(durationMs) => act({ type: 'WATCH_READY', durationMs })}
+            onFilm={(durationMs, title) =>
+              act({ type: 'WATCH_READY', durationMs, title })
+            }
             onRefusal={(message) => setOwnFilmRefused(message !== null)}
           />
         }
@@ -2763,7 +2805,7 @@ export function ChannelView({
         asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
         contentStyle={styles.secondDeviceBody}
       >
-        {watchTransport}
+        {watchTransport(true)}
         {/*
           Ungated by the floor, like the one on the watch card and unlike the
           transport beside it: how big the film is on this device is nobody
@@ -3950,20 +3992,21 @@ export function ChannelView({
                   `heading`, it claimed to be the subject of the card while
                   saying nothing about which film was on.
 
-                  Nothing replaces it, because nothing here knows the title:
-                  the channel learns exactly one fact from a player, the
-                  duration, and asking YouTube for a name would be the first
-                  time this application talked to it — see `WatchParty`, whose
-                  `url` is kept precisely so the interface can hand back what
-                  was pasted rather than display it. Handing it back is *Copy
-                  video link*, below, which is where somebody who wants the
-                  link goes.
+                  **What replaces it is the film's name, as of
+                  2026-09-20**, and it is under the progress bar rather than
+                  here — see the transport. Nothing replaced it for two days,
+                  on the reasoning that asking YouTube for a name would be the
+                  first time this application talked to it; the player already
+                  holds the name of what it loaded, so there was a third way
+                  and nothing is asked of anybody. `WatchParty.url` is still
+                  never drawn: it is kept so the interface can hand back what
+                  was pasted, which is *Copy video link*, below.
 
                   What says a film is on is the transport, the *Watch on*
                   switch and the picture itself. A follower device has all
                   three.
                 */}
-                {watchTransport}
+                {watchTransport(true)}
                 {/*
                   **Full screen, and the only way in.**
 

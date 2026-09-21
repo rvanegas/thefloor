@@ -1397,7 +1397,15 @@ export type ClientAction =
    * page and by nothing else — it is the one action a watch-scoped socket may
    * send, and the only fact about a party that does not originate here.
    */
-  | { type: 'WATCH_READY'; durationMs: number }
+  /**
+   * What a player knows about the video it is showing: how long it runs and,
+   * since 2026-09-20, what it is called.
+   *
+   * `title` is optional in both directions — an older app sends the action
+   * without it, and a player that cannot name what it is showing omits it —
+   * and an absent one leaves the party's name as it was. See SHIMS.md.
+   */
+  | { type: 'WATCH_READY'; durationMs: number; title?: string | null }
   /**
    * This account's device in the room is, or is no longer, the screen.
    *

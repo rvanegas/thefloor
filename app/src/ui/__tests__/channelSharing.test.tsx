@@ -536,6 +536,37 @@ describe('Channel, watching together', () => {
   });
 
   /**
+   * **What is on, in words.** The card carried a URL until 2026-09-18 and
+   * nothing at all after it, on the grounds that fetching a name would be the
+   * first request this application ever made to Google. The name now comes
+   * from the player, which already has it — see
+   * `decisions/2026-09-20-the-film-says-what-it-is-called.md`.
+   */
+  it('draws the film name once a player has reported one', () => {
+    showChannel(
+      watching((s) =>
+        reduce(
+          s,
+          { type: 'WATCH_READY', userId: ME, durationMs: 600_000, title: 'A Film' },
+          NOW
+        )
+      )
+    );
+    const tree = open();
+    expect(textOf(tree)).toContain('A Film');
+    act(() => tree.unmount());
+  });
+
+  it('draws no name until one has been reported', () => {
+    // Every party spends its first seconds here, and a party nobody is
+    // showing anywhere spends all of it here: a player is what names a film.
+    showChannel(watching());
+    const tree = open();
+    expect(textOf(tree)).not.toContain('A Film');
+    act(() => tree.unmount());
+  });
+
+  /**
    * **Who is actually watching, which is the question a host asks.** Somebody
    * who starts a film wants to know whether the room is with them, and until
    * 2026-09-20 nothing on the screen said: a participant whose app is

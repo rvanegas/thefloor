@@ -18,6 +18,15 @@ nothing is the better of the two — what says a film is on is the transport,
 the *Watch on* switch and, on the device showing it, the picture. A follower
 device has all three.
 
+**Superseded in its second half on 2026-09-20**, and by a route this entry did
+not consider. *Nothing replaces it* rested on there being nowhere for a name to
+come from, and the only source weighed here was a request to Google. There was a
+third: the player already holds the name of the video it loaded, and reports it
+the way it already reports the length. The card has a title again and this
+project still asks YouTube nothing — see
+2026-09-20-the-film-says-what-it-is-called.md. The first half stands: the link
+itself is machine text and is not coming back.
+
 `WatchParty.url` stays, and its comment — *kept so the interface can hand back
 exactly that* — is now the whole of its job. Handing it back is **Copy video
 link**, which is untouched and is the one route a URL has off this screen; the

@@ -32,6 +32,7 @@ import {
   hasReachedEnd as watchHasReachedEnd,
   initialWatchState,
   learnDuration,
+  learnTitle,
   partyWithholds,
   setPartyMute,
   startParty,
@@ -2230,6 +2231,9 @@ export function reduce(
           videoId: action.videoId,
           url: action.url,
           durationMs: null,
+          // Both learnt from the first player that can say; neither is
+          // anything this application asks anybody for. See `WatchParty`.
+          title: null,
         }),
         // The other half of the mutual replacement `SET_TRACK` makes. The
         // server's media plane follows committed state, so this is the whole
@@ -2299,7 +2303,18 @@ export function reduce(
       // the follower page of somebody who does not hold the floor is exactly
       // the one most likely to have loaded the video first.
       if (!isParticipant(state, action.userId)) return state;
-      return { ...state, watch: learnDuration(state.watch, action.durationMs) };
+      // Both facts from the one report, in the order they were learnt in —
+      // the length since the party shipped, the name since 2026-09-20. A
+      // report carrying no title is an older build or a player that could not
+      // name what it was showing, and leaves the name as it was.
+      const named = learnDuration(state.watch, action.durationMs);
+      return {
+        ...state,
+        watch:
+          typeof action.title === 'string'
+            ? learnTitle(named, action.title)
+            : named,
+      };
     }
 
     case 'WATCH_HERE': {

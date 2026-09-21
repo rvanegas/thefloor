@@ -422,6 +422,9 @@ describe('across a restart', () => {
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'WATCH_READY',
       durationMs: 600_000,
+      // Both facts a player reports, so the restart carries both. The name is
+      // the only part of a party that comes from outside and is kept.
+      title: 'A Film',
     } as never);
     app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
     clock += 30_000;
@@ -435,6 +438,7 @@ describe('across a restart', () => {
       videoId: VIDEO,
       url: URL,
       durationMs: 600_000,
+      title: 'A Film',
     });
     expect(revived.watch.status).toBe('paused');
     expect(revived.watch.positionMs).toBe(30_000);

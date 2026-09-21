@@ -116,11 +116,24 @@ function page(videoId: string): string {
     if (!player || !player.getPlayerState) return;
     var seconds = player.getCurrentTime ? player.getCurrentTime() : null;
     var length = player.getDuration ? player.getDuration() : 0;
+    // **What the embed already knows it is showing.** Nothing is asked of
+    // YouTube here: the player holds the name of the video it has loaded, and
+    // this reads it off the object in front of us. Guarded because
+    // \`getVideoData\` is not part of the documented surface — an embed that
+    // does not have it reports no name, and a card with no title is what
+    // every card looked like before there were any.
+    var name = null;
+    try {
+      name = player.getVideoData ? player.getVideoData().title || null : null;
+    } catch (e) {
+      name = null;
+    }
     post({
       t: 'reading',
       state: player.getPlayerState(),
       positionMs: typeof seconds === 'number' ? seconds * 1000 : null,
-      durationMs: length > 0 ? Math.round(length * 1000) : null
+      durationMs: length > 0 ? Math.round(length * 1000) : null,
+      title: name
     });
   }
   setInterval(report, ${REPORT_MS});
@@ -192,13 +205,18 @@ const STATES: Record<number, PlayerState> = {
 export function WatchPlayer({
   watch,
   channelId,
-  onDuration,
+  onFilm,
   onRefusal,
   fill = false,
 }: {
   watch: WatchState;
   channelId: string;
-  onDuration: (durationMs: number) => void;
+  /**
+   * What this player knows about the film it is showing — how long it runs,
+   * and what it is called where it can say. Sent once per party, the channel
+   * keeping the first answer for both.
+   */
+  onFilm: (durationMs: number, title: string | null) => void;
   /**
    * That this film is not going to play, said upwards.
    *
@@ -265,6 +283,7 @@ export function WatchPlayer({
         code?: number;
         positionMs?: number | null;
         durationMs?: number | null;
+        title?: string | null;
       };
       try {
         payload = JSON.parse(event.nativeEvent.data);
@@ -290,10 +309,12 @@ export function WatchPlayer({
       };
       if (!told.current && payload.durationMs) {
         told.current = true;
-        onDuration(payload.durationMs);
+        // Both in the one report, so the party's length and its name are
+        // always the same video's — see `learnTitle`.
+        onFilm(payload.durationMs, payload.title ?? null);
       }
     },
-    [onDuration]
+    [onFilm]
   );
 
   const port = useMemo<PlayerPort | null>(() => {

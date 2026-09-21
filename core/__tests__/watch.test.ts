@@ -92,7 +92,12 @@ describe('parsing a pasted link', () => {
 describe('starting a party', () => {
   it('starts paused at the beginning rather than playing', () => {
     const s = watching();
-    expect(s.watch.party).toEqual({ videoId: VIDEO, url: URL, durationMs: LENGTH });
+    expect(s.watch.party).toEqual({
+      videoId: VIDEO,
+      url: URL,
+      durationMs: LENGTH,
+      title: null,
+    });
     expect(s.watch.status).toBe('paused');
     expect(s.watch.positionMs).toBe(0);
   });
@@ -114,6 +119,57 @@ describe('starting a party', () => {
       T0 + 1_000
     );
     expect(s.watch.party?.durationMs).toBe(LENGTH);
+  });
+
+  /**
+   * **The second fact a player reports, and it obeys the first one's rule.**
+   * Nothing here asks YouTube anything: the embed already holds the name of
+   * the video it loaded, and says so in the report it was already making. See
+   * `learnTitle`, and decisions/2026-09-20-the-film-says-what-it-is-called.md.
+   */
+  it('takes its name from the first player that can say', () => {
+    const started = reduce(
+      joined(),
+      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+      T0
+    );
+    expect(started.watch.party?.title).toBeNull();
+    const named = reduce(
+      started,
+      { type: 'WATCH_READY', userId: A, durationMs: LENGTH, title: '  A Film  ' },
+      T0 + 1_000
+    );
+    // Trimmed, this being a string from outside.
+    expect(named.watch.party?.title).toBe('A Film');
+    // And left alone afterwards, exactly as the length is: a second player
+    // disagreeing is a disagreement no rule here can settle.
+    const again = reduce(
+      named,
+      { type: 'WATCH_READY', userId: B, durationMs: LENGTH, title: 'Something Else' },
+      T0 + 2_000
+    );
+    expect(again.watch.party?.title).toBe('A Film');
+  });
+
+  it('is left unnamed by a player that could not say what it is showing', () => {
+    const started = reduce(
+      joined(),
+      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+      T0
+    );
+    // An older build sends no title at all; a player without `getVideoData`
+    // sends null; an embed that answers with an empty string has said
+    // nothing. None of the three is a name, and none of them is an error.
+    for (const title of [undefined, null, '   ']) {
+      const s = reduce(
+        started,
+        { type: 'WATCH_READY', userId: A, durationMs: LENGTH, title },
+        T0 + 1_000
+      );
+      expect(s.watch.party?.title).toBeNull();
+      // And the length it did report is kept regardless.
+      expect(s.watch.party?.durationMs).toBe(LENGTH);
+    }
   });
 
   it('ignores a duration nobody could have measured', () => {

@@ -95,6 +95,7 @@ caused; the list carries the meaning.
 - **Turned** — A *handheld* whose window is landscape, which on a handheld can only mean somebody turned it: nothing else this app runs on is handheld, and a handheld is locked upright away from the film. It is the whole state of *full screen* on a phone — `isTurned` in `ui/layout.ts`, read at render rather than stored, so the picture and the glass cannot disagree
 - **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *at the film* — the watch card with a film this device can expand, and *full screen* — where both orientations are permitted. A tablet and a browser window are never turned. It is what makes *turned* readable as a gesture, and narrowing it from *full screen alone* to *the film* is what gave the turn back its way in. `usePortraitUnlessAtTheFilm` in `watch/orientation.ts`; on the web a no-op
+- **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say, the way its length is, and never asked of YouTube
 - **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while a party is loaded, and a wider fact than *watching here* — a *second device* is on this and not on that
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -2087,6 +2088,33 @@ per-platform*.
 
 `app/src/watch/orientation.ts`, called once from `Picture.tsx` so that it
 covers every screen rather than the channel alone.
+
+## Film title
+
+**What the video is called**, on the watch card under the progress bar and on
+a *second device* in the same place. Not on the expanded picture, whose scrim
+carries the transport and the way out and nothing else.
+
+**Learnt from a player, exactly as the length is.** The embed already holds the
+name of the video it loaded — `getVideoData` — so the device showing the film
+reports it in the report it was already making, and the channel keeps the first
+answer. `WatchParty.title`, and `learnTitle` is the rule.
+
+**Nothing asks YouTube anything**, which is the constraint the card went
+without a title for: the URL came off it on 2026-09-18 and nothing replaced it,
+because fetching a name would have been the first request this project ever
+made to Google. A player describing the video it already has is not that
+request. See decisions/2026-09-20-the-film-says-what-it-is-called.md.
+
+**Null is ordinary**: the first seconds of every party, a party nobody is
+showing anywhere, and an embed whose `getVideoData` is missing — the method is
+undocumented, so it is read through a guard. The card then draws what it drew
+before there were any titles.
+
+**An advert can name a party**, exactly as it can already give one its length:
+a pre-roll is a different video in the same frame, and both facts are learnt
+from the same first report. It is the known cost of learning anything from a
+player, and it corrects itself the next time a party starts.
 
 ## Watching (on the roster)
 

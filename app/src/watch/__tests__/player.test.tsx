@@ -44,6 +44,7 @@ const watch: WatchState = {
     videoId: 'abc123',
     url: 'https://youtu.be/abc123',
     durationMs: null,
+  title: null,
   },
   status: 'paused',
   positionMs: 0,
@@ -58,7 +59,7 @@ let tree: ReactTestRenderer | null = null;
 function draw(): Record<string, unknown> {
   act(() => {
     tree = renderer.create(
-      <WatchPlayer watch={watch} channelId="c1" onDuration={() => {}} />
+      <WatchPlayer watch={watch} channelId="c1" onFilm={() => {}} />
     );
   });
   return seen[0];

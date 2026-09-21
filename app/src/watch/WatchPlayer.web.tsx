@@ -36,6 +36,16 @@ interface YouTubePlayer {
   getPlayerState: () => number;
   getCurrentTime: () => number;
   getDuration: () => number;
+  /**
+   * What the embed is showing, which includes its name.
+   *
+   * **Optional because it is undocumented.** It has been on the IFrame
+   * player for years and is not in YouTube's reference, so it is declared as
+   * a method that may not be there and read through `?.` — an embed without
+   * it names nothing, which is the state every party was in before
+   * 2026-09-20.
+   */
+  getVideoData?: () => { title?: string };
   cueVideoById: (videoId: string) => void;
   destroy: () => void;
 }
@@ -67,7 +77,7 @@ function iframeApi(): Promise<void> {
 export function WatchPlayer({
   watch,
   channelId,
-  onDuration,
+  onFilm,
   onRefusal: _onRefusal,
   fill = false,
 }: {
@@ -77,7 +87,8 @@ export function WatchPlayer({
    * How long the video is, the first time this player knows. The channel
    * learns it from whoever loads first; see `learnDuration`.
    */
-  onDuration: (durationMs: number) => void;
+  /** See the native player: how long the film runs, and what it is called. */
+  onFilm: (durationMs: number, title: string | null) => void;
   /**
    * Taken and never called, this player having no `onError` of its own: a
    * refusal in a browser shows as YouTube's own message inside the frame and
@@ -162,7 +173,17 @@ export function WatchPlayer({
             const seconds = p.getDuration?.();
             if (typeof seconds === 'number' && seconds > 0) {
               told.current = true;
-              onDuration(Math.round(seconds * 1000));
+              // The name rides with the length, off the player rather than
+              // out of a request — `getVideoData` is the embed describing
+              // what it already has. Optional on the object as well as in the
+              // action, being undocumented.
+              let title: string | null = null;
+              try {
+                title = p.getVideoData?.().title ?? null;
+              } catch {
+                title = null;
+              }
+              onFilm(Math.round(seconds * 1000), title);
             }
           },
         },
@@ -179,7 +200,7 @@ export function WatchPlayer({
       }
       player.current = null;
     };
-    // `onDuration` deliberately absent: it is rebuilt on every render of the
+    // `onFilm` deliberately absent: it is rebuilt on every render of the
     // screen above, and listing it would tear the player down mid-film.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
