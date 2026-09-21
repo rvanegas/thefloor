@@ -263,9 +263,11 @@ application collects little.</p>
   — one refusal is enough to stop it, and taking your agreement back at any
   time removes it from the page and the feed. What taking it back cannot do is
   reach a copy somebody has already downloaded, and nothing here ever will.
-  Somebody who joined as a guest is asked too if they spoke and were signed
-  in; if they spoke without an account there is nobody to ask, and that
-  recording cannot be published at all. A published page names the
+  Somebody who joined as a guest is asked too. If they were signed in they are
+  asked about each recording, like anybody else; if they were not, the question
+  is put to them on the guest page when they ask for the microphone, and they
+  can take it back for as long as they are in the room. A conversation somebody
+  spoke in as a guest who agreed to nothing cannot be published. A published page names the
   channel and whatever its members wrote about it, and never names a
   member.</li>
   <li><strong>Your channels and who is in them</strong>, so that a conversation

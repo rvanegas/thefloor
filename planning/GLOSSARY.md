@@ -80,7 +80,9 @@ caused; the list carries the meaning.
 - **Public channel** — A channel that has given itself a *public page*; any member may, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody who has the address and naming no *member*
 - **Published** — A *recording* anybody with the address can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
-- **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* who spoke is asked too where they have an account; one who spoke without an account is the one case nobody can answer for, and blocks it outright
+- **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* with an account is asked per recording like a member; one without is asked once, at the microphone — see *speech consent*
+- **Speech consent** — What a *guest* with no account agrees to, on the page, at the moment they ask for the microphone: that a recording their voice is in may be *published*. Not a condition of being heard, withdrawable while the seat lasts, and gone with the seat — the only consent here that is not per recording, because a seat is the only thing there is to ask
+- **Cover art** — A *public channel*'s square image, shown on the page and carried in the *feed*. Square, 1400–3000 pixels, JPEG or PNG, no transparency — Apple's rules, refused at the upload rather than at a submission
 - **Feed** — The *public page*'s machine-readable half, at the same address plus `/feed.xml`: what a podcast app subscribes to, listing the same *episodes* the page does
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -1535,11 +1537,10 @@ whose voice would be broadcast, not on the word *guest*, so it asks two things:
   is not a member has a say over a channel's recording, and it is their own
   voice they have it over.
 
-What is left is a guest who spoke and has no account. There is genuinely nobody
-to ask, so that recording cannot be published at all. The alternatives were
-dropping their audio, which changes what the conversation was, and asking the
-members on their behalf, which is exactly the standing unanimity denies. The
-fix is a guest link that says so before somebody uses it, which is outstanding.
+What is left is a guest who spoke and has no account, and they are asked too —
+see *speech consent* below. The alternative, dropping their audio, changes what
+the conversation was; asking the members on their behalf is exactly what
+unanimity denies.
 
 ## Feed
 
@@ -1570,6 +1571,48 @@ place remarks somebody was silenced for get broadcast to the world.
 M4A rather than the Ogg/Opus everything else here uses: Opus-in-Ogg is on
 neither Apple's list nor most clients', and a feed that works for some
 subscribers and not others is worse than one that fails outright.
+
+## Speech consent
+
+What a *guest* with no account agrees to so that a conversation they spoke in
+can be *published*: put to them on the guest page, at the moment they ask for
+the microphone.
+
+**The placement is the whole of why it is honest.** A notice on the *guest
+link* would be a blanket agreement given before there was a conversation to
+agree about — which is the same objection that makes a member's consent per
+recording rather than per channel. Asking at the microphone does not have that
+problem: it is the moment somebody chooses to become part of the audio.
+
+**It is not a condition of being heard.** The box is off by default, asking to
+speak works either way, and a guest who agrees to nothing simply leaves the
+conversation unpublishable. Trading somebody's voice for their consent would
+be a worse bargain than not asking.
+
+**Withdrawable while the seat lasts, and gone with it.** Taking it back removes
+the conversation from the page and the feed, exactly as a member's withdrawal
+does, and reaches no copy already downloaded. Once the seat expires there is
+nobody left to ask and nothing left to withdraw — the honest limit of consent
+from somebody with no lasting identity here, and the reason the question is
+worth asking at the one moment it means something.
+
+A guest *with* an account never meets this: they are asked per recording, like
+a member.
+
+## Cover art
+
+A *public channel*'s square image, drawn at the top of its page and carried in
+its *feed* as the thing a podcast app shows in a grid of subscriptions.
+
+Apple's rules, not ours: square, between 1400 and 3000 pixels a side, JPEG or
+PNG, and no transparency. All four are refused at the upload, in the words of
+the rule and naming what was actually measured — a directory refuses the same
+things at submission, which is a review cycle spent being told a number.
+
+**Optional, and only for being listed.** The page and the feed work without
+one; what needs it is a directory. The same is true of the *category*, the
+language and the explicit declaration, which sit with it under one sentence in
+channel settings saying so.
 
 ## Record automatically
 

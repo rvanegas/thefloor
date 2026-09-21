@@ -63,13 +63,38 @@ So `Publication.recordingFor` admits anybody in `mustConsent`, which confers
 nothing else: playing, exporting, renaming and deleting all still ask
 `recordingsFor`.
 
-What is left is a guest who spoke and has no account, and there the refusal
-stands. The alternatives remain dropping their stem — which changes what the
-episode *is*, and would mean re-rendering from stems, the one thing
-`transcodeToPublished` exists to forbid — and asking the members on their
-behalf, which is what unanimity denies. PODCAST.md's third option, a guest link
-that carries the possibility up front, is the only honest fix and is in the
-task.
+**And the last case is answered by moving the question rather than changing
+it.** A guest who spoke with no account was briefly unpublishable outright.
+PODCAST.md's third option was a notice on the guest link, which it called the
+only honest one — and it is not quite, for the reason it gave about members: a
+notice at the door is a blanket agreement given before there is a conversation
+to agree about, which is exactly what per-recording consent is good at
+avoiding.
+
+**So the question is asked at the microphone.** `guest_sessions.publish_consent_at`,
+set by a checkbox beside *Ask to speak* on the guest page. That is the moment
+somebody chooses to become part of the audio, and the only moment a seat with
+no account can be asked anything meaningful. Four things about its shape:
+
+- **It is not a gate.** The box is off, asking to speak works either way, and
+  a guest who agrees to nothing leaves the conversation unpublishable. Making
+  it a precondition would be trading somebody's voice for their consent.
+- **It stays on screen while they hold the microphone**, not only while asking,
+  because it is withdrawable — a control that vanished the moment it took
+  effect would be one nobody could take back.
+- **Withdrawing is a withdrawal**, through the same `unpublish` a member's
+  uses. Agreeing again does not republish; somebody else decides that.
+- **A guest with an account never sees it.** They are asked per recording,
+  like a member, which is strictly better and available to them.
+
+What it cannot do is survive the seat. Once that expires there is nobody to
+ask and nothing to withdraw, which the page says before anybody agrees. That is
+the honest limit of consent from somebody with no account, and it is the reason
+the question is worth asking at the one moment it means something.
+
+The alternative — dropping their stem from the published mix — is still not the
+answer: it would mean re-rendering from stems, the one thing
+`transcodeToPublished` exists to forbid.
 
 **The asymmetry is in the interface, in those words.** Withdrawing takes the
 episode off the page and out of the feed and reaches no copy a subscriber has
@@ -182,19 +207,46 @@ under a line inviting somebody to write about what is on it, and `unpublish` is
 the act. Nothing more is built, on that entry's own reasoning that a procedure
 nobody has exercised will be wrong when it is.
 
-## What is deliberately still missing
+## (b), which followed
 
-**Artwork**, and with it any possibility of being listed. PODCAST.md called it
-the largest piece of new code here and the least interesting — an upload
-endpoint, dimension and format validation, a bucket key and a public serve
-route — and argued it should not gate the rest. It did not. There is still no
-image anywhere in the schema.
+Artwork, the declarations and the full iTunes namespace, built after the fact
+rather than deferred indefinitely. What is interesting in it is small:
 
-**`language` and `explicit`** have columns, a route and a `setDeclarations`
-that writes them, and no control in the app: the feed falls back to `en` and
-`false`. They are declarations somebody makes rather than anything derivable,
-and the two fields belong with the artwork in channel settings when (b) is
-built.
+**Apple's rules are enforced at the upload, in the words of the rule.** Square,
+1400 to 3000, JPEG or PNG. The alternative is a rejected submission — a review
+cycle spent being told a number — so `readArtwork` refuses on the spot and
+names the measurement that broke it. Transparency is refused with a sentence
+saying what to do instead, that being the trap RELEASING.md already records for
+the app icon, where Apple's own message does not mention alpha.
 
-**A guest link that carries the possibility up front**, which is the only thing
-that would let a conversation a guest spoke in ever be published.
+**Two header parsers and no image library.** Both formats put the dimensions in
+a handful of bytes at a knowable place and nothing here decodes a pixel, so a
+dependency would buy nothing and would be a parser with a decade of CVEs
+pointed at bytes strangers upload. The JPEG walk is the half that needs the
+test: there is no fixed offset, and the four markers in the SOF range that are
+not frames — `0xC4`, `0xC8`, `0xCC` — are the classic way this is written
+wrong, reading a Huffman table's length as a picture's height.
+
+**The cover's address carries the timestamp it was replaced at.** Directories
+cache a cover hard and several never re-fetch one whose URL has not changed, so
+a replaced cover keeping its address would stay the old one for as long as any
+cache lived. This is html.ts's argument about renaming the social card image,
+arriving somewhere it can be solved rather than only warned about.
+
+**A category is refused rather than corrected**, and the list lives in `core/`.
+The directory matches Apple's strings literally, so something near one fails at
+submission instead of at the settings screen — and the server refusing a
+category and the app offering one have to be the same list.
+
+**`itunes:author` is the channel's name, never a member's.** An author is a
+public byline and the page names nobody; naming somebody in the feed would undo
+that from the half nobody looks at.
+
+## What is still outstanding
+
+**Submission itself**, which is a person pressing a button on Apple's website
+and on Spotify's, and each has its own review. Nothing in the repository can do
+it or needs to.
+
+**A published-audio bucket**, if the traffic ever justifies one — a change of
+URL rather than a change of design. INFRASTRUCTURE.md says what to watch.
