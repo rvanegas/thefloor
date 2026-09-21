@@ -388,8 +388,8 @@ there and goes on being true survives them.
    come from a file in the tree so they are reviewed like anything else; the
    code is not in that file, and the script refuses one where the placeholder
    has been filled in by hand. **A submission's two texts live in `planning/submissions/`** —
-   the notes and the `whats-new-<version>.txt` that `bin/submit-ios
-   --whats-new` sends, which *Writing "What's New"* below is about — because
+   the notes and the `whats-new-<version>.txt` that `bin/submit-ios` sends,
+   which *Writing "What's New"* below is about — because
    they are the only files in `planning/` that are
    payload rather than prose: they carry no first line saying what they are,
    since every character of them is read by a reviewer or shipped on the

@@ -4,7 +4,6 @@
 //
 //   bin/submit-ios                    prepare app.json's version and build
 //   bin/submit-ios --build 64         a build other than app.json's
-//   bin/submit-ios --whats-new FILE   set "What's New" from a file, all locales
 //   bin/submit-ios --dry-run          say what it would do and write nothing
 //   bin/submit-ios --status           report what App Store Connect holds, stop
 //   bin/submit-ios --sync-released    the same, and offer to move `released`
@@ -33,6 +32,9 @@
 //   - **The build has to have finished processing.** `VALID`, not `PROCESSING`.
 //   - **"What's New" is required for an update** and absent by default. A first
 //     submission does not need it, which is exactly why the second one forgets.
+//     It is read from `planning/submissions/whats-new-<version>.txt`, named
+//     after `expo.version` rather than passed in — the two texts a submission
+//     sends are found the same way, and a version bump moves both.
 //   - **The reviewer still has to sign in.** Every update is reviewed, so the
 //     demo credentials in the review details have to be the live ones — they
 //     are checked against ~/.config/thefloor/demo-account.txt, which is the
@@ -78,7 +80,7 @@ const HOST = 'https://api.appstoreconnect.apple.com';
 
 const argv = process.argv.slice(2);
 const opts = {
-  dryRun: false, status: false, syncReleased: false, build: null, whatsNew: null,
+  dryRun: false, status: false, syncReleased: false, build: null,
 };
 while (argv.length) {
   const arg = argv.shift();
@@ -89,10 +91,9 @@ while (argv.length) {
   // cannot write anything and the promise in its name holds.
   else if (arg === '--sync-released') { opts.status = true; opts.syncReleased = true; }
   else if (arg === '--build') opts.build = argv.shift();
-  else if (arg === '--whats-new') opts.whatsNew = argv.shift();
   else if (arg === '--help' || arg === '-h') {
     console.log(fs.readFileSync(__filename, 'utf8').split('\n')
-      .slice(1, 11).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      .slice(1, 10).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
     process.exit(0);
   } else die(`unknown argument ${arg}`);
 }
@@ -170,6 +171,17 @@ const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'app/app.json'), 'utf8
 const bundleId = config.ios.bundleIdentifier;
 const version = config.version;
 const buildNumber = String(opts.build || config.ios.buildNumber);
+
+// **The version names its own text, and it is not passed in.** This was
+// `--whats-new FILE` until 2026-09-20: an argument on the one run that
+// matters, typed by hand, and Apple takes whatever it is handed — so the
+// previous release's notes are one stale shell-history line away, and nothing
+// on screen would say so. The name comes off `expo.version` instead, exactly
+// as bin/set-review-notes derives the notes beside it, which is what makes a
+// version bump move both texts at once.
+const whatsNewFile = path.join(ROOT,
+  `planning/submissions/whats-new-${version}.txt`);
+const whatsNewName = path.relative(ROOT, whatsNewFile);
 
 const main = async () => {
   console.log(`→ ${bundleId} ${version} (${buildNumber}), as API key ${keyId}`);
@@ -278,9 +290,20 @@ const main = async () => {
 
   const locales = (await api('GET',
     `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations`)).data;
-  const text = opts.whatsNew ? fs.readFileSync(opts.whatsNew, 'utf8').trim() : null;
-  if (text && text.length > 4000) {
-    die(`--whats-new is ${text.length} characters; the field is capped at 4,000`);
+  // A missing file is reported and not fatal, because writing the field in
+  // App Store Connect is still a way to have one — the error below is where
+  // *nothing anywhere* has it, which is the failure this section exists for.
+  // An empty file is fatal: it is somebody having meant to write the text.
+  let text = null;
+  if (fs.existsSync(whatsNewFile)) {
+    text = fs.readFileSync(whatsNewFile, 'utf8').trim();
+    if (!text) die(`${whatsNewName} is empty`);
+    if (text.length > 4000) {
+      die(`${whatsNewName} is ${text.length} characters; the cap is 4,000`,
+        'There is no larger field. RELEASING.md § *Writing "What\'s New"*.');
+    }
+  } else {
+    console.log(`  no ${whatsNewName}`);
   }
   for (const locale of locales) {
     const current = (locale.attributes.whatsNew || '').trim();
@@ -296,7 +319,7 @@ const main = async () => {
       die(`What's New is empty for ${locale.attributes.locale}`,
         'It is the one listing field an update must have and a first',
         'submission does not, so it is the one that gets forgotten.',
-        'Pass --whats-new <file>, or write it in App Store Connect.');
+        `Write ${whatsNewName}, or write it in App Store Connect.`);
     } else {
       console.log(`  What's New for ${locale.attributes.locale} left as it is`
         + ` (${current.length} characters)`);

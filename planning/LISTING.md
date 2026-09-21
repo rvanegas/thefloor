@@ -272,9 +272,9 @@ in the body.
 ## What's New (version 1.3.2)
 
 **Written, and it is not here.** `planning/submissions/whats-new-1.3.2.txt` is
-the text, composed from `released..master`, and `bin/submit-ios --whats-new`
-is what sends it — this file argues the standing copy and that one carries a
-train. Composing it stays a release-time decision, like the version string.
+the text, composed from `released..master`, and `bin/submit-ios` is what
+sends it, finding it by `expo.version` — this file argues the standing copy
+and that one carries a train. Composing it stays a release-time decision, like the version string.
 
 **The one standing rule** is that release notes are not re-engagement copy —
 they say what changed for somebody already using the app, and they never say
