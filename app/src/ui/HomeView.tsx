@@ -549,15 +549,16 @@ export function HomeView({
  * the project. The order is the whole of what the two headings were saying
  * about the grouping, and it survives them.
  *
- * **`default`, not `ghost`, on every one of them.** Ghost is this app's word
- * for cancel, dismiss and header chrome — the control you press to stop doing
- * something — and each of these is the one thing its card is for. Centred in
- * an otherwise empty card, a ghost label read as a caption somebody had made
- * tappable rather than as the way through. The fill is `surfaceRaised` on a
- * `surface` card, which is the ordinary weight of an ordinary control and not
- * an escalation: no colour is spent here, and *Chip in* is no louder than
- * *Help* standing above it. The two `ghost` buttons left on this screen are
- * both *Not now*, which is what ghost is for.
+ * **`default` on every one of them**, which since 2026-09-21 is what every
+ * button on this screen is: the `ghost` variant is gone. The argument that
+ * put these cards on `default` while there was a choice was that each of them
+ * is the one thing its card is for, and that centred in an otherwise empty
+ * card a transparent label read as a caption somebody had made tappable
+ * rather than as the way through. That reading is now the only one available,
+ * which is the whole point of retiring the variant. The fill is
+ * `surfaceRaised` on a `surface` card — the ordinary weight of an ordinary
+ * control and not an escalation: no colour is spent here, and *Chip in* is no
+ * louder than *Help* standing above it.
  */
 function SupportBody({
   canSupport,
@@ -717,7 +718,6 @@ function InstallNotice() {
       <View style={styles.installActions}>
         <Button
           label="Not now"
-          variant="ghost"
           onPress={() => {
             dismissInstallNotice();
             setDismissed(true);
@@ -802,7 +802,6 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
         */}
         <Button
           label="Not now"
-          variant="ghost"
           onPress={() => setDismissed(true)}
         />
         <Button label="Tell me more" onPress={onExplain} />

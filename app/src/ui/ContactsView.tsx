@@ -346,7 +346,6 @@ function RequestRow({ entry }: { entry: Contact }) {
           />
           <Button
             label="Decline"
-            variant="ghost"
             onPress={() => app.declineContact(account.id)}
           />
         </View>
@@ -359,7 +358,6 @@ function RequestRow({ entry }: { entry: Contact }) {
           */}
           <Button
             label="Withdraw"
-            variant="ghost"
             onPress={() =>
               app.withdrawContact(account.displayName).catch((e) => {
                 Alert.alert(
@@ -455,7 +453,6 @@ function AddContact({
       <View style={styles.addActionsSpread}>
         <Button
           label="Cancel"
-          variant="ghost"
           onPress={() => {
             setOpen(false);
             setQuery('');
@@ -552,7 +549,6 @@ function InviteLink({
         <View style={styles.addActions}>
           <Button
             label="Choose a Username"
-            variant="ghost"
             // Absent only in the moment before `me` lands, which is why the
             // button is drawn disabled rather than withheld: a control that
             // appears a beat after the sentence explaining it is a control

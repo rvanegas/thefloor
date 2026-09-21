@@ -165,7 +165,7 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
             />
           </>
         )}
-        <Button label="Not now" variant="ghost" onPress={onDone} />
+        <Button label="Not now" onPress={onDone} />
       </View>
     </Screen>
   );

@@ -1330,7 +1330,7 @@ export function ChannelView({
         )}
         <Button
           label="Back to home"
-          variant={gone ? 'primary' : 'ghost'}
+          variant={gone ? 'primary' : 'default'}
           onPress={onExit}
         />
       </View>
@@ -2914,15 +2914,16 @@ export function ChannelView({
           140 points, and the label does not survive it; STYLE.md § *Button*
           carries the arithmetic.
 
-          Ghost, because it is the exit on a screen whose one commitment is
-          the picture. The sublabel says *leaves this screen* rather than
-          *stops*: what a reader needs before the tap is that this is not the
-          film ending, and *screen* is the role being handed back.
+          The sublabel is what carries this rather than the fill, which since
+          2026-09-21 is the same one every button has. It says *leaves this
+          screen* rather than *stops*: what a reader needs before the tap is
+          that this is not the film ending, and *screen* is the role being
+          handed back. That sentence was doing the work even while a quieter
+          tone was available to say it alongside.
         */}
         <Button
           label="Other device"
           sublabel="Pauses the film and moves it back to the device you stepped in on"
-          variant="ghost"
           onPress={() => {
             if (watch.status === 'playing') act({ type: 'WATCH_PAUSE' });
             app.showScreenFor(null);
@@ -3004,7 +3005,7 @@ export function ChannelView({
               Channel Settings, at the top, has Leave this channel.
             </Text>
             <View style={styles.cohortActions}>
-              <Button label="Got it" variant="ghost" onPress={cohortNotice.dismiss} />
+              <Button label="Got it" onPress={cohortNotice.dismiss} />
             </View>
           </Card>
         ) : null}
@@ -3200,7 +3201,6 @@ export function ChannelView({
                 />
                 <Button
                   label="No"
-                  variant="ghost"
                   onPress={() =>
                     act({ type: 'ANSWER_KNOCK', knockId: knock.id, accept: false })
                   }
@@ -3556,7 +3556,6 @@ export function ChannelView({
                 {mayWriteNotepad ? (
                   <Button
                     label="Edit"
-                    variant="ghost"
                     style={styles.notepadEdit}
                     onPress={() => setNotepadEditing(true)}
                   />
@@ -3724,7 +3723,6 @@ export function ChannelView({
             // would read as the stuck upload it exists to escape.
             <Button
               label="Cancel upload"
-              variant="ghost"
               disabled={!upload.cancel}
               onPress={() => upload.cancel?.()}
             />
@@ -4159,7 +4157,6 @@ export function ChannelView({
                       />
                       <Button
                         label="Cancel"
-                        variant="ghost"
                         style={styles.flexButton}
                         onPress={() => {
                           setWatchPasteError(null);
@@ -4178,7 +4175,6 @@ export function ChannelView({
                     />
                     <Button
                       label="Stop"
-                      variant="ghost"
                       style={styles.flexButton}
                       disabled={!mayControlWatch}
                       onPress={() => act({ type: 'STOP_WATCH' })}
@@ -4361,7 +4357,6 @@ export function ChannelView({
 
                 <Button
                   label={copyLabel('video', 'Copy video link')}
-                  variant="ghost"
                   onPress={() => void copyVideoLink()}
                 />
 
@@ -4848,7 +4843,7 @@ function GuestCard({
                 ? 'Let them speak'
                 : 'Turn their microphone on'
           }
-          variant={guest.request === 'asking' ? 'primary' : 'ghost'}
+          variant={guest.request === 'asking' ? 'primary' : 'default'}
           disabled={!manageable}
           onPress={() => onSpeech(!guest.maySpeak)}
         />
@@ -4871,7 +4866,6 @@ function GuestCard({
                   ? 'Contact'
                   : 'Add contact'
           }
-          variant="ghost"
           disabled={!manageable || !!asked}
           onPress={onAskContact}
         />
@@ -4892,7 +4886,6 @@ function GuestCard({
                   ? 'They said no'
                   : 'Ask them to join'
             }
-            variant="ghost"
             disabled={!askable || !!invited}
             onPress={onAskJoin}
           />
@@ -4908,14 +4901,12 @@ function GuestCard({
         {addable ? (
           <Button
             label="Add to channel"
-            variant="ghost"
             disabled={!manageable}
             onPress={onAddToChannel}
           />
         ) : null}
         <Button
           label="Remove"
-          variant="ghost"
           disabled={!manageable}
           onPress={onEject}
         />
@@ -5392,7 +5383,6 @@ function ParticipantCard({
       {showPing ? (
         <Button
           label={pinging ? 'Pinging…' : windowOpen ? 'Pinged' : 'Ping'}
-          variant="ghost"
           style={styles.cardPing}
           // Disabled rather than hidden inside the window. The button
           // vanishing at the moment it is pressed reads as a mistake; saying
@@ -5756,8 +5746,10 @@ const styles = StyleSheet.create({
   cardStatus: { flexShrink: 1 },
   /**
    * Tightened, since `Button` is sized for a card of its own and this one sits
-   * inside a row of text. Ghost keeps it from competing with the floor, which
-   * is the only thing on this screen entitled to colour.
+   * inside a row of text. It carries the ordinary fill now that `ghost` is
+   * gone — the size is what keeps it from competing with the floor, which is
+   * still the only thing on this screen entitled to colour, and `surfaceRaised`
+   * is not colour.
    */
   cardPing: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(1), minHeight: 0 },
   /**
@@ -5809,8 +5801,9 @@ const styles = StyleSheet.create({
   /**
    * The notepad's *Edit*, which is small on purpose: `flex-start` so it is the
    * width of the word rather than of the card, the sheet being the thing on
-   * this card and this being the way to change it. A ghost tone for the same
-   * reason — the text is what is read here, not the control beside it.
+   * this card and this being the way to change it. The width is the whole of
+   * that now: the tone that used to say it alongside is gone, and a control
+   * the width of its own word is already quieter than the sheet above it.
    */
   notepadEdit: { alignSelf: 'flex-start', paddingHorizontal: spacing(1) },
   /** The notepad's character count, under the field while it is open. */

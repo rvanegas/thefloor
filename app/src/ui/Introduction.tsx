@@ -161,7 +161,6 @@ export function Introduction({
         <View style={styles.actions}>
           <Button
             label={expanded ? 'See less' : 'See more'}
-            variant="ghost"
             onPress={() => setExpanded((open) => !open)}
           />
         </View>
@@ -351,7 +350,6 @@ function Row({
               <View style={styles.actions}>
                 <Button
                   label={action.label}
-                  variant="ghost"
                   onPress={action.onPress}
                 />
               </View>

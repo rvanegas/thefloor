@@ -186,7 +186,6 @@ export function TranscriptView({
           {state === 'ready' && !naming && mayName && voices.length > 1 ? (
             <Button
               label="Name the voices"
-              variant="ghost"
               // Only when there is a choice to make. One voice in the whole
               // transcript is a conversation nobody needs to relabel, and a
               // button that opens a screen with a single row on it is a
@@ -197,7 +196,6 @@ export function TranscriptView({
           {state === 'ready' && !naming ? (
             <Button
               label={busy ? 'Preparing…' : 'Share'}
-              variant="ghost"
               disabled={busy}
               onPress={() => {
                 Alert.alert('Share transcript', 'Which format?', [
@@ -212,7 +210,6 @@ export function TranscriptView({
           {deletable && !naming ? (
             <Button
               label="Delete transcript"
-              variant="ghost"
               disabled={!manageable || busy}
               onPress={() => {
                 Alert.alert(
@@ -518,7 +515,7 @@ function VoicesEditor({
             )
           }
         />
-        <Button label="Cancel" variant="ghost" disabled={busy} onPress={onCancel} />
+        <Button label="Cancel" disabled={busy} onPress={onCancel} />
       </View>
 
       <View style={styles.lines}>
@@ -573,8 +570,11 @@ function VoiceRow({
         editable={!draft.removed}
       />
       <Button
+        // No tone to distinguish the two states any more: the label is the
+        // whole of it, and it says which way the press goes. A fill that
+        // changed under the same button was the weaker half of that pair even
+        // while there were two fills to choose between.
         label={draft.removed ? 'Removed — bring back' : 'Remove from transcript'}
-        variant={draft.removed ? 'default' : 'ghost'}
         onPress={() => onChange({ removed: !draft.removed })}
       />
     </Card>

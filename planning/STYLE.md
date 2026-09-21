@@ -296,7 +296,7 @@ phone-shaped surface, live, while somebody watches.
 
 ### Button
 
-One component, five variants, no size axis.
+One component, four variants, no size axis.
 
 | Variant | Fill | Label | For |
 | --- | --- | --- | --- |
@@ -304,18 +304,35 @@ One component, five variants, no size axis.
 | `primary` | `text` | `bg` | the one commitment on a screen |
 | `floor` | `floor` | white | claiming or releasing the floor |
 | `danger` | `danger` | white | delete, and nothing else |
-| `ghost` | transparent | `textMuted` | cancel, dismiss, and header actions |
 
-48pt minimum height, 40 for ghost. `radius.md`. The label is 15/600; an
+48pt minimum height, with no exceptions. `radius.md`. The label is 15/600; an
 optional `sublabel` is 12 with tabular figures. Disabled swaps the fill to
 `disabled` and the text to `textFaint`.
 
-Ghost is by far the most used, which is the shape of the app: most controls
-are exits, alternatives and chrome, and each screen has at most one `primary`.
-`floor` appears once in the whole codebase, on the introduction's *Claim the
-floor*. It was three until 2026-09-13, the other two being the floor card's
-Claim and Release; the card is gone and the footer draws its own icon rather
-than a `Button`.
+**`ghost` was the fifth and was retired on 2026-09-21**, transparent fill and
+all. It had been by far the most used — cancel, dismiss, every alternative and
+most chrome — which is the shape of the app: most controls are exits and
+alternatives, and each screen has at most one `primary`. That is exactly why it
+went. A variant that forty-seven of the app's buttons reach for is not a
+variant, it is the default wearing a name, and what it actually bought was a
+second way for a control to be quiet on top of the two that carry no fill at
+all — a tightened button in a row of text, and a glyph in a header. Those two
+survive it and are below.
+
+So `default` is now what a button looks like unless there is a reason, and the
+reasons are three: one commitment per screen, the floor, and deleting. `floor`
+appears once in the whole codebase, on AudioLabView's capture toggle. It was
+three until 2026-09-13, the other two being the floor card's Claim and Release;
+the card is gone and the footer draws its own icon rather than a `Button`.
+**This line said the introduction's *Claim the floor* until 2026-09-21**, which
+was wrong — that screen draws no `floor` button and may never have — so a
+reader looking for the example was looking in the wrong file.
+
+**Quiet is a matter of size and place now, not of fill.** The two shapes that
+say *this is not the thing the screen is for* are the tightened in-row button
+below and `IconButton`, and neither is a `Button` variant — the first is a
+`Button` with its padding taken in, the second its own component with its own
+tone. Reaching for a new transparent fill is re-adding what was just removed.
 
 **A button may carry a glyph instead of its word.** `icon` is a callback handed
 the variant's foreground colour, and it is drawn where the label would be; the
@@ -341,8 +358,11 @@ slots are refusals. The `accessibilityLabel` is still the longer phrase
 **A button inside a row of text is tightened rather than made a new
 component** — `{ paddingVertical: spacing(0.5), paddingHorizontal: spacing(1),
 minHeight: 0 }`, via the `style` prop. ChannelView's `cardPing` and
-ProfileView's `reachAction` are the same numbers deliberately. Anything that
-needs to be less than a button is a `ghost` at those numbers, not a new fill.
+ProfileView's `reachAction` are the same numbers deliberately. **Anything that
+needs to be less than a button is those numbers, not a new fill** — which is
+the rule that outlived `ghost` rather than a replacement for it: it said "a
+`ghost` at those numbers" until 2026-09-21, and the numbers were always the
+half doing the work.
 
 **A choice of more than three goes down the page rather than across it.** Two
 or three `Button`s at `flex: 1` in a `choices` row is what every yes-or-no and
@@ -566,7 +586,7 @@ ProfileView's `channel` and Home's `inviteQuiet` both do this.
 Home's introduction, since 2026-09-13 — and it is the pattern to copy rather
 than to invent around: the item being asked for is drawn whole, the items
 behind the reader are a title each in `textMuted`, and the rest are behind a
-ghost *See more* at the foot, which says *See less* while it is open. The
+*See more* at the foot, which says *See less* while it is open. The
 disclosure is **shut on every mount** and remembers nothing, because a card
 read on the way past is asking *this one next*, and one that stayed open would
 be the wall again on a screen somebody opened for another reason. The items
@@ -979,8 +999,8 @@ does — there is nothing novel in its shape, which is the point:
 - **Aside:** a `DockSlot`, with the same `watchShapeFor` answer and the same
   `asidePlace` the *Watch* tab passes — so the film is the same size in the
   same place on both devices, and moving between them moves nothing.
-- **Body:** the transport, *Full screen*, *Other device* — a full-width
-  `ghost` under it, which hands the screen role back and is the only way off
+- **Body:** the transport, *Full screen*, *Other device* — full width under
+  it, which hands the screen role back and is the only way off
   this screen that says nothing to the room — and one muted sentence saying
   where the rest of the controls are. Full width rather than a `flexButton`
   beside *Full screen*: half a phone's card is about 140pt and the label does

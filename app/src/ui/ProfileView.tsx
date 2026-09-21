@@ -958,7 +958,6 @@ export function ProfileView({
           // refuses to ask for. Back returns once there is nothing pending.
           <Button
             label={saving ? 'Saving…' : 'Done'}
-            variant="ghost"
             disabled={saving}
             onPress={() => void doneEditing()}
           />
@@ -969,7 +968,6 @@ export function ProfileView({
             {isSelf ? (
               <Button
                 label="Edit"
-                variant="ghost"
                 disabled={state !== 'ready'}
                 onPress={startEditing}
               />
@@ -1523,7 +1521,6 @@ export function ProfileView({
                         ? '✗ copy failed'
                         : 'Copy'
                   }
-                  variant="ghost"
                   style={styles.reachAction}
                   onPress={() => {
                     void (async () => {
@@ -1604,7 +1601,6 @@ export function ProfileView({
                 ) : (
                   <Button
                     label={changingEmail ? 'Sending…' : 'Send a code'}
-                    variant="ghost"
                     disabled={changingEmail || draftEmail.trim() === ''}
                     onPress={() => void sendEmailCode()}
                   />
@@ -1640,7 +1636,6 @@ export function ProfileView({
                         ? '✗ copy failed'
                         : 'Copy'
                   }
-                  variant="ghost"
                   style={styles.reachAction}
                   onPress={() => {
                     void (async () => {
@@ -1668,7 +1663,6 @@ export function ProfileView({
                 <Text style={type.muted}>They can see your email.</Text>
                 <Button
                   label={showingEmail ? 'Hiding…' : 'Stop showing my email'}
-                  variant="ghost"
                   disabled={showingEmail}
                   onPress={() => void setEmailShown(false)}
                 />
@@ -1737,17 +1731,17 @@ export function ProfileView({
                     {/* The roster's Ping button, in shape and in weight, and
                         so is Email's Copy: tightened because `Button` is sized
                         for a card of its own and these sit at the end of a row
-                        of text, and ghost because a handle is a way out of
-                        this application rather than the thing the screen is
-                        for. Primary is the fill for what a screen is *for*,
-                        and a column of it made the errand look like leaving.
+                        of text. A handle is a way out of this application
+                        rather than the thing the screen is for, and the
+                        tightening is what says so now that `ghost` is gone.
+                        Primary is the fill for what a screen is *for*, and a
+                        column of it made the errand look like leaving.
                         The address and the handle beside them are selectable,
                         which is the older way of doing this and still the
                         one somebody reaches for — the button is the shortcut,
                         so it should not be the loudest thing in the card. */}
                     <Button
                       label="Open"
-                      variant="ghost"
                       style={styles.reachAction}
                       onPress={() => void openIm(service, handle)}
                     />

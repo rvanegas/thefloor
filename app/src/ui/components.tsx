@@ -63,7 +63,7 @@ export function Button({
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  variant?: 'default' | 'primary' | 'floor' | 'danger' | 'ghost';
+  variant?: 'default' | 'primary' | 'floor' | 'danger';
   sublabel?: string;
   icon?: (color: ColorValue) => React.ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -73,7 +73,6 @@ export function Button({
     primary: { bg: colors.text, fg: colors.bg },
     floor: { bg: colors.floor, fg: '#FFFFFF' },
     danger: { bg: colors.danger, fg: '#FFFFFF' },
-    ghost: { bg: 'transparent', fg: colors.textMuted },
   }[variant];
 
   const fg = disabled ? colors.textFaint : tone.fg;
@@ -94,7 +93,6 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: disabled ? colors.disabled : tone.bg },
-        variant === 'ghost' && styles.buttonGhost,
         pressed && !disabled && styles.pressed,
         style,
       ]}
@@ -125,12 +123,20 @@ export function Button({
  * buttons by name go on finding them. A glyph with no name is a control only
  * sighted users have.
  *
- * Ghost tone and nothing else, because these are the only two controls that
- * were ever ghost buttons in a header. It takes the icon as a function of the
- * colour rather than as an element so that this file, which knows the palette,
- * keeps deciding the tone, and `icons.tsx`, which knows the geometry, keeps
- * deciding the shape — and so that a pressed or disabled tint has somewhere to
- * be applied. Nothing imports the other.
+ * **A glyph on nothing, which is the last of what `ghost` used to be.** These
+ * two were the only controls that were ever ghost buttons in a header, and
+ * when the variant was retired on 2026-09-21 they did not come with it: a
+ * header control is chrome, and chrome in a filled rectangle is a second
+ * button competing with the screen's own. So the tone lives here, on this
+ * component, rather than as a variant of `Button` that one caller in the app
+ * would still be reaching for. `Button` has no transparent fill any more; this
+ * is not one of its variants and never was.
+ *
+ * It takes the icon as a function of the colour rather than as an element so
+ * that this file, which knows the palette, keeps deciding the tone, and
+ * `icons.tsx`, which knows the geometry, keeps deciding the shape — and so
+ * that a pressed or disabled tint has somewhere to be applied. Nothing imports
+ * the other.
  *
  * 44 square is the touch target, which is larger than the 40 the ghost button
  * it replaced stood at. The header is taller than either, so nothing moves;
@@ -932,7 +938,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
-  buttonGhost: { minHeight: 40 },
   iconButton: {
     width: 44,
     height: 44,
@@ -1364,7 +1369,7 @@ function RenameEditor({
         disabled={busy || name.trim() === ''}
         onPress={() => void save()}
       />
-      <Button label="Cancel" variant="ghost" disabled={busy} onPress={onDone} />
+      <Button label="Cancel" disabled={busy} onPress={onDone} />
     </View>
   );
 }

@@ -122,7 +122,6 @@ caused; the list carries the meaning.
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
-- **Ghost** — A button variant and nothing else: transparent, muted, for a control that must not compete
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
@@ -2405,13 +2404,6 @@ An installed app below `MIN_SUPPORTED_BUILD` replaces itself with an update
 screen and disconnects. The floor is enforced by the client, since 2026-08-17 —
 raising the number ends sessions on phones rather than merely licensing a
 deletion. See AGENTS.md, which carries the traps around builds 37 and 51.
-
-## Ghost
-
-**A button variant, and nothing else** — transparent background, muted
-foreground, for a control that must not compete with the one beside it. It has
-no meaning in the product: no user, channel, presence or recording is ever
-described as a ghost.
 
 ## Growth classes — alone, first circle, onward
 

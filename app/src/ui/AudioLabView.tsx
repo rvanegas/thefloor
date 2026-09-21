@@ -707,7 +707,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           <Card key={p.name}>
             <Button
               label={p.name}
-              variant={preset?.name === p.name ? 'primary' : 'ghost'}
+              variant={preset?.name === p.name ? 'primary' : 'default'}
               onPress={() => load(p)}
             />
           </Card>
@@ -751,7 +751,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           />
         </Card>
         <Card>
-          <Button label="Release session" variant="ghost" onPress={release} />
+          <Button label="Release session" onPress={release} />
         </Card>
       </View>
 
@@ -766,7 +766,7 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
       <View style={styles.list}>
         {OBSERVATIONS.map((o) => (
           <Card key={o}>
-            <Button label={o} variant="ghost" onPress={() => observe(o)} />
+            <Button label={o} onPress={() => observe(o)} />
           </Card>
         ))}
       </View>
@@ -976,49 +976,42 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
         <Card>
           <Button
             label="Chime — stepped in"
-            variant="ghost"
             onPress={() => ring('in')}
           />
         </Card>
         <Card>
           <Button
             label="Chime — stepped out"
-            variant="ghost"
             onPress={() => ring('out')}
           />
         </Card>
         <Card>
           <Button
             label="Nearby A — one note (E5)"
-            variant="ghost"
             onPress={() => ring('nearby-a')}
           />
         </Card>
         <Card>
           <Button
             label="Nearby B — flat pair (A5 A5)"
-            variant="ghost"
             onPress={() => ring('nearby-b')}
           />
         </Card>
         <Card>
           <Button
             label="Nearby C — flat pair, lower (C#5)"
-            variant="ghost"
             onPress={() => ring('nearby-c')}
           />
         </Card>
         <Card>
           <Button
             label="Nearby D — flat pair (E5 E5) · what nearby plays"
-            variant="ghost"
             onPress={() => ring('nearby-d')}
           />
         </Card>
         <Card>
           <Button
             label="Chime — recording started (C#5 E5 A5)"
-            variant="ghost"
             onPress={() => ring('recording')}
           />
         </Card>
@@ -1091,7 +1084,6 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
                 combination.name +
                 (lastCombination?.name === combination.name ? ' · last' : '')
               }
-              variant="ghost"
               onPress={() => ringAll(combination)}
             />
             <Text style={styles.why}>{combination.why}</Text>

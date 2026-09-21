@@ -568,7 +568,6 @@ function GuestLinks({
           {link.revokedAt === null ? (
             <Button
               label="Revoke"
-              variant="ghost"
               disabled={!mayRevoke}
               onPress={() => {
                 void app

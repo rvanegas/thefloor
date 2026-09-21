@@ -196,7 +196,6 @@ export function AuthView() {
             />
             <Button
               label="Use a different address"
-              variant="ghost"
               onPress={() => {
                 setStep('identify');
                 setCode('');
@@ -255,7 +254,6 @@ function EmbeddedNotice() {
       </Text>
       <Button
         label={copied ? 'Link copied' : 'Copy the link'}
-        variant="ghost"
         onPress={() => {
           // The result is ignored on purpose. `copyText` answers whether it
           // worked and there is nothing useful to do with a `false` here —
