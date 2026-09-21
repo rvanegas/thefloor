@@ -2275,7 +2275,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       useScreen: (channelId, device) => realtime.useScreen(channelId, device),
       // Cleared here as well as sent, so that a device which has stopped being
       // a screen stops believing it is one even if the socket is down. The
-      // server's copy is connection state and dies with the socket anyway.
+      // server's copy is connection state and dies with the socket — which is
+      // why the socket remembers what was declared and says it again on the
+      // next connection rather than leaving that copy null. See
+      // `screeningChannel` in api/socket.ts; a declaration that dies with a
+      // socket and is never restated is a roster saying *Present* at somebody
+      // sitting in front of the film.
       showScreenFor: (channelId) => {
         realtime.showingScreen(channelId);
         setState((s) =>

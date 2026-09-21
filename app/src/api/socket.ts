@@ -204,6 +204,31 @@ export class Realtime {
   /** Channels this client considers itself present in, to restore on reconnect. */
   private enteredChannel: string | null = null;
   /**
+   * The channel this instance last said it was showing a film for.
+   *
+   * **Held for the same reason `watchedChannel` is, and it was not until
+   * 2026-09-20.** The server's copy is `Connection.screening`, which dies
+   * with the socket on purpose — a screen that has gone away has stopped
+   * showing anything. What that reasoning misses is the socket that comes
+   * back: the role itself lives in `AppProvider`'s `screenFor`, the picture
+   * stays mounted throughout, and the film resumes off the channel's clock,
+   * so nothing on this device has any occasion to say it again. From the
+   * reconnect onward the room's roster reads *Present* at somebody sitting
+   * in front of the film, which is the wrong answer to the one question
+   * `ChannelView.watching` was added to answer.
+   *
+   * **It also catches the retraction pair racing its own reconnect**, which
+   * is the nastier half. `AppProvider` withdraws the declaration when the app
+   * goes away and re-states it on return — but coming back from the
+   * background is precisely when this socket is not open yet, so that
+   * re-statement met `send`'s drop below and was lost, in exactly the case
+   * the pair exists for.
+   *
+   * A repeat costs nothing: the server returns early when a device restates
+   * what it already holds, and after a reconnect it holds nothing.
+   */
+  private screeningChannel: string | null = null;
+  /**
    * When the socket that was carrying that presence went away.
    *
    * The re-entry below is only honest inside `DISCONNECT_GRACE_MS`, which is
@@ -376,6 +401,14 @@ export class Realtime {
           // says so, and the screen offers Step In.
           this.setStanding(null);
         }
+      }
+      // **After the re-entry, so the roster is never told the odd half of
+      // it.** Declaring the screen pushes every roster in that channel, and a
+      // snapshot saying somebody has the film up while saying they are not in
+      // the room is a person the room cannot place. Presence first, then what
+      // they are doing in it.
+      if (this.screeningChannel) {
+        this.send({ type: 'screens.showing', channelId: this.screeningChannel });
       }
       this.enteredLostAt = 0;
       this.flushQueued();
@@ -763,10 +796,11 @@ export class Realtime {
       return true;
     }
 
-    // Only actions are worth keeping. `watch.home`, `watch.channel` and the
-    // re-entry are re-sent by `onopen` from the state this class already holds,
-    // so queueing them would send each twice; a `ping` for a socket that was
-    // not there proves nothing about the one that replaces it.
+    // Only actions are worth keeping. `watch.home`, `watch.channel`,
+    // `screens.showing` and the re-entry are re-sent by `onopen` from the
+    // state this class already holds, so queueing them would send each twice;
+    // a `ping` for a socket that was not there proves nothing about the one
+    // that replaces it.
     //
     // ENTER is excluded for the same reason: `act` records `enteredChannel`
     // before calling this, and `onopen` re-enters from that.
@@ -839,6 +873,10 @@ export class Realtime {
    * beside the laptop somebody is looking at. See `ClientMessage`.
    */
   showingScreen(channelId: string | null): void {
+    // Recorded before the send, and whether or not it lands: a declaration
+    // this device meant while the socket was down is one `onopen` owes the
+    // next connection. See `screeningChannel`.
+    this.screeningChannel = channelId;
     this.send({ type: 'screens.showing', channelId });
   }
 
@@ -980,6 +1018,7 @@ export class Realtime {
     this.socket = null;
     this.watchingHome = false;
     this.watchedChannel = null;
+    this.screeningChannel = null;
     this.setStanding(null);
     this.enteredLostAt = 0;
     // Signing out is not a gap to be bridged. Anything still waiting belongs to
