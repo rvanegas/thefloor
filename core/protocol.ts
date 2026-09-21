@@ -1037,6 +1037,41 @@ export interface ChannelView {
    * this existed, which is to say it goes dark for the length of a claim.
    */
   speakingWhileWithheld?: UserId[];
+  /**
+   * Who has a device showing this channel's film, for the roster's
+   * *watching* suffix.
+   *
+   * **Not `ChannelState.watchingHere`, and the two must not be collapsed.**
+   * That list is *watching here* — one person's screen and voice on one
+   * device — and it exists to decide a microphone: `isScreening` reads it, so
+   * a name is on it only when the device holding the room is also the one
+   * holding the picture. Somebody watching on a *second device* is therefore
+   * absent from it while plainly watching, which is exactly the person a
+   * roster is asked about.
+   *
+   * This is the wider fact and the only one the server can state: an account
+   * has *some* instance whose `screening` names this channel. It says nothing
+   * about which device, deliberately — what the room is being told is that
+   * somebody has the film up, not what hardware they are sitting in front of.
+   *
+   * **Here rather than on `ChannelState`, for `pingableAt`'s reason.** No
+   * reducer knows about it, `core/` has never heard of it, and it is
+   * connection state that dies with a socket — which is the correct lifetime
+   * and the reason it cannot be reduced into a channel that outlives one.
+   *
+   * **A person's presence in this list is a disclosure**, the same kind
+   * `attentiveAt` is and a narrower one: it says *the film is up on something
+   * of mine*, to the people already in the room watching it with them.
+   *
+   * A guest is never on it. Their socket is a scope of its own and does not
+   * carry the declaration, so a guest watching is a guest this cannot report
+   * — see `screens.showing`, which is a session message.
+   *
+   * Optional, so a client older than the field ignores it and a server older
+   * than it simply sends nothing; the roster then says what it said before.
+   * See SHIMS.md.
+   */
+  watching?: UserId[];
   serverNow: number;
 }
 

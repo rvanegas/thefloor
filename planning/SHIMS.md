@@ -46,11 +46,18 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 206 | `HomeView.helpAnsweredAt` optionality | `core/protocol.ts`, `app/src/state/helpSeen.ts` |
 | 212 | `HomeView.cohortEligible` optionality | `core/protocol.ts`, `app/src/state/AppProvider.tsx`, `app/src/state/notificationAsk.ts` |
 | 215 | `Guest.asks` / `Guest.invites` optionality, and `'accepted'` | `core/types.ts`, `app/src/ui/ChannelView.tsx` |
+| 259 | `ChannelView.watching` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
 `ChannelView.pingableAt` and `ChannelView.notificationLevel` — went in the same
 commit, so nothing above is free today.
+
+`ChannelView.watching` is optional so that a client which draws the roster's
+*watching* suffix can meet a server which does not gather it, and reads an
+absent field as nobody watching — which is the roster as it was drawn before
+this existed. 259 is the build in `app.json` at the moment this landed, which
+is the next one to be uploaded and therefore the first that speaks the field.
 
 `Guest.invites` is the same shape as `Guest.asks` before it and gated the same
 way: both are optional on the wire so that a client which knows about them can

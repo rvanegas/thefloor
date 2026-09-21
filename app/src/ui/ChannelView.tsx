@@ -1528,6 +1528,20 @@ export function ChannelView({
     channel.present.includes(id)
   );
   /**
+   * Who in this room has the film up, as the server counts screens.
+   *
+   * **Only while there is a film**, which is the guard rather than a tidiness:
+   * `screening` is a device saying which channel it would show a film for, and
+   * it is set from the moment somebody opens a party's channel — so without
+   * this the roster would read *watching* at people looking at a room where
+   * nothing is playing. A party that has just stopped leaves the declaration
+   * standing on every one of those devices until each of them notices.
+   *
+   * Empty from a server older than the field, which draws the roster the way
+   * it drew before there was one. See SHIMS.md.
+   */
+  const watchingNow = channel.watch?.party ? (view.watching ?? []) : [];
+  /**
    * Standing here, but not on this device.
    *
    * The roster says present and this screen says otherwise, and both are
@@ -2980,6 +2994,11 @@ export function ChannelView({
                 // owes you: it is not a thing you can act on, and six of them
                 // would turn the roster into a row of clocks.
                 cooldown={participant.id === me ? cooldown : null}
+                // Whether they have the film up, from the snapshot rather
+                // than from `watchingHere` — which is the microphone's list
+                // and says nothing about a second device. See
+                // `ChannelView.watching`.
+                watching={watchingNow.includes(participant.id)}
               />
             ))}
           </View>
@@ -4877,6 +4896,7 @@ function ParticipantCard({
   onPing,
   pingableAt = null,
   attentiveAt = null,
+  watching = false,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   participant: { id: string; displayName: string };
@@ -4935,6 +4955,16 @@ function ParticipantCard({
    * person would be six different numbers if every card carried its own.
    */
   cooldown?: number | null;
+  /**
+   * Whether this person has the party's film up on one of their devices.
+   *
+   * **A fact about the person and not about their hardware**, which is what
+   * makes it a suffix rather than a second line: the room is being told that
+   * somebody is watching, and *which* screen they are watching on is their
+   * own business. See `ChannelView.watching`, and `watchingNow` for the guard
+   * that keeps it off a roster with no film in the room.
+   */
+  watching?: boolean;
 }) {
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
@@ -5228,6 +5258,18 @@ function ParticipantCard({
           {status}
           {muted ? ' · muted' : ''}
           {holdsFloor ? ' · has the floor' : ''}
+          {/*
+            **Last of the three, because it is the least urgent of them.** The
+            suffixes read as a sentence and the order is what ranks them: a
+            closed microphone and a running claim are both things somebody
+            reading this roster may need to act on within the minute, and
+            having the film up is a standing state that will still be true in
+            ten. It is also the only one of the three that can be true of
+            somebody who is not in the room at all — a second device is a
+            screen without a voice — so putting it first would open every such
+            line with the fact that matters least about them.
+          */}
+          {watching ? ' · watching' : ''}
         </Text>
       </View>
       {/*
@@ -5299,7 +5341,9 @@ function ParticipantCard({
    */
   const label = `${participant.displayName}${self ? ', you' : ''}. ${status}.${
     holdsFloor ? ' Has the floor.' : ''
-  }${speaking ? ' Speaking.' : ''}${onPress ? ' View profile.' : ''}`;
+  }${watching ? ' Watching.' : ''}${speaking ? ' Speaking.' : ''}${
+    onPress ? ' View profile.' : ''
+  }`;
 
   if (!onPress) {
     return (

@@ -666,7 +666,11 @@ export function channelOf(mutate: (s: ChannelState) => ChannelState = (s) => s) 
 export function showChannel(
   channel: ChannelState,
   recordings: RecordingView[] = [],
-  extra: { cohort?: number | null } = {}
+  // `watching` is the server's count of who has the film up, which no
+  // reducer holds — see `ChannelView.watching`. Passed here for the same
+  // reason `cohort` is: it rides the snapshot and nothing in `core/` can
+  // produce it.
+  extra: { cohort?: number | null; watching?: string[] } = {}
 ) {
   const names: Record<string, string> = {
     [ME]: 'Me',

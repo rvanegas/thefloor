@@ -140,10 +140,16 @@ interface Connection {
   /**
    * The channel this instance is showing a film for, or null.
    *
-   * Connection state and nothing more — it reaches no channel, no row and no
-   * other account, and it dies with the socket, which is the correct lifetime:
-   * a screen that has gone away has stopped showing anything. Read only by the
-   * screen picker. See `ClientMessage.screens.showing`.
+   * Connection state and no row — it dies with the socket, which is the
+   * correct lifetime: a screen that has gone away has stopped showing
+   * anything. See `ClientMessage.screens.showing`.
+   *
+   * **It reaches other accounts since 2026-09-20**, which it deliberately did
+   * not before. `watchingIn` below gathers it per channel and the snapshot
+   * carries it, so the roster can say who has the film up — see
+   * `ChannelView.watching` for why that question cannot be answered from
+   * `watchingHere`. What crosses is the channel and never the device: nobody
+   * outside the account learns which instance is showing it.
    */
   screening: string | null;
   /**
@@ -562,6 +568,56 @@ export function registerWebsocket(deps: {
   };
 
   /**
+   * Who has any instance showing this channel's film.
+   *
+   * **The account, never the device**, which is the whole difference between
+   * this and `screensFor` above: that one is somebody's own list of their own
+   * hardware, and this is one fact about a person told to the room they are
+   * in. Deduplicated for the same reason it is keyed that way — a device
+   * reconnecting holds two sockets for a moment, and one person must not
+   * appear as two watchers.
+   *
+   * Session scope only, so a guest is absent however plainly they are
+   * watching: `screens.showing` is a session message and a guest socket never
+   * sends one. See `ChannelView.watching`.
+   */
+  const watchingIn = (channelId: string): string[] => {
+    const ids = new Set<string>();
+    for (const other of connections) {
+      if (other.scope.kind !== 'session') continue;
+      if (other.screening !== channelId) continue;
+      ids.add(other.userId);
+    }
+    return [...ids];
+  };
+
+  /**
+   * Tells the rooms themselves that somebody has started or stopped watching.
+   *
+   * **The channel's watchers, where `pushScreening` tells the account its own
+   * devices**, and both are needed by one declaration: the switch on the
+   * device that handed a film away reads the first, and every roster in the
+   * room reads this. Neither is `channels.onChange`, which fires on the
+   * reducer — this is connection state and the reducer never hears about it,
+   * so the fanout has to be made by hand at each of the three places
+   * `screening` moves: a declaration, the instances it displaces, and a
+   * socket closing.
+   *
+   * Nulls are dropped rather than rejected, so a caller can hand over an old
+   * value and a new one without sorting out which of them was a channel.
+   */
+  const pushWatching = (channelIds: Iterable<string | null>): void => {
+    for (const channelId of new Set(channelIds)) {
+      if (channelId === null) continue;
+      for (const connection of connections) {
+        if (connection.watchingChannels.has(channelId)) {
+          pushChannel(connection, channelId);
+        }
+      }
+    }
+  };
+
+  /**
    * The connection to hand a film to, given a device this account named.
    *
    * Matched on the claimed id or on the fallback key, so that a device which
@@ -851,6 +907,12 @@ export function registerWebsocket(deps: {
         // thing that has to travel this way. See
         // `ChannelView.speakingWhileWithheld`.
         speakingWhileWithheld: channels.speakingWithheldIn(channelId),
+        // Who has the film up, which is what the roster's *watching* suffix
+        // draws. Gathered from live connections rather than from the channel
+        // because no reducer is told about a screen — see
+        // `ChannelView.watching`, and `watchingIn` for why it is the account
+        // and not the device.
+        watching: watchingIn(channelId),
         serverNow: now(),
       },
     });
@@ -1467,6 +1529,10 @@ export function registerWebsocket(deps: {
           // app reconciles this rather than firing it on a tap, so the
           // steady state is the same value arriving again.
           if (connection.screening === message.channelId) return;
+          // The room it is leaving as well as the one it is joining: both
+          // rosters change, and by the time `pushWatching` runs the field
+          // holds only the second of them.
+          const wasScreening = connection.screening;
           connection.screening = message.channelId;
           /*
             **A film shows on one device at a time, and this is where that is
@@ -1486,17 +1552,25 @@ export function registerWebsocket(deps: {
             devices is the same room with two soundtracks in it, and which
             channel each belongs to does not make it less so.
           */
+          const displacedFrom: (string | null)[] = [];
           if (message.channelId !== null) {
             for (const other of connections) {
               if (other === connection) continue;
               if (other.scope.kind !== 'session') continue;
               if (other.userId !== connection.userId) continue;
               if (other.screening === null) continue;
+              displacedFrom.push(other.screening);
               other.screening = null;
               send(other, { type: 'screen', channelId: null });
             }
           }
           pushScreening(connection.userId);
+          // **After the account's own devices, and to a different audience.**
+          // A declaration moves one name on and, where it displaced an
+          // instance of the same account, another name off — and in the
+          // common case the two are the same person in the same room, which
+          // the set collapses to one push.
+          pushWatching([wasScreening, message.channelId, ...displacedFrom]);
           return;
         }
 
@@ -1681,6 +1755,10 @@ export function registerWebsocket(deps: {
       // something unrelated happens to push the fact again.
       if (connection.scope.kind === 'session' && connection.screening !== null) {
         pushScreening(connection.userId);
+        // And the room, which is watching a different fact: a screen that has
+        // gone is somebody who has stopped watching, and nothing else is
+        // going to say so. The delete above is what makes the recount right.
+        pushWatching([connection.screening]);
       }
       // The last moment this socket proved somebody was there — not the moment
       // it ended, which is a different number and, for the departure that

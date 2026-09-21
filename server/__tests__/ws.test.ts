@@ -1548,6 +1548,48 @@ describe('websocket', () => {
         laptop.close();
       });
 
+      /**
+       * **The room, rather than the account**, which is the other audience a
+       * declaration has and the one the roster reads. `watchingHere` cannot
+       * answer this: it is the microphone's list and names somebody only when
+       * one device holds both the room and the picture, so the *second
+       * device* case — the film on a laptop, the voice on a phone — is a
+       * person plainly watching whom that list does not mention.
+       */
+      it('tells the room who has the film up, on whichever device', async () => {
+        const { alice, bob, channelId, phone, laptop } = await withScreens();
+        await enter(phone, channelId, alice.account.id);
+        const watcher = new Client(bob.token, baseUrl);
+        await watcher.open();
+        await watcher.next('hello');
+        watcher.send({ type: 'watch.channel', channelId });
+        const before = await watcher.next('channel');
+        expect(before.view.watching ?? []).toEqual([]);
+
+        laptop.send({ type: 'screens.showing', channelId });
+        const during = await watcher.next('channel', (m) =>
+          (m.view.watching ?? []).includes(alice.account.id)
+        );
+        // The account and never the device: which of Alice's two instances is
+        // showing it is her business, and the room is told one thing.
+        expect(during.view.watching).toEqual([alice.account.id]);
+        // And the narrower list is untouched, the picture being on a device
+        // that is not in the room.
+        expect(during.view.channel.watchingHere).toEqual([]);
+
+        // A screen that has gone away has stopped showing anything, and the
+        // room hears about that too — nothing else would say so.
+        laptop.close();
+        const after = await watcher.next(
+          'channel',
+          (m) => (m.view.watching ?? []).length === 0
+        );
+        expect(after.view.watching).toEqual([]);
+
+        watcher.close();
+        phone.close();
+      });
+
       it('says nothing to a device that was showing nothing', async () => {
         const { channelId, phone, laptop } = await withScreens();
         laptop.send({ type: 'screens.showing', channelId });

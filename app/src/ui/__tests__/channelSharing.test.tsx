@@ -535,6 +535,58 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * **Who is actually watching, which is the question a host asks.** Somebody
+   * who starts a film wants to know whether the room is with them, and until
+   * 2026-09-20 nothing on the screen said: a participant whose app is
+   * backgrounded, or who is looking at another tab, is drawn exactly like one
+   * sitting in front of the picture.
+   *
+   * It is read off the snapshot rather than off `watchingHere`, which is the
+   * microphone's list and names nobody who is watching on a *second device*.
+   * See `ChannelView.watching`.
+   */
+  it('says on the roster who has the film up', () => {
+    showChannel(playing(), [], { watching: [THEM] });
+    const tree = openOnMembers();
+    const text = textOf(tree);
+    expect(text).toContain('Dana Chu Present  · watching');
+    // Not said about somebody the server does not count, which is the whole
+    // of what makes the line worth reading.
+    expect(text).toContain('Me (you) Present ');
+    expect(text).not.toContain('Me (you) Present  · watching');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The television case, and the reason this cannot be `watchingHere`: the
+   * film on a laptop and the voice on a phone is one person watching, and the
+   * list that decides a microphone deliberately does not name them.
+   */
+  it('says it of somebody watching on a device that is not in the room', () => {
+    showChannel(playing(), [], { watching: [THEM] });
+    expect(mockApp.channelViews['sess_1'].channel.watchingHere).toEqual([]);
+    const tree = openOnMembers();
+    expect(textOf(tree)).toContain('Dana Chu Present  · watching');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **A declaration outlives the film it was made for**, which is why the
+   * roster asks about the party rather than about the list. `screening` is a
+   * device saying which channel it would show a film for, and it is set from
+   * the moment somebody opens a party's channel — so a party that has just
+   * stopped leaves it standing on every device until each of them notices.
+   * Drawn unguarded, the roster would report a room full of people watching
+   * nothing.
+   */
+  it('says nothing about watching when there is no film', () => {
+    showChannel(channelOf(), [], { watching: [THEM] });
+    const tree = openOnMembers();
+    expect(textOf(tree)).not.toContain('· watching');
+    act(() => tree.unmount());
+  });
+
   it('says nothing about the room from a device that is not in it', () => {
     /*
       **The second screen, which used to unsay what the first one said.**

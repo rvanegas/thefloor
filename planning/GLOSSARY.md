@@ -95,6 +95,7 @@ caused; the list carries the meaning.
 - **Turned** — A *handheld* whose window is landscape, which on a handheld can only mean somebody turned it: nothing else this app runs on is handheld, and a handheld is locked upright away from the film. It is the whole state of *full screen* on a phone — `isTurned` in `ui/layout.ts`, read at render rather than stored, so the picture and the glass cannot disagree
 - **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *at the film* — the watch card with a film this device can expand, and *full screen* — where both orientations are permitted. A tablet and a browser window are never turned. It is what makes *turned* readable as a gesture, and narrowing it from *full screen alone* to *the film* is what gave the turn back its way in. `usePortraitUnlessAtTheFilm` in `watch/orientation.ts`; on the web a no-op
+- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while a party is loaded, and a wider fact than *watching here* — a *second device* is on this and not on that
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -2086,6 +2087,40 @@ per-platform*.
 
 `app/src/watch/orientation.ts`, called once from `Picture.tsx` so that it
 covers every screen rather than the channel alone.
+
+## Watching (on the roster)
+
+**That this person has the party's film up on something of theirs**, said as a
+third suffix on their roster card — after *muted* and *has the floor*, which
+are the two a reader may need to act on within the minute.
+
+**The account and never the device.** What the room is told is that somebody is
+watching; which of their screens it is on is their own business, and is a fact
+only their own devices are shown — see *Watch on*. `ChannelView.watching` is
+the list, gathered from live connections, and `Connection.screening` is what it
+is gathered from.
+
+**It is not *watching here*, and the two cannot be collapsed.** That one exists
+to decide a microphone and so names somebody only when one device holds both
+the room and the picture; a *second device* — the film on a television, the
+voice on a phone — is a person plainly watching whom it deliberately does not
+mention. A roster asked *is everyone with me* has to count them.
+
+**Retracted when the app goes away, on a phone.** The declaration is withdrawn
+while the app is backgrounded and restated on return, because iOS suspends a
+backgrounded WebView and the film has genuinely stopped — and the person a host
+is looking for is exactly the one whose phone is in their pocket. A hidden
+browser tab goes on playing, so nothing is retracted there; that asymmetry is
+measured rather than preferred. **Not the role itself**: `screenFor` survives
+the trip, so the picture is where it was on the way back.
+
+**Two things it cannot say.** A *guest* watching is never on it — a guest
+socket is a scope of its own and carries no declaration — and neither is
+anybody at all once the party stops, the roster asking about the film rather
+than about the list, since a device goes on offering itself as a screen until
+it notices.
+
+See decisions/2026-09-20-the-roster-says-who-is-watching.md.
 
 ## Watching here
 

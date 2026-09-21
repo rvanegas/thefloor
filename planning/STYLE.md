@@ -544,6 +544,15 @@ card.** A border in the hue that already carries the meaning says which kind of
 thing a row is without competing for the one tint on the screen that is
 allowed to shout.
 
+**A roster card's suffixes are ordered by what a reader may have to act on.**
+There are three — `· muted`, `· has the floor`, `· watching` — appended to the
+status in that order, and the order is the ranking: the first two are states
+somebody reading the room may need to answer within the minute, and having the
+film up is a standing fact that will still be true in ten. A suffix is also the
+right size for all three, each being a clause about somebody rather than a
+thing to press; the moment one of them needs a second line it has stopped being
+a suffix and wants a card.
+
 **Fill and border are two different questions on a roster card.** The border
 means *speaking*, driven by the room; the fill means *holds the floor*, driven
 by the reducer. They routinely disagree — a holder sitting silent, a

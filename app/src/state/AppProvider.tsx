@@ -1840,6 +1840,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, []);
 
+  /**
+   * Stops telling the room this device has the film up while the app is away,
+   * and says it again on return.
+   *
+   * **The roster is why this exists.** A member's card says *watching* while
+   * the server holds a `screening` for them — see `ChannelView.watching` — and
+   * what that claim is worth depends entirely on it being retracted by a
+   * device that has stopped showing anything. The person a host is looking for
+   * is precisely the one whose phone is in their pocket: a card that says they
+   * are watching is worse than no card at all, being a wrong answer to the one
+   * question the line was added to answer.
+   *
+   * **Native only, and the asymmetry is measured rather than preferred.** iOS
+   * suspends a backgrounded WebView: the film stops, and nothing about the
+   * phone is showing it. A hidden browser tab goes on playing, picture and
+   * sound both, which is why a playing film is already evidence of attention
+   * on the web — see the attention report in `ChannelView`. Retracting there
+   * would unsay something that is still true.
+   *
+   * **The role itself is untouched**, which is what keeps this safe. What is
+   * withdrawn is the report to the server, not `screenFor`: the picture stays
+   * mounted, `watchingHere` and the microphone rule are not involved, and the
+   * film resumes from the channel's clock the moment the app is in front
+   * again. And a device that was displaced while away has had `screenFor`
+   * cleared by the `screen` message that displaced it, so the return re-states
+   * a belief this device still holds rather than stealing a film back from
+   * wherever it went.
+   */
+  useEffect(() => {
+    const screenFor = state.screenFor;
+    if (screenFor === null || Platform.OS === 'web') return;
+    const subscription = NativeAppState.addEventListener('change', (next) => {
+      realtime.showingScreen(next === 'active' ? screenFor : null);
+    });
+    return () => subscription.remove();
+  }, [realtime, state.screenFor]);
+
   useEffect(() => () => realtime.disconnect(), [realtime]);
 
   const value = useMemo<AppValue>(

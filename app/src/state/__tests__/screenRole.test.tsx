@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { AppState, Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
@@ -59,9 +59,34 @@ jest.mock('../../api/socket', () => ({
     showingScreen(channelId: string | null) {
       reported.push(channelId);
     }
+    // The foreground listeners this provider holds are not this file's
+    // subject, but firing the one that is means firing all of them — so the
+    // two they reach have to exist.
+    resume() {}
+    suspend() {}
     disconnect() {}
   },
 }));
+
+/**
+ * Every `AppState` listener the provider is holding, since several effects
+ * watch the same transition and only one of them is this file's business.
+ * Fired together, which is what the platform does.
+ */
+const appStateListeners: Array<(next: string) => void> = [];
+
+/**
+ * Awaited rather than fired, because a foreground wakes more than the one
+ * effect this file is about: the reconnect re-asks `/healthz`, whose answer
+ * lands in state a microtask later. Leaving that outside `act` is a warning
+ * per transition about a promise nothing here is waiting for.
+ */
+async function goes(next: 'active' | 'background'): Promise<void> {
+  (AppState as unknown as { currentState: string }).currentState = next;
+  await act(async () => {
+    for (const listener of [...appStateListeners]) listener(next);
+  });
+}
 
 let latest: ReturnType<typeof useApp> | null = null;
 
@@ -105,7 +130,20 @@ beforeEach(() => {
   handlers = {};
   reported.length = 0;
   watched.length = 0;
+  appStateListeners.length = 0;
   latest = null;
+  (AppState as unknown as { currentState: string }).currentState = 'active';
+  jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation(((_event: string, handler: (next: string) => void) => {
+      appStateListeners.push(handler);
+      return {
+        remove: () => {
+          const at = appStateListeners.indexOf(handler);
+          if (at !== -1) appStateListeners.splice(at, 1);
+        },
+      };
+    }) as unknown as typeof AppState.addEventListener);
   jest.useFakeTimers({ now: T0, doNotFake: ['nextTick'] });
 });
 
@@ -127,6 +165,50 @@ describe('being handed a film', () => {
     // idle while it plays a film, which is a picker offering a television
     // that is already busy and a switch elsewhere showing no answer.
     expect(reported).toEqual(['sess_1']);
+  });
+
+  /**
+   * **What the roster's *watching* line is worth**, which is the whole reason
+   * this transition is reported at all. A member's card says *watching* while
+   * the server holds a `screening` for them — see `ChannelView.watching` — and
+   * the person a host is looking for is exactly the one whose phone is in
+   * their pocket. iOS suspends a backgrounded WebView, so the film has
+   * genuinely stopped; a card still saying *watching* would be a wrong answer
+   * to the one question the line was added to answer.
+   */
+  it('stops telling the room it has the film up while the app is away', async () => {
+    const shown = await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    reported.length = 0;
+
+    await goes('background');
+    expect(reported).toEqual([null]);
+    // **And the role is untouched**, which is what keeps the retraction
+    // cheap: the picture stays mounted, and the return restates a belief this
+    // device still holds rather than reclaiming a film from wherever it went.
+    expect(textOf(shown)).toContain('screen:sess_1');
+
+    await goes('active');
+    expect(reported).toEqual([null, 'sess_1']);
+  });
+
+  /**
+   * A device displaced while it was away comes back with nothing to say. The
+   * `screen` message that displaced it cleared the role, and the report is
+   * made off the role rather than off a memory of one — otherwise a phone
+   * coming out of a pocket would take the film back off the television it was
+   * handed to.
+   */
+  it('says nothing on return once the film has gone elsewhere', async () => {
+    await open();
+    act(() => handlers.onScreenAsked?.('sess_1'));
+    await goes('background');
+    reported.length = 0;
+
+    act(() => handlers.onScreenAsked?.(null));
+    reported.length = 0;
+    await goes('active');
+    expect(reported).toEqual([]);
   });
 
   it('gives it up when the film moves to another device', async () => {
