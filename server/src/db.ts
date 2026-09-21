@@ -1006,6 +1006,12 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
   -- believing a guest silent whom the room is still carrying, which is the
   -- disagreement reconcileSilence exists to catch, arriving by another route.
   may_speak    INTEGER NOT NULL DEFAULT 0,
+  -- When the seat was offered, and when it was taken up. Both null for a seat
+  -- somebody knocked their way into, which is every seat before 2026-09-21.
+  -- See the row type: the pair distinguishes an arrival, an invitation nobody
+  -- has answered, and an invitation accepted.
+  invited_at   INTEGER,
+  accepted_at  INTEGER,
   ejected_at   INTEGER,
   last_seen_at INTEGER NOT NULL,
   expires_at   INTEGER NOT NULL
