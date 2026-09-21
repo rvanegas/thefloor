@@ -1,0 +1,25 @@
+Watch something together is on every channel's Watch tab, and plays the YouTube link on your clipboard.
+
+The film plays in the app. Its picture stays up while you go Home, open a setting or look at another channel, and it can be dragged to whichever corner suits you.
+
+Full screen is on the Watch tab, and turning the phone sideways is full screen too.
+
+This device and Other device say where the film plays. Sending it to your other device opens the channel there and gives that device the picture, the transport and the rungs, and nothing else.
+
+Anybody watching can play, pause, and go back or forward fifteen seconds, from the app's row of controls or from the film's own bar. The floor governs the microphone and not the film.
+
+The Watch tab says what the film is called and who is watching it.
+
+Swipe right in a channel to reach Home, and left on Home to go back into the room you are standing in.
+
+While you are standing in a channel, the lock screen carries a card with Mute and a tap that opens the channel.
+
+Three rising notes sound on every device present when somebody starts a recording by hand.
+
+A channel's sounds are heard whether or not the ringer switch is on.
+
+Choose where sound comes out is on Floor Settings.
+
+The Player tab is called Listen, and takes a file of up to 200MB.
+
+The Channels list says when the app cannot reach the server.

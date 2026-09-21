@@ -1,0 +1,78 @@
+1. SCREEN RECORDING AND DEVICES
+None attached; section 3 walks it. No purchases, no tracking, no ATT prompt.
+iPhone is portrait and turns sideways only for a film; iPad takes all four.
+
+2. WHAT IT DOES
+Voice conversation between people who know each other. A channel holds up to
+six and outlasts a conversation; anyone present may claim "the floor",
+withholding every other microphone for a minute. New here: a watch party's
+film plays in the app (section 6), a lock screen card, and swipes between
+channel and Home.
+
+3. GETTING IN AND REACHING FEATURES
+No passwords; a code is emailed. This account has a fixed
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+
+It holds a contact, Sam Rivera, and three channels; "Weekly Convo" has
+recordings.
+
+Home switches between Channels, Contacts and Support. Open "Weekly Convo".
+The bottom bar is Mute, Claim and the rungs In, Nearby and Out; stepping in
+prompts for the microphone. Tapping a member opens their profile: "Mute
+them", Ping.
+
+The tabs across the top: Notepad, Invite (a contact, or "Share a guest
+link"), Listen (an audio file from this phone), Recordings and Watch - copy
+a YouTube link, then "Watch something together" (section 6). "Record
+automatically" is in the channel's Settings. Floor Settings, from Home,
+carries Getting started, "Choose where sound comes out", Email and Labs,
+which reveals Transcribe on a recording's row.
+
+NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
+unavailable while alone; Ping is offered only to somebody in the channel or
+nearby it; a recording starts one run per sitting, so Stop is final until
+the room empties; "Mute them" goes once that person is muted, and only they
+can reopen it; the room is muted, with no button to lift it, while a film
+plays on the device you stepped in on.
+
+4. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted) for audio and recordings; S3 stores them;
+SES for sign-in codes; APNs; Ko-fi; YouTube's IFrame player, only once a
+member starts a watch party; AssemblyAI, sent only a recording somebody asked
+to transcribe, with Labs on. No third-party sign-in, payment processor or
+advertising.
+
+5. REGIONAL DIFFERENCES
+The Ko-fi link on Support shows only in the US storefront (3.1.1(a));
+voluntary, unlocks nothing, and the app is free.
+
+6. THIRD-PARTY MATERIAL AND WATCH PARTIES
+A member may play their own audio file in; any member may delete a
+recording. A watch party carries no video of ours: this app never fetches,
+decodes, stores or republishes a frame; what travels through it is a
+position and a clock. YouTube's own IFrame player plays the video, embedded
+unmodified, unobscured and with its own controls, in a web view on the
+member's own device or a second device of the same account. Nothing is
+downloaded or separated from its audio, and a channel with a party loaded
+will not record.
+
+GUIDELINE 1.2: no discovery and no directory - nothing can be browsed,
+nobody found. A username names an invite link, not a search term, minted by
+its owner and seating one person. The field taking an email address does not
+search: a request goes there and nothing comes back, not even whether an
+account exists. Contacts need both sides to accept, only a contact may be
+added to a channel, an address shows only if that person chose to, and Ping
+is contacts-only.
+
+The one place strangers meet: signing up without an invitation and knowing
+nobody puts you, once, into "Getting Started Cohort" with up to three others
+who joined then and one of us - nobody searched, nobody becomes a contact,
+only display names show, and leaving is a tap. This account is not in one.
+
+Guests: a visitor with a link knocks under a typed name and a member admits
+them. Any member can withdraw a guest's microphone or remove them, revoking
+the link; every guest goes when the last member steps out. Recording happens
+only by a tap or the channel's setting, and its indicator shows to guests.
+
+PLEASE TEST ACCOUNT DELETION LAST - it is immediate and leaves a working,
+empty app.
