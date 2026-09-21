@@ -493,30 +493,122 @@ describe('deleting your account', () => {
   }, 120_000);
 });
 
-describe('a conversation a guest was in', () => {
-  it('cannot be published, however many members agree', async () => {
+describe('a guest', () => {
+  /** Puts a guest identity into the recording, with or without audio. */
+  function addGuest(
+    recordingId: string,
+    identity: string,
+    { spoke }: { spoke: boolean }
+  ) {
+    const row = app.db
+      .prepare('SELECT stems, participants FROM recordings WHERE id = ?')
+      .get(recordingId) as { stems: string; participants: string };
+    const stems = JSON.parse(row.stems);
+    const participants = JSON.parse(row.participants);
+    // Present either way: a run's audience unions presence with stems, so a
+    // guest who never spoke is still on the roster. That is the case this
+    // whole distinction is about.
+    participants.push(identity);
+    if (spoke) stems[identity] = [{ key: `${identity}/0.ogg`, startMs: 0 }];
+    app.db
+      .prepare('UPDATE recordings SET stems = ?, participants = ? WHERE id = ?')
+      .run(JSON.stringify(stems), JSON.stringify(participants), recordingId);
+  }
+
+  /**
+   * A seat, optionally belonging to somebody with an account here.
+   *
+   * `admitted_by` is a real foreign key onto accounts, so a member has to
+   * have let them in — which is true of every seat there has ever been.
+   */
+  function seat(
+    identity: string,
+    channelId: string,
+    admittedBy: string,
+    accountId: string | null
+  ) {
+    app.db
+      .prepare(
+        `INSERT INTO guest_sessions
+           (id, channel_id, link_token, secret_hash, display_name, account_id,
+            admitted_at, admitted_by, may_speak, last_seen_at, expires_at)
+         VALUES (?, ?, 'tok', 'hash', 'A guest', ?, ?, ?, 1, ?, ?)`
+      )
+      .run(
+        identity,
+        channelId,
+        accountId,
+        clock,
+        admittedBy,
+        clock,
+        clock + 1_000_000
+      );
+  }
+
+  it('who spoke without an account cannot be published around', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();
     await goPublic(alice.token, channelId);
-
-    // A guest's audio in the recording is the fact that refuses it: a guest
-    // has no account and so no surface on which to have agreed to anything.
-    const stems = JSON.parse(
-      (
-        app.db
-          .prepare('SELECT stems FROM recordings WHERE id = ?')
-          .get(recordingId) as { stems: string }
-      ).stems
-    );
-    stems['guest_someone'] = [];
-    app.db
-      .prepare('UPDATE recordings SET stems = ? WHERE id = ?')
-      .run(JSON.stringify(stems), recordingId);
+    addGuest(recordingId, 'guest_stranger', { spoke: true });
+    seat('guest_stranger', channelId, alice.account.id, null);
 
     const refused = await consent(alice.token, recordingId);
     expect(refused.statusCode).toBe(400);
-    expect(refused.json().error).toContain('guest');
+    expect(refused.json().error).toContain('nobody to ask');
 
     expect((await consent(bob.token, recordingId)).statusCode).toBe(400);
     expect((await feedFor(channelId)).payload).not.toContain('<item>');
   }, 60_000);
+
+  /**
+   * The defect this replaced. A recording's audience unions presence with
+   * stems, so somebody who sat in the room and never opened their microphone
+   * is on the roster — and the first version of this rule let them veto a
+   * conversation they contributed no audio to, permanently and with nobody
+   * able to undo it.
+   */
+  it('who only listened blocks nothing, being in none of the audio', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    addGuest(recordingId, 'guest_quiet', { spoke: false });
+    seat('guest_quiet', channelId, alice.account.id, null);
+
+    await consent(alice.token, recordingId);
+    const done = await consent(bob.token, recordingId);
+    expect(done.statusCode).toBe(200);
+    expect(done.json().publishedAt).toBe(clock);
+    // And they are not in the set of people who had to agree: there is
+    // nothing of theirs to agree about.
+    expect(done.json().required).toHaveLength(2);
+  }, 120_000);
+
+  /**
+   * A guest is somebody holding a seat in a channel they are not a member of
+   * — with or without an account here. One who signed in before knocking is
+   * reachable, so they are asked rather than treated as an obstacle.
+   */
+  it('who spoke and has an account is asked like anybody else', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    const carol = await signIn('carol@example.com', 'Carol');
+    await goPublic(alice.token, channelId);
+    addGuest(recordingId, 'guest_carol', { spoke: true });
+    seat('guest_carol', channelId, alice.account.id, carol.account.id);
+
+    await consent(alice.token, recordingId);
+    const stillWaiting = await consent(bob.token, recordingId);
+    expect(stillWaiting.statusCode).toBe(200);
+    // Three required, not two: the guest's account is one of them, so the
+    // members alone cannot publish somebody else's voice.
+    expect(stillWaiting.json().required).toHaveLength(3);
+    expect(stillWaiting.json().publishedAt).toBeNull();
+    expect((await feedFor(channelId)).payload).not.toContain('<item>');
+
+    const published = await consent(carol.token, recordingId);
+    expect(published.json().publishedAt).toBe(clock);
+    await transcoded(recordingId);
+    expect((await feedFor(channelId)).payload).toContain('<item>');
+
+    // And they can take it back, exactly as any other participant can.
+    await withdraw(carol.token, recordingId);
+    expect((await feedFor(channelId)).payload).not.toContain('<item>');
+  }, 120_000);
 });

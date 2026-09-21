@@ -648,10 +648,15 @@ export interface RecordingView {
     /** When it went public, or null. */
     publishedAt: number | null;
     /**
-     * Whether a guest spoke in it, which makes it unpublishable however many
-     * members agree — a guest has no account on which to have agreed.
+     * Whether somebody spoke here as a guest with no account, which makes it
+     * unpublishable however many of the rest agree — there is nobody to ask.
+     *
+     * Narrower than "a guest was here" in both directions, deliberately. A
+     * guest who listened and never spoke is not in the audio and blocks
+     * nothing; a guest who was signed in has an account, so they are asked
+     * like anybody else and appear in `required`.
      */
-    guestsPresent: boolean;
+    blockedByGuest: boolean;
     /** Whether the published audio is still being prepared. */
     preparing: boolean;
   };

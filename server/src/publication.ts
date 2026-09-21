@@ -29,15 +29,28 @@ import type { UsageMeter } from './usage';
  *    A recording publishes when every account that took part has consented,
  *    and not before. See `recording_consents` in db.ts.
  *
- * 2. **Guests are a refusal, not a gap.** A guest who spoke is recorded on
- *    purpose — a recording is of the conversation, and somebody speaking in
- *    it was in it — but a guest has no account, no persistent identity and no
- *    surface on which to have agreed to anything. There is therefore nobody
- *    to ask. The alternatives were dropping their stem, which changes what
- *    the episode *is* and publishes a conversation with a hole in it, or
- *    asking the members on their behalf, which is exactly the standing point
- *    1 denies. So a recording a guest spoke in cannot be published at all,
- *    until a guest link is one that carries the possibility up front.
+ * 2. **A guest is asked where there is anybody to ask, and is an obstacle
+ *    only where there is not.** The rule is about whose voice would be
+ *    broadcast, so it turns on two things and not on the word *guest*:
+ *
+ *    - **Did they speak?** A run's audience unions presence with stems, so
+ *      somebody who sat in the room and never opened their microphone is on
+ *      the roster. Nothing of theirs is in the audio. They are not asked and
+ *      they block nothing — the alternative lets a silent listener veto a
+ *      conversation they are not in, permanently, with nobody able to undo it.
+ *    - **Do they have an account?** A guest is somebody holding a seat in a
+ *      channel they are not a member of, *with or without an account here*.
+ *      One who signed in before knocking is a person this server can ask, so
+ *      they join the consent set exactly like a member — and may withdraw
+ *      exactly like one.
+ *
+ *    What is left is a guest who spoke and has no account, and there the
+ *    refusal stands: there is genuinely nobody to ask. The alternatives were
+ *    dropping their stem, which changes what the episode *is* and would mean
+ *    re-rendering from stems — the one thing `transcodeToPublished` forbids —
+ *    or asking the members on their behalf, which is exactly the standing
+ *    point 1 denies. The fix is a guest link that carries the possibility up
+ *    front, which is a design rather than a guard and is in the task.
  *
  * 3. **The channel and the recording are two decisions.** A public channel
  *    has a page; a published recording is on it. A channel that goes private
@@ -240,7 +253,7 @@ export class Publication {
       consented,
       publishedAt: row.published_at,
       audioState: row.aac_state,
-      guestsPresent: this.guestsIn(row),
+      blockedByGuest: this.blockingGuests(row).length > 0,
     };
   }
 
@@ -255,10 +268,10 @@ export class Publication {
     if (row.deleted_at !== null) {
       return refuse('This recording has been deleted.', 'not_found');
     }
-    if (this.guestsIn(row)) {
+    if (this.blockingGuests(row).length > 0) {
       return refuse(
-        'Somebody joined this conversation as a guest, and a guest cannot ' +
-          'agree to being published. This recording cannot be published.',
+        'Somebody spoke here as a guest without an account, so there is ' +
+          'nobody to ask. This recording cannot be published.',
         'invalid'
       );
     }
@@ -269,38 +282,82 @@ export class Publication {
   }
 
   /**
-   * Whether a guest spoke in this recording.
+   * Every guest identity this recording touched, and the two things about
+   * each that decide what it means for publishing.
    *
-   * Both the roster and the stems are consulted, and neither alone would do.
-   * The roster is who the channel thought was there; the stems are whose
-   * audio actually exists — and it is the audio that gets published. A guest
-   * who joined and said nothing leaves no stem, and a guest whose seat was
-   * cleaned up leaves no roster entry. Either is enough to refuse.
+   * **`spoke` is the question, not `present`.** A recording's audience unions
+   * presence with stems — see `fileRun`, which says why — so somebody who sat
+   * in the room and never opened their microphone is on the roster. Nothing
+   * of theirs is in the audio, so there is nothing of theirs to publish and
+   * nothing for them to consent to. Treating them as an obstacle would make a
+   * silent listener able to veto a conversation they are not in.
+   *
+   * **`accountId` is the other half.** A *guest* is somebody holding a seat
+   * in a channel they are not a member of — with or without an account here,
+   * as GLOSSARY.md says. One who signed in before knocking has an account on
+   * `guest_sessions`, which means there is a person to ask after all: they
+   * join the consent set exactly like a member. Only a guest with no account
+   * is genuinely unreachable.
    */
-  private guestsIn(row: RecordingRow): boolean {
+  private guestsOf(
+    row: RecordingRow
+  ): Array<{ identity: string; accountId: string | null; spoke: boolean }> {
     const roster = parseJson<string[]>(row.participants) ?? [];
-    if (roster.some(isGuestId)) return true;
-    const stems = parseJson<Record<string, unknown>>(row.stems) ?? {};
-    return Object.keys(stems).some(isGuestId);
+    const stems =
+      parseJson<Record<string, unknown[]>>(row.stems) ?? {};
+    const identities = [
+      ...new Set([...roster, ...Object.keys(stems)]),
+    ].filter(isGuestId);
+
+    return identities.map((identity) => {
+      const session = this.db
+        .prepare('SELECT account_id FROM guest_sessions WHERE id = ?')
+        .get(identity) as { account_id: string | null } | undefined;
+      return {
+        identity,
+        // A seat that has since been swept leaves no row, which reads as no
+        // account — the safe direction: it makes them count as somebody who
+        // cannot be asked rather than as somebody silently taken as willing.
+        accountId: session?.account_id ?? null,
+        spoke: (stems[identity]?.length ?? 0) > 0,
+      };
+    });
   }
 
   /**
-   * Whose agreement is needed: every account that took part.
+   * The guests who actually stop this being publishable: the ones whose voice
+   * is in the audio and who have no account to agree with.
+   */
+  private blockingGuests(row: RecordingRow): string[] {
+    return this.guestsOf(row)
+      .filter((guest) => guest.spoke && !guest.accountId)
+      .map((guest) => guest.identity);
+  }
+
+  /**
+   * Whose agreement is needed: every account whose voice this would publish.
    *
    * `media` is not a person and is filtered out — a track played into the
-   * room has a stem and no opinion. Guests are filtered out too, but that is
-   * bookkeeping rather than a policy: `whyNotPublishable` has already refused
-   * a recording any of them are in, so this list is only ever reached for one
-   * with none.
+   * room has a stem and no opinion.
+   *
+   * Guests with accounts are folded in under those accounts rather than under
+   * their seat, which is what makes the same person one entry whether they
+   * arrived through the front door or through a link. Guests without accounts
+   * are absent because there is nobody the list could name; whether their
+   * presence stops publication altogether is `blockingGuests`, above.
    */
   private mustConsent(row: RecordingRow): string[] {
     const roster = parseJson<string[]>(row.participants) ?? [];
     const stems = Object.keys(
       parseJson<Record<string, unknown>>(row.stems) ?? {}
     );
-    return [...new Set([...roster, ...stems])].filter(
+    const members = [...new Set([...roster, ...stems])].filter(
       (id) => !isGuestId(id) && id !== MEDIA_IDENTITY
     );
+    const guestAccounts = this.guestsOf(row)
+      .filter((guest) => guest.spoke && guest.accountId)
+      .map((guest) => guest.accountId!);
+    return [...new Set([...members, ...guestAccounts])];
   }
 
   // --- The two acts themselves ---------------------------------------------
@@ -414,26 +471,47 @@ export class Publication {
   }
 
   /**
-   * One recording, if this person took part in its channel.
+   * One recording, if this person has any standing over publishing it.
    *
    * Absent and not-yours are one answer here as they are everywhere else:
-   * that a recording exists is something only the channel's members learn,
-   * and publication does not get to be the endpoint that says otherwise.
+   * that a recording exists is something only its own people learn, and
+   * publication does not get to be the endpoint that says otherwise.
+   *
+   * **Two ways in, and the second is not channel membership.** Everywhere
+   * else in this server, reach is *are you in this channel* — `recordingsFor`
+   * is that rule and playing, exporting and deleting all ask it. Publishing
+   * cannot use it alone, because the question here is not who may hear this
+   * recording but **whose voice this would broadcast**, and those sets come
+   * apart in exactly one place: a guest who spoke while signed in is in the
+   * audio and is not a member.
+   *
+   * Letting the members alone decide about that person would be the same
+   * mistake as letting one member decide for the rest, one layer down. So
+   * anybody in `mustConsent` reaches the recording — which is the smallest
+   * widening that makes a say possible, and confers nothing else: they cannot
+   * play it, export it, rename it or delete it, all of which still ask
+   * `recordingsFor`.
    */
   private recordingFor(
     recordingId: string,
     userId: string
   ): RecordingRow | null {
     const row = this.db
+      .prepare('SELECT * FROM recordings WHERE id = ?')
+      .get(recordingId) as unknown as RecordingRow | undefined;
+    if (!row) return null;
+
+    const member = this.db
       .prepare(
-        `SELECT r.* FROM recordings r
-           JOIN channels c ON c.id = r.channel_id
-          WHERE r.id = ?
-            AND EXISTS (SELECT 1 FROM json_each(c.participants)
+        `SELECT 1 FROM channels
+          WHERE id = ?
+            AND EXISTS (SELECT 1 FROM json_each(channels.participants)
                          WHERE json_each.value = ?)`
       )
-      .get(recordingId, userId) as unknown as RecordingRow | undefined;
-    return row ?? null;
+      .get(row.channel_id, userId);
+    if (member) return row;
+
+    return this.mustConsent(row).includes(userId) ? row : null;
   }
 
   private reread(recordingId: string): RecordingRow | null {
@@ -469,8 +547,11 @@ export interface PublicationState {
   publishedAt: number | null;
   /** `'pending'`, `'ready'`, `'failed'` or null — the episode's own file. */
   audioState: string | null;
-  /** Whether a guest spoke, which makes it unpublishable however many agree. */
-  guestsPresent: boolean;
+  /**
+   * Whether somebody spoke here as a guest with no account, which makes it
+   * unpublishable however many of the rest agree — there is nobody to ask.
+   */
+  blockedByGuest: boolean;
 }
 
 export interface Refusal {

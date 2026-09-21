@@ -4516,7 +4516,7 @@ export function buildApp(options: BuildOptions = {}): App {
         consented: named(state.consented),
         mine: state.consented.includes(viewerId),
         publishedAt: state.publishedAt,
-        guestsPresent: state.guestsPresent,
+        blockedByGuest: state.blockedByGuest,
         // 'failed' is not "preparing" and is not surfaced as its own state:
         // the recording is published and has no audio yet, which is what a
         // reader needs to know either way, and a retry is the next consent.

@@ -38,12 +38,16 @@ else's website.** Submission to Apple and to Spotify, each with its own review.
 
 Two questions the built half deliberately left open:
 
-**A guest link that says so up front.** A conversation a guest spoke in
-currently cannot be published at all, because a guest has no account on which
-to have agreed to anything and the alternatives — dropping their audio, or
-asking the members on their behalf — are each worse. The only honest fix is a
-guest link that carries the possibility before somebody uses it, which is a
-design rather than a guard.
+**A guest link that says so up front.** A guest who spoke while signed in is
+asked like anybody else, and one who only listened blocks nothing. What is
+still unpublishable is a conversation somebody spoke in as a guest *without* an
+account: there is nobody to ask, and the alternatives — dropping their audio,
+or asking the members on their behalf — are each worse. The only honest fix is
+a guest link that carries the possibility before somebody uses it, which is a
+design rather than a guard, and which has a real tension to resolve: a notice
+at the door is a standing blanket consent given before the conversation
+existed, and everything good about the model here comes from consent being per
+recording and withdrawable.
 
 **Where the bytes come from, when there is enough traffic to care.** Episodes
 are served off this box, ranged, which keeps the accounting honest and the

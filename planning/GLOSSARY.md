@@ -80,7 +80,7 @@ caused; the list carries the meaning.
 - **Public channel** — A channel that has given itself a *public page*; any member may, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody who has the address and naming no *member*
 - **Published** — A *recording* anybody with the address can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
-- **Agree to publish** — One person's consent that one recording may be *published*; everybody's is needed, yours alone is withdrawable at any moment, and a *guest* has no account to give one with — so a recording a guest spoke in cannot be published at all
+- **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* who spoke is asked too where they have an account; one who spoke without an account is the one case nobody can answer for, and blocks it outright
 - **Feed** — The *public page*'s machine-readable half, at the same address plus `/feed.xml`: what a podcast app subscribes to, listing the same *episodes* the page does
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
@@ -1522,12 +1522,24 @@ outstanding.
 conversation says nothing whatever about this one, and a standing permission
 would quietly turn one judgement into every future judgement.
 
-**A *guest* cannot give one.** A guest who spoke is recorded on purpose, and
-has no account, no lasting identity, and no surface on which to have agreed to
-anything — so there is nobody to ask. A recording a guest spoke in therefore
-cannot be published at all. The alternatives were dropping their audio, which
-changes what the conversation was, and asking the members on their behalf,
-which is exactly the standing unanimity denies.
+**A *guest* is asked too, where there is anybody to ask.** The rule turns on
+whose voice would be broadcast, not on the word *guest*, so it asks two things:
+
+- **Did they speak?** A guest who sat in the room and never opened their
+  microphone is on the recording's roster and in none of its audio. Nothing of
+  theirs would be published, so they are not asked and they stop nothing.
+- **Do they have an account?** A guest is somebody holding a seat in a channel
+  they are not a member of, *with or without an account here*. One who signed
+  in before knocking is reachable, so they are asked exactly like a member and
+  may withdraw exactly like one — the only place in this app where somebody who
+  is not a member has a say over a channel's recording, and it is their own
+  voice they have it over.
+
+What is left is a guest who spoke and has no account. There is genuinely nobody
+to ask, so that recording cannot be published at all. The alternatives were
+dropping their audio, which changes what the conversation was, and asking the
+members on their behalf, which is exactly the standing unanimity denies. The
+fix is a guest link that says so before somebody uses it, which is outstanding.
 
 ## Feed
 

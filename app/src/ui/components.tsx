@@ -1463,15 +1463,17 @@ function PublishControl({ recording }: { recording: RecordingView }) {
   const publication = recording.publication;
   if (!publication) return null;
 
-  // A guest has no account and so no surface on which to have agreed to
-  // anything. There is nobody to ask, so the recording is not publishable at
-  // all — said here rather than left as a refusal after the tap, because it
-  // is a fact about the conversation that no amount of agreeing will change.
-  if (publication.guestsPresent) {
+  // Somebody spoke here as a guest with no account, so there is nobody to
+  // ask and no amount of agreeing will change it. Said here rather than left
+  // as a refusal after the tap, because it is a fact about the conversation.
+  //
+  // Narrow on purpose: a guest who only listened is not in the audio, and a
+  // guest who was signed in is asked like anybody else. See `blockedByGuest`.
+  if (publication.blockedByGuest) {
     return (
       <Text style={type.muted}>
-        Somebody was here as a guest, so this one cannot be published — a guest
-        has no account to agree with.
+        Somebody spoke here as a guest without an account, so this one cannot
+        be published — there is nobody to ask.
       </Text>
     );
   }

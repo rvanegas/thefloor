@@ -39,13 +39,37 @@ take it down, or somebody who changed their mind would be outvoted about their
 own voice. Deleting your account is the most complete withdrawal available and
 does the same — `Accounts.erase` unpublishes before it clears the rows.
 
-**A guest is a refusal, not a gap.** A guest who spoke is recorded on purpose
-and has no account, no lasting identity and no surface on which to have agreed
-to anything, so there is nobody to ask. The three options were dropping their
-stem, which changes what the episode *is*; asking the members on their behalf,
-which is exactly the standing unanimity denies; and refusing. It refuses. The
-third option PODCAST.md preferred — a guest link that carries the possibility
-up front — is the one thing that would change this, and is left in the task.
+**A guest is asked where there is anybody to ask.** The first version of this
+took PODCAST.md's second option — *publication requires that there were none* —
+and refused any recording a guest had been in. That was wrong twice over, and
+both were caught at the prompt rather than by a test:
+
+- **A guest who never spoke was blocking it.** A run's audience unions presence
+  with stems (`fileRun` says why), so somebody who sat in the room and opened
+  no microphone is on the roster while being in none of the audio. There is
+  nothing of theirs to publish and nothing for them to agree to, and the rule
+  let them veto a conversation permanently with nobody able to undo it.
+- **A guest with an account was being treated as unreachable.** A guest is
+  somebody holding a seat in a channel they are not a member of, *with or
+  without an account here* — `guest_sessions.account_id` is exactly that
+  person. They can be asked, so they are: they join the consent set like a
+  member and withdraw like one.
+
+**That forced the one widening in this feature.** Everywhere else, reach is
+`recordingsFor` — *are you in this channel*. Publishing cannot use that alone,
+because the question is not who may hear a recording but whose voice it would
+broadcast, and those sets come apart precisely at a signed-in guest who spoke.
+So `Publication.recordingFor` admits anybody in `mustConsent`, which confers
+nothing else: playing, exporting, renaming and deleting all still ask
+`recordingsFor`.
+
+What is left is a guest who spoke and has no account, and there the refusal
+stands. The alternatives remain dropping their stem — which changes what the
+episode *is*, and would mean re-rendering from stems, the one thing
+`transcodeToPublished` exists to forbid — and asking the members on their
+behalf, which is what unanimity denies. PODCAST.md's third option, a guest link
+that carries the possibility up front, is the only honest fix and is in the
+task.
 
 **The asymmetry is in the interface, in those words.** Withdrawing takes the
 episode off the page and out of the feed and reaches no copy a subscriber has
