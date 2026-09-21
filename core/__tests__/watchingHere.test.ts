@@ -19,7 +19,11 @@ import {
   showingTheFilm,
   watchPositionMs,
 } from '../watch';
-import { WATCH_DRIFT_MS, WATCH_LENGTH_SLACK_MS } from '../constants';
+import {
+  WATCH_DRIFT_MS,
+  WATCH_LENGTH_SLACK_MS,
+  WATCH_STALL_MS,
+} from '../constants';
 import type { ChannelAction, ChannelState, WatchState } from '../types';
 import type { PlayerReading, PlayerState } from '../watch';
 
@@ -269,6 +273,37 @@ describe('following the transport', () => {
     expect(
       followInstructions(playing(), reading('buffering', 0), T0)
     ).toEqual([]);
+  });
+
+  /**
+   * **The stall that never ends, which is what patience cost until
+   * 2026-09-20.** A buffering player is told nothing so that a seek cannot
+   * throw away a buffer that is filling — and a player whose buffer never
+   * fills was then a frozen frame and a spinner under a party playing
+   * perfectly for everybody else, with nothing in the application that would
+   * ever speak to it again. Recovering it took a person pausing and playing,
+   * which is exactly the pair below.
+   */
+  it('nudges a player that has been buffering past all patience', () => {
+    const stuck = reading('buffering', 0);
+    // Still on its way, right up to the threshold.
+    expect(
+      followInstructions(playing(), stuck, T0 + WATCH_STALL_MS, WATCH_STALL_MS - 1)
+    ).toEqual([]);
+    // And past it, treated like any other player that is not where the room
+    // is: sent there, and told to play.
+    expect(
+      followInstructions(playing(), stuck, T0 + WATCH_STALL_MS, WATCH_STALL_MS)
+    ).toEqual([{ do: 'seek', positionMs: WATCH_STALL_MS }, { do: 'play' }]);
+  });
+
+  it('does not nudge a stalled player that is already where the room is', () => {
+    // Paused parties and a stall at the right position are not this defect:
+    // what is drawn is the right frame, and a seek would throw away a buffer
+    // to arrive where the player already is.
+    expect(
+      followInstructions(playing(), reading('buffering', 0), T0, WATCH_STALL_MS)
+    ).toEqual([{ do: 'play' }]);
   });
 
   it('seeks before playing when a player is behind', () => {

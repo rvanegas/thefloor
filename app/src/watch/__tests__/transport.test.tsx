@@ -2,6 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
+import { WATCH_STALL_MS } from '../../../../core/constants';
 import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
@@ -44,6 +45,8 @@ const TRIP_MS = 300;
  * already on its way.
  */
 function laggyPlayer(lag: number) {
+  /** Set by `stuck`: commands are heard and recorded, and nothing happens. */
+  let deaf = false;
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
@@ -89,6 +92,23 @@ function laggyPlayer(lag: number) {
         },
       };
     },
+    /**
+     * A stall with nothing on the far side of it, and a player that cannot be
+     * talked out of it.
+     *
+     * **The defect this models is the absence of an ending.** `stall` above
+     * recovers by itself, which every ordinary stall does; this one does not,
+     * and it also ignores what it is told — a frame that has genuinely lost
+     * its way and answers a seek with more buffering. It still records the
+     * calls, which is the whole of what is being asserted: that something is
+     * eventually said, and that it is not said every tick.
+     */
+    stuck() {
+      state = 'buffering';
+      want = null;
+      pending = null;
+      deaf = true;
+    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       if (pending && now >= pending.at) {
@@ -101,6 +121,7 @@ function laggyPlayer(lag: number) {
       read: () => ({ state, positionMs, durationMs }),
       play: () => {
         calls.push('play');
+        if (deaf) return;
         if (state === 'playing' || want === 'playing') return;
         want = 'playing';
         state = 'buffering';
@@ -113,6 +134,7 @@ function laggyPlayer(lag: number) {
       },
       pause: () => {
         calls.push('pause');
+        if (deaf) return;
         if (state === 'paused' || want === 'paused') return;
         want = 'paused';
         pending = {
@@ -131,6 +153,7 @@ function laggyPlayer(lag: number) {
       */
       seek: (ms: number) => {
         calls.push(`seek:${Math.round(ms)}`);
+        if (deaf) return;
         const was = state;
         state = 'buffering';
         pending = {
@@ -408,6 +431,42 @@ describe('a player that cannot keep up', () => {
     sim.advance(3_500);
 
     expect(sim.player.calls).toEqual([]);
+  });
+
+  /**
+   * **The stall with no far side, which is what patience cost.**
+   *
+   * Reported from a real party: one member watching happily, another looking
+   * at a frozen frame and a spinner, and the only cures a human pausing and
+   * playing or leaving full screen. A buffering player is told nothing so
+   * that a seek cannot throw away a buffer that is filling — and that silence
+   * had no end, so a buffer that never filled was a picture nothing would
+   * ever speak to again.
+   */
+  it('nudges a player whose stall has no end, and then leaves it alone again', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.player.calls.length = 0;
+
+    sim.player.stuck();
+    // Most of the window and nothing said: an ordinary stall must still be
+    // allowed to finish, which is the rule this is bounded by rather than a
+    // reversal of it.
+    sim.advance(WATCH_STALL_MS - 1_000);
+    expect(sim.player.calls).toEqual([]);
+
+    // Past it, and the pair a person would have pressed by hand.
+    sim.advance(2_000);
+    expect(sim.player.calls).toContain('play');
+    expect(sim.player.calls.some((c) => c.startsWith('seek'))).toBe(true);
+
+    // **And once per window, not once per tick**, which is the storm the
+    // silence was written against: two more windows is two more nudges, not
+    // forty. A tick is 500ms.
+    sim.player.calls.length = 0;
+    sim.advance(WATCH_STALL_MS * 2);
+    expect(sim.player.calls.filter((c) => c === 'play')).toHaveLength(2);
   });
 
   it('corrects it once, on the far side, and comes back in step', () => {

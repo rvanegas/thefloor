@@ -78,6 +78,18 @@ export function useFollow(
   active: boolean
 ): void {
   const doing = useRef<Doing>({ phase: 'watching' });
+  /**
+   * When this player started buffering and did not stop, or null.
+   *
+   * **A clock, which is why it is here**: `core/watch.ts` decides what a long
+   * stall means and this file is the only one that may keep how long one has
+   * been going. It is cleared by any other state — a player that played for a
+   * tick has demonstrably recovered — and restarted whenever a stalled player
+   * is told something, so the nudge is one per `WATCH_STALL_MS` rather than
+   * one per tick. See `followInstructions`, which is where the storm this
+   * avoids is written down.
+   */
+  const buffering = useRef<number | null>(null);
   const latest = useRef({ watch, port });
   latest.current = { watch, port };
 
@@ -89,6 +101,15 @@ export function useFollow(
       const reading = player.read();
       if (!reading) return;
       const now = Date.now();
+      /*
+        Kept before every early return below, and deliberately: a player that
+        is buffering while the follower is deaf — waiting out an instruction,
+        or holding off an advert — is still buffering, and a clock that only
+        ran when somebody was looking would never reach the threshold it is
+        for.
+      */
+      if (reading.state !== 'buffering') buffering.current = null;
+      else if (buffering.current === null) buffering.current = now;
       const want = desiredFor(current, now);
       if (!want) return;
 
@@ -115,8 +136,16 @@ export function useFollow(
 
       if (hasArrived(reading, want)) return;
 
-      const instructions = followInstructions(current, reading, now);
+      const instructions = followInstructions(
+        current,
+        reading,
+        now,
+        buffering.current === null ? 0 : now - buffering.current
+      );
       if (instructions.length === 0) return;
+      // The stall clock restarts with the instruction, so a player that is
+      // never going to play is prodded once a window rather than every tick.
+      if (buffering.current !== null) buffering.current = now;
       doing.current = { phase: 'sending', want, since: now };
       for (const instruction of instructions) {
         if (instruction.do === 'play') player.play();

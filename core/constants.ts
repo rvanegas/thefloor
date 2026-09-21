@@ -189,6 +189,33 @@ export const WATCH_PATIENCE_MS = 4_000;
 export const WATCH_OBEDIENCE_MS = 1_500;
 
 /**
+ * How long a player may be buffering before it is treated as stuck rather
+ * than as on its way.
+ *
+ * **The one state a follower has no exit from, until this existed.** A
+ * buffering player is told nothing at all — see `followInstructions`, where
+ * that silence is the fix for the seek storm: a seek throws away a part-filled
+ * buffer, so correcting a player that is refilling is what stops it ever
+ * finishing. The silence assumed every stall ends by itself. Most do; the ones
+ * that do not left a frozen frame and a spinner under a party that went on
+ * playing for everybody else, recoverable only by a person pausing and
+ * playing — which is precisely the pair of instructions the follower had
+ * stopped issuing.
+ *
+ * So patience is bounded rather than absolute. Ten seconds is far past an
+ * ordinary refill on a bad connection and far short of anything somebody would
+ * sit through twice, and a buffer that has not filled in ten seconds is not
+ * filling.
+ *
+ * **It is also the period of the nudge, not merely its delay.** The clock
+ * restarts each time a stalled player is told something, so a player that is
+ * genuinely unable to play is prodded once per window rather than once per
+ * tick — which is the seek storm the silence was written against, and the
+ * property that must survive this.
+ */
+export const WATCH_STALL_MS = 10_000;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the

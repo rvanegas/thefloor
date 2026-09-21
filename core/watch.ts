@@ -2,6 +2,7 @@ import {
   MAX_FILM_TITLE,
   WATCH_DRIFT_MS,
   WATCH_LENGTH_SLACK_MS,
+  WATCH_STALL_MS,
 } from './constants';
 import type { WatchParty, WatchState } from './types';
 
@@ -428,7 +429,13 @@ export type WatchInstruction =
 export function followInstructions(
   watch: WatchState,
   player: PlayerReading,
-  now: number
+  now: number,
+  /**
+   * How long this player has been buffering without a break, or 0 when it is
+   * not. The clock is `drive.ts`'s, this being the file that owns clocks; what
+   * is decided here is what a number that large means.
+   */
+  bufferingForMs = 0
 ): WatchInstruction[] {
   const want = desiredFor(watch, now);
   if (!want) return [];
@@ -490,10 +497,35 @@ export function followInstructions(
       The exclusion is `buffering` alone, for the same reason the wait in
       `drive.ts` is.
     */
-    if (adrift && player.state !== 'buffering') {
+    /*
+      **Patience, and it is bounded as of 2026-09-20.**
+
+      The paragraph above is why a buffering player is left alone, and it
+      stands: a seek discards a part-filled buffer, and a player that cannot
+      keep up must be allowed to finish filling. What it assumed is that every
+      stall ends. They mostly do, and the ones that do not were a frozen frame
+      and a spinner on one person's screen under a party playing perfectly
+      well for everybody else — with nothing in the application that would ever
+      speak to that player again. The only cures were a human pausing and
+      playing, which is the very pair of instructions this branch had stopped
+      issuing, or leaving full screen, which rebuilds the frame.
+
+      So a player that has been buffering for `WATCH_STALL_MS` stops counting
+      as *on its way* and is treated as any other player that is not where it
+      should be: seeked to where the room is and told to play. The seek throws
+      away its buffer, which is the whole point — a buffer ten seconds into
+      filling and still not filled is not one worth protecting.
+
+      **Once per window, not once per tick.** `drive.ts` restarts the clock
+      whenever it says something to a stalled player, so this is one nudge per
+      `WATCH_STALL_MS` rather than the storm the silence was written against.
+    */
+    const settling =
+      player.state === 'buffering' && bufferingForMs < WATCH_STALL_MS;
+    if (adrift && !settling) {
       instructions.push({ do: 'seek', positionMs: want.positionMs });
     }
-    if (player.state !== 'playing' && player.state !== 'buffering') {
+    if (player.state !== 'playing' && !settling) {
       instructions.push({ do: 'play' });
     }
     return instructions;
