@@ -220,6 +220,89 @@ describe('enforcement is sampled when a run starts', () => {
   });
 });
 
+describe('enforcement is lifted when its premise goes', () => {
+  /** A muted, enforced run: A is watching on the device they are in the room on. */
+  function enforcedRun(): ChannelState {
+    return apply(watching(), [
+      [here(A), T0],
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+    ]);
+  }
+
+  it('gives the room its button back when the film moves to another device', () => {
+    // The reported case. The film comes up by default on the device you are
+    // looking at, so a party started from a phone samples `enforced` true;
+    // handing the picture to a television empties `watchingHere` without
+    // ending the run. The room stayed silent and buttonless for the rest of
+    // the film, under a sentence saying somebody was watching in the room.
+    const moved = reduce(enforcedRun(), here(A, false), T0 + 2_000);
+
+    expect(moved.watch.enforced).toBe(false);
+    expect(canUnmuteRoom(moved)).toBe(true);
+    expect(moved.watch.status).toBe('playing');
+  });
+
+  it('leaves the room quiet until somebody says otherwise', () => {
+    const moved = reduce(enforcedRun(), here(A, false), T0 + 2_000);
+
+    // What comes back is the ability to speak, not speech. Lifting the mute
+    // here would be the reducer deciding the room wants to talk.
+    expect(moved.watch.mutedAll).toBe(true);
+    expect(isPartyMuted(moved)).toBe(true);
+    expect(isWithheld(moved, B)).toBe(true);
+
+    const unmuted = reduce(
+      moved,
+      { type: 'SET_WATCH_MUTE', userId: A, muted: false },
+      T0 + 3_000
+    );
+    expect(isPartyMuted(unmuted)).toBe(false);
+    expect(isWithheld(unmuted, B)).toBe(false);
+  });
+
+  it('lifts when the only screen steps out of the room', () => {
+    // `watchingHere` is filtered by presence wherever it is read, so leaving
+    // is the same event as putting the film down — and it reaches this by the
+    // same path rather than by a rule written again for departures.
+    const gone = reduce(
+      enforcedRun(),
+      { type: 'STEP_OUT', userId: A },
+      T0 + 2_000
+    );
+
+    expect(canUnmuteRoom(gone)).toBe(true);
+  });
+
+  it('does not re-impose mid-run when the screen comes back', () => {
+    // The asymmetry, which is the whole design: lifting gives speech back and
+    // interrupts nobody, where imposing would cut a voice off mid-sentence and
+    // take a button out from under a finger. So it drops one way only.
+    const back = apply(enforcedRun(), [
+      [here(A, false), T0 + 2_000],
+      [here(A), T0 + 3_000],
+    ]);
+
+    expect(back.watch.enforced).toBe(false);
+    expect(canUnmuteRoom(back)).toBe(true);
+
+    // The next run asks again, and the answer is yes — A is watching here.
+    const next = apply(back, [
+      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 4_000],
+      [{ type: 'WATCH_PLAY', userId: A }, T0 + 5_000],
+    ]);
+    expect(next.watch.enforced).toBe(true);
+    expect(canUnmuteRoom(next)).toBe(false);
+  });
+
+  it('does not disturb a run that was never enforced', () => {
+    // Identity is the reducer's word for nothing happened, and this must not
+    // be what breaks it: an action that changed nothing cannot have taken the
+    // last screen out of the room.
+    const plain = apply(watching(), [[{ type: 'WATCH_PLAY', userId: A }, T0]]);
+    expect(reduce(plain, here(B, false), T0 + 1_000)).toBe(plain);
+  });
+});
+
 describe('the screen stops capturing', () => {
   it('closes the microphone of whoever is watching here, while playing', () => {
     const state = apply(watching(), [

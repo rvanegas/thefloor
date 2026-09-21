@@ -1274,6 +1274,12 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
  * the point: the question was asked when the run began, and asking it again
  * here would make the button flicker under somebody's finger every time a
  * person in another country closed a laptop.
+ *
+ * That still holds, and `liftSpentEnforcement` is not a retraction of it. The
+ * flicker being guarded against is the button *going away*; the reducer drops
+ * enforcement one way only, so the field this reads can turn false mid-run and
+ * never back to true before the next `WATCH_PLAY`. A button that appears and
+ * stays is not the failure mode.
  */
 export function canUnmuteRoom(state: ChannelState): boolean {
   return !state.watch?.enforced;
@@ -1568,8 +1574,16 @@ export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
 /**
  * Applies `action` at time `now`. Invalid actions are no-ops that return the
  * same state object, so callers can treat identity as "nothing happened".
+ *
+ * **Wrapped by `reduce` below**, which is the exported one and adds the single
+ * thing this cannot say in one place: an enforced mute whose premise has gone
+ * is lifted. Written as a wrapper rather than a line in each case because the
+ * premise goes away down half a dozen paths — a screen handed to a television,
+ * stepping out, being displaced, a socket lost, the room emptying under
+ * `TICK` — and a rule that has to be remembered in six places is one that will
+ * be missed in a seventh. See `liftSpentEnforcement`.
  */
-export function reduce(
+function reduceAction(
   state: ChannelState,
   action: ChannelAction,
   now: number
@@ -2515,6 +2529,54 @@ export function reduce(
     default:
       return state;
   }
+}
+
+/**
+ * Gives the room its voice back when the reason it lost it has gone.
+ *
+ * **Enforcement may be lifted during a run and may never be imposed during
+ * one**, and that asymmetry is the whole of this. `WatchState.enforced` is
+ * sampled at `WATCH_PLAY` and the reasoning for sampling it — in that field's
+ * own note — is entirely about the other direction: somebody switching to
+ * their only device mid-film must not cut a voice off in the middle of a
+ * sentence, and a button must not vanish under a finger because a person in
+ * another country opened a laptop. None of that argues for holding a room
+ * silent once nobody is watching on the device they are in it on. Lifting only
+ * ever gives speech back, which is never an interruption and never a control
+ * disappearing.
+ *
+ * The case it was reported from: the film comes up by default on the device
+ * you are looking at, so a party started from a phone samples `enforced` true;
+ * handing the picture to a television then empties `watchingHere` without
+ * ending the run, and the *Unmute the room* button — removed rather than
+ * greyed, see `canUnmuteRoom` — stayed gone for the rest of the film, under a
+ * sentence claiming somebody was watching in the room when nobody was.
+ *
+ * **`mutedAll` is deliberately untouched.** The room stays quiet; what comes
+ * back is somebody's ability to say otherwise. Lifting the mute itself would
+ * be this function deciding the room wants to talk, which is the button's
+ * business and not a reducer's.
+ */
+function liftSpentEnforcement(state: ChannelState): ChannelState {
+  if (!state.watch?.enforced) return state;
+  if (anyScreenInTheRoom(state)) return state;
+  return { ...state, watch: { ...state.watch, enforced: false } };
+}
+
+/**
+ * The reducer, which is `reduceAction` plus the one rule that belongs after
+ * every action rather than inside any of them.
+ *
+ * Identity still means nothing happened: `liftSpentEnforcement` returns the
+ * state it was given unless there is enforcement to drop, and an action that
+ * changed nothing cannot have taken the last screen out of the room.
+ */
+export function reduce(
+  state: ChannelState,
+  action: ChannelAction,
+  now: number
+): ChannelState {
+  return liftSpentEnforcement(reduceAction(state, action, now));
 }
 
 function tick(state: ChannelState, now: number): ChannelState {

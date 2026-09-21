@@ -426,6 +426,18 @@ export interface WatchState {
    * False while paused, so that unmuting a paused party is allowed and the
    * next run re-asks the question. Cleared with the party, like everything
    * else here.
+   *
+   * **And dropped mid-run once nobody is watching here**, which is not a
+   * retreat from the sampling above but its other half: enforcement may be
+   * *lifted* during a run and may never be *imposed* during one. Everything
+   * said above is an argument about imposing — a voice cut off mid-sentence,
+   * a button vanishing under a finger — and none of it applies to a room
+   * getting its speech back. Handing the film to a television is the case
+   * that made this necessary: the run continues, `watchingHere` empties, and
+   * without it the room stayed silent and buttonless for the rest of the
+   * film. `liftSpentEnforcement` in core/channel.ts is where it happens, and
+   * it leaves `mutedAll` alone — the room stays quiet, but somebody can now
+   * say otherwise.
    */
   enforced: boolean;
   /**
