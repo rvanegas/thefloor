@@ -211,8 +211,15 @@ the guest link listens without being admitted, and **the knock changes its
 meaning — it is no longer a request to enter but a request to speak**, which is
 the scarce thing. That request is available only while fewer than two guests
 hold microphones, **so the ceiling is enforced by the door rather than by
-whoever is hosting.** Two is chosen for the reason six is: it is the number
-past which a panel stops being a conversation.
+whoever is hosting.** Two is chosen for the reason six is: it is the number past which a
+panel stops being a conversation.
+
+**The two-guest ceiling shipped on 2026-09-21, ahead of the open channel it was
+written for**, along with a cap of forty guests. What is built enforces it at
+the guest's *ask* — `canRequestSpeech` — which is this paragraph's own
+reasoning applied to the door that exists today. So what remains unbuilt here
+is the open channel and the knock changing meaning, not the number. See
+`decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
 
 **What to watch.** The floor was designed to arbitrate among peers with
 symmetric rights, and an audience is asymmetric by construction. The knock and

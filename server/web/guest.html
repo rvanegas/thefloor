@@ -316,6 +316,16 @@
           filter there is: somebody with an account is overwhelmingly somebody
           with the app, and offering it to an anonymous guest would be offering
           a sign-in they did not ask for through a door that may not open.
+
+          **And it stays a bare `thefloor://` rather than naming the channel,
+          until the app can draw a seat.** `thefloor://channel/<id>` is a URL
+          the app already parses, so it is tempting — but what it opens is the
+          member channel screen, which a non-participant cannot be shown, and
+          a guest is by construction not one. Handing it that id would replace
+          landing on Home with landing on nothing. The bare scheme abandons
+          the conversation, which is honest; the other would look like it had
+          worked. What lifts this is the same missing screen that keeps seats
+          off the Home list on iOS — see ChannelsView's platform filter.
         -->
         <p id="app-link" hidden>
           <button id="open-app-button" type="button">Open the app</button>

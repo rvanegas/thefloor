@@ -49,6 +49,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 259 | `ChannelView.watching` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
 | 259 | `WATCH_READY.title` optionality | `core/protocol.ts`, `core/types.ts`, `core/channel.ts` |
 | — | `WatchParty.title` revived as null | `server/src/channels.ts` |
+| 264 | `InviteView.guest` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -564,4 +565,28 @@ and a build that dropped it would refuse to ask a lone arrival about the one
 permission that would fetch them a room.
 
 Gate 212 because `build/211` is already tagged: the client that speaks this
+ships in the next upload.
+
+---
+
+## Gate 264 — `InviteView.guest` optionality
+
+Whether an invitation offers a *seat* or a *membership*, added 2026-09-21 with
+guest invitations — `decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
+Optional because a server that predates it sends no such key, and every
+invitation such a server can send is a membership; a client reading absence as
+`false` is therefore reading it correctly rather than defaulting.
+
+Set on the guest half of `invitesFor`, `server/src/channels.ts`, where the
+pending `guest_sessions` rows are folded in. The client-side fallback is the
+`invite.guest === true` in `inviteCard`, `app/src/ui/ChannelsView.tsx`, which
+is a coercion rather than a `??` because the field is the thing being tested.
+
+**What must not be deleted with it**: the `guest` field itself, obviously, but
+more usefully — **not** `Card.guest` in `ChannelsView.tsx`. That is the card's
+own shape rather than the wire's, and it goes on being how the row decides its
+sentence long after every build understands the flag. Nor the *asked you in as
+a guest* wording, which is the whole point of the field existing.
+
+Gate 264 because `build/263` is already tagged: the client that speaks this
 ships in the next upload.

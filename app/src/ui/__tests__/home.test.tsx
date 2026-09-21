@@ -1384,3 +1384,84 @@ describe('the dab on Home\'s tabs', () => {
     act(() => tree.unmount());
   });
 });
+
+describe('a guest invitation', () => {
+  /**
+   * Two offers, two sentences.
+   *
+   * A membership is permanent and spends one of the channel's six places; a
+   * seat lasts while the room does and carries none of a member's standing.
+   * The card is where somebody decides whether to tap, so it is where the
+   * difference has to be legible.
+   */
+  const invite = (extra: Record<string, unknown> = {}) => ({
+    channelId: 'sess_asked',
+    from: { id: THEM, displayName: 'Dana Chu' },
+    createdAt: NOW,
+    name: 'Design review',
+    others: [],
+    presentCount: 2,
+    ...extra,
+  });
+
+  it('says a seat is a seat', () => {
+    mockApp.home = {
+      invites: [invite({ guest: true })],
+      rejoinable: [],
+      contacts: [],
+    };
+    const text = textOf(render(<HomeView {...homeNav} />));
+    expect(text).toContain('asked you in as a guest');
+  });
+
+  it('leaves an ordinary invitation saying what it always said', () => {
+    mockApp.home = { invites: [invite()], rejoinable: [], contacts: [] };
+    const text = textOf(render(<HomeView {...homeNav} />));
+    expect(text).toContain('asked you in');
+    expect(text).not.toContain('as a guest');
+  });
+
+  it('reads an older server as offering a membership', () => {
+    // `guest` absent is what every invitation was before guest invitations
+    // existed, and a client meeting a server that predates them must read it
+    // as the only kind that server can send. See SHIMS.md, gate 264.
+    mockApp.home = {
+      invites: [invite({ guest: undefined })],
+      rejoinable: [],
+      contacts: [],
+    };
+    const text = textOf(render(<HomeView {...homeNav} />));
+    expect(text).not.toContain('as a guest');
+  });
+});
+
+describe('a quiet seat', () => {
+  it('stays on the list when the room it is in goes quiet', () => {
+    // **The bug this fixes.** `rest` tested `kind === 'member'`, so a seat
+    // with nobody present qualified for no section and was drawn nowhere — it
+    // existed only while `isLive` put it under Live, and disappeared the
+    // moment the last person stepped out of a room the seat was still good
+    // for. A place you can go back to is exactly what this list means.
+    const seat = {
+      channelId: 'sess_seat',
+      name: 'Alice and Bob',
+      others: [],
+      presentCount: 0,
+      createdAt: NOW,
+      lastActiveAt: NOW,
+      everUsed: true,
+      seat: true,
+    };
+    mockApp.home = { invites: [], rejoinable: [seat], contacts: [] };
+
+    const wasOs = Platform.OS;
+    (Platform as { OS: string }).OS = 'web';
+    try {
+      const text = textOf(render(<HomeView {...homeNav} />));
+      expect(text).toContain('Alice and Bob');
+      expect(text).toContain('You are a guest here');
+    } finally {
+      (Platform as { OS: string }).OS = wasOs;
+    }
+  });
+});

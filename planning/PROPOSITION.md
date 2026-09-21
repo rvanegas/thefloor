@@ -240,6 +240,13 @@ available only while fewer than two guests hold microphones, so the ceiling is
 enforced by the door rather than by whoever is hosting. Two is chosen for the
 reason six is: it is the number past which a panel stops being a conversation.
 
+**The two-guest ceiling shipped on 2026-09-21, ahead of the open channel it was
+written for**, along with a cap of forty guests. What is built enforces it at
+the guest's *ask* — `canRequestSpeech` — which is this paragraph's reasoning
+applied to the door that exists today. So what remains unbuilt here is the open
+channel and the knock changing meaning, not the number. See
+`decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
+
 ## Growth, where the choice is narrower than it looks
 
 Virality from an initial core, or copy and paid acquisition as the seed? **The

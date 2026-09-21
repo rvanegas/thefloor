@@ -46,6 +46,7 @@ kilobytes and almost no question needs all of it.
 - Audio Connected
 - Audio Output Selection
 - Audio Session Configuration
+- Guest Invitation
 - Disagreements, numbered
 
 ---
@@ -1089,6 +1090,43 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 **the observer's half works from a TestFlight build**, being native.
 
 ---
+
+## Guest Invitation
+
+Added 2026-09-21 with the offer itself. The newest state here and the only one
+that is **not** in `ChannelState` at all, which is the whole reason it is worth
+a section: everything else in this file is a field the reducer owns, and this
+one is deliberately not.
+
+**Name in source.** `guest_sessions.invited_at` and `.accepted_at` on the
+server; `InviteView.guest` on the wire; `Card.guest` in the app. There is no
+name for it in `core/`, and that is the design rather than an omission.
+
+**Conditions.** A row is a *pending invitation* while `invited_at` is set,
+`accepted_at` is null, `ejected_at` is null and `expires_at` is in the future.
+It is an *accepted* one once `accepted_at` is stamped, which happens the first
+time its holder enters the room and never again. A row with no `invited_at` is
+neither: it is an ordinary seat somebody knocked their way into.
+
+**Why it is not in `ChannelState`.** Because being in the state is how somebody
+becomes a member of a room, and the whole point of this offer is that it does
+not. `state.guests` means *present*; `participants` means *belongs*. An
+invitation is neither, so the only honest place for it is the table. The
+consequence to know: a channel's state cannot tell you who has been invited as
+a guest — `Guests.pendingIn` is the only thing that can, and the members' view
+of what is outstanding is a query rather than a snapshot.
+
+**Where the sources can disagree.** Two places, both bounded.
+
+- **The row expires without anybody writing to it.** `channelEmptied` sets
+  `expires_at` to the moment the last member leaves, so an invitation stops
+  being live between one read and the next with no event in between. Anything
+  asking whether one is outstanding has to ask with a clock, which is why every
+  query here takes `now`.
+- **A client that predates `InviteView.guest` reads absence as a membership.**
+  That is correct for it — a server that old can send no other kind — but it
+  means the same row is described two ways on two builds until the floor passes
+  264. See SHIMS.md.
 
 ## Disagreements, numbered
 

@@ -141,6 +141,14 @@ export function ChannelsView({
       // A seat can only be used where one can exist. The same account may hold
       // one opened on a laptop, which makes the row true on a phone and still
       // unopenable there — so it is drawn where it leads somewhere.
+      //
+      // **This is what a native guest screen would lift, and nothing else.**
+      // The server can already put this app into a seat —
+      // `POST /channels/:id/seat/enter` answers with a `GuestView` — so what
+      // is missing is the screen that draws one, which needs a LiveKit
+      // connection of its own and an iOS audio session configured for it. The
+      // row stays hidden until that exists: a card that opens nothing is worse
+      // than no card, which is the judgement this line has always made.
       .filter((entry) => !entry.seat || Platform.OS === 'web')
       .map(memberCard),
   ].filter(
@@ -167,8 +175,16 @@ export function ChannelsView({
   const invited = cards
     .filter((card) => !isLive(card) && card.kind === 'invite')
     .sort(byIdleness);
+  // **`'seat'` belongs here as much as `'member'` does, and its absence was a
+  // bug.** This read `kind === 'member'`, so a seat whose room went quiet
+  // qualified for no section at all and was drawn nowhere — it appeared only
+  // while `isLive` put it under *Live*, and vanished the moment the last
+  // person stepped out of a room the seat was still good for. What this list
+  // means is somewhere you can go back to, which is exactly what a seat is.
   const rest = cards
-    .filter((card) => !isLive(card) && card.kind === 'member')
+    .filter(
+      (card) => !isLive(card) && (card.kind === 'member' || card.kind === 'seat')
+    )
     .sort(byIdleness);
 
   const showOffline = useOfflineNotice(app.status);
@@ -395,6 +411,15 @@ type Card = {
    * a membership nobody has. See `RejoinableView.seat`.
    */
   kind: 'invite' | 'member' | 'seat';
+  /**
+   * Whether an invitation offers a **seat** rather than a membership.
+   *
+   * Only ever set on an `'invite'`. It is not a fourth `kind` because it does
+   * not change what the row *is* — something you are being asked into, drawn
+   * among the others, declined the same way — only what is being offered, and
+   * that is a sentence rather than a shape.
+   */
+  guest?: boolean;
   title: string;
   /**
    * How many people are in it. `undefined` from a server that predates the
@@ -472,6 +497,10 @@ function inviteCard(invite: InviteView): Card {
     nearby: invite.nearby ?? false,
     nearbyCount: invite.nearbyCount ?? 0,
     from: invite.from.displayName,
+    // Absent from an older server, which means a membership: that is what
+    // every invitation was before guest invitations existed. See
+    // `InviteView.guest`.
+    guest: invite.guest === true,
   };
 }
 
@@ -761,6 +790,14 @@ function ChannelCard({
    * grammar the rest of this list uses — `· 2 present`, `· an hour ago`,
    * `· waiting`.
    */
+  // **The two offers say different words, because they are different
+  // offers.** A membership is permanent and spends one of the channel's six
+  // places; a seat lasts while the room does and carries none of a member's
+  // standing. A card that said *asked you in* for both would be describing
+  // only one of them, and the reader is deciding whether to tap.
+  const asked = card.guest
+    ? `${card.from} asked you in as a guest`
+    : `${card.from} asked you in`;
   const line =
     card.kind === 'invite'
       ? live
@@ -768,8 +805,8 @@ function ChannelCard({
           // deliberate, the same tap opens the channel and joins nothing, and
           // promising otherwise would be the one place in this list where
           // the setting is not honoured.
-          `${card.from} asked you in · waiting${stepsIn ? ' — tap to join' : ''}`
-        : `${card.from} asked you in${quiet ? ` · ${quiet}` : ''}`
+          `${asked} · waiting${stepsIn ? ' — tap to join' : ''}`
+        : `${asked}${quiet ? ` · ${quiet}` : ''}`
       : card.kind === 'seat'
         ? // Said plainly, because a row that looked like the others would be
           // promising the channel screen and opening a different page.

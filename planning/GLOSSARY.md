@@ -55,7 +55,8 @@ caused; the list carries the meaning.
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
-- **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link*; with or without an account here
+- **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
+- **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six. Expires when the room empties, or when a member takes it back
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
@@ -78,7 +79,7 @@ caused; the list carries the meaning.
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
-- **Seat** — A guest's standing in a channel: a place to return to, rather than a membership
+- **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
@@ -204,7 +205,17 @@ channel deletes its recordings.
 
 A channel is not a call — it exists whether or not anybody is in it, and
 walking out of one does not end it. Up to six members
-(`MAX_CHANNEL_PARTICIPANTS`), plus any guests they let in.
+(`MAX_CHANNEL_PARTICIPANTS`) and up to forty guests
+(`MAX_CHANNEL_GUESTS`), of whom at most two may hold a microphone
+(`MAX_SPEAKING_GUESTS`).
+
+**So a full room is forty-six people and eight of them are audible**, and the
+two ceilings are asked separately: six is what a conversation holds, forty is
+what the room can carry as an audience. The two speakers are drawn from the
+forty rather than added to it — a guest granted the microphone occupies one of
+them, not a forty-first place. Until 2026-09-21 neither guest number existed
+and a member could hand out microphones without limit; see
+`decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
 
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
@@ -719,6 +730,37 @@ is written so that a guest is refused by default and granted things one at a
 time, in writing. Being known confers none of it. See *participant*, *member*,
 *seat*, and *the three asks*.
 
+**Forty at once, and two microphones between them**, since 2026-09-21. Both
+ceilings are new and neither existed before: nothing counted guests at all, and
+a member could grant the microphone to everybody who knocked. The forty is
+refused at the moment somebody enters the room rather than at the door, because
+answering a knock is only half of an admission and a reconnecting guest makes
+the other half alone. The two is refused at the guest's *ask* rather than at the
+member's grant, so that a full room simply has no ask in it and nobody has to
+say no. Withdrawing a microphone and ejecting a guest are always available,
+ceiling or not.
+
+## Guest invitation
+
+**An offer of a *seat*, addressed to one person by name.** A member asks a
+contact to come and listen; it arrives as a push, sits on their Home as
+something they have been asked into, and becomes a seat the moment they walk in.
+
+**Not an *invitation*, and the two must not be run together.** An invitation
+makes somebody a *member*: it writes them into the channel's roster, spends one
+of the six, and is permanent until they leave. This makes nobody a member,
+spends none of the six, and is gone when the room is. Until somebody accepts it
+exists only as a row — there is nothing about it in any channel's state, which
+is exactly what stops it being a membership by accident.
+
+**Contacts only, where a *guest link* may be handed to anybody.** The asymmetry
+is the point rather than an inconsistency: a link cannot ring, being inert until
+somebody in the room opens the door, and this rings. So it is held to the rule
+that nobody reaches you unless you have both agreed.
+
+It ends three ways and two of them need nobody: the room emptying of members,
+the seat's own expiry, or a member in the room taking it back.
+
 ## Guest link
 
 A link a member shares that lets somebody open a channel in a browser. It is
@@ -726,8 +768,9 @@ not self-propagating: anybody holding it can *knock*, and only somebody already
 in the room can open the door. It stops working once the channel is empty of
 members.
 
-**With or without an account**, and it is the ordinary way an existing user
-meets a channel they do not belong to — there being no other door into one.
+**With or without an account**, and it was the *only* way an existing user could
+meet a channel they do not belong to until *guest invitations* arrived on
+2026-09-21. It is still the only one that reaches somebody who is not a contact.
 Following it while signed in makes you a guest *of the channel*, not a guest of
 the app: the room shows your own name, and you are refused exactly what any
 guest is.
@@ -1473,6 +1516,11 @@ disabled, rather than being withheld with nothing to explain the gap.
 A guest's standing in a channel: a place they may go back to for as long as it
 lasts, rather than a membership. It appears on Home as a smaller card that
 opens the guest page, and it expires on its own if unused.
+
+**A seat may exist before anybody has sat in it**, since 2026-09-21: that is
+what a *guest invitation* is, and it is the one kind whose holder has never been
+in the room. Home draws those as invitations rather than as seats, because a
+place to go *back* to is what a seat card means and there is no back yet.
 
 Distinct from *membership* in almost every way that matters — a seat has no
 roster, no recordings and no history of the channel, only when it was admitted.
