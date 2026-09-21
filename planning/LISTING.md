@@ -53,9 +53,8 @@ doing here, the description's first line is doing that work twice.
 
 ## Promotional text (170 characters)
 
-> It's a group chat, but voice. A channel is a place you drop into rather than
-> a call you answer: you arrive when it suits you, and whoever is there is
-> there.
+> It's a group chat, but voice. A channel is a place you drop into: you arrive
+> when it suits you, and whoever is there is there.
 
 **This field is the recommender's sentence**, and it is the one to get right,
 because it changes without a review and because it is the form the proposition
@@ -66,10 +65,10 @@ rings you."* The rest is that sentence with its two consequences spelled out.
 
 > The Floor is for talking with people you already know. It waits for you.
 >
-> A channel is a place rather than a call. It holds up to six people, keeps its
-> name and its recordings between conversations, and is still there tomorrow.
-> You drop in when you feel like it, and whoever is there is there — the way
-> you drop into a group thread, except that you are talking.
+> A channel is a place. It holds up to six people, keeps its name and its
+> recordings between conversations, and is still there tomorrow. You drop in
+> when you feel like it, and whoever is there is there — the way you drop into
+> a group thread, except that you are talking.
 >
 > When somebody wants you, you get a notification, the ordinary kind, and it
 > waits in line with all the others. Your ringer stays yours, your Focus mode
@@ -134,6 +133,26 @@ screen holding your people and the rooms you share with them.
 - **Second paragraph.** *Nobody has to answer it* → *you drop in when you feel
   like it*. The obligation was the thing being denied, so the positive is the
   freedom that replaces it.
+- **"Rather than a call", in both the description and the promotional text,
+  went on 2026-09-21** — the last of these, and it survived the original pass
+  by not containing the word *no*. *A channel is a place rather than a call*
+  defines the thing by what it is not and leaves the reader to derive the
+  rest, which is this section's whole complaint; forwards it is simply **a
+  channel is a place**, and the sentence that follows was already proving it
+  — holds six people, keeps its name, still there tomorrow. The contrast was
+  scaffolding the properties did not need. The promotional text lost the same
+  clause and now turns on a colon.
+
+  **The occasion was a tagline under consideration, *Reinventing the phone
+  call*.** It is accurate on the ordinary sense of *call*, which names the
+  exchange between picking up and hanging up rather than the ringing; this
+  app reworks both how that exchange is summoned and what it is like once it
+  is running. But a page whose tagline says *call* and whose first body line
+  says *rather than a call* is visibly of two minds about the word. The
+  clauses would have had to go with or without it; the tagline is what made
+  somebody look. Whether the tagline is adopted is not settled here — see
+  also `AuthView.tsx`, whose sign-in line is mechanism-first and says nothing
+  about calls.
 - **The last paragraph became two, and is the biggest change.** *No feed, no
   directory, no strangers, nothing to scroll* was four denials describing an
   app the reader cannot see. Forwards, it is an inventory: everything in it is
@@ -349,7 +368,7 @@ already gives, now generalised, because it applies to all four.
 | Field | Proposed | Length | Limit |
 | --- | --- | --- | --- |
 | Subtitle | Group voice on your own time | 28 | 30 |
-| Promotional text | *see § Promotional text* | 156 | 170 |
+| Promotional text | *see § Promotional text* | 126 | 170 |
 | Keywords | *see § Keywords* | 95 | 100 |
 | What's New | per train | — | 4000 |
 
