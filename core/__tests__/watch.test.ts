@@ -418,24 +418,32 @@ describe('a member who has not stepped in', () => {
       of the split is the two guards above.
     */
 
-    it('keeps the older split on shared playback, which is the divergence', () => {
-      // Driving yes, loading no — where the party above now says no to both.
-      // The two features were deliberately one rule until 2026-09-20 and are
-      // not any more: a film is watched by other people in real time and a
-      // loaded track sits waiting, so reaching into one from outside the room
-      // is an interruption and reaching into the other is tidying.
+    it('is refused the shared track as well, the split having closed', () => {
+      // **Driving and loading both say no now**, on the audio player as on
+      // the film. The two features were one rule until 2026-09-20, diverged
+      // for a few hours when the party moved to presence, and met again when
+      // a track turned out to be startable from outside an empty channel —
+      // observed on build 261 rather than reasoned about. Neither is tidying:
+      // playing a track puts a sound in a room you are not in.
       //
       // Asked of a channel with no film *playing*, since a running film
       // refuses the audio player to everybody and would answer before the
-      // split did. Stopped by somebody present, the empty channel's own
-      // transport being refused now.
+      // rule under test did. Stopped by somebody present, the empty channel's
+      // own transport being refused now.
       const quiet = apply(watching(), [
         [{ type: 'STOP_WATCH', userId: A }, T0 + 500],
         [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
         [{ type: 'STEP_OUT', userId: B }, T0 + 2_000],
       ]);
-      expect(canControlPlayback(quiet, A)).toBe(true);
+      expect(canControlPlayback(quiet, A)).toBe(false);
       expect(canLoadTrack(quiet, A)).toBe(false);
+      // And the reducer with them, a greyed control being a suggestion on its
+      // own. The track was never loaded here, so `PLAY` is the one to ask.
+      expect(reduce(quiet, { type: 'PLAY', userId: A }, T0 + 2_500)).toBe(quiet);
+      // One tap is the whole cost, the same as the film's.
+      const back = reduce(quiet, { type: 'ENTER', userId: A }, T0 + 3_000);
+      expect(canControlPlayback(back, A)).toBe(true);
+      expect(canLoadTrack(back, A)).toBe(true);
     });
 
     it('gets starting back by stepping in', () => {

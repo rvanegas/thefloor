@@ -1803,10 +1803,11 @@ export function ChannelView({
       />
     );
   }
-  // Driving what is on and putting something new on are two rules, and the
-  // shared audio card needs both: an absent member may pause or clear a track
-  // on an empty channel, and may not load one. `canStartWatch` is the same
-  // split on the watch tab.
+  // **One rule since 2026-09-20, where this was two.** Driving what is on and
+  // putting something new on both ask presence now — an absent member may no
+  // longer play or clear a track on an empty channel, which is what build 261
+  // was seen doing. Both are still read, because the card greys the two sets
+  // of controls separately and a guard that collapses today may part again.
   const mayLoadTrack = canLoadTrack(channel, me);
 
   // `?? initialWatchState()` for the reason `clip` has its `?? null`: a server
@@ -3745,18 +3746,15 @@ export function ChannelView({
                   ? 'You have the floor — only you can change what plays.'
                   : !mayControlPlayback
                     ? // The only remaining way these are disabled, the floor
-                      // and the film having been ruled out above.
+                      // and the film having been ruled out above. It used to
+                      // be followed by a second sentence for the member
+                      // standing outside an empty channel, who could drive
+                      // what was loaded but not replace it; since 2026-09-20
+                      // that person is refused both and this covers them.
                       'Step in to put something on. What everybody is listening to is for whoever is listening.'
-                    : !mayLoadTrack
-                      ? // In the room's sense but not in the room: the channel is
-                        // empty, so what is here is yours to drive and is not
-                        // yours to replace. Said because two controls on this
-                        // card are now greyed while the rest are live, which is
-                        // otherwise the sort of thing that reads as a bug.
-                        'Step in to put something on. What is already here you can still play or clear.'
-                      : track
-                        ? 'Everyone hears this, and anyone present can change it.'
-                        : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+                    : track
+                      ? 'Everyone hears this, and anyone present can change it.'
+                      : 'Whatever you play, everyone hears — and it is kept in the recording.'}
           </Text>
         </Card>
 

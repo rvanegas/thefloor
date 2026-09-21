@@ -1030,6 +1030,26 @@ export function trackIsPlaying(state: ChannelState): boolean {
  * self-correcting: control returns to both parties the instant a claim ends,
  * however it ends — released, run out at FLOOR_CLAIM_MS, or dropped when the
  * holder left — with nothing to keep in step.
+ *
+ * **Presence, since 2026-09-20, which is what closed the last of the split.**
+ * It asked `hasTheRoom` — you are in the channel, or nobody is — on the seam
+ * adopted 2026-08-24: driving what is already on is tidying up after a room
+ * that has gone home, and only *putting something on* leaves a choice behind
+ * for whoever steps in next.
+ *
+ * What that overlooked is that playing a track is not driving something that
+ * was left running. It starts a sound in a channel, and it was reachable from
+ * outside one: a member looking at an empty channel's screen could load a
+ * track and play it to the room without ever stepping in — reported from
+ * build 261, done rather than reasoned about. The room is empty at the moment
+ * of the tap and need not be a moment later, and what the next person walks
+ * into was chosen by somebody who is not there, which is the case
+ * `mayPutSomethingOn` exists to refuse.
+ *
+ * So the audio player and the watch party agree again, having diverged for a
+ * day: `canControlWatch` moved to presence earlier the same day for its own
+ * reason — a scrub reaches into a scene somebody is watching — and these two
+ * arrive at the same rule from opposite ends.
  */
 export function canControlPlayback(
   state: ChannelState,
@@ -1039,17 +1059,18 @@ export function canControlPlayback(
   // sitting paused is not being listened to, so it refuses nothing here. See
   // `watchIsPlaying`.
   if (watchIsPlaying(state)) return false;
-  return holdsSharedControl(state, userId);
+  return mayPutSomethingOn(state, userId);
 }
 
 /**
- * Whether `userId` may change what the channel is attending to.
+ * Whether `userId` may change what the channel is attending to, presence
+ * aside.
  *
- * Shared playback and the watch party ask the same question, so they ask it
- * once. Both are things the whole channel is given at once, and the floor
- * governs both by the same argument: a claim is not a device for hearing
- * yourself over competing sound, it is for being in control of what is
- * attended to.
+ * **Every caller adds presence now**, so this is the membership-and-floor
+ * half rather than a guard of its own — `mayPutSomethingOn` is the whole
+ * rule, and both playback and the watch party reach it. It stays separate
+ * because the two halves answer different questions and the floor's half is
+ * the one that is derived rather than stored.
  */
 function holdsSharedControl(state: ChannelState, userId: UserId): boolean {
   if (state.status !== 'active') return false;
@@ -1076,23 +1097,24 @@ function floorPermits(state: ChannelState, userId: UserId): boolean {
 /**
  * Whether `userId` may put something new on — a track, or a video.
  *
- * **Presence, where driving what is already on asks only `hasTheRoom`.** The
- * one place the two shared features are stricter than the rest of the screen,
- * and it applies to both of them identically, which is the point: a channel
- * attends to one thing, and the rule for changing what that thing is should
- * not depend on which of the two it happens to be.
+ * **The rule for both shared features, and since 2026-09-20 for driving them
+ * as well as for starting them.** It applies to the two identically, which is
+ * the point: a channel attends to one thing, and the rule for changing what
+ * that thing is should not depend on which of the two it happens to be.
  *
  * `hasTheRoom` is true when nobody is present, deliberately — an empty channel
- * is nobody's conversation to interrupt. That reasoning covers *driving* what
- * is there: an absent member who stops a film somebody left running, or pauses
- * a track, is tidying up after a room that has gone home.
+ * is nobody's conversation to interrupt — and that used to be enough to drive
+ * what was already loaded, on the argument that stopping something left
+ * running is tidying up after a room that has gone home.
  *
- * It does not cover putting something new on, because that is not tidying and
- * it does not stay put. A party mutes the room by default and runs a clock; a
- * track loads and waits to be played. Either way what the next person to step
- * in walks into was chosen by somebody who is not there, and starting is the
- * moment that choice gets made. So starting is for whoever is in the room, and
- * everything else here is for whoever the room belongs to.
+ * It is not enough, and both features found it out within a day. What the
+ * next person to step in walks into was chosen by somebody who is not there,
+ * and pressing play is that choice as much as loading is: a track started
+ * from outside an empty channel is a sound in a room the person who started
+ * it is not in. A film is worse still, being watched in real time. So the
+ * empty-channel half survives only where it began — membership, which is
+ * `hasTheRoom`'s own business — and everything that changes what is attended
+ * to is for whoever is in the room.
  *
  * Guests never reach this: `present` counts members only, the same reason
  * `hasTheRoom` is not written in terms of `roomOccupants`.

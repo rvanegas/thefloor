@@ -416,13 +416,17 @@ things that this file keeps apart:
   links, or anything already about presence for its own reasons: the floor,
   self-mute, starting a recording, answering the door.
 
-  **Since 2026-08-24 it governs *driving* what the channel attends to but not
-  *putting something on*.** `canControlPlayback` is occupation plus the floor;
-  `canLoadTrack` and `canStartWatch` add presence on top, through
-  `mayPutSomethingOn`. The seam is that driving is tidying — an absent member
-  pausing a track somebody left loaded on an empty channel is clearing up after
-  a room that has gone home — while starting leaves something behind for
-  whoever steps in next, chosen by somebody who is not there.
+  **From 2026-08-24 to 2026-09-20 it governed *driving* what the channel
+  attends to but not *putting something on*.** `canControlPlayback` was
+  occupation plus the floor, where `canLoadTrack` and `canStartWatch` added
+  presence through `mayPutSomethingOn`. The seam was that driving is tidying —
+  an absent member pausing a track somebody left loaded on an empty channel is
+  clearing up after a room that has gone home — while starting leaves something
+  behind for whoever steps in next, chosen by somebody who is not there.
+
+  **All four ask presence now.** Playing a track is not tidying up after
+  anything, and on build 261 it was done from outside an empty channel, into
+  it. decisions/2026-09-20-playing-is-not-tidying.md.
 
   **The watch party left that arrangement on 2026-09-20 and now asks presence
   for everything.** `canControlWatch` was `canControlPlayback`'s twin and is
@@ -432,7 +436,7 @@ things that this file keeps apart:
   `settleEmpty` pauses the party as the last member leaves, so there is no film
   still running to clear up after, and stepping into an empty channel
   interrupts nobody. Driving and starting a party therefore agree about
-  presence, where playback's two halves still differ.
+  presence, and playback's two halves joined them the same day.
   decisions/2026-09-20-watching-is-something-you-are-in.md. There was a third combination, occupation without
   the floor — `canOpenWatchScreen`, for a follower page that changed nothing —
   and it went on 2026-09-17 with the page: which of your own devices shows a

@@ -2452,11 +2452,14 @@ standing over a channel, not over an occupation of it.
 
 Not presence: an empty channel belongs to all its members equally.
 
-**The watch party stopped asking it on 2026-09-20** and asks presence instead,
-for its transport as well as for starting one — `canControlWatch`. Every
-control there moves a film other people are watching in real time, which is not
-the kind of act the empty-channel half was written for. It still governs the
-audio player's transport, which is the pair's divergence; see *Watch party*.
+**Both shared features stopped asking it on 2026-09-20** and ask presence
+instead, for their transports as well as for starting — `canControlWatch`,
+then `canControlPlayback` a few hours later. Every control on the film moves
+something other people are watching in real time; and the audio player's turned
+out to let a member play a track into a channel from outside it, seen on build
+261. What the empty half still governs is what a conversation can *see* — its
+name, who gets in, the clipboard. See *Watch party* and
+decisions/2026-09-20-playing-is-not-tidying.md.
 
 ## Heartbeat
 

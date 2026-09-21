@@ -307,10 +307,10 @@ describe('loading a track', () => {
   });
 
   it('refuses a member outside an empty channel too, since 2026-08-24', async () => {
-    // `canLoadTrack` rather than `canControlPlayback`. Putting something on
-    // leaves it there for whoever steps in next, so it asks presence where
-    // driving what is already loaded asks only `hasTheRoom` — the same split
-    // `canStartWatch` makes for a party.
+    // `canLoadTrack` rather than `canControlPlayback` — though since
+    // 2026-09-20 the two agree, both asking presence. Putting something on
+    // leaves it there for whoever steps in next, and playing it puts a sound
+    // in a room you are not standing in.
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
@@ -318,19 +318,29 @@ describe('loading a track', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('still lets somebody outside an empty channel drive what is loaded', async () => {
+  it('refuses somebody outside an empty channel the transport as well', async () => {
     const { alice, bob, channelId } = await sessionOfTwo();
     await upload(alice.token, channelId);
     await settle();
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
     app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
 
-    // The other half of the rule: an empty channel is nobody's conversation,
-    // so tidying up after it does not need stepping in.
-    const cleared = app.channels.dispatch(channelId, alice.account.id, {
-      type: 'CLEAR_TRACK',
-    });
-    expect(cleared.ok).toBe(true);
+    // **The other half of the rule went on 2026-09-20.** It said an empty
+    // channel is nobody's conversation, so tidying up after it did not need
+    // stepping in — and what it actually licensed was playing a track into a
+    // channel from outside it, which is what build 261 was seen doing.
+    // Asserted on the state rather than on `ok`: a guard the reducer refuses
+    // leaves the action accepted and the channel unchanged, which is what
+    // every one of these says. The route-level refusals above are the ones
+    // that answer `ok: false`.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PLAY' });
+    expect(app.channels.get(channelId)!.playback.status).not.toBe('playing');
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLEAR_TRACK' });
+    expect(app.channels.get(channelId)!.playback.track).not.toBeNull();
+
+    // And one tap is the whole cost of it.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLEAR_TRACK' });
     expect(app.channels.get(channelId)!.playback.track).toBeNull();
   }, 30_000);
 

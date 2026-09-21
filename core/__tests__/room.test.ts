@@ -120,7 +120,6 @@ describe('the room rule', () => {
       ['the name and description', (s) => canEditChannel(s, BOB)],
       ['inviting a contact', (s) => canInvite(s, BOB, CARA)],
       ['minting a guest link', (s) => canInviteGuest(s, BOB)],
-      ['the shared track', (s) => canControlPlayback(s, BOB)],
       ['pasting to the clipboard', (s) => canPasteClip(s, BOB)],
       ['clearing the clipboard', (s) => canClearClip(s, BOB)],
     ];
@@ -129,6 +128,25 @@ describe('the room rule', () => {
       expect([what, guard(busy)]).toEqual([what, false]);
       expect([what, guard(free)]).toEqual([what, true]);
     }
+  });
+
+  /**
+   * **The shared track left this list on 2026-09-20**, which is worth an
+   * assertion rather than a comment: the empty half of the rule let a member
+   * who had not stepped in play a track into a channel, and that was reached
+   * from the app on build 261 rather than argued about. `canControlPlayback`
+   * asks presence now, as the watch party's transport already did. What is
+   * left on the list is the things a conversation can *see* — its name, who
+   * gets in, the clipboard — where an empty channel really is nobody's to
+   * interrupt.
+   */
+  it('does not govern the shared track any more', () => {
+    expect(hasTheRoom(empty(), BOB)).toBe(true);
+    expect(canControlPlayback(empty(), BOB)).toBe(false);
+    // And it is the presence half doing it, not membership: Alice is the one
+    // standing in the occupied channel.
+    expect(canControlPlayback(occupied(), ALICE)).toBe(true);
+    expect(canControlPlayback(occupied(), BOB)).toBe(false);
   });
 
   /**
