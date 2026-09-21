@@ -463,6 +463,33 @@ export class Guests {
   }
 
   /**
+   * Records or withdraws this guest's agreement that their voice may be
+   * published.
+   *
+   * **Asked at the microphone, not at the door**, which is the whole reason
+   * this is honest. A notice on the guest link would be a blanket agreement
+   * given before there was a conversation to agree about — the same objection
+   * that makes members' consent per recording rather than per channel. The
+   * moment somebody asks to speak is the moment they choose to become part of
+   * the audio, and it is the only moment at which a seat with no account can
+   * be asked anything meaningful.
+   *
+   * Withdrawable while the seat lives, and `Publication` treats clearing it as
+   * the withdrawal it is — anything in this channel their voice is in comes
+   * down. Once the seat expires there is nobody to ask and nothing to change,
+   * which the page says in those words before anybody agrees to anything.
+   */
+  setPublishConsent(id: string, consented: boolean, now: number): boolean {
+    const changes = this.db
+      .prepare(
+        `UPDATE guest_sessions SET publish_consent_at = ?, last_seen_at = ?
+         WHERE id = ? AND ejected_at IS NULL`
+      )
+      .run(consented ? now : null, now, id).changes;
+    return Number(changes) > 0;
+  }
+
+  /**
    * Removes a guest, and closes the door they came through.
    *
    * The implicit revocation is the point: eject somebody holding a link they

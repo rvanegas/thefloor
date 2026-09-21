@@ -827,6 +827,22 @@ export class ChannelRegistry {
    */
   private pingedWith = new Map<string, { by: string; text: string }>();
 
+  /**
+   * Told when a guest agrees, or stops agreeing, that their voice may be
+   * published.
+   *
+   * Set by the composition root rather than taken in the constructor, on the
+   * same terms as `Transcripts.onChanged`: publishing is not this class's
+   * business, and the alternative is a fifteenth positional parameter naming
+   * a module this one has no other reason to know about. Absent in every test
+   * that does not care, which is nearly all of them.
+   */
+  onGuestConsentChanged?: (
+    channelId: string,
+    guestId: string,
+    consented: boolean
+  ) => void;
+
   constructor(
     private db: Db,
     private accounts: Accounts,
@@ -5990,6 +6006,10 @@ export class ChannelRegistry {
         // Asked of core rather than computed here, so the control the page
         // draws and the action the reducer accepts cannot disagree.
         canAsk: canRequestSpeech(channel, guestId),
+        // From the seat rather than from channel state: it is durable, and a
+        // restart must not bring somebody back having silently un-agreed.
+        publishConsent:
+          this.guests.byId(guestId)?.publish_consent_at != null,
       },
       others: [
         ...channel.present.map((id) => ({
@@ -6043,6 +6063,24 @@ export class ChannelRegistry {
     const channel = this.channels.get(channelId);
     if (!channel || !channel.guests[guestId]) {
       return { ok: false, error: 'You are not in this channel.', code: 'forbidden' };
+    }
+    // Before the reducer check, because this one never reaches the reducer:
+    // it is durable on the seat and changes nothing about the conversation.
+    // `PASTE_CLIP` below is special-cased for the opposite reason — it needs
+    // the server to mint the clip before the reducer sees it.
+    if (action.type === 'SET_PUBLISH_CONSENT') {
+      if (typeof action.consented !== 'boolean') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      this.guests.setPublishConsent(guestId, action.consented, this.now());
+      // Withdrawing is a withdrawal, with everything that implies: anything
+      // in this channel their voice is in comes down. The publication half
+      // owns that rule, so it is handed the fact rather than sent a command.
+      this.onGuestConsentChanged?.(channelId, guestId, action.consented);
+      // The page reads this back off its own snapshot, and a member's card
+      // for the recording changes too — it may have just become publishable.
+      this.emit([channelId]);
+      return { ok: true };
     }
     if (!GUEST_ACTIONS.has(action.type as ChannelAction['type'])) {
       return { ok: false, error: 'Not an action.', code: 'invalid' };

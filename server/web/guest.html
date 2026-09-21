@@ -207,6 +207,30 @@
         too, open this link in Safari or Chrome.
         <button id="mic-retry-button" type="button">Try the microphone again</button>
       </p>
+      <!--
+        Asked here and nowhere else, and the placement is the argument.
+
+        A notice on the guest link would be a blanket agreement given before
+        there was a conversation to agree about — the same objection that
+        makes a member's consent per recording rather than per channel. This
+        is the moment somebody chooses to become part of the audio, which is
+        the only moment a seat with no account can be asked anything that
+        means something.
+
+        **Not a precondition of the microphone.** The checkbox is off, asking
+        to speak works either way, and a guest who agrees to nothing simply
+        leaves the conversation unpublishable. Making it a gate would be
+        trading somebody's voice for their consent.
+      -->
+      <p id="publish-consent-block" hidden>
+        <label>
+          <input type="checkbox" id="publish-consent" />
+          The people here may publish this conversation — putting it on a
+          public page and in a podcast feed, where anyone with the address can
+          listen. I agree my voice may be included.
+        </label>
+        <span class="muted" id="publish-consent-note"></span>
+      </p>
       <button id="ask-button" hidden>Ask to speak</button>
       <!--
         Why there is no button, when there is none. Two guests may hold a

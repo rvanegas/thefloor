@@ -299,39 +299,84 @@ export class Publication {
    * join the consent set exactly like a member. Only a guest with no account
    * is genuinely unreachable.
    */
-  private guestsOf(
-    row: RecordingRow
-  ): Array<{ identity: string; accountId: string | null; spoke: boolean }> {
+  private guestsOf(row: RecordingRow): Array<{
+    identity: string;
+    accountId: string | null;
+    spoke: boolean;
+    agreed: boolean;
+  }> {
     const roster = parseJson<string[]>(row.participants) ?? [];
-    const stems =
-      parseJson<Record<string, unknown[]>>(row.stems) ?? {};
+    const stems = parseJson<Record<string, unknown[]>>(row.stems) ?? {};
     const identities = [
       ...new Set([...roster, ...Object.keys(stems)]),
     ].filter(isGuestId);
 
     return identities.map((identity) => {
       const session = this.db
-        .prepare('SELECT account_id FROM guest_sessions WHERE id = ?')
-        .get(identity) as { account_id: string | null } | undefined;
+        .prepare(
+          'SELECT account_id, publish_consent_at FROM guest_sessions WHERE id = ?'
+        )
+        .get(identity) as
+        | { account_id: string | null; publish_consent_at: number | null }
+        | undefined;
       return {
         identity,
         // A seat that has since been swept leaves no row, which reads as no
-        // account — the safe direction: it makes them count as somebody who
-        // cannot be asked rather than as somebody silently taken as willing.
+        // account and no agreement — the safe direction in both: it makes
+        // them count as somebody who cannot be asked rather than as somebody
+        // silently taken as willing.
         accountId: session?.account_id ?? null,
+        agreed: session?.publish_consent_at != null,
         spoke: (stems[identity]?.length ?? 0) > 0,
       };
     });
   }
 
   /**
-   * The guests who actually stop this being publishable: the ones whose voice
-   * is in the audio and who have no account to agree with.
+   * The guests who actually stop this being publishable.
+   *
+   * Three ways not to be one, and each is a different kind of answer:
+   * they never spoke, so none of their voice is in it; they have an account,
+   * so they are asked per recording like a member; or they agreed at the
+   * microphone, which is the one moment a seat with no account can be asked
+   * anything meaningful — see `Guests.setPublishConsent`.
+   *
+   * What is left is somebody who spoke, has no account, and has not agreed:
+   * their voice is in the audio and there is nobody to ask.
    */
   private blockingGuests(row: RecordingRow): string[] {
     return this.guestsOf(row)
-      .filter((guest) => guest.spoke && !guest.accountId)
+      .filter((guest) => guest.spoke && !guest.accountId && !guest.agreed)
       .map((guest) => guest.identity);
+  }
+
+  /**
+   * A guest has changed their mind at the microphone. Takes down anything in
+   * this channel their voice is in, if they have stopped agreeing.
+   *
+   * **The same act as a member's withdrawal and it is not a coincidence.**
+   * A seat cannot be asked per recording — it expires, so there is nobody to
+   * come back to — but while it lives, the person holding it has exactly the
+   * standing a member has over their own voice. Agreeing again does not
+   * republish: somebody else has to be the one to decide that, which is what
+   * a consent is for.
+   */
+  guestConsentChanged(
+    channelId: string,
+    guestId: string,
+    consented: boolean
+  ): void {
+    if (consented) return;
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM recordings
+          WHERE channel_id = ? AND published_at IS NOT NULL`
+      )
+      .all(channelId) as unknown as RecordingRow[];
+    for (const row of rows) {
+      if (this.blockingGuests(row).includes(guestId)) this.unpublish(row.id);
+    }
+    this.options.announce(channelId);
   }
 
   /**
@@ -354,6 +399,11 @@ export class Publication {
     const members = [...new Set([...roster, ...stems])].filter(
       (id) => !isGuestId(id) && id !== MEDIA_IDENTITY
     );
+    // Only guests with accounts, and only ones who spoke. A guest who agreed
+    // at the microphone is *not* here: they have said yes once, for this
+    // seat, and there is no account to come back and ask again — so they are
+    // not an outstanding agreement anybody could be waiting on. See
+    // `blockingGuests`, which is where their answer is actually read.
     const guestAccounts = this.guestsOf(row)
       .filter((guest) => guest.spoke && guest.accountId)
       .map((guest) => guest.accountId!);

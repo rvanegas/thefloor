@@ -1212,6 +1212,16 @@ export interface GuestView {
      * silence is exactly the case that would be miscounted.
      */
     canAsk: boolean;
+    /**
+     * Whether they have agreed that a recording their voice is in may be
+     * published.
+     *
+     * Always sent, and false for the great majority who have never been
+     * asked — the question is only put once somebody reaches for the
+     * microphone. A seat with an account behind it is asked per recording
+     * instead, like a member, so this stays false for them and means nothing.
+     */
+    publishConsent: boolean;
   };
   /**
    * Everybody else in the room: members by name, and any other guests. Names
@@ -1255,6 +1265,18 @@ export type GuestAction =
   | { type: 'STEP_OUT' }
   | { type: 'SET_SELF_MUTE'; muted: boolean }
   | { type: 'REQUEST_SPEECH' }
+  /**
+   * Agrees, or stops agreeing, that a recording this guest's voice is in may
+   * be published.
+   *
+   * Beside `REQUEST_SPEECH` because that is where it is asked: the moment
+   * somebody chooses to become part of the audio, rather than at the door
+   * where it would be a blanket agreement given before there was anything to
+   * agree about. It is not a precondition of the microphone — a guest may
+   * speak having agreed to nothing, and then the conversation simply cannot
+   * be published.
+   */
+  | { type: 'SET_PUBLISH_CONSENT'; consented: boolean }
   /** Says no to one member's ask, which is a different thing from silence. */
   | { type: 'REFUSE_CONTACT'; askerId: string }
   /** Says no to one member's ask that they make an account here. */

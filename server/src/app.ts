@@ -322,6 +322,12 @@ export interface App {
    */
   recordingsInChannel: (channelId: string, userId: string) => RecordingView[];
   recordingView: (row: RecordingRow, userId: string) => RecordingView;
+  /**
+   * Publishing, exposed on the same terms as `channels`: a test about what
+   * publication *decides* should not have to stand up a live room and a
+   * socket to reach the decision.
+   */
+  publication: Publication;
 }
 
 /**
@@ -702,6 +708,13 @@ export function buildApp(options: BuildOptions = {}): App {
     onError: (error, context) =>
       fastify.log.error({ err: error, context }, 'publication failed'),
   });
+
+  // A guest changing their mind at the microphone is a withdrawal like any
+  // other. Wired here rather than taken by either constructor: the registry
+  // has no business knowing about publishing, and publication has no way to
+  // hear a guest action.
+  channels.onGuestConsentChanged = (channelId, guestId, consented) =>
+    publication.guestConsentChanged(channelId, guestId, consented);
 
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
@@ -4782,6 +4795,7 @@ export function buildApp(options: BuildOptions = {}): App {
     help,
     recordingsInChannel,
     recordingView: toRecordingView,
+    publication,
   };
 }
 

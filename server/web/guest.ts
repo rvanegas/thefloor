@@ -655,6 +655,33 @@ function render(next: GuestView): void {
   // the microphone does not need to be told the room is full of them.
   $('mic-full').hidden = !wouldAsk || next.you.canAsk;
 
+  /*
+    Shown from the moment somebody reaches for the microphone and for as long
+    as they hold it — asking, granted, muted — and hidden only for a listener
+    who has not asked. It is not a gate in front of the button beside it: a
+    guest may speak having agreed to nothing, and the conversation is then
+    simply not publishable.
+
+    It stays up after the grant because this is withdrawable while the seat
+    lives, and a control that vanished the moment it took effect would be one
+    somebody could not take back. A seat with an account behind it is asked
+    per recording instead, like a member, so it is not shown to them at all.
+  */
+  const consenting = $('publish-consent') as HTMLInputElement;
+  $('publish-consent-block').hidden =
+    !!next.you.accountId || next.you.mic === 'listening';
+  // Seeded rather than bound, as the rename field is: a snapshot arrives on
+  // every change anybody makes, and retyping over somebody mid-decision is
+  // the one way a control like this can be wrong.
+  if (document.activeElement !== consenting) {
+    consenting.checked = next.you.publishConsent;
+  }
+  $('publish-consent-note').textContent = next.you.publishConsent
+    ? 'You can take this back here for as long as you are in the room, and ' +
+      'that removes the conversation from the page and the feed. It cannot ' +
+      'reach a copy somebody has already downloaded.'
+    : 'Nothing you say here can be published unless you agree.';
+
   const mute = $('mute-button') as HTMLButtonElement;
   mute.hidden = next.you.mic !== 'open' && next.you.mic !== 'muted';
   mute.textContent = next.you.mic === 'muted' ? 'Unmute' : 'Mute';
@@ -1058,6 +1085,13 @@ $('mic-retry-button').addEventListener('click', () => {
 });
 
 $('ask-button').addEventListener('click', () => act({ type: 'REQUEST_SPEECH' }));
+
+$('publish-consent').addEventListener('change', (event) => {
+  act({
+    type: 'SET_PUBLISH_CONSENT',
+    consented: (event.target as HTMLInputElement).checked,
+  });
+});
 
 $('mute-button').addEventListener('click', () => {
   act({ type: 'SET_SELF_MUTE', muted: view?.you.mic !== 'muted' });

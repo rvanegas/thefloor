@@ -299,6 +299,13 @@ export interface GuestSessionRow {
   accepted_at: number | null;
   /** 1 once a member has granted the microphone. Durable; see guests.ts. */
   may_speak: number;
+  /**
+   * When this guest agreed their voice may be published, or null.
+   *
+   * Asked at the microphone rather than at the door — see the schema, which
+   * says why that is the only moment at which it is an honest question.
+   */
+  publish_consent_at: number | null;
   /** When a member removed them. Null means they were not thrown out. */
   ejected_at: number | null;
   last_seen_at: number;
@@ -1036,6 +1043,21 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
   -- has answered, and an invitation accepted.
   invited_at   INTEGER,
   accepted_at  INTEGER,
+  -- When this guest agreed that a recording their voice is in may be
+  -- published, or null — which is the default and what most seats hold.
+  --
+  -- **The only consent in this system that is not per recording**, and the
+  -- only shape available to somebody with no account: a seat expires, so
+  -- there is nobody to come back and ask about a particular conversation.
+  -- What makes it honest is *when* it is asked. It is on the page at the
+  -- moment they ask for the microphone — the moment they choose to become
+  -- part of the audio — rather than at the door, where it would be a blanket
+  -- agreement given before there was a conversation to agree about.
+  --
+  -- Scoped to this seat and withdrawable while they hold it: clearing it
+  -- unpublishes anything in this channel their voice is in. Once the seat
+  -- expires it cannot be withdrawn, which is said on the page in those words.
+  publish_consent_at INTEGER,
   ejected_at   INTEGER,
   last_seen_at INTEGER NOT NULL,
   expires_at   INTEGER NOT NULL
@@ -2255,6 +2277,11 @@ function migrate(db: Db): void {
   }
   if (!hasColumn(db, 'recordings', 'published_bytes')) {
     db.exec('ALTER TABLE recordings ADD COLUMN published_bytes INTEGER');
+  }
+  // Null on every seat that exists, which is the only safe backfill: a guest
+  // admitted before the question could be asked was never asked it.
+  if (!hasColumn(db, 'guest_sessions', 'publish_consent_at')) {
+    db.exec('ALTER TABLE guest_sessions ADD COLUMN publish_consent_at INTEGER');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

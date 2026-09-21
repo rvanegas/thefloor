@@ -545,6 +545,18 @@ describe('a guest', () => {
       );
   }
 
+  /**
+   * What the guest page's checkbox does, without a live room and a socket in
+   * the way: the seat is written and publication is told, which is exactly
+   * the pair `dispatchGuest` performs for a `SET_PUBLISH_CONSENT`.
+   */
+  function agree(identity: string, channelId: string, consented: boolean) {
+    app.db
+      .prepare('UPDATE guest_sessions SET publish_consent_at = ? WHERE id = ?')
+      .run(consented ? clock : null, identity);
+    app.publication.guestConsentChanged(channelId, identity, consented);
+  }
+
   it('who spoke without an account cannot be published around', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();
     await goPublic(alice.token, channelId);
@@ -586,6 +598,59 @@ describe('a guest', () => {
    * — with or without an account here. One who signed in before knocking is
    * reachable, so they are asked rather than treated as an obstacle.
    */
+  /**
+   * The answer to the one case that used to be unpublishable outright. A seat
+   * cannot be asked per recording — it expires, so there is nobody to come
+   * back to — but it can be asked at the microphone, which is the moment
+   * somebody chooses to become part of the audio.
+   */
+  it('who agreed at the microphone no longer blocks it', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    addGuest(recordingId, 'guest_willing', { spoke: true });
+    seat('guest_willing', channelId, alice.account.id, null);
+
+    // Not asked yet: refused, exactly as before.
+    expect((await consent(alice.token, recordingId)).statusCode).toBe(400);
+
+    agree('guest_willing', channelId, true);
+
+    await consent(alice.token, recordingId);
+    const done = await consent(bob.token, recordingId);
+    expect(done.statusCode).toBe(200);
+    expect(done.json().publishedAt).toBe(clock);
+    // They are not an outstanding agreement anybody is waiting on: they have
+    // answered once, for this seat, and there is no account to ask again.
+    expect(done.json().required).toHaveLength(2);
+    await transcoded(recordingId);
+    expect((await feedFor(channelId)).payload).toContain('<item>');
+  }, 120_000);
+
+  it('who takes it back at the microphone takes the episode down', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    addGuest(recordingId, 'guest_willing', { spoke: true });
+    seat('guest_willing', channelId, alice.account.id, null);
+    agree('guest_willing', channelId, true);
+    await consent(alice.token, recordingId);
+    await consent(bob.token, recordingId);
+    await transcoded(recordingId);
+    expect((await feedFor(channelId)).payload).toContain('<item>');
+
+    // The same standing a member has over their own voice, for as long as
+    // the seat lives.
+    agree('guest_willing', channelId, false);
+    expect((await feedFor(channelId)).payload).not.toContain('<item>');
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'GET',
+          url: `/c/${channelId}/e/${recordingId}.m4a`,
+        })
+      ).statusCode
+    ).toBe(404);
+  }, 120_000);
+
   it('who spoke and has an account is asked like anybody else', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();
     const carol = await signIn('carol@example.com', 'Carol');
