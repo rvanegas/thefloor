@@ -589,6 +589,19 @@ export const api = {
       { method: 'POST', token }
     ),
 
+  /**
+   * Takes back a seat that was offered and not taken up.
+   *
+   * Any member with the room may, not only whoever offered it — the same rule
+   * ejecting a guest follows, and for the same reason: a room that could only
+   * be tidied by whoever made the mess would be stuck the moment they left.
+   */
+  revokeGuestInvite: (token: string, channelId: string, guestId: string) =>
+    request<{ ok: true }>(`/channels/${channelId}/guest-invites/${guestId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
   guestLinks: (token: string, channelId: string) =>
     request<{ links: GuestLinkSummary[] }>(
       `/channels/${channelId}/guest-links`,

@@ -52,6 +52,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 264 | `InviteView.guest` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 264 | `tapToLook` / `tapToStepIn` sent as constants | `server/src/settings-wire.ts`, `server/src/app.ts` |
 | 272 | `seat/enter`'s `secret` optionality | `app/src/ui/ChannelsView.tsx` |
+| 272 | `ChannelState.guestInvites` optionality | `core/types.ts`, `core/guests.ts`, `core/channel.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -583,6 +584,28 @@ permission that would fetch them a room.
 
 Gate 212 because `build/211` is already tagged: the client that speaks this
 ships in the next upload.
+
+---
+
+## Gate 272 — `ChannelState.guestInvites` optionality
+
+The seats a channel has promised and nobody has taken up, added 2026-09-22 —
+`decisions/2026-09-22-an-invitation-holds-a-seat.md`. Optional because a server
+that predates it sends no such key, and a channel from such a server has no
+invitations it knows about; a client reading absence as *none* is reading it
+correctly rather than defaulting.
+
+The `?? {}` in `guestsPromised` and `pendingGuests` (`core/guests.ts`) is the
+whole of the client-side shim, and `withoutInvite` (`core/channel.ts`) drops
+the key rather than leaving `{}` so that a channel with no invitations looks
+identical on both sides of the change.
+
+**What must not be deleted with it**: the `?? {}` on `state.guests` in the same
+functions, which is a different and older shim, and the field itself.
+`guestCount` staying separate from `guestsPromised` is not a shim at all — the
+room alone is what several readers legitimately want.
+
+Gate 272 because `build/271` is the build in `app.json` as this lands.
 
 ---
 

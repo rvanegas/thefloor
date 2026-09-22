@@ -304,6 +304,7 @@ export const mockApp = {
   inviteGuest: jest.fn(async () => 'https://example.test/g/tok'),
   askInAsGuest: jest.fn(async () => {}),
   enterSeat: jest.fn(async () => ({ guestId: 'guest_1', secret: 'sec_1' })),
+  withdrawGuestInvite: jest.fn(async () => {}),
   guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
   // Echoes what it was asked for, as the server does when the level is not the
   // default. A test about the refusal path overrides it.

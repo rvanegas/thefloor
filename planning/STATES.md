@@ -1095,14 +1095,16 @@ with the `[audio]` lines `useSessionAudio` writes in development builds, and
 
 ## Guest Invitation
 
-Added 2026-09-21 with the offer itself. The newest state here and the only one
-that is **not** in `ChannelState` at all, which is the whole reason it is worth
-a section: everything else in this file is a field the reducer owns, and this
-one is deliberately not.
+Added 2026-09-21 with the offer itself, and **rewritten on 2026-09-22**, when
+it moved into `ChannelState` after all. What this section said for a day — that
+it is the one state here not in the reducer's hands — is the entry to read if
+you are wondering why the design changed; it is kept below rather than deleted.
 
-**Name in source.** `guest_sessions.invited_at` and `.accepted_at` on the
-server; `InviteView.guest` on the wire; `Card.guest` in the app. There is no
-name for it in `core/`, and that is the design rather than an omission.
+**Name in source.** `ChannelState.guestInvites[guestId]`, an `InvitedGuest`
+(`core/types.ts`), raised by `GUEST_INVITED` and cleared by
+`GUEST_INVITE_WITHDRAWN` or by the holder walking in. Durably,
+`guest_sessions.invited_at` and `.accepted_at`; `InviteView.guest` on the wire
+to the person offered it, `Card.guest` in the app.
 
 **Conditions.** A row is a *pending invitation* while `invited_at` is set,
 `accepted_at` is null, `ejected_at` is null and `expires_at` is in the future.
@@ -1110,25 +1112,52 @@ It is an *accepted* one once `accepted_at` is stamped, which happens the first
 time its holder enters the room and never again. A row with no `invited_at` is
 neither: it is an ordinary seat somebody knocked their way into.
 
-**Why it is not in `ChannelState`.** Because being in the state is how somebody
-becomes a member of a room, and the whole point of this offer is that it does
-not. `state.guests` means *present*; `participants` means *belongs*. An
-invitation is neither, so the only honest place for it is the table. The
-consequence to know: a channel's state cannot tell you who has been invited as
-a guest — `Guests.pendingIn` is the only thing that can, and the members' view
-of what is outstanding is a query rather than a snapshot.
+**Why it is a second field rather than an entry in `guests`.** Because
+`state.guests` means *in the room*, and every reader of it depends on that:
+`roomOccupants`, `statedIdentities`, `inRoom`, `selfMuted`, and through the
+last of those the mute matrix and what the media plane is told. An invitation
+is nobody in the room. `participants` is equally wrong for the opposite reason
+— that one means *belongs*, and spends one of the six. So it is neither, and
+it has a field of its own.
 
-**Where the sources can disagree.** Two places, both bounded.
+**Why it is in the state at all**, which is the reversal. Being out of it
+meant being out of every ceiling the reducer enforces: the forty was counted
+by the server at the moment an invitation was made, and by `GUEST_ENTERED`
+counting only the room. Forty invitations and forty knocks therefore admitted
+eighty claims on a forty-seat room, and thirty-nine people were turned away one
+at a time on arrival, each having been told they were invited. `guestsPromised`
+is now the single answer, and `guestCount` — the room alone — is what the other
+readers keep.
+
+**The count is read, not swept.** An invitation past its `expiresAt` stops
+being counted by the function that counts, so a room gets its seats back with
+nothing having run. `core/` has no clock, which is why `canAnswerKnock` and
+`canWithdrawGuestInvite` both take `now` where their neighbours do not.
+
+**Where the sources can disagree.** Three places, all bounded.
 
 - **The row expires without anybody writing to it.** `channelEmptied` sets
   `expires_at` to the moment the last member leaves, so an invitation stops
   being live between one read and the next with no event in between. Anything
   asking whether one is outstanding has to ask with a clock, which is why every
   query here takes `now`.
+- **And the state's copy of `expiresAt` is then stale**, which is the one case
+  the read-don't-sweep rule does not cover: the entry says six hours and the
+  row says now. So the emptying raises `GUEST_INVITE_WITHDRAWN` for every
+  outstanding offer, which is the only event that makes an invitation stale
+  without touching it.
 - **A client that predates `InviteView.guest` reads absence as a membership.**
   That is correct for it — a server that old can send no other kind — but it
   means the same row is described two ways on two builds until the floor passes
-  264. See SHIMS.md.
+  264. See SHIMS.md, which also carries `guestInvites` optionality at 272.
+
+**The day it was a table and nothing else.** From 2026-09-21 to 2026-09-22 the
+argument was that being in the state is how somebody becomes a member of a
+room, so an offer that makes nobody a member has no business there, and
+`Guests.pendingIn` was the only thing that could name one. That reasoning was
+right about `participants` and wrong about the state as a whole — a separate
+field keeps everything it was protecting. `decisions/2026-09-22-an-invitation-holds-a-seat.md`
+is the reversal in full.
 
 ## Disagreements, numbered
 

@@ -1,4 +1,4 @@
-import type { ChannelState, GuestId, UserId } from './types';
+import type { ChannelState, GuestId, InvitedGuest, UserId } from './types';
 
 /**
  * Who is in the room, as against who belongs to the channel.
@@ -71,6 +71,44 @@ export function inRoom(state: ChannelState, id: UserId): boolean {
  */
 export function guestCount(state: ChannelState): number {
   return Object.keys(state.guests ?? {}).length;
+}
+
+/**
+ * How many of the forty are spoken for: the guests in the room, plus the
+ * invitations nobody has answered yet.
+ *
+ * **This is what `MAX_CHANNEL_GUESTS` is checked against**, and `guestCount`
+ * is not — that one is the room, which several other things legitimately want.
+ * The difference is the whole of the fix of 2026-09-22: an invitation used to
+ * be counted only where it was made, so forty invitations and forty knocks
+ * admitted eighty claims on a forty-seat room and thirty-nine people were
+ * refused one at a time on arrival.
+ *
+ * **`now` because an expired offer is not an offer.** Invitations are read
+ * rather than swept — see `InvitedGuest.expiresAt` — so a room whose
+ * invitations have aged out is a room with its seats back, without anything
+ * having run.
+ *
+ * An entry cannot be in both halves: `GUEST_ENTERED` deletes the invitation
+ * whose id it is walking in on, the seat row and the offer being one row.
+ */
+export function guestsPromised(state: ChannelState, now: number): number {
+  return (
+    guestCount(state) +
+    Object.values(state.guestInvites ?? {}).filter(
+      (invited) => invited.expiresAt > now
+    ).length
+  );
+}
+
+/** The invitations still standing, oldest first. What the roster draws. */
+export function pendingGuests(
+  state: ChannelState,
+  now: number
+): InvitedGuest[] {
+  return Object.values(state.guestInvites ?? {})
+    .filter((invited) => invited.expiresAt > now)
+    .sort((a, b) => a.invitedAt - b.invitedAt);
 }
 
 /**

@@ -32,6 +32,48 @@ export type GuestId = string;
  * whose grace period runs out, or who is ejected is removed from it — their
  * seat outlives that in the database, which is what lets them come back.
  */
+/**
+ * A seat somebody has been offered and not yet taken up.
+ *
+ * **Deliberately smaller than `Guest`**, and the difference is what has not
+ * happened. There is no `maySpeak` — nobody grants a microphone to somebody
+ * who is not here; no `request`, no `asks`, no `invites` — the three asks are
+ * put to a guest in the room; no `admittedAt`, the seat having admitted
+ * nobody. What is left is who was asked, by whom, and until when.
+ *
+ * `id` is the `guest_sessions` row's id, which is the id the seat will carry
+ * if it is taken up — so `GUEST_ENTERED` can convert rather than add, and the
+ * ceiling never counts one person twice.
+ */
+export interface InvitedGuest {
+  id: GuestId;
+  /** The account's display name, an invitation only reaching a contact. */
+  name: string;
+  /**
+   * The account behind the offer, which is never absent here.
+   *
+   * A guest *link* may reach anybody, which is why `Guest.accountId` is
+   * optional; an invitation is held to the test `INVITE` is held to and can
+   * only be sent to a contact. So this is the one place where the account is
+   * the whole of the identity.
+   */
+  accountId: UserId;
+  /** The member who asked them, for the row that says so. */
+  invitedBy: UserId;
+  invitedAt: number;
+  /**
+   * When the offer stops counting against the room's forty.
+   *
+   * **Read rather than swept**, which is what keeps this out of the reducer's
+   * way: `core/` has no clock, every count here takes `now`, and an expiry
+   * that has passed is simply not counted. The alternative — a timer raising
+   * a prune action — leaves the ceiling held by ghosts on the day it does not
+   * fire. The server still drops the entry when it next writes one, so the
+   * map does not grow without bound.
+   */
+  expiresAt: number;
+}
+
 export interface Guest {
   id: GuestId;
   /**
@@ -564,6 +606,30 @@ export interface ChannelState {
    */
   guests: Record<GuestId, Guest>;
   /**
+   * Seats that have been offered and not taken up, by the same id the seat
+   * will have when it is.
+   *
+   * **Not folded into `guests`, and that is load-bearing rather than tidy.**
+   * Everything that asks who is in the room reads `guests` — `roomOccupants`,
+   * `statedIdentities`, `inRoom`, `selfMuted`, and through the last of those
+   * the whole mute matrix and what the media plane is told. An invitation is
+   * nobody in the room. Merging the two would announce a person who has never
+   * connected.
+   *
+   * **It is here at all so that an invitation occupies what it promises.**
+   * Until 2026-09-22 a pending invitation was a `guest_sessions` row and
+   * nothing else, by `decisions/2026-09-21-asking-somebody-in-as-a-guest.md`,
+   * which kept it out of `participants` — the right outcome reached by a means
+   * that also kept it out of every ceiling the reducer enforces. Forty
+   * invitations and forty knocks admitted eighty claims on a forty-seat room,
+   * and thirty-nine people were turned away one at a time on arrival. A
+   * separate field keeps the first property and fixes the second.
+   *
+   * Volatile in the same way `guests` is: the durable half is the
+   * `guest_sessions` row, and the server projects these back after a restart.
+   */
+  guestInvites?: Record<GuestId, InvitedGuest>;
+  /**
    * Who is at the door, oldest first. Volatile, and empty almost always.
    */
   knocks: Knock[];
@@ -993,6 +1059,28 @@ export type ChannelAction =
    * remembers it.
    */
   | { type: 'GUEST_ENTERED'; guest: Guest }
+  /**
+   * A seat has been offered to a contact and not yet taken up.
+   *
+   * Raised by the server when the `guest_sessions` row is written, the same
+   * way `GUEST_ENTERED` is raised when one is walked into — the row is the
+   * durable half and the state is the room's picture of it. **The ceiling is
+   * checked before the row is written and not here**: refusing at this point
+   * would leave a row that nothing in the room knows about, which is the one
+   * disagreement this pair exists to prevent.
+   *
+   * It is also how the projection comes back after a restart, one action per
+   * outstanding invitation.
+   */
+  | { type: 'GUEST_INVITED'; invited: InvitedGuest }
+  /**
+   * An offer is off the table: taken back by a member, or the row ejected.
+   *
+   * **Not raised for an expiry**, which needs nothing raised: an invitation
+   * past its `expiresAt` stops counting where it is counted, so a room gets
+   * its seats back without a timer having to fire. See `guestsPromised`.
+   */
+  | { type: 'GUEST_INVITE_WITHDRAWN'; guestId: GuestId }
   /**
    * A seat turns out to belong to an account, mid-visit. Raised by the server,
    * which is the only thing that can check a token.

@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
-- **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six. Expires when the room empties, or when a member takes it back
+- **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six, but it does hold one of the forty and is drawn under *Invitations* on the *People* tab. Expires when the room empties, or when a member takes it back
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
@@ -297,7 +297,9 @@ anybody in the room, and it made a fourth kind of card in an unlabelled stack.
 So the tab names the container and **each group carries its own label** —
 *Members*, *At the door*, *Guests*, *Invitations* — drawn only when there is
 somebody in that group, except *Members*, which always has somebody in it and
-which now teaches the word the tab used to. The vocabulary is not lost by the
+which now teaches the word the tab used to. *Invitations* was named on
+2026-09-22 and drew nothing until later the same day, when a pending
+*guest invitation* reached `ChannelState`. The vocabulary is not lost by the
 rename; it moved one level in, to where it is said about the right people.
 
 **The Spanish for all four is in the comment over them** in ChannelView.tsx,
@@ -773,9 +775,16 @@ something they have been asked into, and becomes a seat the moment they walk in.
 **Not an *invitation*, and the two must not be run together.** An invitation
 makes somebody a *member*: it writes them into the channel's roster, spends one
 of the six, and is permanent until they leave. This makes nobody a member,
-spends none of the six, and is gone when the room is. Until somebody accepts it
-exists only as a row — there is nothing about it in any channel's state, which
-is exactly what stops it being a membership by accident.
+spends none of the six, and is gone when the room is.
+
+**It does hold one of the forty from the moment it is made**, since
+2026-09-22, and is drawn on the *People* tab under *Invitations*. It lives in
+`ChannelState.guestInvites`, which is a separate field from `guests` rather
+than an entry in it: an invitation is nobody in the room, and everything that
+asks who is in the room reads that other field. Until 2026-09-22 it was a row
+and nothing else — which kept it out of `participants`, and also out of every
+ceiling, so forty offers and forty knocks let eighty claims into a forty-seat
+room.
 
 **Contacts only, where a *guest link* may be handed to anybody.** The asymmetry
 is the point rather than an inconsistency: a link cannot ring, being inert until

@@ -421,6 +421,55 @@ describe('Channel, with a guest in it', () => {
     act(() => tree.unmount());
   });
 
+  it('draws an invitation among the people, under its own label', () => {
+    /*
+      **The fourth group, and the only one that is nobody in the room.** It
+      was named on 2026-09-22 with the other three labels and had nothing to
+      draw until a pending invitation reached `ChannelState` — which it does
+      so that the offer occupies one of the forty it promises.
+
+      No clock on the row, which is the member invitation's precedent: a
+      roster says *Invited* about somebody who has never been here and gives
+      no interval, there being no visit to count from.
+    */
+    const asked = channelOf((c) =>
+      reduce(
+        c,
+        {
+          type: 'GUEST_INVITED',
+          invited: {
+            id: 'guest_asked',
+            name: 'Miro Okafor',
+            accountId: 'acct_3',
+            invitedBy: ME,
+            invitedAt: NOW,
+            expiresAt: NOW + 6 * 60 * 60 * 1000,
+          },
+        } as never,
+        NOW
+      )
+    );
+    showChannel(asked);
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    const text = textOf(tree);
+    expect(text).toContain('Invitations');
+    expect(text).toContain('Miro Okafor');
+    expect(text).toContain('have not been in yet');
+
+    // And it is not in the room: no guest card, nothing claiming they are
+    // listening.
+    expect(text).not.toContain('Nobody can hear them');
+
+    act(() => findButton(tree, 'Take back')!.props.onPress());
+    expect(mockApp.withdrawGuestInvite).toHaveBeenCalledWith(
+      'sess_1',
+      'guest_asked'
+    );
+    act(() => tree.unmount());
+  });
+
   it('shares a link, and says the sharing is not the letting in', async () => {
     // Awaited inside `act`, unlike most of this file: minting is a round trip
     // and the share sheet is a second one, so a synchronous tap leaves two

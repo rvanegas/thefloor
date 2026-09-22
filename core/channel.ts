@@ -57,6 +57,7 @@ import {
 import {
   guestCount,
   guestMaySpeak,
+  guestsPromised,
   inRoom,
   isGuest,
   roomOccupants,
@@ -1457,12 +1458,20 @@ export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
  * than the refusal arriving after somebody taps it. `GUEST_ENTERED` is what
  * actually enforces the cap — a knock is not the only way in — so this is the
  * belt to that action's braces, and the two have to say the same thing.
+ *
+ * **Capacity counts invitations too**, which is why this takes a clock it
+ * would otherwise have no use for: a seat offered is a seat spoken for, and
+ * an offer that has expired is not. See `guestsPromised`.
  */
-export function canAnswerKnock(state: ChannelState, userId: UserId): boolean {
+export function canAnswerKnock(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): boolean {
   return (
     state.status === 'active' &&
     isPresent(state, userId) &&
-    guestCount(state) < MAX_CHANNEL_GUESTS
+    guestsPromised(state, now) < MAX_CHANNEL_GUESTS
   );
 }
 
@@ -1503,6 +1512,37 @@ export function canRequestSpeech(state: ChannelState, guestId: GuestId): boolean
  * to manage. It reads as the other six guards do, and if that invariant ever
  * changed this would already say the right thing.
  */
+/**
+ * Whether `userId` may take back an invitation nobody has answered.
+ *
+ * **Its own guard rather than a case of `canManageGuest`**, which is the trap
+ * `2026-09-21-asking-somebody-in-as-a-guest.md` recorded from the other end:
+ * that one is shared by three actions and must never grow a capacity term,
+ * because a full room is exactly the room that needs to eject somebody.
+ * Taking an invitation back is the same kind of act — it is how a full room
+ * makes space — so it asks the same question about the actor and a different
+ * one about the target.
+ *
+ * `isGuest` would refuse every invitation there is: the whole point of the
+ * pair of fields is that an invited seat is not in `guests`. So the target
+ * test is that the offer exists and still stands.
+ */
+export function canWithdrawGuestInvite(
+  state: ChannelState,
+  userId: UserId,
+  guestId: GuestId,
+  now: number
+): boolean {
+  const invited = state.guestInvites?.[guestId];
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    hasTheRoom(state, userId) &&
+    !!invited &&
+    invited.expiresAt > now
+  );
+}
+
 export function canManageGuest(
   state: ChannelState,
   userId: UserId,
@@ -1748,9 +1788,15 @@ function reduceAction(
     // Somebody already in `guests` is reconnecting rather than arriving, and
     // must not be refused a room they are standing in — which is what the
     // first half of this says.
+    // **And the invitations count**, since 2026-09-22 — the offer this
+    // arrival may be answering among them. The entry for *this* guest is
+    // dropped below rather than counted here, so walking in on one's own
+    // invitation is never refused by it: `guestsPromised` would otherwise see
+    // the seat and the offer as two claims on the room by one person.
     if (
       !(action.guest.id in state.guests) &&
-      guestCount(state) >= MAX_CHANNEL_GUESTS
+      guestsPromised(withoutInvite(state, action.guest.id), now) >=
+        MAX_CHANNEL_GUESTS
     ) {
       return state;
     }
@@ -1783,7 +1829,7 @@ function reduceAction(
       ...(held?.invites ? { invites: held.invites } : {}),
     };
     return {
-      ...state,
+      ...withoutInvite(state, action.guest.id),
       guests: {
         ...state.guests,
         [action.guest.id]: carried,
@@ -1795,6 +1841,25 @@ function reduceAction(
       disconnectedAt: without(state.disconnectedAt, action.guest.id),
       lastActiveAt: now,
     };
+  }
+
+  if (action.type === 'GUEST_INVITED') {
+    // Raised by the server when a `guest_sessions` row is written, the same
+    // way `GUEST_ENTERED` is: the row is the durable half and this is the
+    // room's picture of it. The server applies its own ceiling before writing
+    // the row, so this does not check one — and must not, since refusing here
+    // would leave a row nothing in the room knows about.
+    return {
+      ...state,
+      guestInvites: {
+        ...(state.guestInvites ?? {}),
+        [action.invited.id]: action.invited,
+      },
+    };
+  }
+
+  if (action.type === 'GUEST_INVITE_WITHDRAWN') {
+    return withoutInvite(state, action.guestId);
   }
 
   if (action.type === 'GUEST_IDENTIFIED') {
@@ -2000,7 +2065,7 @@ function reduceAction(
       return stepOut(state, action.userId, now, { exit: 'inattentive' });
 
     case 'ANSWER_KNOCK': {
-      if (!canAnswerKnock(state, action.userId)) return state;
+      if (!canAnswerKnock(state, action.userId, now)) return state;
       const answered = state.knocks.some((k) => k.id === action.knockId);
       if (!answered) return state;
       // Accepting and refusing do the same thing here, and that is not a
@@ -2867,6 +2932,24 @@ function without<T>(map: Record<string, T>, key: string): Record<string, T> {
   if (!(key in map)) return map;
   const { [key]: _dropped, ...rest } = map;
   return rest;
+}
+
+/**
+ * The state with one invitation gone, and the field dropped when it empties.
+ *
+ * Dropped rather than left as `{}` because the field is optional on the wire:
+ * a channel with no invitations should look the same to every reader as one
+ * from a server that has never heard of them.
+ */
+function withoutInvite(state: ChannelState, guestId: GuestId): ChannelState {
+  const invites = state.guestInvites;
+  if (!invites || !(guestId in invites)) return state;
+  const rest = without(invites, guestId);
+  if (Object.keys(rest).length === 0) {
+    const { guestInvites: _gone, ...bare } = state;
+    return bare;
+  }
+  return { ...state, guestInvites: rest };
 }
 
 /**

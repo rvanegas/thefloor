@@ -67,7 +67,7 @@ describe('admission', () => {
       knock: { id: 'knock_1', name: 'Dana', at: T0 },
     });
     expect(knocked.knocks).toHaveLength(1);
-    expect(canAnswerKnock(knocked, ALICE)).toBe(true);
+    expect(canAnswerKnock(knocked, ALICE, T0)).toBe(true);
 
     const answered = act(knocked, {
       type: 'ANSWER_KNOCK',
@@ -98,7 +98,7 @@ describe('admission', () => {
       type: 'KNOCKED',
       knock: { id: 'knock_1', name: 'Eve', at: T0 },
     });
-    expect(canAnswerKnock(knocked, DANA)).toBe(false);
+    expect(canAnswerKnock(knocked, DANA, T0)).toBe(false);
     expect(
       act(knocked, {
         type: 'ANSWER_KNOCK',

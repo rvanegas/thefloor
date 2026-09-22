@@ -54,12 +54,13 @@ import {
   canInviteGuest,
   canAskGuestJoin,
   canManageGuest,
+  canWithdrawGuestInvite,
   canEditChannel,
   hasTheRoom,
   isPresent,
   canPing,
 } from '../../../core/channel';
-import { inRoom } from '../../../core/guests';
+import { inRoom, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
@@ -3321,6 +3322,57 @@ export function ChannelView({
                 act({ type: 'INVITE', contactId: guest.accountId })
               }
             />
+          ))}
+
+          {/*
+            **The fourth group, and the only one that is nobody in the room.**
+            Named on 2026-09-22 with the other three labels and drawn from
+            2026-09-22, when a pending invitation reached `ChannelState` so
+            that it could occupy one of the forty it promises.
+
+            Shown to members and not to guests: `guestView` builds its roster
+            by enumerating `present` and `guests` rather than by spreading the
+            state, so this stays out of a guest's screen without anything
+            having to withhold it. Who has been asked in is administration, and
+            a guest's roster is who is here.
+          */}
+          {pendingGuests(channel, now).length > 0 ? (
+            <SectionLabel>Invitations</SectionLabel>
+          ) : null}
+          {pendingGuests(channel, now).map((invited) => (
+            <Card key={invited.id} style={styles.stack}>
+              <View style={styles.inviteRow}>
+                <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
+                  {invited.name}
+                </Text>
+                {/*
+                  **No clock, which is the member invitation's precedent.**
+                  A roster row says *Invited* about somebody who has never
+                  been here and gives no interval, because there is no visit
+                  to count from — see `ParticipantCard`, which argued this out
+                  at length. The same is true here and more so: this one is
+                  not even a member.
+
+                  Its own guard rather than `canManageGuest`, which would
+                  refuse every row in this group — an invited seat is
+                  deliberately not in `guests`.
+                */}
+                <Button
+                  label="Take back"
+                  disabled={
+                    !canWithdrawGuestInvite(channel, me, invited.id, now)
+                  }
+                  onPress={() => {
+                    void app.withdrawGuestInvite(channel.id, invited.id);
+                  }}
+                />
+              </View>
+              <Text style={type.muted}>
+                {invited.invitedBy === me
+                  ? 'You asked them in as a guest. They have not been in yet.'
+                  : `${nameOf(invited.invitedBy)} asked them in as a guest. They have not been in yet.`}
+              </Text>
+            </Card>
           ))}
 
           {/* Same delay as Home's: a foreground drops the socket every time,

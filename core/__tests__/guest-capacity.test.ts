@@ -2,12 +2,13 @@ import {
   canAnswerKnock,
   canManageGuest,
   canRequestSpeech,
+  canWithdrawGuestInvite,
   createChannel,
   reduce,
 } from '../channel';
 import { MAX_CHANNEL_GUESTS, MAX_SPEAKING_GUESTS } from '../constants';
-import { guestCount, speakingGuests } from '../guests';
-import type { ChannelAction, ChannelState, Guest } from '../types';
+import { guestCount, guestsPromised, pendingGuests, speakingGuests } from '../guests';
+import type { ChannelAction, ChannelState, Guest, InvitedGuest } from '../types';
 
 /**
  * What a full room refuses, and what it must go on allowing.
@@ -50,6 +51,31 @@ function withGuests(n: number): ChannelState {
   let state = alone();
   for (let i = 0; i < n; i += 1) {
     state = act(state, { type: 'GUEST_ENTERED', guest: guest(`guest_${i}`) });
+  }
+  return state;
+}
+
+const invited = (
+  id: string,
+  overrides: Partial<InvitedGuest> = {}
+): InvitedGuest => ({
+  id,
+  name: id,
+  accountId: `acct_${id}`,
+  invitedBy: ALICE,
+  invitedAt: T0,
+  expiresAt: T0 + 6 * 60 * 60 * 1000,
+  ...overrides,
+});
+
+/** A room with `n` invitations out and nobody in it but Alice. */
+function withInvites(n: number): ChannelState {
+  let state = alone();
+  for (let i = 0; i < n; i += 1) {
+    state = act(state, {
+      type: 'GUEST_INVITED',
+      invited: invited(`guest_${i}`),
+    } as ChannelAction);
   }
   return state;
 }
@@ -98,8 +124,8 @@ describe('the room holds forty guests', () => {
   it('takes the control off a member rather than refusing the tap', () => {
     // The refusal lives in `GUEST_ENTERED`; this is the half that means a
     // member never taps *answer* and is told no afterwards.
-    expect(canAnswerKnock(withGuests(MAX_CHANNEL_GUESTS - 1), ALICE)).toBe(true);
-    expect(canAnswerKnock(withGuests(MAX_CHANNEL_GUESTS), ALICE)).toBe(false);
+    expect(canAnswerKnock(withGuests(MAX_CHANNEL_GUESTS - 1), ALICE, T0)).toBe(true);
+    expect(canAnswerKnock(withGuests(MAX_CHANNEL_GUESTS), ALICE, T0)).toBe(false);
   });
 
   it('frees a place when somebody leaves', () => {
@@ -207,5 +233,80 @@ describe('two guests hold microphones', () => {
     });
     expect(back.guests['guest_0'].maySpeak).toBe(true);
     expect(speakingGuests(back)).toBe(MAX_SPEAKING_GUESTS);
+  });
+});
+
+describe('an invitation occupies what it promises', () => {
+  /*
+    **The hole this closes.** The ceiling used to be counted in two places
+    that counted different things: the server added the pending rows when an
+    invitation was made, and the reducer counted only the room. So forty
+    invitations and forty knocks admitted eighty claims on a forty-seat room,
+    and thirty-nine people were turned away one at a time on arrival — each
+    having been told they were invited.
+  */
+  it('counts against the forty before anybody walks in', () => {
+    const full = withInvites(MAX_CHANNEL_GUESTS);
+    expect(guestCount(full)).toBe(0);
+    expect(guestsPromised(full, T0)).toBe(MAX_CHANNEL_GUESTS);
+    // So the door is shut, though the room is empty of guests.
+    expect(canAnswerKnock(full, ALICE, T0)).toBe(false);
+  });
+
+  it('is not counted twice by the person it belongs to', () => {
+    // The offer and the seat are one `guest_sessions` row. Walking in on your
+    // own invitation must convert rather than add, or the last invitee of
+    // forty would be refused by their own invitation.
+    const full = withInvites(MAX_CHANNEL_GUESTS);
+    const walked = act(full, {
+      type: 'GUEST_ENTERED',
+      guest: guest('guest_0'),
+    });
+    expect(guestCount(walked)).toBe(1);
+    expect(guestsPromised(walked, T0)).toBe(MAX_CHANNEL_GUESTS);
+    expect(walked.guestInvites?.guest_0).toBeUndefined();
+  });
+
+  it('refuses a stranger at the door of a room that is promised out', () => {
+    const full = withInvites(MAX_CHANNEL_GUESTS);
+    const walked = act(full, {
+      type: 'GUEST_ENTERED',
+      guest: guest('somebody-else'),
+    });
+    expect(guestCount(walked)).toBe(0);
+  });
+
+  it('gives the seat back when the offer expires, with nothing having run', () => {
+    // Read rather than swept: `core` has no clock, and a timer that has to
+    // fire to free a seat is a ceiling held by ghosts on the day it does not.
+    const full = withInvites(MAX_CHANNEL_GUESTS);
+    const later = T0 + 7 * 60 * 60 * 1000;
+    expect(guestsPromised(full, later)).toBe(0);
+    expect(canAnswerKnock(full, ALICE, later)).toBe(true);
+    expect(pendingGuests(full, later)).toHaveLength(0);
+  });
+
+  it('is taken back by any member with the room, full or not', () => {
+    // `canManageGuest`'s trap, from the other end: the guard that governs
+    // this must never carry a capacity term, because taking an invitation
+    // back is how a full room makes space.
+    const full = withInvites(MAX_CHANNEL_GUESTS);
+    expect(canWithdrawGuestInvite(full, ALICE, 'guest_0', T0)).toBe(true);
+    const taken = act(full, {
+      type: 'GUEST_INVITE_WITHDRAWN',
+      guestId: 'guest_0',
+    } as ChannelAction);
+    expect(guestsPromised(taken, T0)).toBe(MAX_CHANNEL_GUESTS - 1);
+    expect(canAnswerKnock(taken, ALICE, T0)).toBe(true);
+  });
+
+  it('is nobody in the room, which every other reader has to agree about', () => {
+    // The reason this is a second field rather than an entry in `guests`:
+    // everything that asks who is here reads that one, and an invitation
+    // announced to the media plane would be a person who never connected.
+    const one = withInvites(1);
+    expect(guestCount(one)).toBe(0);
+    expect(one.guests.guest_0).toBeUndefined();
+    expect(one.selfMuted.guest_0).toBeUndefined();
   });
 });

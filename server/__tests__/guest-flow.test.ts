@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { DISCONNECT_GRACE_MS } from '../../core/constants';
+import { guestsPromised } from '../../core/guests';
 import type {
   ClientMessage,
   GuestClientMessage,
@@ -1335,6 +1336,37 @@ describe('being asked in as a guest', () => {
     expect(
       app.channels.guests.reconnect(guestId, 'not-the-secret', clock)
     ).toBeUndefined();
+
+    member.close();
+  });
+
+  it('holds a seat in the room, so the door counts it', async () => {
+    /*
+      **The hole this closes, end to end.** The ceiling was counted when an
+      invitation was made — rows plus guests — and nowhere else, so the
+      reducer's own check at `GUEST_ENTERED` saw only the room. A room could
+      promise forty seats and then admit forty more people through the door.
+
+      One invitation is enough to show it: the offer is in the channel's
+      state, and `guestsPromised` is what every ceiling now reads.
+    */
+    const { alice, channelId, dana, member } = await withContact();
+    await invite(alice.token, channelId, dana.account.id);
+
+    const state = app.channels.get(channelId)!;
+    // In the room's picture of itself, and not in the room.
+    expect(Object.keys(state.guestInvites ?? {})).toHaveLength(1);
+    expect(Object.keys(state.guests)).toHaveLength(0);
+    expect(guestsPromised(state, clock)).toBe(1);
+
+    // And taking it back gives the seat straight back.
+    const guestId = Object.keys(state.guestInvites ?? {})[0]!;
+    await app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/guest-invites/${guestId}`,
+      headers: auth(alice.token),
+    });
+    expect(guestsPromised(app.channels.get(channelId)!, clock)).toBe(0);
 
     member.close();
   });

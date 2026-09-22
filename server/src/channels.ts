@@ -46,7 +46,7 @@ import {
 } from '../../core/channel';
 import { initialFloorState } from '../../core/floor';
 import {
-  guestCount,
+  guestsPromised,
   inRoom,
   roomOccupants,
   statedIdentities,
@@ -3507,6 +3507,18 @@ export class ChannelRegistry {
       // outstanding link at every deploy. A restart empties nothing anybody
       // chose to empty. See guests.ts.
       this.guests.channelEmptied(after.id, this.now());
+      // **And the invitations with them**, since 2026-09-22. The rows'
+      // expiries are pulled back by the call above, and the copies in
+      // `ChannelState` would otherwise go on claiming six more hours — which
+      // would show an offer on the roster that the server would refuse, and
+      // hold seats against a room that has none of its own left.
+      //
+      // Withdrawn rather than left to expire, because the entries' own
+      // `expiresAt` is what `guestsPromised` reads and it is now wrong. This
+      // is the one event that makes an invitation stale without touching it.
+      for (const guestId of Object.keys(after.guestInvites ?? {})) {
+        this.withdrawSeat(after.id, guestId);
+      }
     }
     // **Any arrival, not only the empty-to-occupied edge, since 2026-09-07.**
     //
@@ -5401,12 +5413,16 @@ export class ChannelRegistry {
       };
     }
     // **Seats in the room plus invitations out**, because forty people cannot
-    // be asked into a room that holds forty. `GUEST_ENTERED` is what actually
-    // enforces the ceiling — this only stops a member queueing a hundred
-    // people who would be turned away one at a time on arrival.
-    const promised =
-      guestCount(channel) + this.guests.pendingIn(channelId, now).length;
-    if (promised >= MAX_CHANNEL_GUESTS) {
+    // be asked into a room that holds forty.
+    //
+    // **Read off the state rather than counted from the table**, since
+    // 2026-09-22: a pending invitation is now in `ChannelState` and
+    // `guestsPromised` is the one thing that knows what the forty covers.
+    // Counting the rows here while the reducer counted only the room is how
+    // the ceiling came to be enforced in one place and not the other — the
+    // number was right at the moment of asking and nowhere else, so forty
+    // invitations and forty knocks let eighty claims into a forty-seat room.
+    if (guestsPromised(channel, now) >= MAX_CHANNEL_GUESTS) {
       return {
         ok: false,
         error: `Channels hold up to ${MAX_CHANNEL_GUESTS} guests.`,
@@ -5420,6 +5436,10 @@ export class ChannelRegistry {
       userId,
       now
     );
+    // Into the room's picture of itself, which is what makes the offer count
+    // against the forty everywhere the ceiling is asked rather than only
+    // here. See `guestsPromised`.
+    this.offerSeat(channelId, invited.session);
     this.push.notify(
       [contactId],
       notifications.invitedAsGuest(
@@ -5472,6 +5492,9 @@ export class ChannelRegistry {
       };
     }
     this.guests.eject(guestId, userId, this.now());
+    // And out of the room's picture, which is what gives the seat back to the
+    // forty rather than leaving a ghost holding one.
+    this.withdrawSeat(channelId, guestId);
     return { ok: true };
   }
 
@@ -5618,7 +5641,7 @@ export class ChannelRegistry {
   ): { ok: true; admitted: AdmittedGuest | null } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
-    if (!canAnswerKnock(channel, userId)) {
+    if (!canAnswerKnock(channel, userId, this.now())) {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
     const knock = channel.knocks.find((k) => k.id === knockId);
@@ -5648,6 +5671,38 @@ export class ChannelRegistry {
    * Puts an admitted guest in the room — on admission, and again on every
    * reconnection.
    */
+  /**
+   * Puts a pending invitation in the room's picture of itself.
+   *
+   * The counterpart of `enterGuest`, and the same shape for the same reason:
+   * the `guest_sessions` row is the durable half and the state is what the
+   * room can see. Called when an invitation is made, and once per outstanding
+   * invitation when a channel is revived — the state is volatile and the rows
+   * are not.
+   */
+  private offerSeat(channelId: string, session: GuestSessionRow): void {
+    if (!session.account_id || session.invited_at === null) return;
+    this.apply(channelId, '', {
+      type: 'GUEST_INVITED',
+      invited: {
+        id: session.id,
+        name: session.display_name,
+        accountId: session.account_id,
+        invitedBy: session.admitted_by,
+        invitedAt: session.invited_at,
+        expiresAt: session.expires_at,
+      },
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /** Takes one off the table: revoked, ejected, or spent. */
+  private withdrawSeat(channelId: string, guestId: string): void {
+    this.apply(channelId, '', {
+      type: 'GUEST_INVITE_WITHDRAWN',
+      guestId,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
   private enterGuest(channelId: string, session: GuestSessionRow): void {
     this.apply(channelId, '', {
       type: 'GUEST_ENTERED',
@@ -6444,6 +6499,20 @@ export class ChannelRegistry {
       ).trackFile;
       if (channel.playback.track && trackFile) {
         this.trackFiles.set(channel.id, trackFile);
+      }
+      // **The outstanding invitations, put back one action at a time.**
+      //
+      // The state blob does not carry them: `guestInvites` is volatile for
+      // the reason `guests` is — it describes who is expected rather than
+      // what the channel is, and the `guest_sessions` rows are the durable
+      // half. A restart that skipped this would give the room back forty
+      // seats it had already promised, and the offers would still be on
+      // everybody's Home.
+      //
+      // Before the baseline below, so that what is persisted matches what is
+      // in memory.
+      for (const session of this.guests.pendingIn(channel.id, this.now())) {
+        this.offerSeat(channel.id, session);
       }
       // After the track file, because `durableOf` reads it: writing the
       // baseline without it would make the next commit look like a change and

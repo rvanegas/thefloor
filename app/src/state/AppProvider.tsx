@@ -590,6 +590,8 @@ interface AppValue extends AppState {
   enterSeat: (
     channelId: string
   ) => Promise<{ guestId: string; secret?: string }>;
+  /** Takes back an invitation nobody has answered. */
+  withdrawGuestInvite: (channelId: string, guestId: string) => Promise<void>;
   /** Every link this channel has, for settings. */
   guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
   /**
@@ -2231,6 +2233,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const { guestId, secret } = await api.enterSeat(state.token, channelId);
         return { guestId, secret };
+      },
+
+      withdrawGuestInvite: async (channelId, guestId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.revokeGuestInvite(state.token, channelId, guestId);
       },
 
       guestLinks: async (channelId) => {
