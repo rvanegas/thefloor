@@ -2462,7 +2462,7 @@ function reduceAction(
       if (!canStartWatch(state, action.userId)) return state;
       return {
         ...state,
-        watch: startParty({
+        watch: startParty(state.watch, {
           videoId: action.videoId,
           url: action.url,
           durationMs: null,
@@ -2503,7 +2503,11 @@ function reduceAction(
           // a thing you are for a particular film, and the next one is a
           // question worth asking again rather than an answer inherited from
           // the last.
-          return { ...state, watch: stopParty(), watchingHere: [] };
+          //
+          // What it does not take with it is the history — see
+          // `WatchState.history`. The film that has just ended joins it, so
+          // the card that comes back empty still offers the way back to it.
+          return { ...state, watch: stopParty(watch), watchingHere: [] };
         case 'SET_WATCH_MUTE':
           // The enforced mute is refused here as well as in `setPartyMute`,
           // so that the reducer and the greyed button are reading one rule.

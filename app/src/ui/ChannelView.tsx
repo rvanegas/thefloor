@@ -587,6 +587,19 @@ export function ChannelView({
    */
   const [changing, setChanging] = useState(false);
   /**
+   * Whether the list of films this channel has watched before is open.
+   *
+   * **Local, transient and shut on every mount**, like `changing` above and
+   * for the same two reasons: opening a list is not an act on the channel, and
+   * the other people in the room have no business seeing somebody read it.
+   *
+   * Behind a press rather than always drawn, which is STYLE.md § *A card of
+   * many items asks for one of them* applied to a card whose subject is the
+   * film that is on — ten rows above the transport would be a wall in front of
+   * the thing the card is for, on a screen somebody opened to press Play.
+   */
+  const [pickingPast, setPickingPast] = useState(false);
+  /**
    * Whether the picture is filling this device.
    *
    * **Local to one device and to one moment of it**, like `changing` above and
@@ -1842,6 +1855,14 @@ export function ChannelView({
   // build meets between its release and the deploy that follows.
   const watch = channel.watch ?? initialWatchState();
   const party = watch.party;
+  /**
+   * The films this channel has watched before, newest first.
+   *
+   * `?? []` for the reason `watch` has its `?? initialWatchState()` — a server
+   * that predates the field sends snapshots without it, and a card offering
+   * nothing is what every card looked like before this.
+   */
+  const watchedBefore = watch.history ?? [];
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
   const mayStartWatch = canStartWatch(channel, me);
@@ -1908,6 +1929,48 @@ export function ChannelView({
     act({ type: 'START_WATCH', url });
     setChanging(false);
   };
+  /**
+   * Puts a film this channel has watched before back on.
+   *
+   * **The stored URL rather than the id**, which is what makes this the same
+   * act as pasting: `START_WATCH` carries a link and the server parses it with
+   * `parseYouTubeUrl`, so a row here goes through exactly the checks a
+   * clipboard does. Nothing has to trust the history, and there is no second
+   * way into a party for a video nobody has parsed.
+   */
+  const watchAgain = (url: string) => {
+    setWatchPasteError(null);
+    act({ type: 'START_WATCH', url });
+    setChanging(false);
+    setPickingPast(false);
+  };
+  /**
+   * One row per film the channel has watched, stacked down the card.
+   *
+   * Full-width buttons rather than a row of them, which is STYLE.md § *A
+   * choice of more than three goes down the page rather than across it* — and
+   * it is the shape the device picker a few hundred lines below already uses,
+   * for the same reason: the rungs are named things, and a name is what gets
+   * truncated first.
+   *
+   * **A film keeps whatever it was able to learn about itself.** The title is
+   * the one a player reported while it was on, so a party stopped in its first
+   * seconds is remembered nameless — the row then says so rather than drawing
+   * the URL, a link being machine text that nobody can read back to a film.
+   * The length sits under the name where it is known, which is the one fact
+   * that separates two versions of the same thing.
+   */
+  const pastFilmRows = watchedBefore.map((film) => (
+    <Button
+      key={film.videoId}
+      label={film.title ?? 'A film nobody named'}
+      sublabel={
+        film.durationMs === null ? undefined : formatDuration(film.durationMs)
+      }
+      disabled={!mayStartWatch}
+      onPress={() => watchAgain(film.url)}
+    />
+  ));
   // Two questions, and the interface needs both. `muteRequested` is what the
   // toggle shows — a button that flipped itself back every time the video
   // paused would be a control fighting its owner. `partyMuted` is what is
@@ -4283,6 +4346,22 @@ export function ChannelView({
                         }}
                       />
                     </View>
+                    {/*
+                      **No second disclosure here.** *Change video* is already
+                      the press that says somebody means to empty four other
+                      people's picture, so the list is open behind it — asking
+                      twice more for a film the channel has already watched
+                      would be a deeper way in than the clipboard, which is
+                      the one that can put on anything at all.
+                    */}
+                    {pastFilmRows.length > 0 ? (
+                      <>
+                        <Text style={type.muted}>
+                          Or put one of these back on.
+                        </Text>
+                        {pastFilmRows}
+                      </>
+                    ) : null}
                   </>
                 ) : (
                   <View style={styles.buttonRow}>
@@ -4512,6 +4591,41 @@ export function ChannelView({
                   disabled={!mayStartWatch}
                   onPress={() => void pasteWatchUrl()}
                 />
+                {/*
+                  **The way back to something this channel has already
+                  watched.**
+
+                  A link arrives on a clipboard and is gone by the next
+                  evening, and until this existed the only route back to
+                  Tuesday's film was to go and find the video again — which
+                  the channel could have answered, having watched it. See
+                  `WatchState.history`.
+
+                  Behind a press, and shut every time the card is drawn: the
+                  card's subject is starting something, and a list of ten old
+                  films standing above the one commitment on it would be the
+                  wall STYLE.md § *A card of many items* is about. The count
+                  is in the label so that opening it is a decision somebody
+                  can make without opening it.
+                */}
+                {pastFilmRows.length > 0 ? (
+                  <>
+                    <Button
+                      label={
+                        pickingPast
+                          ? 'Hide what we have watched'
+                          : `Watched before (${pastFilmRows.length})`
+                      }
+                      sublabel={
+                        pickingPast
+                          ? undefined
+                          : 'Puts one of them back on, without a link'
+                      }
+                      onPress={() => setPickingPast(!pickingPast)}
+                    />
+                    {pickingPast ? pastFilmRows : null}
+                  </>
+                ) : null}
                 {/*
                   Nothing offers a screen until there is something to show on
                   one. The choice belongs to a film — it is cleared when one

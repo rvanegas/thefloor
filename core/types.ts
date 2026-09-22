@@ -490,6 +490,35 @@ export interface WatchState {
    * player needs to say which of those two is the lie.
    */
   failure: string | null;
+  /**
+   * The films this channel has watched, newest first, the current one excluded.
+   *
+   * **A list to choose from, which is the whole of what it is for.** A link
+   * arrives on a clipboard and then it is gone — somebody who watched half of
+   * something on Tuesday has no way back to it on Wednesday but to go and find
+   * the video again, and the channel already knows which video it was. So what
+   * a party leaves behind when it is replaced or stopped is kept, and starting
+   * one from a row here is the same act as pasting the link that made it.
+   *
+   * **A property of the channel and not of any person**, like `mutedAll` above
+   * and for a plainer reason: the thing being remembered is what *we* watched.
+   * Everybody in the room saw it, everybody's card offers it back, and an
+   * account that carried its own list would be one where the person who pasted
+   * the link is the only one who can find it again.
+   *
+   * Deduplicated by `videoId` and capped at `MAX_WATCH_HISTORY` — see
+   * `rememberFilm`, which is the only thing that writes it. Entries are
+   * `WatchParty`s because that is what they were: the same id, the same URL as
+   * pasted, and whatever the party managed to learn about its length and its
+   * name before it ended. A film nobody ever played is remembered nameless,
+   * which is the same card the party itself drew.
+   *
+   * **It survives the party**, and is the one thing in this state that does.
+   * `stopParty` returns the initial state for everything else precisely so a
+   * mute cannot outlive what it was for; the history is not about the run that
+   * has ended, so it is carried across rather than cleared.
+   */
+  history: WatchParty[];
 }
 
 export interface ChannelState {

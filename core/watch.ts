@@ -1,5 +1,6 @@
 import {
   MAX_FILM_TITLE,
+  MAX_WATCH_HISTORY,
   WATCH_DRIFT_MS,
   WATCH_LENGTH_SLACK_MS,
   WATCH_STALL_MS,
@@ -31,6 +32,7 @@ export function initialWatchState(): WatchState {
     mutedAll: false,
     enforced: false,
     failure: null,
+    history: [],
   };
 }
 
@@ -84,16 +86,57 @@ export function hasReachedEnd(watch: WatchState, now: number): boolean {
  * somebody presses Play. Between them, the first thing this default can
  * possibly do is the thing it is for.
  */
-export function startParty(party: WatchParty): WatchState {
+export function startParty(watch: WatchState, party: WatchParty): WatchState {
   return {
+    ...initialWatchState(),
     party,
     status: 'paused',
-    positionMs: 0,
-    startedAt: null,
     mutedAll: true,
-    enforced: false,
-    failure: null,
+    // What was on goes to the history on its way out, which is what makes a
+    // swap — the ordinary way one film follows another — the thing that fills
+    // the list. See `rememberFilm`.
+    history: rememberFilm(watch),
   };
+}
+
+/**
+ * The history this party leaves behind it: whatever was on, at the front.
+ *
+ * **Written when a party ends rather than when one starts**, which is what
+ * keeps the entries worth reading. A party learns its name and its length
+ * from the first player that can say, seconds after the link is pasted, so an
+ * entry banked at the start would be a bare id for ever while the same film
+ * sat on the card with its title under the progress bar.
+ *
+ * Deduplicated by `videoId` rather than by URL: the same video reached by a
+ * share link and by a watch link is one film, and two rows offering it would
+ * be a list that fills up with the same evening. The film that is leaving
+ * wins the position, so the list is in the order things were last watched.
+ *
+ * **But a fact already learnt is never lost to one that was not**, which is
+ * the one place this is more than a move-to-front. A party stopped before any
+ * player could name it would otherwise replace a named entry for the same
+ * video with a nameless one — the history going backwards on a tap somebody
+ * made by accident. Each half falls back to what the old entry knew, and the
+ * two are a pair from the same video, so there is no way to end up with one
+ * film's name against another's length.
+ *
+ * Idle in, unchanged out: there is nothing to remember about a channel that
+ * was watching nothing.
+ */
+export function rememberFilm(watch: WatchState): WatchParty[] {
+  const leaving = watch.party;
+  if (!leaving) return watch.history;
+  const seen = watch.history.find((film) => film.videoId === leaving.videoId);
+  const entry: WatchParty = {
+    ...leaving,
+    durationMs: leaving.durationMs ?? seen?.durationMs ?? null,
+    title: leaving.title ?? seen?.title ?? null,
+  };
+  return [
+    entry,
+    ...watch.history.filter((film) => film.videoId !== leaving.videoId),
+  ].slice(0, MAX_WATCH_HISTORY);
 }
 
 /**
@@ -129,8 +172,14 @@ export function partyWithholds(watch: WatchState): boolean {
   return watch.mutedAll && watch.status === 'playing';
 }
 
-export function stopParty(): WatchState {
-  return initialWatchState();
+/**
+ * Ends the party, keeping only what the party was not about.
+ *
+ * The initial state for everything else — the mute above says why — and the
+ * history carried across, the film that has just ended at the front of it.
+ */
+export function stopParty(watch: WatchState): WatchState {
+  return { ...initialWatchState(), history: rememberFilm(watch) };
 }
 
 /**

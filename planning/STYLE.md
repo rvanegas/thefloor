@@ -596,8 +596,9 @@ self-muted person whose claim is running — so they may not share an edge.
 others.** Otherwise the state card is two pixels larger than its neighbours.
 ProfileView's `channel` and Home's `inviteQuiet` both do this.
 
-**A card of many items asks for one of them.** There is one such card —
-Home's introduction, since 2026-09-13 — and it is the pattern to copy rather
+**A card of many items asks for one of them.** There are two such cards —
+Home's introduction, since 2026-09-13, and the watch card's *Watched before*,
+since 2026-09-22 — and the first is the pattern to copy rather
 than to invent around: the item being asked for is drawn whole, the items
 behind the reader are a title each in `textMuted`, and the rest are behind a
 *See more* at the foot, which says *See less* while it is open. The
@@ -606,6 +607,20 @@ read on the way past is asking *this one next*, and one that stayed open would
 be the wall again on a screen somebody opened for another reason. The items
 keep their order in every state; a card that reshuffles as things are ticked
 is a different card each time it is read.
+
+**The watch card's list is the same shape with the disclosure doing all of the
+work**, which is what the rule licenses rather than a second pattern: every
+film a channel has watched is behind *Watched before (n)*, shut on every mount
+for the reason the introduction's *See more* is, and the rows underneath it are
+full-width `Button`s one per film — § *A choice of more than three goes down
+the page rather than across it*, the names being what truncates first. The
+count is in the label so that opening it is a decision somebody can make
+without opening it. A film the channel could never name says so in its label
+rather than drawing its URL, a link being machine text nobody can read back to
+a film. On a card with a party loaded the list is open behind *Change video*
+instead and has no disclosure of its own: that press is already the deliberate
+one, and a second would make the known thing harder to reach than the
+clipboard.
 
 ### Rows pack or spread, and it means something
 

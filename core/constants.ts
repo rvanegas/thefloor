@@ -696,3 +696,19 @@ export const PRESENCE_LIFETIME_MS = 5 * 60 * 1000;
  * file nobody decodes, and the check is `size` against a number on both ends.
  */
 export const MAX_TRACK_BYTES = 200 * 1024 * 1024;
+
+/**
+ * How many films a channel remembers having watched.
+ *
+ * **A list somebody chooses from rather than an archive**, which is what sets
+ * the number: the watch card offers these as rows to press, and a list long
+ * enough to scroll is one nobody reads to the bottom of. Ten is two or three
+ * evenings, which is the span over which *the thing we were watching last
+ * week* is still a thing anybody can name.
+ *
+ * It also bounds what the history costs, which matters more here than the
+ * screen does: the history rides in every channel snapshot and is written to
+ * the durable blob on every change, so an uncapped one would grow without
+ * limit in a structure that is sent to every device in the room.
+ */
+export const MAX_WATCH_HISTORY = 10;

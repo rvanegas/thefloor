@@ -108,6 +108,7 @@ caused; the list carries the meaning.
 - **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *at the film* — the watch card with a film this device can expand, and *full screen* — where both orientations are permitted. A tablet and a browser window are never turned. It is what makes *turned* readable as a gesture, and narrowing it from *full screen alone* to *the film* is what gave the turn back its way in. `usePortraitUnlessAtTheFilm` in `watch/orientation.ts`; on the web a no-op
 - **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say, the way its length is, and never asked of YouTube
+- **Watched before** — The films a channel has watched, newest first, offered back on the watch card as rows to press since 2026-09-22; a property of the channel rather than of any person, deduplicated by video and ten deep, holding whatever each party managed to learn about its name and its length before it ended. A row is pressed the way a link is pasted — it carries the stored URL back through the same parse — and the list stands behind a press on an idle card and open behind *Change video* on a loaded one. `WatchState.history`
 - **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
@@ -2009,6 +2010,18 @@ sentence about the floor.
 pausing gives them all back — you pause a film to talk about it. It writes
 nobody's *self-mute*, and it is not the *floor*: it withholds everybody and
 confers nothing.
+
+**What the channel has watched is kept, since 2026-09-22**, and offered back
+as rows on the watch card — *watched before*. A link arrives on a clipboard
+and is gone by the next evening; the channel is the thing that knows which
+video it was, so a party that ends joins a list of ten, newest first, and
+pressing a row is the same act as pasting the link that made it. The entry
+holds whatever the party learnt about itself while it was on — its name and
+its length, from the first player that could say — so a film stopped in its
+first seconds is remembered nameless, and a later run that learns nothing
+never overwrites what an earlier one knew. It is the channel's and not any
+person's, for the plain reason that what is being remembered is what
+everybody in the room saw.
 
 **Since 2026-09-17 the film plays inside the app**, on whichever device you
 choose — a WebView on a phone, an iframe on the web. It is still YouTube's own

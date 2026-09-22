@@ -53,6 +53,8 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 264 | `tapToLook` / `tapToStepIn` sent as constants | `server/src/settings-wire.ts`, `server/src/app.ts` |
 | 272 | `seat/enter`'s `secret` optionality | `app/src/ui/ChannelsView.tsx` |
 | 272 | `ChannelState.guestInvites` optionality | `core/types.ts`, `core/guests.ts`, `core/channel.ts` |
+| 274 | `WatchState.history` optionality | `app/src/ui/ChannelView.tsx` |
+| — | `WatchState.history` revived as empty | `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -692,3 +694,47 @@ clock entirely.
 
 Gate 264 because `build/263` is already tagged: the client that no longer
 reads either name ships in the next upload.
+
+---
+
+## Gate 274 — `WatchState.history` optionality
+
+The films a channel has watched shipped on 2026-09-22 —
+`decisions/2026-09-22-the-channel-remembers-what-it-watched.md`. It is a new
+field on the watch state, which rides whole inside the channel snapshot, so
+the wire change is additive in the direction that matters: a build that has
+never heard of it ignores it.
+
+**The other direction is the shim.** A build that draws the list meets a
+server that predates the field between its own release and the deploy that
+follows, and `watch.history` is then undefined where the type says an array —
+so `watchedBefore` in `app/src/ui/ChannelView.tsx` is `watch.history ?? []`,
+which draws the card exactly as it was drawn before this existed. It is the
+same `??` the line above it makes about `watch` itself, and for the same
+reason.
+
+**What must not be deleted with it**: not `watch.history ?? []`'s neighbour
+`channel.watch ?? initialWatchState()`, which answers to the watch party
+shipping rather than to this and has no gate recorded. Nor the emptiness
+check around the rows — a channel that has watched nothing is the ordinary
+state of a new channel, for ever, and is not a compatibility case at all.
+
+Gate 274 because `build/273` is already tagged: the client that draws the list
+ships in the next upload.
+
+---
+
+## No gate — `WatchState.history` revived as empty
+
+`revivedWatch` in `server/src/channels.ts` reads the history out of the
+durable blob as `stored?.history ?? []`, and normalises each entry's
+`durationMs` and `title` to null the way it already normalises a stored
+party's title.
+
+**Not a client shim and it never retires.** Every channel row written before
+2026-09-22 has a watch blob with no history in it, and those rows are not
+rewritten until something in the channel changes — a channel nobody has
+opened since is one this reads for ever. `MIN_SUPPORTED_BUILD` says nothing
+about what is on disk, so the floor moving does not free it; this is the same
+kind of entry as `WatchParty.title` revived as null, and dies only with a
+migration that rewrites every row, which nothing here does.

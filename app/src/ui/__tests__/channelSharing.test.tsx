@@ -1367,6 +1367,75 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  /** A channel with one film behind it and nothing on. */
+  function watchedBefore() {
+    return watching((s) =>
+      reduce(
+        reduce(
+          s,
+          { type: 'WATCH_READY', userId: ME, durationMs: 600_000, title: 'Casablanca' },
+          NOW
+        ),
+        { type: 'STOP_WATCH', userId: ME },
+        NOW
+      )
+    );
+  }
+
+  it('offers nothing to choose from before anything has been watched', () => {
+    showChannel(channelOf());
+    const tree = open();
+    expect(findButton(tree, 'Watched before')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('puts a film the channel has watched back on, without a link', async () => {
+    showChannel(watchedBefore());
+    const tree = open();
+    // Shut on arrival: the card's subject is starting something, and the list
+    // stands behind one press so it is not a wall above the commitment.
+    expect(findButton(tree, 'Casablanca')).toBeUndefined();
+    act(() => findButton(tree, 'Watched before (1)')!.props.onPress());
+
+    await press(tree, 'Casablanca');
+    // The stored URL, which is what makes this the same act as a paste: the
+    // server parses it with `parseYouTubeUrl` either way.
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'START_WATCH',
+      url: URL,
+    });
+    act(() => tree.unmount());
+  });
+
+  it('offers the same films while a party is being swapped', async () => {
+    // *Change video* is the press that says somebody means to empty four
+    // other people's picture, so the list is open behind it rather than
+    // behind a second disclosure of its own.
+    showChannel(
+      watching((s) =>
+        reduce(
+          s,
+          {
+            type: 'START_WATCH',
+            userId: ME,
+            videoId: 'abcdefghijk',
+            url: 'https://youtu.be/abcdefghijk',
+          },
+          NOW
+        )
+      )
+    );
+    const tree = open();
+    act(() => findButton(tree, 'Change video')!.props.onPress());
+    await press(tree, 'A film nobody named');
+
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'START_WATCH',
+      url: URL,
+    });
+    act(() => tree.unmount());
+  });
+
   it('asks nothing about screens before there is a film to show', () => {
     // The choice belongs to a film: it is cleared when one ends and asked
     // again for the next, so an idle card has nothing to ask.

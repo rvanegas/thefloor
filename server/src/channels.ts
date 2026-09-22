@@ -362,8 +362,26 @@ function silenceSignature(
  * the same one an interrupted recording's duration errs in.
  */
 function revivedWatch(stored: ChannelState['watch'] | undefined): ChannelState['watch'] {
-  if (!stored?.party) return initialWatchState();
+  /*
+    **The history comes back whether or not a party does**, which is why it is
+    read before the early return rather than beside the fields below. It is
+    the one part of this state that is not about the run that was interrupted
+    — a channel that was watching nothing still has evenings behind it, and a
+    restart that emptied the list would be the one event that can lose them.
+
+    Absent on every row written before the history shipped, and on those it
+    reads as empty: a channel with no remembered films is exactly what those
+    channels are. Each entry is normalised the way a stored party is, for the
+    same reason — see `title` below.
+  */
+  const history = (stored?.history ?? []).map((film) => ({
+    ...film,
+    durationMs: film.durationMs ?? null,
+    title: film.title ?? null,
+  }));
+  if (!stored?.party) return { ...initialWatchState(), history };
   return {
+    history,
     // **Normalised rather than carried whole**, for the one field a row
     // written before 2026-09-20 does not have: a stored party has no `title`,
     // and an undefined where the type says `string | null` is a party no

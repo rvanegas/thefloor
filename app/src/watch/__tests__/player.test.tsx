@@ -52,6 +52,7 @@ const watch: WatchState = {
   mutedAll: false,
   enforced: false,
   failure: null,
+  history: [],
 };
 
 let tree: ReactTestRenderer | null = null;
