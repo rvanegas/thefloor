@@ -16,7 +16,7 @@ import {
  * the only division of the problem that leaves anything proven at all.
  */
 
-const LISTS: List[] = ['channels', 'contacts', 'support'];
+const LISTS: List[] = ['channels', 'contacts', 'podcasts', 'support'];
 
 const ADDRESSES: Address[] = LISTS.flatMap((list) =>
   (['none', 'settings', 'standings', 'support', 'help'] as const).map((named) => ({
@@ -87,6 +87,26 @@ describe('addresses and their paths', () => {
     expect(addressOfPath('/channels/support')).toEqual({
       list: 'channels',
       named: 'support',
+    });
+  });
+
+  /**
+   * The Podcasts tab, which shares its spelling with a page the *server*
+   * serves at the root — the directory the tab shows. Pinned because the two
+   * look like one address and are two: this one lives under `BASE`, and a
+   * reading of `/podcasts` that came back as anything but the tab would mean
+   * the app had started routing on the server's spelling.
+   */
+  it('spells the Podcasts tab, which is not the page it shows', () => {
+    expect(pathOf({ list: 'podcasts', named: 'none' })).toBe('/podcasts');
+    expect(addressOfPath('/podcasts')).toEqual({
+      list: 'podcasts',
+      named: 'none',
+    });
+    // And it carries what is open over it like any other frame.
+    expect(addressOfPath('/podcasts/settings')).toEqual({
+      list: 'podcasts',
+      named: 'settings',
     });
   });
 

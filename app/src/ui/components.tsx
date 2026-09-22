@@ -725,11 +725,12 @@ export function segmentRows<T>(
  * after that, so neither half is ever dropped — an icon-only tab bar is one
  * where the third tab is a guess.
  *
- * `icon` is optional per option and absent for Home's two-way switch, which
- * has two halves of one question rather than six destinations; the labels
- * carry that on their own and a glyph over each would be decoration. A caller
- * gives every option one or none: a row with a gap in it draws two different
- * heights of segment.
+ * `icon` is optional per option, and the one set that still passes none is
+ * the watch card's `choice` — two halves of one question rather than a set of
+ * destinations, where a glyph over each would be decoration. Home's tab strip
+ * had none either while it was two tabs and then three, on that same argument;
+ * it grew them on 2026-09-22 with its fourth. **A caller gives every option one
+ * or none**: a row with a gap in it draws two different heights of segment.
  *
  * Extracted from HomeView's channels/contacts switch when the channel screen
  * needed the same thing, so the two cannot drift apart.

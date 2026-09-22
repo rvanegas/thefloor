@@ -14,6 +14,10 @@ import type { ColorValue } from 'react-native';
  * Its third glyph is the record dot, which is `RecordingsIcon` above — the tab
  * and the control it offers are the same idea and take the same shape.
  *
+ * Then the four of the home tier's tabs, which were words until 2026-09-22,
+ * when a fourth tab arrived and the strip grew glyphs rather than let one tab
+ * carry one alone.
+ *
  * The last is the tick inside the sign-in screen's opt-in box, which was never
  * a word: a checkbox is a shape or it is not a checkbox.
  *
@@ -465,6 +469,125 @@ export function WatchIcon({
       <Path d="M12 17v4" />
       <Path d="M8 21h8" />
       <Rect x="2" y="3" width="20" height="14" rx="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * The home tier's four tabs, below.
+ *
+ * Added 2026-09-22 with the Podcasts tab, and the other three came with it:
+ * a strip where one tab carried a glyph and three did not would read as one
+ * tab having been singled out. They follow the channel screen's tabs exactly
+ * — same grid, same stroke, same `Glyph` — and name what the tab *holds*
+ * rather than what you do there, for the reason that set gives.
+ *
+ * **None of them may be `lucide/users`**, which `PeopleIcon` already spends on
+ * the channel's roster. Contacts and People are the two lists of people this
+ * application has, and they are different lists; two tabs in two strips
+ * wearing one shape would be the app saying they are the same one.
+ */
+
+/**
+ * Everybody you can reach, by name. `lucide/book-user`.
+ *
+ * An address book, which is what the tab is: a list somebody keeps, in
+ * alphabetical order, of people rather than of conversations. `lucide/users`
+ * is the obvious shape and is taken — see above — and it would have been
+ * wrong here anyway: a crowd is who is in a room, and this is a book.
+ */
+export function ContactsIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M15 13a3 3 0 1 0-6 0" />
+      <Path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+      <Circle cx="12" cy="8" r="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * The conversations you are part of. `lucide/messages-square`.
+ *
+ * Two bubbles, overlapping: a channel is a conversation with somebody, and the
+ * list of them is the list of conversations. It says nothing about the medium
+ * and that is deliberate — a microphone is what `MicIcon` is for and is a
+ * control rather than a place, and a room this app draws in violet is the
+ * floor rather than the channel.
+ */
+export function ChannelsIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      <Path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" />
+    </Glyph>
+  );
+}
+
+/**
+ * What has been published, for anybody. `lucide/podcast`.
+ *
+ * A microphone under broadcast arcs, which is the one glyph in this file that
+ * names a whole medium rather than a thing on a screen — and the tab is named
+ * after that medium too. It is deliberately not `MicIcon`: that one is your
+ * own microphone, a control with two states, and this is a place.
+ */
+export function PodcastsIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M12 17v4" />
+      <Path d="M18 11a6 6 0 0 0-3-5.197" />
+      <Path d="M2 11a10 10 0 0 1 5-8.662" />
+      <Path d="M22 11a10 10 0 0 0-5-8.662" />
+      <Path d="M6 11a6 6 0 0 1 3-5.197" />
+      <Path d="M9 21h6" />
+      <Rect x="10" y="9" width="4" height="8" rx="2" />
+    </Glyph>
+  );
+}
+
+/**
+ * Where to ask, and where to chip in. `lucide/life-buoy`.
+ *
+ * The ring thrown to somebody in the water, which is what every application
+ * this side of 1995 has drawn over the word *support*. That convention is the
+ * whole argument for it: the tab holds two senses of one word — get help, and
+ * help the project — and a shape everybody already reads as *help* keeps the
+ * more useful of the two in front.
+ */
+export function SupportIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Circle cx="12" cy="12" r="10" />
+      <Path d="m4.93 4.93 4.24 4.24" />
+      <Path d="m14.83 9.17 4.24-4.24" />
+      <Path d="m14.83 14.83 4.24 4.24" />
+      <Path d="m9.17 14.83-4.24 4.24" />
+      <Circle cx="12" cy="12" r="4" />
     </Glyph>
   );
 }

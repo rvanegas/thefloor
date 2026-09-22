@@ -101,8 +101,15 @@ export const NO_DETAIL: Detail = { kind: 'none' };
  * took on 2026-09-04: `/channels`, `/contacts` and `/support` are the frames,
  * and anything an address can name beyond them hangs off one of them. Nothing
  * here needs to know that; `webRoute.ts` does.
+ *
+ * **`'podcasts'` is the fourth, and it is the only body that is not about this
+ * account at all.** Added 2026-09-22. Channels and Contacts are the people you
+ * can reach and Support is the application; this one is every channel that has
+ * made itself public, which is a place on the web that existed before the app
+ * had a way in. It sits between the two lists and Support because that is the
+ * order of how far it is from you.
  */
-export type List = 'channels' | 'contacts' | 'support';
+export type List = 'channels' | 'contacts' | 'podcasts' | 'support';
 
 /** The channel whose screen is showing, or none — read in four places. */
 export function channelOf(detail: Detail): string | null {

@@ -139,14 +139,24 @@ jest.mock('@livekit/react-native', () => ({
  * A view that draws nothing and answers `postMessage`, which is the whole of
  * what a test needs from it: what is worth asserting about a follower is which
  * instruction a transport produces, and that lives in core.
+ *
+ * `source` is carried through onto the view and nothing else is. The Podcasts
+ * tab is a frame around a page of this server's, so *which page* is the only
+ * thing about it worth pinning, and a test cannot see it unless it comes out
+ * the other side. Everything else stays dropped: a mock that forwarded a
+ * player's handlers would be one a test could drive instead of driving the
+ * follower.
  */
 jest.mock('react-native-webview', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    WebView: React.forwardRef((_props, ref) => {
+    WebView: React.forwardRef((props, ref) => {
       React.useImperativeHandle(ref, () => ({ postMessage: jest.fn() }));
-      return React.createElement(View, { testID: 'webview' });
+      return React.createElement(View, {
+        testID: 'webview',
+        source: props.source,
+      });
     }),
   };
 });

@@ -55,7 +55,7 @@ provider, and no component library.
 - **`components.tsx`** — `Button`, `IconButton`, `Field`, `Checkbox`, `Screen`,
   `Card`, `SectionLabel`, `Segmented`, `Empty`, plus the recording row and the
   transcript search that are shared between screens.
-- **`icons.tsx`** — the sixteen glyphs, as vendored Lucide path data.
+- **`icons.tsx`** — the twenty glyphs, as vendored Lucide path data.
 - **`layout.ts`** / **`Panes.tsx`** — the breakpoint, the list width, and which
   pane a subtree is in.
 
@@ -467,6 +467,11 @@ what the count rule did.
 An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
+Both tab strips carry icons — the channel screen's six since 2026-09-12, Home's
+four since 2026-09-22, when a fourth tab arrived and a strip where one tab
+carried a glyph and three did not would have read as one tab singled out. The
+watch card's `choice` is the one set that still passes none, two halves of one
+question needing no picture.
 
 **Two things wear this shape, and `role` says which.** `tabs`, the default,
 swaps the body of the screen — the two tab strips. `choice` answers a
@@ -1142,7 +1147,7 @@ It carries pane identity and never tokens.
 
 ## Icons
 
-Thirteen glyphs, **vendored** from `lucide-static@1.38.0` as path data in
+Twenty glyphs, **vendored** from `lucide-static@1.38.0` as path data in
 `icons.tsx`, each carrying the name it came from. Not `lucide-react-native`:
 Metro does not tree-shake by default on SDK 54, so the barrel import that
 reads most naturally risks dragging a 25MB package into the graph.

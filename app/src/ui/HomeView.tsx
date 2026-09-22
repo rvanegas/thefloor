@@ -10,11 +10,18 @@ import {
 import { useApp } from "../state/AppProvider";
 import { answersWaiting } from "../state/helpSeen";
 import { Button, Card, IconButton, Screen, Segmented } from "./components";
-import { SettingsIcon } from "./icons";
+import {
+  ChannelsIcon,
+  ContactsIcon,
+  PodcastsIcon,
+  SettingsIcon,
+  SupportIcon,
+} from "./icons";
 import { ChannelsView, nearbyChannels } from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
 import { ContactsView, answerableRequests } from "./ContactsView";
 import { Introduction } from "./Introduction";
+import { PodcastsView } from "./PodcastsView";
 import { ProfileView } from "./ProfileView";
 import type { List } from "./detail";
 import { dismissInstallNotice, installNoticeDismissed } from "./installNotice";
@@ -22,7 +29,8 @@ import { colors, measure, radius, spacing, type } from "./theme";
 
 /**
  * What the app opens on: a frame with a pinned top, and inside it one of the
- * two lists of people you can reach — or the Support tab.
+ * two lists of people you can reach — or the Podcasts directory, or the
+ * Support tab.
  *
  * **This is a tier, and it is new on 2026-09-01.** Home used to *be* the
  * channel list, and Contacts a screen you opened from a button in its header
@@ -43,8 +51,9 @@ import { colors, measure, radius, spacing, type } from "./theme";
  * this. See planning/decisions/DECISIONS.md § *The tier above both lists*.
  *
  * **Three things are pinned and one scrolls.** The title and Settings, the
- * room you are in if there is one, and the switch between the tier's three
- * bodies; then the selected body, scrolling.
+ * room you are in if there is one, and the switch between the tier's four
+ * bodies; then the selected body, scrolling — except Podcasts, which is a page
+ * that fills rather than a column that scrolls.
  *
  * **The third body is Support**, added because Help and Chip in had been the
  * tail of whichever list was showing since they were promoted here on
@@ -73,7 +82,7 @@ export function HomeView({
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
-  /** Which of the three bodies is showing. See `List` in `ui/detail.ts`. */
+  /** Which of the four bodies is showing. See `List` in `ui/detail.ts`. */
   list: List;
   onList: (list: List) => void;
   onEnterChannel: (channelId: string) => void;
@@ -450,8 +459,21 @@ export function HomeView({
   );
 
   return (
-    <Screen header={header} contentStyle={styles.container}>
-      {list === "support" ? (
+    <Screen
+      header={header}
+      /*
+        The Podcasts tab is the one body that is not a column of cards: it is a
+        page, and it fills what the tier leaves it rather than scrolling inside
+        it. `fill` is `flexGrow` and nothing else, which gives a `flex: 1` child
+        of the scroll a real height; the padding the other bodies take is the
+        page's own business, it having brought its own margins. See
+        `PodcastsView`.
+      */
+      contentStyle={list === "podcasts" ? styles.fill : styles.container}
+    >
+      {list === "podcasts" ? (
+        <PodcastsView />
+      ) : list === "support" ? (
         <SupportBody
           canSupport={canSupport}
           onOpenHelp={onOpenHelp}
@@ -658,7 +680,7 @@ function SupportBody({
 }
 
 /**
- * The tier's three bodies, and which one you are looking at.
+ * The tier's four bodies, and which one you are looking at.
  *
  * **A switch rather than buttons that navigate**, which is the whole of
  * what this change is about. Channels and contacts are peers — two indexes
@@ -667,12 +689,15 @@ function SupportBody({
  * *Contacts* button in one header, a *Home* button in the other. Nothing about
  * them justified which was which.
  *
- * **Support is the third and is not a peer of the other two**, which the
- * order says and nothing else needs to: it is last, and it is what the tier
- * holds that is about the application rather than about anybody in it.
+ * **Support is not a peer of those two**, which the order says and nothing
+ * else needs to: it is last, and it is what the tier holds that is about the
+ * application rather than about anybody in it. **Podcasts is not a peer
+ * either**, and is not a fourth index onto anybody you know — it is the public
+ * directory, and it sits between the lists and Support because that is where
+ * it falls on the one axis this strip is ordered by.
  *
  * Drawn as a segmented control rather than as a tab bar at the foot. A tab bar
- * is for the top level of a whole application and there are three things in
+ * is for the top level of a whole application and there are four things in
  * this one, so it would spend a permanent strip of a small screen saying
  * something a line under the title says as well.
  *
@@ -825,9 +850,14 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
  * true for ever once written, so the mark is the difference between what the
  * server holds and what this phone has read — `state/helpSeen.ts` argues it.
  *
- * A mark is drawn on the tab you are standing on as readily as on the other
- * two. It is about what the tab holds, and Home opens on *Channels*, so the
- * common case is a dab on a tab you are not looking at anyway.
+ * A mark is drawn on the tab you are standing on as readily as on any other.
+ * It is about what the tab holds, and Home opens on *Channels*, so the common
+ * case is a dab on a tab you are not looking at anyway.
+ *
+ * **Two of the four can carry one, and that is not a rule about the other
+ * two.** Channels has nothing to mark that the rows below it do not mark
+ * better, and Podcasts is a page about other people's channels that this
+ * account has no unread relationship with at all.
  */
 function ListSwitch({
   list,
@@ -865,6 +895,7 @@ function ListSwitch({
         {
           value: "contacts",
           label: "Contacts",
+          icon: (color) => <ContactsIcon color={color} />,
           /*
             The words rather than a number, which is what `badge` takes — see
             `Segmented`. Plural unconditionally: a screen reader hearing
@@ -874,18 +905,39 @@ function ListSwitch({
           */
           badge: forced || requests > 0 ? "requests waiting" : undefined,
         },
-        { value: "channels", label: "Channels" },
+        {
+          value: "channels",
+          label: "Channels",
+          icon: (color) => <ChannelsIcon color={color} />,
+        },
         /*
-          Third and last, which is the whole of the claim being made about it.
-          Contacts and Channels are the two indexes onto the people you can
-          reach and are what somebody opened the app for; this is the part of
-          the tier that is about the application, and it sits after both for
-          the same reason its contents sat at the foot of the scroll before —
+          Third, and the first tab here that is about nobody in particular.
+          Contacts and Channels are the people you can reach; this is every
+          channel that has chosen to have a public page, which is a document
+          the server already serves to strangers and which the app had no way
+          into until 2026-09-22. It sits before Support on the same reasoning
+          that puts Support last — the order is how far each tab is from the
+          person holding the phone, and a directory of other people's
+          conversations is further than either list and nearer than the
+          application's own business.
+        */
+        {
+          value: "podcasts",
+          label: "Podcasts",
+          icon: (color) => <PodcastsIcon color={color} />,
+        },
+        /*
+          Last, which is the whole of the claim being made about it. Contacts
+          and Channels are the two indexes onto the people you can reach and
+          are what somebody opened the app for; this is the part of the tier
+          that is about the application, and it sits after all of them for the
+          same reason its contents sat at the foot of the scroll before —
           reachable in one tap, and never in front of anything.
         */
         {
           value: "support",
           label: "Support",
+          icon: (color) => <SupportIcon color={color} />,
           // "answered" rather than "an answer waiting": what is waiting is the
           // reading of it, and the answer is already here.
           badge: forced || answered ? "answered" : undefined,
@@ -899,6 +951,8 @@ function ListSwitch({
 
 const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
+  /** The Podcasts tab's body, which fills rather than scrolls; see above. */
+  fill: { flexGrow: 1 },
   /**
    * The pinned top. It carries `container`'s horizontal padding itself, being
    * outside the scroll, so the title lines up with the rows under it, and the

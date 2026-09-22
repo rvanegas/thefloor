@@ -60,7 +60,7 @@ caused; the list carries the meaning.
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
-- **Home** — The screen the app opens on and the frame the rest sits in; holds two lists and the *Support* tab, not one thing
+- **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, the *Podcasts* tab and the *Support* tab, not one thing
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
@@ -80,6 +80,7 @@ caused; the list carries the meaning.
 - **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
+- **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree
 - **Published** — A *recording* anybody at all can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
 - **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* with an account is asked per recording like a member; one without is asked once, at the microphone — see *speech consent*
 - **Speech consent** — What a *guest* with no account agrees to, on the page, at the moment they ask for the microphone: that a recording their voice is in may be *published*. Not a condition of being heard, withdrawable while the seat lasts, and gone with the seat — the only consent here that is not per recording, because a seat is the only thing there is to ask
@@ -93,7 +94,7 @@ caused; the list carries the meaning.
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
-- **Support tab** — Home's third tab, after the two lists: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
+- **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
@@ -842,17 +843,19 @@ hides. Nothing promises when an answer will come, because nothing can.
 
 **The screen the app opens on, and the frame everything else on it sits in.**
 Not a list: it holds two of them — *Channels* and *Contacts* — and the
-*Support* tab, with a switch between the three, and above that the room you
-are present in if there is one. Settings is Home's rather than either list's,
+*Podcasts* tab and the *Support* tab, with a switch between the four, and above
+that the room you are present in if there is one. Settings is Home's rather than either list's,
 being about the application rather than about anybody you can reach; *Chip in*,
 *Help* and the *Leaderboard* were Home's on the same grounds and are now the
 Support tab's.
 
 **Home has no address**, which follows from the same fact and took until
 2026-09-04 to reach the code. Each of its tabs has one — `/channels`,
-`/contacts`, `/support` — and Home is the frame around them, so there is
-nothing left for a further address to name: whenever nothing is open, one of
-the three is what is showing. The `Screen` type called the pair `home` and `contacts` until then,
+`/contacts`, `/podcasts`, `/support` — and Home is the frame around them, so
+there is nothing left for a further address to name: whenever nothing is open,
+one of the four is what is showing. The app's `/podcasts` is under the web
+app's base — `/app/podcasts` — and is not the server's page of that name at
+the root, which is what that tab shows. The `Screen` type called the pair `home` and `contacts` until then,
 which was the root-and-child asymmetry surviving one layer up from the boolean
 it had already been renamed out of.
 
@@ -1548,6 +1551,16 @@ because a player that does not work is a broken promise, whereas an empty
 channel is a true statement about a channel that exists.
 
 No *member* is named, here as on a channel's own page, for the same reason.
+
+**The app's *Podcasts* tab is this page, in a frame**, since 2026-09-22 — the
+document the server serves to a stranger, not a native list built from the same
+rows. There is one implementation, so the app and the web cannot come to
+disagree about what is public, and a channel that goes private stops being
+listed in both at the same moment. Following a row to a *public page* stays
+inside the frame, that page being the same kind of thing; anything that is not
+this server's — the takedown address at the foot — leaves for the app that
+handles it. On the web it is an `<iframe>` and same-origin, the web app being
+served by this same server under `/app`.
 
 Not a *podcast directory*, which is Apple's or Spotify's.
 

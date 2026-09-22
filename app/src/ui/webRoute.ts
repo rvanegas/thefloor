@@ -64,15 +64,21 @@ export interface Address {
 export const BASE = (process.env.EXPO_PUBLIC_BASE ?? '').replace(/\/$/, '');
 
 /**
- * The one path each address has. Fifteen of them, and no trailing slashes.
+ * The one path each address has. Twenty of them, and no trailing slashes.
  *
- * `/channels`, `/contacts`, `/support`, and `/<any of the three>/settings`,
+ * **`/podcasts` is this app's address and not the server's page of that name.**
+ * They cannot collide: the web app is served under `BASE` — `/app` or `/beta`
+ * — so the tab is `/app/podcasts` while the directory it shows is `/podcasts`
+ * at the root. A dev server serving the app at `/` is the one place the two
+ * spellings meet, and there is no directory page there to meet.
+ *
+ * `/channels`, `/contacts`, `/podcasts`, `/support`, and `/<any of the four>/settings`,
  * `/standings`, `/support`, `/help`. The frame is always the first segment,
  * including when something is open over it — which is the whole point of the
  * nesting: the tab you were on is not something opening Settings should cost
  * you.
  *
- * **`/support/support` is one of the fifteen and is not a mistake.** The two
+ * **`/support/support` is one of the twenty and is not a mistake.** The two
  * segments are two different things wearing one word: the Support *tab*, and
  * the screen explaining where the money goes, which is opened from it. The
  * word is doing the job it does on screen in both places, and the alternative
@@ -112,9 +118,11 @@ export function addressOfPath(path: string): Address {
       ? 'channels'
       : parts[0] === 'contacts'
         ? 'contacts'
-        : parts[0] === 'support'
-          ? 'support'
-          : null;
+        : parts[0] === 'podcasts'
+          ? 'podcasts'
+          : parts[0] === 'support'
+            ? 'support'
+            : null;
   if (!list) return { list: 'channels', named: 'none' };
 
   if (parts.length === 1) return { list, named: 'none' };
@@ -177,7 +185,7 @@ export function addressOf(detail: Detail, list: List): Address {
  *
  * **Every address restores**, which is the property the nesting bought and the
  * reason nothing in the wiring has to normalise what it reads:
- * `addressOf(detailOfAddress(a))` is `a` for all fifteen. The projection above
+ * `addressOf(detailOfAddress(a))` is `a` for all twenty. The projection above
  * is lossy on the way out and total on the way back, so an address is never
  * something the app can be handed and fail to honour.
  */
