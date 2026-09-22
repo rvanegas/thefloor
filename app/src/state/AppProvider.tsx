@@ -560,6 +560,36 @@ interface AppValue extends AppState {
    * everybody.
    */
   inviteGuest: (channelId: string) => Promise<string>;
+  /**
+   * Asks a contact into a channel as a guest: a seat, not a membership.
+   *
+   * The other half of `inviteGuest`, and named for what it does rather than
+   * for the endpoint — that one mints a link for somebody with no account,
+   * this one rings somebody who has one. Neither spends one of the six.
+   *
+   * Nothing to resolve to that a caller uses: the offer is a row on the
+   * server, and what the asker sees is the row going quiet. It throws what the
+   * server refused, which is the whole of the feedback — a full room, a
+   * contact who already has a seat, or nobody in the channel to open the door.
+   */
+  askInAsGuest: (channelId: string, contactId: string) => Promise<void>;
+  /**
+   * Takes up a seat: an invitation answered, or one already held.
+   *
+   * Resolves to the credential the *guest page* needs, which is the only
+   * reason this returns anything at all — the app itself authenticates a seat
+   * with the account token. See `handover.leaveSeat`, which is where what
+   * comes back is put.
+   *
+   * **It is a browser's call.** This app cannot draw a seat: doing so would
+   * need a LiveKit connection of its own and an iOS audio session configured
+   * for it, and the screen that would render one does not exist. So the
+   * callers are the web ones, and the cards that would call it elsewhere are
+   * not drawn.
+   */
+  enterSeat: (
+    channelId: string
+  ) => Promise<{ guestId: string; secret?: string }>;
   /** Every link this channel has, for settings. */
   guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
   /**
@@ -2190,6 +2220,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!state.token) throw new ApiError('Not signed in.', 401);
         const link = await api.mintGuestLink(state.token, channelId);
         return link.url;
+      },
+
+      askInAsGuest: async (channelId, contactId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.inviteGuestContact(state.token, channelId, contactId);
+      },
+
+      enterSeat: async (channelId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        const { guestId, secret } = await api.enterSeat(state.token, channelId);
+        return { guestId, secret };
       },
 
       guestLinks: async (channelId) => {

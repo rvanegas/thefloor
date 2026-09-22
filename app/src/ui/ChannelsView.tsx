@@ -17,7 +17,8 @@ import { describeChannel } from '../../../core/naming';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
-import { leaveSeatChannel } from './handover';
+import { leaveSeat, leaveSeatChannel } from './handover';
+import { API_URL } from '../api/config';
 import { Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
@@ -62,6 +63,20 @@ import { colors, radius, spacing, type } from './theme';
  * Everything here is a server snapshot. Nothing is computed locally except
  * which section a channel belongs in, which is a display question.
  */
+/**
+ * The address a browser would open this install's Floor at, said the way
+ * somebody would type it.
+ *
+ * The API and the web app are one origin — the server serves `/app` beside
+ * `/g/…` and the routes themselves — so where this app is talking is where
+ * its browser half is. Stripped of the scheme because this ends up in a
+ * sentence rather than in a link: nothing here is tappable, and `https://`
+ * in prose is noise somebody has to read past.
+ */
+function webAddress(): string {
+  return API_URL.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'The Floor';
+}
+
 export function ChannelsView({
   onEnterChannel,
   liveChannelId = null,
@@ -92,6 +107,14 @@ export function ChannelsView({
 
   const home = app.home;
   const now = app.serverNow();
+  /**
+   * Why the last attempt to take up a seat did nothing.
+   *
+   * One line rather than one per card, unlike the Invite tab's refusals:
+   * there is at most one invitation being answered at a time here, because
+   * answering one replaces the document.
+   */
+  const [seatTrouble, setSeatTrouble] = React.useState<string | null>(null);
 
   /**
    * Declining, which is what the ✕ on an invitation does.
@@ -246,6 +269,63 @@ export function ChannelsView({
    * is a navigation rather than a route change — and it only ever happens in a
    * browser, seats existing nowhere else.
    */
+  /**
+   * Answering an invitation to a seat, which is the walk the app cannot draw
+   * and the browser can.
+   *
+   * **Two steps and one of them is a round trip**, which is what makes this
+   * different from `openSeat` below: a seat got by knocking is already in
+   * this tab's storage, where an invitation is a row on the server that
+   * nobody has answered. So the acceptance is made against the account's own
+   * session, the credential that comes back is left where the guest page
+   * looks for it, and only then does the tab walk.
+   *
+   * Nothing is drawn while it is out. The call is one request against a row
+   * that already exists, and a spinner on a card that is about to be replaced
+   * by a different document reads as the page having stalled.
+   */
+  const takeUpSeat = async (channelId: string) => {
+    /*
+      **A phone says where the seat opens rather than hiding the offer**, and
+      that is the one place this parts company with the dormant seats filtered
+      out of the list below. Those were never announced; an invitation is —
+      `notifications.invitedAsGuest` wakes the phone with *Invited you to X as
+      a guest*. A card that vanished would leave that alert pointing at a Home
+      screen with nothing on it, which reads as the invitation having been
+      withdrawn.
+
+      So the card stands, and the tap answers the only question it can: this
+      is a seat, seats are drawn in a browser, and there is one at the address
+      this app is already talking to. See `AppProvider.enterSeat` for why the
+      screen does not exist here yet.
+    */
+    if (Platform.OS !== 'web') {
+      Alert.alert(
+        'This is a seat, not a membership',
+        `A guest joins in a browser. Open ${webAddress()} on any device and sign in, and it will be on your home screen there.`,
+        [{ text: 'Got it' }]
+      );
+      return;
+    }
+    try {
+      const { guestId, secret } = await app.enterSeat(channelId);
+      // No secret means a server too old to mint one on the way in. The seat
+      // is taken up either way — refusing to walk would strand somebody in
+      // the app with an invitation the server has already spent.
+      if (secret) leaveSeat({ channelId, guestId, secret });
+      else leaveSeatChannel(channelId);
+      globalThis.location?.assign('/g/seat');
+    } catch (error) {
+      // The three the server can answer with — a room that emptied, one that
+      // filled, and an invitation already spent — and each is about *now*
+      // rather than about the offer. So the card stays and says what
+      // happened, which is what the next tap needs to know.
+      setSeatTrouble(
+        error instanceof Error ? error.message : 'That did not work.'
+      );
+    }
+  };
+
   const openSeat = (channelId: string) => {
     // **Which channel travels in `sessionStorage`, not in the path.** No
     // address in this application carries an id, and the seat page is on this
@@ -332,10 +412,22 @@ export function ChannelsView({
                 onPress={() =>
                   card.kind === 'seat'
                     ? openSeat(card.channelId)
-                    : openChannel(card.channelId)
+                    : card.guest
+                      ? void takeUpSeat(card.channelId)
+                      : openChannel(card.channelId)
                 }
                 onDecline={
-                  card.kind === 'invite' ? () => declineInvite(card) : undefined
+                  // **Not offered on an invitation to a seat**, and it is the
+                  // action that does not exist rather than one withheld:
+                  // declining is `LEAVE_CHANNEL`, which gives up a membership
+                  // this person does not have, and the revocation route
+                  // beside it is a member's. A seat expires on its own — six
+                  // hours, or the moment the room empties — so the offer that
+                  // is ignored goes quiet by itself, which a membership
+                  // invitation never does.
+                  card.kind === 'invite' && !card.guest
+                    ? () => declineInvite(card)
+                    : undefined
                 }
               />
             ))}
@@ -346,6 +438,9 @@ export function ChannelsView({
       {invited.length > 0 ? (
         <>
           <SectionLabel>Invitations</SectionLabel>
+          {seatTrouble ? (
+            <Text style={styles.seatTrouble}>{seatTrouble}</Text>
+          ) : null}
           <View style={styles.list}>
             {invited.map((card) => (
               <ChannelCard
@@ -355,9 +450,13 @@ export function ChannelsView({
                 onPress={() =>
                   card.kind === 'seat'
                     ? openSeat(card.channelId)
-                    : openChannel(card.channelId)
+                    : card.guest
+                      ? void takeUpSeat(card.channelId)
+                      : openChannel(card.channelId)
                 }
-                onDecline={() => declineInvite(card)}
+                onDecline={
+                  card.guest ? undefined : () => declineInvite(card)
+                }
               />
             ))}
           </View>
@@ -383,7 +482,9 @@ export function ChannelsView({
                 onPress={() =>
                   card.kind === 'seat'
                     ? openSeat(card.channelId)
-                    : openChannel(card.channelId)
+                    : card.guest
+                      ? void takeUpSeat(card.channelId)
+                      : openChannel(card.channelId)
                 }
               />
             ))}
@@ -963,6 +1064,10 @@ const styles = StyleSheet.create({
   },
   offlineText: { color: colors.silenced, fontSize: 13 },
   list: { gap: spacing(1) },
+  // Under the heading rather than on a card, which is where the card it is
+  // about used to be: the offer stands, and this says what came of the last
+  // attempt on it.
+  seatTrouble: { color: colors.silenced, fontSize: 13 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

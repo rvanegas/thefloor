@@ -1303,6 +1303,42 @@ describe('being asked in as a guest', () => {
     member.close();
   });
 
+  it('hands back a secret, which is the credential a browser needs', async () => {
+    /*
+      **The app ignores this and the guest page cannot work without it.** A
+      seat's socket authenticates with `guestId` and a secret and has no
+      session to fall back on, and the secret `invite` minted was never kept —
+      only its hash. So one is minted here, against an account that has just
+      proved it holds the seat, and it has to actually open the door.
+    */
+    const { alice, channelId, dana, member } = await withContact();
+    await invite(alice.token, channelId, dana.account.id);
+
+    const entered = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/seat/enter`,
+      headers: auth(dana.token),
+    });
+    expect(entered.statusCode).toBe(200);
+    const { guestId, secret } = entered.json() as {
+      guestId: string;
+      secret: string;
+    };
+    expect(typeof secret).toBe('string');
+    expect(secret.length).toBeGreaterThan(20);
+
+    // The pair opens the seat, which is the whole claim. `clock` rather than
+    // `Date.now()`: this suite runs on a fixed 2023 clock, and a real
+    // timestamp is years past every seat's expiry.
+    expect(app.channels.guests.reconnect(guestId, secret, clock)).toBeDefined();
+    // And nothing else does.
+    expect(
+      app.channels.guests.reconnect(guestId, 'not-the-secret', clock)
+    ).toBeUndefined();
+
+    member.close();
+  });
+
   it('shows on their Home as an invitation, not as a seat', async () => {
     // Before accepting there is nowhere to go back to, so it must not be in
     // `rejoinable` — which is what `liveForAccount` withholding pending rows

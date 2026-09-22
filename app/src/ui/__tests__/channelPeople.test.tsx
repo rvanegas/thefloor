@@ -312,6 +312,115 @@ describe('Channel, with a guest in it', () => {
     act(() => tree.unmount());
   });
 
+  it('offers a contact two ways in, and they are different offers', async () => {
+    /*
+      **Guest and Member, where there was one button called Invite.** They are
+      not two spellings of one act: `Member` writes somebody into the roster
+      and spends one of the six permanently; `Guest` opens the room to them for
+      as long as it lasts and spends one of the forty. Two buttons is the only
+      shape that can say so — a single control with a mode would be a form to
+      set before acting, which is what the contact picker was before it was
+      taken out.
+    */
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showInvites(tree);
+
+    // The membership is the reducer's, and unchanged.
+    act(() => findButton(tree, 'Member')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'INVITE',
+      contactId: 'acct_3',
+    });
+
+    // The seat is the server's: no `ChannelState` carries a pending
+    // invitation, so there is no action to dispatch and this is a round trip.
+    await act(async () => {
+      findButton(tree, 'Guest')!.props.onPress();
+    });
+    expect(mockApp.askInAsGuest).toHaveBeenCalledWith('sess_1', 'acct_3');
+
+    // And the row goes quiet rather than offering the same thing twice.
+    expect(textOf(tree)).toContain('Asked in as a guest');
+    expect(findButton(tree, 'Guest')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('says what the server refused, on the row it was refused about', async () => {
+    /*
+      Three refusals cannot be drawn as a disabled button, because the facts
+      they rest on are `guest_sessions` rows that no `ChannelState` carries: a
+      dormant seat, an invitation already outstanding, and the fortieth guest.
+      So the sentence arrives from the server and is shown where it belongs —
+      beside the person it is about, not under a column of people.
+    */
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    mockApp.askInAsGuest.mockRejectedValueOnce(
+      new Error('They already have a seat here.')
+    );
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showInvites(tree);
+    await act(async () => {
+      findButton(tree, 'Guest')!.props.onPress();
+    });
+    expect(textOf(tree)).toContain('They already have a seat here.');
+    // And the offer stands, a refusal being an answer about now rather than a
+    // door closing.
+    expect(findButton(tree, 'Guest')).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it('keeps the guest offer alive in a channel whose membership is full', () => {
+    /*
+      **The full room is exactly the room that wants a guest.** This list used
+      to be replaced entirely by *Channels hold up to 6 people* — one sentence
+      where the contacts had been, offering no way to ask anybody anything.
+      Six members and forty seats are two ceilings, and hitting one says
+      nothing about the other.
+    */
+    const full = channelOf((c) =>
+      ['acct_3', 'acct_4', 'acct_5', 'acct_6'].reduce(
+        (state, id) => reduce(state, { type: 'INVITE', userId: ME, inviteeId: id }, NOW),
+        reduce(c, { type: 'INVITE', userId: ME, inviteeId: 'acct_2' }, NOW)
+      )
+    );
+    mockApp.home = {
+      invites: [],
+      rejoinable: [],
+      contacts: [
+        { account: { id: 'acct_9', displayName: 'Miro Okafor' }, status: 'accepted' },
+      ],
+    };
+    showChannel(full);
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showInvites(tree);
+    expect(textOf(tree)).toContain('Miro Okafor');
+    expect(findButton(tree, 'Member')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Guest')!.props.disabled).toBe(false);
+    expect(textOf(tree)).toContain('is full');
+    act(() => tree.unmount());
+  });
+
   it('shares a link, and says the sharing is not the letting in', async () => {
     // Awaited inside `act`, unlike most of this file: minting is a round trip
     // and the share sheet is a second one, so a synchronous tap leaves two

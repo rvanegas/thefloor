@@ -302,6 +302,8 @@ export const mockApp = {
   // one. The settings screen reads this when it opens, so a mock without it is
   // a screen that throws rather than a screen with an empty section.
   inviteGuest: jest.fn(async () => 'https://example.test/g/tok'),
+  askInAsGuest: jest.fn(async () => {}),
+  enterSeat: jest.fn(async () => ({ guestId: 'guest_1', secret: 'sec_1' })),
   guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
   // Echoes what it was asked for, as the server does when the level is not the
   // default. A test about the refusal path overrides it.

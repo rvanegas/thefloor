@@ -86,6 +86,62 @@ export interface Handover {
 }
 
 /**
+ * Where the guest page keeps the seat it is sitting in.
+ *
+ * The fourth key, and the second this end writes for the other to read — so
+ * it is repeated in `server/web/guest.ts` with a comment pointing back, like
+ * the rest. It is written here for one walk: an account taking up a seat it
+ * was *invited* into, which begins in the app and ends on the guest page.
+ *
+ * A seat got by knocking is written by that page itself, at the moment the
+ * door opens. This one cannot be: the invitation is answered against the
+ * account's own session, which the guest page does not have, so the app makes
+ * the call and leaves the credential where that page already looks.
+ */
+const SEAT_KEY = 'thefloor.seat';
+
+/**
+ * The shape the guest page stores, which is that page's `Seat` and not this
+ * one's business beyond writing it.
+ *
+ * `channelLink` is empty for an invited seat, and that is not a gap: a seat
+ * reached from Home is found by its channel, which is what
+ * `leaveSeatChannel` leaves. The link half is how a seat is found from the
+ * address somebody was *sent*, and an invitation is not sent as an address.
+ */
+export interface SeatCredential {
+  channelId: string;
+  guestId: string;
+  secret: string;
+}
+
+/**
+ * Leaves a seat for the guest page to pick up, with the channel beside it.
+ *
+ * Both keys, because the page needs both: the channel to know which seat page
+ * it is, and the credential to open a socket with. Writing one without the
+ * other is the state that draws *this browser is not holding a seat*.
+ */
+export function leaveSeat(seat: SeatCredential): void {
+  try {
+    globalThis.sessionStorage?.setItem(
+      SEAT_KEY,
+      JSON.stringify({
+        channelLink: '',
+        channelId: seat.channelId,
+        guestId: seat.guestId,
+        secret: seat.secret,
+      })
+    );
+  } catch {
+    // Storage blocked, which the seat page reports as having lost the seat.
+    // Nothing is recoverable here and nothing is lost on the server: the seat
+    // has been taken up and stays taken up.
+  }
+  leaveSeatChannel(seat.channelId);
+}
+
+/**
  * Leaves the channel the seat page is about to be opened for.
  *
  * Overwrites rather than accumulates: a tab is looking at one seat page at a

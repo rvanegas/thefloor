@@ -534,6 +534,23 @@ export function ChannelView({
   // forget, like every other act — there is nothing to await and nobody left
   // to tell if there were.
   useEffect(() => () => persistNotepadRef.current(), []);
+  /**
+   * What came of asking a contact in as a guest, per contact.
+   *
+   * **Per contact rather than one line under the list**, because the list is
+   * a column of people and an error under all of them answers about none of
+   * them. `'asking'` while the round trip is out, the server's own sentence
+   * when it refused, and the row going quiet — `'asked'` — when it did not.
+   *
+   * Three of the refusals cannot be asked here at all: a dormant seat, an
+   * invitation already outstanding, and the fortieth guest are
+   * `guest_sessions` rows that no `ChannelState` carries. So this is not a
+   * fallback for a guard that should have been drawn — it is the only place
+   * those three can be said.
+   */
+  const [askedIn, setAskedIn] = useState<
+    Record<string, 'asking' | 'asked' | string>
+  >({});
   /** While a guest link is being minted, which is a round trip. */
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -4574,7 +4591,21 @@ export function ChannelView({
             channel={channel}
             me={me}
             mayInvite={iHaveTheRoom}
+            states={askedIn}
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}
+            onGuest={async (contactId) => {
+              setAskedIn((prior) => ({ ...prior, [contactId]: 'asking' }));
+              try {
+                await app.askInAsGuest(channel.id, contactId);
+                setAskedIn((prior) => ({ ...prior, [contactId]: 'asked' }));
+              } catch (error) {
+                setAskedIn((prior) => ({
+                  ...prior,
+                  [contactId]:
+                    error instanceof Error ? error.message : 'That did not work.',
+                }));
+              }
+            }}
           />
         </Card>
 
@@ -5495,11 +5526,14 @@ function ParticipantCard({
 }
 
 /**
- * Who can be invited: accepted contacts of *this user* who are not already in
- * the channel, the cap permitting. The guard is the same one the server
- * enforces, so a shown button and a refused invite cannot disagree — except on
- * contacts, which are the server's check; the list only offers contacts, so
- * the two disagree only if a contact was dropped mid-channel.
+ * Who can be asked in: accepted contacts of *this user* who are not already in
+ * the channel. **Two offers each, and they are different things** — `Member`
+ * writes them into the roster and spends one of the six; `Guest` opens the
+ * room to them for as long as it lasts and spends one of the forty. The guard
+ * under each is the one the server enforces, so a shown button and a refused
+ * action cannot disagree — except on contacts, which are the server's check;
+ * the list only offers contacts, so the two disagree only if a contact was
+ * dropped mid-channel.
  *
  * **`canInvite` is asked about the contact, not about the room.** It carries
  * `hasTheRoom` too, so filtering on it whole would empty this list for
@@ -5508,17 +5542,28 @@ function ParticipantCard({
  * false and unrecoverable, there being nothing left on screen to explain
  * itself. So the room half arrives as `mayInvite` and disables the buttons,
  * and the list still shows who is there to be asked.
+ *
+ * **A full membership no longer empties this list**, which is the change of
+ * 2026-09-22 and the reason the cap moved from a `return` to a line. Six
+ * members is exactly the room that wants a guest, and a list replaced by
+ * *Channels hold up to 6 people* offered no way to ask anybody anything. The
+ * cap now disables one button and says why, and the other stays live.
  */
 function InviteList({
   channel,
   me,
   mayInvite,
+  states,
   onInvite,
+  onGuest,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   me: string;
   mayInvite: boolean;
+  /** Per contact: `'asking'`, `'asked'`, or the sentence the server refused with. */
+  states: Record<string, 'asking' | 'asked' | string>;
   onInvite: (contactId: string) => void;
+  onGuest: (contactId: string) => void;
 }) {
   const app = useApp();
   const invitable = (app.home?.contacts ?? []).filter(
@@ -5526,14 +5571,23 @@ function InviteList({
       entry.status === 'accepted' &&
       !channel.participants.includes(entry.account.id)
   );
+  const full = channel.participants.length >= MAX_CHANNEL_PARTICIPANTS;
+  /**
+   * The accounts already sitting in this room as guests.
+   *
+   * A seat the server would refuse a second time — *They already have a seat
+   * here* — so the row says what is true instead of offering a button that
+   * cannot work. It is only the guests *in the room*: a dormant seat and an
+   * invitation nobody has taken up are `guest_sessions` rows that no
+   * `ChannelState` carries, so those two refusals still arrive from the
+   * server and are shown as they land.
+   */
+  const seated = new Set(
+    Object.values(channel.guests ?? {})
+      .map((guest) => guest.accountId)
+      .filter((id): id is string => !!id)
+  );
 
-  if (channel.participants.length >= MAX_CHANNEL_PARTICIPANTS) {
-    return (
-      <Text style={type.muted}>
-        Channels hold up to {MAX_CHANNEL_PARTICIPANTS} people.
-      </Text>
-    );
-  }
   if (invitable.length === 0) {
     return (
       <Text style={type.muted}>
@@ -5543,22 +5597,59 @@ function InviteList({
   }
   return (
     <>
-      {invitable.map((entry) => (
-        <View key={entry.account.id} style={styles.inviteRow}>
-          <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
-            {entry.account.displayName}
-          </Text>
-          <Button
-            label="Invite"
-            disabled={!canInvite(channel, me, entry.account.id)}
-            onPress={() => onInvite(entry.account.id)}
-          />
-        </View>
-      ))}
+      {invitable.map((entry) => {
+        const state = states[entry.account.id];
+        const refusal =
+          state && state !== 'asking' && state !== 'asked' ? state : null;
+        return (
+          <View key={entry.account.id}>
+            <View style={styles.inviteRow}>
+              <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
+                {entry.account.displayName}
+              </Text>
+              {seated.has(entry.account.id) ? (
+                <Text style={type.muted}>In the room as a guest</Text>
+              ) : state === 'asked' ? (
+                // **The row goes quiet rather than offering the same button
+                // again.** A second tap is refused by the server — they have
+                // a seat now — and an offer that has been made is not a
+                // control, it is a fact. `Member` goes with it: what is
+                // outstanding is one question about one room, and asking the
+                // larger one on top of it is a thing to do from the roster
+                // once they are in.
+                <Text style={type.muted}>Asked in as a guest</Text>
+              ) : (
+                <>
+                  {/*
+                    Guest first, Member second, and the order is the offer's
+                    weight rather than its likelihood: the trailing edge is
+                    where the thumb goes, and the permanent one of the two
+                    belongs there. A seat ends with the room; a membership
+                    does not end at all.
+                  */}
+                  <Button
+                    label={state === 'asking' ? 'Asking…' : 'Guest'}
+                    disabled={!mayInvite || state === 'asking'}
+                    onPress={() => onGuest(entry.account.id)}
+                  />
+                  <Button
+                    label="Member"
+                    disabled={!canInvite(channel, me, entry.account.id)}
+                    onPress={() => onInvite(entry.account.id)}
+                  />
+                </>
+              )}
+            </View>
+            {refusal ? <Text style={styles.warning}>{refusal}</Text> : null}
+          </View>
+        );
+      })}
       <Text style={type.muted}>
-        {mayInvite
-          ? 'They see the invitation on their home screen and join when they like.'
-          : 'Step in to invite anybody. An invitation lands in whatever is being said, so it belongs to whoever is saying it.'}
+        {!mayInvite
+          ? 'Step in to ask anybody in. An invitation lands in whatever is being said, so it belongs to whoever is saying it.'
+          : full
+            ? `A member joins the channel and stays; it holds ${MAX_CHANNEL_PARTICIPANTS}, and is full. A guest is here for this conversation only, and the seat ends when the room does.`
+            : 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'}
       </Text>
     </>
   );

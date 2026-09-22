@@ -1417,6 +1417,102 @@ describe('a guest invitation', () => {
     expect(text).toContain('asked you in as a guest');
   });
 
+  it('takes up the seat and walks to the guest page, in a browser', async () => {
+    /*
+      **Two steps, and the first is a round trip.** A seat got by knocking is
+      already in this tab's storage; an invitation is a row on the server that
+      nobody has answered, so it is answered against the account's own session
+      and the credential that comes back is left where the guest page looks.
+      Only then does the tab walk — `/g/seat`, a different document on this
+      origin, which is why nothing here is a route change.
+    */
+    mockApp.home = {
+      invites: [invite({ guest: true })],
+      rejoinable: [],
+      contacts: [],
+    };
+    mockApp.enterSeat.mockResolvedValueOnce({
+      guestId: 'guest_1',
+      secret: 'sec_1',
+    });
+    const wasOs = Platform.OS;
+    (Platform as { OS: string }).OS = 'web';
+    const assign = jest.fn();
+    const wasLocation = globalThis.location;
+    // Neither exists under the react-native preset, and `handover` reaches
+    // both off `globalThis` with optional chaining — so without these the
+    // walk succeeds silently and asserts nothing.
+    const store = new Map<string, string>();
+    const wasSession = (globalThis as { sessionStorage?: unknown }).sessionStorage;
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'location', {
+      value: { assign },
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const tree = render(<HomeView {...homeNav} />);
+      await act(async () => {
+        findButton(tree, 'asked you in as a guest')!.props.onPress();
+      });
+      expect(mockApp.enterSeat).toHaveBeenCalledWith('sess_asked');
+      // The credential and the channel, both, because the page needs both:
+      // one to know which seat page it is, one to open a socket with.
+      expect(store.get('thefloor.seat')).toContain('sec_1');
+      expect(store.get('thefloor.seat.channel')).toBe('sess_asked');
+      expect(assign).toHaveBeenCalledWith('/g/seat');
+      act(() => tree.unmount());
+    } finally {
+      (Platform as { OS: string }).OS = wasOs;
+      Object.defineProperty(globalThis, 'location', {
+        value: wasLocation,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        value: wasSession,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  it('says where a seat opens rather than hiding it, on a phone', async () => {
+    /*
+      **The one place this parts company with a dormant seat**, which is
+      filtered out of the list entirely. That one was never announced; this
+      one was — the invitation wakes the phone. A card that vanished would
+      leave that notification pointing at a Home screen with nothing on it,
+      which reads as the invitation having been withdrawn.
+    */
+    mockApp.home = {
+      invites: [invite({ guest: true })],
+      rejoinable: [],
+      contacts: [],
+    };
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = render(<HomeView {...homeNav} />);
+    await act(async () => {
+      findButton(tree, 'asked you in as a guest')!.props.onPress();
+    });
+    expect(mockApp.enterSeat).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledWith(
+      'This is a seat, not a membership',
+      expect.stringContaining('browser'),
+      expect.anything()
+    );
+    act(() => tree.unmount());
+    alert.mockRestore();
+  });
+
   it('leaves an ordinary invitation saying what it always said', () => {
     mockApp.home = { invites: [invite()], rejoinable: [], contacts: [] };
     const text = textOf(render(<HomeView {...homeNav} />));

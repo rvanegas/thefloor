@@ -5720,7 +5720,7 @@ export class ChannelRegistry {
   enterSeat(
     accountId: string,
     channelId: string
-  ): { ok: true; guestId: string } | Refused {
+  ): { ok: true; guestId: string; secret: string | undefined } | Refused {
     // `seatFor` rather than `liveForAccount`, because walking in is how an
     // invitation is *accepted* — the row this has to find is the one that list
     // deliberately withholds until it has been answered.
@@ -5761,7 +5761,14 @@ export class ChannelRegistry {
     // at the door for a full room is still an invitation, and marking it
     // accepted would move it off Home and leave them nothing to tap.
     this.guests.accept(session.id, this.now());
-    return { ok: true, guestId: session.id };
+    // **The credential the browser will need, minted here and not before.**
+    // The app does not use it — the account token is the whole of what
+    // `enterSeat` asks for — but the guest page's socket knows only
+    // `guestId` and a secret, and the one `invite` made was never kept. See
+    // `Guests.rotateSecret` for why minting it now is the better shape and
+    // not merely the available one.
+    const secret = this.guests.rotateSecret(session.id, this.now());
+    return { ok: true, guestId: session.id, secret };
   }
 
   /**

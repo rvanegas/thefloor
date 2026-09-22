@@ -1582,7 +1582,10 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!view) {
       return reply.code(404).send({ error: 'No such channel.' });
     }
-    return { guestId: entered.guestId, view };
+    // **The secret goes out only here**, to the account that just proved it
+    // holds this seat, and the app ignores it. A browser cannot: its guest
+    // socket authenticates with the pair and has no session to fall back on.
+    return { guestId: entered.guestId, secret: entered.secret, view };
   });
 
   fastify.post('/contacts/guest-ask/accept', async (request, reply) => {

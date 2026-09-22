@@ -421,6 +421,39 @@ export class Guests {
     return this.byId(id);
   }
 
+  /**
+   * Gives a seat a fresh secret and hands it back, once.
+   *
+   * **For the seat that is taken up from an account rather than through a
+   * door.** `invite` mints a secret and keeps only its hash, so the one it
+   * returned is gone the moment that call ends — which is fine for the app,
+   * where `enterSeat` takes the account token as the whole credential, and
+   * useless for a browser, where the guest socket authenticates with
+   * `guestId` and the secret and nothing else.
+   *
+   * So the credential is minted at the moment it is first needed, against an
+   * account that has just proved who it is. Rotating rather than reading is
+   * not a workaround for the hash — it is the only shape available, and it is
+   * the better one: the secret exists from the walk-in rather than from the
+   * invitation, so an invitation sitting unanswered for six hours is not a
+   * live credential waiting in a table.
+   *
+   * **It ends any older browser tab holding this seat**, which is correct and
+   * worth saying: a seat is one visitor in one place, and two tabs claiming it
+   * is the state `sessionStorage` exists to prevent.
+   */
+  rotateSecret(id: string, now: number): string | undefined {
+    const row = this.byId(id);
+    if (!row || row.ejected_at !== null || now >= row.expires_at) {
+      return undefined;
+    }
+    const secret = randomBytes(24).toString('base64url');
+    this.db
+      .prepare(`UPDATE guest_sessions SET secret_hash = ? WHERE id = ?`)
+      .run(sha256(secret), id);
+    return secret;
+  }
+
   /** Everyone still entitled to be in this channel. */
   liveIn(channelId: string, now: number): GuestSessionRow[] {
     return this.db

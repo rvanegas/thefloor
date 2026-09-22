@@ -399,10 +399,13 @@ describe('Channel', () => {
     );
 
     showInvites(tree);
-    expect(disabled('Invite')).toEqual(off('Invite'));
+    // Both halves of the pair, which are two different offers and one guard:
+    // who may open the room is the room's business either way.
+    expect(disabled('Member')).toEqual(off('Member'));
+    expect(disabled('Guest')).toEqual(off('Guest'));
     expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
     const invites = textOf(tree);
-    expect(invites).toContain('Step in to invite anybody');
+    expect(invites).toContain('Step in to ask anybody in');
     expect(invites).toContain('Step in to make a link');
     // And the list of contacts is still shown rather than emptied by the
     // filter, which would have claimed every contact was already in here.
@@ -467,7 +470,8 @@ describe('Channel', () => {
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
 
     showInvites(tree);
-    expect(on('Invite')).toEqual({ disabled: false });
+    expect(on('Member')).toEqual({ disabled: false });
+    expect(on('Guest')).toEqual({ disabled: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecordings(tree);
@@ -1113,7 +1117,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showInvites(tree);
-    const invite = findButton(tree, 'Invite');
+    const invite = findButton(tree, 'Member');
     expect(invite).toBeDefined();
     act(() => invite!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {

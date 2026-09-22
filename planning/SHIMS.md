@@ -51,6 +51,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `WatchParty.title` revived as null | `server/src/channels.ts` |
 | 264 | `InviteView.guest` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 264 | `tapToLook` / `tapToStepIn` sent as constants | `server/src/settings-wire.ts`, `server/src/app.ts` |
+| 272 | `seat/enter`'s `secret` optionality | `app/src/ui/ChannelsView.tsx` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -582,6 +583,39 @@ permission that would fetch them a room.
 
 Gate 212 because `build/211` is already tagged: the client that speaks this
 ships in the next upload.
+
+---
+
+## Gate 272 — `seat/enter`'s `secret` optionality
+
+`POST /channels/:id/seat/enter` answered with `{ guestId, view }` from the day
+it was written and now answers with a `secret` beside them, added 2026-09-22
+with the acceptance path — `decisions/2026-09-22-taking-up-a-seat.md`. The
+credential exists for the *browser*: the guest page's socket authenticates
+with `guestId` and a secret and has no session to offer, where the app hands
+over its account token and needs none of this.
+
+The shim is the `else` in `takeUpSeat`, `app/src/ui/ChannelsView.tsx`: with no
+secret it leaves the channel alone and walks anyway, which lands on a guest
+page that says it is not holding a seat. That is the honest end of a bad
+situation rather than a good outcome — **the seat has already been taken up on
+the server by the time the answer arrives**, so refusing to walk would strand
+somebody in the app holding an invitation the server has spent. There is no
+third option: the secret cannot be asked for again, `invite` keeping only its
+hash.
+
+**It is very nearly unreachable**, which is why it is a one-line fallback
+rather than a design. A server deploys in a minute and a build reaches a phone
+in days, so a client new enough to read the field meets a server too old to
+send it only if somebody deploys backwards. It is here because that is cheaper
+than reasoning about whether it can happen.
+
+**What must not be deleted with it**: `leaveSeatChannel` itself, which is the
+other walk — the app sending somebody out to a seat they already hold — and
+predates all of this.
+
+Gate 272 because `build/271` is the build in `app.json` as this lands, so the
+next upload is the first client that speaks the field.
 
 ---
 

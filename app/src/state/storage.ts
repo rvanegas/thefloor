@@ -80,6 +80,10 @@ export const INSTALL_KEYS: readonly string[] = [
   // signing out is not becoming somebody else.
   'thefloor.lastIdentifier',
   'thefloor.seat.channel',
+  // The seat's own credential, which the app writes for the guest page to
+  // read — `handover.leaveSeat`, for an invitation taken up in a browser.
+  // A signed-out install holds nobody's seat.
+  'thefloor.seat',
   'thefloor.invite',
   'thefloor.train',
 ];

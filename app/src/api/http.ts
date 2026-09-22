@@ -551,6 +551,44 @@ export const api = {
       { method: 'POST', token }
     ),
 
+  /**
+   * Asks a contact into this channel **as a guest** — a seat, not a
+   * membership.
+   *
+   * Beside the link calls rather than beside `INVITE`, because it is the same
+   * act as minting a link: opening the room to somebody who will not be a
+   * member of it. The server holds it to the test `INVITE` is held to — a
+   * non-contact is refused — and to the guest ceiling, counting what has been
+   * offered as well as who is in the room.
+   *
+   * Answers with the seat's id, which is what a later revocation names.
+   */
+  inviteGuestContact: (token: string, channelId: string, contactId: string) =>
+    request<{ guestId: string }>(`/channels/${channelId}/guest-invites`, {
+      method: 'POST',
+      token,
+      body: { contactId },
+    }),
+
+  /**
+   * Takes up a seat this account has been offered or already holds.
+   *
+   * The account token is the whole credential — a seat with an `account_id`
+   * has a better answer than a secret in a tab, which is what an anonymous
+   * visitor has to fall back on. The reply carries a freshly minted secret
+   * even so, because the *browser* still needs one: the guest page's socket
+   * knows `guestId` and a secret and has no session to offer.
+   *
+   * It answers with a `GuestView` rather than a channel, which is the
+   * boundary this whole shape exists to hold: names, and no ids, profiles or
+   * recordings.
+   */
+  enterSeat: (token: string, channelId: string) =>
+    request<{ guestId: string; secret?: string; view: unknown }>(
+      `/channels/${channelId}/seat/enter`,
+      { method: 'POST', token }
+    ),
+
   guestLinks: (token: string, channelId: string) =>
     request<{ links: GuestLinkSummary[] }>(
       `/channels/${channelId}/guest-links`,
