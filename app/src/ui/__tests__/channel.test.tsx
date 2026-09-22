@@ -2853,6 +2853,75 @@ describe('Channel', () => {
     act(() => theirs.unmount());
   });
 
+  /**
+   * The consent checkbox, which is offered to the people whose voice is in the
+   * recording and to nobody else.
+   *
+   * It was offered to every member, and a member who was not in the recording
+   * is not in `required` — so the server dropped their agreement when it
+   * recomputed the set, `mine` came back false, and the box emptied itself on
+   * the next snapshot. What they get instead is the recording's progress.
+   */
+  it('asks for consent only from the people who are in the recording', () => {
+    const publication = (required: Array<{ id: string; displayName: string }>) => ({
+      required,
+      consented: [],
+      mine: false,
+      publishedAt: null,
+      blockedByGuest: false,
+      preparing: false,
+    });
+    const recording = (
+      required: Array<{ id: string; displayName: string }>
+    ): RecordingView => ({
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+      publication: publication(required),
+    });
+    const checkbox = (tree: ReactTestRenderer) =>
+      tree.root.findAll((n) => n.props?.accessibilityRole === 'checkbox')[0];
+
+    showChannel(channelOf(), [
+      recording([
+        { id: ME, displayName: 'Me' },
+        { id: THEM, displayName: 'Dana Chu' },
+      ]),
+    ]);
+    const asked = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showRecordings(asked);
+    act(() => findButton(asked, 'Tuesday')!.props.onPress());
+    expect(checkbox(asked)).toBeDefined();
+    expect(textOf(asked)).toContain('Waiting on');
+    act(() => asked.unmount());
+
+    showChannel(channelOf(), [
+      recording([{ id: THEM, displayName: 'Dana Chu' }]),
+    ]);
+    const bystander = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showRecordings(bystander);
+    act(() => findButton(bystander, 'Tuesday')!.props.onPress());
+    expect(checkbox(bystander)).toBeUndefined();
+    // Still told where it stands: it is the channel's recording either way.
+    expect(textOf(bystander)).toContain('does not need your agreement');
+    expect(textOf(bystander)).toContain('Waiting on Dana Chu');
+    act(() => bystander.unmount());
+  });
+
   it('opens a recording to its actions, and closes it again', async () => {
     const recording: RecordingView = {
       id: 'rec_1',

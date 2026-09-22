@@ -264,6 +264,60 @@ describe('unanimity', () => {
     const stranger = await signIn('carol@example.com', 'Carol');
     expect((await consent(stranger.token, recordingId)).statusCode).toBe(400);
   }, 60_000);
+
+  /**
+   * A member who was not in the recording. The consent set is recomputed from
+   * who took part, so a row from anybody else is one `stateOf` drops — which
+   * made this a write that could never be read back, and in the app a
+   * checkbox that emptied itself on the next snapshot.
+   */
+  it('refuses a member who was not in the recording, rather than storing a consent nothing counts', async () => {
+    const alice = await signIn('alice@example.com', 'Alice Appleby');
+    const bob = await signIn('bob@example.com', 'Bob Barker');
+    const carol = await signIn('carol@example.com', 'Carol Clay');
+    await befriend(alice, bob, 'bob@example.com');
+    await befriend(alice, carol, 'carol@example.com');
+
+    const created = await app.fastify.inject({
+      method: 'POST',
+      url: '/channels',
+      headers: auth(alice.token),
+      payload: { contactIds: [bob.account.id, carol.account.id] },
+    });
+    const { channelId } = created.json() as { channelId: string };
+
+    // Carol never enters, so none of her voice is in it.
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_RECORDING',
+    });
+    await settle();
+    clock += 30_000;
+    const stem = await tone('stem.ogg', 3);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'STOP_RECORDING',
+    });
+    for (const { key } of media.recordings) store.put(key, stem);
+    await app.channels.mixesSettled();
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const [recording] = app.channels.recordingsFor(alice.account.id);
+    await goPublic(alice.token, channelId);
+
+    const refused = await consent(carol.token, recording.id);
+    expect(refused.statusCode).toBe(400);
+    expect(
+      app.db
+        .prepare('SELECT COUNT(*) AS n FROM recording_consents WHERE recording_id = ?')
+        .get(recording.id)
+    ).toEqual({ n: 0 });
+
+    // And the two who were in it still settle it between them.
+    await consent(alice.token, recording.id);
+    const second = await consent(bob.token, recording.id);
+    expect(second.json().publishedAt).toBe(clock);
+  }, 120_000);
 });
 
 describe('withdrawing', () => {

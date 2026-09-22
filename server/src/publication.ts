@@ -228,6 +228,21 @@ export class Publication {
     const blocked = this.whyNotPublishable(row);
     if (blocked) return blocked;
 
+    // A member of the channel who was not in this recording. `stateOf`
+    // recomputes the consent set from who took part and drops anybody else's
+    // row, so this used to be a write that could never be read back: the app
+    // showed the checkbox, the tick stored a row, and `mine` came back false
+    // on the next snapshot. Refused here rather than stored and ignored —
+    // agreeing to publish a conversation you are not in is not a thing to
+    // record. The app no longer offers it either.
+    if (!this.mustConsent(row).includes(userId)) {
+      return refuse(
+        'None of your voice is in this recording, so there is nothing here ' +
+          'for you to agree to.',
+        'invalid'
+      );
+    }
+
     this.db
       .prepare(
         `INSERT INTO recording_consents (recording_id, account_id, at)

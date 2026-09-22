@@ -1456,6 +1456,9 @@ function DeleteButton({
  * Absent entirely on a channel that has not declared itself public: the
  * server sends the field only then, and a consent control on a channel with
  * no page would be asking somebody to agree to something that cannot happen.
+ * Absent for the same reason for a member who was not in this recording —
+ * `required` is recomputed from who took part, so theirs is an agreement
+ * nothing counts. See `asked` below.
  */
 function PublishControl({ recording }: { recording: RecordingView }) {
   const app = useApp();
@@ -1481,6 +1484,40 @@ function PublishControl({ recording }: { recording: RecordingView }) {
   const outstanding = publication.required.filter(
     (person) => !publication.consented.some((agreed) => agreed.id === person.id)
   );
+
+  // Somebody in the channel who was not in *this* recording: they joined
+  // afterwards, or they were here and never opened their microphone. None of
+  // their voice is in the audio, so `required` does not name them and their
+  // agreement is not one the server can count — `stateOf` recomputes the set
+  // from who took part and drops a consent from anybody else.
+  //
+  // **The control used to be offered to them anyway**, which is how this was
+  // found: the tick wrote a row that `mine` then refused to read back, so the
+  // checkbox came back empty on the next snapshot and looked like a save that
+  // had not saved. The state below is the honest one — the recording's
+  // progress, and no offer to take part in a decision that is not theirs.
+  const asked = publication.required.some(
+    (person) => person.id === app.me?.id
+  );
+
+  const status = publication.publishedAt
+    ? publication.preparing
+      ? 'Published — the audio is still being prepared.'
+      : 'Published. Anybody with the address can listen.'
+    : outstanding.length === 0
+      ? 'Everybody has agreed — this is going up now.'
+      : `Waiting on ${outstanding
+          .map((person) => person.displayName)
+          .join(', ')}. It goes up when everybody has agreed.`;
+
+  if (!asked) {
+    return (
+      <Text style={type.muted}>
+        None of your voice is in this one, so it does not need your agreement.{' '}
+        {status}
+      </Text>
+    );
+  }
 
   const set = async (agreed: boolean) => {
     setBusy(true);
@@ -1521,17 +1558,7 @@ function PublishControl({ recording }: { recording: RecordingView }) {
           );
         }}
       />
-      <Text style={type.muted}>
-        {publication.publishedAt
-          ? publication.preparing
-            ? 'Published — the audio is still being prepared.'
-            : 'Published. Anybody with the address can listen.'
-          : outstanding.length === 0
-            ? 'Everybody has agreed — this is going up now.'
-            : `Waiting on ${outstanding
-                .map((person) => person.displayName)
-                .join(', ')}. It goes up when everybody has agreed.`}
-      </Text>
+      <Text style={type.muted}>{status}</Text>
     </>
   );
 }
