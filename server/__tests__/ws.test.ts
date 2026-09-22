@@ -3,7 +3,6 @@ import { buildApp, type App } from '../src/app';
 import {
   DISCONNECT_GRACE_MS,
   FAST_HEARTBEAT_BUILD,
-  HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_LEGACY_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
@@ -52,23 +51,33 @@ const sweeps = () => new Promise((r) => setTimeout(r, SWEEP_MS * 5));
  * The interval the next `buildApp` is given, so a block can opt out of the
  * short one.
  *
- * Two blocks below move `clock` by an hour to stand in for an hour of a client
- * pinging its way through, then ping once and expect the socket to still be
- * there. Against a sweep running every `SWEEP_MS` that is a race and not a
- * test: the jump puts the connection an hour past its silence budget, and
- * whether it survives comes down to whether the ping reaches the server before
- * the next tick. Held at the production interval instead, which is long enough
- * that no sweep falls inside those tests at all — and they were never what the
- * short one is for, since not one of them waits on a sweep.
+ * Three blocks below move `clock` past a socket's silence budget to stand in
+ * for a client pinging its way through, then ping once and expect the socket
+ * to still be there. Against a running sweep that is a race and not a test:
+ * the jump puts the connection well past its budget, and whether it survives
+ * comes down to whether the ping reaches the server before the next tick.
+ *
+ * **The tell is an `await` between the jump and the assertion.** The blocks
+ * that jump by `DISCONNECT_GRACE_MS` and then call `app.channels.tick()` are
+ * fine at any interval — nothing yields, so no sweep can interleave. It is
+ * the ones that wait on a round trip that need it gone.
  */
-let sweepMs = SWEEP_MS;
+let sweepMs: number = SWEEP_MS;
 
 /**
- * Keeps the sweep out of a block that jumps `clock` past the silence budget on
+ * Takes the sweep out of a block that jumps `clock` past the silence budget on
  * purpose. Paired with `resumeSweep` in `afterAll`.
+ *
+ * An hour, rather than the production interval it was until 2026-09-22.
+ * `HEARTBEAT_INTERVAL_MS` merely made the tick unlikely to land inside a test
+ * — two seconds against tests that take a few hundred milliseconds, which is
+ * a coin weighted rather than a coin removed, and it came up heads often
+ * enough to be reported as flake. Nothing in these blocks waits on a sweep,
+ * so there is no reason for one to be able to fire at all: an interval no
+ * test outlives is the same statement with no probability in it.
  */
 const pauseSweep = () => {
-  sweepMs = HEARTBEAT_INTERVAL_MS;
+  sweepMs = 3_600_000;
 };
 const resumeSweep = () => {
   sweepMs = SWEEP_MS;
@@ -2119,6 +2128,15 @@ describe('websocket', () => {
   });
 
   describe('evidence that somebody is still in a channel', () => {
+    // See `sweepMs`: these step `clock` by thirty seconds to stand in for
+    // half a minute of heartbeats and then wait on a pong, and the client
+    // they use names no build — so the sweep judges it against
+    // `HEARTBEAT_TIMEOUT_LEGACY_MS`, twelve, and terminates it mid-wait
+    // unless the sweep is out of the way. That was `timed out waiting for
+    // pong` in this block, roughly one run in three.
+    beforeAll(pauseSweep);
+    afterAll(resumeSweep);
+
     /** Present in the channel, on a live socket, watching it. */
     async function present() {
       const { bob, channelId } = await pairInSession();
