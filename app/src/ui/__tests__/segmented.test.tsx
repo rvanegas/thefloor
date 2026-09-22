@@ -23,11 +23,23 @@ function render(element: React.ReactElement): ReactTestRenderer {
 }
 
 /**
- * A phone's width, which is what every case below was written against and is
- * now said out loud. The rule took the count alone until 2026-09-20 and the
- * width was the assumption underneath it; see `segmentRowsFor`.
+ * **The width of the control on a phone, which is not the width of the phone**
+ * — the correction of 2026-09-22, and the reason this file spent two days
+ * certifying a layout the application did not have.
+ *
+ * Every case below was written against 393, a 16-point iPhone's screen. No
+ * segmented control is ever that wide: Home's strip sits inside `headerInner`
+ * and the channel screen's inside the same measured column, both of which
+ * spend `spacing(2.5)` a side. So what a strip reports to its own `onLayout`
+ * on that phone is 353, and a table asserting 393 was answering about a
+ * surface that does not exist — which is how four tabs passed here as one row
+ * while wrapping to two on the phone.
+ *
+ * The rule took the count alone until 2026-09-20 and a width was the
+ * assumption underneath it; see `segmentRowsFor`. This is that assumption
+ * taken out a second time, one layer further in.
  */
-const PHONE = 393;
+const PHONE = 393 - 2 * 20;
 
 describe('segmentRows', () => {
   /**
@@ -37,6 +49,9 @@ describe('segmentRows', () => {
    */
   it('keeps a set that fits on one row', () => {
     expect(segmentRows(['a', 'b'], PHONE)).toEqual([['a', 'b']]);
+    // Four among them, which is Home's tab strip since it grew Podcasts — and
+    // which was true of a 393-point *screen* before `MIN_SEGMENT` moved and
+    // false of the 353-point strip that screen actually holds.
     expect(segmentRows(['a', 'b', 'c', 'd'], PHONE)).toEqual([['a', 'b', 'c', 'd']]);
   });
 
@@ -88,6 +103,12 @@ describe('segmentRows', () => {
    * becoming two on the surface this application is mostly used on — a
    * regression bought with a change meant for iPads. `MIN_SEGMENT` is chosen
    * against this table rather than the other way round; see its own comment.
+   *
+   * **It survives 90 → 80 unchanged, which is the point of keeping it**: the
+   * lower floor was bought for four on a real strip, and five and six still
+   * ask 400 and 480 of the 353 they get. What moved is that the table is now
+   * measured against the strip rather than the screen, so it says of the
+   * phone what the phone does.
    */
   it('lays a phone out exactly as the count rule did', () => {
     const was: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2 };

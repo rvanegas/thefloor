@@ -216,15 +216,22 @@ describe('how many rows a set of segments needs', () => {
   const PANES: Array<[string, number, 1 | 2]> = [
     ['iPhone 16, portrait', 393, 2],
     ['iPhone 16 Pro Max, portrait', 440, 2],
-    ['an iPad window dragged narrow', 507, 2],
+    /*
+      The two that moved when `MIN_SEGMENT` went 90 → 80 on 2026-09-22. Six
+      words fit from 480 rather than 540, which puts a narrow iPad window and
+      a dragged browser on one row where they took two — 81 and 83 points a
+      segment, against the 61 *Recordings* spells. The constant was lowered
+      for Home's four tabs and this is the whole of what it did elsewhere;
+      see its comment for why the margin is still there.
+    */
+    ['an iPad window dragged narrow', 507, 1],
+    ['a browser window dragged to 520', 520, 1],
     ['the detail pane of an iPad in portrait', 470, 2],
     /*
-      Six words fit from 540 up, so an unsplit browser window at 560 is one
-      row — the rule doing what the count could not: 560 is not a phone and
-      had no business being treated as one.
+      And the case that was the point of the rule in the first place: 560 is
+      not a phone and had no business being treated as one.
     */
     ['a browser window at 560, unsplit', 560, 1],
-    ['a browser window dragged to 520', 520, 2],
     ['the detail pane of a 10.2" iPad, landscape', 740, 1],
     ['the detail pane of a 12.9" iPad, landscape', 1026, 1],
     ['the detail pane of a laptop browser', 1100, 1],

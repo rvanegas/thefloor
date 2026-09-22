@@ -311,18 +311,35 @@ export function useWholeWindow(take: WindowClaim | null = 'glass'): void {
  * the same sentence is this constant, true on every surface rather than on the
  * one it was written against.
  *
- * **90 because that is what the old rule already tolerated**, read off the
- * phone it was written for: four segments across a 393-point iPhone are 98
- * points each and were allowed, five are 78 and were not. Anything higher
- * would be this change quietly making phones worse — a set of four that has
- * always been one row becoming two — and that is not what it is for.
- * `segmented.test.tsx` pins the phone against every count from one to six for
- * exactly that reason.
+ * **80 since 2026-09-22, and it was 90 on two premises that had both already
+ * moved.** 90 was carried over from `MAX_PER_ROW` by reading the old rule off
+ * the phone it was written for — "four segments across a 393-point iPhone are
+ * 98 points each and were allowed" — and the arithmetic was done against the
+ * *screen*. No segmented control is ever that wide: Home's tab strip lives
+ * inside `headerInner`, which spends `spacing(2.5)` a side, so on that same
+ * 393-point iPhone the strip measures 353 and four tabs asked for 360. They
+ * missed by seven points and wrapped — while the same four on a 402-point
+ * 16 Pro got 362 and did not, which is one strip drawn two ways across the
+ * phones in people's hands.
  *
- * It leaves *Recordings*, the longest of the six tabs, about 76 points of
- * caption in a 90-point segment, which is the tightest case that occurs.
+ * The second premise was the label. 90 was sized for the 14pt word a segment
+ * carried when it was a word alone; since 2026-09-12 a segment with a glyph
+ * captions it at 11pt, where *Contacts* runs about 50 points. Four across the
+ * narrowest iPhone still in support is `(335 - 6 - 9) / 4` = 80 points a
+ * segment, which is that caption and thirty points of air.
+ *
+ * **80 is chosen to move exactly one thing and is not a spare-room budget.**
+ * On a phone-width strip five still ask for 400 and six for 480 against 353,
+ * so both stay two rows and every set but four is drawn where it was. Going
+ * lower would start unwrapping those, which is the change this is not.
+ *
+ * The tightest case that occurs is still *Recordings*, the longest of the six
+ * channel tabs: six on the narrowest pane that now takes one row leaves about
+ * 67 points of caption, against the 61 that word spells at 11pt. That margin
+ * is the floor under this number — six tabs unwrap at 480 rather than 540, and
+ * anything under 80 starts clipping the word that made the rule.
  */
-export const MIN_SEGMENT = 90;
+export const MIN_SEGMENT = 80;
 
 /**
  * How many rows a set of segments needs, at this width.
