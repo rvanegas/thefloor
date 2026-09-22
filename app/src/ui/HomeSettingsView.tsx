@@ -466,6 +466,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           `state/AppProvider`, which is also why this is gone at the next
           launch — a phone left wearing marks for nothing teaches whoever finds
           it to stop believing them.
+
+          **Every dab means every dab**, which since the *Help* card gained one
+          is three rather than two: the Support tab and the card behind it are
+          one condition drawn twice, so a preview that lit the tab alone would
+          be a preview of a state the app never has. See `useAnswerWaiting` in
+          `HomeView`.
         */}
         <Card style={styles.stack}>
           <Text style={type.heading}>Show every dab</Text>
@@ -475,8 +481,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             onPress={() => app.forceDabs(!app.forcedDabs)}
           />
           <Text style={type.muted}>
-            Puts a mark on both Home tabs that can wear one, whether or not
-            anything is waiting, so the mark itself can be looked at. It
+            Puts a mark on both Home tabs that can wear one, and on the Help
+            card behind Support, whether or not anything is waiting, so the
+            mark itself can be looked at. It
             changes nothing else, and it is off again the next time the app
             starts.
           </Text>

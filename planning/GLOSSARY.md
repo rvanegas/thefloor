@@ -49,7 +49,7 @@ caused; the list carries the meaning.
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
-- **Dab** — The soft rose disc carrying an `!`, up and to the left of a Home tab's label: something is waiting on that tab. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read
+- **Dab** — The soft rose disc carrying an `!`, up and to the left of a Home tab's label: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -571,10 +571,11 @@ Decline or Withdraw on itself.
 
 ## Dab
 
-**The mark on a Home tab that says something is waiting on it**: a soft rose
-disc with an `!` in it, sitting up and to the left of the label and clear of
-the word. `styles.dab` in `ui/components.tsx`, drawn by `Segmented` for
-whichever options `HomeView` asks.
+**The mark that says something is waiting behind a label**: a soft rose disc
+with an `!` in it, sitting up and to the left of the label and clear of the
+word. `styles.dab` in `ui/components.tsx`, drawn by one `Dab` there and reached
+through `badge` — on `Segmented` for whichever tabs `HomeView` asks, and on
+`Button` for the one control that wears one.
 
 **Its own word because it is not a dot**, and the difference is the whole of
 what it says. Every other mark in the interface — live, nearby, muted, speaking,
@@ -599,6 +600,15 @@ questions has come back since this phone last opened that screen — which has t
 be remembered, an answered question staying answered for ever. One clears itself;
 the other is cleared by being read. `state/helpSeen.ts` argues it, and
 `decisions/2026-09-15-the-two-dabs-are-not-symmetrical.md` is why.
+
+**The *Support* one is drawn twice, and is still one fact.** The tab wears it
+and so does the *Help* card behind the tab, off one condition, because a tab
+saying *go and look* onto a screen of four cards is a direction turned into a
+search. Both clear together the moment the help screen is opened.
+`decisions/2026-09-22-a-marked-tab-marks-the-card-it-meant.md` has it, and it
+is the only place a control rather than a tab wears this mark: a dab on a
+button means *the tab you came through was marked about this*, never a second
+thing of its own.
 
 **Never a count**, deliberately. An outgoing contact request is not in the
 Contacts count at all — only the other person can answer one, and a mark for it

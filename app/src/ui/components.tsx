@@ -25,6 +25,36 @@ import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 /**
+ * The mark: something is waiting behind this.
+ *
+ * **One disc, drawn in one place**, which is what stops the two callers
+ * drifting: a tab wears one (`Segmented`'s `badge`) and so does the control
+ * that tab's screen points at (`Button`'s). They are the same fact said twice
+ * — see `HomeView`, where both are read off one condition — and a mark that
+ * came out a different size on the second telling would read as a different
+ * kind of thing.
+ *
+ * It positions itself, so a caller supplies only the box to hang it on:
+ * `styles.dabAnchor` around the label, and nothing else. See `styles.dab` for
+ * where the offsets come from and why the disc is larger than every other mark
+ * in STYLE.md.
+ */
+function Dab() {
+  return (
+    <View style={styles.dab}>
+      {/*
+        `allowFontScaling={false}`: the disc is a fixed 18 and a glyph that
+        grows past it is a clipped mark rather than a bigger one. What the
+        setting is for is the label beside it, which does scale.
+      */}
+      <Text style={styles.dabGlyph} allowFontScaling={false}>
+        !
+      </Text>
+    </View>
+  );
+}
+
+/**
  * The ordinary control: a filled rectangle with a word on it.
  *
  * **`icon` draws a glyph where the word would be, and the word does not
@@ -56,6 +86,7 @@ export function Button({
   disabled,
   variant = 'default',
   sublabel,
+  badge,
   icon,
   style,
 }: {
@@ -65,6 +96,28 @@ export function Button({
   disabled?: boolean;
   variant?: 'default' | 'primary' | 'floor' | 'danger';
   sublabel?: string;
+  /**
+   * That something is waiting behind this button, in the words a screen reader
+   * gets — `Segmented`'s `badge` contract, on a control rather than a tab, and
+   * drawing the same dab.
+   *
+   * **A string rather than a boolean, for the reason stated there**: the mark
+   * is a bare `!`, so a mark that could exist without words would be one that
+   * costs a screen reader the button and gives it nothing back. Presence is
+   * what draws it.
+   *
+   * **It is the second half of a mark on a tab, never the first.** What a dab
+   * on a tab says is *go and look*, and a tab that says so and then opens onto
+   * a screenful of cards saying nothing has handed somebody a search. So a
+   * button wears one when it is the next step of a tab that is already marked
+   * — Home's *Support* tab and the *Help* card behind it — and the two are
+   * drawn from one condition rather than two. See `HomeView`.
+   *
+   * Silent on an `icon` button, which has no word to sit beside: nothing in
+   * the app asks for that, and a disc floating over a glyph is a different
+   * design question from this one.
+   */
+  badge?: string;
   icon?: (color: ColorValue) => React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -80,13 +133,21 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      // Only when the word is not on screen. A button that draws its label
-      // reads it out along with any `sublabel` underneath, and naming it here
-      // would silence that second line — which on *Play something together* is
-      // the half that says what would happen. An `icon` button's `sublabel`
-      // is silenced deliberately: `label` is the same act said in full, so
-      // reading both would be a stutter.
-      accessibilityLabel={icon ? label : undefined}
+      // Only when the word is not on screen, or when there is a mark on it
+      // that has to be said. A button that draws its label reads it out along
+      // with any `sublabel` underneath, and naming it here would silence that
+      // second line — which on *Play something together* is the half that says
+      // what would happen, so a badged button spells the sublabel back out
+      // rather than dropping it. An `icon` button's `sublabel` is silenced
+      // deliberately: `label` is the same act said in full, so reading both
+      // would be a stutter.
+      accessibilityLabel={
+        icon
+          ? label
+          : badge
+            ? [label, badge, sublabel].filter(Boolean).join(', ')
+            : undefined
+      }
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
       disabled={disabled}
@@ -99,6 +160,20 @@ export function Button({
     >
       {icon ? (
         icon(fg)
+      ) : badge ? (
+        /*
+          The label wears its own box so the dab can be positioned against the
+          *word* rather than against the button, which is `Segmented`'s
+          reasoning and the same geometry: a button is as wide as the card it
+          is in and a label is as wide as it reads, so anchoring to the button
+          would leave the mark out in whitespace. The box exists only when
+          there is a mark to hang on it — every other button in the app draws
+          exactly the node it always drew.
+        */
+        <View style={styles.dabAnchor}>
+          <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
+          <Dab />
+        </View>
       ) : (
         <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
       )}
@@ -885,7 +960,7 @@ export function Segmented<T extends string>({
                   the long ones. This way it sits off the leading edge of the
                   text and needs nothing measured.
                 */}
-                <View style={styles.segmentLabelBox}>
+                <View style={styles.dabAnchor}>
                   <Text
                     style={[
                       styles.segmentLabel,
@@ -897,19 +972,7 @@ export function Segmented<T extends string>({
                   >
                     {option.label}
                   </Text>
-                  {option.badge ? (
-                    <View style={styles.dab}>
-                      {/*
-                        `allowFontScaling={false}`: the disc is a fixed 18 and a
-                        glyph that grows past it is a clipped mark rather than a
-                        bigger one. What the setting is for is the label beside
-                        it, which does scale.
-                      */}
-                      <Text style={styles.dabGlyph} allowFontScaling={false}>
-                        !
-                      </Text>
-                    </View>
-                  ) : null}
+                  {option.badge ? <Dab /> : null}
                 </View>
               </Pressable>
             );
@@ -1047,13 +1110,18 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   /**
-   * The box the dab is positioned against: the label's own bounds, which is
-   * what makes the mark follow the word. `position: 'relative'` is the RN
-   * default and is written out because the absolute child below depends on it.
+   * The box a dab is positioned against: the label's own bounds, which is what
+   * makes the mark follow the word. `position: 'relative'` is the RN default
+   * and is written out because the absolute child below depends on it.
+   *
+   * A segment's label wears one, and so does a badged `Button`'s — which is
+   * why it is no longer called `segmentLabelBox`. The two are the same
+   * geometry because the two labels are: a word, centred, with whitespace on
+   * its leading side.
    */
-  segmentLabelBox: { position: 'relative' },
+  dabAnchor: { position: 'relative' },
   /**
-   * The dab: something is waiting on this tab.
+   * The dab: something is waiting behind the label this sits on.
    *
    * **A disc carrying an `!`, off the leading edge of the label and clear of
    * it.** It was a rose lozenge laid over the trailing end of the word until

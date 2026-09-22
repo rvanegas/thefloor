@@ -1249,6 +1249,13 @@ describe('the dab on Home\'s tabs', () => {
 
   const home = () => render(<HomeView {...homeNav} />);
 
+  /**
+   * The same screen standing on the Support tab, which is a prop rather than a
+   * press: the tier is controlled from above, so pressing the tab here calls a
+   * handler that goes nowhere. See `homeNav`.
+   */
+  const support = () => render(<HomeView {...homeNav} list="support" />);
+
   /** Somebody has asked, and it is this reader's turn. */
   it('marks Contacts when somebody has asked to be a contact', () => {
     withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }]);
@@ -1370,6 +1377,56 @@ describe('the dab on Home\'s tabs', () => {
     );
     expect(findTab(tree, 'Support')!.props.accessibilityLabel).toBe(
       'Support, answered'
+    );
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The second half of the Support mark: the card the tab meant.
+   *
+   * A tab says *go and look* and the Support tab holds four cards, three of
+   * which have nothing to do with a help answer. Without this the mark sends
+   * somebody to a screen where nothing is marked, which is a search rather
+   * than a direction.
+   */
+  it('marks the Help card when the Support tab is marked', () => {
+    withContacts([], { answeredAt: NOW });
+    mockApp.helpSeen.seenAnsweredAt = null;
+    const tree = support();
+    // The tab and the card, which is the whole claim: one condition, two
+    // marks, and the second one on the thing to press.
+    expect(dabs(tree)).toHaveLength(2);
+    expect(findButton(tree, 'Help')!.props.accessibilityLabel).toBe(
+      'Help, answered'
+    );
+    act(() => tree.unmount());
+  });
+
+  /**
+   * And it is the same fact, not a second one: what clears the tab clears the
+   * card, in the same frame, because neither remembers anything of its own.
+   */
+  it('leaves the Help card unmarked once the answer has been read', () => {
+    withContacts([], { answeredAt: NOW });
+    mockApp.helpSeen.seenAnsweredAt = NOW;
+    const tree = support();
+    expect(dabs(tree)).toHaveLength(0);
+    expect(findButton(tree, 'Help')!.props.accessibilityLabel).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  /**
+   * *Show every dab* has to show every dab. A preview that lit the tab and not
+   * the card would be a preview of a state the app never has — which is the
+   * one thing the override cannot afford to be, being the only way anybody
+   * looks at these marks.
+   */
+  it("draws the Help card's dab under the debug override", () => {
+    withContacts([]);
+    mockApp.forcedDabs = true;
+    const tree = support();
+    expect(findButton(tree, 'Help')!.props.accessibilityLabel).toBe(
+      'Help, answered'
     );
     act(() => tree.unmount());
   });

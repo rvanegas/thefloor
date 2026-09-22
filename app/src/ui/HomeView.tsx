@@ -596,6 +596,8 @@ function SupportBody({
   onOpenLeaderboard?: () => void;
   onOpenAudioLab?: () => void;
 }) {
+  // The mark on the tab that got somebody here, carried one step further in.
+  const answered = useAnswerWaiting();
   return (
     /* The gap between cards, as every other group of them here gets it. Two
        cards flush against each other read as one card with a line through
@@ -610,7 +612,31 @@ function SupportBody({
         is also what stops this tab ever being empty.
       */}
       <Card style={styles.card}>
-        <Button label="Help" onPress={onOpenHelp} />
+        {/*
+          **The mark the tab wears, on the card it meant.** A dab on *Support*
+          says something is waiting behind that tab and stops there, which was
+          enough while the tab held one card and stopped being enough the day
+          it held four: *Chip in*, the standings and the bench are all things
+          that could plausibly have been what the mark was about, and somebody
+          reading the tab's mark as being about any of them has been sent the
+          wrong way by the mark itself. So the tab points at the tab and the
+          card points at the answer, and the step after this one is `HelpView`,
+          which clears both by being opened.
+
+          **Nothing new is remembered for it.** It is the same `answered` the
+          switch above draws from — see `useAnswerWaiting` — so the two cannot
+          come apart, and the read that takes the tab's mark off takes this one
+          off in the same frame.
+
+          The word is *answered*, as on the tab, and for the tab's reason: what
+          is waiting is the reading of it. A screen reader hears "Help,
+          answered".
+        */}
+        <Button
+          label="Help"
+          badge={answered ? "answered" : undefined}
+          onPress={onOpenHelp}
+        />
         {/* What the screen behind it actually is, which is a question box
             rather than a chat, and no promise about when — see `HelpView`,
             which refuses to make one for the same reason. */}
@@ -836,6 +862,34 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
 }
 
 /**
+ * Whether an answer has come back that this phone has not read — the Support
+ * tab's mark, and the *Help* card's behind it.
+ *
+ * **One hook because it is one fact**, and because the two marks are one
+ * sentence said in two places: the tab says *go and look* and the card says
+ * *look here*. Two reads of `helpSeen` computing the same thing would be two
+ * things that can disagree, and the way that failure looks is a marked tab
+ * opening onto a screen with nothing marked on it — which is worse than no
+ * mark at all, because somebody then goes looking through four cards for
+ * whatever the tab meant.
+ *
+ * The debug override is inside it for the same reason: *Show every dab* has to
+ * show every dab, and a preview that lit the tab and not the card would be a
+ * preview of a state the app never has. See `forcedDabs` in `state/AppProvider`.
+ */
+function useAnswerWaiting(): boolean {
+  const app = useApp();
+  const { seenAnsweredAt, loaded } = app.helpSeen;
+  // Nothing before the keychain has answered: `seenAnsweredAt` reads as never
+  // seen until it does, which would flash a dab on every cold start of an
+  // install that has read everything.
+  return (
+    app.forcedDabs ||
+    (loaded && answersWaiting(app.home?.helpAnsweredAt, seenAnsweredAt))
+  );
+}
+
+/**
  * The switch, and the two marks it can wear.
  *
  * **Both dabs are read here rather than inside the bodies they are about**, for
@@ -867,14 +921,14 @@ function ListSwitch({
   onList: (list: List) => void;
 }) {
   const app = useApp();
-  const { seenAnsweredAt, loaded } = app.helpSeen;
   const requests = answerableRequests(app.home).length;
-  // Nothing before the keychain has answered: `seenAnsweredAt` reads as never
-  // seen until it does, which would flash a dab on every cold start of an
-  // install that has read everything.
-  const answered = loaded && answersWaiting(app.home?.helpAnsweredAt, seenAnsweredAt);
+  // The same read the Support body makes, so the tab and the card behind it
+  // cannot say different things.
+  const answered = useAnswerWaiting();
   /*
-    The debug preview, which is an `||` here and nothing anywhere else.
+    The debug preview for the Contacts mark, which is an `||` here; the Support
+    mark's is inside `useAnswerWaiting`, so that the card behind that tab is
+    forced along with it.
 
     **It forces the drawing and not the states behind it**, which is the whole
     of why it is read at this line. Both real conditions are still computed and
@@ -939,8 +993,10 @@ function ListSwitch({
           label: "Support",
           icon: (color) => <SupportIcon color={color} />,
           // "answered" rather than "an answer waiting": what is waiting is the
-          // reading of it, and the answer is already here.
-          badge: forced || answered ? "answered" : undefined,
+          // reading of it, and the answer is already here. The override is
+          // inside `useAnswerWaiting`, unlike the Contacts mark above, because
+          // the card behind this tab has to be forced with it.
+          badge: answered ? "answered" : undefined,
         },
       ]}
       value={list}

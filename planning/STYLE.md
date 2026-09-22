@@ -748,7 +748,7 @@ The small marks, and what a diameter means:
 | muted dot | 9, hollow, 1.5pt `textFaint` | you have closed your microphone |
 | speaking dot | 10, 1pt `border` → filled `floor` | this person is audible now |
 | recording dot | 8, solid `recording` (`textFaint` paused) | a recording is running |
-| dab | 18, solid `waiting`, `!` in `surface` | something is waiting on this tab |
+| dab | 18, solid `waiting`, `!` in `surface` | something is waiting behind this label |
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
@@ -772,9 +772,20 @@ the glyph buys the mark its way off the label.
 
 Positioned against the label's own box rather than the segment's, so it follows
 the word wherever the word starts and needs nothing measured — `styles.dab` in
-`components.tsx`, and `Segmented`'s `badge`, which takes the words a screen
+`components.tsx`, drawn by one `Dab` there and by nothing else, and reached
+through `badge` on `Segmented` and on `Button`, which takes the words a screen
 reader is given rather than a boolean, an `!` being a shape rather than a
-sentence and a mark that announces nothing being worse than none. Drawn on the
+sentence and a mark that announces nothing being worse than none.
+
+**A tab wears one, and so does the control that tab's screen points at.** A
+mark on a tab says *go and look*, which is the whole of what a tab can say and
+stops being enough when the screen behind it holds several cards: Home's
+*Support* tab holds four, and three of them have nothing to do with a help
+answer. So the Support dab is drawn twice, on the tab and on the *Help* card
+behind it, off one condition — `useAnswerWaiting` in `HomeView` — so the two
+cannot disagree, and reading the answer clears both in the same frame. **Two
+marks for one fact, never two facts**: a button wearing a dab of its own, for
+something no tab is marked about, would be this mark meaning a second thing. Drawn on the
 selected tab as readily as an unselected one: it is about what the tab holds,
 not about where you are standing. **Never a count**, which is why it is an `!`
 and not a number — Home's two dabs are a request to answer and an answer come
