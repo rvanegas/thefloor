@@ -4564,6 +4564,26 @@ export function buildApp(options: BuildOptions = {}): App {
     };
   });
 
+  /**
+   * That this member has read the card saying their channel has a public
+   * page.
+   *
+   * A record rather than a decision: it takes nothing down, it lets nothing
+   * up, and the only thing it changes is whether the card is drawn again on
+   * this person's next snapshot. See `owesPublicNotice` in publication.ts for
+   * why that is worth a row.
+   */
+  fastify.post('/channels/:id/public-notice', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = publication.acknowledgePublic(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
   /** The two things a feed requires and nothing can derive. */
   fastify.post('/channels/:id/declarations', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5013,6 +5033,8 @@ export function buildApp(options: BuildOptions = {}): App {
       channels,
       homeFor,
       recordingsInChannel,
+      owesPublicNotice: (channelId, userId) =>
+        publication.owesPublicNotice(channelId, userId),
       now,
       homeNotifier,
       settingsNotifier,

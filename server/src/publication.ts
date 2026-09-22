@@ -133,8 +133,91 @@ export class Publication {
     this.db
       .prepare('UPDATE channels SET public_at = ? WHERE id = ?')
       .run(publicAt, channelId);
+
+    // The notice every member is owed, and this is both ends of it.
+    //
+    // On the way up, the person turning the switch on has just answered a
+    // confirmation carrying the whole of what the card says, so their row is
+    // written here rather than leaving them a card telling them what they
+    // just did. `OR IGNORE` because On is pressable on a channel that is
+    // already public — the row is then already theirs and its timestamp
+    // should stay the one they were actually asked at.
+    //
+    // On the way down, every row goes. A channel that comes back is a new
+    // fact about where these conversations can be read, and an
+    // acknowledgement from the last time would silence the card for everybody
+    // who was there then. See db.ts § public_notices.
+    if (wanted) {
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO public_notices (channel_id, account_id, at)
+             VALUES (?, ?, ?)`
+        )
+        .run(channelId, userId, this.now());
+    } else {
+      this.db
+        .prepare('DELETE FROM public_notices WHERE channel_id = ?')
+        .run(channelId);
+    }
+
     this.options.announce(channelId);
     return { ok: true, publicAt };
+  }
+
+  /**
+   * Whether this member still has the public page to be told about.
+   *
+   * True for a member of a public channel with no row — which is the ordinary
+   * state of somebody added after the switch was turned on, and of everybody
+   * who was already there when somebody else turned it on. False for a
+   * channel that is not public, for a channel this person is not in, and once
+   * they have said they have read it.
+   *
+   * **It gates nothing.** The page is up either way, the feed answers either
+   * way, and no recording's fate turns on it: a recording is published when
+   * everybody in it has agreed, which is a different question asked per
+   * recording and is the one that protects somebody's voice. This protects
+   * their expectations, which is worth less and is still worth something.
+   */
+  owesPublicNotice(channelId: string, userId: string): boolean {
+    const channel = this.channelFor(channelId, userId);
+    if (!channel?.public_at) return false;
+    const row = this.db
+      .prepare(
+        'SELECT 1 FROM public_notices WHERE channel_id = ? AND account_id = ?'
+      )
+      .get(channelId, userId);
+    return !row;
+  }
+
+  /**
+   * Records that this member has read it.
+   *
+   * Written whether or not the channel is public, and deliberately: a card
+   * dismissed on a snapshot that has since gone private must not come back if
+   * it goes public again in the same minute for reasons the member already
+   * knows about. `channelFor` is still the bar, so this says nothing about a
+   * channel somebody is not in.
+   *
+   * Idempotent, because the card's button is pressable twice on a slow
+   * connection and the first press is the honest timestamp.
+   */
+  acknowledgePublic(channelId: string, userId: string): { ok: true } | Refusal {
+    const channel = this.channelFor(channelId, userId);
+    if (!channel) return refuse('No such channel.', 'not_found');
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO public_notices (channel_id, account_id, at)
+           VALUES (?, ?, ?)`
+      )
+      .run(channelId, userId, this.now());
+    // The snapshot this person is holding still says they are owed the card.
+    // Pushed rather than left to the next transition, which on a quiet channel
+    // is whenever somebody next speaks. It reaches everybody in the channel,
+    // as every announce does, and tells the rest of them nothing: the field is
+    // computed per connection.
+    this.options.announce(channelId);
+    return { ok: true };
   }
 
   /**

@@ -311,6 +311,134 @@ describe('a public channel with nothing published', () => {
   }, 60_000);
 });
 
+describe('telling the members there is a page', () => {
+  /**
+   * The notice, which is the one thing here that gates nothing.
+   *
+   * Whether a channel is public stays any member's decision — no assertion
+   * below takes a page down or refuses a switch. What is asserted is that
+   * nobody is left holding a membership in a public channel without the
+   * sentence having been put in front of them once, which is what a row's
+   * absence means. See db.ts § public_notices.
+   */
+  const owed = (channelId: string, user: User) =>
+    app.publication.owesPublicNotice(channelId, user.account.id);
+
+  const acknowledge = (token: string, channelId: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/public-notice`,
+      headers: auth(token),
+    });
+
+  /** Somebody added to the channel, through the path an invitation takes. */
+  async function added(channelId: string, host: User, identifier: string) {
+    const carol = await signIn(identifier, 'Carol Carver');
+    await befriend(host, carol, identifier);
+    app.channels.dispatch(channelId, host.account.id, {
+      type: 'INVITE',
+      contactId: carol.account.id,
+    } as never);
+    return carol;
+  }
+
+  it('owes nobody anything while the channel is private', async () => {
+    const { alice, bob, channelId } = await recorded();
+    expect(owed(channelId, alice)).toBe(false);
+    expect(owed(channelId, bob)).toBe(false);
+  }, 60_000);
+
+  it('spares the member who turned it on and owes the rest', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    // Alice answered the confirmation, which says all of it. Bob was not
+    // there, and the decision was visible to him nowhere.
+    expect(owed(channelId, alice)).toBe(false);
+    expect(owed(channelId, bob)).toBe(true);
+  }, 60_000);
+
+  it('owes it to somebody added after the switch', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    const carol = await added(channelId, alice, 'carol@example.com');
+
+    expect(owed(channelId, carol)).toBe(true);
+  }, 60_000);
+
+  it('stops owing it once the member says they have read it', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    expect((await acknowledge(bob.token, channelId)).statusCode).toBe(200);
+    expect(owed(channelId, bob)).toBe(false);
+    // Twice, because the card's button is pressable twice on a slow
+    // connection.
+    expect((await acknowledge(bob.token, channelId)).statusCode).toBe(200);
+    expect(owed(channelId, bob)).toBe(false);
+  }, 60_000);
+
+  it('changes nothing about the page either way', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    // Bob has been told nothing and the page is up, which is the whole of the
+    // design: this is a notice, not a veto.
+    expect(owed(channelId, bob)).toBe(true);
+    expect((await pageFor(channelId)).statusCode).toBe(200);
+    expect((await feedFor(channelId)).statusCode).toBe(200);
+  }, 60_000);
+
+  it('asks everybody again after a channel comes back', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await acknowledge(bob.token, channelId);
+    expect(owed(channelId, bob)).toBe(false);
+
+    await goPublic(alice.token, channelId, false);
+    await goPublic(alice.token, channelId);
+
+    // Alice turned it on again and was asked again; Bob's answer was about a
+    // page that has been down since, and a channel coming back is a new fact
+    // about where these conversations can be read.
+    expect(owed(channelId, alice)).toBe(false);
+    expect(owed(channelId, bob)).toBe(true);
+  }, 60_000);
+
+  it('owes nothing to somebody who is not in the channel, and takes nothing from them', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    const stranger = await signIn('dave@example.com', 'Dave');
+
+    expect(owed(channelId, stranger)).toBe(false);
+    // 400 for the same reason every not-yours answer here is one: absent and
+    // not-yours are one answer.
+    expect((await acknowledge(stranger.token, channelId)).statusCode).toBe(400);
+  }, 60_000);
+
+  it('goes with the account, leaving nothing pointing at it', async () => {
+    const { alice, bob, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await acknowledge(bob.token, channelId);
+
+    expect(
+      (
+        await app.fastify.inject({
+          method: 'DELETE',
+          url: '/me',
+          headers: auth(bob.token),
+        })
+      ).statusCode
+    ).toBe(204);
+
+    expect(
+      app.db
+        .prepare('SELECT COUNT(*) AS n FROM public_notices WHERE account_id = ?')
+        .get(bob.account.id)
+    ).toEqual({ n: 0 });
+  }, 60_000);
+});
+
 describe('unanimity', () => {
   it('publishes nothing until everybody has agreed', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();

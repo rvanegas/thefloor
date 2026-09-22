@@ -383,6 +383,13 @@ export function registerWebsocket(deps: {
   channels: ChannelRegistry;
   homeFor: (userId: string) => HomeView;
   recordingsInChannel: (channelId: string, userId: string) => RecordingView[];
+  /**
+   * Whether this member still has this channel's public page to be told
+   * about. A function rather than the whole of `Publication`, which is what
+   * `recordingsInChannel` above is and for the same reason: this module
+   * pushes snapshots and has no other business with publishing.
+   */
+  owesPublicNotice: (channelId: string, userId: string) => boolean;
   now: () => number;
   homeNotifier: HomeNotifier;
   settingsNotifier: SettingsNotifier;
@@ -412,6 +419,7 @@ export function registerWebsocket(deps: {
     channels,
     homeFor,
     recordingsInChannel,
+    owesPublicNotice,
     now,
     homeNotifier,
     settingsNotifier,
@@ -887,6 +895,12 @@ export function registerWebsocket(deps: {
         // thing that asks. Null for every channel that has not declared
         // itself public, which is nearly all of them.
         publicAt: channels.publicAtOf(channelId),
+        // Whether this connection's own member has yet to be told about that
+        // page. This one is about the reader rather than about the channel,
+        // like `notificationLevel` below — everybody else's answer is nobody's
+        // business here, and a snapshot saying who had read it would read as a
+        // roster of who agreed.
+        publicNotice: owesPublicNotice(channelId, connection.userId),
         // What a directory requires and nothing can derive, plus whether
         // there is a cover yet. Same terms as the line above.
         publication: channels.publicationSettingsOf(channelId),

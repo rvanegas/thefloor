@@ -616,6 +616,16 @@ interface AppValue extends AppState {
     isPublic: boolean
   ) => Promise<{ url: string | null; feedUrl: string | null }>;
   /**
+   * Says this member has read the card telling them their channel has a
+   * public page.
+   *
+   * It decides nothing and refuses nothing — the page is up either way. What
+   * it does is stop the card being drawn again, on every device this person
+   * signs in on, which is why it is a row on the server rather than a
+   * dismissal on the install like the *getting-started* card's.
+   */
+  acknowledgeChannelPublic: (channelId: string) => Promise<void>;
+  /**
    * Agrees that one recording may be published, or takes that agreement back.
    *
    * One call rather than two because the card offers one control: the
@@ -2269,6 +2279,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isPublic
         );
         return { url: result.url, feedUrl: result.feedUrl };
+      },
+
+      acknowledgeChannelPublic: async (channelId) => {
+        if (!state.token) throw new ApiError('Not signed in.', 401);
+        await api.acknowledgeChannelPublic(state.token, channelId);
+        // Nothing locally: the server announces the channel, and the snapshot
+        // comes back with the card's flag cleared.
       },
 
       setChannelDeclarations: async (channelId, declarations) => {

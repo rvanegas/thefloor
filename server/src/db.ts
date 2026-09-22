@@ -1183,6 +1183,45 @@ CREATE TABLE IF NOT EXISTS recording_consents (
 CREATE INDEX IF NOT EXISTS recording_consents_account
   ON recording_consents(account_id);
 
+-- Who has been told that the channel they are in has a public page.
+--
+-- **A notice, not a veto, and the difference is the whole design.** Whether a
+-- channel is public is any member's decision and stays one; nothing here can
+-- take a page down. What this table fixes is that the decision used to be
+-- invisible to everybody except the person who made it. Somebody added to a
+-- channel that went public last month arrived into a fait accompli with no
+-- moment at which they were ever shown it, and the first they would learn of
+-- it is a card on a settings screen most people never open.
+--
+-- So every member is owed the sentence once, and the absence of a row is the
+-- debt. The member who turned the switch on gets a row at that moment,
+-- because the confirmation they answered said all of this — see the
+-- Publishing card in ChannelSettingsView.tsx, which is the same words.
+-- Everybody else gets a card above the channel's tabs until they acknowledge
+-- it. (No backticks anywhere here: this is a template literal, as the note on
+-- usage_spans says.)
+--
+-- **Cleared when the channel goes private, which is what makes it per
+-- publication rather than per lifetime.** A channel that comes back is a new
+-- fact about where these conversations can be read, months later and possibly
+-- with a different roster, and a row from the last time would silence the
+-- card for everybody who was there then.
+--
+-- No row survives the channel: ON DELETE CASCADE, like
+-- channel_notification_levels, since an acknowledgement about a channel that
+-- is gone answers nothing. Cleared with the account by deleteAccount, as
+-- recording_consents is — for the opposite reason to a consent, though. A
+-- consent is withdrawn on the way out because it was authorising something;
+-- this authorises nothing and is removed only because it names a person.
+CREATE TABLE IF NOT EXISTS public_notices (
+  channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  at         INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS public_notices_account
+  ON public_notices(account_id);
+
 -- What this box actually carried, for the last thirty days and no longer.
 --
 -- Written so that claims about load stop being reasoned and start being

@@ -631,6 +631,16 @@ export const api = {
     ),
 
   /**
+   * Says this member has read the card telling them the channel has a public
+   * page. It decides nothing; it stops the card being drawn again.
+   */
+  acknowledgeChannelPublic: (token: string, channelId: string) =>
+    request<{ ok: true }>(`/channels/${channelId}/public-notice`, {
+      method: 'POST',
+      token,
+    }),
+
+  /**
    * Sets what this channel declares about itself for a podcast directory.
    *
    * Each field is optional and absent means unchanged, so a screen that

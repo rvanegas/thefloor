@@ -478,6 +478,19 @@ export function ChannelView({
    */
   const cohortNotice = useCohortNotice(view?.cohort ? channelId : null);
   /**
+   * Whether this member has just put the public-page card away, before the
+   * snapshot carrying that back has arrived.
+   *
+   * **Local and optimistic, unlike everything else the card knows.** Whether
+   * the card is owed at all is the server's answer — a row, so it follows the
+   * person onto their other devices rather than being dismissed per install
+   * as the *getting-started* card is. But the announce it provokes is a round
+   * trip, and a card that stayed on screen for it would read as a button that
+   * did nothing. Keyed on the channel id so that opening a different channel
+   * asks the snapshot again rather than inheriting this one's answer.
+   */
+  const [publicNoticeRead, setPublicNoticeRead] = useState<string | null>(null);
+  /**
    * Follows a caller that names a tab while this screen is already up.
    *
    * The state above is seeded once, which is the whole of it on a phone: the
@@ -3096,6 +3109,64 @@ export function ChannelView({
             </Text>
             <View style={styles.cohortActions}>
               <Button label="Got it" onPress={cohortNotice.dismiss} />
+            </View>
+          </Card>
+        ) : null}
+        {/*
+          That this channel has a public page, said to somebody who has not
+          been told.
+
+          **The decision it reports is not this card's to take, and the card
+          says nothing that implies otherwise.** Any member may give a channel
+          a page and any member may take it down, which is unchanged; this
+          exists because that decision used to be visible only to the person
+          who made it. Somebody added to a channel that went public last month
+          arrived into a settled fact with no moment at which they were ever
+          shown it, and the only place it was written down is a settings screen
+          most people never open. So the sentence is owed once, to everybody,
+          and the absence of a row on the server is the debt — see db.ts §
+          public_notices.
+
+          **What it must not become is a consent card.** Nobody is being asked
+          to agree, because nothing here turns on their answer: their voice is
+          protected by a different mechanic entirely, per recording and
+          unanimous, and offering a button that looked like a veto over the
+          page would promise a power the next tap would fail to deliver. The
+          third line is the one that does the work — it says what is and is not
+          published, and where the decision that matters is actually taken.
+
+          Above the tab content for the *getting-started* card's reason: the
+          question is the same whichever of the six tabs somebody landed on,
+          and an explanation filed under one is one most of them never reach.
+          It is a readout with a way to put it away and repeats nothing in the
+          footer, so `hideControlCards` has no claim on it either.
+        */}
+        {view.publicNotice && publicNoticeRead !== channelId ? (
+          <Card style={styles.cohort}>
+            <Text style={type.body}>This channel has a public page</Text>
+            <Text style={type.muted}>
+              Somebody in this channel has given it a page on the web, showing
+              its name and its notepad to anybody, and it is listed publicly
+              where it can be found by people you have never met. No member is
+              named on it, ever.
+            </Text>
+            <Text style={type.muted}>
+              No recording of yours goes on it unless you agree to that
+              recording yourself, on its own card under Recordings, and
+              everybody else in it agrees too. Any one of you can take that
+              back afterwards.
+            </Text>
+            <View style={styles.cohortActions}>
+              <Button
+                label="Got it"
+                onPress={() => {
+                  // Optimistic, then sent. A failure leaves the card to come
+                  // back on the next snapshot, which is the honest outcome:
+                  // the server has no record of this person having read it.
+                  setPublicNoticeRead(channelId);
+                  void app.acknowledgeChannelPublic(channelId).catch(() => {});
+                }}
+              />
             </View>
           </Card>
         ) : null}

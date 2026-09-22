@@ -978,6 +978,26 @@ export interface ChannelView {
    */
   publicAt?: number | null;
   /**
+   * Whether this connection's own member has yet to be told that this channel
+   * has a public page.
+   *
+   * **The one field on this snapshot that is about the reader**, which
+   * `notificationLevel` below is too and for the same reason: it is read and
+   * answered on this screen, by this person, and there is nowhere else it
+   * would ride. Everybody else's answer is nobody's business here — no card
+   * anywhere says who has read it, deliberately, since a list of who has
+   * acknowledged the page would read as a list of who has agreed to it and
+   * nobody has been asked to agree to anything.
+   *
+   * True only for a member of a public channel with no acknowledgement: the
+   * ordinary state of somebody added after the switch was turned on. It gates
+   * nothing — see `owesPublicNotice` in publication.ts.
+   *
+   * Optional, so a server that predates it sends nothing and the card is not
+   * drawn, which is what such a server means.
+   */
+  publicNotice?: boolean;
+  /**
    * What this channel declares about itself for a podcast directory, and
    * whether it has cover art yet.
    *

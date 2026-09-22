@@ -310,6 +310,7 @@ export const mockApp = {
   // default. A test about the refusal path overrides it.
   setNotificationLevel: jest.fn(async (_channelId: string, level: string) => level),
   revokeGuestLink: jest.fn(async () => {}),
+  acknowledgeChannelPublic: jest.fn(async () => {}),
   // Answers as the server does, the address being derived from the id: the
   // settings screen shows it, so a mock returning nothing would be a screen
   // that says a page was made and cannot say where.
@@ -676,7 +677,12 @@ export function showChannel(
   // reducer holds — see `ChannelView.watching`. Passed here for the same
   // reason `cohort` is: it rides the snapshot and nothing in `core/` can
   // produce it.
-  extra: { cohort?: number | null; watching?: string[] } = {}
+  extra: {
+    cohort?: number | null;
+    watching?: string[];
+    /** Whether this reader has yet to be told the channel has a page. */
+    publicNotice?: boolean;
+  } = {}
 ) {
   const names: Record<string, string> = {
     [ME]: 'Me',

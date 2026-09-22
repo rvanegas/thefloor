@@ -2470,6 +2470,13 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM recording_consents WHERE account_id = ?')
       .run(accountId);
+    // Nothing stands on these, unlike the rows above: a public notice
+    // authorises nothing and holds nothing up, and it goes only because it
+    // names a person and is a foreign key onto this account. Anybody rejoining
+    // on a new account is owed the sentence again, which is correct.
+    this.db
+      .prepare('DELETE FROM public_notices WHERE account_id = ?')
+      .run(accountId);
     this.db.prepare('DELETE FROM tokens WHERE account_id = ?').run(accountId);
     this.db
       .prepare(

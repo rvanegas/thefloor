@@ -81,6 +81,7 @@ caused; the list carries the meaning.
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
 - **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree
+- **Public notice** — The card telling a member their channel has a *public page*, drawn above the *channel tabs* until they say they have read it: owed to everybody except whoever turned the switch on, owed again after a channel goes private and comes back, and a notice rather than a veto — nobody is asked to agree, and the page is up either way
 - **Published** — A *recording* anybody at all can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
 - **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* with an account is asked per recording like a member; one without is asked once, at the microphone — see *speech consent*
 - **Speech consent** — What a *guest* with no account agrees to, on the page, at the moment they ask for the microphone: that a recording their voice is in may be *published*. Not a condition of being heard, withdrawable while the seat lasts, and gone with the seat — the only consent here that is not per recording, because a seat is the only thing there is to ask
@@ -1543,7 +1544,50 @@ channel is now on one list anybody can read. What is still true is that
 nothing here is in Apple's directory or anybody else's — see *podcast
 directory*.
 
-See also *directory page*, *published*, *feed*, and publication.ts.
+See also *public notice*, *directory page*, *published*, *feed*, and
+publication.ts.
+
+## Public notice
+
+The card that tells a member their channel has a *public page*. It sits above
+the *channel tabs*, on whichever of the six they landed on, and goes when they
+press *Got it*.
+
+**It is a notice and not a veto, and the word *consent* is wrong for it** —
+which is worth saying here because the neighbouring entries are all about
+consent and the resemblance is close enough to mislead. Nobody is being asked
+to agree. Pressing the button takes nothing down, lets nothing up, and changes
+only whether the card is drawn again. Whether a channel is public stays any
+member's decision, exactly as it was.
+
+**What it fixes is that the decision used to be visible only to whoever made
+it.** Any member may give a channel a page; everybody else found out from a
+settings screen most people never open, and somebody added to a channel that
+went public last month arrived into a settled fact with no moment at which
+they were ever shown it. So the sentence is owed once, to every member, and
+the absence of a row is the debt.
+
+**Owed to everybody except the member who turned the switch on**, whose
+confirmation carried the same words — and owed afresh to everybody after a
+channel goes private and comes back, since that is a new fact about where
+these conversations can be read, possibly months later and possibly to a
+different roster.
+
+**Stored on the account rather than on the install**, unlike the
+*getting-started* card's dismissal, because it records that a person was told
+rather than that a screen was read: it follows them onto their other devices,
+and a new account rejoining is owed it again.
+
+**Nobody is ever shown who else has read it.** The field is computed per
+reader and no screen aggregates it, deliberately: a list of who had
+acknowledged the page would be read as a list of who had agreed to it, and
+nobody has been asked to agree to anything.
+
+What does protect somebody's voice is *agree to publish*, per recording and
+unanimous, and the card's second paragraph says so — that is the sentence
+doing the real work. `public_notices` in db.ts,
+`owesPublicNotice` in publication.ts, and
+`decisions/2026-09-22-a-page-nobody-was-told-about.md`.
 
 ## Directory page
 

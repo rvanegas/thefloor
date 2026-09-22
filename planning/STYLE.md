@@ -750,6 +750,18 @@ of the six somebody lands on, and it can be dismissed for good because it is
 an introduction rather than a state. See
 `decisions/2026-09-15-a-new-account-does-not-arrive-alone.md`.
 
+**A fourth followed it on 2026-09-22, in the same place and the same shape**:
+the *public notice* — that this channel has a public page — drawn above the
+tab content for any member who has not been told, with the same lone *Got it*.
+Two things about it are deliberate and are what stop it drifting. It repeats
+no control, so `hideControlCards` has no claim on it either. And it is **not a
+consent card**, so it carries no pair of buttons and nothing coloured
+`primary`: a pair is an answer in force, and offering one here would promise a
+veto over the page that the next tap would fail to deliver. Its acknowledgement
+is stored on the server rather than on the install, unlike the card above it,
+because it records that a person was told rather than that a screen was read.
+See `decisions/2026-09-22-a-page-nobody-was-told-about.md`.
+
 ---
 
 ## Dots, pills and rules
