@@ -7,7 +7,14 @@ import type {
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
-import { Button, Card, Empty, Field, SectionLabel } from './components';
+import {
+  Button,
+  Card,
+  Empty,
+  Field,
+  Reveal,
+  SectionLabel,
+} from './components';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -439,8 +446,33 @@ function AddContact({
     );
   }
 
+  /*
+    **Brought into view when the keyboard opens over it, rather than avoided.**
+    The obvious reading is a `KeyboardAvoidingView` around this card, and it is
+    the wrong one: this card is rendered inside a `Screen`, which is the
+    application's one avoider, and a second nested in it counts the keyboard's
+    height twice on iOS and leaves a gap that tall under the card. What the
+    avoider does not do is *scroll*, and this card grows tall enough — a field,
+    two buttons, an outcome line, and the invite link under it — that a
+    shortened viewport can leave its lower half beneath the keyboard, which is
+    where *Send request* is. Same reasoning as the channel notepad; see
+    `RevealContext`.
+
+    `when` is the card being open rather than the field having focus: the only
+    keyboard this row of the screen can raise is this field's.
+  */
   return (
+    <Reveal when={open}>
     <Card style={styles.addContact}>
+      {/*
+        The title the row above turns into. Closed, this is a mark and the
+        words *Add a contact*; open, the words stay and the mark is spent, so
+        the card is visibly the same offer taken up rather than a new thing
+        that appeared. In the row's own type and colour for that reason, not
+        `SectionLabel`'s — a heading over the card would read as something
+        above it rather than as what it used to be.
+      */}
+      <Text style={styles.addLabel}>Add a contact</Text>
       <Field
         value={query}
         onChangeText={setQuery}
@@ -482,6 +514,7 @@ function AddContact({
       <Text style={styles.or}>or</Text>
       <InviteLink onChooseUsername={onChooseUsername} />
     </Card>
+    </Reveal>
   );
 }
 
@@ -672,6 +705,11 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '500',
   },
+  /**
+   * The row's label, and the open card's title — one style deliberately, so
+   * the words cannot come to be drawn two different ways in the two halves of
+   * one offer.
+   */
   addLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
   addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
   /**

@@ -347,6 +347,21 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * The card keeps the row's words, so the form reads as the offer taken up
+   * rather than as something else that arrived. The row itself is gone —
+   * which is what tells the two apart, the words being identical.
+   */
+  it('titles the open card with the words the row carried', () => {
+    withContacts([]);
+    const tree = open();
+    act(() => findButton(tree, 'Add a contact')!.props.onPress());
+
+    expect(findButton(tree, 'Add a contact')).toBeUndefined();
+    expect(textOf(tree)).toContain('Add a contact');
+    act(() => tree.unmount());
+  });
+
   it('sends the request, and folds away again on cancel', async () => {
     withContacts([]);
     const tree = open();
