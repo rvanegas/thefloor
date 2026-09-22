@@ -39,7 +39,7 @@ import {
   showNotepad,
   showListen,
   showRecordings,
-  showMembers,
+  showPeople,
   showWatch,
   textOf,
   uploads,
@@ -478,7 +478,7 @@ describe('Channel', () => {
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes
     // in an empty room".
-    showMembers(tree);
+    showPeople(tree);
     // The way in is the footer's rung and nothing else since 2026-09-13 — the
     // card that used to say "Step in" in full was the same act with a
     // sentence under it.
@@ -1440,7 +1440,7 @@ describe('Channel', () => {
       restated: what this asserts is the order they are offered in, and the
       labels are the whole of what somebody chooses between.
 
-      Members first because it is what the screen is for and what you land on.
+      People first because it is what the screen is for and what you land on.
       Then the people: what they have written down, and how somebody who is
       not here gets in. Then the three things the channel carries, with Watch
       last because it is the one tab that can be absent — see the type in
@@ -1453,7 +1453,7 @@ describe('Channel', () => {
         .findAll((node) => node.type === Segmented)[0]!
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
-      'Members',
+      'People',
       'Notepad',
       'Invite',
       'Listen',
@@ -1479,11 +1479,18 @@ describe('Channel', () => {
       left was the connection — which nothing else on this screen has a word
       for — and it is worth a card only when it is not working.
 
-      So this heading is *Audio* and it is here because the harness's session
-      is idle. A connected one draws nothing, which is asserted on its own in
-      channelMembers.test.tsx.
+      So the second heading is *Audio* and it is here because the harness's
+      session is idle. A connected one draws nothing, which is asserted on its
+      own in channelPeople.test.tsx.
+
+      **The first is *Members*, and names a group rather than a card.** Since
+      2026-09-22 this tab is *People* and each group of people on it carries a
+      label — members, whoever is at the door, guests, and the invitations
+      nobody has taken up. Only *Members* is drawn here: the harness's channel
+      has nobody knocking and no guests, and a label for an empty group would
+      be a heading over nothing.
     */
-    expect(sections()).toEqual(['Audio']);
+    expect(sections()).toEqual(['Members', 'Audio']);
 
     // What the channel has written down, at two speeds — and in that order
     // since 2026-09-13: the clipboard, which is minutes old and is what
@@ -1618,8 +1625,8 @@ describe('Channel', () => {
 
     // And the bar wins from there: nothing new is being asked for, so the
     // rerender does not put the screen back.
-    showMembers(tree);
-    expect(shown()).toBe('members');
+    showPeople(tree);
+    expect(shown()).toBe('people');
     act(() =>
       tree.update(<ChannelView
           channelId="sess_1"
@@ -1629,7 +1636,7 @@ describe('Channel', () => {
           onExit={() => {}}
         />)
     );
-    expect(shown()).toBe('members');
+    expect(shown()).toBe('people');
     act(() => tree.unmount());
   });
 
@@ -1901,7 +1908,7 @@ describe('Channel', () => {
 
     // And back, because a tab somebody cannot leave is a screen they are
     // stuck on.
-    showMembers(tree);
+    showPeople(tree);
     expect(textOf(tree)).toContain('Dana Chu');
     act(() => tree.unmount());
   });
@@ -3379,7 +3386,7 @@ describe('Channel', () => {
 
     edit();
     act(() => field().props.onChangeText('typed, then away'));
-    showMembers(tree);
+    showPeople(tree);
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_DESCRIPTION',
       description: 'typed, then away',
@@ -3390,7 +3397,7 @@ describe('Channel', () => {
     mockApp.act.mockClear();
     showNotepad(tree);
     edit();
-    showMembers(tree);
+    showPeople(tree);
     expect(mockApp.act).not.toHaveBeenCalledWith(
       'sess_1',
       expect.objectContaining({ type: 'SET_DESCRIPTION' })

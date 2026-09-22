@@ -571,8 +571,8 @@ export function showInvites(tree: ReactTestRenderer): void {
 }
 
 /** The tab you land on, for a test that has to look at two in one render. */
-export function showMembers(tree: ReactTestRenderer): void {
-  showTab(tree, 'Members');
+export function showPeople(tree: ReactTestRenderer): void {
+  showTab(tree, 'People');
 }
 
 /** The notepad and the channel clipboard. */

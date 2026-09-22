@@ -249,7 +249,7 @@ describe('the rungs that are done inside a channel', () => {
     act(() => findButton(tree, 'Open Listen')?.props.onPress());
 
     expect(opened).toEqual([
-      ['sess_1', 'members'],
+      ['sess_1', 'people'],
       ['sess_1', 'invites'],
       ['sess_1', 'listen'],
     ]);

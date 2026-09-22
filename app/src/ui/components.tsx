@@ -704,7 +704,7 @@ export function segmentRows<T>(
  * with that would be the quieter fact shouting louder.
  *
  * `accessibilityState` rather than a word in the label, so a screen reader
- * announces the selection itself — "Members, selected, button". Every segment
+ * announces the selection itself — "People, selected, button". Every segment
  * stays pressable when selected: a control that goes inert where you already
  * are is one people press twice wondering whether it registered.
  *

@@ -11,7 +11,7 @@ import {
 import { type Guest } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
 import { AudioDebugPanel } from '../AudioDebugPanel';
-import { Screen } from '../components';
+import { Screen, SectionLabel } from '../components';
 import { ProfileView } from '../ProfileView';
 import { Share, StyleSheet } from 'react-native';
 import { colors } from '../theme';
@@ -84,6 +84,57 @@ describe('Channel, with a guest in it', () => {
         NOW
       )
     );
+
+  it('labels each group of people, and draws no label for an empty one', () => {
+    /*
+      **The tab is *People* and the labels are what say who is who.** It was
+      *Members* until 2026-09-22 — a name narrower than its contents, kept
+      deliberately on the argument that the heading over a list of people
+      should say whose room it is. Guest invitations are what ended that: they
+      are neither members nor anybody in the room, and a fourth kind of card in
+      an unlabelled stack is where somebody stops being able to tell them
+      apart.
+
+      Only the groups with somebody in them are labelled. A heading over
+      nothing is a claim that there is something under it.
+    */
+    const sections = (tree: ReactTestRenderer) =>
+      tree.root
+        .findAll((node) => node.type === SectionLabel)
+        .map((node) => labelOf(node).trim());
+
+    showChannel(channelOf());
+    const alone = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(sections(alone)).toContain('Members');
+    expect(sections(alone)).not.toContain('At the door');
+    expect(sections(alone)).not.toContain('Guests');
+    act(() => alone.unmount());
+
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          c,
+          { type: 'KNOCKED', knock: { id: 'knock_1', name: 'Dana', at: NOW } },
+          NOW
+        )
+      )
+    );
+    const knocked = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(sections(knocked)).toContain('At the door');
+    expect(sections(knocked)).not.toContain('Guests');
+    act(() => knocked.unmount());
+
+    showChannel(withGuest());
+    const withOne = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    expect(sections(withOne)).toContain('Guests');
+    act(() => withOne.unmount());
+  });
 
   it('puts somebody at the door above everything but the roster', () => {
     // A knock is the one thing on this screen that is waiting on an answer

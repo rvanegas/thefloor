@@ -143,7 +143,7 @@ describe('Channel, watching together', () => {
    * roster instead.
    */
   function open() {
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     showWatch(tree);
     return tree;
   }
@@ -153,7 +153,7 @@ describe('Channel, watching together', () => {
    * the card: the party-muted line, which is a claim about the roster, and
    * the gate, which is about the tab not being offered at all.
    */
-  function openOnMembers() {
+  function openOnPeople() {
     return render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
@@ -393,7 +393,7 @@ describe('Channel, watching together', () => {
     // the rest of the prose under the transport, which is now failure and
     // nothing else. What survives is the refusal itself, and the word under
     // the glyph saying what is being refused.
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     showRecordings(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     expect(textOf(tree)).not.toContain('Stop the watch party to record');
@@ -579,7 +579,7 @@ describe('Channel, watching together', () => {
    */
   it('says on the roster who has the film up', () => {
     showChannel(playing(), [], { watching: [THEM] });
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     const text = textOf(tree);
     expect(text).toContain('Dana Chu Present  · watching');
     // Not said about somebody the server does not count, which is the whole
@@ -597,7 +597,7 @@ describe('Channel, watching together', () => {
   it('says it of somebody watching on a device that is not in the room', () => {
     showChannel(playing(), [], { watching: [THEM] });
     expect(mockApp.channelViews['sess_1'].channel.watchingHere).toEqual([]);
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     expect(textOf(tree)).toContain('Dana Chu Present  · watching');
     act(() => tree.unmount());
   });
@@ -613,7 +613,7 @@ describe('Channel, watching together', () => {
    */
   it('says nothing about watching when there is no film', () => {
     showChannel(channelOf(), [], { watching: [THEM] });
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     expect(textOf(tree)).not.toContain('· watching');
     act(() => tree.unmount());
   });
@@ -633,7 +633,7 @@ describe('Channel, watching together', () => {
       [],
       { watching: [THEM] }
     );
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     const text = textOf(tree);
     expect(text).toContain('Dana Chu Present ');
     expect(text).not.toContain('· watching');
@@ -1021,7 +1021,7 @@ describe('Channel, watching together', () => {
       mockWindow = LANDSCAPE;
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       expect(expanded(tree)).toBe(false);
       act(() => tree.unmount());
     });
@@ -1176,7 +1176,7 @@ describe('Channel, watching together', () => {
     // be heard right now. It is not on the watch tab at all, where the control
     // is — the same separation the card and the roster had when both were on
     // one scroll.
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     const text = textOf(tree);
     expect(text).toContain('Party-muted');
     expect(text.match(/Party-muted/g)).toHaveLength(1);
@@ -1185,7 +1185,7 @@ describe('Channel, watching together', () => {
 
   it('says nothing about party-muting when the room is not muted', () => {
     showChannel(watching());
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     expect(textOf(tree)).not.toContain('Party-muted');
     act(() => tree.unmount());
   });
@@ -1384,7 +1384,7 @@ describe('Channel, watching together', () => {
   it('is on the screen without Labs', () => {
     mockApp.labs = false;
     showChannel(channelOf());
-    const tree = openOnMembers();
+    const tree = openOnPeople();
     expect(findTab(tree, 'Watch')).toBeDefined();
     act(() => tree.unmount());
 
@@ -1601,9 +1601,9 @@ describe('Channel, watching together', () => {
       showChannel(state);
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
-      // `openOnMembers` rather than `open`: there is no tab strip to tap, and
+      // `openOnPeople` rather than `open`: there is no tab strip to tap, and
       // `showWatch` would throw — which is itself asserted below.
-      return openOnMembers();
+      return openOnPeople();
     }
 
     it('keeps the role while the first snapshot is still on its way', () => {
@@ -1621,7 +1621,7 @@ describe('Channel, watching together', () => {
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
       // No `showChannel`: this is the gap, and it is the ordinary one.
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       expect(mockApp.showScreenFor).not.toHaveBeenCalled();
       act(() => tree.unmount());
     });
@@ -1631,7 +1631,7 @@ describe('Channel, watching together', () => {
       showChannel(channelOf());
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
       act(() => tree.unmount());
     });
@@ -1661,7 +1661,7 @@ describe('Channel, watching together', () => {
     it('offers no tabs, the five other ones not being the film', () => {
       const tree = asSecondDevice();
       expect(findTab(tree, 'Watch')).toBeUndefined();
-      expect(findTab(tree, 'Members')).toBeUndefined();
+      expect(findTab(tree, 'People')).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -1841,7 +1841,7 @@ describe('Channel, watching together', () => {
         sitting in one of them was handed a film and went on drawing it.
       */
       showChannel(watching());
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       act(() => findButton(tree, 'Settings')!.props.onPress());
       expect(findButton(tree, 'Settings')).toBeUndefined();
 
@@ -1867,7 +1867,7 @@ describe('Channel, watching together', () => {
       // in two places, which is what this screen exists to stop.
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       expect(findButton(tree, 'Other device')).toBeUndefined();
       act(() => tree.unmount());
     });
@@ -1884,7 +1884,7 @@ describe('Channel, watching together', () => {
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       act(() => tree.unmount());
       expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
     });
@@ -1894,7 +1894,7 @@ describe('Channel, watching together', () => {
       // corner and a tap on it is meant to come back.
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       act(() => tree.unmount());
       expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
     });
@@ -1928,7 +1928,7 @@ describe('Channel, watching together', () => {
       // the state pressing *In* above arrives at.
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
-      const tree = openOnMembers();
+      const tree = openOnPeople();
       expect(findTab(tree, 'Watch')).toBeDefined();
       act(() => tree.unmount());
     });

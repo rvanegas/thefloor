@@ -319,10 +319,10 @@ export function SettingsIcon({
 /**
  * Who is in the room. `lucide/users`.
  *
- * People rather than a door or a microphone: the members tab is the
+ * People rather than a door or a microphone: the *People* tab is the
  * conversation as it is happening, and what is on it is a card per person.
  */
-export function MembersIcon({
+export function PeopleIcon({
   color,
   size = 22,
 }: {
@@ -376,7 +376,7 @@ export function NotepadIcon({
  * mechanism instead — and this application already spends that shape on
  * sharing a recording.
  *
- * It stands beside `MembersIcon`, which is two figures to this one's one; that
+ * It stands beside `PeopleIcon`, which is two figures to this one's one; that
  * adjacency is deliberate rather than a collision, the two tabs being the same
  * subject at two times — who is here, and who is not here yet.
  */

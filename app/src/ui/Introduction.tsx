@@ -273,7 +273,7 @@ function actionFor(
     // tab of their own and there is nothing nearer to send somebody to.
     case 'floor':
     case 'nearby':
-      return inChannel('members', 'Open the channel');
+      return inChannel('people', 'Open the channel');
     case 'guest':
       return inChannel('invites', 'Open Invite');
     // **The rung is still called `player` and the tab is not**, since

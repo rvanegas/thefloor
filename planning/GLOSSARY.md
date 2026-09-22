@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: Members, Notepad, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14 and the fourth *Player* until 2026-09-18
+- **Channel tabs** — The six views of a channel, one at a time: People, Notepad, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
 - **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
@@ -260,7 +260,7 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *Members*, *Notepad*, *Invite*, *Listen*, *Recordings*, *Watch*.
+draws: *People*, *Notepad*, *Invite*, *Listen*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -279,19 +279,32 @@ it: the tab is the heading where a tab holds one thing.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
 
-**The first is *Members*, and was *Roster* until 2026-09-14.** *Roster* was
-the only tab named after a thing rather than after the people or the object it
-holds, and it was a word this app used nowhere a user could see it — the
-vocabulary a screen teaches should be the vocabulary the rest of the app
-answers in, and *member* is a word the guest-facing half already says out loud.
+**The first is *People*. It was *Roster* until 2026-09-14 and *Members* until
+2026-09-22.** *Roster* was the only tab named after a thing rather than after
+the people or the object it holds, and it was a word this app used nowhere a
+user could see it — the vocabulary a screen teaches should be the vocabulary
+the rest of the app answers in. **And it does not translate**, which was the
+reason that reached none of the three places that rename was written up and is
+the one that decided it; see planning/tasks/internationalization.md.
 
-**It is named for what the channel is made of, not for everything drawn on
-it.** The tab lists *guests* and whoever is *knocking* as well as members, so
-the name is narrower than the contents — deliberately, on the grounds that a
+*Members* was narrower than its contents deliberately, on the grounds that a
 guest is a visitor to a membership rather than a second kind of it, and that
-the heading somebody reads before a list of people should say whose room it is.
-*Roster* was neutral about that and said nothing at all; see *member*, which is
-the term this now spends on a second thing.
+the heading over a list of people should say whose room it is. **Guest
+invitations are what ended that**: an invitation is neither a member nor
+anybody in the room, and it made a fourth kind of card in an unlabelled stack.
+
+So the tab names the container and **each group carries its own label** —
+*Members*, *At the door*, *Guests*, *Invitations* — drawn only when there is
+somebody in that group, except *Members*, which always has somebody in it and
+which now teaches the word the tab used to. The vocabulary is not lost by the
+rename; it moved one level in, to where it is said about the right people.
+
+**The Spanish for all four is in the comment over them** in ChannelView.tsx,
+because one of the four was chosen around it: *invitado* is both *guest* and
+*invited*, so the pending-seat group is *Invitations* — *Invitaciones*, clear
+of *Invitados* — rather than *Invited as guests*, which renders as *invitados
+como invitados*. See *member*, which is the term *Members* spends on a second
+thing.
 
 **The third is *Invite*, and was *Invite links* until 2026-09-13.** The old
 name was the plural of a term this glossary already spends on something else —

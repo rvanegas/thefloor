@@ -79,7 +79,7 @@ import {
   FloorIcon,
   HomeIcon,
   InviteIcon,
-  MembersIcon,
+  PeopleIcon,
   MicIcon,
   NotepadIcon,
   PauseIcon,
@@ -142,7 +142,7 @@ const SKIP_MS = 15_000;
  * that loses its final entry leaves every other tab exactly where it was.
  */
 export type ChannelTab =
-  | 'members'
+  | 'people'
   | 'notepad'
   | 'invites'
   | 'listen'
@@ -469,7 +469,7 @@ export function ChannelView({
    * about to stand in, and the roster is what that person came for. Everything
    * else is deliberate and worth one tap.
    */
-  const [tab, setTab] = useState<ChannelTab>(asked ?? 'members');
+  const [tab, setTab] = useState<ChannelTab>(asked ?? 'people');
   /**
    * Whether this channel still owes its occupant an explanation. Null channel
    * id while the view is loading, which reads as "nothing to draw" — see
@@ -918,7 +918,7 @@ export function ChannelView({
       The tab was the whole of this term until 2026-09-20, and on a second
       device it is a question about a switch that is not drawn: that screen is
       the film and its transport and nothing else, so *which of six* has no
-      answer there and the default one — *Members* — is the answer `tab`
+      answer there and the default one — *People* — is the answer `tab`
       happens to hold. Left as it was, a laptop showing the film could not be
       expanded and a phone showing it could not be turned, on the one surface
       whose entire purpose is the picture.
@@ -1924,9 +1924,9 @@ export function ChannelView({
     icon: (color: ColorValue) => React.ReactNode;
   }[] = [
     {
-      value: 'members',
-      label: 'Members',
-      icon: (color) => <MembersIcon color={color} />,
+      value: 'people',
+      label: 'People',
+      icon: (color) => <PeopleIcon color={color} />,
     },
     {
       value: 'notepad',
@@ -2985,7 +2985,7 @@ export function ChannelView({
           **Above the tab content rather than on one tab**, so it is the first
           thing under the switch whichever of the six is showing. Somebody who
           lands on *Notepad* and finds four strangers in a channel they did not
-          open has the same question as somebody who lands on *Members*, and an
+          open has the same question as somebody who lands on *People*, and an
           explanation filed under one tab is one most of them would never
           reach.
 
@@ -3018,9 +3018,44 @@ export function ChannelView({
             </View>
           </Card>
         ) : null}
-        {tab === 'members' ? (
+        {tab === 'people' ? (
           <>
         <View style={styles.presence}>
+          {/*
+            **The four groups this tab draws, each under its own label.**
+
+            The tab is *People*, which names the container; the labels name
+            what each group is, which the tab deliberately no longer does.
+            Until 2026-09-22 this tab was called *Members* and drew all four
+            groups unlabelled — a name narrower than its contents, on the
+            argument that the heading over a list of people should say whose
+            room it is. Adding guest invitations, which are neither members
+            nor anybody in the room, is what broke that: the seam the name was
+            papering over now has four sides to it.
+
+            **The Spanish is written down here because the words were chosen
+            for it.** *Members* beat *Roster* on 2026-09-14 partly because it
+            translates and *roster* does not, and that reason reached none of
+            the three places the rename was written up. These four were picked
+            the same way, and one of them was picked *around* a collision:
+
+              Members       Miembros
+              At the door   En la puerta
+              Guests        Invitados
+              Invitations   Invitaciones
+
+            *Invitado* is both *guest* and *invited*, so the pending-seat group
+            is named with the noun rather than the participle — *Invitations*
+            rather than *Invited as guests*, which renders as *invitados como
+            invitados*. See planning/tasks/internationalization.md; the
+            extraction into functions has not happened yet, so these are still
+            literals and this comment is where the second language lives.
+
+            **A label per group, drawn only when the group has somebody in
+            it** — except *Members*, which always does and which now carries
+            the vocabulary the tab's old name taught.
+          */}
+          <SectionLabel>Members</SectionLabel>
           {/*
             A card each, rather than the status lines this used to be. Who is
             in the room and who is talking is what the screen is *for*, and it
@@ -3190,6 +3225,9 @@ export function ChannelView({
             codebase does not allow a control to have. Somebody else who is
             actually in the channel is being asked the same question.
           */}
+          {iAmPresent && (channel.knocks ?? []).length > 0 ? (
+            <SectionLabel>At the door</SectionLabel>
+          ) : null}
           {(iAmPresent ? (channel.knocks ?? []) : []).map((knock) => (
             <Card key={knock.id} style={styles.stack}>
               <Text style={type.body}>
@@ -3224,6 +3262,9 @@ export function ChannelView({
             for. What is withheld is the pair of buttons, and only from
             somebody who is not in there with them.
           */}
+          {Object.keys(channel.guests ?? {}).length > 0 ? (
+            <SectionLabel>Guests</SectionLabel>
+          ) : null}
           {Object.values(channel.guests ?? {}).map((guest) => (
             <GuestCard
               key={guest.id}
