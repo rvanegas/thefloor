@@ -78,12 +78,14 @@ caused; the list carries the meaning.
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Public channel** — A channel that has given itself a *public page*; any member may, and it puts nothing on that page by itself
-- **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody who has the address and naming no *member*
-- **Published** — A *recording* anybody with the address can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
+- **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
+- **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
+- **Published** — A *recording* anybody at all can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
 - **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* with an account is asked per recording like a member; one without is asked once, at the microphone — see *speech consent*
 - **Speech consent** — What a *guest* with no account agrees to, on the page, at the moment they ask for the microphone: that a recording their voice is in may be *published*. Not a condition of being heard, withdrawable while the seat lasts, and gone with the seat — the only consent here that is not per recording, because a seat is the only thing there is to ask
 - **Cover art** — A *public channel*'s square image, shown on the page and carried in the *feed*. Square, 1400–3000 pixels, JPEG or PNG, no transparency — Apple's rules, refused at the upload rather than at a submission
 - **Feed** — The *public page*'s machine-readable half, at the same address plus `/feed.xml`: what a podcast app subscribes to, listing the same *episodes* the page does
+- **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
@@ -1485,16 +1487,46 @@ the only words about who these people are are words they wrote. The episode
 titles obey it too: a recording still carrying its participant-derived default
 name is shown by its date instead.
 
-The address is unguessable rather than secret, and is shared the way a *guest
-link* is shared — by being handed to somebody. There is no directory, and
-nothing here is listed in Apple's or anybody's.
+**A public channel is findable, not merely reachable** — which is a change,
+made on 2026-09-22, and the one thing here most likely to be remembered wrong.
+Until the *directory page* existed, the address was unguessable and was shared
+the way a *guest link* is, by being handed to somebody; the app said "anyone
+with the address" in those words. It no longer does, because every public
+channel is now on one list anybody can read. What is still true is that
+nothing here is in Apple's directory or anybody else's — see *podcast
+directory*.
 
-See also *published*, *feed*, and publication.ts.
+See also *directory page*, *published*, *feed*, and publication.ts.
+
+## Directory page
+
+`/podcasts`: every *public channel* on this server, in one list, with each
+one's name, *notepad*, *cover art* and a count of what is listenable on it.
+
+**It is what makes a *public channel* public in the ordinary sense of the
+word**, and it arrived after the channels did. A page whose address nobody
+publishes is unlisted; a page on a list is findable. That distinction was the
+whole question the day this was built, and it was decided at the prompt rather
+than assumed — see
+`decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`,
+which also records that the app's and `/privacy`'s wording had to be corrected
+in the same commit, and that anything widening this audience again owes the
+same correction.
+
+**Every public channel, including one with nothing published**, where the row
+says so in the line the others spend on a count. This is deliberately not the
+rule an *episode* obeys: an episode whose transcode has not landed is hidden,
+because a player that does not work is a broken promise, whereas an empty
+channel is a true statement about a channel that exists.
+
+No *member* is named, here as on a channel's own page, for the same reason.
+
+Not a *podcast directory*, which is Apple's or Spotify's.
 
 ## Published
 
-A *recording* anybody holding the *public page*'s address can listen to,
-through the page or through the *feed*.
+A *recording* anybody can listen to, through the *public page*, the
+*directory page* or the *feed*.
 
 **It goes up when every *participant* has *agreed to publish* it, and not
 before.** No member can publish a recording on their own; that is the point,
@@ -1547,10 +1579,11 @@ unanimity denies.
 The *public page*'s machine-readable half: an RSS feed at the page's address
 plus `/feed.xml`, carrying the same *episodes* the page lists.
 
-It is what a podcast app subscribes to, and it is unlisted — pasted into an
-app by somebody who was given the address, rather than found in a directory.
-Artwork, an iTunes category and submission to Apple or Spotify are what a
-*listed* podcast would additionally need; none of them is needed to hear an
+It is what a podcast app subscribes to. It is reached from the *public page*
+or the *directory page* and pasted into an app by hand; what it is not is in a
+*podcast directory*, where a podcast app's own search would find it. Artwork,
+an iTunes category and submission to Apple or Spotify are what that would
+additionally need; none of them is needed to hear an
 episode, and each adds a review cycle rather than a capability.
 
 `pubDate` is when the conversation happened, not when it was published, so

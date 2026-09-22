@@ -48,6 +48,7 @@ import { PUBLISHED_CONTENT_TYPE, RECORDING_CONTENT_TYPE } from './export';
 import { renderFeed, type FeedEpisode } from './feed';
 import { Publication, publishedKeyFor } from './publication';
 import { publicChannelPage } from './public-page';
+import { podcastDirectoryPage } from './directory-page';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
@@ -4106,6 +4107,106 @@ export function buildApp(options: BuildOptions = {}): App {
       year: 'numeric',
     });
   }
+
+  /**
+   * Every public channel, for the directory page.
+   *
+   * **One query rather than `publicChannel` in a loop**, which matters more
+   * than it looks: that function reads a channel's whole recording list and
+   * asks `transcripts.linesFor` about each row, and doing it per channel on
+   * an unauthenticated page anybody can hit is a page whose cost grows with
+   * the product. Here a channel costs one grouped row.
+   *
+   * The join is a `LEFT JOIN` because a public channel with nothing published
+   * is still listed — see directory-page.ts, where that is argued — so the
+   * predicates that select a listenable recording have to sit in the join
+   * rather than in `WHERE`, or an empty channel would be filtered out by the
+   * very conditions meant to count its episodes.
+   *
+   * `aac_state` and `published_bytes` are the same readiness test the page
+   * and the feed apply, and `deleted_at IS NULL` is the same ordering
+   * constraint: a recording leaves every public surface the moment it is
+   * marked, a week before the sweep takes its bytes.
+   */
+  function publicChannels(): Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    hasImage: boolean;
+    imageAt: number | null;
+    episodes: number;
+    latest: number | null;
+  }> {
+    const rows = db
+      .prepare(
+        `SELECT c.id, c.name, c.description, c.image_at, c.image_type,
+                COUNT(r.id) AS episodes, MAX(r.started_at) AS latest
+           FROM channels c
+           LEFT JOIN recordings r
+             ON r.channel_id = c.id
+            AND r.published_at IS NOT NULL
+            AND r.deleted_at IS NULL
+            AND r.aac_state = 'ready'
+            AND r.published_bytes > 0
+          WHERE c.public_at IS NOT NULL AND c.deleted_at IS NULL
+          GROUP BY c.id
+          -- Liveliest first, and a channel with nothing on it last rather
+          -- than nowhere: latest is null there, and NULLS LAST is what puts
+          -- it after every date instead of before them. Among those, the one
+          -- that went public most recently is the one most likely to be
+          -- about to have something on it.
+          ORDER BY latest DESC NULLS LAST, c.public_at DESC`
+      )
+      .all() as unknown as Array<{
+      id: string;
+      name: string | null;
+      description: string | null;
+      image_at: number | null;
+      image_type: string | null;
+      episodes: number;
+      latest: number | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      // The same fallback the channel's own page uses, and it has to be the
+      // same string: a row here and the heading it leads to disagreeing about
+      // what a channel is called reads as a bug in whichever one you saw
+      // second.
+      name: row.name ?? 'A conversation',
+      description: row.description,
+      hasImage: row.image_at !== null && row.image_type !== null,
+      imageAt: row.image_at,
+      episodes: row.episodes,
+      latest: row.latest,
+    }));
+  }
+
+  /**
+   * The directory: every public channel, in one list.
+   *
+   * **Unauthenticated and uncached, like the channel pages it links to.** A
+   * cache header here would outlive a channel going private, which is the one
+   * thing on this page that has to take effect at once — the row is the whole
+   * of what makes a channel findable.
+   */
+  fastify.get('/podcasts', async (request, reply) => {
+    const base = origin(request);
+    return reply.header('content-type', 'text/html; charset=utf-8').send(
+      podcastDirectoryPage({
+        channels: publicChannels().map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          description: channel.description,
+          imageUrl: artworkUrl(base, channel),
+          episodes: channel.episodes,
+          latest: channel.latest,
+        })),
+        contactEmail: options.contactEmail,
+        origin: base,
+      })
+    );
+  });
 
   /** The public page: what the task asks for, in one route. */
   fastify.get('/c/:id', async (request, reply) => {

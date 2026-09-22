@@ -290,7 +290,7 @@ Release rather than Mute &mdash; it is something you give back.</figcaption>
 <p>Everything in The Floor is your people and the channels you share with them.
 Everybody is here by mutual agreement &mdash; they accepted a request from you,
 you accepted theirs, or they opened a link you sent that seats exactly one
-person. There is no directory and no way to search for anybody.</p>
+person. There is no directory of people and no way to search for anybody.</p>
 
 <h2 class="claim">Keep the bits worth keeping</h2>
 <p>Record a conversation when it is worth it. Every voice is captured on its own
@@ -302,7 +302,9 @@ ${store}
 
 <div class="more">
 <h2 class="claim">More</h2>
-<p><a href="/support">Support</a> &mdash; how it works, and how to reach a person.<br>
+<p><a href="/podcasts">Published conversations</a> &mdash; channels that made their
+recordings public.<br>
+<a href="/support">Support</a> &mdash; how it works, and how to reach a person.<br>
 <a href="/privacy">Privacy</a> &mdash; what is stored, why, and for how long.</p>
 </div>
 `,

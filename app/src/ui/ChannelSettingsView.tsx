@@ -396,9 +396,9 @@ export function ChannelSettingsView({
       {/*
         Before Guest links rather than after, because it is the larger door:
         a guest link admits somebody you handed it to, and this makes a page
-        anybody with the address can read. The two belong together — they are
-        the only two ways anything here leaves the channel — and the bigger
-        one is read first.
+        anybody at all can find. The two belong together — they are the only
+        two ways anything here leaves the channel — and the bigger one is read
+        first.
       */}
       <SectionLabel>Public page</SectionLabel>
       <Card style={styles.stack}>
@@ -570,8 +570,15 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * to discover that their conversations did not appear.
  *
  * The address is shown rather than hidden behind a share sheet, because it is
- * the thing somebody came to this screen to get: it carries the channel id,
- * which is unguessable, so it is handed to people the way a guest link is.
+ * the thing somebody came to this screen to get.
+ *
+ * **It is not a secret, and this copy used to imply that it was.** The page's
+ * address carries an unguessable channel id, and until /podcasts existed that
+ * made a public channel effectively unlisted — so the words here said "anyone
+ * with the address", which was true and is no longer. Every public channel is
+ * now listed on a page anybody can read, and the confirmation says so before
+ * the switch goes on rather than after. See
+ * `planning/decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
  */
 function Publishing({
   channelId,
@@ -621,8 +628,9 @@ function Publishing({
           if (!next) return void set(false);
           Alert.alert(
             'Give this channel a public page?',
-            'The page shows the channel’s name and description to anyone ' +
-              'with the address. Members are not named.\n\n' +
+            'The page shows the channel’s name and description to anyone, ' +
+              'and the channel is listed publicly where it can be found by ' +
+              'people you have never met. Members are not named.\n\n' +
               'No recording appears on it until everybody who was in that ' +
               'recording has agreed to publish it, one at a time, from its ' +
               'card on the channel screen.',
@@ -644,7 +652,7 @@ function Publishing({
           <Text style={type.muted}>
             Nothing is on the page until everybody in a recording agrees to
             publish it. Each recording is asked about separately, on its own
-            card.
+            card. The channel itself is listed publicly as soon as this is on.
           </Text>
           {/*
             Everything below is only needed by a channel that wants to be

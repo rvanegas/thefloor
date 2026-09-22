@@ -824,3 +824,149 @@ describe('a guest', () => {
     expect((await feedFor(channelId)).payload).not.toContain('<item>');
   }, 120_000);
 });
+
+/**
+ * The directory, which is the page that made a public channel *findable*
+ * rather than merely reachable.
+ *
+ * The distinction is the whole reason these tests exist: a channel is on this
+ * list because it is public, so the list going wrong is a privacy failure
+ * rather than a broken page. What is asserted is therefore the boundary in
+ * both directions — a private channel is absent, a channel that goes private
+ * leaves at once — and the standing guarantee that no member is named, which
+ * is checked against the rendered HTML with the real display names in the
+ * database, as it is for the channel page.
+ */
+describe('the directory at /podcasts', () => {
+  const directory = () =>
+    app.fastify.inject({ method: 'GET', url: '/podcasts' });
+
+  /**
+   * Names a channel, which `recorded()` leaves unnamed and empty.
+   *
+   * The step in and out is not ceremony: `SET_NAME` is refused to somebody
+   * who does not have the room, which after `recorded()` is everybody. The
+   * settings screen tells a member the same thing.
+   */
+  const rename = (channelId: string, user: User, name: string) => {
+    app.channels.dispatch(channelId, user.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, user.account.id, {
+      type: 'SET_NAME',
+      name,
+    } as never);
+    app.channels.dispatch(channelId, user.account.id, { type: 'STEP_OUT' });
+  };
+
+  const describeChannelAs = (channelId: string, user: User, text: string) => {
+    app.channels.dispatch(channelId, user.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, user.account.id, {
+      type: 'SET_DESCRIPTION',
+      description: text,
+    } as never);
+    app.channels.dispatch(channelId, user.account.id, { type: 'STEP_OUT' });
+  };
+
+  it('lists nothing while no channel is public', async () => {
+    const { channelId } = await recorded();
+    const listing = await directory();
+    expect(listing.statusCode).toBe(200);
+    expect(listing.payload).toContain('No channel has a public page yet');
+    expect(listing.payload).not.toContain(`/c/${channelId}`);
+  }, 60_000);
+
+  it('lists a public channel that has published nothing, and says so', async () => {
+    const { alice, channelId } = await recorded();
+    rename(channelId, alice, 'Thursday mornings');
+    await goPublic(alice.token, channelId);
+
+    const listing = await directory();
+    expect(listing.payload).toContain(`/c/${channelId}`);
+    expect(listing.payload).toContain('Thursday mornings');
+    // The row is honest about leading nowhere yet, which is why an empty
+    // channel is listed at all rather than hidden: see directory-page.ts.
+    expect(listing.payload).toContain('Nothing published yet');
+  }, 60_000);
+
+  it('counts a recording once everybody has agreed to it', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    expect((await directory()).payload).toContain('Nothing published yet');
+
+    await consent(alice.token, recordingId);
+    // One agreement is not publication, here as everywhere else.
+    expect((await directory()).payload).toContain('Nothing published yet');
+
+    await consent(bob.token, recordingId);
+    await transcoded(recordingId);
+    const listing = await directory();
+    expect(listing.payload).toContain('1 recording');
+    expect(listing.payload).not.toContain('Nothing published yet');
+
+    // And withdrawing empties the row again, on one person saying so.
+    await withdraw(bob.token, recordingId);
+    expect((await directory()).payload).toContain('Nothing published yet');
+  }, 120_000);
+
+  it('drops a channel the moment it stops being public', async () => {
+    const { alice, channelId } = await recorded();
+    rename(channelId, alice, 'Thursday mornings');
+    await goPublic(alice.token, channelId);
+    expect((await directory()).payload).toContain('Thursday mornings');
+
+    expect((await goPublic(alice.token, channelId, false)).statusCode).toBe(200);
+    const listing = await directory();
+    expect(listing.payload).not.toContain('Thursday mornings');
+    expect(listing.payload).not.toContain(`/c/${channelId}`);
+  }, 60_000);
+
+  it('names no member, whatever is in the channel', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await consent(alice.token, recordingId);
+    await consent(bob.token, recordingId);
+    await transcoded(recordingId);
+
+    const listing = await directory();
+    expect(listing.statusCode).toBe(200);
+    // The channel was never named, so it is filed under the participants'
+    // names internally — which is exactly the string that must not reach a
+    // page a stranger reads.
+    expect(listing.payload).not.toContain('Alice');
+    expect(listing.payload).not.toContain('Bob');
+    expect(listing.payload).toContain('A conversation');
+  }, 120_000);
+
+  it('escapes what members wrote, since a stranger’s browser parses it', async () => {
+    const { alice, channelId } = await recorded();
+    rename(channelId, alice, '<script>alert(1)</script>');
+    describeChannelAs(channelId, alice, 'Nick & "friends" <b>talk</b>');
+    await goPublic(alice.token, channelId);
+
+    const listing = await directory();
+    expect(listing.payload).not.toContain('<script>alert(1)</script>');
+    expect(listing.payload).toContain('&lt;script&gt;');
+    expect(listing.payload).toContain('Nick &amp; &quot;friends&quot;');
+  }, 60_000);
+
+  it('puts the channel with the most recent conversation first', async () => {
+    const older = await recorded();
+    await goPublic(older.alice.token, older.channelId);
+    rename(older.channelId, older.alice, 'The older one');
+    await consent(older.alice.token, older.recordingId);
+    await consent(older.bob.token, older.recordingId);
+    await transcoded(older.recordingId);
+
+    clock += 86_400_000;
+    const newer = await recorded();
+    await goPublic(newer.alice.token, newer.channelId);
+    rename(newer.channelId, newer.alice, 'The newer one');
+    await consent(newer.alice.token, newer.recordingId);
+    await consent(newer.bob.token, newer.recordingId);
+    await transcoded(newer.recordingId);
+
+    const payload = (await directory()).payload;
+    expect(payload.indexOf('The newer one')).toBeLessThan(
+      payload.indexOf('The older one')
+    );
+  }, 180_000);
+});

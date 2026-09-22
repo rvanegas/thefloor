@@ -100,7 +100,7 @@ ${list}
 ${contact}
 <p class="colophon">Recorded on <a href="/">The Floor</a>, where one person
 speaks at a time. Everybody in a conversation had to agree before it could
-appear here.</p>`,
+appear here. <a href="/podcasts">Other channels</a> have published pages too.</p>`,
   });
 }
 

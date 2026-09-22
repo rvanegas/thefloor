@@ -1,12 +1,19 @@
 # Publishable Recordings
 
-**Built, 2026-09-21.** A channel may declare itself public and has a page at
-thefloor.rvanegas.co/c/&lt;id&gt; where anyone with the address can listen to
-recordings every participant has agreed to publish, plus a feed a podcast app
-can subscribe to. Name and description show on the page; members remain
-private, though they may be explicitly described in the description. Cover art,
-language, explicit and category are in channel settings, so the feed is
-submittable to a directory.
+**Built, 2026-09-21; listed since 2026-09-22.** A channel may declare itself
+public and has a page at thefloor.rvanegas.co/c/&lt;id&gt; where anyone can
+listen to recordings every participant has agreed to publish, plus a feed a
+podcast app can subscribe to. Every public channel is listed at
+thefloor.rvanegas.co/podcasts, so the page is findable rather than merely
+reachable — which was a change to what the app had promised, and
+`decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`
+is why it was made that way and what copy had to be corrected with it.
+
+Name and description show on both; members remain private, though they may be
+explicitly described in the description. Cover art, language, explicit and
+category are in channel settings, so the feed is submittable to a podcast
+directory — which is a different thing from `/podcasts` and is still not
+done.
 
 How and why is
 `decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`,
@@ -19,9 +26,10 @@ against a plausible alternative that looks simpler.
 
 What is left is not code.
 
-**Submission.** Somebody pressing a button on Apple's website and on Spotify's,
-each with its own review, for one channel that wants to be findable. Nothing in
-the repository does it. What it needs first is a channel that is actually
+**Submission to Apple and Spotify**, which is not what `/podcasts` is — that
+is this server's own list, and a podcast app's search does not read it.
+Somebody pressing a button on two websites, each with its own review, for one
+channel that wants to be found that way. Nothing in the repository does it. What it needs first is a channel that is actually
 published, with cover art and a category set, and a feed URL to paste — all of
 which now exist. `bin/health` is not the check; a feed validator is.
 

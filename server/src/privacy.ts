@@ -257,8 +257,10 @@ application collects little.</p>
   <br><br>
   A recording can also be <strong>published</strong>, which is the one thing
   that puts it in front of people who were never in the channel: it then has a
-  page on this site that anybody holding the address can listen to, and a feed
-  a podcast app can subscribe to. That never happens without you. It requires
+  page on this site that anybody can listen to, and a feed a podcast app can
+  subscribe to. The channel is also listed at <a href="/podcasts">published
+  conversations</a>, so the page can be found by somebody who was never given
+  its address. That never happens without you. It requires
   that everybody who was in that recording has separately agreed to publish it
   — one refusal is enough to stop it, and taking your agreement back at any
   time removes it from the page and the feed. What taking it back cannot do is
