@@ -1458,7 +1458,10 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
 
     const card = open();
-    expect(textOf(card)).toContain('Watch together');
+    // The button rather than a heading: the card lost its WATCH TOGETHER
+    // label on 2026-09-22, and what says the card is here is the one press
+    // on it.
+    expect(textOf(card)).toContain('Watch something together');
     act(() => card.unmount());
   });
 

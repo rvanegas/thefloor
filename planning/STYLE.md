@@ -702,9 +702,16 @@ says nothing and the card is drawn by them alone. The first is a sentence and
 a `primary` button (*Play the channel*), which is the section's first rule
 rather than an exception to it: the press is what lifts the refusal, so the
 control is the explanation's whole point, and it repeats nothing in the
-footer. It is the only `primary` the channel screen ever draws, affordable
-because the card exists only while the channel is inaudible and there is
-exactly one thing to do about it. The second is a sentence with no control at
+footer. It is the only `primary` the channel screen draws on its own, as
+against inside a `buttonRow` opposite a Cancel, affordable because the card
+exists only while the channel is inaudible and there is exactly one thing to
+do about it. **The sentence said *the only one* flatly until 2026-09-22**, and
+was false when it was written: the watch card's *Watch something together*
+had been `primary` since the day after, standing alone on a tab a phone
+reaches every day, which made *Play something together* one tab over — the
+identical act — read as the lesser of the two. It is `default` now, and what
+is left is the pair form above, where the weight separates the answer from
+the way out rather than ranking one card against another. The second is a sentence with no control at
 all — the cure is another browser, which no button here can perform. Both are
 constants on a phone and neither ever renders there; see
 `decisions/2026-09-17-the-web-app-grew-the-browser-s-two-obligations.md`.

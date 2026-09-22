@@ -1520,8 +1520,11 @@ describe('Channel', () => {
     showRecordings(tree);
     expect(sections()).toEqual(['Recordings']);
 
+    // And none over the watch card either, since 2026-09-22 — the same
+    // argument as *Listen*'s above, applied three weeks late to the one
+    // heading that predated the rule.
     showWatch(tree);
-    expect(sections()).toEqual(['Watch together']);
+    expect(sections()).toEqual([]);
 
     /*
       The ways in, which are two sections with no heading over them: the tab

@@ -4227,7 +4227,13 @@ export function ChannelView({
             clock. That is why it refuses recordings and why the shared audio on
             the *Listen* tab empties when this one fills.
           */}
-          <SectionLabel>Watch together</SectionLabel>
+          {/*
+            No label over it, since 2026-09-22, on the reasoning the *Listen*
+            tab's card already carried from 2026-09-13: the tab is called
+            *Watch* and this is the only thing on it, so WATCH TOGETHER was
+            the screen saying its own name twice. This one predated that rule
+            by three weeks and was simply missed by it.
+          */}
           <Card style={styles.stack}>
             {watch.failure ? (
               <Text style={styles.warning}>
@@ -4655,10 +4661,20 @@ export function ChannelView({
                 {watchPasteError ? (
                   <Text style={styles.warning}>{watchPasteError}</Text>
                 ) : null}
+                {/*
+                  `default`, not `primary`, since 2026-09-22. STYLE.md spends
+                  `primary` on the one commitment on a *screen*, and the
+                  channel screen's one is the browser's playback refusal —
+                  which never draws on a phone, so this one was the only
+                  weight a phone ever saw and it made the identical control
+                  one tab over look like the lesser act. The sublabel is a
+                  noun phrase for the same reason: *Play something together*
+                  names where its audio comes from, and this names where its
+                  link does.
+                */}
                 <Button
                   label="Watch something together"
-                  sublabel="Plays the YouTube link on your clipboard"
-                  variant="primary"
+                  sublabel="A YouTube link on your clipboard"
                   disabled={!mayStartWatch}
                   onPress={() => void pasteWatchUrl()}
                 />
