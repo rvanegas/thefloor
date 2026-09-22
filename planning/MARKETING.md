@@ -44,6 +44,9 @@ rather than invented here.
   permission the app already collects, what the checkbox's own words let it
   carry, and the unsubscribe link that has to ship in the same commit as
   whatever first sends.
+- **The tagline, and the slot it does not go in** — *Conversation
+  Uninterrupted*, why it is not the App Store subtitle, and which surfaces it
+  is for.
 - **What marketing may not do** — the constraints, applied to this file's
   subject rather than to the product's, including the one bounded exception to
   *no strangers* and the rule that it may not be advertised.
@@ -1072,6 +1075,44 @@ from. The gate is the link and the withdrawal above, both small, and both much
 worse to retrofit once a first send has already gone out.
 `backlog/marketing-email-has-no-unsubscribe-link.md` is the same statement made
 from the other end.
+
+## The tagline, and the slot it does not go in
+
+**Under consideration from 2026-09-22: *Conversation Uninterrupted*.** Whether
+it is adopted is not settled here; what is settled is where it may go, because
+the obvious slot is the wrong one.
+
+**It does not go in the App Store subtitle.** That field is spent on
+*Group voice on your own time*, and LISTING.md § *Subtitle* argues why: it is
+the one place a stranger learns what category the thing is in, and
+*Group voice* does the categorising in two words so nothing downstream has to.
+A tagline naming how the app *feels* assumes a reader who already knows what it
+is — which is exactly the reader the store does not have. **Length is not what
+rules it out**: twenty-six characters, inside the thirty.
+
+**The second reason is typographic and only visible on the page.** The store
+renders the listing name — *The Floor Uninterrupted*, registered because
+*The Floor* was taken — in the largest type on the product page, with the
+subtitle immediately under it. *Uninterrupted* would then appear twice, on
+consecutive lines, and the second one would look like a stutter rather than a
+claim.
+
+**Where it earns its place is every surface where the name is just *The
+Floor*** — the landing page, the invite and guest pages, an About screen.
+Which is the same set § *The funnel is upside down* calls the top of it, and
+for the same reason: their reader arrives having been told what this is by a
+person, so the categorising is already done and the slot is free for what the
+app is like.
+
+**The form matters.** *Conversation without Interruption* is the same claim and
+is worse: *-ation* against *-uption* is an echo you cannot stop hearing once
+you have noticed it, and the prepositional phrase describes the circumstances
+where the adjective describes the thing. The two-word form also survives being
+set small, which is where a tagline lives.
+
+**There is a second candidate for the same slot**, *Reinventing the phone
+call*, in LISTING.md § *Saying it forwards* — which is where the argument
+about the word *call* is. Only one of them can be adopted; neither is.
 
 ## What marketing may not do
 
