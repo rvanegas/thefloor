@@ -340,14 +340,18 @@ describe('websocket', () => {
     await client.open();
     expect((await client.next('hello')).settings).toEqual({
       appearance: 'system',
-      tapToLook: false,
       hideControlCards: false,
       labs: false,
       marketingEmail: false,
-      // The two names builds already installed know, sent beside the current
-      // ones so that a phone that has not been updated reads a hello from this
+      // The names builds already installed know, sent beside the current ones
+      // so that a phone that has not been updated reads a hello from this
       // server as the settings it has always had. See settings-wire.ts.
-      tapToStepIn: true,
+      //
+      // The tap pair is a constant since 2026-09-21: it is no longer anybody's
+      // choice, so an old build is told the one answer there now is rather
+      // than what it last stored.
+      tapToLook: true,
+      tapToStepIn: false,
       controlCards: true,
     });
     client.close();
@@ -358,7 +362,6 @@ describe('websocket', () => {
       headers: auth(token),
       payload: {
         appearance: 'dark',
-        tapToLook: true,
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
@@ -368,10 +371,10 @@ describe('websocket', () => {
     await later.open();
     expect((await later.next('hello')).settings).toEqual({
       appearance: 'dark',
-      tapToLook: true,
       hideControlCards: true,
       labs: true,
       marketingEmail: false,
+      tapToLook: true,
       tapToStepIn: false,
       controlCards: false,
     });
@@ -413,15 +416,15 @@ describe('websocket', () => {
     for (const client of [phone, tablet]) {
       expect((await client.next('settings')).settings).toEqual({
         appearance: 'dark',
-        tapToLook: false,
         hideControlCards: false,
-          labs: false,
-          marketingEmail: false,
-        // Both names here too, and that is the point of putting the
+        labs: false,
+        marketingEmail: false,
+        // The old names here too, and that is the point of putting the
         // translation in one function: a client that learnt one shape from the
         // hello and another from this event would be the same bug in a harder
         // place to find.
-        tapToStepIn: true,
+        tapToLook: true,
+        tapToStepIn: false,
         controlCards: true,
       });
     }

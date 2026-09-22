@@ -52,7 +52,6 @@ jest.mock('../../api/http', () => ({
       mockSaved.push(changes);
       return {
         appearance: 'system',
-        tapToLook: false,
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -81,8 +80,8 @@ function Settings() {
   latest = app;
   return (
     <Text>
-      {app.appearance}/{app.tapToLook ? 'open' : 'tap'}/
-      {app.hideControlCards ? 'bare' : 'cards'}/{app.labs ? 'labs' : 'plain'}
+      {app.appearance}/{app.hideControlCards ? 'bare' : 'cards'}/
+      {app.labs ? 'labs' : 'plain'}
     </Text>
   );
 }
@@ -103,7 +102,6 @@ function textOf(tree: ReactTestRenderer): string {
 /** What the socket does on connecting, with whatever the server holds. */
 function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
-  tapToLook: boolean;
   hideControlCards: boolean;
   labs: boolean;
   marketingEmail: boolean;
@@ -154,6 +152,8 @@ describe('the settings that follow the account', () => {
 
   it('takes what the server says over what this device had cached', async () => {
     mockStored['thefloor.appearance'] = 'light';
+    // Left by a build that still had the tap setting. Nothing reads it now;
+    // what it is here to prove is that it gets cleaned off the device.
     mockStored['thefloor.tapToLook'] = 'false';
     mockStored['thefloor.hideControlCards'] = 'true';
     // All of them read as "only 'true' turns it on", every one defaulting
@@ -161,21 +161,20 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.labs'] = 'true';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/tap/bare/labs');
+    expect(textOf(tree)).toContain('light/bare/labs');
 
     await act(async () =>
       hello({
         appearance: 'dark',
-        tapToLook: true,
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
       })
     );
-    expect(textOf(tree)).toContain('dark/open/cards/plain');
+    expect(textOf(tree)).toContain('dark/cards/plain');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
-    expect(mockStored['thefloor.tapToLook']).toBe('true');
+    expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
   });
@@ -194,20 +193,19 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.tapToStepIn'] = 'false';
     mockStored['thefloor.controlCards'] = 'false';
     const tree = await mount();
-    expect(textOf(tree)).toContain('system/open/bare/plain');
+    expect(textOf(tree)).toContain('system/bare/plain');
 
     // And the old keys go the moment the server states anything, rather than
     // being kept in step with the new ones.
     await act(async () =>
       hello({
         appearance: 'system',
-        tapToLook: true,
         hideControlCards: true,
         labs: false,
         marketingEmail: false,
       })
     );
-    expect(mockStored['thefloor.tapToLook']).toBe('true');
+    expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.tapToStepIn']).toBeUndefined();
     expect(mockStored['thefloor.controlCards']).toBeUndefined();
   });
@@ -228,7 +226,6 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
-        tapToLook: false,
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -237,13 +234,12 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       handlers.onSettings?.({
         appearance: 'light',
-        tapToLook: true,
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
       })
     );
-    expect(textOf(tree)).toContain('light/open/bare/labs');
+    expect(textOf(tree)).toContain('light/bare/labs');
   });
 
   /**
@@ -255,7 +251,6 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
-        tapToLook: false,
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -263,26 +258,20 @@ describe('the settings that follow the account', () => {
     );
 
     await act(async () => latest!.setAppearance('dark'));
-    expect(textOf(tree)).toContain('dark/tap');
+    expect(textOf(tree)).toContain('dark/cards');
     expect(mockSaved).toEqual([{ appearance: 'dark' }]);
 
-    await act(async () => latest!.setTapToLook(true));
-    expect(textOf(tree)).toContain('dark/open');
-    expect(mockSaved).toEqual([{ appearance: 'dark' }, { tapToLook: true }]);
-
     await act(async () => latest!.setHideControlCards(true));
-    expect(textOf(tree)).toContain('dark/open/bare');
+    expect(textOf(tree)).toContain('dark/bare');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
-      { tapToLook: true },
       { hideControlCards: true },
     ]);
 
     await act(async () => latest!.setLabs(true));
-    expect(textOf(tree)).toContain('dark/open/bare/labs');
+    expect(textOf(tree)).toContain('dark/bare/labs');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
-      { tapToLook: true },
       { hideControlCards: true },
       { labs: true },
     ]);
@@ -302,7 +291,6 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'dark',
-        tapToLook: true,
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
@@ -311,7 +299,7 @@ describe('the settings that follow the account', () => {
     await act(async () => {
       await latest!.signOut();
     });
-    expect(textOf(tree)).toContain('system/tap/cards/plain');
+    expect(textOf(tree)).toContain('system/cards/plain');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
     expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBeUndefined();

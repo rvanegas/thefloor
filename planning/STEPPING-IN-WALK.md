@@ -399,15 +399,19 @@ concludes it never did.
 
 ### 14. Stepping out follows the tap
 
-**UI only, no audio, thirty seconds** — and it is the pair most likely to
-drift, being one control drawn twice. In Home settings, turn *Tap a channel to
-look, not step in* **on**. Open a channel from Home, step in, then step out —
-from the footer's door, and again from the card.
+**UI only, no audio, thirty seconds.** Open a channel from Home, step in from
+the footer, then step out again.
 
-**What settles it.** Both leave you on the channel screen, looking at a room
-you are no longer in. Turn the setting **off** and repeat: both now close the
-screen. The rule is that the setting decides at both doors — see
-`decisions/2026-09-08-stepping-out-follows-the-tap.md`. It was written when the
+**What settles it.** Stepping out leaves you on the channel screen, looking at
+a room you are no longer in; *Home* in the header is what takes you off it.
+
+**There is no setting to turn on first, since 2026-09-21** — this step used to
+begin by turning *Tap a channel to look, not step in* on and end by turning it
+off and repeating, because the rule was that the setting decided at both doors.
+The setting is gone and the looking half is the only half, so there is one
+arrangement to check rather than two. See
+`decisions/2026-09-21-a-tap-only-ever-looks.md`, and
+`decisions/2026-09-08-stepping-out-follows-the-tap.md`, which is where the
 footer and a card were two ways out that could disagree; there is one way out
 now, and the rule is what survived the pair.
 

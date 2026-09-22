@@ -83,8 +83,9 @@ here, and it is the same shape of record, so it is the same shape of field.
    already walking into is the app inventing an event.
 7. **The page navigates the tab to the address the server hands back.** One
    hop, at the end, with the decision already made and the membership already
-   real. He arrives as himself, and `tapToLook` puts him back in the room on
-   the rule that governs opening any channel.
+   real. He arrives as himself, and the handover's own `enter` puts him back
+   in the room — which since 2026-09-21 is the only thing in the app that
+   arrives anywhere, every other route having stopped stepping in.
 
    **The microphone is handed back before the hop, explicitly.** Disconnecting
    the room drops the connection and a browser is entitled to leave an open
@@ -97,10 +98,10 @@ here, and it is the same shape of record, so it is the same shape of field.
    **And it arrives stepped in.** The intent travels in this tab's
    `sessionStorage`, written by this page and taken once by the app — it was
    `?enter=1` on the address until 2026-09-04, when the ids and the query left
-   the addresses together; see `app/src/ui/handover.ts`. `tapToLook` is
-   not consulted — that setting is about a list of rooms where a tap is as
-   likely to be curiosity as intent, and somebody who was audible in this room
-   a second ago is not curious about it.
+   the addresses together; see `app/src/ui/handover.ts`. This is the one arrival
+   that still enters a room: a tap on a list is as likely to be curiosity as
+   intent and no longer enters anything, and somebody who was audible in this
+   room a second ago is not curious about it.
 
    **Which train that is, is the server's answer.** The page pointed at `/app`
    unconditionally for one afternoon, and the first person to try it was on a

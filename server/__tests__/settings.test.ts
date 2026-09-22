@@ -79,14 +79,18 @@ describe('the settings that follow the account', () => {
     // answer would make each of them merge.
     expect(response.json()).toEqual({
       appearance: 'dark',
-      tapToLook: false,
       hideControlCards: false,
       labs: false,
       marketingEmail: false,
-      // The two old names as well, which is what stops a build already on a
-      // phone reading this answer as both of its channel settings having been
-      // turned over. See settings-wire.ts.
-      tapToStepIn: true,
+      // The old names as well, which is what stops a build already on a phone
+      // reading this answer as its channel settings having been turned over.
+      // See settings-wire.ts.
+      //
+      // `tapToLook` and `tapToStepIn` are constants now rather than anybody's
+      // choice: the setting went on 2026-09-21 and the behaviour became
+      // unconditional, so what goes out is the one answer there is.
+      tapToLook: true,
+      tapToStepIn: false,
       controlCards: true,
     });
   });
@@ -98,20 +102,18 @@ describe('the settings that follow the account', () => {
    */
   it('leaves alone what a write did not mention', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    await save(alice.token, { tapToLook: true });
+    await save(alice.token, { labs: true });
     await save(alice.token, { appearance: 'light' });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
-      tapToLook: true,
       hideControlCards: false,
-      labs: false,
+      labs: true,
       marketingEmail: false,
     });
 
-    await save(alice.token, { tapToLook: false, hideControlCards: true });
+    await save(alice.token, { labs: false, hideControlCards: true });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
-      tapToLook: false,
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
@@ -120,7 +122,6 @@ describe('the settings that follow the account', () => {
     await save(alice.token, { appearance: 'dark' });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'dark',
-      tapToLook: false,
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
@@ -137,12 +138,10 @@ describe('the settings that follow the account', () => {
     const alice = await signIn('user1@example.com', 'Alice');
     await save(alice.token, {
       appearance: 'dark',
-      tapToLook: true,
       hideControlCards: true,
     });
     await save(alice.token, {
       appearance: 'system',
-      tapToLook: false,
       hideControlCards: false,
     });
     expect(app.accounts.settings(alice.account.id)).toEqual(
@@ -150,7 +149,6 @@ describe('the settings that follow the account', () => {
     );
     const row = app.accounts.byId(alice.account.id)!;
     expect(row.appearance).toBe('system');
-    expect(row.tap_to_look).toBe(0);
     expect(row.hide_control_cards).toBe(0);
   });
 
@@ -162,11 +160,23 @@ describe('the settings that follow the account', () => {
     expect(app.accounts.settings(alice.account.id).appearance).toBe('dark');
   });
 
-  it('refuses a tap that is not a yes or a no', async () => {
+  /**
+   * **Ignored rather than refused**, which is the change of 2026-09-21. There
+   * is no such setting any more, and a build still drawing the toggle will go
+   * on sending one under either name. Answering that with a 400 would turn a
+   * setting nobody can change into an error they cannot get past; dropping it
+   * leaves the toggle inert and the next settings push asserts the one answer.
+   */
+  it('ignores a tap setting, whatever it says and whatever it is', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    const response = await save(alice.token, { tapToLook: 'yes' });
-    expect(response.statusCode).toBe(400);
-    expect(app.accounts.settings(alice.account.id).tapToLook).toBe(false);
+    expect((await save(alice.token, { tapToLook: false })).statusCode).toBe(200);
+    expect((await save(alice.token, { tapToStepIn: true })).statusCode).toBe(200);
+    // Not even a non-boolean, which used to be the 400 above: there is nothing
+    // to validate a value against when nothing reads it.
+    expect((await save(alice.token, { tapToLook: 'yes' })).statusCode).toBe(200);
+    // And what goes out is the constant, regardless of any of it.
+    const response = await save(alice.token, { tapToStepIn: true });
+    expect(response.json()).toMatchObject({ tapToLook: true, tapToStepIn: false });
   });
 
   it('refuses a card setting that is not a yes or a no', async () => {
@@ -252,7 +262,7 @@ describe('the settings that follow the account', () => {
   it('is nobody else’s', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
     const bob = await signIn('user2@example.com', 'Bob');
-    await save(alice.token, { appearance: 'dark', tapToLook: true });
+    await save(alice.token, { appearance: 'dark', hideControlCards: true });
     expect(app.accounts.settings(bob.account.id)).toEqual(
       DEFAULT_ACCOUNT_SETTINGS
     );
@@ -298,29 +308,25 @@ describe('the settings that follow the account', () => {
   });
 
   /**
-   * The other half of settings-wire.ts, and the half that matters most: a
-   * build on somebody's phone says `tapToStepIn: false` and means the tap
-   * should only look. Read as the new name without negating it, that same body
-   * would turn the setting the other way — silently, on the device of somebody
-   * who never opened the screen again to notice.
+   * The other half of settings-wire.ts. A build on somebody's phone says
+   * `controlCards: false` and means the cards are hidden; read as the new name
+   * without negating it, that same body would turn the setting the other way —
+   * silently, on the device of somebody who never opened the screen again.
    *
-   * Delete this test with the aliases, and not before.
+   * Delete this test with the aliases, and not before. Its tap half went on
+   * 2026-09-21 with the setting: there is nothing left for either name to turn.
    */
-  it('takes the two renamed settings under the names old builds send', async () => {
+  it('takes the renamed card setting under the name old builds send', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    await save(alice.token, { tapToStepIn: false, controlCards: false });
+    await save(alice.token, { controlCards: false });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'system',
-      tapToLook: true,
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
     });
 
-    await save(alice.token, { tapToStepIn: true });
-    expect(app.accounts.settings(alice.account.id).tapToLook).toBe(false);
-    // And is refused the same way when it is not a boolean, rather than being
-    // stored as one.
+    // And is refused when it is not a boolean, rather than being stored as one.
     const response = await save(alice.token, { controlCards: 'off' });
     expect(response.statusCode).toBe(400);
     expect(app.accounts.settings(alice.account.id).hideControlCards).toBe(true);
@@ -332,7 +338,7 @@ describe('the settings that follow the account', () => {
    */
   it('prefers the current name when a body carries both', async () => {
     const alice = await signIn('user1@example.com', 'Alice');
-    await save(alice.token, { tapToLook: true, tapToStepIn: true });
-    expect(app.accounts.settings(alice.account.id).tapToLook).toBe(true);
+    await save(alice.token, { hideControlCards: true, controlCards: true });
+    expect(app.accounts.settings(alice.account.id).hideControlCards).toBe(true);
   });
 });

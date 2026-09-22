@@ -1639,14 +1639,18 @@ and at 11pt in a fifth of a phone those truncate. See
 **A session is held if and only if the phone is stepped in.** Nearby, stepped
 out and not in a room are one audio state, and it is *none*.
 
-**Neither verb is about navigation, and since 2026-09-08 the screen follows the
-setting rather than the verb.** Stepping out closes the channel screen only for
-somebody whose tap steps in — the default — because for them arriving at the
-screen was the step in and there is nothing left to look at. With *Tap a
-channel to look, not step in* on, the screen and the room are two things at
-both doors: a tap opens the screen without entering, and stepping out gives up
-the room and leaves you looking. *Close* is what takes you off the screen. See
-`tapToLook` in core/settings.ts.
+**Neither verb is about navigation, and since 2026-09-21 neither is about the
+screen either.** The screen and the room are two things at both doors, for
+everybody: a tap opens the screen without entering, and stepping out gives up
+the room and leaves you looking at the channel. *Home* in the header is what
+takes you off the screen.
+
+This was a setting — *Tap a channel to look, not step in* — from 2026-08-31,
+and the screen followed it symmetrically from 2026-09-08: for somebody whose
+tap stepped in, stepping out closed the screen, because arriving at the screen
+had been the step in and there was nothing left to look at. The setting and its
+column went on 2026-09-21 and the looking half became the only half. See
+`decisions/2026-09-21-a-tap-only-ever-looks.md`.
 
 ## Support tab
 

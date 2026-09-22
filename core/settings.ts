@@ -50,23 +50,17 @@ export function isColorSchemePreference(
  */
 export interface AccountSettings {
   appearance: ColorSchemePreference;
-  /**
-   * Whether tapping a channel on Home only opens its screen, rather than
-   * stepping into it.
+  /*
+   * `tapToLook` was here until 2026-09-21, and is now how the app always
+   * behaves: a tap opens a channel's screen and never puts you in the room.
+   * It is not a setting any more, so there is nothing to store and nothing to
+   * default. See
+   * `decisions/2026-09-21-a-tap-only-ever-looks.md`.
    *
-   * Unset, which is the default, a tap is arriving: the app enters and the
-   * others can hear you. Set, a tap is only looking.
-   *
-   * **It governs the other door too, since 2026-09-08**, which is a thing the
-   * name does not say and the behaviour depends on: stepping out closes the
-   * channel screen only when the tap was what opened the room. Set, the screen
-   * and the room are two things — arriving at one did not put you in the other
-   * — so leaving the room leaves you looking at the channel, and the header's
-   * *Close* is what takes you off it. Unset, the two are one act in both
-   * directions, as they always were. See `stepOutClosesScreen` in
-   * `app/src/ui/ChannelView.tsx`.
+   * `settings-wire.ts` still *sends* the name, as a constant, because builds
+   * already on phones read it — and a build that stopped hearing it would
+   * fall back to tapping as arriving, which is the behaviour being removed.
    */
-  tapToLook: boolean;
   /**
    * Whether the channel screen has stopped drawing a card for each of the
    * controls pinned in its footer.
@@ -182,7 +176,6 @@ export interface AccountSettings {
  */
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
-  tapToLook: false,
   hideControlCards: false,
   labs: false,
   /**

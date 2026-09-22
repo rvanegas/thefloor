@@ -222,77 +222,28 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </View>
 
       {/*
-        Behaviour first, then appearance, then what somebody reads before
-        deciding either of the things under it, then the account itself. The
-        screen reads outwards: the app, the phone, the policy, and then the
-        account underneath all three.
+        Appearance first, then what somebody reads before deciding it, then the
+        account itself. The screen reads outwards: the phone, the policy, and
+        then the account underneath both.
 
-        The tap is at the top because it is the only setting here that changes
-        what a tap *does*, and the tap it changes is the one somebody makes
-        most often. Everything below this section changes how something looks
-        or ends.
+        **The *Channels* section was above this and went on 2026-09-21**, with
+        the last setting in it. It held "Tap a channel to look, not step in",
+        and behaviour first was the order for its sake: it was the only setting
+        here that changed what a tap *did*, and the tap it changed was the one
+        somebody makes most often.
+
+        That is now simply how the app behaves. A tap opens a channel's screen
+        and never puts you in the room; the footer's *Step In* is how you
+        arrive, and stepping out leaves you looking at the channel rather than
+        closing it. There is no longer a second arrangement for a setting to
+        choose between, which is the same reason "Hide the repeated channel
+        controls" left this card on 2026-09-13 — that one had lost the screen
+        it switched, this one has lost the alternative. See
+        decisions/2026-09-21-a-tap-only-ever-looks.md.
+
+        `hideControlCards` is still on the wire and still a column on
+        `accounts`, read by nothing; see core/settings.ts.
       */}
-      <SectionLabel>Channels</SectionLabel>
-      {/*
-        The two of them in one card rather than two, since 2026-08-31 —
-        briefly three, a third having arrived on 2026-09-12 and gone on
-        2026-09-13. They are one question asked twice — what you want a
-        channel screen to look like — and two cards under one label read as
-        two subjects rather than one with two dials. The hairline between them is what a card gives up when
-        it stops being one setting: enough of a seam that the second heading is
-        obviously a new question, and not so much that the two stop belonging
-        together. The tap is above the rule for the reason the section comment
-        gives; the cards are about the same screen once you are looking at it.
-      */}
-      <Card style={styles.stack}>
-        <Text style={type.heading}>Tap a channel to look, not step in</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, 'On'],
-              [false, 'Off'],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.tapToLook === value ? 'primary' : 'default'}
-              onPress={() => app.setTapToLook(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>
-          Off, which is where everybody starts: tapping a channel walks you
-          into it and everyone there can hear you, and stepping out closes the
-          channel again. On, a tap only opens the channel — you can see who is
-          around and read what has been shared, and step in when you mean to —
-          and stepping out leaves you looking at it, to close when you mean to
-          as well.
-        </Text>
-
-        {/*
-          **"Hide the repeated channel controls" was here and went on
-          2026-09-13**, with the cards it hid.
-
-          `hideControlCards` switched off the channel screen's repetitions of
-          its own footer — the microphone and the two departures, each a card
-          down the screen as well as a slot in the bar. Those cards are now
-          deleted for everybody, or in the microphone's case reduced to the
-          sentence a bar cannot carry, so the setting had nothing left to
-          govern and this was a choice between two identical screens. See
-          decisions/2026-09-13-the-cards-a-footer-made-redundant.md.
-
-          The two notices it promised stay — a silenced microphone is still
-          being recorded, and this channel is held on another device — which
-          is what it always promised and is now simply true.
-
-          **The setting itself is still on the wire** and still a column on
-          `accounts`: see `hideControlCards` in core/settings.ts. Taking it
-          out is a wire change and a migration rather than a screen edit, and
-          nothing reads it now.
-        */}
-      </Card>
 
       {/*
         **For everybody, since 2026-09-14.** It sat under Diagnostics behind

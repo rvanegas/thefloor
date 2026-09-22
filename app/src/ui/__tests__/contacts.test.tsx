@@ -526,7 +526,12 @@ describe('Contacts', () => {
     )[0];
     act(() => card.props.onPress());
 
-    expect(mockApp.act).toHaveBeenCalledWith('sess_shared', { type: 'ENTER' });
+    // Opens rather than arrives, the same tap Home's rows take — the two
+    // lists answering differently is the one thing this has to avoid. See
+    // decisions/2026-09-21-a-tap-only-ever-looks.md.
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_shared', {
+      type: 'ENTER',
+    });
     expect(onEnterChannel).toHaveBeenCalledWith('sess_shared');
     act(() => tree.unmount());
   });

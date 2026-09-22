@@ -2394,7 +2394,8 @@ describe('Channel', () => {
 
     act(() => findButton(footer, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
-    expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
+    // And leaves the screen where it is; see `stepOutClosesScreen`.
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     act(() => footer.unmount());
     act(() => tree.unmount());
   });
@@ -2611,9 +2612,13 @@ describe('Channel', () => {
 
     act(() => findButton(footer, 'Out')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STEP_OUT' });
-    // Stepping out of the footer leaves the screen exactly as the card does —
-    // the view is dropped and the caller told, not just the reducer poked.
-    expect(mockApp.leaveChannelView).toHaveBeenCalledWith('sess_1');
+    // **And leaves the screen where it is**, since 2026-09-21. Stepping out
+    // used to drop the view and tell the caller, because arriving at this
+    // screen and arriving in the room were one act. A tap only ever looks
+    // now, so nothing arrived here and nothing leaves: looking at a channel
+    // you are not in is the ordinary state this screen draws, and the
+    // header's Home is the way off it. See `stepOutClosesScreen`.
+    expect(mockApp.leaveChannelView).not.toHaveBeenCalled();
     act(() => footer.unmount());
     act(() => tree.unmount());
   });
@@ -2634,8 +2639,10 @@ describe('Channel', () => {
    * kind that drifts — which is why both shared `stepOut` and why the
    * function is still a function with one caller.
    */
-  it('leaves the screen open when stepping out, if a tap only looks', () => {
-    mockApp.tapToLook = true;
+  it('leaves the screen open when stepping out', () => {
+    // `mockApp.tapToLook = true` was here: this was the setting's half of the
+    // pair, and it is now the only behaviour there is. See
+    // decisions/2026-09-21-a-tap-only-ever-looks.md.
     showChannel(channelOf());
     const onExit = jest.fn();
     const tree = render(

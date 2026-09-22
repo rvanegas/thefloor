@@ -73,9 +73,14 @@ export interface Handover {
    * **This was `?enter=1` on the address until 2026-09-04**, and its own
    * comment always described it as a one-shot intent rather than part of the
    * address. Here it stops being on the address at all, which is what it was
-   * claiming to be. `tapToLook` is not consulted — that setting is about a
-   * list of rooms where a tap is as likely to be curiosity as intent, and
-   * this is not a tap on a list.
+   * claiming to be.
+   *
+   * **This is the one arrival that still enters a room**, and it outlived the
+   * setting that used to make it unusual. `tapToLook` was consulted nowhere
+   * here — that setting was about a list of rooms, where a tap is as likely to
+   * be curiosity as intent — and since 2026-09-21 no tap arrives anywhere, so
+   * the distinction this paragraph drew is now the difference between this
+   * caller and the whole of the rest of the app.
    */
   enter?: boolean;
 }

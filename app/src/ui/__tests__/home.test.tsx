@@ -89,7 +89,10 @@ describe('Home', () => {
 
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
-    expect(text).toContain('tap to join');
+    // "tap to join" went with the setting on 2026-09-21: the tap opens the
+    // channel and joins nothing, so the row no longer promises otherwise.
+    expect(text).not.toContain('tap to join');
+    expect(text).toContain('asked you in · waiting');
     expect(text).toContain('Miro Okafor');
     expect(text).toContain('1 present');
     expect(text).not.toContain('Priya Raman');
@@ -539,7 +542,7 @@ describe('Home', () => {
       expect(mockApp.act).not.toHaveBeenCalled();
       // And the row is still there, the invitation being the server's to
       // withdraw rather than this screen's to hide.
-      expect(textOf(tree)).toContain('tap to join');
+      expect(textOf(tree)).toContain('asked you in · waiting');
 
       asked.mockRestore();
       act(() => tree.unmount());

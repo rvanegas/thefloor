@@ -50,6 +50,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 259 | `WATCH_READY.title` optionality | `core/protocol.ts`, `core/types.ts`, `core/channel.ts` |
 | — | `WatchParty.title` revived as null | `server/src/channels.ts` |
 | 264 | `InviteView.guest` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
+| 264 | `tapToLook` / `tapToStepIn` sent as constants | `server/src/settings-wire.ts`, `server/src/app.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -291,9 +292,24 @@ account setting defaults to false — see
 `decisions/2026-09-07-every-boolean-setting-defaults-to-false.md`. Every build
 in anybody's hands at the time reads the old names, so the server sends both
 and accepts either: `server/src/settings-wire.ts` is that whole arrangement,
-and it is written to be deleted in one piece, along with the two tests in
+and it is written to be deleted in one piece, along with the tests in
 `settings.test.ts` that name it and the legacy keys the answers carry in
 `ws.test.ts`.
+
+**The tap half changed shape on 2026-09-21 and is now a different kind of
+shim.** The setting went and the behaviour became unconditional, so there is
+no longer an account value to translate — but `tapToLook` and `tapToStepIn`
+are still *sent*, as the constants `true` and `false`, because a build already
+on a phone reads them and one that heard nothing would take the absent boolean
+as false and go back to a tap that steps into the room. That is the exact
+behaviour being removed, so the assertion has to keep going out. Both names
+are read and dropped on the way in rather than refused, so an old build's
+toggle is inert instead of erroring. See
+`decisions/2026-09-21-a-tap-only-ever-looks.md`.
+
+**What must not be deleted with the card half**: the two tap constants, until
+the floor passes 264. They are gated on a *later* build than the rest of this
+entry and are the only part of it that is not about a rename.
 
 **Delete it once the floor has passed 159**, which is the first build that
 speaks the new names. Not before: an install below the floor is shown the
@@ -590,3 +606,32 @@ a guest* wording, which is the whole point of the field existing.
 
 Gate 264 because `build/263` is already tagged: the client that speaks this
 ships in the next upload.
+
+---
+
+## Gate 264 — `tapToLook` / `tapToStepIn` sent as constants
+
+The tap setting went on 2026-09-21 and its behaviour became unconditional —
+`decisions/2026-09-21-a-tap-only-ever-looks.md`. The column went with it, so
+there is nothing left to store or translate.
+
+**But the field cannot simply stop being sent.** A build already on a phone
+reads `tapToLook` from the hello and the settings event, and reads an absent
+boolean as false — which is a tap that steps into the room, the behaviour
+being removed. So `settingsForWire` in `server/src/settings-wire.ts` asserts
+`tapToLook: true` and `tapToStepIn: false` on every settings payload, and the
+`POST /me/settings` handler in `server/src/app.ts` reads both names and drops
+them rather than refusing, so an old build's toggle is inert instead of an
+error it cannot get past.
+
+**What must not be deleted with it**: nothing here is the `controlCards`
+alias's business. That is gate 159's, it is a genuine rename rather than an
+assertion, and the two now retire at different builds despite sharing a
+function — so `settings-wire.ts` is no longer deleted in one piece, which its
+own comment said it would be. Nor the two `storage.remove` calls in
+`AppProvider`'s `applySettings` and `forgetSettings`: those clear the app's
+old cache keys off devices that still hold them and answer to a different
+clock entirely.
+
+Gate 264 because `build/263` is already tagged: the client that no longer
+reads either name ships in the next upload.

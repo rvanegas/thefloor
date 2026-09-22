@@ -233,7 +233,9 @@ export function ChannelsView({
    * being there. See ChannelView.
    */
   const openChannel = (channelId: string) => {
-    if (!app.tapToLook) app.act(channelId, { type: 'ENTER' });
+    // **No `ENTER`.** Opening a channel and standing in it are two acts, and
+    // this is only the first: the channel screen's footer is where the second
+    // one lives. See decisions/2026-09-21-a-tap-only-ever-looks.md.
     onEnterChannel(channelId);
   };
 
@@ -332,7 +334,6 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={!app.tapToLook}
                 onDecline={
                   card.kind === 'invite' ? () => declineInvite(card) : undefined
                 }
@@ -356,7 +357,6 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={!app.tapToLook}
                 onDecline={() => declineInvite(card)}
               />
             ))}
@@ -385,7 +385,6 @@ export function ChannelsView({
                     ? openSeat(card.channelId)
                     : openChannel(card.channelId)
                 }
-                stepsIn={!app.tapToLook}
               />
             ))}
           </View>
@@ -721,7 +720,6 @@ function ChannelCard({
   now,
   onPress,
   onDecline,
-  stepsIn,
 }: {
   card: Card;
   now: number;
@@ -729,13 +727,12 @@ function ChannelCard({
   onPress: () => void;
   /** Invitations only; leaves the channel, after asking. */
   onDecline?: () => void;
-  /**
-   * Whether this tap arrives or only looks — the settings screen's own
-   * preference, passed down so
-   * the row can say which of the two it is about to do. It changes no
-   * behaviour here; the row calls back either way.
+  /*
+   * `stepsIn` was here, saying whether this tap would arrive or only look. A
+   * tap only ever looks now, so there is nothing for the row to choose between
+   * and no preference to pass down. See
+   * decisions/2026-09-21-a-tap-only-ever-looks.md.
    */
-  stepsIn: boolean;
 }) {
   const live = isLive(card);
   // Null only for an invitation from a server that predates the stamp, which
@@ -805,7 +802,10 @@ function ChannelCard({
           // deliberate, the same tap opens the channel and joins nothing, and
           // promising otherwise would be the one place in this list where
           // the setting is not honoured.
-          `${asked} · waiting${stepsIn ? ' — tap to join' : ''}`
+          // No "tap to join": the tap opens the channel and joins nothing,
+          // and promising otherwise would be the one place in this list that
+          // said a tap does something it has not done since 2026-09-21.
+          `${asked} · waiting`
         : `${asked}${quiet ? ` · ${quiet}` : ''}`
       : card.kind === 'seat'
         ? // Said plainly, because a row that looked like the others would be
@@ -851,14 +851,10 @@ function ChannelCard({
         steppedIn ? 'Stepped in and out. ' : ''
       }${
         // A seat opens the guest page, where the way in is the door rather
-        // than a step, and that preference has nothing to say about it.
-        card.kind === 'seat'
-          ? 'Open as a guest.'
-          : !stepsIn
-            ? 'Open.'
-            : card.kind === 'invite'
-              ? 'Join.'
-              : 'Step in.'
+        // than a step. Everything else opens a channel screen and nothing
+        // else: *Join* and *Step in* were the other two answers here, and
+        // both described a tap that arrived in the room.
+        card.kind === 'seat' ? 'Open as a guest.' : 'Open.'
       }`}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}

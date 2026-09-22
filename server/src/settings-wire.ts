@@ -23,12 +23,22 @@ import type { AccountSettings } from '../../core/settings';
  * would be the same bug in a harder place to find.
  */
 export function settingsForWire(settings: AccountSettings): AccountSettings & {
+  tapToLook: boolean;
   tapToStepIn: boolean;
   controlCards: boolean;
 } {
   return {
     ...settings,
-    tapToStepIn: !settings.tapToLook,
+    // **Both constants, because the setting is gone and the behaviour is
+    // not.** `tapToLook` stopped being an account setting on 2026-09-21 and
+    // became how the app always behaves — but a build already on a phone
+    // reads this field, and one that heard nothing would take the absent
+    // boolean as false and go back to a tap that steps you into the room.
+    // That is the exact behaviour being removed, so the field goes on being
+    // sent, asserting the new answer, until the floor passes the build that
+    // stops reading it. SHIMS.md carries the gate.
+    tapToLook: true,
+    tapToStepIn: false,
     controlCards: !settings.hideControlCards,
   };
 }

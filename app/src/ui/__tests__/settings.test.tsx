@@ -269,12 +269,13 @@ describe("the Labs setting", () => {
   };
 
   /**
-   * The second On/Off pair: the tap, then this. Positional, so it moves when
-   * a setting is added or taken away above it — which has now happened three
-   * times: the tabs arriving on 2026-09-12 and going on 2026-09-13, and the
-   * repeated channel controls going the same day, which is what took this
-   * from third to second. That is the whole of why the number is here rather
-   * than buried in the expression below.
+   * The first On/Off pair, and now the only one. Positional, so it moves when
+   * a setting is added or taken away above it — which has now happened four
+   * times: the tabs arriving on 2026-09-12 and going on 2026-09-13, the
+   * repeated channel controls going the same day, which took this from third
+   * to second, and the tap going on 2026-09-21, which took it from second to
+   * first. That is the whole of why the number is here rather than buried in
+   * the expression below.
    */
   const labsButton = (tree: ReactTestRenderer, label: string) =>
     tree.root
@@ -283,7 +284,7 @@ describe("the Labs setting", () => {
           n.props?.accessibilityRole === "button" &&
           typeof n.props.onPress === "function",
       )
-      .filter((n) => labelOf(n).includes(label))[1];
+      .filter((n) => labelOf(n).includes(label))[0];
 
   /**
    * The heading, which names which of the two settings screens this is.
@@ -317,7 +318,12 @@ describe("the Labs setting", () => {
     const tree = await openSettings();
     act(() => labsButton(tree, "On").props.onPress());
     expect(mockApp.setLabs).toHaveBeenCalledWith(true);
-    expect(mockApp.setTapToLook).not.toHaveBeenCalled();
+    // `expect(mockApp.setTapToLook).not.toHaveBeenCalled()` was here, proving
+    // the positional helper above had found this pair rather than the tap's.
+    // There is no other On/Off pair on this screen since 2026-09-21, so the
+    // confusion it guarded against cannot arise — and it comes back the moment
+    // a second pair does.
+    expect(mockApp.setAppearance).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
@@ -614,7 +620,18 @@ describe("showing every dab", () => {
  * channel, which are the two screens it changes.
  */
 
-describe("the stepping-in setting", () => {
+/**
+ * The setting that went, and the screen that has to stop offering it.
+ *
+ * "Tap a channel to look, not step in" was the first card on this screen from
+ * 2026-08-31 until 2026-09-21, and behaviour came before appearance for its
+ * sake. A tap only ever looks now, so there is no second arrangement for it to
+ * choose between — see
+ * decisions/2026-09-21-a-tap-only-ever-looks.md. Asserted rather than deleted,
+ * because a control that quietly comes back is exactly what a removed setting
+ * does when somebody restores a card from an old diff.
+ */
+describe("the stepping-in setting, which is gone", () => {
   const openSettings = async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {
@@ -623,29 +640,13 @@ describe("the stepping-in setting", () => {
     return tree;
   };
 
-  it("offers both answers and says what each means", async () => {
+  it("offers no tap setting at all", async () => {
     const tree = await openSettings();
-    expect(textOf(tree)).toContain("Tap a channel to look, not step in");
-    expect(findButton(tree, "On")).toBeDefined();
-    expect(findButton(tree, "Off")).toBeDefined();
-    expect(textOf(tree)).toContain("everyone there can hear you");
-    act(() => tree.unmount());
-  });
-
-  it("reports a change rather than keeping it", async () => {
-    const tree = await openSettings();
-    act(() => findButton(tree, "Off")!.props.onPress());
-    expect(mockApp.setTapToLook).toHaveBeenCalledWith(false);
-    act(() => tree.unmount());
-  });
-
-  it("marks which one is in force", async () => {
-    mockApp.tapToLook = true;
-    const tree = await openSettings();
-    // Button's style is a function of press state, not an array.
-    expect(styleOf(tree, "Off").backgroundColor).not.toBe(
-      styleOf(tree, "On").backgroundColor,
-    );
+    const text = textOf(tree);
+    expect(text).not.toContain("Tap a channel to look");
+    expect(text).not.toContain("everyone there can hear you");
+    // And the section it was the only member of goes with it.
+    expect(text).not.toContain("Channels");
     act(() => tree.unmount());
   });
 });

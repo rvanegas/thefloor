@@ -384,10 +384,12 @@ things that this file keeps apart:
 - **Watching** — `Connection.watchingChannels` on the server,
   `Realtime.watchedChannel` and the mounted `ChannelView` in the app. Whether
   snapshots are being sent to you. **Watching is not being there**, and since
-  2026-08-22 the app can be in that state on purpose: with the Home setting
-  "Tap a channel to look, not step in" turned on, a tap opens the channel
-  screen and dispatches no `ENTER`, so the footer lights the **Out** rung
-  where it lights **In** for somebody present. Both used to be cards saying
+  2026-09-21 it is the *ordinary* state rather than one somebody opted into: a
+  tap opens the channel screen and dispatches no `ENTER`, for everybody, so
+  the footer lights the **In** rung where it lights **Out** for somebody
+  present. It was a Home setting — "Tap a channel to look, not step in" — from
+  2026-08-22 until the setting and its column went; see
+  decisions/2026-09-21-a-tap-only-ever-looks.md. Both used to be cards saying
   the act in full; they were deleted on 2026-09-13 for being the footer in
   longer words, and the ladder in the bar is now the whole of it. A
   notification tap used to land this way

@@ -1251,7 +1251,10 @@ describe('who is in the channel, and who is talking', () => {
     expect(card).toBeDefined();
     await act(async () => card!.props.onPress());
 
-    expect(mockApp.act).toHaveBeenCalledWith('sess_other', { type: 'ENTER' });
+    // Opens rather than arrives: a tap only ever looks since 2026-09-21.
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_other', {
+      type: 'ENTER',
+    });
     expect(onEnterChannel).toHaveBeenCalledWith('sess_other');
     // And the profile closes behind it, since this screen is about to be
     // about the channel that was tapped rather than the one it was opened in.

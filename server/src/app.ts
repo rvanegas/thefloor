@@ -2591,19 +2591,14 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.appearance = body.appearance;
     }
-    // Under either name, since a build already on a phone sends the old one
-    // and means its negation. See settings-wire.ts, which is where both halves
-    // of that compatibility live and is deleted in one piece.
-    const tapToLook = booleanUnderEitherName(
-      body,
-      'tapToLook',
-      'tapToStepIn',
-      true
-    );
-    if (tapToLook === null) {
-      return reply.code(400).send({ error: 'tapToLook must be true or false.' });
-    }
-    if (tapToLook !== undefined) changes.tapToLook = tapToLook;
+    // **`tapToLook` and `tapToStepIn` are read and dropped**, rather than
+    // refused. The setting went on 2026-09-21 and its behaviour became
+    // unconditional, but a build already on a phone still draws the toggle
+    // and still sends whichever name it knows. Answering that with a 400
+    // would turn a setting somebody can no longer change into an error they
+    // cannot get past; ignoring it leaves the toggle inert, and the next
+    // settings push asserts the one answer there now is. See settings-wire.ts
+    // and SHIMS.md.
     const hideControlCards = booleanUnderEitherName(
       body,
       'hideControlCards',

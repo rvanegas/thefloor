@@ -406,21 +406,24 @@ describe('tapping a row', () => {
 
     expect(findButton(tree, 'Step in')).toBeUndefined();
     act(() => pressableFor(tree, 'Thursday rehearsal').props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_b', { type: 'ENTER' });
+    // **The tap opens and does not arrive**, since 2026-09-21. It dispatched
+    // `ENTER` here until then, under a setting that chose between the two.
+    // The channel screen's footer is where stepping in lives now.
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_b', { type: 'ENTER' });
     expect(onEnterChannel).toHaveBeenCalledWith('sess_b');
     act(() => tree.unmount());
   });
 
   /**
-   * The other half of "Tap a channel to step in", which is off here.
+   * What a tap does, which since 2026-09-21 is the only thing it does.
    *
    * The channel opens and nothing is dispatched: no ENTER, so nobody is told
    * you have arrived and the microphone is never asked for. The screen that
    * opens is the one with a Step In button on it — see the channel tests.
+   * This was the far side of a setting; it is now the near side of nothing.
    */
-  it('opens a channel without entering it when stepping in is deliberate', () => {
+  it('opens a channel without entering it', () => {
     const onEnterChannel = jest.fn();
-    mockApp.tapToLook = true;
     mockApp.home = {
       invites: [],
       rejoinable: [
@@ -446,8 +449,7 @@ describe('tapping a row', () => {
   });
 
   /** What the row promises has to be what the tap does. */
-  it('says the tap opens rather than joins when it does not step in', () => {
-    mockApp.tapToLook = true;
+  it('says the tap opens rather than joins', () => {
     mockApp.home = {
       invites: [
         {
@@ -590,7 +592,10 @@ describe('channels you share with somebody', () => {
     )[0];
     act(() => row.props.onPress());
 
-    expect(mockApp.act).toHaveBeenCalledWith('sess_shared', { type: 'ENTER' });
+    // Opens rather than arrives: a tap only ever looks since 2026-09-21.
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_shared', {
+      type: 'ENTER',
+    });
     expect(onEnterChannel).toHaveBeenCalledWith('sess_shared');
     act(() => tree.unmount());
   });
@@ -1298,7 +1303,12 @@ describe('the mark for a channel you have just stepped into', () => {
     // long form is two words more and is the whole of what happened.
     const tree = steppedIn();
     const label = labelOf(tree);
-    expect(label).toContain('Stepped in and out. Step in.');
+    // The stutter this guards against is "Stepped in. Step in." — a state and
+    // an action a syllable apart. The action became *Open* on 2026-09-21, when
+    // a tap stopped arriving, so the two can no longer collide at all; the
+    // assertion stays because the state's wording is what fixed it and is
+    // still the half that could drift back.
+    expect(label).toContain('Stepped in and out. Open.');
     expect(label).not.toContain('Stepped in. Step in.');
     act(() => tree.unmount());
   });

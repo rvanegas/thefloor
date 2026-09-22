@@ -512,10 +512,6 @@ export class Accounts {
       appearance: isColorSchemePreference(row.appearance)
         ? row.appearance
         : DEFAULT_ACCOUNT_SETTINGS.appearance,
-      tapToLook:
-        row.tap_to_look === null
-          ? DEFAULT_ACCOUNT_SETTINGS.tapToLook
-          : row.tap_to_look === 1,
       hideControlCards:
         row.hide_control_cards === null
           ? DEFAULT_ACCOUNT_SETTINGS.hideControlCards
@@ -560,11 +556,6 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET appearance = ? WHERE id = ?')
         .run(changes.appearance, accountId);
-    }
-    if (changes.tapToLook !== undefined) {
-      this.db
-        .prepare('UPDATE accounts SET tap_to_look = ? WHERE id = ?')
-        .run(changes.tapToLook ? 1 : 0, accountId);
     }
     if (changes.hideControlCards !== undefined) {
       this.db

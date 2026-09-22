@@ -108,19 +108,15 @@ function sameIdentifier(x: string, y: string): boolean {
   return x.trim().toLowerCase() === y.trim().toLowerCase();
 }
 /**
- * Whether a tap on a channel walks into it, or only opens it — cached from
- * what the server last said this account had chosen.
+ * The two keys the tap setting used to be cached under.
  *
- * Stored as `'true'`/`'false'` and read as "only `'true'` is on", so the
- * default survives a missing key, a key from a build that never wrote one, and
- * a value nobody recognises. Off is a tap that steps in, which is the
- * behaviour every build before this one had and the one somebody who has never
- * opened Settings should keep.
- *
- * **A cache since 2026-08-31**, when this setting and the scheme moved to the
- * account. It is read once at launch and never again; anything the server says
- * overwrites it, and signing out clears it. Its whole job is the second or so
- * between a cold start and `hello`. See `AppValue.tapToLook`.
+ * **Kept only to be deleted off devices that still hold them.** The setting
+ * went on 2026-09-21 and a tap only ever looks now, so nothing reads either of
+ * these — but a phone that ran an older build still has one sitting in its
+ * keychain, and a value nothing can reach or explain is exactly what the
+ * account-deletion path exists to make impossible. `applySettings` clears them
+ * on the first `hello` and `forgetSettings` on the way out; both lines may go
+ * once no install can plausibly still be carrying one.
  */
 const TAP_TO_LOOK_KEY = 'thefloor.tapToLook';
 
@@ -713,25 +709,6 @@ interface AppValue extends AppState {
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
   /**
-   * Whether tapping a channel on Home only opens its screen, rather than
-   * stepping into it.
-   *
-   * Unset, which is the default, a tap is arriving: the app enters and the
-   * others can hear you. Set, a tap is only looking — the channel screen
-   * opens with a Step In button where Step Out would be, and nothing about
-   * your presence has changed.
-   *
-   * **An account setting**, like appearance and since the same day. It was a
-   * phone setting on the argument that two phones signed in as you may
-   * reasonably want different answers about a thumb on a list — which is true
-   * of a headset and turned out not to be true of this: whether a tap is
-   * arriving or only looking is a habit a person has, not a property of the
-   * device the habit is exercised on, and finding the other answer on the
-   * second phone is being surprised by your own app.
-   */
-  tapToLook: boolean;
-  setTapToLook: (value: boolean) => void;
-  /**
    * Whether the channel screen has dropped the card it keeps for each of the
    * three controls in its pinned footer, letting the footer be the whole of
    * them.
@@ -944,32 +921,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       applyPreference(stored);
     })();
   }, []);
-  /**
-   * Read the same way and at the same moment as appearance, and with the same
-   * gap: for the first frames after a launch this is the default, whatever is
-   * cached. Appearance spends that gap on a flash of the wrong palette; this
-   * one spends it on a tap in the first instant of a cold start entering a
-   * channel somebody meant only to open. Both are one read of the keychain
-   * long, and neither is worth blocking the first screen on — the recovery
-   * from this one is a tap on Step Out.
+  /*
+   * `tapToLook` was read here, cached against the gap between a cold start and
+   * `hello`. It is not a setting any more — a tap only ever looks — so there
+   * is no gap to cover and nothing to be wrong about for a second. See
+   * decisions/2026-09-21-a-tap-only-ever-looks.md.
    */
-  const [tapToLook, setTapToLookState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.tapToLook
-  );
-  useEffect(() => {
-    void (async () => {
-      if ((await storage.get(TAP_TO_LOOK_KEY)) === 'true') {
-        setTapToLookState(true);
-        return;
-      }
-      // Nothing under the current name means either a fresh install or a
-      // phone that last ran a build which wrote the old one. Only the second
-      // has anything to say, and what it says is the negation.
-      if ((await storage.get(LEGACY_TAP_TO_STEP_IN_KEY)) === 'false') {
-        setTapToLookState(true);
-      }
-    })();
-  }, []);
   /** Read the same way, at the same moment, for the same second or so. */
   const [hideControlCards, setHideControlCardsState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.hideControlCards
@@ -1042,12 +999,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAppearanceState(settings.appearance);
     applyPreference(settings.appearance);
     void storage.set(APPEARANCE_KEY, settings.appearance);
-    setTapToLookState(settings.tapToLook);
-    void storage.set(TAP_TO_LOOK_KEY, settings.tapToLook ? 'true' : 'false');
-    // The old keys are dropped rather than kept in step: the server has just
-    // said what is true, so the fallback that reads them has nothing left to
-    // add, and a stale pair of them is a second of the wrong answer waiting
-    // for the day somebody deletes the wrong line.
+    // Dropped rather than written: there is no tap setting to cache any more.
+    void storage.remove(TAP_TO_LOOK_KEY);
     void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
     setHideControlCardsState(settings.hideControlCards);
     void storage.set(
@@ -1072,7 +1025,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAppearanceState(DEFAULT_ACCOUNT_SETTINGS.appearance);
     applyPreference(DEFAULT_ACCOUNT_SETTINGS.appearance);
     void storage.remove(APPEARANCE_KEY);
-    setTapToLookState(DEFAULT_ACCOUNT_SETTINGS.tapToLook);
     void storage.remove(TAP_TO_LOOK_KEY);
     void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
     setHideControlCardsState(DEFAULT_ACCOUNT_SETTINGS.hideControlCards);
@@ -1963,16 +1915,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      tapToLook,
-      setTapToLook: (value) => {
-        setTapToLookState(value);
-        void storage.set(TAP_TO_LOOK_KEY, value ? 'true' : 'false');
-        void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
-        if (state.token) {
-          void api.saveSettings(state.token, { tapToLook: value }).catch(() => {});
-        }
-      },
-
       hideControlCards,
       setHideControlCards: (value) => {
         setHideControlCardsState(value);
@@ -2492,7 +2434,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       forgetIntroduction,
       promptInstall,
       appearance,
-      tapToLook,
       hideControlCards,
       labs,
       marketingEmail,

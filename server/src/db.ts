@@ -136,16 +136,6 @@ export interface AccountRow {
    */
   appearance: string | null;
   /**
-   * Whether tapping a channel on Home only opens it rather than stepping in:
-   * 1 for yes, 0 for no, null for never having said — which reads as the
-   * default, and the default is off. Null and 0 therefore mean the same thing
-   * today, for the reason above.
-   *
-   * Was `tap_to_step_in`, holding the negation of this, until the 2026-09-07
-   * migration below turned it over. See `tapToLook` in core/settings.ts.
-   */
-  tap_to_look: number | null;
-  /**
    * Whether the channel screen has stopped repeating its footer's three
    * controls as cards further down: 1 for yes, 0 for no, null for never
    * having said. The default is off, so null and 0 mean the same thing today
@@ -592,7 +582,6 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- See core/settings.ts and the row type above for why the untouched case is
   -- null rather than the default written down.
   appearance         TEXT,
-  tap_to_look        INTEGER,
   hide_control_cards INTEGER,
   -- Whether the experimental features are visible to this account, null until
   -- somebody says. Off is the default here, as it is for all three: each of
@@ -1867,6 +1856,27 @@ function migrate(db: Db): void {
     db.exec(
       'UPDATE accounts SET hide_control_cards = 1 - hide_control_cards WHERE hide_control_cards IS NOT NULL'
     );
+  }
+  /*
+    `tap_to_look`, dropped on 2026-09-21 with the setting it stored.
+
+    **Nothing is lost by dropping it, which is what separates this from the
+    bio above.** A tap only ever looks now, for everybody — what the column
+    held was a choice between two behaviours and there is only one behaviour
+    left, so an account that had set it and one that had not are in the same
+    place. There is nothing to migrate the 1s into and nothing a reader could
+    do with them.
+
+    **After the rename block on purpose.** On a database old enough to still
+    have `tap_to_step_in`, that block is what creates this column; dropping
+    first and renaming second would hand it straight back. Re-read for the
+    same reason the block above re-reads.
+  */
+  const droppedColumns = db
+    .prepare('PRAGMA table_info(accounts)')
+    .all() as Array<{ name: string }>;
+  if (droppedColumns.some((c) => c.name === 'tap_to_look')) {
+    db.exec('ALTER TABLE accounts DROP COLUMN tap_to_look');
   }
   if (!accountColumns.some((c) => c.name === 'free_transcript_id')) {
     db.exec('ALTER TABLE accounts ADD COLUMN free_transcript_id TEXT');

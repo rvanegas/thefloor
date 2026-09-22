@@ -1423,14 +1423,11 @@ export function ProfileView({
                       : `${title}. ${line}. Step in.`
                   }
                   onPress={() => {
-                    // The same tap Home's rows take, preference and all: with
-                    // "Tap a channel to look" on, this opens the channel
+                    // The same tap Home's rows take: it opens the channel
                     // without arriving in it. Two lists of the same channels
-                    // answering a tap differently would be a setting that held
-                    // in one place and not the other.
-                    if (!app.tapToLook) {
-                      app.act(channel.channelId, { type: 'ENTER' });
-                    }
+                    // answering a tap differently would be the one thing this
+                    // has to avoid — which is why the `ENTER` that used to sit
+                    // here went at the same moment Home's did, on 2026-09-21.
                     onEnterChannel(channel.channelId);
                   }}
                   style={({ pressed }) => [

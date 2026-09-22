@@ -1624,18 +1624,22 @@ export function ChannelView({
    * Stepping out closed this screen from the first build, because for that
    * build the two were one act: every route in stepped in, so a screen you
    * were looking at was a room you were in, and there was nothing left to look
-   * at once you had gone. "Tap a channel to step in" being turned off breaks
-   * that — see `AppValue.tapToLook`. A tap is then only looking, and looking
-   * at a channel you are not in is an ordinary state this screen already
-   * draws: the footer offers Step In, the cards say what the room is doing,
+   * at once you had gone.
+   *
+   * **It is `false` outright since 2026-09-21**, when a tap stopped ever
+   * arriving. It was `!app.tapToLook` while that was a setting, and it decided
+   * symmetrically, which was the whole of the argument: if arriving at this
+   * screen did not put you in the room, then leaving the room does not take
+   * you off this screen. Now nothing arrives here, so nothing leaves here —
+   * looking at a channel you are not in is the ordinary state this screen
+   * draws, the footer offers Step In, the cards say what the room is doing,
    * and nothing about it wants closing.
    *
-   * So it is that setting which decides, and it decides symmetrically, which
-   * is the whole of the argument. If arriving at this screen did not put you
-   * in the room, then leaving the room does not take you off this screen; if
-   * it did, it still does. Somebody who has said that a tap is only looking
-   * has said that this screen and that room are two things, and having said it
-   * once should not have to say it again at the other door.
+   * **Kept as a named constant rather than inlined**, because the question it
+   * answers is real and the answer could change again; a `false` threaded
+   * through `stepOutOfChannel` says which question is being answered where an
+   * absent branch would not. See
+   * decisions/2026-09-21-a-tap-only-ever-looks.md.
    *
    * The way off the screen is then the header's *Home*, which is where it
    * already was for anybody who arrived here without stepping in — the same
@@ -1645,7 +1649,7 @@ export function ChannelView({
    * you still want. Stepping out under this setting is neither of those — it
    * gives up the room and leaves the screen exactly where it was.
    */
-  const stepOutClosesScreen = !app.tapToLook;
+  const stepOutClosesScreen = false;
   /**
    * Steps out, and closes the screen if that is what stepping out means here.
    *

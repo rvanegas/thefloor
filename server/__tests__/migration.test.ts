@@ -406,42 +406,39 @@ it('turns the two channel settings over, and leaves the untouched ones null', ()
   const columns = (
     db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
   ).map((c) => c.name);
-  expect(columns).toContain('tap_to_look');
   expect(columns).toContain('hide_control_cards');
   expect(columns).not.toContain('tap_to_step_in');
   expect(columns).not.toContain('control_cards');
+  // **And the tap column is gone, under either of its names.** The turn below
+  // still has to happen on a database this old — the rename is what creates
+  // `tap_to_look` — and the 2026-09-21 drop then takes it away. The two run in
+  // that order deliberately: dropping first and renaming second would hand the
+  // column straight back, and this assertion is what would catch that.
+  expect(columns).not.toContain('tap_to_look');
 
   const chosen = db
-    .prepare(
-      'SELECT tap_to_look, hide_control_cards FROM accounts WHERE id = ?'
-    )
-    .get('acct_a') as { tap_to_look: number; hide_control_cards: number };
-  // A had turned both off under the old names, which is both on under the
-  // new ones and is the same app either way.
-  expect(chosen.tap_to_look).toBe(1);
+    .prepare('SELECT hide_control_cards FROM accounts WHERE id = ?')
+    .get('acct_a') as { hide_control_cards: number };
+  // A had turned it off under the old name, which is on under the new one and
+  // is the same app either way.
   expect(chosen.hide_control_cards).toBe(1);
 
   const untouched = db
-    .prepare(
-      'SELECT tap_to_look, hide_control_cards FROM accounts WHERE id = ?'
-    )
-    .get('acct_b') as {
-    tap_to_look: number | null;
-    hide_control_cards: number | null;
-  };
+    .prepare('SELECT hide_control_cards FROM accounts WHERE id = ?')
+    .get('acct_b') as { hide_control_cards: number | null };
   // Never having said is not a choice to invert, and it is the same answer
   // under either name.
-  expect(untouched.tap_to_look).toBeNull();
   expect(untouched.hide_control_cards).toBeNull();
   db.close();
 
   // And is idempotent: the guard is the presence of the old name, so a second
-  // boot finds nothing to do rather than turning everybody back.
+  // boot finds nothing to do rather than turning everybody back — and the drop
+  // is guarded the same way, so it does not fail on a column already gone.
   const again = openDb(path);
   const still = again
-    .prepare('SELECT tap_to_look FROM accounts WHERE id = ?')
-    .get('acct_a') as { tap_to_look: number };
-  expect(still.tap_to_look).toBe(1);
+    .prepare('SELECT hide_control_cards FROM accounts WHERE id = ?')
+    .get('acct_a') as { hide_control_cards: number };
+  expect(still.hide_control_cards).toBe(1);
   again.close();
 });
 
@@ -508,8 +505,9 @@ it('drops the tab-position column from a database that has one', () => {
     ).map((c) => c.name);
   expect(columns()).not.toContain('tabs_at_foot');
   // And the settings beside it are untouched, this being one column going
-  // rather than the block of them being rewritten.
-  expect(columns()).toContain('tap_to_look');
+  // rather than the block of them being rewritten. (`tap_to_look` was the
+  // witness here until 2026-09-21, when it became a column that goes too.)
+  expect(columns()).toContain('hide_control_cards');
   db.close();
 
   // A second open finds nothing to drop, which is the guard working.

@@ -325,13 +325,6 @@ export const mockApp = {
   setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
     mockApp.appearance = preference;
   }),
-  // Off, which is what an install that has never opened Settings has: a tap
-  // steps in, as it did in every build before the setting existed. The tests
-  // about stepping in being deliberate are the only ones that turn it on.
-  tapToLook: false,
-  setTapToLook: jest.fn((value: boolean) => {
-    mockApp.tapToLook = value;
-  }),
   // Off, for the same reason and with the same consequence: the channel screen
   // draws a card for each of its footer's three controls unless a test says
   // otherwise, so every assertion written before the setting existed is still
@@ -785,7 +778,6 @@ export function resetHarness(): void {
   mockApp.dismissStep.mockClear();
   mockApp.status = 'open';
   mockApp.appearance = 'system';
-  mockApp.tapToLook = false;
   mockApp.hideControlCards = false;
   mockApp.labs = false;
   mockApp.debug = false;
