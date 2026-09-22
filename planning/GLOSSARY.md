@@ -1488,7 +1488,7 @@ titles obey it too: a recording still carrying its participant-derived default
 name is shown by its date instead.
 
 **Only a named channel can be public**, from 2026-09-22, and both directions
-are held: the switch is refused to a channel nobody has named, and a public
+are held: *On* is refused to a channel nobody has named, and a public
 channel's name cannot be emptied — turning the page off is the way back to
 being listed by who is here. It is a rule about what a stranger reads rather
 than about who is deciding. An unnamed channel's only name is its roster, the

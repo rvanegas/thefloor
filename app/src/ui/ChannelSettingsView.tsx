@@ -83,8 +83,8 @@ export function ChannelSettingsView({
 }) {
   const app = useApp();
   /**
-   * Held locally as well as on the snapshot, so the switch answers the tap
-   * rather than the round trip. The snapshot is the authority and arrives
+   * Held locally as well as on the snapshot, so the On/Off pair answers the
+   * press rather than the round trip. The snapshot is the authority and arrives
    * moments later; this is initialised from it and replaced by what the
    * server actually stored.
    */
@@ -582,7 +582,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * **Two decisions, and this is only the first of them.** Turning it on makes
  * a page exist; it puts nothing on that page. Every recording is agreed to
  * separately, by everybody who was in it, on its own card in the channel —
- * which is why the line under the switch says so rather than leaving somebody
+ * which is why the line under the pair says so rather than leaving somebody
  * to discover that their conversations did not appear.
  *
  * The address is shown rather than hidden behind a share sheet, because it is
@@ -593,17 +593,33 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * made a public channel effectively unlisted — so the words here said "anyone
  * with the address", which was true and is no longer. Every public channel is
  * now listed on a page anybody can read, and the confirmation says so before
- * the switch goes on rather than after. See
+ * the page is made rather than after. See
  * `planning/decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
  *
- * **The switch is refused until the channel has a name**, the server refusing
- * the same thing: the page and the directory row are read by strangers, an
- * unnamed channel is described by the people in it, and the one thing this
- * page may never say is who those are. The field to fix it with is the first
- * card on this screen, which is why the sentence points up at it rather than
- * offering anything here. `named` comes from the snapshot rather than from
- * the field above, so the box enables when the rename has actually landed —
- * tapping it is what blurs the field and sends it.
+ * **An On/Off pair of buttons, not a checkbox**, since 2026-09-22 — the shape
+ * the Recording card one above already uses, and STYLE.md § *Checkbox* gives
+ * the reason in a line: a box is a question nobody has answered yet, a pair is
+ * an answer in force. Whether this channel has a page is the second of those.
+ *
+ * **Both directions confirm through `Alert.alert`**, which is the other half
+ * of the change. Going private used to happen on one tap, on the reasoning
+ * that taking a page down is the safe direction — it is not, once anything has
+ * subscribed to the feed, and the alert is where what stops answering gets
+ * said. Neither button acts on the press itself.
+ *
+ * Pressing the one already in force does nothing: no call and no alert. A pair
+ * says which is in force by drawing it `primary`, so the press has nothing
+ * left to tell anybody.
+ *
+ * **On is refused until the channel has a name**, the server refusing the same
+ * thing: the page and the directory row are read by strangers, an unnamed
+ * channel is described by the people in it, and the one thing this page may
+ * never say is who those are. The field to fix it with is the first card on
+ * this screen, which is why the sentence points up at it rather than offering
+ * anything here. `named` comes from the snapshot rather than from the field
+ * above, so the button enables when the rename has actually landed — pressing
+ * it is what blurs the field and sends it. **Off is never gated**: a channel
+ * that lost its name somehow must still be able to take its page down.
  */
 function Publishing({
   channelId,
@@ -648,34 +664,66 @@ function Publishing({
 
   return (
     <>
-      <Checkbox
-        label={busy ? 'Saving…' : 'This channel has a public page'}
-        checked={isPublic}
-        disabled={!isPublic && !named}
-        onChange={(next) => {
-          if (busy) return;
-          // The box is disabled as well, and this is the braces to that belt:
-          // the two facts are a component apart, the same reasoning `persist`
-          // gives for guarding a field it has already made uneditable. Going
-          // private is never gated — a channel that lost its name somehow
-          // must still be able to take its page down.
-          if (next && !named) return;
-          if (!next) return void set(false);
-          Alert.alert(
-            'Give this channel a public page?',
-            'The page shows the channel’s name and description to anyone, ' +
-              'and the channel is listed publicly where it can be found by ' +
-              'people you have never met. Members are not named.\n\n' +
-              'No recording appears on it until everybody who was in that ' +
-              'recording has agreed to publish it, one at a time, from its ' +
-              'card on the channel screen.',
-            [
-              { text: 'Not now', style: 'cancel' },
-              { text: 'Create the page', onPress: () => void set(true) },
-            ]
-          );
-        }}
-      />
+      <Text style={type.heading}>This channel has a public page</Text>
+      <View style={styles.choices}>
+        <Button
+          label="On"
+          style={styles.choice}
+          variant={isPublic ? 'primary' : 'default'}
+          // Grey while the channel has no name, and while a call is in flight.
+          // Not while it is already on: a pair says which one is in force by
+          // drawing it `primary`, and greying that one as well would read as
+          // the setting being unavailable rather than as settled.
+          disabled={busy || (!isPublic && !named)}
+          onPress={() => {
+            // The button is disabled on both counts too, and this is the
+            // braces to that belt: the two facts are a component apart, the
+            // same reasoning `persist` gives for guarding a field it has
+            // already made uneditable.
+            if (busy || isPublic || !named) return;
+            Alert.alert(
+              'Give this channel a public page?',
+              'The page shows the channel’s name and description to anyone, ' +
+                'and the channel is listed publicly where it can be found by ' +
+                'people you have never met. Members are not named.\n\n' +
+                'No recording appears on it until everybody who was in that ' +
+                'recording has agreed to publish it, one at a time, from its ' +
+                'card on the channel screen.',
+              [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Create the page', onPress: () => void set(true) },
+              ]
+            );
+          }}
+        />
+        <Button
+          label="Off"
+          style={styles.choice}
+          variant={isPublic ? 'default' : 'primary'}
+          disabled={busy}
+          onPress={() => {
+            if (busy || !isPublic) return;
+            Alert.alert(
+              'Take this page down?',
+              'The page and the feed stop answering at once, and the channel ' +
+                'leaves the public list. Anybody who subscribed in a podcast ' +
+                'app stops receiving it, and copies already downloaded are ' +
+                'not reached.\n\n' +
+                'Nobody’s agreement is taken back, so turning it on again puts ' +
+                'the same recordings at the same address.',
+              [
+                { text: 'Keep the page', style: 'cancel' },
+                {
+                  text: 'Take it down',
+                  style: 'destructive',
+                  onPress: () => void set(false),
+                },
+              ]
+            );
+          }}
+        />
+      </View>
+      {busy ? <Text style={type.muted}>Saving…</Text> : null}
       {error ? <Text style={styles.warning}>{error}</Text> : null}
       {isPublic ? (
         <>
@@ -704,8 +752,8 @@ function Publishing({
         </>
       ) : named ? (
         <Text style={type.muted}>
-          Off, which is how every channel starts. Nothing here is reachable by
-          anybody outside it.
+          Off, which is how every channel starts. There is no page and no feed,
+          and nothing here is reachable by anybody outside it.
         </Text>
       ) : (
         <Text style={type.muted}>

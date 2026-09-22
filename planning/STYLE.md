@@ -417,9 +417,10 @@ beside it in `type.muted`; ticked, it fills with `text` and draws a 16pt
 44 tall, the label is part of the target, and the whole thing is one accessible
 element with `accessibilityRole="checkbox"` and `checked` in its state.
 
-**Two users, and the shape is the reason there is a component at all**: the
-marketing opt-in on the sign-in screen, offered to somebody signing up and to
-nobody else, and the public page's switch on *Channel Settings*. The same
+**Three users, and each is somebody saying yes on purpose**: the marketing
+opt-in on the sign-in screen, offered to somebody signing up and to nobody
+else; *I agree this can be published* on a recording's card; and *These
+conversations are explicit* on *Channel Settings*. The same marketing
 permission on *Floor Settings* is an On/Off pair of buttons like every other
 setting there, and the difference is the point — a box
 is a question nobody has answered yet, a pair is an answer in force. Every other control here either has
@@ -428,13 +429,12 @@ commitment somebody presses once. A permission is neither: it has to start
 clear, stay clear if nobody touches it, and read as unticked rather than as
 *off*, which is a distinction a switch cannot draw.
 
-**`disabled` fades the words and leaves the square alone**, which is what a
-`Segmented` does and for its reason: what is recorded here has to go on being
-readable while it cannot be changed, and greying the box with its sentence
-would take the answer away with the control. The caller owes a sentence
-underneath saying why, as § *Words on controls* requires of every disabled
-control — on Channel Settings it is that the channel has no name yet, and it
-points at the field one card above.
+**It has no `disabled`, and the attempt to give it one is the clearest reading
+of that rule there is.** The public page's switch on *Channel Settings* was a
+fourth user for a few hours on 2026-09-22, greyed until the channel had a name;
+it is an On/Off pair now, because whether a page exists is an answer in force
+rather than an open question — and a question that is refused is not one being
+asked. A box that needs a disabled state is a box in the wrong place.
 
 **Not the violet.** `floor` is spent on the floor; a box borrowing it would be
 a second thing on the screen claiming to be the mechanic. See § *The economy of
@@ -1261,9 +1261,16 @@ rules.
   sentence.
 - **Destructive and irreversible acts confirm through `Alert.alert`**, with
   `style: 'cancel'` first and `style: 'destructive'` second, and the body says
-  what is actually lost and for how long. There are 28 of these; there are no
+  what is actually lost and for how long. There are 33 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
+- **A pair whose two directions are both consequential confirms in both**,
+  which is the public page's On/Off on *Channel Settings* and nothing else so
+  far. The usual shape guards one direction and lets the other go on a tap,
+  because the other is the way back; here it is not — turning the page off
+  stops a feed that podcast apps are subscribed to. Ask whether the safe
+  direction is actually safe before leaving it unguarded, and say in the body
+  what stops answering. Only the taking-down half is `destructive`.
 - **Say the consequence before the tap, not after.** "Everyone in this channel
   sees the new name."
 - **Sentence case on everything.** The only uppercasing in the app is

@@ -307,6 +307,16 @@ export const mockApp = {
   // default. A test about the refusal path overrides it.
   setNotificationLevel: jest.fn(async (_channelId: string, level: string) => level),
   revokeGuestLink: jest.fn(async () => {}),
+  // Answers as the server does, the address being derived from the id: the
+  // settings screen shows it, so a mock returning nothing would be a screen
+  // that says a page was made and cannot say where.
+  setChannelPublic: jest.fn(
+    async (channelId: string, isPublic: boolean) => ({
+      publicAt: isPublic ? 1_700_000_000_000 : null,
+      url: isPublic ? `https://example.test/c/${channelId}` : null,
+      feedUrl: isPublic ? `https://example.test/c/${channelId}/feed.xml` : null,
+    })
+  ),
   watchChannel: jest.fn(),
   leaveChannelView: jest.fn(),
   // **Returns `true` by default: the socket is up unless a test says it is

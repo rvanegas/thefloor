@@ -1,5 +1,9 @@
 import React from 'react';
-import { act, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  act,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { Alert, TextInput } from 'react-native';
 import { ChannelSettingsView } from '../ChannelSettingsView';
 import {
@@ -72,11 +76,32 @@ function open(
   return tree;
 }
 
-/** The one checkbox on this screen, which is the public page's. */
-function publicSwitch() {
-  return tree.root.findAll(
-    (node) => node.props?.accessibilityRole === 'checkbox'
-  )[0]!;
+/**
+ * The public page's On and Off, which are the first two buttons after its
+ * heading.
+ *
+ * Found by position rather than by label because the labels are *On* and
+ * *Off*: the Recording card one above is the same pair with the same two
+ * words, which is the house shape for a yes-or-no and not something to give
+ * up to make a test easier. `findAll` answers in render order, so the card is
+ * scoped by starting at its heading.
+ */
+function publicPage(): { on: ReactTestInstance; off: ReactTestInstance } {
+  const all = tree.root.findAll(() => true);
+  const heading = all.findIndex(
+    (node) => node.props?.children === 'This channel has a public page'
+  );
+  expect(heading).toBeGreaterThan(-1);
+  const buttons = all
+    .slice(heading)
+    .filter(
+      (node) =>
+        node.props?.accessibilityRole === 'button' &&
+        // The `Pressable` rather than the `View` it renders, which carries the
+        // role too and none of the handlers.
+        typeof node.props?.onPress === 'function'
+    );
+  return { on: buttons[0]!, off: buttons[1]! };
 }
 
 function typeName(value: string) {
@@ -162,9 +187,10 @@ it('leaves the screen only when the leave reached the socket', () => {
  * card above, and a refused socket action is rendered nowhere on this screen.
  */
 describe('a public page needs a name', () => {
-  it('refuses the switch while the channel is unnamed, and says why', () => {
+  it('refuses On while the channel is unnamed, and says why', () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     open();
-    expect(publicSwitch().props.accessibilityState.disabled).toBe(true);
+    expect(publicPage().on.props.accessibilityState.disabled).toBe(true);
     expect(
       tree.root
         .findAll((n) => typeof n.props?.children === 'string')
@@ -173,18 +199,19 @@ describe('a public page needs a name', () => {
         )
     ).toBe(true);
 
-    // And the tap does nothing at all. The confirmation is what stands in
-    // front of the request, so a tap that does not raise one cannot reach it
+    // And the press does nothing at all. The confirmation is what stands in
+    // front of the request, so a press that does not raise one cannot reach it
     // — which is asserted here rather than on the request itself because a
     // disabled `Pressable` swallows the press in the app and this test is
     // calling the handler directly, past it.
-    act(() => publicSwitch().props.onPress());
+    act(() => publicPage().on.props.onPress());
     expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
   });
 
-  it('offers the switch once the channel has a name', () => {
+  it('offers On once the channel has a name', () => {
     open({ name: 'Thursday mornings' });
-    expect(publicSwitch().props.accessibilityState.disabled).toBe(false);
+    expect(publicPage().on.props.accessibilityState.disabled).toBe(false);
   });
 
   it('puts the name back rather than emptying it while the page is on', () => {
@@ -207,5 +234,60 @@ describe('a public page needs a name', () => {
       type: 'SET_NAME',
       name: 'Thursday evenings',
     });
+  });
+});
+
+/**
+ * **Both directions of the public page confirm, and neither happens on the
+ * press itself.** Turning it on was always guarded; turning it off was not,
+ * on the reasoning that taking a page down is the safe direction — which is
+ * false once a podcast app is subscribed to the feed. What is asserted here
+ * is the gap: the press raises the alert and sends nothing, and only the
+ * confirming button reaches `setChannelPublic`.
+ */
+describe('the public page confirms in both directions', () => {
+  beforeEach(() => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  });
+
+  it('asks before making the page, and sends only once confirmed', async () => {
+    open({ name: 'Thursday mornings' });
+
+    act(() => publicPage().on.props.onPress());
+    expect(Alert.alert).toHaveBeenCalled();
+    expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
+
+    confirmAlert('Create the page');
+    expect(mockApp.setChannelPublic).toHaveBeenCalledWith(channel.id, true);
+    // The call settles into `busy` and the new address after the body has
+    // finished; flushed here so the state lands inside an `act` rather than
+    // during teardown.
+    await act(async () => {});
+  });
+
+  it('asks before taking the page down, and sends only once confirmed', async () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+
+    act(() => publicPage().off.props.onPress());
+    expect(Alert.alert).toHaveBeenCalled();
+    expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
+
+    confirmAlert('Take it down');
+    expect(mockApp.setChannelPublic).toHaveBeenCalledWith(channel.id, false);
+    await act(async () => {});
+  });
+
+  it('does nothing when On is pressed on a page that is already on', () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    act(() => publicPage().on.props.onPress());
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when Off is pressed on a channel that has no page', () => {
+    open({ name: 'Thursday mornings' });
+    act(() => publicPage().off.props.onPress());
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
   });
 });
