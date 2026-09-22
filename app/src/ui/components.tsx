@@ -195,28 +195,49 @@ export function IconButton({
  * is spent on the floor and on nothing else, and a box that borrowed it would
  * be the second thing on the screen claiming to be the mechanic. See STYLE.md
  * § *The economy of colour*.
+ *
+ * **`disabled` fades the words and leaves the square legible**, which is what
+ * a `Segmented` does and for its reason: what is recorded here has to go on
+ * being readable while it cannot be changed, and a box greyed along with its
+ * sentence would take the answer away with the control. The caller says why
+ * underneath, as § *Words on controls* requires of every disabled control.
  */
 export function Checkbox({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (next: boolean) => void;
+  /** Refuses the tap. The caller owes a sentence beside it saying why. */
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
+      accessibilityState={{ checked, disabled: !!disabled }}
       accessibilityLabel={label}
+      disabled={disabled}
       onPress={() => onChange(!checked)}
-      style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.checkRow,
+        pressed && !disabled && styles.pressed,
+      ]}
     >
       <View style={[styles.checkBox, checked && styles.checkBoxOn]}>
         {checked ? <CheckIcon color={colors.bg} size={16} /> : null}
       </View>
-      <Text style={[type.muted, styles.checkLabel]}>{label}</Text>
+      <Text
+        style={[
+          type.muted,
+          styles.checkLabel,
+          disabled && { color: colors.textFaint },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }

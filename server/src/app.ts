@@ -4036,9 +4036,15 @@ export function buildApp(options: BuildOptions = {}): App {
     return {
       channel: {
         id: row.id,
-        // A channel nobody named still has a page, and it is called this.
-        // `describeChannel` is not available and would be wrong if it were:
-        // it names the *viewer's* others, and there is no viewer here.
+        // **Only a channel made public before 2026-09-22 can reach this**,
+        // which is why the fallback is still here and why it is not worth
+        // anything better. A page needs a name, an unnamed channel's only
+        // name is the people in it, and a public page never names a member —
+        // so the name is now asked for at the switch and cannot be cleared
+        // while the page is on. See `setPublic` in publication.ts, which is
+        // where the rule is. `describeChannel` is not available and would be
+        // wrong if it were: it names the *viewer's* others, and there is no
+        // viewer here.
         name: row.name ?? 'A conversation',
         description: row.description,
         language: row.language,
@@ -4172,7 +4178,10 @@ export function buildApp(options: BuildOptions = {}): App {
       // The same fallback the channel's own page uses, and it has to be the
       // same string: a row here and the heading it leads to disagreeing about
       // what a channel is called reads as a bug in whichever one you saw
-      // second.
+      // second. Reachable only by a channel made public before the rule that
+      // a public channel is a named one — see `publicChannel` above, and note
+      // that a list is where an unnamed row is worst: every one of them would
+      // read the same.
       name: row.name ?? 'A conversation',
       description: row.description,
       hasImage: row.image_at !== null && row.image_type !== null,

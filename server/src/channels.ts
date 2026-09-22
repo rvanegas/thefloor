@@ -1860,6 +1860,28 @@ export class ChannelRegistry {
       // unnamed channel, that being the only way to keep one per set. Widening
       // can now produce such a pair regardless, so the guard bought nothing but
       // a dead button on the one path that was still checked.
+      //
+      // **It is refused while the channel is public**, which is the other
+      // direction of the rule `setPublic` holds at the switch: an unnamed
+      // channel is described by its roster, and the one thing a public page
+      // may never say is who its members are. Out loud rather than silently,
+      // like the two departures above and for the same reason — the field is
+      // on a screen that saves as you leave it, so a refusal nobody was told
+      // about would read as a rename that had been kept until the next
+      // snapshot took it back. Turning the page off first is the way to it,
+      // and the sentence says so.
+      if (
+        typeof name === 'string' &&
+        name.trim() === '' &&
+        this.publicAtOf(channelId) !== null
+      ) {
+        return {
+          ok: false,
+          error:
+            'This channel has a public page, and a public page needs a name. Turn the page off to go back to listing who is here.',
+          code: 'conflict',
+        };
+      }
     }
 
     // The reducer trims, caps and treats blank as absent; this only checks the

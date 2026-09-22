@@ -55,18 +55,28 @@ afterEach(async () => {
 /** Alone in the channel would make Leave into Delete; THEM is here too. */
 const channel = channelOf();
 
-function open() {
+function open(
+  /** What the snapshot says, which is what the screen is about. */
+  state: { name?: string | null; publicAt?: number | null } = {}
+) {
   mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
   tree = render(
     <ChannelSettingsView
-      publicAt={null}
-      channel={channel}
+      publicAt={state.publicAt ?? null}
+      channel={{ ...channel, name: state.name ?? null }}
       derivedTitle="Dana Chu"
       onBack={onBack}
       onLeft={onLeft}
     />
   );
   return tree;
+}
+
+/** The one checkbox on this screen, which is the public page's. */
+function publicSwitch() {
+  return tree.root.findAll(
+    (node) => node.props?.accessibilityRole === 'checkbox'
+  )[0]!;
 }
 
 function typeName(value: string) {
@@ -142,4 +152,60 @@ it('leaves the screen only when the leave reached the socket', () => {
   act(() => leave!.props.onPress());
   confirmAlert('Leave');
   expect(onLeft).toHaveBeenCalled();
+});
+
+/**
+ * Only a named channel can be public, which the server holds at both ends —
+ * `setPublic` refuses an unnamed channel and `SET_NAME` refuses to empty a
+ * public one. This screen is where somebody meets the rule, and it has to
+ * meet them before the refusal does: the field to fix it with is the first
+ * card above, and a refused socket action is rendered nowhere on this screen.
+ */
+describe('a public page needs a name', () => {
+  it('refuses the switch while the channel is unnamed, and says why', () => {
+    open();
+    expect(publicSwitch().props.accessibilityState.disabled).toBe(true);
+    expect(
+      tree.root
+        .findAll((n) => typeof n.props?.children === 'string')
+        .some((n) =>
+          String(n.props.children).includes('Name this channel first')
+        )
+    ).toBe(true);
+
+    // And the tap does nothing at all. The confirmation is what stands in
+    // front of the request, so a tap that does not raise one cannot reach it
+    // — which is asserted here rather than on the request itself because a
+    // disabled `Pressable` swallows the press in the app and this test is
+    // calling the handler directly, past it.
+    act(() => publicSwitch().props.onPress());
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('offers the switch once the channel has a name', () => {
+    open({ name: 'Thursday mornings' });
+    expect(publicSwitch().props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('puts the name back rather than emptying it while the page is on', () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    const field = typeName('');
+    act(() => field.props.onBlur());
+
+    // Nothing was sent — the server would refuse it, and the refusal arrives
+    // as a socket error this screen does not render.
+    expect(mockApp.act).not.toHaveBeenCalled();
+    const restored = tree.root.findAll((node) => node.type === TextInput)[0]!;
+    expect(restored.props.value).toBe('Thursday mornings');
+  });
+
+  it('still renames a public channel to something else', () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    const field = typeName('Thursday evenings');
+    act(() => field.props.onBlur());
+    expect(mockApp.act).toHaveBeenCalledWith(channel.id, {
+      type: 'SET_NAME',
+      name: 'Thursday evenings',
+    });
+  });
 });

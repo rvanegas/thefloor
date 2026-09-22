@@ -155,6 +155,19 @@ export function ChannelSettingsView({
    */
   const persist = () => {
     if (!mayEdit) return;
+    /**
+     * **A public channel keeps its name**, and the field is put back rather
+     * than the action sent. The server refuses this too — `SET_NAME` with an
+     * empty name on a public channel comes back `conflict` — but a refused
+     * action arrives as a socket error, which nothing on this screen renders,
+     * so the field would sit there empty looking saved until the next
+     * snapshot silently took it back. Restoring it is what makes the sentence
+     * under the field true at the moment somebody reads it.
+     */
+    if (isPublic && name.trim() === '') {
+      setName(saved.current.name);
+      return;
+    }
     if (name !== saved.current.name) {
       if (app.act(channel.id, { type: 'SET_NAME', name })) {
         saved.current.name = name;
@@ -317,9 +330,11 @@ export function ChannelSettingsView({
           onBlur={persist}
         />
         <Text style={type.muted}>
-          {mayEdit
-            ? 'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.'
-            : 'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.'}
+          {!mayEdit
+            ? 'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.'
+            : isPublic
+              ? 'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel has a public page — the page is found by its name, and an unnamed channel is listed by who is in it.'
+              : 'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.'}
         </Text>
       </Card>
 
@@ -405,6 +420,7 @@ export function ChannelSettingsView({
         <Publishing
           channelId={channel.id}
           isPublic={isPublic}
+          named={channel.name !== null}
           settings={publication}
           onChanged={(next) => setIsPublic(next)}
         />
@@ -579,15 +595,27 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * now listed on a page anybody can read, and the confirmation says so before
  * the switch goes on rather than after. See
  * `planning/decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
+ *
+ * **The switch is refused until the channel has a name**, the server refusing
+ * the same thing: the page and the directory row are read by strangers, an
+ * unnamed channel is described by the people in it, and the one thing this
+ * page may never say is who those are. The field to fix it with is the first
+ * card on this screen, which is why the sentence points up at it rather than
+ * offering anything here. `named` comes from the snapshot rather than from
+ * the field above, so the box enables when the rename has actually landed —
+ * tapping it is what blurs the field and sends it.
  */
 function Publishing({
   channelId,
   isPublic,
+  named,
   settings,
   onChanged,
 }: {
   channelId: string;
   isPublic: boolean;
+  /** Whether anybody has named this channel. See the note above. */
+  named: boolean;
   settings?: {
     language: string | null;
     explicit: boolean | null;
@@ -623,8 +651,15 @@ function Publishing({
       <Checkbox
         label={busy ? 'Saving…' : 'This channel has a public page'}
         checked={isPublic}
+        disabled={!isPublic && !named}
         onChange={(next) => {
           if (busy) return;
+          // The box is disabled as well, and this is the braces to that belt:
+          // the two facts are a component apart, the same reasoning `persist`
+          // gives for guarding a field it has already made uneditable. Going
+          // private is never gated — a channel that lost its name somehow
+          // must still be able to take its page down.
+          if (next && !named) return;
           if (!next) return void set(false);
           Alert.alert(
             'Give this channel a public page?',
@@ -667,10 +702,16 @@ function Publishing({
           <CoverArt channelId={channelId} imageAt={settings?.imageAt ?? null} />
           <Declarations channelId={channelId} settings={settings} />
         </>
-      ) : (
+      ) : named ? (
         <Text style={type.muted}>
           Off, which is how every channel starts. Nothing here is reachable by
           anybody outside it.
+        </Text>
+      ) : (
+        <Text style={type.muted}>
+          Name this channel first, at the top of this screen. A public page is
+          found by its name, and this channel has none — it is listed by who is
+          in it, and a public page never names a member.
         </Text>
       )}
     </>

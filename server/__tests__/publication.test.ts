@@ -109,8 +109,16 @@ async function befriend(a: User, b: User, identifier: string) {
   });
 }
 
-/** Two people, a channel, and one finished recording in it. */
-async function recorded() {
+/**
+ * Two people, a named channel, and one finished recording in it.
+ *
+ * **Named, because a channel cannot be made public otherwise** — see
+ * `setPublic` in publication.ts. Nearly every test below goes public, so an
+ * unnamed channel here would mean every one of them asserting the same
+ * precondition; the two that are about the precondition itself say so in
+ * their own words.
+ */
+async function recorded(name = 'The Tuesday call') {
   const alice = await signIn('alice@example.com', 'Alice Appleby');
   const bob = await signIn('bob@example.com', 'Bob Barker');
   await befriend(alice, bob, 'bob@example.com');
@@ -141,6 +149,13 @@ async function recorded() {
   // and a test of publication should not fail on a guard it is not about.
   app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
   app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+  // After both step-outs, so `canEditChannel` is satisfied the way it is for
+  // a member on the settings screen with nobody in the room.
+  app.channels.dispatch(channelId, alice.account.id, {
+    type: 'SET_NAME',
+    name,
+  } as never);
 
   const [recording] = app.channels.recordingsFor(alice.account.id);
   return { alice, bob, channelId, recordingId: recording.id };
@@ -200,6 +215,82 @@ describe('a channel that has not declared itself public', () => {
     // server, and absent and not-yours are deliberately one answer.
     expect((await goPublic(stranger.token, channelId)).statusCode).toBe(400);
     expect((await pageFor(channelId)).statusCode).toBe(404);
+  }, 60_000);
+});
+
+describe('a channel nobody has named', () => {
+  /**
+   * The whole of the rule, from both ends.
+   *
+   * It is about what a stranger reads rather than about who is deciding: an
+   * unnamed channel's only name is the people in it, and the one thing a
+   * public page may never say is who its members are. The directory is where
+   * that bites hardest — every unnamed row would read alike.
+   */
+  const unname = (channelId: string, user: User) =>
+    app.channels.dispatch(channelId, user.account.id, {
+      type: 'SET_NAME',
+      name: '   ',
+    } as never);
+
+  it('cannot be given a public page', async () => {
+    const { alice, channelId } = await recorded();
+    unname(channelId, alice);
+
+    const refused = await goPublic(alice.token, channelId);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error).toContain('Name this channel');
+    expect((await pageFor(channelId)).statusCode).toBe(404);
+    expect((await feedFor(channelId)).statusCode).toBe(404);
+  }, 60_000);
+
+  it('takes the page once it has a name', async () => {
+    const { alice, channelId } = await recorded();
+    unname(channelId, alice);
+    expect((await goPublic(alice.token, channelId)).statusCode).toBe(409);
+
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: 'Thursday mornings',
+    } as never);
+    expect((await goPublic(alice.token, channelId)).statusCode).toBe(200);
+    expect((await pageFor(channelId)).payload).toContain('Thursday mornings');
+  }, 60_000);
+});
+
+describe('a public channel', () => {
+  it('refuses to have its name cleared, and says where the way out is', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+
+    const refused = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_NAME',
+      name: '',
+    } as never);
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? '' : refused.error).toContain('Turn the page off');
+    expect((await pageFor(channelId)).payload).toContain('The Tuesday call');
+
+    // And the way out works: private again, the name is the members' to drop.
+    await goPublic(alice.token, channelId, false);
+    expect(
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_NAME',
+        name: '',
+      } as never).ok
+    ).toBe(true);
+  }, 60_000);
+
+  it('may still be renamed to something else', async () => {
+    const { alice, channelId } = await recorded();
+    await goPublic(alice.token, channelId);
+    expect(
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_NAME',
+        name: 'Thursday mornings',
+      } as never).ok
+    ).toBe(true);
+    expect((await pageFor(channelId)).payload).toContain('Thursday mornings');
   }, 60_000);
 });
 
@@ -896,7 +987,7 @@ describe('the directory at /podcasts', () => {
     app.fastify.inject({ method: 'GET', url: '/podcasts' });
 
   /**
-   * Names a channel, which `recorded()` leaves unnamed and empty.
+   * Renames a channel, `recorded()` having given it a name of its own.
    *
    * The step in and out is not ceremony: `SET_NAME` is refused to somebody
    * who does not have the room, which after `recorded()` is everybody. The
@@ -982,12 +1073,14 @@ describe('the directory at /podcasts', () => {
 
     const listing = await directory();
     expect(listing.statusCode).toBe(200);
-    // The channel was never named, so it is filed under the participants'
-    // names internally — which is exactly the string that must not reach a
-    // page a stranger reads.
+    // The channel has a name, but its recording does not: a run nobody
+    // renamed is filed under the participants' names, which is exactly the
+    // string that must not reach a page a stranger reads. The row's count
+    // comes from that recording, so this is the live path and not a hollow
+    // assertion.
+    expect(listing.payload).toContain('1 recording');
     expect(listing.payload).not.toContain('Alice');
     expect(listing.payload).not.toContain('Bob');
-    expect(listing.payload).toContain('A conversation');
   }, 120_000);
 
   it('escapes what members wrote, since a stranger’s browser parses it', async () => {

@@ -101,6 +101,19 @@ export class Publication {
    * page and the feed stop answering. It does not clear anybody's consent,
    * and it does not recall an episode already downloaded — see the note on
    * the class.
+   *
+   * **Only a named channel may have one**, which is the one precondition here
+   * and is about what a stranger reads rather than about who is deciding. An
+   * unnamed channel is described by its roster — `describeChannel` in core —
+   * so the only name it has is a list of the people in it, and the one thing
+   * a public page is forbidden to say is who these people are. The page and
+   * the directory row used to answer that with the words *A conversation*,
+   * which is not a name: it identified nothing, it was the same string on
+   * every such row, and a list on which several entries are indistinguishable
+   * is a list nobody can use. So the name is asked for at the switch, where
+   * the field to type it into is on the same screen, rather than substituted
+   * afterwards. Clearing it again is refused in channels.ts, the two guards
+   * being the two directions of one rule.
    */
   setPublic(
     channelId: string,
@@ -109,6 +122,12 @@ export class Publication {
   ): { ok: true; publicAt: number | null } | Refusal {
     const channel = this.channelFor(channelId, userId);
     if (!channel) return refuse('No such channel.', 'not_found');
+    if (wanted && channel.name === null) {
+      return refuse(
+        'Name this channel before giving it a public page. An unnamed channel is listed by who is in it, and a public page never names a member.',
+        'conflict'
+      );
+    }
 
     const publicAt = wanted ? (channel.public_at ?? this.now()) : null;
     this.db
@@ -570,16 +589,16 @@ export class Publication {
   private channelFor(
     channelId: string,
     userId: string
-  ): { id: string; public_at: number | null } | null {
+  ): { id: string; name: string | null; public_at: number | null } | null {
     const row = this.db
       .prepare(
-        `SELECT id, public_at FROM channels
+        `SELECT id, name, public_at FROM channels
           WHERE id = ? AND deleted_at IS NULL
             AND EXISTS (SELECT 1 FROM json_each(channels.participants)
                          WHERE json_each.value = ?)`
       )
       .get(channelId, userId) as
-      | { id: string; public_at: number | null }
+      | { id: string; name: string | null; public_at: number | null }
       | undefined;
     return row ?? null;
   }

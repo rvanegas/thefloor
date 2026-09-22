@@ -77,7 +77,7 @@ caused; the list carries the meaning.
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
-- **Public channel** — A channel that has given itself a *public page*; any member may, and it puts nothing on that page by itself
+- **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
 - **Published** — A *recording* anybody at all can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
@@ -1487,6 +1487,17 @@ the only words about who these people are are words they wrote. The episode
 titles obey it too: a recording still carrying its participant-derived default
 name is shown by its date instead.
 
+**Only a named channel can be public**, from 2026-09-22, and both directions
+are held: the switch is refused to a channel nobody has named, and a public
+channel's name cannot be emptied — turning the page off is the way back to
+being listed by who is here. It is a rule about what a stranger reads rather
+than about who is deciding. An unnamed channel's only name is its roster, the
+one thing a public page may never show, so the page and the directory row
+answered with *A conversation* — which named nothing and was the same string
+on every such row. See
+`decisions/2026-09-22-only-a-named-channel-can-be-public.md`; the fallback is
+still in app.ts for the channels that went public before the rule.
+
 **A public channel is findable, not merely reachable** — which is a change,
 made on 2026-09-22, and the one thing here most likely to be remembered wrong.
 Until the *directory page* existed, the address was unguessable and was shared
@@ -1512,6 +1523,10 @@ than assumed — see
 which also records that the app's and `/privacy`'s wording had to be corrected
 in the same commit, and that anything widening this audience again owes the
 same correction.
+
+**Every row carries a name somebody chose**, which is the other half of why
+only a named channel may be public: a list several of whose entries read alike
+is a list nobody can use. See *public channel*.
 
 **Every public channel, including one with nothing published**, where the row
 says so in the line the others spend on a count. This is deliberately not the

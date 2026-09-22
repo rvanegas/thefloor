@@ -417,15 +417,24 @@ beside it in `type.muted`; ticked, it fills with `text` and draws a 16pt
 44 tall, the label is part of the target, and the whole thing is one accessible
 element with `accessibilityRole="checkbox"` and `checked` in its state.
 
-**One user so far, and the shape is the reason there is a component at all**:
-the marketing opt-in on the sign-in screen, offered to somebody signing up and
-to nobody else. The same permission on *Floor Settings* is an On/Off pair of
-buttons like every other setting there, and the difference is the point — a box
+**Two users, and the shape is the reason there is a component at all**: the
+marketing opt-in on the sign-in screen, offered to somebody signing up and to
+nobody else, and the public page's switch on *Channel Settings*. The same
+permission on *Floor Settings* is an On/Off pair of buttons like every other
+setting there, and the difference is the point — a box
 is a question nobody has answered yet, a pair is an answer in force. Every other control here either has
 a value in force already — a `Segmented`, a ladder of buttons — or is a
 commitment somebody presses once. A permission is neither: it has to start
 clear, stay clear if nobody touches it, and read as unticked rather than as
 *off*, which is a distinction a switch cannot draw.
+
+**`disabled` fades the words and leaves the square alone**, which is what a
+`Segmented` does and for its reason: what is recorded here has to go on being
+readable while it cannot be changed, and greying the box with its sentence
+would take the answer away with the control. The caller owes a sentence
+underneath saying why, as § *Words on controls* requires of every disabled
+control — on Channel Settings it is that the channel has no name yet, and it
+points at the field one card above.
 
 **Not the violet.** `floor` is spent on the floor; a box borrowing it would be
 a second thing on the screen claiming to be the mechanic. See § *The economy of
