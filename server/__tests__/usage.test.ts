@@ -1,6 +1,6 @@
 import { USAGE_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
-import { mixKeyFor } from '../src/channels';
+import { mixKeyFor } from '../src/mixes';
 import type { UsageSpanRow, UsageBytesRow } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';

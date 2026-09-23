@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp, type App } from '../src/app';
-import { mixKeyFor } from '../src/channels';
+import { mixKeyFor } from '../src/mixes';
 import { openDb } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
