@@ -216,20 +216,23 @@ cmd_rename() {
   echo "${dest#$root/}"
 }
 
-# What is checked differs by directory, and the reason is historical rather
-# than principled.
+# What is checked differs by directory, and the difference is the rule rather
+# than a compromise.
 #
 # **tasks/ and backlog/ are held to the strict rule** — the heading slugifies
 # to the filename, exactly — because both were created by the 2026-09-14 split
 # and have never been anything else.
 #
-# **decisions/ is held only to having a date and a heading.** Its README states
-# the strict rule and its contents do not obey it: of 73 files, 41 lead with a
-# bare title, 23 with the date then the title, 9 with the title then the date,
-# and only 21 have a heading that slugifies to their own filename. These are
-# history, cited by title from thirty-odd places, and renaming them to satisfy
-# a checker would churn the archive to no one's benefit. So the checker
-# describes what is true rather than what the README wishes were.
+# **decisions/ is held to having a date in its name and a heading, and nothing
+# more.** A decision's filename is what references resolve against and is
+# fixed when the file is made; its heading is the title in whatever form suits,
+# ordinarily bare and undated, which is what `cmd_new` above writes. The
+# README stated the strict rule for decisions too until 2026-09-22, when it
+# described nineteen of a hundred and eighty-seven files, and the
+# README moved to the practice rather than a hundred and sixty-eight historical
+# entries moving to the README — they are cited by title from thirty-odd
+# places, so retitling is the one edit that breaks a reference which currently
+# works. decisions/README.md § *One decision, one file* has it.
 cmd_check() {
   local bad=0 seen=() f base title want dir
   for dir in $(dirs_with_entries); do

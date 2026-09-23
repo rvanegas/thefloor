@@ -64,6 +64,10 @@ places, so the retitle is the one edit that breaks references which currently
 work. `tasks/decisions-do-not-obey-the-convention-they-document.md` carries the
 open question.
 
+**Settled 2026-09-22, the way this paragraph guessed it would be**: the README
+moved to the practice and the task file is gone. See
+`2026-09-22-a-decision-is-named-once-and-titled-freely.md`.
+
 One genuinely stale pointer turned up with it — `app/src/audio/__tests__/
 reconnect.test.tsx` cited a TASKS entry that moved to `TWO-DEVICES-WALK.md` on
 2026-09-02 — and now points at where it went.

@@ -23,19 +23,29 @@ and the title:**
 
     2026-09-07-the-cap-was-on-the-file-that-was-not-growing.md
 
-with the full title, date suffix and all, as the `#` heading inside. That is
-the whole convention. `ls` is the index, the names sort chronologically, and
-`bin/note find "Some Title"` — or `grep -l` over the filenames — is the cheap
-way to locate an entry before reading one. `bin/note new decisions "..."` makes
-the file with today's date already on it.
+`ls` is the index, the names sort chronologically, and `bin/note find "Some
+Title"` — or `grep -l` over the filenames — is the cheap way to locate an entry
+before reading one. `bin/note new decisions "..."` makes the file with today's
+date already on it.
 
-**The paragraph above describes 9 of these 73 files.** The rest lead with a
-bare title, or with the date then the title, or with the filename repeated as a
-heading; only 21 have a heading that slugifies back to their own name. So
-`bin/note check` asks of a decision only that it be dated and titled, and holds
-`tasks/` and `backlog/` to the strict rule instead. Which end to move is
-`tasks/decisions-do-not-obey-the-convention-they-document.md`; until that is
-settled, read this section as aspirational rather than descriptive.
+**The filename identifies; the heading is free.** The name is fixed when the
+file is made, because it is what every reference resolves against. The `#`
+heading is the decision's title in whatever form suits it — ordinarily the bare
+title with no date, since the name already carries one, which is what
+`bin/note new` writes and what most of this directory holds. It does not have
+to slugify back to its own filename, and in a good many entries it does not:
+a title sharpens while the thing is being argued, and the name does not follow
+it. `bin/note rename` puts the two back in step if you want them there, and is
+not worth running on an old entry.
+
+**So `bin/note check` asks of a decision that it be dated and that it have a
+heading, and nothing more** — and holds `tasks/` and `backlog/` to the strict
+rule, where the filename is the heading's slug exactly, because both were made
+by the 2026-09-14 split and have never been anything else. This section stated
+the strict rule here too until 2026-09-22, when it described nineteen of a
+hundred and eighty-seven files; see
+`2026-09-22-a-decision-is-named-once-and-titled-freely.md` for why this end
+moved rather than the other one.
 
 **Why it changed.** The old scheme put every entry at the tail of one file, so
 two worktrees landing in the same week conflicted in the same place every time,
@@ -70,7 +80,10 @@ is reformatted. Grep them the way AGENTS.md says to — headings first
 for an entry that had already moved to a dated volume, so these were never
 precise about the container. **The title is the durable half.** To resolve one,
 match the title against this directory's filenames first, then against the
-archive's headings. There is no need to rewrite the citations, and rewriting
+archive's headings. Match the *filenames* rather than the headings here, for
+the reason the section above gives: a heading is free to differ from its own
+name, so it is the name a citation lands on — which is what `bin/note find`
+does. There is no need to rewrite the citations, and rewriting
 them would churn thirty-odd source files for a filing change.
 
 ## On vocabulary
