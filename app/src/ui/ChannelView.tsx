@@ -64,7 +64,6 @@ import {
 import { inRoom, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
-import { recordEvent } from '../audio/diagnostics';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
@@ -94,6 +93,7 @@ import {
   WatchIcon,
 } from './icons';
 import { FullScreen } from '../watch/FullScreen';
+import { WatchTransport } from '../watch/Transport';
 import { useIsTurned, useWatchShape, useWholeWindow } from './layout';
 import { DockSlot, usePicture } from '../watch/Picture';
 import { WatchPlayer } from '../watch/WatchPlayer';
@@ -2608,180 +2608,26 @@ export function ChannelView({
    * refuse; a flag rather than a second copy of the row, which is what this
    * extraction exists to prevent.
    */
-  const watchTransport = (withTitle: boolean) => party ? (
-    <>
-      {party.durationMs ? (
-        <>
-          {/*
-            **The scrubber, which is where dragging YouTube's bar
-            went.** Taking the picture's own controls away leaves
-            ±15s as the only way to reach a different part of a
-            film, which is no way to cross two hours of one. A tap
-            lands where it is put, in the one place that was
-            already drawing where everybody is.
-
-            A tap rather than a drag: a drag wants a gesture
-            handler and a held position that does not follow the
-            channel while a finger is down, and neither is worth
-            having before somebody has used this one. `locationX`
-            is measured against the track itself, so the arithmetic
-            is the fill's in reverse.
-          */}
-          <Pressable
-            accessibilityRole="adjustable"
-            accessibilityLabel="Seek"
-            disabled={!mayControlWatch}
-            onPress={(event) => {
-              const width = trackWidth.current;
-              if (!width || !party.durationMs) return;
-              const at =
-                (event.nativeEvent.locationX / width) *
-                party.durationMs;
-              act({
-                type: 'WATCH_SEEK',
-                positionMs: Math.max(
-                  0,
-                  Math.min(party.durationMs, Math.round(at))
-                ),
-              });
-            }}
-            onLayout={(event) => {
-              trackWidth.current = event.nativeEvent.layout.width;
-            }}
-            style={styles.progressTrack}
-          >
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${Math.min(
-                    100,
-                    (watchAt / Math.max(1, party.durationMs)) * 100
-                  )}%`,
-                },
-              ]}
-            />
-          </Pressable>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressTime}>
-              {formatDuration(watchAt)}
-            </Text>
-            <Text style={styles.progressTime}>
-              {formatDuration(party.durationMs)}
-            </Text>
-          </View>
-        </>
-      ) : (
-        // No bar until a screen has said how long the video is —
-        // nothing here asks YouTube anything, so until then the only
-        // honest thing to show is how far in everybody is.
-        <Text style={styles.progressTime}>
-          {formatDuration(watchAt)} in
-        </Text>
-      )}
-
-      {/*
-        **What is on, said in words, under the bar that says how far in it
-        is.**
-
-        The card went without a name from 2026-09-18, when the URL was taken
-        off it: a link is machine text, and fetching a title would have been
-        the first request this application ever made to Google. Neither of
-        those is what this is. The player already holds the name of the video
-        it is showing, and says so in the report it was already making — the
-        same path the duration takes, and the same rule, the channel keeping
-        the first answer. See `WatchParty.title`.
-
-        **Under the bar rather than over it**, which is where the *Listen*
-        tab draws a track's name. A track's title is the whole subject of
-        that card, there being nothing else on it; here the subject is the
-        picture, and a heading between the two would come between somebody
-        and the film. This is a caption on the transport, so it is drawn as
-        one.
-
-        Null for the first seconds of every party and for the whole of one
-        that nobody is showing anywhere — a player is what names a film, and
-        a room where nobody has one draws what it always drew.
-      */}
-      {withTitle && party.title ? (
-        <Text style={type.body} numberOfLines={1}>
-          {party.title}
-        </Text>
-      ) : null}
-
-      {/*
-        **The transport, and the film's own bar is the other way of
-        reaching it.**
-
-        This row came out earlier on 2026-09-18 and went back in the
-        same day, which is worth recording because the reasoning
-        changed underneath it rather than being reversed. What was
-        wrong with two sets of controls was never that there were
-        two: it was that *one of them did not work* — the app's row
-        was governed by the floor while YouTube's bar sat above it
-        ungoverned and visible, and which of them answered a finger
-        depended on a claim somebody might make mid-scene.
-
-        Both are live now and both produce the same three actions,
-        so they are one transport with two surfaces rather than two
-        transports. And the bar alone was not enough: it is on the
-        picture, so **a device that is not showing the film had no
-        controls at all** — which is most of a party most of the
-        time, since a screen is one device per person. See
-        planning/decisions/2026-09-18-the-bar-is-the-transport.md.
-      */}
-      <View style={styles.buttonRow}>
-        <Button
-          label="−15s"
-          style={styles.flexButton}
-          disabled={!mayControlWatch}
-          onPress={() =>
-            act({ type: 'WATCH_SEEK', positionMs: watchAt - SKIP_MS })
-          }
-        />
-        <Button
-          label={watch.status === 'playing' ? 'Pause' : 'Play'}
-          variant="primary"
-          style={styles.flexButton}
-          // Pause is the way out and is never refused for a run; play is.
-          // See `canPlayWatch`.
-          disabled={
-            watch.status === 'playing' ? !mayControlWatch : !mayPlayWatch
-          }
-          onPress={() => {
-            /*
-              **The press, timestamped, and whether it left the device.**
-
-              `app.act` already reports whether the socket wrote — see
-              `socket.send`, and backlog § *A channel action that never lands
-              says nothing* — and until now every caller dropped the answer.
-              Written down here because this is the one control where a press
-              that goes nowhere and a press that goes somewhere and is ignored
-              look identical from the outside, and they are the two halves of
-              the same complaint. The line lands in the same log as the audio
-              session's, which is where the two are told apart.
-            */
-            const sent = act({
-              type:
-                watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
-            });
-            recordEvent(
-              `watch press ${watch.status === 'playing' ? 'pause' : 'play'}` +
-                (sent ? '' : ' (not sent)')
-            );
-          }}
-        />
-        <Button
-          label="+15s"
-          style={styles.flexButton}
-          disabled={!mayControlWatch}
-          onPress={() =>
-            act({ type: 'WATCH_SEEK', positionMs: watchAt + SKIP_MS })
-          }
-        />
-      </View>
-    </>
-  ) : null;
+  /**
+   * **The transport, wherever it is drawn.**
+   *
+   * The row itself left this file on 2026-09-23 — `watch/Transport.tsx` — so
+   * that the expanded picture's copy could be drawn by `Picture`, which is
+   * this screen's ancestor and cannot be handed an element made here. What is
+   * left is the derivation, which is this screen's to do: who may drive the
+   * film, and how far in the room has got.
+   */
+  const watchTransport = (withTitle: boolean) => (
+    <WatchTransport
+      watch={watch}
+      party={party}
+      watchAt={watchAt}
+      mayControl={mayControlWatch}
+      mayPlay={mayPlayWatch}
+      withTitle={withTitle}
+      act={act}
+    />
+  );
 
   /**
    * **The hole the docked picture is drawn into, and nothing else.**
