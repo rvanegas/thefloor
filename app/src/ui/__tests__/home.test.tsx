@@ -618,6 +618,82 @@ describe('Home while still in a channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * **The film, fetched rather than sent.**
+   *
+   * Sending it away was always a control on the device in your hand; fetching
+   * it back meant opening the app on the device you had walked to, finding
+   * the channel, opening it, going to *Watch* and throwing a switch. This is
+   * the other half, offered where somebody already is.
+   */
+  describe('a film on another of your devices', () => {
+    const inChannel = (
+      onReturn: jest.Mock = jest.fn()
+    ): ReactTestRenderer =>
+      render(
+        <HomeView
+          {...homeNav}
+          liveChannel={{
+            channelId: 'sess_1',
+            title: 'Book club',
+            present: 2,
+            muted: false,
+          }}
+          onReturnToChannel={onReturn}
+        />
+      );
+
+    it('is not mentioned when the film is on this device or nowhere', () => {
+      // The ordinary case, and the one this must not clutter: a bar offering
+      // to fetch a film that is already here would be a control that does
+      // nothing, on the screen somebody reads most.
+      home();
+      mockApp.screensElsewhere = [];
+      const tree = inChannel();
+      expect(textOf(tree)).not.toContain('The film is on another device');
+      act(() => tree.unmount());
+    });
+
+    it('offers to bring it here, and claims the screen on the tap', () => {
+      home();
+      mockApp.screensElsewhere = ['sess_1'];
+      const onReturn = jest.fn();
+      const tree = inChannel(onReturn);
+      expect(textOf(tree).replace(/\s+/g, ' ')).toContain(
+        'The film is on another device'
+      );
+
+      const bar = tree.root
+        .findAll((n) => n.props?.accessibilityRole === 'button')
+        .find((n) =>
+          String(n.props?.accessibilityLabel ?? '').includes(
+            'on another of your devices'
+          )
+        );
+      expect(bar).toBeDefined();
+      act(() => bar!.props.onPress());
+
+      // The whole claim is one call: the server takes the film off every
+      // other instance of this account. See `screens.showing`.
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
+      // And it opens where the film is, which is the tab the picture is on.
+      expect(onReturn).toHaveBeenCalledWith('sess_1', 'watch');
+      act(() => tree.unmount());
+    });
+
+    it('says nothing at all when you are not in a channel', () => {
+      // A film cannot be on any of your devices unless you are in the room it
+      // belongs to, so there is no such thing as this offer without a live
+      // channel — and reading `screensElsewhere` without one would be reading
+      // a list that cannot apply.
+      home();
+      mockApp.screensElsewhere = ['sess_1'];
+      const tree = render(<HomeView {...homeNav} />);
+      expect(textOf(tree)).not.toContain('The film is on another device');
+      act(() => tree.unmount());
+    });
+  });
+
   /*
     And it is pinned, which is the half of "says so" a text search cannot see:
     a bar that scrolls out of the viewport on the first flick gives no sign of

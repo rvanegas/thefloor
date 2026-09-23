@@ -181,6 +181,17 @@ export function HomeView({
   const app = useApp();
 
   /**
+   * Whether a film of this account's is showing on one of its *other*
+   * devices — which is the whole condition for offering to bring it here.
+   *
+   * Keyed on the live channel because it cannot be true of any other: a
+   * picture is refused to anybody not in the room, so a film of yours that is
+   * playing somewhere is playing in the room you are standing in.
+   */
+  const filmElsewhere =
+    !!liveChannel && app.screensElsewhere.includes(liveChannel.channelId);
+
+  /**
    * The channels this reader is nearby in, which get the live bar's treatment
    * in a different hue — see `nearbyBar` in the styles and § *Nearby / Stepped
    * out* in planning/GLOSSARY.md.
@@ -393,6 +404,57 @@ export function HomeView({
                   : `${liveChannel.present} present`}{" "}
                 · tap to go back
               </Text>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {/*
+          **The film, and the offer to bring it here.**
+
+          It can only be on another of your devices if you are standing in the
+          room it belongs to — the picture is refused to anybody who is not —
+          so this is always about `liveChannel` and never needs a channel of
+          its own to name. `screensElsewhere` is pushed to every device by the
+          server for exactly this, and until now it was read in one place,
+          inside the channel screen, to decide how a switch should read.
+
+          **It is here because the push half was the only convenient one.**
+          Sending the film away is a control on the device you are holding and
+          always was; fetching it back meant opening the app on the device you
+          had walked to, finding the channel, opening it, going to *Watch* and
+          throwing the switch — five steps for the gesture people actually
+          make, which is to sit down somewhere and want the film there.
+
+          Neutral rather than one of the two presence hues: `floor` is the room
+          you are standing in and `nearby` is one you are not, and where a film
+          is playing is neither. A pinned bar is what `surface` is for.
+        */}
+        {filmElsewhere && liveChannel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              `${liveChannel.title}: the film is on another of your ` +
+              `devices. Tap to watch it here instead.`
+            }
+            onPress={() => {
+              /*
+                The whole claim, in one call: `showScreenFor` tells the server
+                this device is showing it, and the server takes it off every
+                other instance. Nothing here has to ask the device that has it
+                to let go — see `screens.showing`, and `handOver` in
+                `ChannelView` for why letting the eviction do it is what makes
+                *exactly one screen* true by construction.
+              */
+              app.showScreenFor(liveChannel.channelId);
+              onReturnToChannel(liveChannel.channelId, 'watch');
+            }}
+            style={styles.screenBar}
+          >
+            <View style={styles.rowMain}>
+              <Text style={styles.screenTitle} numberOfLines={1}>
+                The film is on another device
+              </Text>
+              <Text style={styles.liveSub}>tap to watch here</Text>
             </View>
           </Pressable>
         ) : null}
@@ -1106,6 +1168,25 @@ const styles = StyleSheet.create({
    * ordinary siblings — so the two stacked and these bars alone stood 20pt
    * apart while everything else on the screen stood 8.
    */
+  /**
+   * The offer to bring the film to this device.
+   *
+   * Stated in full rather than sharing `liveBar`, which is this file's
+   * standing rule for bars that coincide in shape — STYLE.md § *Per-screen
+   * styles*. It is a third thing rather than a third strength: the other two
+   * say where *you* are, and this says where the *film* is.
+   */
+  screenBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing(1.75),
+  },
+  screenTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
   nearbyBar: {
     flexDirection: "row",
     alignItems: "center",
