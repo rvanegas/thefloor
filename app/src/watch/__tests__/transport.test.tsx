@@ -51,7 +51,8 @@ function laggyPlayer(lag: number) {
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
   let want: PlayerState | null = null;
-  let pending: { at: number; run: () => void } | null = null;
+  let pending: { at: number; run: () => void; seeking?: boolean } | null =
+    null;
   const calls: string[] = [];
   return {
     calls,
@@ -126,6 +127,19 @@ function laggyPlayer(lag: number) {
     },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
+      /*
+        **A film that runs out ends by itself**, which nothing else in this
+        harness did. Every player here was immortal, so `ended` — the one
+        state `hasArrived` answers true for whatever was asked — was never
+        reached by a simulation and was only ever tested as a reading handed
+        to the rules directly.
+      */
+      if (state === 'playing' && durationMs !== null && positionMs >= durationMs) {
+        positionMs = durationMs;
+        state = 'ended';
+        want = null;
+        pending = null;
+      }
       if (pending && now >= pending.at) {
         const go = pending.run;
         pending = null;
@@ -137,6 +151,15 @@ function laggyPlayer(lag: number) {
       play: () => {
         calls.push('play');
         if (deaf) return;
+        /*
+          **A seek already on its way is not abandoned by a play beside it.**
+          `seek` below leaves a player that was not paused playing when it
+          lands, so the pair `followInstructions` issues together — seek,
+          then play — is one instruction twice over rather than two places
+          to be. A player that dropped the position and played from where it
+          was would be a player nothing could move.
+        */
+        if (pending?.seeking) return;
         if (state === 'playing' || want === 'playing') return;
         want = 'playing';
         state = 'buffering';
@@ -173,6 +196,7 @@ function laggyPlayer(lag: number) {
         state = 'buffering';
         pending = {
           at: Date.now() + lag,
+          seeking: true,
           run: () => {
             positionMs = ms;
             state = was === 'paused' ? 'paused' : 'playing';
@@ -578,5 +602,41 @@ describe('a player that cannot keep up', () => {
       1
     );
     expect(inStep(sim.where())).toBe(true);
+  });
+});
+
+describe('a film that has run out', () => {
+  /*
+    **Play, on a film that has ended, and the picture does not come back.**
+
+    The rules have both halves of this right and have had since they were
+    written: `followInstructions` seeks an ended player back and starts it
+    once the transport has gone back, and there is a test for exactly that.
+    What no test covered is the two rules *together*, through the driver —
+    and `drive.ts` returns at `hasArrived` before it ever asks for
+    instructions. `hasArrived` is true for `ended` unconditionally, so the
+    restart is unreachable from the only thing that would issue it.
+
+    What it costs is the whole of the end of every party: the transport says
+    playing from zero, everybody's screen stays on the last frame, and
+    nothing in the application will ever speak to those players again. The
+    only cure is rebuilding a player, which is what rotating the device does.
+  */
+  it('is started again by a press of Play', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(LENGTH + 4_000);
+    expect(sim.player.state).toBe('ended');
+
+    // Pause and play, which is what somebody does to a picture that has
+    // stopped. `watchPlay` reads a transport at the end as a replay and puts
+    // it back to zero, so this is the room asking for the film again.
+    sim.wire.press(pause, Date.now());
+    sim.advance(2_000);
+    sim.wire.press(play, Date.now());
+    sim.advance(6_000);
+    expect(sim.where().channel).toBe('playing');
+    expect(sim.player.state).toBe('playing');
+    expect(sim.player.positionMs).toBeLessThan(10_000);
   });
 });

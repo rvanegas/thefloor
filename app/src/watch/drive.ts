@@ -221,7 +221,32 @@ export function useFollow(
         }
       }
 
-      if (hasArrived(reading, want)) return;
+      /*
+        **An ended player is the one reading this may not be the last word
+        on.**
+
+        `hasArrived` answers true for `ended` whatever was asked, and that is
+        right where it is asked above: a player at the end of a film will
+        never arrive anywhere else without being restarted, so waiting out an
+        instruction to it is waiting for ever. Read as *nothing to do* here,
+        it swallowed the restart — `followInstructions` has the narrower rule
+        and has had since it was written, leaving an ended player alone only
+        **while the channel agrees it is over** and seeking it back and
+        starting it when the transport has gone back. Both halves were
+        tested; the line between them was not, and it never let the second
+        one run.
+
+        What it cost is the end of every party. The film runs out, the
+        channel comes to rest, somebody presses Play — which `watchPlay`
+        reads as a replay and puts the transport back to zero — and every
+        screen stays on the last frame with nothing in the application that
+        will ever speak to it again. Rebuilding a player was the only cure,
+        which is why rotating the device worked.
+
+        An ended player that nothing wants moved still costs nothing: the
+        rule returns no instructions and the tick ends a line below.
+      */
+      if (reading.state !== 'ended' && hasArrived(reading, want)) return;
 
       const instructions = followInstructions(
         current,
