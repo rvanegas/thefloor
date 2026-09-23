@@ -656,7 +656,7 @@ describe('a deleted recording', () => {
 
     app.channels.deleteRecording(recordingId, alice.account.id);
     clock += 8 * 24 * 60 * 60 * 1000;
-    app.channels.sweepDeleted(clock);
+    await app.channels.sweepDeleted(clock);
 
     expect(store.keys()).not.toContain(publishedKeyFor(channelId, recordingId));
   }, 120_000);

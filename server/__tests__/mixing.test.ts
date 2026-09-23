@@ -431,7 +431,7 @@ describe('the sweep', () => {
       url: `/recordings/${recording.id}`,
       headers: auth(alice.token),
     });
-    app.channels.sweepDeleted(clock + 8 * 24 * 60 * 60 * 1000);
+    await app.channels.sweepDeleted(clock + 8 * 24 * 60 * 60 * 1000);
 
     expect(store.keys()).not.toContain(mixKeyFor(channelId, recording.id));
     expect(store.keys()).toHaveLength(0);

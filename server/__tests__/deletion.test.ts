@@ -273,11 +273,11 @@ describe('deleting one recording', () => {
     });
 
     clock += DELETED_RETENTION_MS - 1;
-    expect(app.channels.sweepDeleted(clock).recordings).toBe(0);
+    expect((await app.channels.sweepDeleted(clock)).recordings).toBe(0);
     for (const key of keys) expect(store.keys()).toContain(key);
 
     clock += 1;
-    expect(app.channels.sweepDeleted(clock).recordings).toBe(1);
+    expect((await app.channels.sweepDeleted(clock)).recordings).toBe(1);
     expect(rowsOf(channelId)).toEqual([]);
     for (const key of keys) expect(store.keys()).not.toContain(key);
     // The channel outlives it: only the recording was deleted.
@@ -527,7 +527,7 @@ describe('the sweep', () => {
     const { channelId, keys } = await deleted();
 
     clock += DELETED_RETENTION_MS - 1;
-    expect(app.channels.sweepDeleted(clock)).toEqual({
+    expect(await app.channels.sweepDeleted(clock)).toEqual({
       recordings: 0,
       channels: 0,
     });
@@ -540,7 +540,7 @@ describe('the sweep', () => {
     expect(keys.length).toBeGreaterThan(0);
 
     clock += DELETED_RETENTION_MS;
-    const swept = app.channels.sweepDeleted(clock);
+    const swept = await app.channels.sweepDeleted(clock);
 
     expect(swept.recordings).toBe(1);
     expect(swept.channels).toBe(1);
@@ -549,6 +549,58 @@ describe('the sweep', () => {
       app.db.prepare('SELECT id FROM channels WHERE id = ?').get(channelId)
     ).toBeUndefined();
     for (const key of keys) expect(store.keys()).not.toContain(key);
+  });
+
+  /**
+   * The case the whole ordering exists for, and the one no test could reach
+   * until 2026-09-23: a delete that is refused.
+   *
+   * `thefloor-server` held no `s3:DeleteObject`, so in production every delete
+   * was refused — and `delete` returned `void` and swallowed the rejection, so
+   * the sweep counted the bucket emptied, dropped the row, and left audio that
+   * no row could identify. 236MB of it, by the time anybody looked. The row
+   * must outlive the object, always, because the row is the only thing that
+   * says which keys belong to it.
+   */
+  it('keeps the row when an object refuses to go', async () => {
+    const { channelId, keys } = await deleted();
+    expect(keys.length).toBeGreaterThan(0);
+    store.refuseDeleting(keys[0]);
+
+    clock += DELETED_RETENTION_MS;
+    const swept = await app.channels.sweepDeleted(clock);
+
+    // Nothing counted, and the row still there to be retried next hour.
+    expect(swept.recordings).toBe(0);
+    expect(rowsOf(channelId)).toHaveLength(1);
+    // The channel goes nowhere either: it is held by its surviving recording.
+    expect(
+      app.db.prepare('SELECT id FROM channels WHERE id = ?').get(channelId)
+    ).toBeDefined();
+    // The refused key is still in the bucket, and still named by a live row —
+    // which is the property that makes a retry possible at all.
+    expect(store.keys()).toContain(keys[0]);
+  });
+
+  it('reports the refusal rather than absorbing it', async () => {
+    const { keys } = await deleted();
+    store.refuseDeleting(keys[0]);
+    // The other half of the defect, and the half named in the title of the
+    // backlog entry: the sweep could not delete *and would not say so*. A
+    // refusal has to reach the log, or the next person to notice is whoever
+    // reads the S3 bill.
+    const logged = jest.spyOn(app.fastify.log, 'error').mockImplementation();
+
+    clock += DELETED_RETENTION_MS;
+    await app.channels.sweepDeleted(clock);
+
+    expect(
+      logged.mock.calls.some(
+        ([details]) =>
+          (details as { context?: string })?.context === `sweep ${keys[0]}`
+      )
+    ).toBe(true);
+    logged.mockRestore();
   });
 
   it('takes nothing that was merely ended rather than deleted', async () => {
@@ -563,7 +615,7 @@ describe('the sweep', () => {
       .run(clock, channelId);
 
     clock += DELETED_RETENTION_MS * 10;
-    expect(app.channels.sweepDeleted(clock)).toEqual({
+    expect(await app.channels.sweepDeleted(clock)).toEqual({
       recordings: 0,
       channels: 0,
     });

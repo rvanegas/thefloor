@@ -441,7 +441,10 @@ describe('the sweep', () => {
     });
 
     clock += DELETED_RETENTION_MS + 1;
-    expect(() => app.channels.sweepDeleted(clock)).not.toThrow();
+    // Resolving rather than rejecting is the assertion: the sweep is async
+    // since 2026-09-23, so `not.toThrow()` around the call would have passed
+    // on a promise that later rejected and tested nothing.
+    await expect(app.channels.sweepDeleted(clock)).resolves.toBeDefined();
 
     expect(
       app.db.prepare('SELECT count(*) AS n FROM channels').get()

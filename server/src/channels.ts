@@ -978,7 +978,14 @@ export class ChannelRegistry {
     // to S3. A boot sweep runs from restore(), so a server that is never up for
     // an hour still sweeps.
     this.sweepTimer = setInterval(() => {
-      this.sweepDeleted(this.now());
+      // Nobody awaits the sweep, but something must hold its rejection: since
+      // 2026-09-23 it is async, and an unhandled rejection on an hourly timer
+      // would take the process down an hour after anybody did anything. The
+      // individual keys report themselves through onMediaError; this catches
+      // the sweep failing as a whole.
+      void this.sweepDeleted(this.now()).catch((error) => {
+        this.onMediaError(error, 'sweep');
+      });
       this.usage.sweep(this.now());
     }, SWEEP_INTERVAL_MS);
     this.sweepTimer.unref?.();
@@ -3290,8 +3297,20 @@ export class ChannelRegistry {
    * other order leaves objects nobody can ever identify, paid for for ever. A
    * failed delete therefore leaves the row in place to be tried again on the
    * next sweep, which is the recoverable direction.
+   *
+   * **Async since 2026-09-23, and that is the whole of the fix.** The ordering
+   * above was always written down and was never enforced: `store.delete`
+   * returned `void` and ate its own rejection, so the `try` below caught
+   * nothing an S3 client actually does — a rejected promise is not a throw —
+   * and every row was dropped whether its objects went or not. Awaiting each
+   * key is what makes the paragraph above true rather than aspirational.
+   *
+   * `allSettled` rather than `all`: one refused key must not abandon the rest,
+   * since the keys that *can* go should, and the row is held back regardless.
    */
-  sweepDeleted(now: number): { recordings: number; channels: number } {
+  async sweepDeleted(
+    now: number
+  ): Promise<{ recordings: number; channels: number }> {
     const cutoff = now - DELETED_RETENTION_MS;
     const due = this.db
       .prepare(
@@ -3333,15 +3352,17 @@ export class ChannelRegistry {
       // already unreachable, and keeping it costs a row rather than an
       // unidentifiable object.
       if (!this.store) continue;
+      const store = this.store;
+      const outcomes = await Promise.allSettled(
+        keys.map((key) => store.delete(key))
+      );
       let emptied = true;
-      for (const key of keys) {
-        try {
-          this.store.delete(key);
-        } catch (error) {
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === 'rejected') {
           emptied = false;
-          this.onMediaError(error, `sweep ${key}`);
+          this.onMediaError(outcome.reason, `sweep ${keys[i]}`);
         }
-      }
+      });
       if (!emptied) continue;
       // Before the row, because `recording_consents` has a real foreign key
       // to it — the same constraint that makes this whole sweep an ordering
@@ -6823,7 +6844,13 @@ export class ChannelRegistry {
 
     // Anything whose week ran out while this server was down, or while the
     // previous one was up for less than an hour at a time.
-    this.sweepDeleted(now);
+    //
+    // Not awaited, and `restore` stays synchronous: nothing has ever read the
+    // counts it returns, and boot must not block on S3. The catch is the same
+    // guard as the hourly timer's — see there.
+    void this.sweepDeleted(now).catch((error) => {
+      this.onMediaError(error, 'sweep at boot');
+    });
     // Spans the dead process left open. Closed at their own start rather than
     // at boot — see closeStrays — and swept on their own horizon, which is
     // USAGE_RETENTION_MS rather than the week above and is applied here so a

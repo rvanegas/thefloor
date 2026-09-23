@@ -41,8 +41,7 @@ export interface RecordingStore {
     end: number
   ): Promise<{ data: Buffer; totalBytes: number }>;
   /**
-   * Stores an object, replacing whatever was there. Awaited, unlike `delete`:
-   * the caller is making something a later read depends on.
+   * Stores an object, replacing whatever was there.
    *
    * `contentType` defaults to the recording type, which is what every caller
    * but publication wants. A published episode is AAC and must say so: S3
@@ -51,11 +50,19 @@ export interface RecordingStore {
    */
   put(key: string, data: Buffer, contentType?: string): Promise<void>;
   /**
-   * Removes an object. Fire-and-forget by design: the sweep that calls this
-   * runs on a timer with nobody waiting, and a failure leaves the row in place
-   * to be retried on the next one.
+   * Removes an object, and **rejects if it did not go**.
+   *
+   * This returned `void` and swallowed its own rejection until 2026-09-23,
+   * which read as fire-and-forget and was in fact the sweep's central bug: the
+   * caller could not tell a delete that happened from one that was refused, so
+   * `sweepDeleted` dropped the row either way and left audio no row could
+   * identify. `thefloor-server` turned out to hold no `s3:DeleteObject` at all,
+   * so *every* delete had been failing silently.
+   *
+   * Nobody is waiting on any single key — the sweep runs on a timer — but the
+   * sweep must know, so the awaiting happens there rather than here.
    */
-  delete(key: string): void;
+  delete(key: string): Promise<void>;
 }
 
 /** The PutObject-only key, when this server has been given one. */
@@ -157,21 +164,33 @@ export class S3RecordingStore implements RecordingStore {
     return Buffer.concat(chunks);
   }
 
-  delete(key: string): void {
-    // Unawaited, and the rejection is swallowed here rather than left to
-    // become an unhandled rejection that takes the process down. The sweep
-    // only removes a row once every object it names has gone, so a failure
-    // here costs one more week of storage and is retried, which is the safe
-    // direction: the alternative is an object no row can identify.
-    void this.client
-      .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
-      .catch(() => {});
+  async delete(key: string): Promise<void> {
+    // The rejection reaches the caller. The sweep only removes a row once
+    // every object it names has gone, so a failure here costs one more week of
+    // storage and is retried, which is the safe direction: the alternative is
+    // an object no row can identify. That guarantee is only real if the
+    // failure is visible, which until 2026-09-23 it was not.
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
+    );
   }
 }
 
 /** Serves objects from memory. For tests. */
 export class MemoryRecordingStore implements RecordingStore {
+  /**
+   * Keys whose deletion is refused, standing in for the `AccessDenied` the
+   * real bucket returns. A test needs this to reach the sweep's held-back
+   * path, which no test could exercise while `delete` swallowed its failures.
+   */
+  private undeletable = new Set<string>();
+
   constructor(private objects: Map<string, Buffer> = new Map()) {}
+
+  /** Makes `delete` reject for these keys, as a denied policy does. */
+  refuseDeleting(...keys: string[]): void {
+    for (const key of keys) this.undeletable.add(key);
+  }
 
   async put(key: string, data: Buffer): Promise<void> {
     this.objects.set(key, data);
@@ -195,7 +214,10 @@ export class MemoryRecordingStore implements RecordingStore {
     };
   }
 
-  delete(key: string): void {
+  async delete(key: string): Promise<void> {
+    if (this.undeletable.has(key)) {
+      throw new Error(`AccessDenied: ${key}`);
+    }
     this.objects.delete(key);
   }
 
