@@ -35,18 +35,27 @@ export type Layout = 'stack' | 'split';
  *
  * Arithmetic rather than taste. `LIST_WIDTH` is a phone-width Home, so Home
  * needs no second design to live in the column, and 800 leaves the detail pane
- * 460 — wider than any iPhone, the widest being 440. That is the whole test a
+ * exactly 440 — the widest iPhone there is. That is the whole test a
  * breakpoint has to pass: **the detail pane must never be worse than the phone
  * screen it replaced.**
  *
- * It sits well above the arithmetic floor of ~700, on three counts. 768 was
- * tried and fails the test above by twelve points. An iPad mini in portrait is
- * 744, and splitting it would leave 404, thinner than the screen being
+ * **It used to sit well above the arithmetic floor and now sits on it**, which
+ * is what `LIST_WIDTH` going 340 → 360 on 2026-09-22 spent. The floor is
+ * `LIST_WIDTH` plus the widest phone, so it was ~780 while the list was 340
+ * and the pane came out 460; it is 800 now, and the twenty points of slack
+ * this number had are in the list column. Nothing here moves, and the three
+ * counts it was also chosen on are unchanged: 768 was tried and fails the test
+ * above — by thirty-two points now, by twelve then. An iPad mini in portrait
+ * is 744, and splitting it would leave 384, thinner than the screen being
  * replaced. And jest mocks the window at 750×1334 — see
  * `react-native/jest/mocks/NativeModules.js` — so a breakpoint under that
  * would quietly switch every future test that renders `App` into the split
  * layout. **A test should have to ask for split**, by mocking
  * `useWindowDimensions`, rather than getting it by not thinking about it.
+ *
+ * **So the next widening of the list is a change to this number**, and has to
+ * argue about the phone it would leave the detail pane narrower than, rather
+ * than about the twenty points that were lying around here.
  */
 export const SPLIT_AT = 800;
 
@@ -109,8 +118,28 @@ export function isHandheld(size: { width: number; height: number }): boolean {
  * a list of channel names does not need — the names are short and the extra
  * room belongs to the conversation. Fixed at a phone's width, the detail pane
  * absorbs every point above the breakpoint.
+ *
+ * **360 since 2026-09-22, and it was 340 until Home's tier grew a fourth
+ * tab.** The strip lives inside `headerInner`, which spends `spacing(2.5)` a
+ * side, so a 340-point column measured it 300 and four tabs asked for
+ * `4 * MIN_SEGMENT` = 320. They wrapped — a two-row tab strip on every browser
+ * window and every iPad, while the same four tabs on the phone the rule was
+ * written against were one row. 360 measures the strip 320, which is that sum
+ * exactly.
+ *
+ * **It is a transfer, not a widening**, and the detail pane pays: the row is
+ * this column plus a `flex: 1`, so twenty points leave the conversation at
+ * every width above the breakpoint. That is the cheapest thing on the screen
+ * to spend at a laptop's width and the dearest at 800, where it takes the
+ * detail pane to 440 — the widest iPhone, which is the floor `SPLIT_AT` is
+ * chosen against and not a point above it.
+ *
+ * **So 360 is the ceiling this constant has**, and the next point the tier
+ * wants has to come from `MIN_SEGMENT`, from `headerInner`'s inset, or from
+ * moving `SPLIT_AT` — see `SPLIT_AT`, which now has no slack of its own to
+ * lend.
  */
-export const LIST_WIDTH = 340;
+export const LIST_WIDTH = 360;
 
 /** The whole of the rule. */
 export function layoutFor(width: number): Layout {

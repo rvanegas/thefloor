@@ -226,7 +226,13 @@ describe('how many rows a set of segments needs', () => {
     */
     ['an iPad window dragged narrow', 507, 1],
     ['a browser window dragged to 520', 520, 1],
-    ['the detail pane of an iPad in portrait', 470, 2],
+    /*
+      460 rather than 470 since `LIST_WIDTH` went 340 → 360 on 2026-09-22: an
+      iPad 11" in portrait is 820 across, and the detail pane is what is left.
+      Still two rows — six ask for 480 — so what moved is the arithmetic and
+      not the strip.
+    */
+    ['the detail pane of an iPad in portrait', 460, 2],
     /*
       And the case that was the point of the rule in the first place: 560 is
       not a phone and had no business being treated as one.

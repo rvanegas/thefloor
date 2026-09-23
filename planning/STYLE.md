@@ -283,10 +283,12 @@ fill run to the window; only their contents are capped. An edge that stops
 short of the window is not an edge.
 
 **The breakpoint is `SPLIT_AT = 800`** and the list pane is a fixed
-`LIST_WIDTH = 340`. Fixed rather than fractional, so every point above the
+`LIST_WIDTH = 360`. Fixed rather than fractional, so every point above the
 breakpoint goes to the conversation. The test a breakpoint has to pass is that
 **the detail pane must never be worse than the phone screen it replaced**: 800
-leaves it 460, wider than the widest iPhone. It is width, never
+leaves it exactly 440, the widest iPhone there is — it was 460 until the list
+went 340 → 360 on 2026-09-22 to keep Home's four tabs on one row, which is the
+whole of what that slack was spent on. It is width, never
 `Device.deviceType` — a window dragged to a third of an iPad is a
 phone-shaped surface, live, while somebody watches.
 
@@ -1198,7 +1200,7 @@ is: what shows beside a film is letterbox, which belongs to the film.
 
 ### Two panes
 
-Above the breakpoint, `Panes` puts a 340pt list behind a right-hand hairline
+Above the breakpoint, `Panes` puts a 360pt list behind a right-hand hairline
 beside the detail. **Both arrangements live in one component**, and the detail
 slot sits at one fixed depth under one fixed key in both — React preserves a
 subtree only where it stays at the same place in the tree, and crossing the

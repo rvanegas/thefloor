@@ -121,7 +121,7 @@ export function HomeView({
    * Hands a tapped contact upward instead of opening the profile here.
    *
    * **Given only when this tier is the list pane of a split**, where a profile
-   * belongs in the pane next door rather than in a 340pt column. Absent
+   * belongs in the pane next door rather than in a 360pt column. Absent
    * everywhere else, and then this component owns the profile and shows it
    * over the whole tier.
    *
@@ -144,7 +144,7 @@ export function HomeView({
    *
    * **True in a split and false everywhere else**, on the same reasoning as
    * `onOpenProfile` above and for a stronger case. The other three bodies are
-   * columns of rows, which is what a 340pt column is for; the directory is a
+   * columns of rows, which is what a 360pt column is for; the directory is a
    * document, and a document squeezed into that column beside an empty pane is
    * the wrong half of the window. So above the breakpoint the tab still lights
    * and still switches, and what it switches to is on the right — `App.tsx`

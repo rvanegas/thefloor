@@ -2,7 +2,7 @@ import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { Text, View } from 'react-native';
 import { Panes } from '../Panes';
-import { usePane } from '../layout';
+import { LIST_WIDTH, usePane } from '../layout';
 
 /**
  * The two arrangements, and the one property that is invisible until it is
@@ -218,6 +218,10 @@ describe('the two arrangements', () => {
       .findAll((node) => node.type === View)
       .map((node) => node.props.style?.width)
       .filter((width: unknown) => typeof width === 'number');
-    expect(widths).toEqual([340]);
+    // The constant rather than its value: what this test is about is that the
+    // list has a width at all and the detail has none. Which width it is, and
+    // what the detail pane is left with at the breakpoint, is `layout.ts`'s
+    // and is pinned there.
+    expect(widths).toEqual([LIST_WIDTH]);
   });
 });
