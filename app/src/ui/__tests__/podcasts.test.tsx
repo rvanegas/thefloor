@@ -109,6 +109,27 @@ describe('the Podcasts tab', () => {
   });
 
   /**
+   * **In a split the page is not in the tier at all.**
+   *
+   * Above the breakpoint `App.tsx` draws the directory in the pane on the
+   * right and tells the tier so; what is asserted here is only the tier's
+   * half, which is that the frame is gone and the switch is not — a tab that
+   * lit and left the column showing the last body would be the fault this
+   * prop exists to prevent, and one nothing else would catch.
+   */
+  it('draws no page of its own when the pane next door has it', () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
+    const tree = render(
+      <HomeView {...homeNav} list="podcasts" podcastsBeside />
+    );
+    expect(frames(tree)).toHaveLength(0);
+    expect(findTab(tree, 'Podcasts')).toBeDefined();
+    // Nor is the tab it replaced still underneath.
+    expect(findButton(tree, 'Start a channel')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  /**
    * **What the frame keeps and what it hands to the browser.**
    *
    * A frame has no back button, so the set that stays is the two pages that

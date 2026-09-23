@@ -53,7 +53,8 @@ import { colors, measure, radius, spacing, type } from "./theme";
  * **Three things are pinned and one scrolls.** The title and Settings, the
  * room you are in if there is one, and the switch between the tier's four
  * bodies; then the selected body, scrolling — except Podcasts, which is a page
- * that fills rather than a column that scrolls.
+ * that fills rather than a column that scrolls, and which in a split is drawn
+ * in the pane next door instead of here. See `podcastsBeside`.
  *
  * **The third body is Support**, added because Help and Chip in had been the
  * tail of whichever list was showing since they were promoted here on
@@ -79,6 +80,7 @@ export function HomeView({
   onOpenLeaderboard,
   onOpenAudioLab,
   onOpenProfile,
+  podcastsBeside = false,
   liveChannel = null,
   onReturnToChannel = () => {},
 }: {
@@ -136,6 +138,25 @@ export function HomeView({
     /** Opens your own already editing; see ProfileView. */
     edit?: boolean;
   }) => void;
+  /**
+   * Whether the Podcasts page is being drawn in the pane next door, in which
+   * case this tier draws no body for that tab at all.
+   *
+   * **True in a split and false everywhere else**, on the same reasoning as
+   * `onOpenProfile` above and for a stronger case. The other three bodies are
+   * columns of rows, which is what a 340pt column is for; the directory is a
+   * document, and a document squeezed into that column beside an empty pane is
+   * the wrong half of the window. So above the breakpoint the tab still lights
+   * and still switches, and what it switches to is on the right — `App.tsx`
+   * hands it to `Panes` as the empty pane's fallback.
+   *
+   * The tier is then a header with nothing under it while that tab is
+   * selected, which is exactly what it is: the title, the room you are in and
+   * the switch, all of which are the tier's own and none of which belong to a
+   * body. Nothing is missing from it, because the thing it would have held is
+   * on screen.
+   */
+  podcastsBeside?: boolean;
   /**
    * The channel you are present in right now, if you walked back here without
    * stepping out. Null when you are not in one — and never null merely
@@ -468,11 +489,18 @@ export function HomeView({
         of the scroll a real height; the padding the other bodies take is the
         page's own business, it having brought its own margins. See
         `PodcastsView`.
+
+        **And in a split it is not here at all** — see `podcastsBeside`. The
+        content style is chosen the same way either way, an empty body being no
+        harder to give `flexGrow` than a full one, and this stays one
+        expression rather than two.
       */
       contentStyle={list === "podcasts" ? styles.fill : styles.container}
     >
       {list === "podcasts" ? (
-        <PodcastsView />
+        podcastsBeside ? null : (
+          <PodcastsView />
+        )
       ) : list === "support" ? (
         <SupportBody
           canSupport={canSupport}

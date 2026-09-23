@@ -29,6 +29,7 @@ import { nearbyChannels } from './src/ui/ChannelsView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
+import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { Picture } from './src/watch/Picture';
 import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
@@ -746,6 +747,26 @@ function Root() {
     setDetail({ kind: 'channel', channelId: id, tab });
 
   /**
+   * The tier's tab, and the one thing a tab can do to the pane beside it.
+   *
+   * **Switching tabs does not close what is open, except onto Podcasts.**
+   * Channels, Contacts and Support are columns in the tier, so a conversation
+   * beside one of them is untouched by moving to another; that is the
+   * behaviour every tab but this one has and it is unchanged. Podcasts is a
+   * page rather than a column, and in a split it is drawn in the pane on the
+   * right — see the fallback handed to `Panes` — so tapping it with a channel
+   * open would light a tab whose page had nowhere to appear. Emptying the pane
+   * is what puts it there.
+   *
+   * Below the breakpoint none of this applies: the tier owns the page like any
+   * other body, and there is no second pane to have an opinion about.
+   */
+  const chooseList = (next: List) => {
+    setList(next);
+    if (split && next === 'podcasts') close();
+  };
+
+  /**
    * The screen you are looking at, or nothing.
    *
    * **One `switch` over one value, where this was an ordered chain.** The
@@ -906,7 +927,7 @@ function Root() {
   const listPane = (
     <HomeView
       list={list}
-      onList={setList}
+      onList={chooseList}
       onEnterChannel={enterChannel}
       onOpenSettings={() => setDetail({ kind: 'settings' })}
       // The banner on the tier opens this and asks for nothing itself; see
@@ -932,6 +953,10 @@ function Root() {
           ? (contact) => setDetail({ kind: 'profile', ...contact })
           : undefined
       }
+      // The Podcasts page is the pane on the right above the breakpoint, so
+      // the tier draws no body for that tab; see the fallback below and
+      // `HomeView`'s own comment on the prop.
+      podcastsBeside={split}
       // What the tier needs to show that a conversation is still going without
       // you looking at it. An open microphone behind a screen that gives no
       // sign of it is the one thing this could plausibly make worse — and the
@@ -1084,7 +1109,35 @@ function Root() {
     <Panes
       layout={layout}
       list={listPane}
-      detail={showing ?? (layout === 'split' ? <NoDetailView /> : listPane)}
+      /*
+        **With nothing open, a split's right-hand pane is the Podcasts page
+        rather than the placeholder** — which is the whole of where that page
+        lives above the breakpoint. It is not a column of rows like the tier's
+        other three bodies; it is a document, and a document in a 340pt column
+        beside an empty pane is the wrong way round. Below the breakpoint there
+        is one pane, the tier draws it as a body like any other, and this
+        expression never sees it; `HomeView` takes `podcastsBeside` for exactly
+        that split.
+
+        It is not a `Detail`, deliberately. Nothing opened it — it is what the
+        Podcasts tab *is*, the way the tier is what the other tabs are — so it
+        belongs in the fallback beside `listPane` rather than in a value whose
+        whole job is to say what somebody opened. It also means Settings or
+        Help opened over the Podcasts tab covers the page and closing returns
+        to it, with no state to keep in step.
+      */
+      detail={
+        showing ??
+        (layout === 'split' ? (
+          list === 'podcasts' ? (
+            <PodcastsView />
+          ) : (
+            <NoDetailView />
+          )
+        ) : (
+          listPane
+        ))
+      }
       swipes={swipes}
       // Whether the pane is holding a screen or the tier it falls back to,
       // which is the only thing `Panes` needs in order to know that something

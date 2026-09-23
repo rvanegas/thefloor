@@ -80,7 +80,7 @@ caused; the list carries the meaning.
 - **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
-- **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree
+- **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree. Drawn in Home's body on a phone and in the pane beside it on a wide screen, a document being the wrong shape for a 340pt column
 - **Public notice** — The card telling a member their channel has a *public page*, drawn above the *channel tabs* until they say they have read it: owed to everybody except whoever turned the switch on, owed again after a channel goes private and comes back, and a notice rather than a veto — nobody is asked to agree, and the page is up either way
 - **Published** — A *recording* anybody at all can hear. It goes up when every *participant* has *agreed to publish* it and not before, and comes down when any one of them takes that back — which reaches no copy already downloaded
 - **Agree to publish** — One person's consent that one recording may be *published*; everybody whose voice is in it must, and any one of them may take it back at any moment. A *guest* with an account is asked per recording like a member; one without is asked once, at the microphone — see *speech consent*
@@ -1625,6 +1625,18 @@ inside the frame, that page being the same kind of thing; anything that is not
 this server's — the takedown address at the foot — leaves for the app that
 handles it. On the web it is an `<iframe>` and same-origin, the web app being
 served by this same server under `/app`.
+
+**Above the breakpoint it is the pane on the right**, since 2026-09-22 — not
+Home's body, which is where the other three tabs' contents stay. The others
+are columns of rows and a 340pt column is what they are for; this one is a
+document, and a document in that column beside an empty pane spends the window
+the wrong way round. The tab still lights and still switches in the tier; what
+it switches is the pane next door, which on that tab has the page instead of
+its *pick a conversation* placeholder. Home's body is then nothing at all
+while that tab is selected, the title, the live bar and the switch all being
+the tier's own. Nothing is kept in step for it: it is not a *detail*, it is
+what the tab is, so Settings or Help opened over this tab covers the page and
+closing returns to it.
 
 Not a *podcast directory*, which is Apple's or Spotify's.
 
