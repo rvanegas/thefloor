@@ -6,6 +6,8 @@
  * in euros — and because the alternative was arithmetic inside JSX.
  */
 
+import type { Strings } from '../i18n';
+
 /** What a donation total looks like on the wire. */
 export interface Given {
   count: number;
@@ -50,11 +52,14 @@ export function formatAmount(cents: number, currency: string): string {
  * them: adding dollars to euros produces a number that is not true in either,
  * and the person who gave in both is exactly who would notice.
  */
-export function describeGiving(given: Given): string {
+export function describeGiving(given: Given, words: Strings['money']): string {
   const amounts = given.totals.map((total) =>
     formatAmount(total.cents, total.currency)
   );
-  if (amounts.length === 0) return 'nothing yet';
+  if (amounts.length === 0) return words.nothingYet();
   if (amounts.length === 1) return amounts[0];
-  return `${amounts.slice(0, -1).join(', ')} and ${amounts[amounts.length - 1]}`;
+  return words.andLast(
+    amounts.slice(0, -1).join(', '),
+    amounts[amounts.length - 1]
+  );
 }

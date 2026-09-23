@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../ui/components';
 import { spacing } from '../ui/theme';
 import { useWholeWindow } from '../ui/layout';
+import { useText } from '../i18n';
 import { isTap } from './Dock';
 
 /**
@@ -129,6 +130,7 @@ export function FullScreen({
    */
   onExit: (() => void) | null;
 }): React.ReactElement {
+  const t = useText().watch;
   /*
     The window, for as long as this is up.
 
@@ -279,7 +281,7 @@ export function FullScreen({
             follow. There is no phone to turn in a browser, which is how the
             other one came to be useless on half the surfaces that needed it.
           */}
-        {onExit ? <Button label="Exit full screen" onPress={onExit} /> : null}
+        {onExit ? <Button label={t.exitFullScreen()} onPress={onExit} /> : null}
       </Animated.View>
     </View>
   );

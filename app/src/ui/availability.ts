@@ -1,4 +1,16 @@
+import type { Strings } from '../i18n';
 import { ago, agoOrNull } from './relativeTime';
+
+/**
+ * The words these three sentences are built from.
+ *
+ * **Passed in rather than read from the context, because none of these is a
+ * component.** They are pure functions over a snapshot and a clock, tested as
+ * such, and a hook inside one would make it a thing only React can call. The
+ * views hold the hook and hand the group down, which is the same arrangement
+ * `core/naming.ts` uses for the same reason.
+ */
+type Words = Strings['availability'];
 
 /**
  * "In the app now", "Last seen 3 hours ago", or nothing.
@@ -28,13 +40,14 @@ import { ago, agoOrNull } from './relativeTime';
  */
 export function describeAvailability(
   who: { inApp?: boolean; lastSeenAt?: number | null } | null,
-  now: number
+  now: number,
+  words: Words
 ): string | null {
   if (!who) return null;
-  if (who.inApp) return 'In the app now';
+  if (who.inApp) return words.inTheAppNow();
   if (who.lastSeenAt == null) return null;
   const ago = agoOrNull(now - who.lastSeenAt);
-  return ago ? `Last seen ${ago}` : 'In the app now';
+  return ago ? words.lastSeen(ago) : words.inTheAppNow();
 }
 
 /**
@@ -106,10 +119,11 @@ export function describeQuiet(
     lastPresenceByOthers?: number | null;
     lastPresenceAt?: number;
   },
-  now: number
+  now: number,
+  words: Words
 ): string | null {
-  if (channel.everUsed === false) return 'not used yet';
-  if (channel.lastPresenceByOthers === null) return 'nobody else yet';
+  if (channel.everUsed === false) return words.notUsedYet();
+  if (channel.lastPresenceByOthers === null) return words.nobodyElseYet();
   if (channel.lastPresenceByOthers !== undefined) {
     return ago(now - channel.lastPresenceByOthers);
   }
@@ -141,12 +155,13 @@ export function describeQuiet(
  */
 export function describePresence(
   where: { present: boolean; lastPresentAt: number | null },
-  now: number
+  now: number,
+  words: Words
 ): string {
-  if (where.present) return 'Here now';
-  if (where.lastPresentAt === null) return 'Never been here';
+  if (where.present) return words.hereNow();
+  if (where.lastPresentAt === null) return words.neverBeenHere();
   const gap = agoOrNull(now - where.lastPresentAt);
-  return gap ? `Last here ${gap}` : 'Here now';
+  return gap ? words.lastHere(gap) : words.hereNow();
 }
 
 /**

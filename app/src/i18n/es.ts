@@ -172,4 +172,72 @@ export const es: Strings = {
     linkCopied: () => 'Enlace copiado',
     copyTheLink: () => 'Copiar el enlace',
   },
+  panes: {
+    brand: () => 'The Floor',
+    pickAConversation: () =>
+      'Elige una conversaci\u00f3n a la izquierda, o empieza una.',
+  },
+  watch: {
+    openTheWatchTab: () => 'Abrir la pesta\u00f1a de v\u00eddeo',
+    exitFullScreen: () => 'Salir de pantalla completa',
+    seek: () => 'Avanzar o retroceder',
+    back15: () => '\u221215 s',
+    forward15: () => '+15 s',
+    pause: () => 'Pausa',
+    play: () => 'Reproducir',
+    refusedOutsideYouTube: () =>
+      'El propietario de este v\u00eddeo no permite reproducirlo fuera de YouTube.',
+    videoGone: () => 'Este v\u00eddeo ya no est\u00e1: se ha borrado, o es privado.',
+    notAVideo: () => 'Ese enlace no es un v\u00eddeo que YouTube conozca.',
+    playerRefused: (code: number) =>
+      `YouTube ha rechazado este reproductor (${code}); la culpa es de la app, no del v\u00eddeo.`,
+    couldNotPlay: (code: number) =>
+      `YouTube no ha podido reproducir este v\u00eddeo (${code}).`,
+  },
+  availability: {
+    inTheAppNow: () => 'En la app ahora',
+    lastSeen: (since: string) => `Visto por \u00faltima vez hace ${since}`,
+    notUsedYet: () => 'sin usar todav\u00eda',
+    nobodyElseYet: () => 'nadie m\u00e1s todav\u00eda',
+    hereNow: () => 'Aqu\u00ed ahora',
+    neverBeenHere: () => 'Nunca ha estado aqu\u00ed',
+    lastHere: (since: string) => `Aqu\u00ed por \u00faltima vez hace ${since}`,
+  },
+  money: {
+    nothingYet: () => 'nada todav\u00eda',
+    andLast: (rest: string, last: string) => `${rest} y ${last}`,
+  },
+  contacts: {
+    requests: () => 'Solicitudes',
+    you: () => 'T\u00fa',
+    openYourProfile: (name: string) => `${name}. T\u00fa. Abrir tu perfil.`,
+    openTheirProfile: (name: string, availability: string | null) =>
+      `${name}.${availability ? ` ${availability}.` : ''} Abrir su perfil.`,
+    yourContacts: () => 'Tus contactos',
+    nobodyYet: () =>
+      'Nadie todav\u00eda. A\u00f1ade a alguien por la direcci\u00f3n con la que se registr\u00f3, y esa persona decide.',
+    wantsToBeAContact: () => 'Quiere ser contacto',
+    pending: () => 'Pendiente',
+    accept: () => 'Aceptar',
+    decline: () => 'Rechazar',
+    sent: () => 'Enviada',
+    withdraw: () => 'Retirar',
+    couldNotWithdraw: () => 'No se ha podido retirar',
+    addAContact: () => 'A\u00f1adir un contacto',
+    alreadyAsked: () => 'Ya te lo hab\u00eda pedido: ahora sois contactos.',
+    requestSent: () => 'Solicitud enviada; falta que la acepte.',
+    searchByEmail: () => 'Buscar por direcci\u00f3n de correo',
+    cancel: () => 'Cancelar',
+    sending: () => 'Enviando\u2026',
+    sendRequest: () => 'Enviar solicitud',
+    or: () => 'o',
+    toGenerateAnInviteLink: () => 'Para generar un enlace de invitaci\u00f3n,',
+    chooseAUsername: () => 'Elige un nombre de usuario',
+    makingALink: () => 'Creando un enlace\u2026',
+    shareInviteLink: () => 'Compartir el enlace de invitaci\u00f3n',
+    copyInviteLink: () => 'Copiar el enlace de invitaci\u00f3n',
+    linkCopied: () =>
+      'Enlace copiado. Sirve una sola vez, para la primera persona que lo abra.',
+    clipboardRefused: () => 'El portapapeles lo ha rechazado. Int\u00e9ntalo otra vez.',
+  },
 };

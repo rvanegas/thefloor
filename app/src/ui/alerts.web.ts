@@ -52,6 +52,12 @@ export function showAlert(
 ): void {
   const text = [title, message].filter(Boolean).join('\n\n');
   // No buttons at all is RN's single OK, which is an informational alert.
+  //
+  // **Not translated, and it cannot be.** This is installed from
+  // `index.web.ts` before anything renders, so there is no provider above it
+  // to read a catalogue from — and `OK` is React Native's own default button
+  // text, which reads the same in every language this app is likely to learn.
+  // A caller that wants a word of its own passes one.
   const list: readonly AlertButton[] = buttons?.length ? buttons : [{ text: 'OK' }];
   const cancel = list.find((button) => button.style === 'cancel');
   const choices = list.filter((button) => button !== cancel);

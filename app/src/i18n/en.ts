@@ -208,4 +208,100 @@ export const en = {
     linkCopied: () => 'Link copied',
     copyTheLink: () => 'Copy the link',
   },
+  panes: {
+    brand: () => 'The Floor',
+    pickAConversation: () => 'Pick a conversation on the left, or start one.',
+  },
+  watch: {
+    openTheWatchTab: () => 'Open the watch tab',
+    exitFullScreen: () => 'Exit full screen',
+    seek: () => 'Seek',
+    back15: () => '\u221215s',
+    forward15: () => '+15s',
+    pause: () => 'Pause',
+    play: () => 'Play',
+    /**
+     * What a refusal means, in the words of somebody watching rather than
+     * YouTube's. The codes that survive the origin being right are the
+     * owner's; 152 and 153 are the app's own fault and say so, because the
+     * next person to see one needs to be sent here and not to the video's
+     * owner.
+     */
+    refusedOutsideYouTube: () =>
+      'The owner of this video does not allow it to play outside YouTube.',
+    videoGone: () => 'This video is gone — deleted, or private.',
+    notAVideo: () => 'That link is not a video YouTube knows.',
+    playerRefused: (code: number) =>
+      `YouTube refused this player (${code}) — the app is at fault, not the video.`,
+    couldNotPlay: (code: number) =>
+      `YouTube could not play this video (${code}).`,
+  },
+  /**
+   * The three sentences `ui/availability.ts` chooses between, and why there
+   * are three rather than one reused: each is about a different subject —
+   * a person anywhere in the app, a room, a person in one room — and reading
+   * one as another is exactly the mistake the words exist to prevent.
+   */
+  availability: {
+    inTheAppNow: () => 'In the app now',
+    /** `since` is already a phrase — see `relativeTime.agoOrNull`. */
+    lastSeen: (since: string) => `Last seen ${since}`,
+    notUsedYet: () => 'not used yet',
+    nobodyElseYet: () => 'nobody else yet',
+    hereNow: () => 'Here now',
+    neverBeenHere: () => 'Never been here',
+    lastHere: (since: string) => `Last here ${since}`,
+  },
+  /**
+   * The two words in `ui/money.ts`. **The numeral is not here and is not
+   * translated**, deliberately: `formatAmount` prints Ko-fi's payout
+   * currencies with a symbol table chosen for them, and moving to
+   * `Intl.NumberFormat` would be a different decision — whether a reader in
+   * Spain should see `5,00 €` for a gift they made in dollars — with a
+   * different person to make it. What is here is only the prose around it.
+   */
+  money: {
+    nothingYet: () => 'nothing yet',
+    andLast: (rest: string, last: string) => `${rest} and ${last}`,
+  },
+  contacts: {
+    requests: () => 'Requests',
+    you: () => 'You',
+    /** What a screen reader says about your own row. */
+    openYourProfile: (name: string) => `${name}. You. Open your profile.`,
+    /**
+     * And about somebody else's. `availability` is the line already on the
+     * row, or null when there is none — the sentence is assembled here rather
+     * than at the call site so that a language may put the two in the other
+     * order.
+     */
+    openTheirProfile: (name: string, availability: string | null) =>
+      `${name}.${availability ? ` ${availability}.` : ''} Open their profile.`,
+    yourContacts: () => 'Your contacts',
+    nobodyYet: () =>
+      'Nobody yet. Add somebody by the address they signed up with, and they decide.',
+    wantsToBeAContact: () => 'Wants to be a contact',
+    pending: () => 'Pending',
+    accept: () => 'Accept',
+    decline: () => 'Decline',
+    sent: () => 'Sent',
+    withdraw: () => 'Withdraw',
+    couldNotWithdraw: () => 'Could not withdraw',
+    addAContact: () => 'Add a contact',
+    alreadyAsked: () => 'They had already asked — you are now contacts.',
+    requestSent: () => 'Request sent — awaiting their acceptance.',
+    searchByEmail: () => 'Search by email address',
+    cancel: () => 'Cancel',
+    sending: () => 'Sending\u2026',
+    sendRequest: () => 'Send request',
+    or: () => 'or',
+    toGenerateAnInviteLink: () => 'To generate an invite link,',
+    chooseAUsername: () => 'Choose a Username',
+    makingALink: () => 'Making a link\u2026',
+    shareInviteLink: () => 'Share Invite Link',
+    copyInviteLink: () => 'Copy Invite Link',
+    linkCopied: () =>
+      'Link copied. It works once, for the first person who opens it.',
+    clipboardRefused: () => 'The clipboard refused. Try again.',
+  },
 };

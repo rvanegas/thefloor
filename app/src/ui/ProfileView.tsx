@@ -30,6 +30,7 @@ import {
   MAX_PING_TEXT_LENGTH,
 } from '../../../core/constants';
 import { copyText } from '../clipboard';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -279,6 +280,7 @@ export function ProfileView({
   beginEditing?: boolean;
 }) {
   const app = useApp();
+  const availabilityWords = useText().availability;
   /**
    * This screen showing you to yourself: the first card on the contact list,
    * and your own card in a channel roster. Your profile as a contact reads it.
@@ -872,7 +874,11 @@ export function ProfileView({
    * as long as this screen has gone without a snapshot — which is the whole of
    * what the old contact row got wrong.
    */
-  const availability = describeAvailability(profile, app.serverNow());
+  const availability = describeAvailability(
+    profile,
+    app.serverNow(),
+    availabilityWords
+  );
 
   /**
    * How long until this person may be pinged again, or null when they may be
@@ -1346,7 +1352,7 @@ export function ProfileView({
               */
               const line = where
                 ? [
-                    describePresence(where, app.serverNow()),
+                    describePresence(where, app.serverNow(), availabilityWords),
                     channel.presentCount > 0
                       ? `${channel.presentCount} present`
                       : null,
@@ -1366,7 +1372,8 @@ export function ProfileView({
                           lastPresenceAt:
                             channel.lastPresenceAt ?? channel.lastActiveAt,
                         },
-                        app.serverNow()
+                        app.serverNow(),
+                        availabilityWords
                       ) ?? ''
                     );
               /*

@@ -1,3 +1,4 @@
+import { en } from '../../i18n/en';
 import { describeGiving, formatAmount } from '../money';
 
 describe('formatAmount', () => {
@@ -28,7 +29,7 @@ describe('describeGiving', () => {
         count: 2,
         since: 0,
         totals: [{ currency: 'USD', cents: 550 }],
-      })
+      }, en.money)
     ).toBe('$5.50');
   });
 
@@ -43,7 +44,7 @@ describe('describeGiving', () => {
           { currency: 'EUR', cents: 1000 },
           { currency: 'USD', cents: 300 },
         ],
-      })
+      }, en.money)
     ).toBe('€10.00 and $3.00');
   });
 
@@ -57,12 +58,12 @@ describe('describeGiving', () => {
           { currency: 'USD', cents: 300 },
           { currency: 'GBP', cents: 250 },
         ],
-      })
+      }, en.money)
     ).toBe('€10.00, $3.00 and £2.50');
   });
 
   it('has something to say when there is nothing', () => {
-    expect(describeGiving({ count: 0, since: 0, totals: [] })).toBe(
+    expect(describeGiving({ count: 0, since: 0, totals: [] }, en.money)).toBe(
       'nothing yet'
     );
   });

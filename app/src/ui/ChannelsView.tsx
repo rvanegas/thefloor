@@ -14,6 +14,7 @@ import type {
 } from '../../../core/protocol';
 import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
+import { useText } from '../i18n';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
@@ -831,7 +832,7 @@ function ChannelCard({
   const live = isLive(card);
   // Null only for an invitation from a server that predates the stamp, which
   // is a line that goes away rather than a line that says nothing.
-  const quiet = describeQuiet(card, now);
+  const quiet = describeQuiet(card, now, useText().availability);
   /**
    * Whether the reader stepped in here recently enough to be worth being
    * reminded of.

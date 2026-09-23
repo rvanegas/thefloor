@@ -31,6 +31,7 @@ export function SupportView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const t = useText().support;
   const shared = useText().shared;
+  const money = useText().money;
   const [support, setSupport] = useState<SupportSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +78,7 @@ export function SupportView({ onBack }: { onBack: () => void }) {
           {support?.mine ? (
             <Card style={styles.stack}>
               <Text style={type.muted}>
-                {t.thankYou(describeGiving(support.mine))}
+                {t.thankYou(describeGiving(support.mine, money))}
               </Text>
             </Card>
           ) : null}

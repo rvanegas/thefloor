@@ -4,6 +4,7 @@ import type {
   ContactView as Contact,
   HomeView as HomeViewData,
 } from '../../../core/protocol';
+import { useText } from '../i18n';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
@@ -127,6 +128,7 @@ export function ContactsView({
   }) => void;
 }) {
   const app = useApp();
+  const t = useText().contacts;
   const now = app.serverNow();
 
   const contacts = (app.home?.contacts ?? [])
@@ -167,7 +169,7 @@ export function ContactsView({
       */}
       {requests.length > 0 ? (
         <>
-          <SectionLabel>Requests</SectionLabel>
+          <SectionLabel>{t.requests()}</SectionLabel>
           <View style={[styles.list, styles.requests]}>
             {requests.map((entry) => (
               <RequestRow
@@ -201,10 +203,10 @@ export function ContactsView({
       */}
       {app.me ? (
         <>
-          <SectionLabel>You</SectionLabel>
+          <SectionLabel>{t.you()}</SectionLabel>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${app.me.displayName}. You. Open your profile.`}
+            accessibilityLabel={t.openYourProfile(app.me.displayName)}
             onPress={() =>
               app.me &&
               onOpenProfile({ id: app.me.id, name: app.me.displayName })
@@ -222,12 +224,9 @@ export function ContactsView({
         </>
       ) : null}
 
-      {contacts.length > 0 ? <SectionLabel>Your contacts</SectionLabel> : null}
+      {contacts.length > 0 ? <SectionLabel>{t.yourContacts()}</SectionLabel> : null}
       {contacts.length === 0 ? (
-        <Empty>
-          Nobody yet. Add somebody by the address they signed up with, and they
-          decide.
-        </Empty>
+        <Empty>{t.nobodyYet()}</Empty>
       ) : (
         <View style={styles.list}>
           {contacts.map((entry) => (
@@ -291,15 +290,17 @@ function ContactRow({
   now: number;
   onPress: () => void;
 }) {
-  const availability = describeAvailability(entry, now);
+  const t = useText().contacts;
+  const availability = describeAvailability(entry, now, useText().availability);
   return (
     // The whole row, as on Home: there is one thing to do with a contact from
     // here, so a target the size of the row is the honest shape for it.
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${entry.account.displayName}.${
-        availability ? ` ${availability}.` : ''
-      } Open their profile.`}
+      accessibilityLabel={t.openTheirProfile(
+        entry.account.displayName,
+        availability
+      )}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >
@@ -335,40 +336,41 @@ function ContactRow({
  */
 function RequestRow({ entry }: { entry: Contact }) {
   const app = useApp();
+  const t = useText().contacts;
   const { account, status } = entry;
   return (
     <Card style={styles.requestRow}>
       <View style={styles.rowMain}>
         <Text style={type.body}>{account.displayName}</Text>
         <Text style={type.muted}>
-          {status === 'incoming' ? 'Wants to be a contact' : 'Pending'}
+          {status === 'incoming' ? t.wantsToBeAContact() : t.pending()}
         </Text>
       </View>
       {status === 'incoming' ? (
         <View style={styles.rowActions}>
           <Button
-            label="Accept"
+            label={t.accept()}
             variant="primary"
             onPress={() => app.acceptContact(account.id)}
           />
           <Button
-            label="Decline"
+            label={t.decline()}
             onPress={() => app.declineContact(account.id)}
           />
         </View>
       ) : (
         <View style={styles.rowActions}>
-          <Text style={styles.pendingTag}>Sent</Text>
+          <Text style={styles.pendingTag}>{t.sent()}</Text>
           {/*
             Identified by the address, which is what displayName holds for
             outgoing rows — these have no account id to cancel by, on purpose.
           */}
           <Button
-            label="Withdraw"
+            label={t.withdraw()}
             onPress={() =>
               app.withdrawContact(account.displayName).catch((e) => {
                 Alert.alert(
-                  'Could not withdraw',
+                  t.couldNotWithdraw(),
                   e instanceof Error ? e.message : String(e)
                 );
               })
@@ -396,6 +398,7 @@ function AddContact({
   onChooseUsername?: () => void;
 }) {
   const app = useApp();
+  const t = useText().contacts;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
@@ -409,9 +412,7 @@ function AddContact({
       const { accepted } = await app.requestContact(query.trim());
       setMessage({
         ok: true,
-        text: accepted
-          ? 'They had already asked — you are now contacts.'
-          : 'Request sent — awaiting their acceptance.',
+        text: accepted ? t.alreadyAsked() : t.requestSent(),
       });
       setQuery('');
     } catch (e) {
@@ -432,7 +433,7 @@ function AddContact({
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add a contact"
+        accessibilityLabel={t.addAContact()}
         onPress={() => setOpen(true)}
         style={({ pressed }) => pressed && styles.rowPressed}
       >
@@ -440,7 +441,7 @@ function AddContact({
           <View style={styles.addMark}>
             <Text style={styles.addMarkGlyph}>+</Text>
           </View>
-          <Text style={styles.addLabel}>Add a contact</Text>
+          <Text style={styles.addLabel}>{t.addAContact()}</Text>
         </Card>
       </Pressable>
     );
@@ -472,11 +473,11 @@ function AddContact({
         `SectionLabel`'s — a heading over the card would read as something
         above it rather than as what it used to be.
       */}
-      <Text style={styles.addLabel}>Add a contact</Text>
+      <Text style={styles.addLabel}>{t.addAContact()}</Text>
       <Field
         value={query}
         onChangeText={setQuery}
-        placeholder="Search by email address"
+        placeholder={t.searchByEmail()}
         keyboardType="email-address"
         autoFocus
         onSubmit={query.trim() && !busy ? send : undefined}
@@ -484,7 +485,7 @@ function AddContact({
       />
       <View style={styles.addActionsSpread}>
         <Button
-          label="Cancel"
+          label={t.cancel()}
           onPress={() => {
             setOpen(false);
             setQuery('');
@@ -495,7 +496,7 @@ function AddContact({
           }}
         />
         <Button
-          label={busy ? 'Sending…' : 'Send request'}
+          label={busy ? t.sending() : t.sendRequest()}
           onPress={send}
           disabled={!query.trim() || busy}
         />
@@ -511,7 +512,7 @@ function AddContact({
         </Text>
       ) : null}
 
-      <Text style={styles.or}>or</Text>
+      <Text style={styles.or}>{t.or()}</Text>
       <InviteLink onChooseUsername={onChooseUsername} />
     </Card>
     </Reveal>
@@ -543,6 +544,7 @@ function InviteLink({
   onChooseUsername?: () => void;
 }) {
   const app = useApp();
+  const t = useText().contacts;
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [minting, setMinting] = useState(false);
@@ -578,10 +580,10 @@ function InviteLink({
   if (url === null) {
     return (
       <View style={styles.invite}>
-        <Text style={type.muted}>To generate an invite link,</Text>
+        <Text style={type.muted}>{t.toGenerateAnInviteLink()}</Text>
         <View style={styles.addActions}>
           <Button
-            label="Choose a Username"
+            label={t.chooseAUsername()}
             // Absent only in the moment before `me` lands, which is why the
             // button is drawn disabled rather than withheld: a control that
             // appears a beat after the sentence explaining it is a control
@@ -631,10 +633,10 @@ function InviteLink({
         <Button
           label={
             minting
-              ? 'Making a link…'
+              ? t.makingALink()
               : canShare
-                ? 'Share Invite Link'
-                : 'Copy Invite Link'
+                ? t.shareInviteLink()
+                : t.copyInviteLink()
           }
           onPress={hand}
           disabled={minting}
@@ -649,9 +651,7 @@ function InviteLink({
       */}
       {copied === 'idle' ? null : (
         <Text style={type.muted}>
-          {copied === 'done'
-            ? 'Link copied. It works once, for the first person who opens it.'
-            : 'The clipboard refused. Try again.'}
+          {copied === 'done' ? t.linkCopied() : t.clipboardRefused()}
         </Text>
       )}
     </View>

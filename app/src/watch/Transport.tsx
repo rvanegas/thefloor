@@ -4,6 +4,7 @@ import type { ClientAction } from '../../../core/protocol';
 import type { WatchParty, WatchState } from '../../../core/types';
 import { recordEvent } from '../audio/diagnostics';
 import { Button } from '../ui/components';
+import { useText } from '../i18n';
 import { colors, formatDuration, radius, spacing, type } from '../ui/theme';
 
 /**
@@ -61,6 +62,7 @@ export function WatchTransport({
   withTitle: boolean;
   act: (action: ClientAction) => boolean;
 }): React.ReactElement | null {
+  const t = useText().watch;
   /** How wide the track is, which the seek arithmetic is measured against. */
   const trackWidth = useRef(0);
 
@@ -85,7 +87,7 @@ export function WatchTransport({
           */}
           <Pressable
             accessibilityRole="adjustable"
-            accessibilityLabel="Seek"
+            accessibilityLabel={t.seek()}
             disabled={!mayControl}
             onPress={(event) => {
               const width = trackWidth.current;
@@ -180,7 +182,7 @@ export function WatchTransport({
       */}
       <View style={styles.buttonRow}>
         <Button
-          label="−15s"
+          label={t.back15()}
           style={styles.flexButton}
           disabled={!mayControl}
           onPress={() =>
@@ -188,7 +190,7 @@ export function WatchTransport({
           }
         />
         <Button
-          label={watch.status === 'playing' ? 'Pause' : 'Play'}
+          label={watch.status === 'playing' ? t.pause() : t.play()}
           variant="primary"
           style={styles.flexButton}
           disabled={watch.status === 'playing' ? !mayControl : !mayPlay}
@@ -215,7 +217,7 @@ export function WatchTransport({
           }}
         />
         <Button
-          label="+15s"
+          label={t.forward15()}
           style={styles.flexButton}
           disabled={!mayControl}
           onPress={() =>

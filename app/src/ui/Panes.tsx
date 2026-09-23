@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useText } from '../i18n';
 import { LIST_WIDTH, PaneContext, type Layout } from './layout';
 import { shouldCapture, swipeOf } from './swipe';
 import { colors, spacing, type } from './theme';
@@ -237,12 +238,11 @@ export function Panes({
  * pane to its left is already doing, in the half nobody is looking at.
  */
 export function NoDetailView() {
+  const t = useText().panes;
   return (
     <View style={styles.empty}>
-      <Text style={type.title}>The Floor</Text>
-      <Text style={[type.muted, styles.emptyLine]}>
-        Pick a conversation on the left, or start one.
-      </Text>
+      <Text style={type.title}>{t.brand()}</Text>
+      <Text style={[type.muted, styles.emptyLine]}>{t.pickAConversation()}</Text>
     </View>
   );
 }

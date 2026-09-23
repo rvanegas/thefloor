@@ -6,6 +6,7 @@ import type { WatchState } from '../../../core/types';
 import { showingTheFilm } from '../../../core/watch';
 import type { PlayerReading, PlayerState } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
+import { useText, type Strings } from '../i18n';
 import { useKeepAwake } from './keepAwake';
 
 /**
@@ -218,16 +219,12 @@ function page(videoId: string): string {
  * because the next person to see one needs to be sent there and not to the
  * video's owner.
  */
-function refusal(code: number): string {
-  if (code === 101 || code === 150) {
-    return 'The owner of this video does not allow it to play outside YouTube.';
-  }
-  if (code === 100) return 'This video is gone — deleted, or private.';
-  if (code === 2) return 'That link is not a video YouTube knows.';
-  if (code === 152 || code === 153) {
-    return `YouTube refused this player (${code}) — the app is at fault, not the video.`;
-  }
-  return `YouTube could not play this video (${code}).`;
+function refusal(code: number, t: Strings['watch']): string {
+  if (code === 101 || code === 150) return t.refusedOutsideYouTube();
+  if (code === 100) return t.videoGone();
+  if (code === 2) return t.notAVideo();
+  if (code === 152 || code === 153) return t.playerRefused(code);
+  return t.couldNotPlay(code);
 }
 
 /** YouTube's numbers, mapped at the edge so core never meets one. */
@@ -278,6 +275,7 @@ export function WatchPlayer({
    */
   fill?: boolean;
 }): React.ReactElement | null {
+  const t = useText().watch;
   const view = useRef<WebView | null>(null);
   const reading = useRef<{ at: number; what: PlayerReading } | null>(null);
   const told = useRef(false);
@@ -360,7 +358,7 @@ export function WatchPlayer({
       }
       if (payload.t === 'error') {
         recordEvent(`watch player refused (${payload.code ?? 0})`);
-        setRefused(refusal(payload.code ?? 0));
+        setRefused(refusal(payload.code ?? 0, t));
         return;
       }
       if (payload.t !== 'reading') return;

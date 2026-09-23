@@ -7,6 +7,7 @@ import {
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
+import { useText } from '../i18n';
 import { colors, radius, spacing } from '../ui/theme';
 
 /**
@@ -194,6 +195,7 @@ export function WatchDock({
   /** The player. One of these, for the life of the party. */
   children: React.ReactNode;
 }): React.ReactElement {
+  const t = useText().watch;
   const floating = place === 'floating';
   const full = place === 'full';
 
@@ -345,7 +347,7 @@ export function WatchDock({
           style={StyleSheet.absoluteFill}
           pointerEvents="box-only"
           accessibilityRole="button"
-          accessibilityLabel="Open the watch tab"
+          accessibilityLabel={t.openTheWatchTab()}
           {...drag.panHandlers}
         />
       ) : null}
