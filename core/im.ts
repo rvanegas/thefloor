@@ -32,7 +32,12 @@ export type ImService = (typeof IM_SERVICES)[number];
  */
 export type ImHandles = Partial<Record<ImService, string>>;
 
-/** What each is called on screen. */
+/**
+ * What each is called on screen.
+ *
+ * **Not translated, and not translatable**: these are the services' own
+ * names, which are the same word in every language the app will learn.
+ */
 export const IM_SERVICE_NAMES: Record<ImService, string> = {
   whatsapp: 'WhatsApp',
   telegram: 'Telegram',
@@ -44,6 +49,13 @@ export const IM_SERVICE_NAMES: Record<ImService, string> = {
  * example — a WhatsApp number without a country code produces a link that
  * silently reaches the wrong person, and there is nothing here that could
  * detect it.
+ *
+ * **Not translated either, and the reason is the shape rather than the
+ * words.** What a placeholder has to teach here is *a country code, then the
+ * number*, and `+1 555 …` is the reserved fictional range that says so without
+ * being anybody. A Spanish example would say the same thing no more clearly,
+ * and the sentence around the field — which *is* translated — is what carries
+ * the instruction.
  */
 export const IM_SERVICE_HINTS: Record<ImService, string> = {
   whatsapp: '+1 555 123 4567',

@@ -23,14 +23,14 @@ import {
   MAX_USERNAME_LENGTH,
   MIN_USERNAME_LENGTH,
   normaliseUsername,
-  usernameProblem,
+  usernameFault,
 } from '../../../core/username';
 import {
   MAX_DISPLAY_NAME_LENGTH,
   MAX_PING_TEXT_LENGTH,
 } from '../../../core/constants';
 import { copyText } from '../clipboard';
-import { useText } from '../i18n';
+import { sayUsernameFault, useText, type Strings } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -82,12 +82,14 @@ const imOf = (fields: Record<ImService, string>): ImHandles =>
  * the country code" is the sentence that fixes it; a message about E.164 would
  * be accurate and would help nobody.
  */
-function imProblem(service: ImService, typed: string): string | null {
+function imProblem(
+  service: ImService,
+  typed: string,
+  t: Strings['profile']
+): string | null {
   if (typed.trim() === '') return null;
   if (normaliseImHandle(service, typed)) return null;
-  return service === 'telegram'
-    ? 'A Telegram username, five characters or more — letters, digits and underscores.'
-    : 'A phone number with its country code, like +1 555 123 4567.';
+  return service === 'telegram' ? t.telegramProblem() : t.phoneProblem();
 }
 
 /**
@@ -281,6 +283,10 @@ export function ProfileView({
 }) {
   const app = useApp();
   const availabilityWords = useText().availability;
+  const namingWords = useText().naming;
+  const t = useText().profile;
+  const sharedWords = useText().shared;
+  const faults = useText().usernameFault;
   /**
    * This screen showing you to yourself: the first card on the contact list,
    * and your own card in a channel roster. Your profile as a contact reads it.
@@ -436,12 +442,12 @@ export function ProfileView({
   const kind = !app.home
     ? null
     : isSelf
-      ? 'You'
+      ? t.you()
       : contact?.status === 'accepted'
-        ? 'Contact'
+        ? t.contact()
         : contact?.status === 'outgoing' || contact?.status === 'incoming'
-          ? 'Contact requested'
-          : 'Channel member';
+          ? t.contactRequested()
+          : t.channelMember();
 
   useEffect(() => {
     let cancelled = false;
@@ -552,14 +558,12 @@ export function ProfileView({
   const removeContact = () => {
     const name = profile?.account.displayName ?? fallbackName;
     Alert.alert(
-      `Remove ${name}?`,
-      `You will each stop being the other's contact, and you will leave the ` +
-        `channels that hold only the two of you. Channels with other people ` +
-        `in them are not affected.`,
+      t.removeAsk(name),
+      t.removeBody(),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.cancel(), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t.remove(),
           style: 'destructive',
           onPress: () => {
             setRemoving(true);
@@ -615,7 +619,7 @@ export function ProfileView({
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert(`Could not open ${IM_SERVICE_NAMES[service]}`, handle);
+      Alert.alert(t.couldNotOpen(IM_SERVICE_NAMES[service]), handle);
     }
   };
 
@@ -963,7 +967,7 @@ export function ProfileView({
           // a nearer one that abandons it, is exactly the choice this screen
           // refuses to ask for. Back returns once there is nothing pending.
           <Button
-            label={saving ? 'Saving…' : 'Done'}
+            label={saving ? t.saving() : t.done()}
             disabled={saving}
             onPress={() => void doneEditing()}
           />
@@ -973,7 +977,7 @@ export function ProfileView({
                 from a profile nobody has read yet. */}
             {isSelf ? (
               <Button
-                label="Edit"
+                label={t.edit()}
                 disabled={state !== 'ready'}
                 onPress={startEditing}
               />
@@ -982,7 +986,7 @@ export function ProfileView({
                 was opened from rather than over it, and all this can do is
                 empty the pane. See HomeSettingsView. */}
             <IconButton
-              label="Close"
+              label={sharedWords.close()}
               icon={(color) => <CloseIcon color={color} />}
               onPress={onBack}
             />
@@ -1006,22 +1010,19 @@ export function ProfileView({
       */}
       {editing ? (
         <>
-          <SectionLabel>Name</SectionLabel>
+          <SectionLabel>{t.name()}</SectionLabel>
           <Card style={styles.stack}>
             <Field
               value={draftName}
               onChangeText={(v) =>
                 setDraftName(v.slice(0, MAX_DISPLAY_NAME_LENGTH))
               }
-              placeholder="What people should call you"
+              placeholder={t.namePlaceholder()}
               autoCapitalize="words"
               onBlur={() => void persist().catch(() => {})}
             />
             {!named ? (
-              <Text style={styles.error}>
-                A name cannot be empty — it is how everyone else finds you, so
-                this one is kept until you type another.
-              </Text>
+              <Text style={styles.error}>{t.nameCannotBeEmpty()}</Text>
             ) : null}
           </Card>
         </>
@@ -1045,7 +1046,7 @@ export function ProfileView({
       */}
       {editing ? (
         <>
-          <SectionLabel>Username</SectionLabel>
+          <SectionLabel>{t.username()}</SectionLabel>
           <Card style={styles.stack}>
             <View style={styles.usernameField}>
               <Text style={styles.at}>@</Text>
@@ -1057,21 +1058,19 @@ export function ProfileView({
                       v.replace(/^@/, '').slice(0, MAX_USERNAME_LENGTH)
                     )
                   }
-                  placeholder="optional"
+                  placeholder={t.usernameOptional()}
                   autoCapitalize="none"
                   onBlur={() => void persist().catch(() => {})}
                 />
               </View>
             </View>
-            {usernameProblem(draftUsername) ? (
+            {usernameFault(draftUsername) ? (
               <Text style={styles.error}>
-                {usernameProblem(draftUsername)}
+                {sayUsernameFault(usernameFault(draftUsername)!, faults)}
               </Text>
             ) : (
               <Text style={styles.hint}>
-                Yours alone, and shown on your profile —{' '}
-                {MIN_USERNAME_LENGTH} to {MAX_USERNAME_LENGTH} characters. It
-                does nothing else yet; leave it empty to have none.
+                {t.usernameHint(MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH)}
               </Text>
             )}
           </Card>
@@ -1122,7 +1121,7 @@ export function ProfileView({
             <Text style={type.muted}>{availability}</Text>
           ) : null}
           {profile?.invited !== undefined ? (
-            <Text style={type.muted}>{`Invited ${profile.invited}`}</Text>
+            <Text style={type.muted}>{t.invitedCount(profile.invited)}</Text>
           ) : null}
           {/*
             Who invited them, and only ever a name you already know: the server
@@ -1134,7 +1133,7 @@ export function ProfileView({
           */}
           {profile?.invitedBy ? (
             <Text style={type.muted} numberOfLines={1}>
-              {`Invited by ${profile.invitedBy.displayName}`}
+              {t.invitedBy(profile.invitedBy.displayName)}
             </Text>
           ) : null}
         </View>
@@ -1169,7 +1168,7 @@ export function ProfileView({
             */}
             {mic.muted ? null : (
               <Button
-                label="Mute them"
+                label={t.muteThem()}
                 // The reducer refuses it anyway; disabling is what stops the
                 // button and the refusal disagreeing on screen, which is the
                 // rule the footer's own mute follows.
@@ -1179,16 +1178,16 @@ export function ProfileView({
             )}
             <Text style={type.muted}>
               {mic.muted
-                ? 'Muted. Opening it again is theirs to do, from their own footer — nobody else can.'
+                ? t.theyAreMuted()
                 : muteWait !== null
                   ? // Said as a length, and said before they press rather than
                     // after — the same treatment the ping window gets, and for
                     // the same reason: a control that refuses without saying
                     // when teaches nothing.
-                    `They have just unmuted themselves. You can mute them again in ${duration(muteWait)}.`
+                    t.justUnmuted(duration(muteWait))
                   : !mic.mayMute
-                    ? 'They have the floor, so their microphone stays open until they release it.'
-                    : 'Closing it does not tell them why — say so out loud as well. They can open it again whenever they like.'}
+                    ? t.theyHaveTheFloor()
+                    : t.mutingIsSilent()}
             </Text>
           </Card>
         </>
@@ -1228,7 +1227,7 @@ export function ProfileView({
           See `RevealContext`.
         */
         <Reveal when={!pingSent && pingWait === null}>
-          <SectionLabel>Ping</SectionLabel>
+          <SectionLabel>{t.ping()}</SectionLabel>
           <Card style={styles.stack}>
             {pingSent || pingWait !== null ? (
               // Two facts, either of which replaces the composer: they have
@@ -1241,10 +1240,10 @@ export function ProfileView({
               // this said before the countdown existed is still true.
               <>
                 <Text style={type.muted}>
-                  {pingSent ? 'Sent.' : 'Pinged.'}
+                  {pingSent ? t.sent() : t.pinged()}
                   {pingWait !== null
-                    ? ` You can ping them again in ${duration(pingWait)}.`
-                    : ' They will not be pinged again for a few minutes.'}
+                    ? t.pingAgainIn(duration(pingWait))
+                    : t.notPingedAgain()}
                 </Text>
                 {/*
                   What was actually said, when anything was. Body weight rather
@@ -1260,7 +1259,7 @@ export function ProfileView({
                 {said ? (
                   <View>
                     {said.by !== null ? (
-                      <Text style={type.muted}>{`${said.by} said:`}</Text>
+                      <Text style={type.muted}>{t.said(said.by)}</Text>
                     ) : null}
                     <Text style={type.body}>{said.text}</Text>
                   </View>
@@ -1278,17 +1277,17 @@ export function ProfileView({
                 setPingSent(false);
                 setSentText(null);
               }}
-              placeholder="Anything you want to say (optional)"
+              placeholder={t.pingPlaceholder()}
               autoCapitalize="sentences"
             />
             <View style={styles.pingFoot}>
               <Text style={type.muted}>
                 {pingText.length > 0
-                  ? `${MAX_PING_TEXT_LENGTH - pingText.length} left`
-                  : 'They will get a notification.'}
+                  ? t.charactersLeft(MAX_PING_TEXT_LENGTH - pingText.length)
+                  : t.theyWillGetANotification()}
               </Text>
               <Button
-                label={pinging ? 'Sending…' : 'Send ping'}
+                label={pinging ? t.sending() : t.sendPing()}
                 variant="primary"
                 disabled={pinging}
                 onPress={() => void sendPing()}
@@ -1326,13 +1325,16 @@ export function ProfileView({
       */}
       {isSelf || shared.length === 0 ? null : (
         <>
-          <SectionLabel>Channels with them</SectionLabel>
+          <SectionLabel>{t.channelsWithThem()}</SectionLabel>
           <View style={styles.stack}>
             {orderedShared.map((channel) => {
               const isHere = channel.channelId === liveId;
               const title =
                 channel.name ??
-                describeChannel(channel.others.map((o) => o.displayName));
+                describeChannel(
+                  channel.others.map((o) => o.displayName),
+                  namingWords
+                );
               const where = presence.get(channel.channelId);
               /*
                 Where they have been, and — when it is a different fact — how
@@ -1354,13 +1356,13 @@ export function ProfileView({
                 ? [
                     describePresence(where, app.serverNow(), availabilityWords),
                     channel.presentCount > 0
-                      ? `${channel.presentCount} present`
+                      ? t.present(channel.presentCount)
                       : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')
                 : channel.presentCount > 0
-                  ? `${channel.presentCount} present`
+                  ? t.present(channel.presentCount)
                   : sentence(
                       describeQuiet(
                         {
@@ -1424,10 +1426,8 @@ export function ProfileView({
                   accessibilityRole="button"
                   accessibilityLabel={
                     isHere
-                      ? `${title}. ${line}. You are here${
-                          liveMuted ? ', your microphone is muted' : ''
-                        }. Tap to go back.`
-                      : `${title}. ${line}. Step in.`
+                      ? t.hereLabel(title, line, liveMuted)
+                      : t.stepInLabel(title, line)
                   }
                   onPress={() => {
                     // The same tap Home's rows take: it opens the channel
@@ -1497,7 +1497,7 @@ export function ProfileView({
       */}
       {isSelf ? (
         <>
-          <SectionLabel>Email</SectionLabel>
+          <SectionLabel>{t.email()}</SectionLabel>
           <Card style={styles.stack}>
             {/* One row, the same shape a handle and its Open take: the button
                 acts on the text beside it, and stacked they read as two
@@ -1520,10 +1520,10 @@ export function ProfileView({
                 <Button
                   label={
                     copied === 'done'
-                      ? '✓ copied'
+                      ? t.copied()
                       : copied === 'failed'
-                        ? '✗ copy failed'
-                        : 'Copy'
+                        ? t.copyFailed()
+                        : t.copy()
                   }
                   style={styles.reachAction}
                   onPress={() => {
@@ -1538,10 +1538,7 @@ export function ProfileView({
             </View>
             {/* Where the other half of this card went, said once rather than
                 drawn as a control that would have nobody to aim at. */}
-            <Text style={type.muted}>
-              How you sign in. Nobody else sees it unless you show it to them,
-              which is done one contact at a time, from their profile.
-            </Text>
+            <Text style={type.muted}>{t.howYouSignIn()}</Text>
 
             {/*
               Changing it, which is a sign-in rather than a save.
@@ -1576,7 +1573,7 @@ export function ProfileView({
                     setEmailCode('');
                     setEmailError(null);
                   }}
-                  placeholder="A different address"
+                  placeholder={t.differentAddress()}
                   keyboardType="email-address"
                   onSubmit={() => void sendEmailCode()}
                   submitLabel="send"
@@ -1584,7 +1581,7 @@ export function ProfileView({
                 {emailSent ? (
                   <>
                     <Text style={type.muted}>
-                      {`A code is on its way to ${draftEmail.trim()}. It signs you in there, which is what makes it yours.`}
+                      {t.codeOnItsWay(draftEmail.trim())}
                     </Text>
                     {/* No `onSubmit`: a number pad has no return key, which
                         `Field` knows and ignores it for — the button below is
@@ -1593,18 +1590,18 @@ export function ProfileView({
                     <Field
                       value={emailCode}
                       onChangeText={setEmailCode}
-                      placeholder="Six digits"
+                      placeholder={t.sixDigits()}
                       keyboardType="number-pad"
                     />
                     <Button
-                      label={changingEmail ? 'Changing…' : 'Change my address'}
+                      label={changingEmail ? t.changing() : t.changeMyAddress()}
                       disabled={changingEmail || emailCode.trim() === ''}
                       onPress={() => void confirmEmail()}
                     />
                   </>
                 ) : (
                   <Button
-                    label={changingEmail ? 'Sending…' : 'Send a code'}
+                    label={changingEmail ? t.sending() : t.sendACode()}
                     disabled={changingEmail || draftEmail.trim() === ''}
                     onPress={() => void sendEmailCode()}
                   />
@@ -1618,7 +1615,7 @@ export function ProfileView({
         </>
       ) : contact?.status !== 'accepted' ? null : (
         <>
-          <SectionLabel>Email</SectionLabel>
+          <SectionLabel>{t.email()}</SectionLabel>
           <Card style={styles.stack}>
             {profile?.email ? (
               <View style={styles.reachRow}>
@@ -1635,10 +1632,10 @@ export function ProfileView({
                 <Button
                   label={
                     copied === 'done'
-                      ? '✓ copied'
+                      ? t.copied()
                       : copied === 'failed'
-                        ? '✗ copy failed'
-                        : 'Copy'
+                        ? t.copyFailed()
+                        : t.copy()
                   }
                   style={styles.reachAction}
                   onPress={() => {
@@ -1655,18 +1652,16 @@ export function ProfileView({
               // an answer instead of a gap somebody reads as a bug. It is also
               // what makes the two halves legible as independent: yours is
               // below and may well be shown.
-              <Text style={type.muted}>
-                They are not showing you their email.
-              </Text>
+              <Text style={type.muted}>{t.notShowingTheirEmail()}</Text>
             )}
 
             <View style={styles.rule} />
 
             {profile?.myEmailShown ? (
               <>
-                <Text style={type.muted}>They can see your email.</Text>
+                <Text style={type.muted}>{t.theyCanSeeYourEmail()}</Text>
                 <Button
-                  label={showingEmail ? 'Hiding…' : 'Stop showing my email'}
+                  label={showingEmail ? t.hiding() : t.stopShowingMyEmail()}
                   disabled={showingEmail}
                   onPress={() => void setEmailShown(false)}
                 />
@@ -1674,21 +1669,16 @@ export function ProfileView({
                     to be pressed. Stopping ends the standing ability to come
                     back for the address; it does not reach into anywhere they
                     have already written it down. */}
-                <Text style={type.muted}>
-                  They will not be able to see it again — though they may
-                  already have it written down somewhere.
-                </Text>
+                <Text style={type.muted}>{t.stoppingIsNotRecall()}</Text>
               </>
             ) : (
               <>
                 <Button
-                  label={showingEmail ? 'Showing…' : 'Show my email'}
+                  label={showingEmail ? t.showing() : t.showMyEmail()}
                   disabled={showingEmail}
                   onPress={() => void setEmailShown(true)}
                 />
-                <Text style={type.muted}>
-                  Show my email to this contact.
-                </Text>
+                <Text style={type.muted}>{t.showMyEmailNote()}</Text>
               </>
             )}
             {emailError ? (
@@ -1715,7 +1705,7 @@ export function ProfileView({
       */}
       {editing || !profile?.im ? null : (
         <>
-          <SectionLabel>Messaging</SectionLabel>
+          <SectionLabel>{t.messaging()}</SectionLabel>
           <Card style={styles.stack}>
             {IM_SERVICES.filter((service) => profile.im?.[service]).map(
               (service) => {
@@ -1745,7 +1735,7 @@ export function ProfileView({
                         one somebody reaches for — the button is the shortcut,
                         so it should not be the loudest thing in the card. */}
                     <Button
-                      label="Open"
+                      label={t.open()}
                       style={styles.reachAction}
                       onPress={() => void openIm(service, handle)}
                     />
@@ -1757,9 +1747,7 @@ export function ProfileView({
               // Your own handles are not a way to reach yourself, so the card
               // says what it is doing on your screen: this is what a contact
               // sees, which is the one thing worth knowing about it.
-              <Text style={type.muted}>
-                Your contacts see these on your profile.
-              </Text>
+              <Text style={type.muted}>{t.contactsSeeThese()}</Text>
             ) : null}
           </Card>
         </>
@@ -1784,9 +1772,7 @@ export function ProfileView({
           {state === 'loading' ? (
             <ActivityIndicator color={colors.textMuted} />
           ) : (
-            <Text style={type.muted}>
-              There is no profile here to show you.
-            </Text>
+            <Text style={type.muted}>{t.noProfileHere()}</Text>
           )}
         </Card>
       ) : null}
@@ -1807,10 +1793,10 @@ export function ProfileView({
       */}
       {editing ? (
         <>
-          <SectionLabel>Messaging</SectionLabel>
+          <SectionLabel>{t.messaging()}</SectionLabel>
           <Card style={styles.stack}>
             {IM_SERVICES.map((service) => {
-              const problem = imProblem(service, draftIm[service]);
+              const problem = imProblem(service, draftIm[service], t);
               return (
                 <View key={service} style={styles.imField}>
                   <Text style={type.label}>{IM_SERVICE_NAMES[service]}</Text>
@@ -1831,10 +1817,7 @@ export function ProfileView({
                 </View>
               );
             })}
-            <Text style={type.muted}>
-              Shown to your contacts, who can tap one to open the conversation
-              there. Leave a field empty to take it off your profile.
-            </Text>
+            <Text style={type.muted}>{t.messagingFieldsNote()}</Text>
           </Card>
         </>
       ) : null}
@@ -1864,11 +1847,11 @@ export function ProfileView({
       */}
       {isSelf ? null : (
         <>
-          <SectionLabel>Contact</SectionLabel>
+          <SectionLabel>{t.contact()}</SectionLabel>
           <Card style={styles.stack}>
             {contact?.status === 'accepted' ? (
               <>
-                <Text style={type.muted}>Already one of your contacts.</Text>
+                <Text style={type.muted}>{t.alreadyAContact()}</Text>
                 {/*
                   Plain, the way "Leave channel" is in ChannelSettingsView, and
                   on the same reasoning: the confirmation carries the weight,
@@ -1878,35 +1861,31 @@ export function ProfileView({
                   recording — and forgetting somebody is not one of them.
                 */}
                 <Button
-                  label={removing ? 'Removing…' : 'Remove contact'}
+                  label={removing ? t.removing() : t.removeContact()}
                   disabled={removing}
                   onPress={removeContact}
                 />
               </>
             ) : contact?.status === 'outgoing' ? (
-              <Text style={type.muted}>
-                Request sent — waiting for them to accept.
-              </Text>
+              <Text style={type.muted}>{t.requestSent()}</Text>
             ) : contact?.status === 'incoming' ? (
               <>
                 <Button
-                  label={asking ? 'Accepting…' : 'Accept their request'}
+                  label={asking ? t.accepting() : t.acceptTheirRequest()}
                   variant="primary"
                   disabled={asking}
                   onPress={() => void ask()}
                 />
-                <Text style={type.muted}>They asked you first.</Text>
+                <Text style={type.muted}>{t.theyAskedYouFirst()}</Text>
               </>
             ) : (
               <>
                 <Button
-                  label={asking ? 'Asking…' : 'Add contact'}
+                  label={asking ? t.asking() : t.addContact()}
                   disabled={asking || state === 'refused'}
                   onPress={() => void ask()}
                 />
-                <Text style={type.muted}>
-                  They will see a request on their home screen and decide.
-                </Text>
+                <Text style={type.muted}>{t.theyWillDecide()}</Text>
               </>
             )}
             {askError ? <Text style={styles.error}>{askError}</Text> : null}

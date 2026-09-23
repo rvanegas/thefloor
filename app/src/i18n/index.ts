@@ -1,4 +1,9 @@
 import React, { createContext, useContext } from 'react';
+import {
+  MAX_USERNAME_LENGTH,
+  MIN_USERNAME_LENGTH,
+  type UsernameFault,
+} from '../../../core/username';
 import { en } from './en';
 import { es } from './es';
 
@@ -50,6 +55,23 @@ export function TextProvider({
   children: React.ReactNode;
 }) {
   return React.createElement(TextContext.Provider, { value: strings }, children);
+}
+
+/**
+ * The sentence for a username fault, which `core/username.ts` decides and
+ * does not word.
+ *
+ * Here rather than in the view because two screens ask the same question and
+ * a `switch` copied into both is how the two come to disagree about which
+ * rule was broken.
+ */
+export function sayUsernameFault(
+  fault: UsernameFault,
+  words: Strings['usernameFault']
+): string {
+  if (fault === 'too-long') return words.tooLong(MAX_USERNAME_LENGTH);
+  if (fault === 'too-short') return words.tooShort(MIN_USERNAME_LENGTH);
+  return words.charset();
 }
 
 /**

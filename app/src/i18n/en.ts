@@ -910,4 +910,102 @@ export const en = {
       'Step in to revoke a link. Shutting a door onto a conversation is for whoever is in it.',
     countOf: (n: number) => (n === 1 ? 'its one recording' : `its ${n} recordings`),
   },
+  profile: {
+    telegramProblem: () =>
+      'A Telegram username, five characters or more — letters, digits and underscores.',
+    phoneProblem: () =>
+      'A phone number with its country code, like +1 555 123 4567.',
+    you: () => 'You',
+    contact: () => 'Contact',
+    contactRequested: () => 'Contact requested',
+    channelMember: () => 'Channel member',
+    removeAsk: (name: string) => `Remove ${name}?`,
+    removeBody: () =>
+      "You will each stop being the other's contact, and you will leave the channels that hold only the two of you. Channels with other people in them are not affected.",
+    cancel: () => 'Cancel',
+    remove: () => 'Remove',
+    /** `service` is a brand name — see `IM_SERVICE_NAMES`, which is not translated. */
+    couldNotOpen: (service: string) => `Could not open ${service}`,
+    saving: () => 'Saving\u2026',
+    done: () => 'Done',
+    edit: () => 'Edit',
+    name: () => 'Name',
+    namePlaceholder: () => 'What people should call you',
+    nameCannotBeEmpty: () =>
+      'A name cannot be empty — it is how everyone else finds you, so this one is kept until you type another.',
+    username: () => 'Username',
+    usernameOptional: () => 'optional',
+    usernameHint: (min: number, max: number) =>
+      `Yours alone, and shown on your profile — ${min} to ${max} characters. It does nothing else yet; leave it empty to have none.`,
+    /** How many people are here because of them, all the way down. */
+    invitedCount: (count: number) => `Invited ${count}`,
+    invitedBy: (name: string) => `Invited by ${name}`,
+    muteThem: () => 'Mute them',
+    theyAreMuted: () =>
+      'Muted. Opening it again is theirs to do, from their own footer — nobody else can.',
+    /** `wait` is already a phrase — see `relativeTime.duration`. */
+    justUnmuted: (wait: string) =>
+      `They have just unmuted themselves. You can mute them again in ${wait}.`,
+    theyHaveTheFloor: () =>
+      'They have the floor, so their microphone stays open until they release it.',
+    mutingIsSilent: () =>
+      'Closing it does not tell them why — say so out loud as well. They can open it again whenever they like.',
+    ping: () => 'Ping',
+    sent: () => 'Sent.',
+    pinged: () => 'Pinged.',
+    pingAgainIn: (wait: string) => ` You can ping them again in ${wait}.`,
+    notPingedAgain: () => ' They will not be pinged again for a few minutes.',
+    said: (who: string) => `${who} said:`,
+    pingPlaceholder: () => 'Anything you want to say (optional)',
+    charactersLeft: (left: number) => `${left} left`,
+    theyWillGetANotification: () => 'They will get a notification.',
+    sending: () => 'Sending\u2026',
+    sendPing: () => 'Send ping',
+    channelsWithThem: () => 'Channels with them',
+    present: (count: number) => `${count} present`,
+    hereLabel: (title: string, line: string, muted: boolean) =>
+      `${title}. ${line}. You are here${
+        muted ? ', your microphone is muted' : ''
+      }. Tap to go back.`,
+    stepInLabel: (title: string, line: string) => `${title}. ${line}. Step in.`,
+    email: () => 'Email',
+    copied: () => '\u2713 copied',
+    copyFailed: () => '\u2717 copy failed',
+    copy: () => 'Copy',
+    howYouSignIn: () =>
+      'How you sign in. Nobody else sees it unless you show it to them, which is done one contact at a time, from their profile.',
+    differentAddress: () => 'A different address',
+    codeOnItsWay: (address: string) =>
+      `A code is on its way to ${address}. It signs you in there, which is what makes it yours.`,
+    sixDigits: () => 'Six digits',
+    changing: () => 'Changing\u2026',
+    changeMyAddress: () => 'Change my address',
+    sendACode: () => 'Send a code',
+    notShowingTheirEmail: () => 'They are not showing you their email.',
+    theyCanSeeYourEmail: () => 'They can see your email.',
+    hiding: () => 'Hiding\u2026',
+    stopShowingMyEmail: () => 'Stop showing my email',
+    stoppingIsNotRecall: () =>
+      'They will not be able to see it again — though they may already have it written down somewhere.',
+    showing: () => 'Showing\u2026',
+    showMyEmail: () => 'Show my email',
+    showMyEmailNote: () => 'Show my email to this contact.',
+    messaging: () => 'Messaging',
+    open: () => 'Open',
+    contactsSeeThese: () => 'Your contacts see these on your profile.',
+    noProfileHere: () => 'There is no profile here to show you.',
+    messagingFieldsNote: () =>
+      'Shown to your contacts, who can tap one to open the conversation there. Leave a field empty to take it off your profile.',
+    alreadyAContact: () => 'Already one of your contacts.',
+    removing: () => 'Removing\u2026',
+    removeContact: () => 'Remove contact',
+    requestSent: () => 'Request sent — waiting for them to accept.',
+    accepting: () => 'Accepting\u2026',
+    acceptTheirRequest: () => 'Accept their request',
+    theyAskedYouFirst: () => 'They asked you first.',
+    asking: () => 'Asking\u2026',
+    addContact: () => 'Add contact',
+    theyWillDecide: () =>
+      'They will see a request on their home screen and decide.',
+  },
 };

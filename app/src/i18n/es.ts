@@ -759,4 +759,99 @@ export const es: Strings = {
     countOf: (n: number) =>
       n === 1 ? 'su grabaci\u00f3n' : `sus ${n} grabaciones`,
   },
+  profile: {
+    telegramProblem: () =>
+      'Un nombre de usuario de Telegram, de cinco caracteres o m\u00e1s: letras, d\u00edgitos y guiones bajos.',
+    phoneProblem: () =>
+      'Un n\u00famero de tel\u00e9fono con su prefijo de pa\u00eds, como +1 555 123 4567.',
+    you: () => 'T\u00fa',
+    contact: () => 'Contacto',
+    contactRequested: () => 'Contacto solicitado',
+    channelMember: () => 'Miembro del canal',
+    removeAsk: (name: string) => `\u00bfQuitar a ${name}?`,
+    removeBody: () =>
+      'Dejar\u00e9is de ser contactos el uno del otro, y saldr\u00e1s de los canales en los que solo est\u00e9is los dos. Los canales con m\u00e1s gente dentro no se ven afectados.',
+    cancel: () => 'Cancelar',
+    remove: () => 'Quitar',
+    couldNotOpen: (service: string) => `No se ha podido abrir ${service}`,
+    saving: () => 'Guardando\u2026',
+    done: () => 'Listo',
+    edit: () => 'Editar',
+    name: () => 'Nombre',
+    namePlaceholder: () => 'C\u00f3mo quieres que te llamen',
+    nameCannotBeEmpty: () =>
+      'El nombre no puede estar vac\u00edo: es c\u00f3mo te encuentran los dem\u00e1s, as\u00ed que se conserva este hasta que escribas otro.',
+    username: () => 'Nombre de usuario',
+    usernameOptional: () => 'opcional',
+    usernameHint: (min: number, max: number) =>
+      `Solo tuyo, y visible en tu perfil: de ${min} a ${max} caracteres. Todav\u00eda no sirve para nada m\u00e1s; d\u00e9jalo vac\u00edo para no tener ninguno.`,
+    invitedCount: (count: number) => `Ha tra\u00eddo a ${count}`,
+    invitedBy: (name: string) => `Invitado por ${name}`,
+    muteThem: () => 'Silenciarle',
+    theyAreMuted: () =>
+      'Silenciado. Volver a abrirlo es cosa suya, desde su propia barra: nadie m\u00e1s puede.',
+    justUnmuted: (wait: string) =>
+      `Acaba de quitarse el silencio. Puedes volver a silenciarle dentro de ${wait}.`,
+    theyHaveTheFloor: () =>
+      'Tiene la palabra, as\u00ed que su micr\u00f3fono sigue abierto hasta que la suelte.',
+    mutingIsSilent: () =>
+      'Cerrarlo no le dice por qu\u00e9: d\u00edselo tambi\u00e9n en voz alta. Puede volver a abrirlo cuando quiera.',
+    ping: () => 'Aviso',
+    sent: () => 'Enviado.',
+    pinged: () => 'Avisado.',
+    pingAgainIn: (wait: string) => ` Puedes volver a avisarle dentro de ${wait}.`,
+    notPingedAgain: () => ' No se le volver\u00e1 a avisar durante unos minutos.',
+    said: (who: string) => `${who} dijo:`,
+    pingPlaceholder: () => 'Lo que quieras decir (opcional)',
+    charactersLeft: (left: number) => `quedan ${left}`,
+    theyWillGetANotification: () => 'Le llegar\u00e1 una notificaci\u00f3n.',
+    sending: () => 'Enviando\u2026',
+    sendPing: () => 'Enviar aviso',
+    channelsWithThem: () => 'Canales con esta persona',
+    present: (count: number) => `${count} ${count === 1 ? 'presente' : 'presentes'}`,
+    hereLabel: (title: string, line: string, muted: boolean) =>
+      `${title}. ${line}. Est\u00e1s aqu\u00ed${
+        muted ? ', con el micr\u00f3fono silenciado' : ''
+      }. Toca para volver.`,
+    stepInLabel: (title: string, line: string) => `${title}. ${line}. Entrar.`,
+    email: () => 'Correo',
+    copied: () => '\u2713 copiado',
+    copyFailed: () => '\u2717 no se ha podido copiar',
+    copy: () => 'Copiar',
+    howYouSignIn: () =>
+      'C\u00f3mo entras. Nadie m\u00e1s lo ve salvo que se lo muestres, y eso se hace de contacto en contacto, desde su perfil.',
+    differentAddress: () => 'Otra direcci\u00f3n',
+    codeOnItsWay: (address: string) =>
+      `Va un c\u00f3digo de camino a ${address}. Te hace entrar ah\u00ed, que es lo que la hace tuya.`,
+    sixDigits: () => 'Seis d\u00edgitos',
+    changing: () => 'Cambiando\u2026',
+    changeMyAddress: () => 'Cambiar mi direcci\u00f3n',
+    sendACode: () => 'Enviar un c\u00f3digo',
+    notShowingTheirEmail: () => 'No te est\u00e1 mostrando su correo.',
+    theyCanSeeYourEmail: () => 'Puede ver tu correo.',
+    hiding: () => 'Ocultando\u2026',
+    stopShowingMyEmail: () => 'Dejar de mostrar mi correo',
+    stoppingIsNotRecall: () =>
+      'No podr\u00e1 volver a verlo, aunque puede que ya lo tenga apuntado en alg\u00fan sitio.',
+    showing: () => 'Mostrando\u2026',
+    showMyEmail: () => 'Mostrar mi correo',
+    showMyEmailNote: () => 'Mostrar mi correo a este contacto.',
+    messaging: () => 'Mensajer\u00eda',
+    open: () => 'Abrir',
+    contactsSeeThese: () => 'Tus contactos ven esto en tu perfil.',
+    noProfileHere: () => 'Aqu\u00ed no hay ning\u00fan perfil que mostrarte.',
+    messagingFieldsNote: () =>
+      'Visible para tus contactos, que pueden tocar uno para abrir la conversaci\u00f3n ah\u00ed. Deja un campo vac\u00edo para quitarlo de tu perfil.',
+    alreadyAContact: () => 'Ya es uno de tus contactos.',
+    removing: () => 'Quitando\u2026',
+    removeContact: () => 'Quitar de contactos',
+    requestSent: () => 'Solicitud enviada; falta que la acepte.',
+    accepting: () => 'Aceptando\u2026',
+    acceptTheirRequest: () => 'Aceptar su solicitud',
+    theyAskedYouFirst: () => 'Te lo ha pedido antes.',
+    asking: () => 'Pidiendo\u2026',
+    addContact: () => 'A\u00f1adir a contactos',
+    theyWillDecide: () =>
+      'Ver\u00e1 una solicitud en su pantalla de inicio y decidir\u00e1.',
+  },
 };
