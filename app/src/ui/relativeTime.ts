@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
 /**
@@ -22,6 +23,30 @@ import relativeTime from 'dayjs/plugin/relativeTime';
  * moves one.
  */
 dayjs.extend(relativeTime);
+
+/**
+ * Which language these intervals are in.
+ *
+ * **Global, like `extend` above, and set once at launch for the same
+ * reason.** dayjs holds one active locale per module instance; there is no
+ * per-call form that does not mean threading a tag through every caller of
+ * `ago`, and these are called from inside pure helpers that have no hook.
+ * `App.tsx` calls this beside `stringsFor`, off the same reading of the
+ * device — so the ladder of thresholds is dayjs's in whichever language the
+ * catalogue is in, rather than English boundaries with Spanish words or the
+ * reverse.
+ *
+ * Anything it does not know stays English, which is dayjs's own default and
+ * is also what `stringsFor` does with the same tag.
+ *
+ * **The tests do not call it**, deliberately: they pin the English wording,
+ * which is what the thresholds were chosen against, and a suite that set a
+ * global locale in one file would change what another file measured.
+ */
+export function setRelativeTimeLocale(locale: string | undefined): void {
+  const language = (locale ?? '').replace(/_/g, '-').split('-')[0].toLowerCase();
+  if (language === 'es') dayjs.locale('es');
+}
 
 /**
  * Below this, "a few seconds ago" is technically right and unhelpful — the

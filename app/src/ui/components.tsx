@@ -1256,6 +1256,7 @@ export function RecordingRow({
    */
   onOpenTranscript?: () => void;
 }) {
+  const t = useText().recordings;
   /**
    * Closed until asked. A recording is a thing you mostly scan past — the list
    * is the point, and three buttons per row turned a list of what was said
@@ -1299,9 +1300,11 @@ export function RecordingRow({
     <Card style={recordingStyles.row}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${recording.name}, ${formatDuration(
-          recording.durationMs
-        )}. ${open ? 'Hide actions' : 'Show actions'}.`}
+        accessibilityLabel={t.rowLabel(
+          recording.name,
+          formatDuration(recording.durationMs),
+          open
+        )}
         onPress={() => {
           // Collapsing abandons a rename in progress, so reopening the row
           // offers the actions again rather than the half-typed name of
@@ -1346,7 +1349,7 @@ export function RecordingRow({
           ) : null}
           <ShareButton recording={recording} disabled={!!recording.mixing} />
           <Button
-            label="Rename"
+            label={t.rename()}
             disabled={!manageable}
             onPress={() => {
               // The field is taller than the actions it replaces, and the
@@ -1378,10 +1381,7 @@ export function RecordingRow({
             can do nothing with.
           */}
           {recording.mixing ? (
-            <Text style={type.muted}>
-              Still being prepared — playing and sharing will be available in
-              a moment.
-            </Text>
+            <Text style={type.muted}>{t.stillBeingPrepared()}</Text>
           ) : null}
           {/*
             Beside the disabled button rather than up in the summary line,
@@ -1389,17 +1389,14 @@ export function RecordingRow({
             somebody asks for it.
           */}
           {playable && playDisabled && playDisabledReason ? (
-            <Text style={type.muted}>Play is unavailable — {playDisabledReason}.</Text>
+            <Text style={type.muted}>{t.playUnavailable(playDisabledReason)}</Text>
           ) : null}
           {/*
             Share is missing from this sentence on purpose, and it is the one
             button on the row still working — see `manageable`.
           */}
           {manageable ? null : (
-            <Text style={type.muted}>
-              Step in to rename or delete. The name is everybody's, and
-              deleting takes it out of their lists too.
-            </Text>
+            <Text style={type.muted}>{t.stepInToRenameOrDelete()}</Text>
           )}
         </View>
       ) : null}
@@ -1430,6 +1427,7 @@ function RenameEditor({
   recording: RecordingView;
   onDone: () => void;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [name, setName] = React.useState(recording.name);
   const [busy, setBusy] = React.useState(false);
@@ -1442,7 +1440,7 @@ function RenameEditor({
       onDone();
     } catch (e) {
       Alert.alert(
-        'Could not rename',
+        t.couldNotRename(),
         e instanceof Error ? e.message : String(e)
       );
       // Left open on failure, with what was typed still in it, so a name that
@@ -1457,7 +1455,7 @@ function RenameEditor({
       <Field
         value={name}
         onChangeText={(v) => setName(v.slice(0, MAX_RECORDING_NAME_LENGTH))}
-        placeholder="What was this conversation?"
+        placeholder={t.namePlaceholder()}
         autoCapitalize="sentences"
         autoFocus
         onSubmit={() => void save()}
@@ -1467,14 +1465,14 @@ function RenameEditor({
         reads this name, and the person retitling their own recording has no
         other reason to expect that.
       */}
-      <Text style={type.muted}>Everyone in this channel sees the new name.</Text>
+      <Text style={type.muted}>{t.everyoneSeesTheName()}</Text>
       <Button
-        label={busy ? 'Renaming…' : 'Save'}
+        label={busy ? t.renaming() : t.save()}
         variant="primary"
         disabled={busy || name.trim() === ''}
         onPress={() => void save()}
       />
-      <Button label="Cancel" disabled={busy} onPress={onDone} />
+      <Button label={t.cancel()} disabled={busy} onPress={onDone} />
     </View>
   );
 }
@@ -1495,6 +1493,7 @@ function DeleteButton({
   recording: RecordingView;
   disabled?: boolean;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
 
@@ -1507,7 +1506,7 @@ function DeleteButton({
       // this recording in it, and the row goes with it.
     } catch (e) {
       Alert.alert(
-        'Could not delete',
+        t.couldNotDelete(),
         e instanceof Error ? e.message : String(e)
       );
     } finally {
@@ -1517,16 +1516,20 @@ function DeleteButton({
 
   return (
     <Button
-      label={busy ? 'Deleting…' : 'Delete'}
+      label={busy ? t.deleting() : t.delete()}
       variant="danger"
       disabled={busy || disabled}
       onPress={() =>
         Alert.alert(
-          `Delete ${recording.name}?`,
-          'Everyone in this channel loses it. The audio is removed a week from now, and nothing in the app can bring it back.',
+          t.deleteAsk(recording.name),
+          t.deleteBody(),
           [
-            { text: 'Keep', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => void remove() },
+            { text: t.keep(), style: 'cancel' },
+            {
+              text: t.delete(),
+              style: 'destructive',
+              onPress: () => void remove(),
+            },
           ]
         )
       }
@@ -1559,6 +1562,7 @@ function DeleteButton({
  * nothing counts. See `asked` below.
  */
 function PublishControl({ recording }: { recording: RecordingView }) {
+  const t = useText().recordings;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const publication = recording.publication;
@@ -1600,20 +1604,17 @@ function PublishControl({ recording }: { recording: RecordingView }) {
 
   const status = publication.publishedAt
     ? publication.preparing
-      ? 'Published — the audio is still being prepared.'
-      : 'Published. Anybody with the address can listen.'
+      ? t.publishedPreparing()
+      : t.published()
     : outstanding.length === 0
-      ? 'Everybody has agreed — this is going up now.'
-      : `Waiting on ${outstanding
-          .map((person) => person.displayName)
-          .join(', ')}. It goes up when everybody has agreed.`;
+      ? t.everybodyAgreed()
+      : t.waitingOn(
+          outstanding.map((person) => person.displayName).join(', ')
+        );
 
   if (!asked) {
     return (
-      <Text style={type.muted}>
-        None of your voice is in this one, so it does not need your agreement.{' '}
-        {status}
-      </Text>
+      <Text style={type.muted}>{t.notYourVoice(status)}</Text>
     );
   }
 
@@ -1625,7 +1626,7 @@ function PublishControl({ recording }: { recording: RecordingView }) {
       // every member's card moves together rather than only this one.
     } catch (e) {
       Alert.alert(
-        'Could not change that',
+        t.couldNotChangeThat(),
         e instanceof Error ? e.message : String(e)
       );
     } finally {
@@ -1636,22 +1637,17 @@ function PublishControl({ recording }: { recording: RecordingView }) {
   return (
     <>
       <Checkbox
-        label={busy ? 'Saving…' : 'I agree this can be published'}
+        label={busy ? t.saving() : t.iAgreeThisCanBePublished()}
         checked={publication.mine}
         onChange={(next) => {
           if (busy) return;
           if (!next) return void set(false);
           Alert.alert(
-            'Publish this conversation?',
-            'It goes on this channel’s public page, where anyone with the ' +
-              'address can listen — and into its feed, where podcast apps can ' +
-              'subscribe. It goes up once everybody in it has agreed.\n\n' +
-              'You can take your agreement back at any time, and that removes ' +
-              'it from the page and the feed. It cannot reach a copy somebody ' +
-              'has already downloaded.',
+            t.publishAsk(),
+            t.publishBody(),
             [
-              { text: 'Not now', style: 'cancel' },
-              { text: 'I agree', onPress: () => void set(true) },
+              { text: t.notNow(), style: 'cancel' },
+              { text: t.iAgree(), onPress: () => void set(true) },
             ]
           );
         }}
@@ -1677,12 +1673,13 @@ function PlayButton({
   recording: RecordingView;
   disabled: boolean;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
 
   return (
     <Button
-      label={busy ? 'Loading…' : 'Play'}
+      label={busy ? t.loading() : t.play()}
       disabled={busy || disabled}
       onPress={async () => {
         if (!app.token) return;
@@ -1691,7 +1688,7 @@ function PlayButton({
           await api.playRecording(app.token, recording.id);
         } catch (e) {
           Alert.alert(
-            'Could not play',
+            t.couldNotPlay(),
             e instanceof Error ? e.message : String(e)
           );
         } finally {
@@ -1731,6 +1728,7 @@ export function TranscriptSearch({
   /** Opens the recording a hit came from. */
   onOpen: (recordingId: string) => void;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [query, setQuery] = React.useState('');
   const [hits, setHits] = React.useState<Hit[] | null>(null);
@@ -1762,18 +1760,18 @@ export function TranscriptSearch({
       <Field
         value={query}
         onChangeText={setQuery}
-        placeholder="Search what was said"
+        placeholder={t.searchWhatWasSaid()}
         autoCapitalize="none"
       />
-      {searching ? <Text style={type.muted}>Searching…</Text> : null}
+      {searching ? <Text style={type.muted}>{t.searching()}</Text> : null}
       {hits !== null && hits.length === 0 && !searching ? (
-        <Text style={type.muted}>Nothing matches.</Text>
+        <Text style={type.muted}>{t.nothingMatches()}</Text>
       ) : null}
       {hits?.map((hit, n) => (
         <Pressable
           key={`${hit.recordingId}-${hit.startMs}-${n}`}
           accessibilityRole="button"
-          accessibilityLabel={`${hit.recordingName ?? 'A recording'}, ${
+          accessibilityLabel={`${hit.recordingName ?? t.aRecording()}, ${
             hit.displayName ?? 'someone'
           } at ${formatDuration(hit.startMs)}: ${hit.text}`}
           onPress={() => onOpen(hit.recordingId)}
@@ -1781,8 +1779,8 @@ export function TranscriptSearch({
         >
           <Card style={recordingStyles.hit}>
             <Text style={type.muted} numberOfLines={1}>
-              {hit.recordingName ?? 'A recording'} ·{' '}
-              {hit.displayName ?? 'Someone'} · {formatDuration(hit.startMs)}
+              {hit.recordingName ?? t.aRecording()} ·{' '}
+              {hit.displayName ?? t.someone()} · {formatDuration(hit.startMs)}
             </Text>
             <Text style={type.body}>{hit.text}</Text>
           </Card>
@@ -1821,6 +1819,7 @@ function TranscriptButton({
   manageable: boolean;
   onOpen?: () => void;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const transcript = recording.transcript;
@@ -1835,12 +1834,14 @@ function TranscriptButton({
   if (transcript.state === 'pending') {
     // Not disabled-with-a-reason: there is nothing to do and nothing to wait
     // for on this screen, and the snapshot will move it when it moves.
-    return <Button label="Transcribing…" disabled onPress={() => {}} />;
+    return <Button label={t.transcribingNow()} disabled onPress={() => {}} />;
   }
   if (transcript.state === 'ready' || transcript.state === 'failed') {
     return (
       <Button
-        label={transcript.state === 'failed' ? 'Transcript failed' : 'Transcript'}
+        label={
+          transcript.state === 'failed' ? t.transcriptFailed() : t.transcript()
+        }
         onPress={onOpen}
       />
     );
@@ -1855,7 +1856,7 @@ function TranscriptButton({
     if (!limit) return null;
     return (
       <>
-        <Button label="Transcribe" disabled onPress={() => {}} />
+        <Button label={t.transcribe()} disabled onPress={() => {}} />
         <Text style={type.muted}>{limit}</Text>
       </>
     );
@@ -1863,7 +1864,7 @@ function TranscriptButton({
 
   return (
     <Button
-      label={busy ? 'Starting…' : 'Transcribe'}
+      label={busy ? t.starting() : t.transcribe()}
       // The mix has nothing to do with it — a transcript is made from the
       // stems — but a recording still being prepared is one whose stems may
       // not all have landed, and waiting a moment beats a job that fails.
@@ -1876,19 +1877,12 @@ function TranscriptButton({
         // than about the recording, and Cancel is the way out of both.
         const spends = transcript.spendsFreeUse === true;
         Alert.alert(
-          spends ? 'Use your one free transcript?' : 'Transcribe this recording?',
-          `The audio is sent to ${transcript.provider} to be turned into text, ` +
-            'and everybody in the channel will see the result. It costs a little, ' +
-            'and it can only be done once per recording.' +
-            (spends
-              ? '\n\nThis is the one free transcript your account gets. Once ' +
-                'it is used no other recording can be transcribed, and ' +
-                'deleting this transcript does not give it back.'
-              : ''),
+          spends ? t.spendFreeAsk() : t.transcribeAsk(),
+          t.transcribeBody(transcript.provider, spends),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: t.cancel(), style: 'cancel' },
             {
-              text: spends ? 'Use it' : 'Transcribe',
+              text: spends ? t.useIt() : t.transcribe(),
               onPress: async () => {
                 if (!app.token) return;
                 setBusy(true);
@@ -1896,7 +1890,7 @@ function TranscriptButton({
                   await api.startTranscript(app.token, recording.id);
                 } catch (e) {
                   Alert.alert(
-                    'Could not transcribe',
+                    t.couldNotTranscribe(),
                     e instanceof Error ? e.message : String(e)
                   );
                 } finally {
@@ -1919,12 +1913,13 @@ export function ShareButton({
   /** The mix is not made yet, so there is nothing to encode from. */
   disabled?: boolean;
 }) {
+  const t = useText().recordings;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
 
   return (
     <Button
-      label={busy ? 'Preparing…' : 'Share'}
+      label={busy ? t.preparing() : t.share()}
       disabled={busy || disabled}
       onPress={async () => {
         if (!app.token) return;
@@ -1940,7 +1935,7 @@ export function ShareButton({
           );
         } catch (e) {
           Alert.alert(
-            'Could not share',
+            t.couldNotShare(),
             e instanceof Error ? e.message : String(e)
           );
         } finally {

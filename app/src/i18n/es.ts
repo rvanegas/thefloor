@@ -1057,4 +1057,73 @@ export const es: Strings = {
     stepInToMakeALink: () =>
       'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
   },
+  recordings: {
+    rowLabel: (name: string, length: string, open: boolean) =>
+      `${name}, ${length}. ${open ? 'Ocultar las acciones' : 'Mostrar las acciones'}.`,
+    rename: () => 'Cambiar el nombre',
+    stillBeingPrepared: () =>
+      'Todav\u00eda se est\u00e1 preparando: reproducir y compartir estar\u00e1n disponibles en un momento.',
+    playUnavailable: (reason: string) => `No se puede reproducir: ${reason}.`,
+    stepInToRenameOrDelete: () =>
+      'Entra para cambiar el nombre o borrar. El nombre es de todos, y borrar la quita tambi\u00e9n de sus listas.',
+    couldNotRename: () => 'No se ha podido cambiar el nombre',
+    namePlaceholder: () => '\u00bfDe qu\u00e9 fue esta conversaci\u00f3n?',
+    everyoneSeesTheName: () => 'Todos los de este canal ven el nombre nuevo.',
+    renaming: () => 'Cambiando el nombre\u2026',
+    save: () => 'Guardar',
+    cancel: () => 'Cancelar',
+    couldNotDelete: () => 'No se ha podido borrar',
+    deleting: () => 'Borrando\u2026',
+    delete: () => 'Borrar',
+    deleteAsk: (name: string) => `\u00bfBorrar ${name}?`,
+    deleteBody: () =>
+      'Todos los de este canal la pierden. El audio se elimina dentro de una semana, y nada en la app puede recuperarlo.',
+    keep: () => 'Conservar',
+    publishedPreparing: () => 'Publicada: el audio a\u00fan se est\u00e1 preparando.',
+    published: () => 'Publicada. Cualquiera con la direcci\u00f3n puede escucharla.',
+    everybodyAgreed: () => 'Todos han aceptado: se est\u00e1 publicando ahora.',
+    waitingOn: (names: string) =>
+      `Falta ${names}. Se publica cuando hayan aceptado todos.`,
+    notYourVoice: (status: string) =>
+      `Tu voz no sale en esta, as\u00ed que no hace falta que lo aceptes. ${status}`,
+    couldNotChangeThat: () => 'No se ha podido cambiar eso',
+    saving: () => 'Guardando\u2026',
+    iAgreeThisCanBePublished: () => 'Acepto que esto se publique',
+    publishAsk: () => '\u00bfPublicar esta conversaci\u00f3n?',
+    publishBody: () =>
+      'Va a la p\u00e1gina p\u00fablica de este canal, donde puede escucharla cualquiera que tenga la direcci\u00f3n, y a su feed, donde las apps de podcasts pueden suscribirse. Se publica en cuanto lo hayan aceptado todos los que salen en ella.\n\nPuedes retirar tu aceptaci\u00f3n cuando quieras, y eso la quita de la p\u00e1gina y del feed. No alcanza a las copias que ya se haya descargado alguien.',
+    notNow: () => 'Ahora no',
+    iAgree: () => 'Acepto',
+    loading: () => 'Cargando\u2026',
+    play: () => 'Reproducir',
+    couldNotPlay: () => 'No se ha podido reproducir',
+    searchWhatWasSaid: () => 'Buscar en lo que se dijo',
+    searching: () => 'Buscando\u2026',
+    nothingMatches: () => 'No hay coincidencias.',
+    aRecording: () => 'Una grabaci\u00f3n',
+    someone: () => 'Alguien',
+    transcribingNow: () => 'Transcribiendo\u2026',
+    transcriptFailed: () => 'Fall\u00f3 la transcripci\u00f3n',
+    transcript: () => 'Transcripci\u00f3n',
+    transcribe: () => 'Transcribir',
+    starting: () => 'Empezando\u2026',
+    spendFreeAsk: () => '\u00bfUsar tu transcripci\u00f3n gratuita?',
+    transcribeAsk: () => '\u00bfTranscribir esta grabaci\u00f3n?',
+    transcribeBody: (provider: string, spends: boolean) =>
+      `El audio se env\u00eda a ${provider} para convertirlo en texto, y todos los del canal ver\u00e1n el resultado. Cuesta un poco, y solo se puede hacer una vez por grabaci\u00f3n.` +
+      (spends
+        ? '\n\nEsta es la \u00fanica transcripci\u00f3n gratuita que tiene tu cuenta. Una vez usada no se podr\u00e1 transcribir ninguna otra grabaci\u00f3n, y borrar esta transcripci\u00f3n no la devuelve.'
+        : ''),
+    useIt: () => 'Usarla',
+    couldNotTranscribe: () => 'No se ha podido transcribir',
+    preparing: () => 'Preparando\u2026',
+    share: () => 'Compartir',
+    couldNotShare: () => 'No se ha podido compartir',
+  },
+  links: {
+    couldNotOpenLink: () => 'No se ha podido abrir el enlace',
+  },
+  podcastsWeb: {
+    frameTitle: () => 'Conversaciones publicadas',
+  },
 };

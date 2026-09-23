@@ -1210,4 +1210,74 @@ export const en = {
     stepInToMakeALink: () =>
       'Step in to make a link. Who can get into a conversation is for the people having it.',
   },
+  recordings: {
+    rowLabel: (name: string, length: string, open: boolean) =>
+      `${name}, ${length}. ${open ? 'Hide actions' : 'Show actions'}.`,
+    rename: () => 'Rename',
+    stillBeingPrepared: () =>
+      'Still being prepared — playing and sharing will be available in a moment.',
+    playUnavailable: (reason: string) => `Play is unavailable — ${reason}.`,
+    stepInToRenameOrDelete: () =>
+      "Step in to rename or delete. The name is everybody's, and deleting takes it out of their lists too.",
+    couldNotRename: () => 'Could not rename',
+    namePlaceholder: () => 'What was this conversation?',
+    everyoneSeesTheName: () => 'Everyone in this channel sees the new name.',
+    renaming: () => 'Renaming\u2026',
+    save: () => 'Save',
+    cancel: () => 'Cancel',
+    couldNotDelete: () => 'Could not delete',
+    deleting: () => 'Deleting\u2026',
+    delete: () => 'Delete',
+    deleteAsk: (name: string) => `Delete ${name}?`,
+    deleteBody: () =>
+      'Everyone in this channel loses it. The audio is removed a week from now, and nothing in the app can bring it back.',
+    keep: () => 'Keep',
+    publishedPreparing: () => 'Published — the audio is still being prepared.',
+    published: () => 'Published. Anybody with the address can listen.',
+    everybodyAgreed: () => 'Everybody has agreed — this is going up now.',
+    waitingOn: (names: string) =>
+      `Waiting on ${names}. It goes up when everybody has agreed.`,
+    notYourVoice: (status: string) =>
+      `None of your voice is in this one, so it does not need your agreement. ${status}`,
+    couldNotChangeThat: () => 'Could not change that',
+    saving: () => 'Saving\u2026',
+    iAgreeThisCanBePublished: () => 'I agree this can be published',
+    publishAsk: () => 'Publish this conversation?',
+    publishBody: () =>
+      'It goes on this channel\u2019s public page, where anyone with the address can listen — and into its feed, where podcast apps can subscribe. It goes up once everybody in it has agreed.\n\nYou can take your agreement back at any time, and that removes it from the page and the feed. It cannot reach a copy somebody has already downloaded.',
+    notNow: () => 'Not now',
+    iAgree: () => 'I agree',
+    loading: () => 'Loading\u2026',
+    play: () => 'Play',
+    couldNotPlay: () => 'Could not play',
+    searchWhatWasSaid: () => 'Search what was said',
+    searching: () => 'Searching\u2026',
+    nothingMatches: () => 'Nothing matches.',
+    aRecording: () => 'A recording',
+    someone: () => 'Someone',
+    transcribingNow: () => 'Transcribing\u2026',
+    transcriptFailed: () => 'Transcript failed',
+    transcript: () => 'Transcript',
+    transcribe: () => 'Transcribe',
+    starting: () => 'Starting\u2026',
+    spendFreeAsk: () => 'Use your one free transcript?',
+    transcribeAsk: () => 'Transcribe this recording?',
+    /** `provider` is a service's own name and is not translated. */
+    transcribeBody: (provider: string, spends: boolean) =>
+      `The audio is sent to ${provider} to be turned into text, and everybody in the channel will see the result. It costs a little, and it can only be done once per recording.` +
+      (spends
+        ? '\n\nThis is the one free transcript your account gets. Once it is used no other recording can be transcribed, and deleting this transcript does not give it back.'
+        : ''),
+    useIt: () => 'Use it',
+    couldNotTranscribe: () => 'Could not transcribe',
+    preparing: () => 'Preparing\u2026',
+    share: () => 'Share',
+    couldNotShare: () => 'Could not share',
+  },
+  links: {
+    couldNotOpenLink: () => 'Could not open link',
+  },
+  podcastsWeb: {
+    frameTitle: () => 'Published conversations',
+  },
 };

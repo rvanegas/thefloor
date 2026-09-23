@@ -269,6 +269,7 @@ export function ChannelView({
 }) {
   const t = useText().channel;
   const namingWords = useText().naming;
+  const linkWords = useText().links;
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
   // taken from a single slot, so a snapshot arriving for another watched
@@ -3589,7 +3590,7 @@ export function ChannelView({
                   <Button
                     label={t.open()}
                     style={styles.flexButton}
-                    onPress={() => void openUrl(clipUrl)}
+                    onPress={() => void openUrl(clipUrl, linkWords)}
                   />
                 ) : null}
                 <Button

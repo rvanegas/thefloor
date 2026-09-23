@@ -1,5 +1,6 @@
 import React from 'react';
 import { API_URL } from '../api/config';
+import { useText } from '../i18n';
 
 /**
  * The Podcasts tab's body, in a browser: the same `/podcasts` page, in an
@@ -31,10 +32,11 @@ import { API_URL } from '../api/config';
  * it, so there is nothing for an origin to be in the way of.
  */
 export function PodcastsView() {
+  const t = useText().podcastsWeb;
   return (
     <iframe
       src={`${API_URL}/podcasts`}
-      title="Published conversations"
+      title={t.frameTitle()}
       style={{
         // `flex` rather than `height: 100%`: the tab hands its body whatever
         // is left of the pane through a flex column, and a percentage height

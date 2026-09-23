@@ -1,4 +1,5 @@
 import { Alert, Linking } from 'react-native';
+import type { Strings } from '../i18n';
 
 /**
  * What the app does with a URL somebody else wrote.
@@ -45,12 +46,15 @@ export function isSafeUrl(url: string): boolean {
  * browser's own address bar and the reader can see where a link from another
  * member led.
  */
-export async function openUrl(url: string): Promise<void> {
+export async function openUrl(
+  url: string,
+  words: Strings['links']
+): Promise<void> {
   try {
     await Linking.openURL(url);
   } catch {
     // Nothing in the app can fix this, and failing silently would look like a
     // dead link rather than a refusal by the OS.
-    Alert.alert('Could not open link', url);
+    Alert.alert(words.couldNotOpenLink(), url);
   }
 }

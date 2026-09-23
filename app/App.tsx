@@ -14,6 +14,7 @@ import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { TextProvider, stringsFor, useText } from './src/i18n';
 import { deviceRegion } from './src/api/region';
+import { setRelativeTimeLocale } from './src/ui/relativeTime';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
@@ -1310,7 +1311,15 @@ function Glass({ children }: { children: React.ReactNode }) {
  * Spanish without touching the others.
  */
 export default function App() {
-  const strings = useMemo(() => stringsFor(deviceRegion().locale), []);
+  const strings = useMemo(() => {
+    const { locale } = deviceRegion();
+    // Beside the catalogue rather than anywhere else: an app saying *hace 5
+    // minutos* in Spanish and *5 minutes ago* in the same sentence is the
+    // half-translated build the whole shape of `Strings` exists to prevent,
+    // and dayjs's locale is global so it has to be set once, here.
+    setRelativeTimeLocale(locale);
+    return stringsFor(locale);
+  }, []);
   return (
     <TextProvider strings={strings}>
       <SafeAreaProvider>
