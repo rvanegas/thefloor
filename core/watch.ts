@@ -373,6 +373,21 @@ export interface PlayerReading {
    * which is the whole reason this is read.
    */
   durationMs: number | null;
+  /**
+   * Which video the player says it is showing, or null when it cannot say.
+   *
+   * **The fact the duration was standing in for.** `showingTheFilm` was
+   * written to tell an advert from the film, and measured it by comparing
+   * lengths — which works, right up until the advert is the first thing that
+   * can say how long it is, because then the length it is measured against is
+   * the advert's. See `showingTheFilm`, where that circle is written down.
+   *
+   * Null-tolerant for the same reason the title is: it comes off
+   * `getVideoData`, which has been on the IFrame player for years and is not
+   * in YouTube's reference, so a player that does not have it says nothing
+   * rather than lying.
+   */
+  videoId: string | null;
 }
 
 /**
@@ -401,7 +416,36 @@ export function showingTheFilm(
   watch: WatchState,
   player: PlayerReading
 ): boolean {
-  const film = watch.party?.durationMs ?? null;
+  const party = watch.party;
+  if (!party) return true;
+
+  /*
+    **The id first, because it is the fact rather than a proxy for it.**
+
+    An advert is a different video, and the player will say which video it is
+    showing: during a pre-roll `getVideoData` describes the advert, exactly as
+    `getCurrentTime` and `getDuration` do. Two ids that differ is that, said
+    outright, with no tolerance to pick and nothing to be circular about.
+  */
+  if (player.videoId !== null) return player.videoId === party.videoId;
+
+  /*
+    **The lengths, for a player that cannot name what it is showing**, which
+    is the rule this had until 2026-09-23 and is still the honest answer when
+    there is no id to read.
+
+    It is kept as a fallback rather than as the rule because it has a circle
+    in it that cannot be closed from inside: the film's length is learnt from
+    the first player that can say, and on a fresh party with a pre-roll the
+    first thing any player can say is the advert's. The party then holds the
+    advert's length as the film's, and every subsequent reading of the actual
+    film is a length that does not match — so the film reads as the advert,
+    for ever, and nothing is ever said to that player again. That is what a
+    stuck picture on a newly started party was.
+
+    A length cannot detect the case that poisons it. An id does not have to.
+  */
+  const film = party.durationMs;
   if (film === null || player.durationMs === null) return true;
   // Generous, because it is separating a film from an advert rather than
   // measuring anything: the two differ by minutes, and a player rounding its

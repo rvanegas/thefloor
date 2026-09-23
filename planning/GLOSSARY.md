@@ -108,7 +108,8 @@ caused; the list carries the meaning.
 - **Turned** — A *handheld* whose window is landscape, which on a handheld can only mean somebody turned it: nothing else this app runs on is handheld, and a handheld is locked upright away from the film. It is the whole state of *full screen* on a phone — `isTurned` in `ui/layout.ts`, read at render rather than stored, so the picture and the glass cannot disagree
 - **Watch shape** — How the *Watch* tab lays itself out at a given size: one column with the picture above its transport, or two with the picture beside it, and in either case how big the picture may be. Decided from the pane's width and the body's height and from nothing the answer itself moves — *two columns when the controls would not otherwise fit* oscillates. `watchShapeFor` in `ui/layout.ts`, and STYLE.md § *The watch body has two shapes*
 - **Portrait lock** — The rule about which way up a phone may be: a *handheld* is upright everywhere in the app except *at the film* — the watch card with a film this device can expand, and *full screen* — where both orientations are permitted. A tablet and a browser window are never turned. It is what makes *turned* readable as a gesture, and narrowing it from *full screen alone* to *the film* is what gave the turn back its way in. `usePortraitUnlessAtTheFilm` in `watch/orientation.ts`; on the web a no-op
-- **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say, the way its length is, and never asked of YouTube
+- **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say *while it is showing the film*, the way its length is, and never asked of YouTube
+- **Showing the film** — Whether what is in a player's frame is the party's video or a pre-roll in front of it, which decides whether the follower speaks to it and whether anything is learnt from it; by the video id the player names since 2026-09-23, by comparing lengths where there is no id. `showingTheFilm`
 - **Watched before** — The films a channel has watched, newest first, offered back on the watch card as rows to press since 2026-09-22; a property of the channel rather than of any person, deduplicated by video and ten deep, holding whatever each party managed to learn about its name and its length before it ended. A row is pressed the way a link is pasted — it carries the stored URL back through the same parse — and the list stands behind a press on an idle card and open behind *Change video* on a loaded one. `WatchState.history`
 - **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that
 - **Watching here** — Your screen and your voice on one device, which mutes the room
@@ -2583,10 +2584,25 @@ showing anywhere, and an embed whose `getVideoData` is missing — the method is
 undocumented, so it is read through a guard. The card then draws what it drew
 before there were any titles.
 
-**An advert can name a party**, exactly as it can already give one its length:
-a pre-roll is a different video in the same frame, and both facts are learnt
-from the same first report. It is the known cost of learning anything from a
-player, and it corrects itself the next time a party starts.
+**An advert cannot name a party, and since 2026-09-23 it cannot give one its
+length either.** It could do both until then, on the reasoning that a pre-roll
+is a different video in the same frame, both facts are learnt from the same
+first report, and the cost is a wrong name for one evening. The cost was not a
+wrong name. A party keeps the *first* length any player reports and keeps it
+for ever, and on a newly started film the first thing any player can measure is
+the pre-roll — so a thirty-second spot became the film's length on every screen
+in the room, the scrubber ran out in half a minute, the transport came to rest
+there, and every subsequent reading of the actual film failed the length
+comparison that tells a film from an advert. The picture stopped and could not
+be started, for the rest of the party.
+
+**So the player says which video it is showing and that is the test.**
+`getVideoData` carries a `video_id` beside the title, and during a pre-roll it
+is the advert's — the fact the length comparison was standing in for, said
+outright. Nothing is learnt from a reading that names another video, and
+`showingTheFilm` answers on the id where there is one. The lengths remain the
+fallback for an embed that will not give an id, with the circle still in them:
+a length cannot detect the case that poisons it.
 
 ## Watching (on the roster)
 

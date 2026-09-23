@@ -45,9 +45,27 @@ interface YouTubePlayer {
    * it names nothing, which is the state every party was in before
    * 2026-09-20.
    */
-  getVideoData?: () => { title?: string };
+  getVideoData?: () => { title?: string; video_id?: string };
   cueVideoById: (videoId: string) => void;
   destroy: () => void;
+}
+
+/**
+ * What the embed says it is showing, or null when it will not say.
+ *
+ * **Undocumented, so it is asked for behind a guard and never depended on.**
+ * `getVideoData` has been on the IFrame player for years and is not in
+ * YouTube's reference; an embed without it returns null here, and both callers
+ * fall back to what they did before there was an id to read.
+ */
+function videoData(
+  player: YouTubePlayer
+): { title?: string; video_id?: string } | null {
+  try {
+    return player.getVideoData?.() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 declare global {
@@ -157,6 +175,9 @@ export function WatchPlayer({
                     typeof length === 'number' && length > 0
                       ? length * 1000
                       : null,
+                  // Which video is in the frame, which during a pre-roll is
+                  // the advert's. See `showingTheFilm`.
+                  videoId: videoData(p)?.video_id ?? null,
                 };
               },
               play: () => player.current?.playVideo(),
@@ -172,18 +193,25 @@ export function WatchPlayer({
             if (!p || told.current) return;
             const seconds = p.getDuration?.();
             if (typeof seconds === 'number' && seconds > 0) {
+              const data = videoData(p);
+              /*
+                **Not from an advert**, which is the whole of the fix that
+                WatchPlayer.tsx carries the account of: the party keeps the
+                first length it is told and a pre-roll is the first thing any
+                player can measure, so a thirty-second spot became the film's
+                length for the rest of the evening.
+              */
+              if (
+                data?.video_id != null && data.video_id !== videoId
+              ) {
+                return;
+              }
               told.current = true;
               // The name rides with the length, off the player rather than
               // out of a request — `getVideoData` is the embed describing
               // what it already has. Optional on the object as well as in the
               // action, being undocumented.
-              let title: string | null = null;
-              try {
-                title = p.getVideoData?.().title ?? null;
-              } catch {
-                title = null;
-              }
-              onFilm(Math.round(seconds * 1000), title);
+              onFilm(Math.round(seconds * 1000), data?.title ?? null);
             }
           },
         },

@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { recordEvent } from '../audio/diagnostics';
 import type { WatchState } from '../../../core/types';
+import { showingTheFilm } from '../../../core/watch';
 import type { PlayerReading, PlayerState } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
@@ -152,17 +153,25 @@ function page(videoId: string): string {
     // does not have it reports no name, and a card with no title is what
     // every card looked like before there were any.
     var name = null;
+    // **And which video it is**, off the same object and in the same guard.
+    // A pre-roll is a different video in this frame and says so here; see
+    // \`showingTheFilm\`, which is the only thing that reads it.
+    var showing = null;
     try {
-      name = player.getVideoData ? player.getVideoData().title || null : null;
+      var data = player.getVideoData ? player.getVideoData() : null;
+      name = data ? data.title || null : null;
+      showing = data ? data.video_id || null : null;
     } catch (e) {
       name = null;
+      showing = null;
     }
     post({
       t: 'reading',
       state: player.getPlayerState(),
       positionMs: typeof seconds === 'number' ? seconds * 1000 : null,
       durationMs: length > 0 ? Math.round(length * 1000) : null,
-      title: name
+      title: name,
+      videoId: showing
     });
   }
   setInterval(report, ${REPORT_MS});
@@ -337,6 +346,7 @@ export function WatchPlayer({
         positionMs?: number | null;
         durationMs?: number | null;
         title?: string | null;
+        videoId?: string | null;
       };
       try {
         payload = JSON.parse(event.nativeEvent.data);
@@ -361,16 +371,34 @@ export function WatchPlayer({
         // `showingTheFilm` reads it for — not a second opinion about the
         // film. See `learnDuration` for why the party keeps only the first.
         durationMs: payload.durationMs ?? null,
+        videoId: payload.videoId ?? null,
       };
       reading.current = { at: Date.now(), what };
-      if (!told.current && payload.durationMs) {
+      /*
+        **Nothing is learnt from a video that is not the film.**
+
+        The party keeps the first length any player reports and keeps it for
+        ever — `learnDuration` — and on a fresh party with a pre-roll the
+        first thing a player can say is the advert's. A thirty-second spot
+        therefore became the film's length on everybody's screen: the scrubber
+        ran to its end in half a minute, `hasReachedEnd` brought the whole room
+        to rest there, and `showingTheFilm` then read every reading of the
+        actual film as an advert and stopped the follower speaking to its
+        player at all. A picture that stops and cannot be started is what that
+        looks like from a sofa.
+
+        `showingTheFilm` is asked rather than the id compared here, so there is
+        one rule about what an advert is and it lives in core. A player that
+        cannot name what it is showing falls back to what this did before.
+      */
+      if (!told.current && payload.durationMs && showingTheFilm(watch, what)) {
         told.current = true;
         // Both in the one report, so the party's length and its name are
         // always the same video's — see `learnTitle`.
         onFilm(payload.durationMs, payload.title ?? null);
       }
     },
-    [onFilm]
+    [onFilm, watch]
   );
 
   /**

@@ -29,6 +29,7 @@ const B = 'user-b';
 const T0 = 1_700_000_000_000;
 const URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const LENGTH = 600_000;
+const VIDEO = 'dQw4w9WgXcQ';
 
 /** How long this player takes to do as it is told. Longer than a tick. */
 const LAG_MS = 600;
@@ -50,6 +51,8 @@ function laggyPlayer(lag: number) {
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
+  /** Which video is in the frame, which an advert changes. */
+  let showing: string | null = VIDEO;
   let want: PlayerState | null = null;
   let pending: { at: number; run: () => void; seeking?: boolean } | null =
     null;
@@ -63,16 +66,20 @@ function laggyPlayer(lag: number) {
       return positionMs;
     },
     /**
-     * An advert taking the frame over, reporting its own clock and its own
-     * length — which is how `showingTheFilm` tells one from the film.
+     * An advert taking the frame over, reporting its own clock, its own
+     * length **and its own id** — which is how `showingTheFilm` tells one
+     * from the film. The id since 2026-09-23; see `showingTheFilm` for what
+     * comparing the lengths alone could not see.
      */
     advert(seconds: number | null) {
       if (seconds === null) {
         durationMs = LENGTH;
+        showing = VIDEO;
         return;
       }
       durationMs = seconds * 1000;
       positionMs = 1_000;
+      showing = 'ad000000000';
     },
     /**
      * The connection going away for a while.
@@ -147,7 +154,7 @@ function laggyPlayer(lag: number) {
       }
     },
     port: {
-      read: () => ({ state, positionMs, durationMs }),
+      read: () => ({ state, positionMs, durationMs, videoId: showing }),
       play: () => {
         calls.push('play');
         if (deaf) return;

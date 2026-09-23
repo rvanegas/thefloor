@@ -363,7 +363,7 @@ describe('following the transport', () => {
     state: PlayerState,
     positionMs: number | null,
     durationMs: number | null = LENGTH
-  ): PlayerReading => ({ state, positionMs, durationMs });
+  ): PlayerReading => ({ state, positionMs, durationMs, videoId: VIDEO });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
@@ -492,7 +492,7 @@ describe('a player asked whether it has arrived', () => {
     state: PlayerState,
     positionMs: number | null,
     durationMs: number | null = LENGTH
-  ): PlayerReading => ({ state, positionMs, durationMs });
+  ): PlayerReading => ({ state, positionMs, durationMs, videoId: VIDEO });
 
   const want = { status: 'playing' as const, positionMs: 60_000 };
 
@@ -536,44 +536,82 @@ describe('a player asked whether it has arrived', () => {
  *
  * Every attempt at this listed "an advert starting" among the lies it was
  * guessing around, and guessed with a timer. The API says so if it is asked
- * the right question: during a pre-roll both the position and the length
- * describe the advert, so a player reporting a length that is not the film's
- * is not showing the film.
+ * the right question — and since 2026-09-23 it is asked the *right* right
+ * question: the player names the video it is showing, and during a pre-roll
+ * that is the advert's id.
+ *
+ * It used to compare lengths, which is kept below as the answer for a player
+ * that will not give an id. That rule had a circle in it that cost an
+ * evening: the film's length is learnt from the first player that can say,
+ * and on a fresh party the first thing any player can measure is the
+ * pre-roll — so the party held the advert's length as the film's, and every
+ * reading of the actual film then read as an advert, for ever.
  */
 describe('telling a film from what runs before it', () => {
-  const reading = (durationMs: number | null): PlayerReading => ({
+  const reading = (
+    durationMs: number | null,
+    videoId: string | null = VIDEO
+  ): PlayerReading => ({
     state: 'playing',
     positionMs: 3_000,
     durationMs,
+    videoId,
   });
 
   const playing = (at = T0) =>
     apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
 
   it('is the film when the lengths agree', () => {
-    expect(showingTheFilm(playing(), reading(LENGTH))).toBe(true);
+    expect(showingTheFilm(playing(), reading(LENGTH, null))).toBe(true);
   });
 
   it('is the film within the slack a rounded length needs', () => {
     expect(
-      showingTheFilm(playing(), reading(LENGTH - WATCH_LENGTH_SLACK_MS))
+      showingTheFilm(playing(), reading(LENGTH - WATCH_LENGTH_SLACK_MS, null))
     ).toBe(true);
   });
 
   it('is not the film when a ninety-second spot says so', () => {
-    expect(showingTheFilm(playing(), reading(90_000))).toBe(false);
+    expect(showingTheFilm(playing(), reading(90_000, null))).toBe(false);
+  });
+
+  it('is the advert when the player names a different video', () => {
+    // No lengths involved: the frame is showing something else and says so.
+    expect(showingTheFilm(playing(), reading(90_000, 'ad000000000'))).toBe(
+      false
+    );
+  });
+
+  it('is the film when the player names it, whatever the lengths say', () => {
+    /*
+      **The case the lengths get wrong and the id gets right**, and the one
+      this was rebuilt for. A party that learnt its length from a pre-roll
+      holds thirty seconds as the film's, so every reading of the actual film
+      is a length that disagrees — and the old rule called the film an advert
+      and stopped speaking to the player for the rest of the evening.
+    */
+    const poisoned = apply(
+      reduce(
+        createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+        { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+        T0
+      ),
+      [[{ type: 'WATCH_READY', userId: A, durationMs: 30_000 }, T0]]
+    ).watch;
+    expect(poisoned.party?.durationMs).toBe(30_000);
+    expect(showingTheFilm(poisoned, reading(LENGTH, VIDEO))).toBe(true);
   });
 
   it('is the film whenever either end cannot say', () => {
     // An unknown is not evidence of an advert, and refusing to follow on one
     // would leave a party that never learned its length unable to run.
-    expect(showingTheFilm(playing(), reading(null))).toBe(true);
+    expect(showingTheFilm(playing(), reading(null, null))).toBe(true);
     const unlearned = reduce(
       createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
       { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
       T0
     ).watch;
-    expect(showingTheFilm(unlearned, reading(90_000))).toBe(true);
+    expect(showingTheFilm(unlearned, reading(90_000, null))).toBe(true);
   });
 });
 

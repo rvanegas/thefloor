@@ -57,13 +57,41 @@ const watch: WatchState = {
 
 let tree: ReactTestRenderer | null = null;
 
-function draw(): Record<string, unknown> {
+/** Every film this player has reported, which the channel would learn from. */
+const learnt: { durationMs: number; title: string | null }[] = [];
+
+function draw(state: WatchState = watch): Record<string, unknown> {
   act(() => {
     tree = renderer.create(
-      <WatchPlayer watch={watch} channelId="c1" onFilm={() => {}} />
+      <WatchPlayer
+        watch={state}
+        channelId="c1"
+        onFilm={(durationMs, title) => learnt.push({ durationMs, title })}
+      />
     );
   });
   return seen[0];
+}
+
+/** One of the page's quarter-second reports, arriving from inside the frame. */
+function reports(
+  props: Record<string, unknown>,
+  what: {
+    state: number;
+    positionMs: number;
+    durationMs: number;
+    title: string;
+    videoId: string;
+  }
+): void {
+  const onMessage = props.onMessage as (event: {
+    nativeEvent: { data: string };
+  }) => void;
+  act(() => {
+    onMessage({
+      nativeEvent: { data: JSON.stringify({ t: 'reading', ...what }) },
+    });
+  });
 }
 
 /** What the page says once the embed is built, which unblocks the host. */
@@ -87,6 +115,7 @@ function interactive(): boolean | undefined {
 beforeEach(() => {
   seen.length = 0;
   sent.length = 0;
+  learnt.length = 0;
 });
 
 afterEach(() => {
@@ -186,5 +215,66 @@ describe('YouTube’s own controls', () => {
       });
     });
     expect(interactive()).toBe(true);
+  });
+});
+
+describe('the pre-roll before a newly started film', () => {
+  /*
+    **The party must not learn its length from an advert**, and this is the
+    whole of the 2026-09-23 repair.
+
+    `learnDuration` keeps the first length any player reports and keeps it for
+    ever, which is right — a second player disagreeing is a disagreement no
+    rule can settle. What nobody checked is *what the first report is*. On a
+    party that has just been started, the first thing any player can measure
+    is the pre-roll: `getDuration` describes the advert while one runs, so a
+    thirty-second spot became the film's length on every screen in the room.
+
+    Everything downstream then did exactly what it was built to do. The
+    scrubber ran out in half a minute. `hasReachedEnd` brought the transport
+    to rest there, so Play restarted from zero and ran out again — which is
+    what pressing it several times feels like. And `showingTheFilm` compared
+    the real film's length against the advert's and called the film an advert,
+    so the follower stopped speaking to that player for the rest of the party.
+    A picture that stops and cannot be started, on a film somebody had just
+    put on.
+  */
+  const preRoll = {
+    state: 1,
+    positionMs: 3_000,
+    durationMs: 30_000,
+    title: 'Buy something',
+    videoId: 'ad000000000',
+  };
+  const film = {
+    state: 1,
+    positionMs: 1_000,
+    durationMs: 600_000,
+    title: 'The film',
+    videoId: 'abc123',
+  };
+
+  it('is not what the channel learns the film from', () => {
+    const props = draw();
+    ready(props);
+    reports(props, preRoll);
+    expect(learnt).toEqual([]);
+  });
+
+  it('gives way to the film, which is what the channel learns', () => {
+    const props = draw();
+    ready(props);
+    reports(props, preRoll);
+    reports(props, film);
+    expect(learnt).toEqual([{ durationMs: 600_000, title: 'The film' }]);
+  });
+
+  it('still reports, for a player that will not name what it is showing', () => {
+    // The id is undocumented and an embed without it says nothing. The length
+    // comparison is what such a player falls back to — worse, and unchanged.
+    const props = draw();
+    ready(props);
+    reports(props, { ...film, videoId: null as unknown as string });
+    expect(learnt).toEqual([{ durationMs: 600_000, title: 'The film' }]);
   });
 });

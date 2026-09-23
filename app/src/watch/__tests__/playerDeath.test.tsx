@@ -138,6 +138,9 @@ describe('a reading nobody has refreshed', () => {
       state: 'paused',
       positionMs: 4_000,
       durationMs: 600_000,
+      // Nothing in this report names a video, which is what an embed without
+      // `getVideoData` reports. See `PlayerReading.videoId`.
+      videoId: null,
     });
 
     // A page that has gone quiet says `paused` for ever, and `paused` is a
