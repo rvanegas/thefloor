@@ -520,4 +520,179 @@ export const en = {
     microphoneSilentRest: () =>
       ' If you have been talking, nobody is hearing it — which is what an app\u2019s built-in browser usually does on iOS. Open this in Safari or Chrome instead; stepping out and back in takes the reading again.',
   },
+  seat: {
+    /**
+     * **The guest page's five sentences verbatim.** They are the same five
+     * states of the same seat, and two wordings for one fact is how a person
+     * comes to believe the phone and the laptop are telling them different
+     * things. See `MIC_WORDS` in `server/web/guest.ts`; a change belongs in
+     * both or in neither.
+     *
+     * **The Spanish has no counterpart on that page yet**, the server still
+     * rendering the guest page in English. So a Spanish-speaking guest reads
+     * these on the phone and the English on a laptop — which is a gap, not a
+     * drift: the fact each sentence states is the same one, and the page
+     * catches up when the server learns a language.
+     */
+    micListening: () => 'You are listening. Nobody can hear you.',
+    micAsking: () =>
+      'You have asked to speak. Waiting for somebody to answer.',
+    micRefused: () => 'Somebody said no to the microphone for now.',
+    micOpen: () => 'Your microphone is on and the channel can hear you.',
+    micMuted: () => 'Your microphone is on, and you have muted yourself.',
+    unmute: () => 'Unmute',
+    mute: () => 'Mute',
+    stepOut: () => 'Step out',
+    beingRecorded: () => 'This conversation is being recorded.',
+    you: () => 'You',
+    silenced: () =>
+      'Somebody has the floor, so the room cannot hear you just now.',
+    askToSpeak: () => 'Ask to speak',
+    twoGuestsAlready: () =>
+      'Two guests have the microphone already, which is as many as a room takes.',
+    whoIsHere: () => 'Who is here',
+    nobodyElseIsHere: () => 'Nobody else is here.',
+    guest: () => 'Guest',
+    askedOfYou: () => 'Asked of you',
+    wouldLikeToAddYou: (from: string) =>
+      `${from} would like to add you as a contact.`,
+    accepting: () => 'Accepting\u2026',
+    accept: () => 'Accept',
+    thatDidNotWork: () => 'That did not work.',
+    noThanks: () => 'No thanks',
+    clipboard: () => 'Clipboard',
+    nothingOnTheClipboard: () => 'Nothing on the clipboard.',
+    pasteMine: () => 'Paste mine',
+    clear: () => 'Clear',
+    yourNameHere: () => 'Your name here',
+    whatTheRoomCallsYou: () =>
+      'What the room calls you while you are in it. It is this conversation only, and nothing about your account.',
+    yourName: () => 'Your name',
+    backToHome: () => 'Back to Home',
+  },
+  transcript: {
+    title: () => 'Transcript',
+    nameTheVoices: () => 'Name the voices',
+    preparing: () => 'Preparing\u2026',
+    share: () => 'Share',
+    shareTranscript: () => 'Share transcript',
+    whichFormat: () => 'Which format?',
+    cancel: () => 'Cancel',
+    text: () => 'Text',
+    subtitles: () => 'Subtitles',
+    data: () => 'Data',
+    deleteTranscript: () => 'Delete transcript',
+    deleteThisTranscript: () => 'Delete this transcript?',
+    deleteCost: () =>
+      'The recording is kept. Transcribing it again costs the same as the first time.',
+    deleteConfirm: () => 'Delete',
+    couldNotDelete: () => 'Could not delete',
+    beingTranscribed: () =>
+      'Being transcribed. This takes a few minutes; you can leave this screen.',
+    transcribingFailedWith: (reason: string) =>
+      `Transcribing failed — ${reason}`,
+    transcribingFailed: () => 'Transcribing failed.',
+    loading: () => 'Loading\u2026',
+    couldNotSave: () => 'Could not save',
+    missing: (count: number) =>
+      count === 1
+        ? 'One person could not be transcribed and is missing from this.'
+        : `${count} people could not be transcribed and are missing from this.`,
+    manyVoices: () =>
+      'A letter beside a name means more than one voice was heard on that microphone. Who the others were is not known.',
+    findAWord: () => 'Find a word',
+    searchSeekable: () =>
+      'Searching is yours alone. Tapping a line moves playback for everybody.',
+    searchOnly: () =>
+      'Searching is yours alone. Play this recording to jump to a line.',
+    nothingMatches: () => 'Nothing matches.',
+    nothingWasTranscribed: () => 'Nothing was transcribed.',
+    couldNotShare: () => 'Could not share',
+    voices: () => 'Voices',
+    voicesExplanation: () =>
+      'The service heard these voices. It labels each microphone on its own, so the letters are its guess — name them, give two the same name to make them one, or remove one that was never a person. The transcript itself is not changed and this can be redone at any time.',
+    saving: () => 'Saving\u2026',
+    save: () => 'Save',
+    clearAll: () => 'Clear all',
+    someone: () => 'Someone',
+    lines: (count: number) => (count === 1 ? '1 line' : `${count} lines`),
+    nameThisVoice: () => 'Name this voice',
+    bringBack: () => 'Removed — bring back',
+    removeFromTranscript: () => 'Remove from transcript',
+    /** `at` is already formatted — see `formatDuration`. */
+    jumpTo: (at: string, name: string, text: string) =>
+      `Jump to ${at}, ${name}: ${text}`,
+  },
+  /**
+   * The checklist on Home: seven rungs, each a label, an instruction and a
+   * note. **Every instruction names the tab or the slot** rather than the
+   * feature — these sit on Home and are done two screens away, and the whole
+   * failure mode they exist to fix is somebody never finding a control.
+   */
+  introduction: {
+    somebodyLabel: () => 'Get somebody here',
+    somebodyInstruction: () =>
+      'On Contacts, send an invite link — or add somebody by the address they sign in with.',
+    somebodyNote: () =>
+      'A link works while you are asleep, and nobody can reach you until one of you does this.',
+    stepInLabel: () => 'Step in with somebody',
+    stepInInstruction: () =>
+      'On Channels, start one and step in, and stay there until somebody else steps in too. Anybody you invite arrives in that channel.',
+    stepInNote: () =>
+      'Two of you in a channel at once is the moment people can hear you, and it is what all of this is for.',
+    floorLabel: () => 'Claim the floor',
+    floorInstruction: () =>
+      'In a channel, tap Claim in the bar along the bottom. Everybody else is muted until you release it.',
+    floorNote: () =>
+      'It is the thing the app is named after: one person speaking, and nobody able to talk over them.',
+    nearbyLabel: () => 'Say you are nearby',
+    nearbyInstruction: () =>
+      'In a channel, tap Nearby. It notifies everybody who is not there that you are within reach for the next quarter of an hour.',
+    nearbyNote: () =>
+      'It is how a conversation starts without anybody having to arrange one: you are reachable without being in it.',
+    guestLabel: () => 'Bring in a guest',
+    guestInstruction: () =>
+      "On a channel's Invite tab, share a guest link. Whoever opens it is in the channel in a browser, with no account and nothing to install.",
+    guestNote: () =>
+      'Stay in the channel while they open it — a guest link stops working the moment no member is there.',
+    playerLabel: () => 'Play something together',
+    playerInstruction: () =>
+      "On a channel's Listen tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
+    playerNote: () =>
+      'It is the one thing here that is not somebody talking, and the room stays a room while it plays.',
+    installLabel: () => 'Put The Floor on your home screen',
+    installNote: () =>
+      'It gets an icon of its own and opens without a browser around it, which is how you find your way back here.',
+    seeLess: () => 'See less',
+    seeMore: () => 'See more',
+    openChannels: () => 'Open Channels',
+    openContacts: () => 'Open Contacts',
+    install: () => 'Install',
+    openTheChannel: () => 'Open the channel',
+    openInvite: () => 'Open Invite',
+    openListen: () => 'Open Listen',
+    doneBrief: (label: string) => `Done: ${label}.`,
+    rowLabel: (
+      done: boolean,
+      label: string,
+      instruction: string,
+      note: string
+    ) => `${done ? 'Done' : 'Not done'}: ${label}. ${instruction} ${note}`,
+    dismiss: (label: string) => `Dismiss ${label}`,
+  },
+  /** How to install, in each browser's own words — see `state/install.ts`. */
+  install: {
+    fromHere: () =>
+      'Install it from here, or from the install icon in the address bar.',
+    /**
+     * Named in Safari's words rather than described: the share sheet is a
+     * square with an arrow, and somebody who has not found it is looking for
+     * a menu. **The two control names are Apple's and are localised by iOS**,
+     * so the Spanish uses Apple's Spanish for them rather than a translation
+     * of the English.
+     */
+    safari: () => 'Tap Share in Safari, then Add to Home Screen.',
+    menu: () =>
+      'Open your browser\u2019s menu and choose Install, or Add to Home Screen.',
+  },
 };

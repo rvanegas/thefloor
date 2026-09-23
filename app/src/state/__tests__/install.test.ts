@@ -1,3 +1,4 @@
+import { en } from '../../i18n/en';
 import { installOffer, type Browser } from '../install';
 
 /**
@@ -20,36 +21,36 @@ const browser: Browser = {
 
 describe('when there is nothing to offer', () => {
   it('says nothing to a page already running as an installed app', () => {
-    expect(installOffer({ ...browser, standalone: true }).offer).toBe(false);
+    expect(installOffer({ ...browser, standalone: true }, en.install).offer).toBe(false);
   });
 
   it('says nothing inside somebody else`s in-app browser, which has no such menu', () => {
-    expect(installOffer({ ...browser, embedded: true }).offer).toBe(false);
+    expect(installOffer({ ...browser, embedded: true }, en.install).offer).toBe(false);
   });
 
   it('says nothing to a browser with no install command at all', () => {
     // Desktop Firefox. An instruction to go and find a menu item that does not
     // exist is worse than silence.
-    expect(installOffer({ ...browser, menu: false }).offer).toBe(false);
+    expect(installOffer({ ...browser, menu: false }, en.install).offer).toBe(false);
   });
 
   it('prefers silence even when the browser is in two minds', () => {
     // Standalone wins over a stale prompt: the deed is done.
     expect(
-      installOffer({ ...browser, standalone: true, prompt: true }).offer
+      installOffer({ ...browser, standalone: true, prompt: true }, en.install).offer
     ).toBe(false);
   });
 });
 
 describe('what each browser is told', () => {
   it('offers a button of our own where one was volunteered', () => {
-    const offer = installOffer({ ...browser, prompt: true });
+    const offer = installOffer({ ...browser, prompt: true }, en.install);
     if (!offer.offer) throw new Error('expected an offer');
     expect(offer.prompt).toBe(true);
   });
 
   it('names Safari`s share sheet on iOS, where nothing can be volunteered', () => {
-    const offer = installOffer({ ...browser, apple: true, menu: false });
+    const offer = installOffer({ ...browser, apple: true, menu: false }, en.install);
     if (!offer.offer) throw new Error('expected an offer');
     expect(offer.prompt).toBe(false);
     expect(offer.how).toMatch(/Share/);
@@ -57,7 +58,7 @@ describe('what each browser is told', () => {
   });
 
   it('falls back to the browser`s own menu, saying so without a button', () => {
-    const offer = installOffer(browser);
+    const offer = installOffer(browser, en.install);
     if (!offer.offer) throw new Error('expected an offer');
     expect(offer.prompt).toBe(false);
     expect(offer.how).toMatch(/menu/);
@@ -65,7 +66,7 @@ describe('what each browser is told', () => {
 
   it('takes the prompt over the share sheet when a browser has both', () => {
     // An iPad reporting Chromium: the button is the shorter road.
-    const offer = installOffer({ ...browser, apple: true, prompt: true });
+    const offer = installOffer({ ...browser, apple: true, prompt: true }, en.install);
     if (!offer.offer) throw new Error('expected an offer');
     expect(offer.prompt).toBe(true);
   });

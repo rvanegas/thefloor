@@ -1,3 +1,5 @@
+import type { Strings } from '../i18n';
+
 /**
  * Whether this page can be put on a home screen, and how it is done here.
  *
@@ -76,13 +78,16 @@ export const NOT_OFFERED: NoOffer = { offer: false };
  * an install rung on a screen where installing is impossible is worse than no
  * rung, because the one thing a checklist item cannot do is be un-tickable.
  */
-export function installOffer(browser: Browser): Install {
+export function installOffer(
+  browser: Browser,
+  words: Strings['install']
+): Install {
   if (browser.standalone || browser.embedded) return NOT_OFFERED;
 
   if (browser.prompt) {
     return {
       offer: true,
-      how: 'Install it from here, or from the install icon in the address bar.',
+      how: words.fromHere(),
       prompt: true,
     };
   }
@@ -93,7 +98,7 @@ export function installOffer(browser: Browser): Install {
       // Named in Safari's words rather than described: the share sheet is a
       // square with an arrow, and somebody who has not found it is looking for
       // a menu.
-      how: 'Tap Share in Safari, then Add to Home Screen.',
+      how: words.safari(),
       prompt: false,
     };
   }
@@ -101,7 +106,7 @@ export function installOffer(browser: Browser): Install {
   if (browser.menu) {
     return {
       offer: true,
-      how: 'Open your browser’s menu and choose Install, or Add to Home Screen.',
+      how: words.menu(),
       prompt: false,
     };
   }

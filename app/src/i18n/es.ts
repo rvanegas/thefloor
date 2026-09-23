@@ -414,4 +414,150 @@ export const es: Strings = {
     microphoneSilentRest: () =>
       ' Si has estado hablando, nadie te oye: es lo que suele pasar en iOS con el navegador integrado de una app. Abre esto en Safari o Chrome; salir y volver a entrar repite la medici\u00f3n.',
   },
+  seat: {
+    micListening: () => 'Est\u00e1s escuchando. Nadie puede o\u00edrte.',
+    micAsking: () => 'Has pedido la palabra. Esperando que alguien responda.',
+    micRefused: () => 'Por ahora te han dicho que no al micr\u00f3fono.',
+    micOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto y el canal puede o\u00edrte.',
+    micMuted: () => 'Tu micr\u00f3fono est\u00e1 abierto, y te has silenciado.',
+    unmute: () => 'Quitar silencio',
+    mute: () => 'Silenciar',
+    stepOut: () => 'Salir',
+    beingRecorded: () => 'Esta conversaci\u00f3n se est\u00e1 grabando.',
+    you: () => 'T\u00fa',
+    silenced: () => 'Alguien tiene la palabra, as\u00ed que la sala no puede o\u00edrte ahora.',
+    askToSpeak: () => 'Pedir la palabra',
+    twoGuestsAlready: () =>
+      'Ya hay dos invitados con micr\u00f3fono, que es todo lo que admite una sala.',
+    whoIsHere: () => 'Qui\u00e9n est\u00e1 aqu\u00ed',
+    nobodyElseIsHere: () => 'No hay nadie m\u00e1s.',
+    guest: () => 'Invitado',
+    askedOfYou: () => 'Te han pedido',
+    wouldLikeToAddYou: (from: string) =>
+      `${from} quiere a\u00f1adirte como contacto.`,
+    accepting: () => 'Aceptando\u2026',
+    accept: () => 'Aceptar',
+    thatDidNotWork: () => 'Eso no ha funcionado.',
+    noThanks: () => 'No, gracias',
+    clipboard: () => 'Portapapeles',
+    nothingOnTheClipboard: () => 'No hay nada en el portapapeles.',
+    pasteMine: () => 'Pegar el m\u00edo',
+    clear: () => 'Borrar',
+    yourNameHere: () => 'Tu nombre aqu\u00ed',
+    whatTheRoomCallsYou: () =>
+      'C\u00f3mo te llama la sala mientras est\u00e1s en ella. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',
+    yourName: () => 'Tu nombre',
+    backToHome: () => 'Volver al inicio',
+  },
+  transcript: {
+    title: () => 'Transcripci\u00f3n',
+    nameTheVoices: () => 'Poner nombre a las voces',
+    preparing: () => 'Preparando\u2026',
+    share: () => 'Compartir',
+    shareTranscript: () => 'Compartir la transcripci\u00f3n',
+    whichFormat: () => '\u00bfEn qu\u00e9 formato?',
+    cancel: () => 'Cancelar',
+    text: () => 'Texto',
+    subtitles: () => 'Subt\u00edtulos',
+    data: () => 'Datos',
+    deleteTranscript: () => 'Borrar la transcripci\u00f3n',
+    deleteThisTranscript: () => '\u00bfBorrar esta transcripci\u00f3n?',
+    deleteCost: () =>
+      'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',
+    deleteConfirm: () => 'Borrar',
+    couldNotDelete: () => 'No se ha podido borrar',
+    beingTranscribed: () =>
+      'Se est\u00e1 transcribiendo. Tarda unos minutos; puedes salir de esta pantalla.',
+    transcribingFailedWith: (reason: string) =>
+      `Fall\u00f3 la transcripci\u00f3n — ${reason}`,
+    transcribingFailed: () => 'Fall\u00f3 la transcripci\u00f3n.',
+    loading: () => 'Cargando\u2026',
+    couldNotSave: () => 'No se ha podido guardar',
+    missing: (count: number) =>
+      count === 1
+        ? 'No se ha podido transcribir a una persona, y no est\u00e1 aqu\u00ed.'
+        : `No se ha podido transcribir a ${count} personas, y no est\u00e1n aqu\u00ed.`,
+    manyVoices: () =>
+      'Una letra junto a un nombre significa que en ese micr\u00f3fono se oy\u00f3 m\u00e1s de una voz. No se sabe de qui\u00e9n eran las dem\u00e1s.',
+    findAWord: () => 'Buscar una palabra',
+    searchSeekable: () =>
+      'La b\u00fasqueda es solo tuya. Tocar una l\u00ednea mueve la reproducci\u00f3n para todos.',
+    searchOnly: () =>
+      'La b\u00fasqueda es solo tuya. Reproduce esta grabaci\u00f3n para saltar a una l\u00ednea.',
+    nothingMatches: () => 'No hay coincidencias.',
+    nothingWasTranscribed: () => 'No se transcribi\u00f3 nada.',
+    couldNotShare: () => 'No se ha podido compartir',
+    voices: () => 'Voces',
+    voicesExplanation: () =>
+      'El servicio oy\u00f3 estas voces. Etiqueta cada micr\u00f3fono por separado, as\u00ed que las letras son su conjetura: ponles nombre, da el mismo nombre a dos para unirlas, o quita una que nunca fue una persona. La transcripci\u00f3n en s\u00ed no cambia y esto se puede rehacer cuando quieras.',
+    saving: () => 'Guardando\u2026',
+    save: () => 'Guardar',
+    clearAll: () => 'Borrar todo',
+    someone: () => 'Alguien',
+    lines: (count: number) => (count === 1 ? '1 l\u00ednea' : `${count} l\u00edneas`),
+    nameThisVoice: () => 'Poner nombre a esta voz',
+    bringBack: () => 'Quitada — recuperar',
+    removeFromTranscript: () => 'Quitar de la transcripci\u00f3n',
+    jumpTo: (at: string, name: string, text: string) =>
+      `Saltar a ${at}, ${name}: ${text}`,
+  },
+  introduction: {
+    somebodyLabel: () => 'Trae a alguien aqu\u00ed',
+    somebodyInstruction: () =>
+      'En Contactos, env\u00eda un enlace de invitaci\u00f3n, o a\u00f1ade a alguien por la direcci\u00f3n con la que entra.',
+    somebodyNote: () =>
+      'Un enlace funciona mientras duermes, y nadie puede localizarte hasta que uno de los dos haga esto.',
+    stepInLabel: () => 'Entra con alguien',
+    stepInInstruction: () =>
+      'En Canales, crea uno y entra, y qu\u00e9date hasta que entre alguien m\u00e1s. Quien invites llega a ese canal.',
+    stepInNote: () =>
+      'Estar dos en un canal a la vez es el momento en que la gente puede oírte, y es para lo que sirve todo esto.',
+    floorLabel: () => 'Pide la palabra',
+    floorInstruction: () =>
+      'En un canal, toca Pedir en la barra de abajo. Todos los dem\u00e1s quedan silenciados hasta que la sueltes.',
+    floorNote: () =>
+      'Es lo que le da nombre a la app: una persona hablando, y nadie que pueda hablar por encima.',
+    nearbyLabel: () => 'Di que est\u00e1s cerca',
+    nearbyInstruction: () =>
+      'En un canal, toca Cerca. Avisa a todos los que no est\u00e9n de que se te puede localizar durante el pr\u00f3ximo cuarto de hora.',
+    nearbyNote: () =>
+      'Es c\u00f3mo empieza una conversaci\u00f3n sin que nadie tenga que organizarla: se te puede localizar sin estar dentro.',
+    guestLabel: () => 'Trae a un invitado',
+    guestInstruction: () =>
+      'En la pesta\u00f1a Invitar de un canal, comparte un enlace de invitado. Quien lo abra entra en el canal desde un navegador, sin cuenta y sin instalar nada.',
+    guestNote: () =>
+      'Qu\u00e9date en el canal mientras lo abre: un enlace de invitado deja de funcionar en cuanto no hay ning\u00fan miembro dentro.',
+    playerLabel: () => 'Pon algo para escuchar juntos',
+    playerInstruction: () =>
+      'En la pesta\u00f1a Escuchar de un canal, a\u00f1ade audio. Todos en la sala lo oyen en el mismo momento, y pod\u00e9is seguir hablando por encima.',
+    playerNote: () =>
+      'Es lo \u00fanico aqu\u00ed que no es alguien hablando, y la sala sigue siendo una sala mientras suena.',
+    installLabel: () => 'Pon The Floor en tu pantalla de inicio',
+    installNote: () =>
+      'Tiene su propio icono y se abre sin un navegador alrededor, que es c\u00f3mo encuentras el camino de vuelta.',
+    seeLess: () => 'Ver menos',
+    seeMore: () => 'Ver m\u00e1s',
+    openChannels: () => 'Abrir Canales',
+    openContacts: () => 'Abrir Contactos',
+    install: () => 'Instalar',
+    openTheChannel: () => 'Abrir el canal',
+    openInvite: () => 'Abrir Invitar',
+    openListen: () => 'Abrir Escuchar',
+    doneBrief: (label: string) => `Hecho: ${label}.`,
+    rowLabel: (
+      done: boolean,
+      label: string,
+      instruction: string,
+      note: string
+    ) => `${done ? 'Hecho' : 'Sin hacer'}: ${label}. ${instruction} ${note}`,
+    dismiss: (label: string) => `Descartar ${label}`,
+  },
+  install: {
+    fromHere: () =>
+      'Inst\u00e1lala desde aqu\u00ed, o desde el icono de instalar de la barra de direcciones.',
+    safari: () =>
+      'Toca Compartir en Safari y luego A\u00f1adir a pantalla de inicio.',
+    menu: () =>
+      'Abre el men\u00fa de tu navegador y elige Instalar, o A\u00f1adir a pantalla de inicio.',
+  },
 };

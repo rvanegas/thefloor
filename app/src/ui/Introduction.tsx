@@ -7,6 +7,7 @@ import { Button, Card, IconButton } from './components';
 import type { List } from './detail';
 import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
+import { useText, type Strings } from '../i18n';
 
 /**
  * What a new account sees above the two lists, until it has finished with it.
@@ -92,6 +93,7 @@ export function Introduction({
    */
   onOpenChannel?: (channelId: string, tab: ChannelTab) => void;
 }) {
+  const t = useText().introduction;
   const { introduction, installPrompt, dismissStep } = useApp();
   /**
    * Whether the rungs after the next one are showing.
@@ -147,7 +149,14 @@ export function Introduction({
           <Row
             key={step.id}
             step={step}
-            action={actionFor(step, onList, installPrompt, live, onOpenChannel)}
+            action={actionFor(
+              step,
+              onList,
+              installPrompt,
+              live,
+              onOpenChannel,
+              t
+            )}
             onDismiss={dismissStep}
           />
         );
@@ -160,7 +169,7 @@ export function Introduction({
       {later.length > 0 ? (
         <View style={styles.actions}>
           <Button
-            label={expanded ? 'See less' : 'See more'}
+            label={expanded ? t.seeLess() : t.seeMore()}
             onPress={() => setExpanded((open) => !open)}
           />
         </View>
@@ -213,7 +222,8 @@ function actionFor(
   installPrompt: (() => void) | null,
   /** The channel being stood in, or null — see the prop of the same name. */
   live: string | null,
-  onOpenChannel: (channelId: string, tab: ChannelTab) => void
+  onOpenChannel: (channelId: string, tab: ChannelTab) => void,
+  t: Strings['introduction']
 ): { label: string; onPress: () => void } | null {
   /**
    * Into the room, on the tab the rung names — or the list, when there is no
@@ -232,11 +242,11 @@ function actionFor(
   ): { label: string; onPress: () => void } =>
     live
       ? { label, onPress: () => onOpenChannel(live, tab) }
-      : { label: 'Open Channels', onPress: () => onList('channels') };
+      : { label: t.openChannels(), onPress: () => onList('channels') };
 
   switch (step.id) {
     case 'somebody':
-      return { label: 'Open Contacts', onPress: () => onList('contacts') };
+      return { label: t.openContacts(), onPress: () => onList('contacts') };
     // **Channels even while standing in one**, deliberately, and it is the
     // one rung where being in a channel does not change the answer. What it
     // asks for is somebody else in the room with you; the half of it this
@@ -245,7 +255,7 @@ function actionFor(
     // them into the room they are already alone in would be a control that
     // moves nothing.
     case 'stepIn':
-      return { label: 'Open Channels', onPress: () => onList('channels') };
+      return { label: t.openChannels(), onPress: () => onList('channels') };
     // **The one rung that may have no button, and usually has none.** Most
     // browsers keep installing in their own chrome and will not let a page
     // raise it; there the instruction is the whole row, and a button that
@@ -254,7 +264,7 @@ function actionFor(
     // which is the only control in this card that does rather than navigates.
     case 'install':
       return installPrompt
-        ? { label: 'Install', onPress: installPrompt }
+        ? { label: t.install(), onPress: installPrompt }
         : null;
     // **All four go to Channels when there is no channel to go to**, and the
     // repetition is the honest answer: every one of them is done inside a
@@ -273,16 +283,16 @@ function actionFor(
     // tab of their own and there is nothing nearer to send somebody to.
     case 'floor':
     case 'nearby':
-      return inChannel('people', 'Open the channel');
+      return inChannel('people', t.openTheChannel());
     case 'guest':
-      return inChannel('invites', 'Open Invite');
+      return inChannel('invites', t.openInvite());
     // **The rung is still called `player` and the tab is not**, since
     // 2026-09-18. The tab was renamed to *Listen* to sit beside *Watch*; this
     // id is on the wire — `/me/tried` refuses a name it does not know, and
     // `accounts.ts` keeps a `tried_player` column — so renaming it would be a
     // wire change and a migration for a word nobody reads.
     case 'player':
-      return inChannel('listen', 'Open Listen');
+      return inChannel('listen', t.openListen());
   }
 }
 
@@ -321,15 +331,14 @@ function Row({
    */
   brief?: boolean;
 }) {
+  const t = useText().introduction;
   return (
     <View
       accessible
       accessibilityLabel={
         brief
-          ? `Done: ${step.label}.`
-          : `${step.done ? 'Done' : 'Not done'}: ${step.label}. ${
-              step.instruction
-            } ${step.note}`
+          ? t.doneBrief(step.label)
+          : t.rowLabel(step.done, step.label, step.instruction, step.note)
       }
       style={styles.row}
     >
@@ -384,9 +393,10 @@ function Dismiss({
   label: string;
   onDismiss: (id: StepId) => void;
 }) {
+  const t = useText().introduction;
   return (
     <IconButton
-      label={`Dismiss ${label}`}
+      label={t.dismiss(label)}
       icon={(color) => <CloseIcon color={color} size={16} />}
       onPress={() => onDismiss(step)}
       style={styles.dismiss}

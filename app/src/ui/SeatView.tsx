@@ -7,6 +7,7 @@ import { api } from '../api/http';
 import { pasteText } from '../clipboard';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
+import { useText, type Strings } from '../i18n';
 
 /**
  * A channel this account holds a **seat** in, drawn in the app.
@@ -42,13 +43,15 @@ import { colors, radius, spacing, type } from './theme';
  * believe the phone and the laptop are telling them different things. See
  * `MIC_WORDS` in server/web/guest.ts; a change belongs in both or in neither.
  */
-const MIC_WORDS: Record<GuestView['you']['mic'], string> = {
-  listening: 'You are listening. Nobody can hear you.',
-  asking: 'You have asked to speak. Waiting for somebody to answer.',
-  refused: 'Somebody said no to the microphone for now.',
-  open: 'Your microphone is on and the channel can hear you.',
-  muted: 'Your microphone is on, and you have muted yourself.',
-};
+const micWords = (
+  t: Strings['seat']
+): Record<GuestView['you']['mic'], string> => ({
+  listening: t.micListening(),
+  asking: t.micAsking(),
+  refused: t.micRefused(),
+  open: t.micOpen(),
+  muted: t.micMuted(),
+});
 
 export function SeatView({
   view,
@@ -63,6 +66,7 @@ export function SeatView({
    */
   onClose: () => void;
 }) {
+  const t = useText().seat;
   const app = useApp();
   const act = (action: Parameters<typeof app.actAsSeat>[1]) =>
     app.actAsSeat(view.channelId, action);
@@ -123,7 +127,7 @@ export function SeatView({
             */}
             {holding ? (
               <Button
-                label={view.you.mic === 'muted' ? 'Unmute' : 'Mute'}
+                label={view.you.mic === 'muted' ? t.unmute() : t.mute()}
                 style={styles.flexButton}
                 onPress={() =>
                   act({
@@ -141,7 +145,7 @@ export function SeatView({
               the way back for as long as the room is there. See STATES.md.
             */}
             <Button
-              label="Step out"
+              label={t.stepOut()}
               style={styles.flexButton}
               onPress={() => {
                 act({ type: 'STEP_OUT' });
@@ -162,15 +166,13 @@ export function SeatView({
       */}
       {view.recording ? (
         <Card style={styles.recording}>
-          <Text style={styles.recordingText}>
-            This conversation is being recorded.
-          </Text>
+          <Text style={styles.recordingText}>{t.beingRecorded()}</Text>
         </Card>
       ) : null}
 
-      <SectionLabel>You</SectionLabel>
+      <SectionLabel>{t.you()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.body}>{MIC_WORDS[view.you.mic]}</Text>
+        <Text style={type.body}>{micWords(t)[view.you.mic]}</Text>
         {/*
           Being silenced by somebody else's claim, which is the floor's one
           remaining appearance here — a guest has not been able to claim it
@@ -179,13 +181,11 @@ export function SeatView({
           is not listening.
         */}
         {view.you.silenced ? (
-          <Text style={styles.warning}>
-            Somebody has the floor, so the room cannot hear you just now.
-          </Text>
+          <Text style={styles.warning}>{t.silenced()}</Text>
         ) : null}
         {wouldAsk && view.you.canAsk ? (
           <Button
-            label="Ask to speak"
+            label={t.askToSpeak()}
             variant="primary"
             onPress={() => act({ type: 'REQUEST_SPEECH' })}
           />
@@ -196,17 +196,14 @@ export function SeatView({
           telling that the room is full of them.
         */}
         {wouldAsk && !view.you.canAsk ? (
-          <Text style={type.muted}>
-            Two guests have the microphone already, which is as many as a room
-            takes.
-          </Text>
+          <Text style={type.muted}>{t.twoGuestsAlready()}</Text>
         ) : null}
       </Card>
 
-      <SectionLabel>Who is here</SectionLabel>
+      <SectionLabel>{t.whoIsHere()}</SectionLabel>
       <Card style={styles.stack}>
         {view.others.length === 0 ? (
-          <Text style={type.muted}>Nobody else is here.</Text>
+          <Text style={type.muted}>{t.nobodyElseIsHere()}</Text>
         ) : (
           view.others.map((other, at) => (
             // Keyed by position, which is the one place in this app that is
@@ -218,7 +215,7 @@ export function SeatView({
                 {other.name}
               </Text>
               {other.kind === 'guest' ? (
-                <Text style={type.muted}>Guest</Text>
+                <Text style={type.muted}>{t.guest()}</Text>
               ) : null}
               <View
                 style={[styles.dot, other.speaking && styles.dotLive]}
@@ -239,15 +236,13 @@ export function SeatView({
       */}
       {view.asks.length > 0 ? (
         <>
-          <SectionLabel>Asked of you</SectionLabel>
+          <SectionLabel>{t.askedOfYou()}</SectionLabel>
           {view.asks.map((ask) => (
             <Card key={ask.askerId} style={styles.stack}>
-              <Text style={type.body}>
-                {`${ask.from} would like to add you as a contact.`}
-              </Text>
+              <Text style={type.body}>{t.wouldLikeToAddYou(ask.from)}</Text>
               <View style={styles.buttonRow}>
                 <Button
-                  label={accepting === ask.askerId ? 'Accepting…' : 'Accept'}
+                  label={accepting === ask.askerId ? t.accepting() : t.accept()}
                   variant="primary"
                   disabled={accepting === ask.askerId}
                   style={styles.flexButton}
@@ -265,7 +260,7 @@ export function SeatView({
                       setTrouble(
                         error instanceof Error
                           ? error.message
-                          : 'That did not work.'
+                          : t.thatDidNotWork()
                       );
                     } finally {
                       setAccepting(null);
@@ -278,7 +273,7 @@ export function SeatView({
                   other is a question that was answered no.
                 */}
                 <Button
-                  label="No thanks"
+                  label={t.noThanks()}
                   style={styles.flexButton}
                   onPress={() =>
                     act({ type: 'REFUSE_CONTACT', askerId: ask.askerId })
@@ -290,14 +285,14 @@ export function SeatView({
         </>
       ) : null}
 
-      <SectionLabel>Clipboard</SectionLabel>
+      <SectionLabel>{t.clipboard()}</SectionLabel>
       <Card style={styles.stack}>
         <Text style={view.clip ? type.body : type.muted}>
-          {view.clip ? view.clip.text : 'Nothing on the clipboard.'}
+          {view.clip ? view.clip.text : t.nothingOnTheClipboard()}
         </Text>
         <View style={styles.buttonRow}>
           <Button
-            label="Paste mine"
+            label={t.pasteMine()}
             style={styles.flexButton}
             onPress={async () => {
               const text = await pasteText();
@@ -310,7 +305,7 @@ export function SeatView({
           />
           {view.clip ? (
             <Button
-              label="Clear"
+              label={t.clear()}
               style={styles.flexButton}
               onPress={() => act({ type: 'CLEAR_CLIP' })}
             />
@@ -318,16 +313,13 @@ export function SeatView({
         </View>
       </Card>
 
-      <SectionLabel>Your name here</SectionLabel>
+      <SectionLabel>{t.yourNameHere()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.muted}>
-          What the room calls you while you are in it. It is this conversation
-          only, and nothing about your account.
-        </Text>
+        <Text style={type.muted}>{t.whatTheRoomCallsYou()}</Text>
         <Field
           value={rename ?? view.you.name}
           onChangeText={setRename}
-          placeholder="Your name"
+          placeholder={t.yourName()}
           autoCapitalize="words"
           onSubmit={() => {
             const name = (rename ?? '').trim();
@@ -348,7 +340,7 @@ export function SeatView({
         way out that ends a conversation is pinned. See planning/STYLE.md
         § *The pinned footer*.
       */}
-      <Button label="Back to Home" onPress={onClose} />
+      <Button label={t.backToHome()} onPress={onClose} />
     </Screen>
   );
 }

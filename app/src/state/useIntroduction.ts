@@ -12,6 +12,7 @@ import {
   type Tried,
   type TriedId,
 } from './tried';
+import { useText } from '../i18n';
 import {
   introduction,
   isStepId,
@@ -242,6 +243,7 @@ export function useIntroduction(state: {
    */
   install: Install;
 }): IntroductionState {
+  const words = useText().introduction;
   const { ready, token, home, conversing, install } = state;
 
   const [loaded, setLoaded] = useState(false);
@@ -510,6 +512,7 @@ export function useIntroduction(state: {
       install,
       dismissed,
       contactsBase,
+      words,
     }),
     markTried,
     dismiss,

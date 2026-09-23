@@ -21,6 +21,7 @@ import {
 } from './components';
 import { CloseIcon } from './icons';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
+import { useText } from '../i18n';
 
 /**
  * One recording's transcript: what was said, who said it, and when.
@@ -56,6 +57,8 @@ export function TranscriptView({
    */
   manageable: boolean;
 }) {
+  const t = useText().transcript;
+  const shared = useText().shared;
   const app = useApp();
   const [lines, setLines] = React.useState<Line[] | null>(null);
   const [voices, setVoices] = React.useState<VoiceEntry[]>([]);
@@ -162,14 +165,14 @@ export function TranscriptView({
       <View style={styles.headerInner}>
       <View style={styles.headerTop}>
         <View style={styles.headerMain}>
-          <Text style={type.heading}>Transcript</Text>
+          <Text style={type.heading}>{t.title()}</Text>
           <Text style={type.muted} numberOfLines={2}>
             {recording.name}
           </Text>
         </View>
         {/* "Close", not "Back". See HomeSettingsView. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={onBack}
         />
@@ -185,7 +188,7 @@ export function TranscriptView({
         <View style={styles.headerActions}>
           {state === 'ready' && !naming && mayName && voices.length > 1 ? (
             <Button
-              label="Name the voices"
+              label={t.nameTheVoices()}
               // Only when there is a choice to make. One voice in the whole
               // transcript is a conversation nobody needs to relabel, and a
               // button that opens a screen with a single row on it is a
@@ -195,32 +198,32 @@ export function TranscriptView({
           ) : null}
           {state === 'ready' && !naming ? (
             <Button
-              label={busy ? 'Preparing…' : 'Share'}
+              label={busy ? t.preparing() : t.share()}
               disabled={busy}
               onPress={() => {
-                Alert.alert('Share transcript', 'Which format?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Text', onPress: () => download('txt') },
-                  { text: 'Subtitles', onPress: () => download('vtt') },
-                  { text: 'Data', onPress: () => download('json') },
+                Alert.alert(t.shareTranscript(), t.whichFormat(), [
+                  { text: t.cancel(), style: 'cancel' },
+                  { text: t.text(), onPress: () => download('txt') },
+                  { text: t.subtitles(), onPress: () => download('vtt') },
+                  { text: t.data(), onPress: () => download('json') },
                 ]);
               }}
             />
           ) : null}
           {deletable && !naming ? (
             <Button
-              label="Delete transcript"
+              label={t.deleteTranscript()}
               disabled={!manageable || busy}
               onPress={() => {
                 Alert.alert(
-                  'Delete this transcript?',
+                  t.deleteThisTranscript(),
                   // Says the cost out loud. Nothing is refunded, and the app
                   // should not let somebody find that out by asking again.
-                  'The recording is kept. Transcribing it again costs the same as the first time.',
+                  t.deleteCost(),
                   [
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: t.cancel(), style: 'cancel' },
                     {
-                      text: 'Delete',
+                      text: t.deleteConfirm(),
                       style: 'destructive',
                       onPress: async () => {
                         if (!app.token) return;
@@ -230,7 +233,7 @@ export function TranscriptView({
                           onBack();
                         } catch (e) {
                           Alert.alert(
-                            'Could not delete',
+                            t.couldNotDelete(),
                             e instanceof Error ? e.message : String(e)
                           );
                         } finally {
@@ -264,24 +267,21 @@ export function TranscriptView({
   return (
     <Screen header={header} contentStyle={styles.container}>
       {state === 'pending' ? (
-        <Empty>
-          Being transcribed. This takes a few minutes; you can leave this
-          screen.
-        </Empty>
+        <Empty>{t.beingTranscribed()}</Empty>
       ) : null}
 
       {state === 'failed' ? (
         <Empty>
           {recording.transcript?.failure
-            ? `Transcribing failed — ${recording.transcript.failure}`
-            : 'Transcribing failed.'}
+            ? t.transcribingFailedWith(recording.transcript.failure)
+            : t.transcribingFailed()}
         </Empty>
       ) : null}
 
       {error ? <Empty>{error}</Empty> : null}
 
       {state === 'ready' && lines === null && !error ? (
-        <Empty>Loading…</Empty>
+        <Empty>{t.loading()}</Empty>
       ) : null}
 
       {state === 'ready' && lines !== null && naming ? (
@@ -298,7 +298,7 @@ export function TranscriptView({
               setNaming(false);
             } catch (e) {
               Alert.alert(
-                'Could not save',
+                t.couldNotSave(),
                 e instanceof Error ? e.message : String(e)
               );
             } finally {
@@ -319,9 +319,7 @@ export function TranscriptView({
           */}
           {recording.transcript?.missing ? (
             <Text style={type.muted}>
-              {recording.transcript.missing === 1
-                ? 'One person could not be transcribed and is missing from this.'
-                : `${recording.transcript.missing} people could not be transcribed and are missing from this.`}
+              {t.missing(recording.transcript.missing)}
             </Text>
           ) : null}
 
@@ -333,16 +331,13 @@ export function TranscriptView({
             as one.
           */}
           {manyVoices ? (
-            <Text style={type.muted}>
-              A letter beside a name means more than one voice was heard on
-              that microphone. Who the others were is not known.
-            </Text>
+            <Text style={type.muted}>{t.manyVoices()}</Text>
           ) : null}
 
           <Field
             value={query}
             onChangeText={setQuery}
-            placeholder="Find a word"
+            placeholder={t.findAWord()}
             autoCapitalize="none"
           />
           {/*
@@ -350,14 +345,12 @@ export function TranscriptView({
             somebody is about to act on it.
           */}
           <Text style={type.muted}>
-            {onSeek
-              ? 'Searching is yours alone. Tapping a line moves playback for everybody.'
-              : 'Searching is yours alone. Play this recording to jump to a line.'}
+            {onSeek ? t.searchSeekable() : t.searchOnly()}
           </Text>
 
           {matches.length === 0 ? (
             <Empty>
-              {query.trim() ? 'Nothing matches.' : 'Nothing was transcribed.'}
+              {query.trim() ? t.nothingMatches() : t.nothingWasTranscribed()}
             </Empty>
           ) : (
             <View style={styles.lines}>
@@ -389,7 +382,7 @@ export function TranscriptView({
       );
     } catch (e) {
       Alert.alert(
-        'Could not share',
+        t.couldNotShare(),
         e instanceof Error ? e.message : String(e)
       );
     } finally {
@@ -443,6 +436,7 @@ function VoicesEditor({
   onSave: (declarations: VoiceDeclarations) => void;
   onCancel: () => void;
 }) {
+  const t = useText().transcript;
   /**
    * The draft, keyed the way the wire is.
    *
@@ -467,13 +461,8 @@ function VoicesEditor({
 
   return (
     <>
-      <SectionLabel>Voices</SectionLabel>
-      <Text style={type.muted}>
-        The service heard these voices. It labels each microphone on its own,
-        so the letters are its guess — name them, give two the same name to
-        make them one, or remove one that was never a person. The transcript
-        itself is not changed and this can be redone at any time.
-      </Text>
+      <SectionLabel>{t.voices()}</SectionLabel>
+      <Text style={type.muted}>{t.voicesExplanation()}</Text>
 
       {/*
         Above the rows, for the reason the transcript's own actions are above
@@ -484,7 +473,7 @@ function VoicesEditor({
       */}
       <View style={styles.actions}>
         <Button
-          label={busy ? 'Saving…' : 'Save'}
+          label={busy ? t.saving() : t.save()}
           variant="primary"
           disabled={busy}
           onPress={() =>
@@ -502,7 +491,7 @@ function VoicesEditor({
           }
         />
         <Button
-          label="Clear all"
+          label={t.clearAll()}
           disabled={busy}
           // Empties the draft rather than saving one: undoing an edit and
           // committing it are two different intentions, and the Save button
@@ -515,7 +504,7 @@ function VoicesEditor({
             )
           }
         />
-        <Button label="Cancel" disabled={busy} onPress={onCancel} />
+        <Button label={t.cancel()} disabled={busy} onPress={onCancel} />
       </View>
 
       <View style={styles.lines}>
@@ -542,14 +531,15 @@ function VoiceRow({
   draft: { name: string; removed: boolean };
   onChange: (change: Partial<{ name: string; removed: boolean }>) => void;
 }) {
+  const t = useText().transcript;
   return (
     <Card style={styles.line}>
       <View style={styles.lineHead}>
         <Text style={styles.speaker} numberOfLines={1}>
-          {voice.defaultName ?? 'Someone'}
+          {voice.defaultName ?? t.someone()}
         </Text>
         <Text style={type.muted}>
-          {voice.lines === 1 ? '1 line' : `${voice.lines} lines`}
+          {t.lines(voice.lines)}
         </Text>
       </View>
       {/*
@@ -565,7 +555,7 @@ function VoiceRow({
         onChangeText={(name) => onChange({ name })}
         // The default is the placeholder, so leaving it blank plainly means
         // "as it was" and there is no separate control for going back.
-        placeholder={voice.defaultName ?? 'Name this voice'}
+        placeholder={voice.defaultName ?? t.nameThisVoice()}
         autoCapitalize="words"
         editable={!draft.removed}
       />
@@ -574,7 +564,7 @@ function VoiceRow({
         // whole of it, and it says which way the press goes. A fill that
         // changed under the same button was the weaker half of that pair even
         // while there were two fills to choose between.
-        label={draft.removed ? 'Removed — bring back' : 'Remove from transcript'}
+        label={draft.removed ? t.bringBack() : t.removeFromTranscript()}
         onPress={() => onChange({ removed: !draft.removed })}
       />
     </Card>
@@ -601,8 +591,9 @@ function TranscriptEntry({
   lines: Line[];
   onSeek?: (positionMs: number) => void;
 }) {
+  const t = useText().transcript;
   const [head] = lines;
-  const name = head.displayName ?? 'Someone';
+  const name = head.displayName ?? t.someone();
 
   return (
     <Card style={styles.line}>
@@ -633,12 +624,13 @@ function Paragraph({
   name: string;
   onSeek?: (positionMs: number) => void;
 }) {
+  const t = useText().transcript;
   const body = <Text style={type.body}>{line.text}</Text>;
   if (!onSeek) return body;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Jump to ${formatDuration(line.startMs)}, ${name}: ${line.text}`}
+      accessibilityLabel={t.jumpTo(formatDuration(line.startMs), name, line.text)}
       onPress={() => onSeek(line.startMs)}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >

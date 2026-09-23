@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isEmbeddedBrowser } from '../../../core/embedded';
 import { installOffer, NOT_OFFERED, type Browser, type Install } from './install';
 import type { InstallState } from './useInstall';
+import { useText } from '../i18n';
 
 export type { InstallState };
 
@@ -117,9 +118,10 @@ function read(): Browser {
 
 export function useInstall(): InstallState {
   const [install, setInstall] = useState<Install>(NOT_OFFERED);
+  const words = useText().install;
 
   useEffect(() => {
-    const update = () => setInstall(installOffer(read()));
+    const update = () => setInstall(installOffer(read(), words));
     update();
     listeners.add(update);
     // The one way `display-mode` changes under a running page: a desktop
@@ -130,7 +132,7 @@ export function useInstall(): InstallState {
       listeners.delete(update);
       media?.removeEventListener?.('change', update);
     };
-  }, []);
+  }, [words]);
 
   const promptInstall = useCallback(() => {
     const event = deferred;

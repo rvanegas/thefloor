@@ -17,6 +17,7 @@
 
 import type { Install } from './install';
 import { allTried, type Tried } from './tried';
+import type { Strings } from '../i18n';
 
 
 /**
@@ -207,8 +208,18 @@ export function introduction(state: {
    * marks it; the row simply is not there to fill in.
    */
   dismissed: readonly StepId[];
+  /**
+   * The seven rungs' words.
+   *
+   * **A field on the state rather than a hook**, because this is a pure
+   * function over a snapshot and is tested as one — the same arrangement
+   * `ui/availability.ts` and `core/naming.ts` use. What is decided here is
+   * which rungs exist, in what order, and which are ticked; what they *say*
+   * is the catalogue's.
+   */
+  words: Strings['introduction'];
 }): Introduction {
-  const { loaded, home, conversedAt, tried, install, dismissed, contactsBase } =
+  const { loaded, home, conversedAt, tried, install, dismissed, contactsBase, words } =
     state;
   const hidden = (id: StepId) => dismissed.includes(id);
 
@@ -231,16 +242,15 @@ export function introduction(state: {
   // mean they were never drawn at all.
   if (conversedAt !== null && allTried(tried)) return { show: 'none' };
 
-  const installing = hidden('install') ? null : installStep(install);
+  const installing = hidden('install') ? null : installStep(install, words);
 
   return ladder(
     [
       {
         id: 'somebody',
-        label: 'Get somebody here',
-        instruction:
-          'On Contacts, send an invite link — or add somebody by the address they sign in with.',
-        note: 'A link works while you are asleep, and nobody can reach you until one of you does this.',
+        label: words.somebodyLabel(),
+        instruction: words.somebodyInstruction(),
+        note: words.somebodyNote(),
         // Counts a request that has been sent, not one that has been answered:
         // the app's own words for an outgoing request are "an address rather
         // than a person", and waiting on somebody else's tap would leave this
@@ -267,14 +277,13 @@ export function introduction(state: {
         // present — `AppProvider`'s `conversing`. Called *Step in* it named an
         // act somebody could complete alone and then find unticked, which is
         // the one thing a ladder read off real state must never do.
-        label: 'Step in with somebody',
+        label: words.stepInLabel(),
         // The guest link left this instruction when the label changed: a
         // guest is not a member and does not stamp `conversedAt`, so naming
         // one here offered a way of climbing this rung that does not work.
         // The `guest` rung below is where guest links belong anyway.
-        instruction:
-          'On Channels, start one and step in, and stay there until somebody else steps in too. Anybody you invite arrives in that channel.',
-        note: 'Two of you in a channel at once is the moment people can hear you, and it is what all of this is for.',
+        instruction: words.stepInInstruction(),
+        note: words.stepInNote(),
         // **It ticks now, where it never could before.** This was the rung the
         // whole ladder retired on, so it was drawn permanently unticked and
         // the card vanished the moment it came true. With four rungs below it
@@ -283,7 +292,7 @@ export function introduction(state: {
         // had just done.
         done: conversedAt !== null,
       },
-      ...tryingSteps(tried),
+      ...tryingSteps(tried, words),
     ],
     dismissed
   );
@@ -315,43 +324,39 @@ function ladder(steps: Step[], dismissed: readonly StepId[]): Introduction {
  * they exist to fix is somebody never finding a control; a row that named
  * *the player* without saying which of six tabs it is on would reproduce it.
  */
-function tryingSteps(tried: Tried): Step[] {
+function tryingSteps(tried: Tried, words: Strings['introduction']): Step[] {
   return [
     {
       id: 'floor',
-      label: 'Claim the floor',
-      instruction:
-        'In a channel, tap Claim in the bar along the bottom. Everybody else is muted until you release it.',
-      note: 'It is the thing the app is named after: one person speaking, and nobody able to talk over them.',
+      label: words.floorLabel(),
+      instruction: words.floorInstruction(),
+      note: words.floorNote(),
       done: tried.floor,
     },
     {
       id: 'nearby',
-      label: 'Say you are nearby',
-      instruction:
-        'In a channel, tap Nearby. It notifies everybody who is not there that you are within reach for the next quarter of an hour.',
-      note: 'It is how a conversation starts without anybody having to arrange one: you are reachable without being in it.',
+      label: words.nearbyLabel(),
+      instruction: words.nearbyInstruction(),
+      note: words.nearbyNote(),
       done: tried.nearby,
     },
     {
       id: 'guest',
-      label: 'Bring in a guest',
-      instruction:
-        "On a channel's Invite tab, share a guest link. Whoever opens it is in the channel in a browser, with no account and nothing to install.",
+      label: words.guestLabel(),
+      instruction: words.guestInstruction(),
       // **The lifetime is the note and not a footnote.** The glossary is
       // explicit that a guest link stops working once the channel is empty of
       // members, and *send a link, they will join later* is what everybody
       // assumes. ONBOARDING.md § *Three things the campaign exposes* names
       // this as something the copy has to say; this is the copy saying it.
-      note: 'Stay in the channel while they open it — a guest link stops working the moment no member is there.',
+      note: words.guestNote(),
       done: tried.guest,
     },
     {
       id: 'player',
-      label: 'Play something together',
-      instruction:
-        "On a channel's Listen tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
-      note: 'It is the one thing here that is not somebody talking, and the room stays a room while it plays.',
+      label: words.playerLabel(),
+      instruction: words.playerInstruction(),
+      note: words.playerNote(),
       done: tried.player,
     },
   ];
@@ -370,11 +375,14 @@ function tryingSteps(tried: Tried): Step[] {
  * The wording of `instruction` is the browser's own — see `install.ts`, which
  * is where the *how* differs and the only place it does.
  */
-function installStep(install: Install): Step | null {
+function installStep(
+  install: Install,
+  words: Strings['introduction']
+): Step | null {
   if (!install.offer) return null;
   return {
     id: 'install',
-    label: 'Put The Floor on your home screen',
+    label: words.installLabel(),
     instruction: install.how,
     // **It does not promise notifications, and must not.** This app has no
     // service worker and no web push, so an installed browser app is exactly
@@ -382,7 +390,7 @@ function installStep(install: Install): Step | null {
     // being reached is `ui/installNotice.ts`, and it is about the App Store
     // app — the two sit in the same tier and saying the same thing in both
     // would make one of them a lie.
-    note: 'It gets an icon of its own and opens without a browser around it, which is how you find your way back here.',
+    note: words.installNote(),
     done: false,
   };
 }

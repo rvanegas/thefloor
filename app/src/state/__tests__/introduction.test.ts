@@ -1,3 +1,4 @@
+import { en } from '../../i18n/en';
 import { NOT_OFFERED, type Install } from '../install';
 import { introduction, type Step } from '../introduction';
 import { NOTHING_TRIED, type Tried } from '../tried';
@@ -23,6 +24,7 @@ const fresh = {
   contactsBase: 0,
   // A phone, where there is nothing to install. The browser cases say so.
   install: NOT_OFFERED as Install,
+  words: en.introduction,
 };
 
 /** A browser with somewhere to put this and no button of its own to do it. */
