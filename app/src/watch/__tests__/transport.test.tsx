@@ -6,7 +6,7 @@ import { WATCH_STALL_MS } from '../../../../core/constants';
 import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
-import { useFollow, type PlayerPort } from '../drive';
+import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
 
 /**
  * The follower with everything that is slow about it left in.
@@ -658,6 +658,60 @@ describe('a player that cannot keep up', () => {
     sim.player.calls.length = 0;
     sim.advance(WATCH_STALL_MS * 2);
     expect(sim.player.calls.filter((c) => c === 'play')).toHaveLength(2);
+  });
+
+  /*
+    **The press that waited ten seconds, from the build 277 log.**
+
+    A film wedged in `buffering` with a paused transport was told to pause on
+    every fuse — eighty times in two minutes — and each of those restarted the
+    stall clock. A press of Play then waited out the whole of
+    `WATCH_STALL_MS` before the follower would say anything at all, because a
+    buffering player is one the rules leave alone.
+
+    That patience is owed to the player and not to the person. Reported as *I
+    pressed play and it took about five seconds*, which is the complaint this
+    whole investigation began with — and not the audio session after all.
+  */
+  it('answers a press at once, however long it has been leaving a stall alone', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.wire.press(pause, Date.now());
+    sim.advance(2_000);
+
+    // Wedged: buffering with no far side and deaf to what it is told, which
+    // is the state the build 277 log caught. `stall` will not do — the sim's
+    // player takes a pause as the end of one, so it would be resting rather
+    // than stuck and the rule under test would never be reached.
+    sim.player.stuck();
+    sim.advance(6_000);
+    sim.player.calls.length = 0;
+
+    sim.wire.press(play, Date.now());
+    // The round trip and a tick. Under the old rule there was nothing here
+    // for the rest of the stall window.
+    sim.advance(TRIP_MS + FOLLOW_TICK_MS + 100);
+    expect(sim.player.calls).toContain('play');
+  });
+
+  it('does not repeat a pause at a player that is still buffering', () => {
+    // Eighty identical instructions, 1.5s apart, with no end — the storm the
+    // paused branch had because only the playing one consulted the stall
+    // window. One nudge per window is the rule in both directions now.
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.wire.press(pause, Date.now());
+    sim.advance(2_000);
+
+    sim.player.stuck();
+    sim.player.calls.length = 0;
+    sim.advance(6_000);
+
+    expect(
+      sim.player.calls.filter((c) => c === 'pause').length
+    ).toBeLessThanOrEqual(1);
   });
 
   it('corrects it once, on the far side, and comes back in step', () => {

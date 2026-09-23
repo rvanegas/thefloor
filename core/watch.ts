@@ -484,7 +484,29 @@ export function followInstructions(
    * not. The clock is `drive.ts`'s, this being the file that owns clocks; what
    * is decided here is what a number that large means.
    */
-  bufferingForMs = 0
+  bufferingForMs = 0,
+  /**
+   * Whether the room has just asked for something different.
+   *
+   * **Patience is owed to a player, not to a person, and this is the line
+   * between them.** The stall rule below leaves a buffering player alone
+   * because a seek would throw away the buffer it is filling — which is right
+   * while the follower is correcting drift of its own accord, and wrong the
+   * moment somebody presses Play. A press is new information: it is not a
+   * correction that can wait for a better time, it is the answer to *what
+   * should this be doing*, and it changed.
+   *
+   * Measured on build 277, which is what put this here. A film wedged in
+   * `buffering` was being told to pause once a fuse; each of those restarted
+   * the stall clock; and a press of Play then waited out the whole of
+   * `WATCH_STALL_MS` before the follower would say anything at all. Ten
+   * seconds of a dead transport, reported as *I pressed play and it took
+   * about five seconds* — the complaint this whole investigation started
+   * from, and not the audio session after all.
+   *
+   * `drive.ts` sets it, being the only thing that can see the want change.
+   */
+  urgent = false
 ): WatchInstruction[] {
   const want = desiredFor(watch, now);
   if (!want) return [];
@@ -513,6 +535,24 @@ export function followInstructions(
   const adrift =
     player.positionMs !== null &&
     Math.abs(player.positionMs - want.positionMs) > WATCH_DRIFT_MS;
+
+  /**
+   * Whether this player is on its way and should be left to get there.
+   *
+   * **Both directions since 2026-09-23, and it used to be one.** Only the
+   * playing branch consulted it, so a buffering player with a paused
+   * transport was told to pause on every fuse for as long as it stayed
+   * buffering — eighty identical instructions in two minutes, in the build
+   * 277 log, at 1.5s apart and with no end. The rule is the same whichever
+   * way the transport points: a player that is refilling has been told, and
+   * telling it again inside the same window achieves nothing.
+   *
+   * `urgent` is what a person overrides it with; see the parameter.
+   */
+  const settling =
+    !urgent &&
+    player.state === 'buffering' &&
+    bufferingForMs < WATCH_STALL_MS;
 
   if (want.status === 'playing') {
     const instructions: WatchInstruction[] = [];
@@ -569,8 +609,6 @@ export function followInstructions(
       whenever it says something to a stalled player, so this is one nudge per
       `WATCH_STALL_MS` rather than the storm the silence was written against.
     */
-    const settling =
-      player.state === 'buffering' && bufferingForMs < WATCH_STALL_MS;
     if (adrift && !settling) {
       instructions.push({ do: 'seek', positionMs: want.positionMs });
     }
@@ -596,7 +634,7 @@ export function followInstructions(
     until somebody pressed Play.
   */
   const instructions: WatchInstruction[] = [];
-  if (player.state === 'playing' || player.state === 'buffering') {
+  if (player.state === 'playing' || (player.state === 'buffering' && !settling)) {
     instructions.push({ do: 'pause' });
   }
   if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });

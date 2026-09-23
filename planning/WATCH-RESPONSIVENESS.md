@@ -195,6 +195,81 @@ It also removes a confound: every rotation was silently resetting the thing
 under investigation, so the stickiness that remains is now visible instead of
 being healed behind a gesture nobody meant as a repair.
 
+## The press that waited ten seconds — build 277, and it is the original bug
+
+**Reported as *I pressed play and it took maybe 5s to finally play*.** It is in
+the log, and it is not the audio session:
+
+```
+-0.728  watch tell pause (player buffering at 1027s, want paused at 1028s)
++0.000  watch press play
++0.386  route ... Playback/SpokenAudio why=categoryChange   ← session done by 386ms
++9.574  watch tell seek+play (player buffering at 1027s, want playing at 1038s)
++10.591 watch playing after 1017ms
+```
+
+The session finished moving in 386ms and the follower then **said nothing for
+nine and a half seconds.** The arithmetic is exact: `WATCH_STALL_MS` is 10s,
+and the last instruction before the press was at −0.728s.
+
+Two rules were serving patience that had nothing to do with the person:
+
+- **The stall window.** A buffering player is left alone so a seek cannot
+  discard the buffer it is filling. That is right for drift the follower
+  decided to correct and wrong for an answer somebody just gave.
+- **The obedience fuse.** An instruction sent and not arrived is waited out
+  for `WATCH_OBEDIENCE_MS` — and that wait was being served even after the
+  room asked for the opposite, so the fuse of a pause delayed the play that
+  replaced it.
+
+And the clock was being restarted constantly, because of a third defect: a
+buffering player under a paused transport was told to pause **on every fuse**
+— 80 identical instructions, 1.51s apart, for 119 seconds and still going when
+the window closed. Only the playing branch consulted the stall window; the
+paused branch had no bound at all. Each of those restarted the very clock the
+press then had to wait out.
+
+Fixed: patience is owed to the player, not to the person (`urgent` in
+`followInstructions`), a change of want abandons the outstanding instruction
+instead of waiting out its fuse, and the stall window now bounds both
+directions.
+
+**This is almost certainly the original complaint.** *Stuck, will not resume,
+rotating unsticks it* — rotating rebuilt the player, which cleared every one
+of these clocks. That is why the workaround worked, and why removing it is
+what made the real fault legible.
+
+## What the audio session still costs, separately
+
+Build 277 also gave the controlled comparison, by accident:
+
+| instruction | took | session moved? |
+| --- | --- | --- |
+| play | 1237, 1286, 1613, 1128, 1590, 2212 ms | yes, every one |
+| play | **501 ms** | **no** |
+| seek | 500–1017 ms | no |
+| pause | 45–463 ms | — |
+
+One resume happened without a category change and took one follow tick. Every
+resume that moved the session took 1.1–2.2s. **The category change costs
+roughly a second on every resume**, on the speaker as much as on Bluetooth —
+so it is the change itself and not the profile handover.
+
+The interruption is directly observed now rather than inferred: the player
+twice reported `paused` with nobody pressing anything —
+
+```
+528.47  watch tell play (player paused at 983s, want playing at 983s)
+564.86  watch ignored playing x1 (player paused)
+```
+
+— which is WebKit pausing the media element under a session that moved, and is
+the stutter people describe as *plays for a moment, loads again, then runs*.
+
+The three ways to stop moving the category are in § *What each outcome
+licenses*; that decision is still open, and is worth re-measuring once the
+press is no longer being swallowed.
+
 ## The protocol
 
 1. **Open the audio panel once** at the start of the session, on any channel.

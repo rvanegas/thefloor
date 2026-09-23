@@ -128,6 +128,16 @@ export function useFollow(
    * See `DEAF_AFTER`.
    */
   const ignored = useRef(0);
+  /**
+   * What the room wanted at the last tick, so that a change can be seen.
+   *
+   * **The one thing a follower cannot read off a player.** Everything else
+   * here is a fact about the embed; this is a fact about the people, and the
+   * difference between a correction the follower decided to make and an
+   * answer somebody just gave is the whole of what `urgent` means. See
+   * `followInstructions`.
+   */
+  const wanted = useRef<Desired['status'] | null>(null);
   const latest = useRef({ watch, port });
   latest.current = { watch, port };
   /** The running loop's own tick, so a press can ring it. See below. */
@@ -161,8 +171,28 @@ export function useFollow(
       */
       if (!showingTheFilm(current, reading)) return;
 
+      /*
+        **A press spends every kind of patience this file keeps.**
+
+        Two of them, and build 277 was caught by both at once. The stall
+        window is one — see `urgent` in `followInstructions`. The other is
+        right below: an instruction that has been sent and not arrived is
+        waited out for `WATCH_OBEDIENCE_MS`, and that wait was being served
+        even when the room had since asked for the opposite. Pressing Play
+        within a fuse of a pause meant waiting out the pause's fuse first,
+        for an instruction nobody wanted any more.
+      */
+      const urgent = wanted.current !== null && wanted.current !== want.status;
+      wanted.current = want.status;
+
       const state = doing.current;
-      if (state.phase === 'sending') {
+      if (state.phase === 'sending' && urgent) {
+        // Abandoned rather than waited out: what it was sent for is no longer
+        // what anybody wants, so its arrival would prove nothing and its
+        // fuse is time spent on a question that has been withdrawn.
+        doing.current = { phase: 'watching' };
+        ignored.current = 0;
+      } else if (state.phase === 'sending') {
         if (hasArrived(reading, state.want)) {
           /*
             **How long the player took, which is the number this is all
@@ -244,7 +274,8 @@ export function useFollow(
         current,
         reading,
         now,
-        buffering.current === null ? 0 : now - buffering.current
+        buffering.current === null ? 0 : now - buffering.current,
+        urgent
       );
       if (instructions.length === 0) return;
       // The stall clock restarts with the instruction, so a player that is
