@@ -47,6 +47,7 @@ const TRIP_MS = 300;
 function laggyPlayer(lag: number) {
   /** Set by `stuck`: commands are heard and recorded, and nothing happens. */
   let deaf = false;
+  let rebuilds = 0;
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
@@ -109,6 +110,25 @@ function laggyPlayer(lag: number) {
       pending = null;
       deaf = true;
     },
+    /**
+     * A player that hears every command, reports a steady state, and does
+     * nothing — which is the shape the *unable to resume from a pause*
+     * reports have, and is not the stall above.
+     *
+     * It is worth keeping the two apart because the follower treats them
+     * quite differently: a buffering player is deliberately told nothing
+     * while it settles, and a player that says `paused` is told to play at
+     * every fuse. Only the second can be recognised as disobedient.
+     */
+    latch() {
+      want = null;
+      pending = null;
+      deaf = true;
+    },
+    /** How many times this player has been built again. */
+    get rebuilds() {
+      return rebuilds;
+    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       if (pending && now >= pending.at) {
@@ -164,6 +184,23 @@ function laggyPlayer(lag: number) {
             want = state;
           },
         };
+      },
+      /*
+        **A fresh player, which is what a rebuild produces.** Not the old one
+        with its hearing restored: mounting a new `WebView` gives a page that
+        has never played anything, sitting at zero and cued — which is
+        exactly the state a screen arriving at a party already under way is
+        in, and is therefore driven back into step by the ordinary path
+        rather than by anything this test has to arrange.
+      */
+      recover: () => {
+        rebuilds += 1;
+        calls.push('recover');
+        deaf = false;
+        state = 'unstarted';
+        positionMs = 0;
+        want = null;
+        pending = null;
       },
     } satisfies PlayerPort,
   };
@@ -337,6 +374,96 @@ describe('a button pressed in the room', () => {
     sim.advance(6_000);
     expect(sim.where().channel).toBe('playing');
     expect(inStep(sim.where())).toBe(true);
+  });
+});
+
+describe('a press', () => {
+  /*
+    **The half-second that was nobody's fault.**
+
+    A press is not a command to your own player: it goes to the server and
+    comes back as a snapshot, and the follower used to notice that snapshot
+    only when its own interval next came round — so every play and every
+    pause carried a `FOLLOW_TICK_MS` window on top of the round trip, for no
+    reason other than that nothing woke the loop. This is the assertion that
+    the loop is woken: the play must be out of the door in the tick the
+    snapshot lands in, not the one after it.
+  */
+  it('reaches the player as soon as the channel says so, not at the next tick', () => {
+    const sim = run();
+    sim.player.calls.length = 0;
+    sim.wire.press(play, Date.now());
+
+    // The round trip and one step, which is well short of a tick. Under the
+    // interval alone there is nothing here at all.
+    sim.advance(TRIP_MS + 50);
+    expect(sim.player.calls).toContain('play');
+  });
+});
+
+/**
+ * **The player that hears and does not act, which is the whole of the
+ * 2026-09-23 repair.**
+ *
+ * Reported as *play/pause is flaky, and rotating the phone unsticks it* —
+ * and rotating is the one gesture that mounts a fresh player, which is what
+ * made it a diagnosis rather than a complaint. Whatever the cause, and there
+ * are several candidates in the iOS audio session and in `WKWebView`'s
+ * appetite for being killed, the cure somebody found by accident is the one
+ * worth automating: build the player again.
+ */
+describe('a player that will not act on what it is told', () => {
+  it('is built again, and the party comes back in step', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    expect(inStep(sim.where())).toBe(true);
+
+    // Paused, obediently, and *then* it stops acting — which is the order the
+    // reports have: the film pauses, and the play that should resume it does
+    // nothing. Everything still reports; the state is steady and wrong.
+    sim.wire.press(pause, Date.now());
+    sim.advance(2_000);
+    sim.player.latch();
+    sim.wire.press(play, Date.now());
+
+    // Three ignored instructions is around six seconds, and then a new
+    // player, which is positioned and started by the ordinary path.
+    sim.advance(12_000);
+    expect(sim.player.rebuilds).toBe(1);
+    expect(inStep(sim.where())).toBe(true);
+  });
+
+  it('gives an obedient player no rebuilds at all', () => {
+    // The guard that matters: a rebuild is a black rectangle and a refetch,
+    // so a player that is merely slow — this one takes longer than a tick to
+    // do anything — must never provoke one.
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(4_000);
+    sim.wire.press(pause, Date.now());
+    sim.advance(4_000);
+    sim.wire.press(seekTo(120_000), Date.now());
+    sim.advance(4_000);
+    sim.wire.press(play, Date.now());
+    sim.advance(6_000);
+
+    expect(sim.player.rebuilds).toBe(0);
+    expect(inStep(sim.where())).toBe(true);
+  });
+
+  it('leaves a stalling player to fill its buffer rather than rebuilding it', () => {
+    // A stall is not disobedience: the follower deliberately says nothing
+    // while a buffer fills, so there is nothing to ignore and nothing to
+    // count. Rebuilding here would throw away the buffer the silence exists
+    // to protect — the 2026-09-20 stutter, arrived at from a new direction.
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(3_000);
+    sim.player.stall(4_000);
+    sim.advance(4_000);
+
+    expect(sim.player.rebuilds).toBe(0);
   });
 });
 

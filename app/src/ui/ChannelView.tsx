@@ -63,6 +63,7 @@ import {
 import { inRoom, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
+import { recordEvent } from '../audio/diagnostics';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
@@ -2732,12 +2733,28 @@ export function ChannelView({
           variant="primary"
           style={styles.flexButton}
           disabled={!mayControlWatch}
-          onPress={() =>
-            act({
+          onPress={() => {
+            /*
+              **The press, timestamped, and whether it left the device.**
+
+              `app.act` already reports whether the socket wrote — see
+              `socket.send`, and backlog § *A channel action that never lands
+              says nothing* — and until now every caller dropped the answer.
+              Written down here because this is the one control where a press
+              that goes nowhere and a press that goes somewhere and is ignored
+              look identical from the outside, and they are the two halves of
+              the same complaint. The line lands in the same log as the audio
+              session's, which is where the two are told apart.
+            */
+            const sent = act({
               type:
                 watch.status === 'playing' ? 'WATCH_PAUSE' : 'WATCH_PLAY',
-            })
-          }
+            });
+            recordEvent(
+              `watch press ${watch.status === 'playing' ? 'pause' : 'play'}` +
+                (sent ? '' : ' (not sent)')
+            );
+          }}
         />
         <Button
           label="+15s"

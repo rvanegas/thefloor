@@ -11,6 +11,7 @@ import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { WholeWindowContext } from '../layout';
 import { WatchPlayer } from '../../watch/WatchPlayer';
+import { resetDiagnostics } from '../../audio/diagnostics';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -2299,6 +2300,12 @@ describe('the audio diagnostic panel', () => {
    */
   it('takes no reading of its own until Read now is pressed', () => {
     mockApp.debug = true;
+    // **The log is module state and outlives a test.** It was empty here by
+    // accident until the watch transport started writing to it, and a test
+    // that asserts emptiness has to arrange it rather than inherit it — the
+    // panel's own claim is that it *reads* nothing until asked, not that
+    // nothing anywhere has been recorded.
+    resetDiagnostics();
     showChannel(channelOf());
     const { AudioDeviceModule } = require('@livekit/react-native');
     AudioDeviceModule.isEngineRunning.mockClear();

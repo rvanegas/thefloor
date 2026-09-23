@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { recordEvent } from '../audio/diagnostics';
 import {
   desiredFor,
   followInstructions,
@@ -35,7 +36,36 @@ export interface PlayerPort {
   play: () => void;
   pause: () => void;
   seek: (positionMs: number) => void;
+  /**
+   * Build this player again, for a frame that has stopped answering.
+   *
+   * **The gesture somebody had to discover for themselves, wired up.** The
+   * only reliable cure for a picture that will not resume has been to rotate
+   * the phone — which expands or collapses it, and mounts a fresh player on
+   * the way — and a cure that is a rotation is a cure nobody finds twice.
+   *
+   * Optional because *how* to rebuild is the platform's business and one of
+   * them may not be able to: the web player owns an element it did not make.
+   * When to is decided here, which is `DEAF_AFTER` below.
+   */
+  recover?: () => void;
 }
+
+/**
+ * How many instructions may be ignored in a row before the player is rebuilt.
+ *
+ * **An instruction ignored once is ordinary and three times is a fault.** A
+ * player that is merely slow answers inside one `WATCH_OBEDIENCE_MS`; a player
+ * that is buffering is told nothing at all, so it cannot reach this at any
+ * speed — `followInstructions` returns nothing while a stall is settling, and
+ * the fuse is only spent on a player that is reporting a state it has been
+ * told to leave. Three of those is a frame that is hearing and not acting.
+ *
+ * Three fuses is around six seconds, which is long enough that no ordinary
+ * embed reaches it and short enough that somebody who has pressed Play is
+ * still looking at the screen when the picture comes back.
+ */
+const DEAF_AFTER = 3;
 
 /**
  * What this follower is waiting for, and it is only ever one thing.
@@ -90,8 +120,18 @@ export function useFollow(
    * avoids is written down.
    */
   const buffering = useRef<number | null>(null);
+  /**
+   * How many instructions this player has been given and not acted on.
+   *
+   * Reset by any arrival, so it counts a *run* of refusals rather than a
+   * tally: a player that obeys and later stumbles starts again from nothing.
+   * See `DEAF_AFTER`.
+   */
+  const ignored = useRef(0);
   const latest = useRef({ watch, port });
   latest.current = { watch, port };
+  /** The running loop's own tick, so a press can ring it. See below. */
+  const run = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -124,7 +164,20 @@ export function useFollow(
       const state = doing.current;
       if (state.phase === 'sending') {
         if (hasArrived(reading, state.want)) {
+          /*
+            **How long the player took, which is the number this is all
+            about.** An impression of flakiness is not a measurement, and the
+            two things that would change it — the tick that no longer waits
+            for the interval, and whatever the audio session turns out to be
+            doing — can only be judged against one. Measured from the
+            instruction rather than from the press, the round trip being the
+            server's business and visible in the log either way.
+          */
+          recordEvent(
+            `watch ${state.want.status} after ${now - state.since}ms`
+          );
           doing.current = { phase: 'watching' };
+          ignored.current = 0;
           return;
         }
         // The fuse, for a player that is never going to arrive — an embed
@@ -132,6 +185,33 @@ export function useFollow(
         // See `WATCH_OBEDIENCE_MS`.
         if (now - state.since <= WATCH_OBEDIENCE_MS) return;
         doing.current = { phase: 'watching' };
+        ignored.current += 1;
+        recordEvent(
+          `watch ignored ${state.want.status} x${ignored.current} ` +
+            `(player ${reading.state})`
+        );
+        /*
+          **Rebuilt, rather than told the same thing a fourth time.**
+
+          Everything this follower can say to a player it has already said,
+          and the one thing that has ever brought such a player back is a new
+          one — see `PlayerPort.recover`. So the retry stops being a retry at
+          `DEAF_AFTER` and becomes a rebuild, and the counter is cleared so
+          the fresh player is judged on its own behaviour rather than on the
+          one it replaced.
+
+          The instruction is not issued in the same tick: there is nothing
+          left to issue it to, and the next tick will find a player that has
+          not begun and position it properly, which is the path a screen
+          arriving at a party already takes.
+        */
+        if (ignored.current >= DEAF_AFTER && player.recover) {
+          ignored.current = 0;
+          buffering.current = null;
+          recordEvent('watch rebuilding the player');
+          player.recover();
+          return;
+        }
       }
 
       if (hasArrived(reading, want)) return;
@@ -147,14 +227,53 @@ export function useFollow(
       // never going to play is prodded once a window rather than every tick.
       if (buffering.current !== null) buffering.current = now;
       doing.current = { phase: 'sending', want, since: now };
+      /*
+        **One line per instruction, and they are rare.** Nothing is said to a
+        player that is where it should be, so this is quiet on an ordinary
+        party and loud exactly when somebody is complaining — which is the
+        only shape of log worth shipping. It interleaves with the audio
+        session's own lines in `diagnostics.ts`, and that interleaving is the
+        measurement: a command issued in the same instant as a category change
+        is the thing to look for.
+      */
+      recordEvent(
+        `watch tell ${instructions.map((i) => i.do).join('+')} ` +
+          `(player ${reading.state} at ${Math.round(
+            (reading.positionMs ?? 0) / 1000
+          )}s, want ${want.status} at ${Math.round(want.positionMs / 1000)}s)`
+      );
       for (const instruction of instructions) {
         if (instruction.do === 'play') player.play();
         else if (instruction.do === 'pause') player.pause();
         else player.seek(instruction.positionMs);
       }
     };
+    run.current = tick;
     const timer = setInterval(tick, FOLLOW_TICK_MS);
     tick();
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      run.current = null;
+    };
   }, [active]);
+
+  /*
+    **The press, answered in the frame it lands in rather than at the next
+    tick.**
+
+    A press is not a command to your own player: it goes to the server, comes
+    back as a snapshot, and only then is there anything for this follower to
+    notice. Noticing it on the interval alone added the rest of a
+    `FOLLOW_TICK_MS` window to every play and every pause — a quarter of a
+    second on average and half a second at worst, on top of a round trip, for
+    no reason other than that nothing woke the loop up.
+
+    So the transport wakes it. `status`, `startedAt` and `positionMs` are the
+    whole of what a press can change; anything else that moves is the
+    interval's business. The tick is the same one, with the same guards, so
+    this cannot say anything the loop would not have said half a second later.
+  */
+  useEffect(() => {
+    run.current?.();
+  }, [active, watch.status, watch.startedAt, watch.positionMs]);
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { recordEvent } from '../audio/diagnostics';
 import type { WatchState } from '../../../core/types';
 import type { PlayerReading, PlayerState } from '../../../core/watch';
 import { useFollow, type PlayerPort } from './drive';
@@ -31,6 +32,44 @@ import { useKeepAwake } from './keepAwake';
 
 /** Twice the follow tick, so a reading is never the stale half of one. */
 const REPORT_MS = 250;
+
+/**
+ * How old a reading may be and still be answered with.
+ *
+ * **A reading that has stopped arriving is not a reading, and until
+ * 2026-09-23 nothing here knew the difference.** `reading` was set by every
+ * message and cleared only when the film changed, so a page that stopped
+ * reporting — a content process taken for memory, a document that went
+ * somewhere else, a JavaScript context that was suspended and never woke —
+ * left the follower reasoning about a corpse. A corpse says `paused`, which
+ * is a state the follower will happily believe it has arrived at, and then
+ * there is nothing in the application that will ever speak to that player
+ * again.
+ *
+ * Six reports, so an ordinary hiccup does not count as silence.
+ */
+const READING_STALE_MS = 1_500;
+
+/**
+ * How long a silent page is given before it is built again.
+ *
+ * Longer than `READING_STALE_MS`, because the two answer different questions:
+ * that one is *may I act on this*, and this one is *is this page gone*. A
+ * page is allowed to be quiet for a moment — the first seconds while the
+ * IFrame API is fetched are silent, and that silence ends by itself.
+ */
+const SILENT_FOR_MS = 6_000;
+
+/**
+ * The least time between one rebuild and the next.
+ *
+ * **A rebuild is the cure and it must not become the fault.** Everything that
+ * makes a player unable to play — a video that is refused, a network that is
+ * gone — would otherwise be met with a fresh player that is unable to play
+ * for the same reason, forever, each one costing a black rectangle and a
+ * fetch. So they are rationed, and a refusal stops them entirely.
+ */
+const REBUILD_COOLDOWN_MS = 20_000;
 
 /**
  * Who the page says it is, and it may not be YouTube.
@@ -241,11 +280,28 @@ export function WatchPlayer({
   fill?: boolean;
 }): React.ReactElement | null {
   const view = useRef<WebView | null>(null);
-  const reading = useRef<PlayerReading | null>(null);
+  const reading = useRef<{ at: number; what: PlayerReading } | null>(null);
   const told = useRef(false);
   const [ready, setReady] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const videoId = watch.party?.videoId ?? null;
+  /**
+   * How many times this film's player has been built, which is part of the
+   * `key` and is therefore what a rebuild is.
+   *
+   * **A fresh `WebView` rather than `reload()`, deliberately.** The cure this
+   * automates is a rotation, and what a rotation does is mount a player in a
+   * different tree — a new native view, with a new page, a new JavaScript
+   * context and, on iOS, a new media session. A reload replaces the document
+   * inside the view that is already there, which is less than what has been
+   * observed to work; when the thing being recovered from is not understood,
+   * the repair should be the one that is known to cure it.
+   */
+  const [generation, setGeneration] = useState(0);
+  /** When the last rebuild was, so they can be rationed. See the cooldown. */
+  const rebuiltAt = useRef(0);
+  /** What the page last said anything at all, for the silence watchdog. */
+  const heardAt = useRef(Date.now());
 
   useKeepAwake(`watch:${channelId}`, watch.status === 'playing');
 
@@ -257,8 +313,15 @@ export function WatchPlayer({
   // never learned the length of.
   useEffect(() => {
     setReady(false);
-    setRefused(null);
     reading.current = null;
+    heardAt.current = Date.now();
+  }, [videoId, generation]);
+
+  // A refusal and a duration belong to the film rather than to the player
+  // showing it, so a rebuild keeps both: the same video will be refused for
+  // the same reason, and the length it reported is still its length.
+  useEffect(() => {
+    setRefused(null);
     told.current = false;
   }, [videoId]);
 
@@ -269,6 +332,9 @@ export function WatchPlayer({
     verdict. `told` is the pattern one field over: the callback is rebuilt on
     every render of the screen above, so it is deliberately not a dependency.
   */
+  /** The refusal, where `recover` can read it without being rebuilt. */
+  const refusedRef = useRef(refused);
+  refusedRef.current = refused;
   const reportRefusal = useRef(onRefusal);
   reportRefusal.current = onRefusal;
   useEffect(() => {
@@ -290,16 +356,21 @@ export function WatchPlayer({
       } catch {
         return;
       }
+      // Any message at all is the page saying it is alive, the reading
+      // included — which is what the silence watchdog below is watching for.
+      heardAt.current = Date.now();
       if (payload.t === 'ready') {
+        recordEvent('watch player ready');
         setReady(true);
         return;
       }
       if (payload.t === 'error') {
+        recordEvent(`watch player refused (${payload.code ?? 0})`);
         setRefused(refusal(payload.code ?? 0));
         return;
       }
       if (payload.t !== 'reading') return;
-      reading.current = {
+      const what: PlayerReading = {
         state: STATES[payload.state ?? -1] ?? 'unstarted',
         positionMs: payload.positionMs ?? null,
         // **The advert's own length, when one is running**, which is what
@@ -307,6 +378,7 @@ export function WatchPlayer({
         // film. See `learnDuration` for why the party keeps only the first.
         durationMs: payload.durationMs ?? null,
       };
+      reading.current = { at: Date.now(), what };
       if (!told.current && payload.durationMs) {
         told.current = true;
         // Both in the one report, so the party's length and its name are
@@ -317,17 +389,80 @@ export function WatchPlayer({
     [onFilm]
   );
 
+  /**
+   * Builds this player again, if it is worth building again.
+   *
+   * **Refused first**, because a refusal is the one thing a fresh player
+   * cannot help with: the video's owner will say the same thing to the next
+   * one, and the frame carries YouTube's own explanation that somebody may
+   * still want to read. Then the cooldown, which is what stops a rebuild that
+   * does not take from becoming a loop of rebuilds.
+   *
+   * Stable across renders — it reads everything it needs off refs — so the
+   * port it is handed to does not have to be rebuilt to carry it.
+   */
+  const recover = useCallback(() => {
+    if (refusedRef.current !== null) return;
+    const now = Date.now();
+    if (now - rebuiltAt.current < REBUILD_COOLDOWN_MS) return;
+    rebuiltAt.current = now;
+    setGeneration((n) => n + 1);
+  }, []);
+
   const port = useMemo<PlayerPort | null>(() => {
     if (!ready) return null;
     const command = (payload: unknown) =>
       view.current?.postMessage(JSON.stringify(payload));
     return {
-      read: () => reading.current,
+      /*
+        **Nothing, rather than something old.** `drive.ts` says nothing to a
+        player it cannot read, which is the right answer to a page that has
+        stopped talking — and it is an answer that could not be given while a
+        reading had no age on it. See `READING_STALE_MS`.
+      */
+      read: () => {
+        const last = reading.current;
+        if (!last) return null;
+        return Date.now() - last.at > READING_STALE_MS ? null : last.what;
+      },
       play: () => command({ do: 'play' }),
       pause: () => command({ do: 'pause' }),
       seek: (positionMs: number) => command({ do: 'seek', positionMs }),
+      recover,
     };
-  }, [ready]);
+  }, [ready, recover]);
+
+  /*
+    **A page that has stopped talking, met the same way a page that will not
+    listen is.**
+
+    `drive.ts` watches for a player that hears and does not act; this watches
+    for one that does not hear at all, and they are different failures with
+    one cure. The follower cannot catch this one: a stale reading is no
+    reading, and a follower with no reading says nothing — correctly — and so
+    never reaches the count that would rebuild anything.
+
+    Only while there is a film to show. A paused party with nobody watching is
+    not a fault, and neither is the quiet before the IFrame API has landed,
+    which `SILENT_FOR_MS` is long enough to cover.
+  */
+  useEffect(() => {
+    if (!videoId) return;
+    // Checked oftener than the threshold it is checking for: an interval of
+    // one `SILENT_FOR_MS` would notice a page that died the instant after a
+    // check only on the one after that, which is twice the wait for no gain.
+    const timer = setInterval(() => {
+      const quiet = Date.now() - heardAt.current;
+      if (quiet < SILENT_FOR_MS) return;
+      recordEvent(`watch player silent for ${Math.round(quiet / 1000)}s`);
+      // Before the rebuild, so the reason survives even when the rebuild is
+      // refused by the cooldown — a log that records only the cures is a log
+      // that cannot say how often the cure was wanted.
+      heardAt.current = Date.now();
+      recover();
+    }, SILENT_FOR_MS / 3);
+    return () => clearInterval(timer);
+  }, [videoId, generation, recover]);
 
   useFollow(watch, port, true);
 
@@ -361,9 +496,34 @@ export function WatchPlayer({
         // Keyed on the video so swapping films rebuilds the page rather than
         // navigating it. A party's film changing is rare and a fresh player is
         // the honest way to meet it.
-        key={videoId}
+        //
+        // **And on the generation, which is what a rebuild is.** See
+        // `recover`: a player that has stopped answering is replaced by
+        // changing this key, which is the same thing a rotation does by
+        // mounting the picture somewhere else.
+        key={`${videoId}:${generation}`}
         source={{ html: page(videoId), baseUrl: PAGE_ORIGIN }}
         onMessage={onMessage}
+        /*
+          **The content process being taken, which is silent in every other
+          way.** iOS kills a `WKWebView`'s content process under memory
+          pressure and the view is left showing the last frame it painted:
+          no error, no navigation, no message, and every command evaluated
+          into it from here succeeds at doing nothing. A long party with a
+          video embed in it is exactly the shape of thing that gets taken.
+
+          Android's equivalent is `onRenderProcessGone`, which must also
+          return true or the process takes the application with it.
+        */
+        onContentProcessDidTerminate={() => {
+          recordEvent('watch player process gone');
+          recover();
+        }}
+        onRenderProcessGone={() => {
+          recordEvent('watch player process gone');
+          recover();
+          return true;
+        }}
         // Without this iOS refuses to play anything in the page at all.
         allowsInlineMediaPlayback
         // The transport decides when a film starts, so the page must be
