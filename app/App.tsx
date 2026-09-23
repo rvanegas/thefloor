@@ -250,7 +250,8 @@ function Root() {
     // dropping the only remote subscription stops the engine, and the retake
     // restarts it in the state that renders nothing — the repair reconstructed
     // the fault. Left wired because it is the apparatus that produced the
-    // reading. See `audio/rebind.ts` and `planning/PLAYOUT.md`.
+    // reading. See `audio/rebind.ts` and decisions/ § *The phone holds a
+    // microphone in order to hear*.
     false,
     // **Both fixes, and both now on for everybody.** They answer the two ways
     // into the same fault and neither is redundant: `deferSubscribe` connects

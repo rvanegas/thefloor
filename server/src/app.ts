@@ -1183,8 +1183,9 @@ export function buildApp(options: BuildOptions = {}): App {
    * phone at the moment it goes wrong, and not at all for a fault that appears
    * once in a session of stepping in and out. A force-quit, a crash or an
    * update takes it, and those are exactly the three things somebody does when
-   * the audio has stopped and they want it back. See TASKS § *Stepping Back
-   * In* and BACKLOG § *The engine stops under a healthy room*.
+   * the audio has stopped and they want it back. See decisions/ § *The phone
+   * holds a microphone in order to hear*, the investigation this was built
+   * for, which lists what the lines mean.
    *
    * **To the journal rather than to a table**, which is a deliberate trade.
    * A table would be queryable and would also need a migration, a sweep, and a

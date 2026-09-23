@@ -593,7 +593,8 @@ says a track exists — the two are both right, about different questions.
 counts only the unmuted, so a `mic` span means transmitting rather than
 published. The floor's own reader, `reconcileSilence`, still takes every track
 including the held ones, because a mute belongs to the publisher and can be
-revoked in the time it takes to say a word. See PLAYOUT.md.
+revoked in the time it takes to say a word. See `decisions/` § *The phone holds
+a microphone in order to hear*, which is why a track is held at all.
 
 ---
 

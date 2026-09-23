@@ -3282,8 +3282,9 @@ In the room it appears as an ordinary remote participant under the identity
 the server-side component and `media:chan_…` is its face inside a LiveKit room;
 they are one thing named from two sides. It is not a person and holds no seat.
 
-See PLAYOUT.md, whose whole investigation is about this participant's track
-failing to render on a device that is subscribed to it.
+See `decisions/` § *The phone holds a microphone in order to hear*, a whole
+investigation into this participant's track failing to render on a device that
+was subscribed to it.
 
 ## Reconcile / restate
 

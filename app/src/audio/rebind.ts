@@ -1,9 +1,19 @@
 /**
  * Making a subscribed track render again, without touching the room.
  *
+ * **Retired 2026-09-04, and kept as apparatus rather than as a repair.** It
+ * was tried three times that evening and left the track silent every time,
+ * for the reason the standing rule below gives: dropping the only remote
+ * subscription stops the engine, and alone the retake restarts it in the
+ * state that renders nothing, so the repair reconstructs the fault. The
+ * automatic half is hard `false` in `App.tsx`; do not turn it back on. What
+ * follows is what was believed when it shipped, left as written because the
+ * hypothesis is the part worth not re-deriving.
+ *
  * **The recovery that is not a rebuild, and the distinction is the whole
- * point.** `planning/PLAYOUT.md` records the standing rule that the freeze
- * detector must never be wired to `reconnect()`, and the reason is that
+ * point.** decisions/ § *The phone holds a microphone in order to hear*
+ * records the standing rule that the freeze detector must never be wired to
+ * any recovery that stops the engine, and the reason is that
  * rebuilding the room *is* the failing case: every rebuild reconnects into a
  * channel whose media participant is already sitting there, so the
  * subscription lands on the same tick as the socket, which is the arm of the

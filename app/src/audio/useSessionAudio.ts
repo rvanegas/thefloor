@@ -718,22 +718,19 @@ async function applyFor(want: SessionWant): Promise<void> {
  *                  justifies it and the cost it accepts.
  * @param deferSubscribe whether to connect with `autoSubscribe: false` and take
  *                  the subscriptions once the room is up, rather than letting
- *                  them land on the same tick as the socket. **An experiment
- *                  rather than a feature**, and the one PLAYOUT.md has been
- *                  asking for since build 92 — see `takeSubscriptions`.
+ *                  them land on the same tick as the socket. **One of the two
+ *                  fixes that closed this fault**, confirmed 2026-09-05 and on
+ *                  for everybody since — see `takeSubscriptions`, and
+ *                  decisions/ § *The phone holds a microphone in order to
+ *                  hear*.
  * @param recoverPlayout whether a track the detector reports frozen should be
- *                  rebound automatically. **Off by default and passed
- *                  `app.debug` by `App.tsx`**, which is the same gate the
- *                  diagnostic panel and the shipped log are behind, and it is
- *                  deliberate that this is the first thing behind that flag
- *                  which *does* something rather than reporting. The freeze
- *                  detector's own header warns that its false-positive rate
- *                  against real data is unmeasured — a backgrounded app
- *                  renders nothing on purpose — and this is the build where a
- *                  false positive stops being a spurious line and starts being
- *                  an action. One account first, then the flag widens to
- *                  everybody by changing one argument here rather than by
- *                  rewriting anything.
+ *                  rebound automatically. **Retired, and passed a hard `false`
+ *                  by `App.tsx`** — the rebind was tried three times on
+ *                  2026-09-04 and left the track silent every time, because
+ *                  dropping the only remote subscription stops the engine and
+ *                  the retake restarts it in the state that renders nothing.
+ *                  Left wired because it is the apparatus that produced that
+ *                  reading. Do not turn it back on.
  */
 export function useSessionAudio(
   mediaRoom: string | null,
@@ -1488,8 +1485,9 @@ export function useSessionAudio(
         // or subscribed, which is the state remote playback needs.
         await AudioSession.startAudioSession();
         /**
-         * **The experiment of 2026-09-05, and the one PLAYOUT.md has been
-         * asking for since build 92.**
+         * **The experiment of 2026-09-05, asked for since build 92, and now
+         * one of the two fixes that closed this fault** — decisions/ § *The
+         * phone holds a microphone in order to hear*.
          *
          * With `autoSubscribe` left alone the server subscribes this client to
          * everything already published, and the subscription therefore lands on
@@ -2052,7 +2050,8 @@ export function useSessionAudio(
      *
      * *Per track and per connection*, because a room that is genuinely dead
      * cannot be repaired by this and a repair that kept trying would be the
-     * reconnect loop `PLAYOUT.md` forbids, wearing a different hat. Three is
+     * reconnect loop decisions/ § *The phone holds a microphone in order to
+     * hear* forbids, wearing a different hat. Three is
      * enough for the case this is for — every recovery in the 2026-09-04 log
      * arrived within about a second of one engine start — and small enough
      * that a wrong theory costs three subscription updates rather than a
