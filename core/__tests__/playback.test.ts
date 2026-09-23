@@ -363,3 +363,34 @@ describe('an empty channel', () => {
     expect(s.playback.positionMs).toBe(5_000);
   });
 });
+
+/**
+ * The shared track's half of the rule a watch party motivated — see
+ * `core/__tests__/watch.test.ts` § *a party playing to an empty room*. A track
+ * playing keeps a room from being retired, so a track playing on in a room
+ * nobody is in would hold that room open against a clock that never starts.
+ */
+describe('a track playing to an empty room', () => {
+  it('pauses on the tick after the last person leaves', () => {
+    const emptied = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
+    ]);
+    const ticked = reduce(emptied, { type: 'TICK' }, T0 + 10_000);
+
+    expect(ticked.playback.status).toBe('paused');
+    expect(ticked.playback.positionMs).toBe(10_000);
+    expect(ticked.playback.track).toEqual(TRACK);
+  });
+
+  it('leaves a track alone while anybody is still in the room', () => {
+    const one = apply(loaded(), [
+      [{ type: 'PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
+    ]);
+    const ticked = reduce(one, { type: 'TICK' }, T0 + 10_000);
+
+    expect(ticked.playback.status).toBe('playing');
+  });
+});

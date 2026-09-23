@@ -841,3 +841,53 @@ describe('an empty channel', () => {
     expect(s.watch.positionMs).toBe(10_000);
   });
 });
+
+/**
+ * **A player with nobody to play to stops**, which is what makes it safe for a
+ * party to hold a room open against Rule A.
+ *
+ * The exemption added on 2026-09-23 — `considerRetiring` asking `watch.status`
+ * — would otherwise be a way to opt a channel out of retirement permanently by
+ * leaving a video running in a room everybody has walked out of. Pausing when
+ * the room empties closes that at the source: an empty room is quiet within a
+ * tick, and every clock waiting on quiet starts then.
+ */
+describe('a party playing to an empty room', () => {
+  it('pauses when the last person leaves', () => {
+    const playing = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+    ]);
+    expect(playing.watch.status).toBe('playing');
+
+    const emptied = apply(playing, [
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
+    ]);
+    const ticked = reduce(emptied, { type: 'TICK' }, T0 + 10_000);
+
+    expect(ticked.watch.status).toBe('paused');
+  });
+
+  /** Paused, not stopped: the evening survives being walked out of. */
+  it('comes to rest where the room left off, keeping the party', () => {
+    const emptied = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
+    ]);
+    const ticked = reduce(emptied, { type: 'TICK' }, T0 + 10_000);
+
+    expect(ticked.watch.positionMs).toBe(10_000);
+    expect(ticked.watch.party?.videoId).toBe(VIDEO);
+  });
+
+  it('leaves a party alone while anybody is still in the room', () => {
+    const one = apply(watching(), [
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
+    ]);
+    const ticked = reduce(one, { type: 'TICK' }, T0 + 10_000);
+
+    expect(ticked.watch.status).toBe('playing');
+  });
+});

@@ -2781,6 +2781,41 @@ function tick(state: ChannelState, now: number): ChannelState {
     next = { ...next, watch: watchPause(next.watch, now) };
   }
 
+  // **A player with nobody to play to stops**, which is what makes it safe for
+  // either of them to hold a room open.
+  //
+  // `subscribeable` counts a playing track or a playing party as a reason to
+  // keep somebody in a room they are not touching, and
+  // `ChannelRegistry.considerRetiring` counts either as a reason not to retire
+  // the room at all — both correctly, since watching a film together is the
+  // application working rather than a phone in a pocket. The hole that leaves
+  // is a film running on in a room everybody has walked out of, holding a
+  // channel open against a clock that can never start.
+  //
+  // Pausing closes it at the source rather than by exempting the empty case
+  // from one rule and then the other: an empty room is quiet within a tick,
+  // and every clock that was waiting on quiet starts then. Nothing here
+  // retires anybody — there is nobody left to retire — it is the state
+  // telling the truth about a room with no audience in it.
+  //
+  // **Paused rather than stopped**, so the evening survives being walked out
+  // of. A pause keeps the party, the video and the position, so somebody
+  // stepping back in resumes where the room left off; stopping would discard
+  // what they came back for. `watchPause` and `pausePlayback` both come to
+  // rest at the derived position, so the film does not silently run on behind
+  // an empty room.
+  //
+  // Occupants rather than `present`, on `pollUsage`'s reasoning: a room
+  // holding guests and no members is a room with people in it.
+  if (roomOccupants(next).length === 0) {
+    if (next.playback.status === 'playing') {
+      next = { ...next, playback: pausePlayback(next.playback, now) };
+    }
+    if (next.watch?.status === 'playing') {
+      next = { ...next, watch: watchPause(next.watch, now) };
+    }
+  }
+
   // Nothing here ends a channel. A channel outlives every silence in it and
   // is destroyed only when the last member leaves.
   return next;

@@ -3822,13 +3822,31 @@ export class ChannelRegistry {
    * anybody in it would otherwise have received.** Emptying it restores the
    * edge, which is the point of the rule rather than a side effect.
    *
-   * **The watch party is safe by mechanism rather than by exception**, which
-   * is worth knowing before somebody adds one. Withholding is done by
-   * unsubscribing listeners, never by muting speakers, so tracks stay unmuted
-   * for the length of a film and `publishing` is never empty. The pump is
-   * excluded by identity above and would otherwise defeat this from the other
-   * side: it publishes continuously, silence included, so *is anything
-   * playing* has to be asked of `playback.status` and not of the roster.
+   * **The watch party is safe by exception, having stopped being safe by
+   * mechanism.** This said the opposite until 2026-09-23, on the argument that
+   * withholding is done by unsubscribing listeners rather than by muting
+   * speakers, so tracks stay unmuted for the length of a film and `publishing`
+   * is never empty. That was true of the room's *silenced* speakers and was
+   * never true of the audience: a phone with nothing to say during a film
+   * closes its own microphone — `core/micNeeded.ts` — and since 2026-09-05 a
+   * muted track does not count as publishing, which is the clause directly
+   * above. So a room watching a film in silence published nothing, read as
+   * quiet, and retired everybody in it fifteen minutes in. Measured twice on
+   * 2026-09-23 at 900.1s and 900.0s from the last microphone closing.
+   *
+   * Hence `watch.status` is asked here beside `playback.status`, which puts
+   * this in step with `subscribeable` in core/channel.ts — the pair this and
+   * it were always described as, differing on exactly one of the three things
+   * that function counts. The pump is excluded by identity above and would
+   * otherwise defeat this from the other side: it publishes continuously,
+   * silence included, so *is anything playing* has to be asked of the state
+   * and not of the roster.
+   *
+   * **What stops a film holding an abandoned room open for ever is the pause
+   * in `tick`**, not anything here: a player with nobody to play to comes to
+   * rest, and the room is quiet a tick later. Without that this exemption
+   * would be a way to opt a channel out of Rule A permanently by leaving a
+   * video running, which is the objection it was written against.
    *
    * **A stuck member in a room somebody else is holding open is left alone.**
    * The room is not misrepresented while a real person is in it, and they may
@@ -3887,7 +3905,10 @@ export class ChannelRegistry {
 
   private considerRetiring(state: ChannelState, publishing: number): void {
     const at = this.now();
-    const quiet = publishing === 0 && state.playback.status !== 'playing';
+    const quiet =
+      publishing === 0 &&
+      state.playback.status !== 'playing' &&
+      state.watch?.status !== 'playing';
     if (!quiet) {
       this.quietSince.delete(state.id);
       return;

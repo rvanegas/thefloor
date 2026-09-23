@@ -204,7 +204,10 @@ describe('a room somebody is attending', () => {
     });
     app.channels.dispatch(channelId, alice.id, { type: 'PLAY' });
 
-    clock += WAITING_WINDOW_MS * 2;
+    // Two polls for the reason given on the watch party below: one poll only
+    // ever starts the quiet clock, so this asserted nothing until 2026-09-23.
+    await poll();
+    clock += WAITING_WINDOW_MS;
     await poll();
 
     expect(presentIn(channelId)).toHaveLength(2);
@@ -223,6 +226,58 @@ describe('a room somebody is attending', () => {
       title: 'Something',
       durationMs: 60 * 60_000,
     });
+
+    await poll();
+    clock += WAITING_WINDOW_MS;
+    await poll();
+
+    expect(presentIn(channelId)).toHaveLength(0);
+  });
+
+  /**
+   * **The regression of 2026-09-23, and the reason the clause exists.**
+   *
+   * A room watching a film in silence publishes nothing: the audience closes
+   * its own microphone — `core/micNeeded.ts` — and a closed microphone is not
+   * a muted track but no track at all. `considerRetiring` therefore read a
+   * watch party as a defunct room and stepped everybody out of it at fifteen
+   * minutes, twice, measured at 900.1s and 900.0s from the last microphone
+   * closing. The comment on the rule had claimed the case was safe by
+   * mechanism; it was reasoning about the floor's *silenced* speakers, who do
+   * keep an unmuted track, and not about the audience.
+   *
+   * `everybodyHeld` is the whole point rather than scenery: it is what a room
+   * of people watching something actually looks like to the meter.
+   */
+  it('is left alone while a watch party is playing to a silent room', async () => {
+    const { alice, bob, channelId } = await roomOfTwo();
+    everybodyHeld(channelId, [alice.id, bob.id]);
+    app.channels.dispatch(channelId, alice.id, {
+      type: 'START_WATCH',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    } as never);
+    app.channels.dispatch(channelId, alice.id, { type: 'WATCH_PLAY' });
+
+    // Two polls, not one: the first can only ever start the quiet clock, so a
+    // single poll after any amount of time retires nobody and would pass this
+    // whether the rule knew about watch parties or not.
+    await poll();
+    clock += WAITING_WINDOW_MS;
+    await poll();
+
+    expect(presentIn(channelId)).toHaveLength(2);
+  });
+
+  /** And a paused party is no reason to stay, exactly as a paused track isn't. */
+  it('is retired when the watch party is paused', async () => {
+    const { alice, bob, channelId } = await roomOfTwo();
+    everybodyHeld(channelId, [alice.id, bob.id]);
+    app.channels.dispatch(channelId, alice.id, {
+      type: 'START_WATCH',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    } as never);
+    app.channels.dispatch(channelId, alice.id, { type: 'WATCH_PLAY' });
+    app.channels.dispatch(channelId, alice.id, { type: 'WATCH_PAUSE' });
 
     await poll();
     clock += WAITING_WINDOW_MS;
