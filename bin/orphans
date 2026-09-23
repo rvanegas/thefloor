@@ -1,0 +1,135 @@
+#!/bin/bash
+#
+# Audio in the recordings bucket that no database row names.
+#
+#   bin/orphans              what is orphaned, and what clearing it would take
+#   bin/orphans --keys       every key, rather than a prefix per line
+#   bin/orphans --delete     actually remove them, after printing and asking
+#
+# Reports by default and deletes only when asked, which is the same trade
+# `bin/db --write` and `bin/deploy --dirty` make: looking is the common case
+# and is safe, and the irreversible half is the one you have to name.
+#
+# A row is the only record of which keys belong to a recording, so an object
+# whose row has gone cannot be identified by anything, served to anyone, or
+# recovered — it can only be paid for. Until 2026-09-23 the sweep produced
+# these steadily: `RecordingStore.delete` swallowed its own rejection, so a
+# refused delete counted as an empty bucket and the row was dropped anyway.
+# See planning/decisions/2026-09-23-the-sweep-now-knows-whether-it-deleted-anything.md
+# and planning/backlog/there-is-236mb-of-orphaned-audio-in-the-bucket.md.
+#
+# **The set is recomputed on every run and never cached.** A prefix that gains
+# a row between a listing and a deletion must not be touched, which is the same
+# ordering argument that governs the sweep itself. A saved list is a list that
+# was true once.
+#
+# Two exclusions, both deliberate:
+#
+#   - Keys under `sess_` prefixes, which predate the 2026-08-10 Session →
+#     Channel rename. They are dev-era leftovers, one of them is in the local
+#     development database, and they are a separate question from this one.
+#   - Anything whose prefix is not exactly `chan_<id>/rec_<id>/`. The bucket
+#     holds nothing else today; if it ever does, this declines to guess.
+#
+# A whole prefix goes, not the keys a row would have named: the `EG_*.json`
+# egress manifests LiveKit writes are collected by nothing in `objectKeysOf`,
+# so deleting only known key shapes leaves them behind for ever.
+set -euo pipefail
+
+BUCKET=${THEFLOOR_BUCKET:-thefloor-recordings}
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+keys_mode=false
+do_delete=false
+for arg in "$@"; do
+  case "$arg" in
+    --keys) keys_mode=true ;;
+    --delete) do_delete=true ;;
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "bin/orphans: unknown argument: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
+
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+
+echo "→ listing s3://$BUCKET"
+aws s3api list-objects-v2 --bucket "$BUCKET" \
+  --query 'Contents[].[Key,Size]' --output text > "$work/objects.tsv"
+
+echo "→ reading recordings from the deployed database"
+"$HERE/db" "select channel_id || '/' || id from recordings" \
+  | tail -n +3 | sed 's/ *$//' | grep '^chan_' | sort -u > "$work/rows.txt"
+
+# The guard that matters. Every prefix looks orphaned when the row list is
+# empty, so a failed query, a broken ssh or an empty answer would otherwise
+# nominate the entire bucket for deletion. A server with no recordings at all
+# is a real state, but it is not one to find out about here.
+if [ ! -s "$work/rows.txt" ]; then
+  echo "bin/orphans: the database named no recordings at all." >&2
+  echo "Refusing to treat the whole bucket as orphaned. Check bin/db." >&2
+  exit 1
+fi
+
+grep -oE '^chan_[^/]+/rec_[^/]+' "$work/objects.tsv" | sort -u > "$work/prefixes.txt"
+comm -13 "$work/rows.txt" "$work/prefixes.txt" > "$work/orphans.txt"
+
+awk -F'\t' 'NR==FNR { orphan[$0]=1; next }
+  { n = split($1, part, "/")
+    if (n < 3) next
+    prefix = part[1] "/" part[2]
+    if (!(prefix in orphan)) next
+    print $1
+    bytes += $2
+    count += 1 }
+  END { printf "%d\t%d\n", count, bytes+0 > "/dev/stderr" }' \
+  "$work/orphans.txt" "$work/objects.tsv" > "$work/keys.txt" 2> "$work/tally.txt"
+
+read -r objects bytes < "$work/tally.txt"
+prefixes=$(wc -l < "$work/orphans.txt" | tr -d ' ')
+total_bytes=$(awk -F'\t' '{ b += $2 } END { print b+0 }' "$work/objects.tsv")
+rows=$(wc -l < "$work/rows.txt" | tr -d ' ')
+
+human() { awk -v b="$1" 'BEGIN { printf "%.1f MB", b/1048576 }'; }
+
+echo
+echo "bucket        $(wc -l < "$work/objects.tsv" | tr -d ' ') objects, $(human "$total_bytes")"
+echo "rows          $rows recordings in the database"
+echo "orphaned      $prefixes recordings, $objects objects, $(human "$bytes")"
+
+if [ "$objects" -eq 0 ]; then
+  echo
+  echo "Nothing to clear."
+  exit 0
+fi
+
+echo
+if $keys_mode; then cat "$work/keys.txt"; else cat "$work/orphans.txt"; fi
+
+if ! $do_delete; then
+  echo
+  echo "Nothing was deleted. Pass --delete to remove these."
+  exit 0
+fi
+
+echo
+echo "This deletes $objects objects ($(human "$bytes")) and cannot be undone."
+read -r -p "Type the number of objects to confirm: " answer
+if [ "$answer" != "$objects" ]; then
+  echo "Not confirmed. Nothing was deleted."
+  exit 1
+fi
+
+# One call per thousand keys, which is the API's limit per request.
+echo "→ deleting"
+split -l 1000 "$work/keys.txt" "$work/batch."
+for batch in "$work"/batch.*; do
+  jq -R -s '{Objects: (split("\n") | map(select(length > 0) | {Key: .})), Quiet: true}' \
+    < "$batch" > "$batch.json"
+  aws s3api delete-objects --bucket "$BUCKET" --delete "file://$batch.json" >/dev/null
+  echo "  $(wc -l < "$batch" | tr -d ' ') objects"
+done
+
+echo "done. Re-run bin/orphans to confirm the bucket and the database agree."

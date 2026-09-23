@@ -18,9 +18,32 @@ Check this against that one first — though note egress cannot be the answer
 here, since a PutObject key cannot delete either and widening *it* trades away
 the smaller blast radius that is its whole point.
 
-So: either widen `thefloor-server` to `s3:DeleteObject` on the recordings
-bucket, and amend both statements in the same commit; or decide the sweep
-should delete through some third narrow credential and add it. Whichever,
+There are two coherent answers and one that only looks like one.
+
+**Widen it.** `s3:DeleteObject` on the recordings bucket, amending both
+statements in the same commit. The sweep then works as it was always written
+to, unattended, and nothing else changes.
+
+**Keep it narrow and reap by hand.** Preferred on 2026-09-23: the irreversible
+privilege lives with a person and their CLI credential — `bin/orphans` — rather
+than with an hourly timer, and the server keeps the smallest blast radius it
+can. **This needs one code change to be complete**, and without it the option
+is not what it appears: the sweep now holds any row whose objects it could not
+delete, so those rows are held *for ever* and log a refusal every hour, and the
+audio is never deleted by anything either. The recording is not deleted, merely
+unreachable — which is close to the bug this replaced.
+
+The change that completes it: the server may **read**, so on a refused delete
+it can ask whether the object is there at all, and drop the row when every key
+is already absent. The invariant holds — a row still outlives its objects — and
+the deleting is done by `bin/orphans`, with the next sweep noticing and
+clearing the rows. That keeps `thefloor-server` on `s3:GetObject` and nothing
+else while leaving nothing held for ever.
+
+**What does not work** is leaving it as it stands and running `bin/orphans`
+periodically: that script clears objects with no row, and these rows exist.
+Something has to remove them, and only the server can.
+
 `planning/decisions/2026-09-23-the-sweep-now-knows-whether-it-deleted-anything.md`
-is what it follows from, and the orphaned audio already in the bucket is the
-neighbouring entry.
+is what all of this follows from; the orphaned audio already in the bucket is
+the neighbouring entry.
