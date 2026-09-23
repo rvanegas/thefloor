@@ -695,4 +695,219 @@ export const en = {
     menu: () =>
       'Open your browser\u2019s menu and choose Install, or Add to Home Screen.',
   },
+  homeSettings: {
+    /**
+     * *Floor Settings* rather than *Settings*: there are two settings screens
+     * reached by identical gears, and a screen called only *Settings* leaves
+     * which of the two you are on to be inferred from what is on it.
+     */
+    title: () => 'Floor Settings',
+    noServerConfigured: () =>
+      'No server configured, so there is no policy to show.',
+    couldNotOpenPrivacy: () => 'Could not open the privacy policy',
+    nothingElseSignedIn: () => 'Nothing else was signed in',
+    otherDevicesSignedOut: () => 'Other devices signed out',
+    signedOutBody: (sessions: number) =>
+      sessions === 0
+        ? 'This is the only device signed in to your account.'
+        : sessions === 1
+          ? 'One other device was signed out. It will need a fresh code by email.'
+          : `${sessions} other devices were signed out. They will need a fresh code by email.`,
+    gettingStarted: () => 'Getting started',
+    showTheChecklistAgain: () => 'Show the checklist again',
+    showing: () => 'Showing\u2026',
+    showTheChecklistAgainAsk: () => 'Show the checklist again?',
+    showTheChecklistAgainBody: () =>
+      'Getting started comes back on Home with every rung to do again — stepping in, the four things to try in a channel, and anything you put away with the cross beside it.\n\nNothing else changes: you stay signed in, and your channels, contacts, recordings and settings are untouched.\n\nStep out of any channel first. Being in one with somebody ticks the first rung straight away, so the list would come back with it already done.',
+    cancel: () => 'Cancel',
+    showIt: () => 'Show it',
+    checklistNote: () =>
+      'The list above your channels on Home. It goes for good once every rung is done — the conversation, and the four things to try in a channel — or once every rung has been put away with the cross beside it, and this is the way to get it back.',
+    audioOutput: () => 'Audio output',
+    chooseWhereSoundComesOut: () => 'Choose where sound comes out',
+    chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
+    labs: () => 'Labs',
+    showExperimental: () => 'Show experimental features',
+    on: () => 'On',
+    off: () => 'Off',
+    labsWhat: () =>
+      'Off, which is where everybody starts. On, one unfinished thing appears: transcripts of your recordings. It can change or go away.',
+    labsWhose: () =>
+      'It follows your account rather than this phone, and it is only about you — turning it on shows these to you, not to anybody else in your channels.',
+    diagnostics: () => 'Diagnostics',
+    forgetThisPhone: () => 'Forget this phone',
+    forgetting: () => 'Forgetting\u2026',
+    forgetThisPhoneAsk: () => 'Forget this phone?',
+    forgetThisPhoneBody: () =>
+      'This device forgets everything it has stored — the session, your appearance and tap settings, and that it has been asked about notifications. Your account, channels and recordings are untouched.\n\nDelete the app afterwards and install it again for a genuinely new install: the notification permission is the system\u2019s and only deleting the app clears it.',
+    forget: () => 'Forget',
+    forgetNote: () =>
+      'For seeing what somebody arriving new sees. Signing out does not do this, and neither does deleting the app.',
+    showEveryDab: () => 'Show every dab',
+    stopShowingEveryDab: () => 'Stop showing every dab',
+    dabsNote: () =>
+      'Puts a mark on both Home tabs that can wear one, and on the Help card behind Support, whether or not anything is waiting, so the mark itself can be looked at. It changes nothing else, and it is off again the next time the app starts.',
+    appearance: () => 'Appearance',
+    light: () => 'Light',
+    dark: () => 'Dark',
+    system: () => 'System',
+    appearanceNote: () =>
+      'System follows the phone, and changes with it — including on a schedule, if you have one set.',
+    email: () => 'Email',
+    occasionalEmail: () => 'Occasional email about The Floor',
+    emailNote: () =>
+      'Off, which is where everybody starts unless they said otherwise when they signed up. On, we may write to you about how to use The Floor and what has changed in it.',
+    codesArriveEitherWay: () =>
+      'Your sign-in codes arrive either way: those are how you get in, not something we send you.',
+    privacy: () => 'Privacy',
+    privacyPolicy: () => 'Privacy policy',
+    privacyNote: () =>
+      'What is stored, why, and for how long. It opens in your browser.',
+    account: () => 'Account',
+    signOut: () => 'Sign out',
+    signOutAsk: () => 'Sign out?',
+    signOutBody: () =>
+      'You will need a fresh code by email to sign back in. Your channels and recordings are kept.',
+    signOutNote: () =>
+      'Only this device. Anywhere else you are signed in stays signed in.',
+    signingOut: () => 'Signing out\u2026',
+    signOutOtherDevices: () => 'Sign out other devices',
+    signOutOtherDevicesAsk: () => 'Sign out other devices?',
+    signOutOtherDevicesBody: () =>
+      'Every other phone, tablet or computer signed in to your account is signed out. This device stays signed in. Your channels and recordings are kept.',
+    signOutOthers: () => 'Sign out others',
+    signOutOthersNote: () =>
+      'For a phone you have lost. It is the only way to end a session from a device you no longer have.',
+    deleting: () => 'Deleting\u2026',
+    deleteAccount: () => 'Delete account',
+    deleteAccountAsk: () => 'Delete your account?',
+    /**
+     * The work is in what this says. *This cannot be undone* is true of
+     * everything destructive and tells nobody anything; what is not obvious is
+     * that channels are not yours to take with you.
+     */
+    deleteAccountBody: () =>
+      'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
+    deleteConfirm: () => 'Delete',
+  },
+  channelSettings: {
+    title: () => 'Channel Settings',
+    leaveAsk: () => 'Leave this channel?',
+    /** `recordings` is already a phrase — see `countOf`. */
+    leaveBody: (recordings: string | null, one: boolean) =>
+      `It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it${
+        recordings === null
+          ? '.'
+          : `, and ${recordings} with it — you will not be able to reach ${
+              one ? 'it' : 'them'
+            } again.`
+      }`,
+    cancel: () => 'Cancel',
+    leave: () => 'Leave',
+    deleteAsk: () => 'Delete this channel?',
+    deleteBody: (recordings: string | null) =>
+      recordings === null
+        ? 'You are its last member, so this is the end of it. It cannot be undone.'
+        : `You are its last member, so this deletes the channel and ${recordings} made in it. Share anything you want to keep first — this cannot be undone.`,
+    continueLabel: () => 'Continue',
+    deleteForGood: (recordings: string | null) =>
+      recordings === null ? 'Delete for good?' : `Delete ${recordings} for good?`,
+    deleteForGoodBody: (days: number) =>
+      `Everything goes, permanently, after ${days} days. There is no undo in the app.`,
+    deleteConfirm: () => 'Delete',
+    channelName: () => 'Channel name',
+    renameStepIn: () =>
+      'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.',
+    renamePublic: () =>
+      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel has a public page — the page is found by its name, and an unnamed channel is listed by who is in it.',
+    renamePrivate: () =>
+      'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
+    recording: () => 'Recording',
+    recordAutomatically: () => 'Record automatically',
+    on: () => 'On',
+    off: () => 'Off',
+    autoRecordNote: () =>
+      'Off, which is where every channel starts: a recording begins when somebody presses Record. On, one begins by itself as soon as there are two of you in the room, and everyone sees it running.',
+    autoRecordHow: () =>
+      'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.',
+    autoRecordStepIn: () =>
+      'Step in to change this. What is kept from a conversation is for whoever is in it.',
+    notifications: () => 'Notifications',
+    publicPage: () => 'Public page',
+    guestLinks: () => 'Guest links',
+    deleting: () => 'Deleting',
+    leaving: () => 'Leaving',
+    deleteChannel: () => 'Delete channel',
+    leaveChannel: () => 'Leave channel',
+    lastMemberNoRecordings: () =>
+      'You are its last member — this destroys it for good',
+    lastMemberWithRecordings: (recordings: string) =>
+      `This destroys it and ${recordings}, for good`,
+    removesFromHome: () => 'Removes it from your home screen',
+    removesFromHomeWith: (recordings: string) =>
+      `Removes it from your home screen, ${recordings} included`,
+    steppingOutInstead: () =>
+      'Stepping out is on the channel screen and is probably what you want: it keeps your place here.',
+    couldNotChange: () => 'Could not change that just now.',
+    thatDidNotWork: () => 'That did not work.',
+    hasAPublicPage: () => 'This channel has a public page',
+    publishAsk: () => 'Give this channel a public page?',
+    publishBody: () =>
+      'The page shows the channel\u2019s name and description to anyone, and the channel is listed publicly where it can be found by people you have never met. Members are not named.\n\nNo recording appears on it until everybody who was in that recording has agreed to publish it, one at a time, from its card on the channel screen.',
+    notNow: () => 'Not now',
+    createThePage: () => 'Create the page',
+    unpublishAsk: () => 'Take this page down?',
+    unpublishBody: () =>
+      'The page and the feed stop answering at once, and the channel leaves the public list. Anybody who subscribed in a podcast app stops receiving it, and copies already downloaded are not reached.\n\nNobody\u2019s agreement is taken back, so turning it on again puts the same recordings at the same address.',
+    keepThePage: () => 'Keep the page',
+    takeItDown: () => 'Take it down',
+    saving: () => 'Saving\u2026',
+    pageNote: () =>
+      'Nothing is on the page until everybody in a recording agrees to publish it. Each recording is asked about separately, on its own card. The channel itself is listed publicly as soon as this is on.',
+    directoryNeedsThese: () =>
+      'To be listed in a podcast directory, a feed also needs these.',
+    publicOffNote: () =>
+      'Off, which is how every channel starts. There is no page and no feed, and nothing here is reachable by anybody outside it.',
+    nameItFirst: () =>
+      'Name this channel first, at the top of this screen. A public page is found by its name, and this channel has none — it is listed by who is in it, and a public page never names a member.',
+    coverSetAt: (width: number, height: number) =>
+      `Cover set — ${width}×${height}.`,
+    coverSet: () => 'Cover set.',
+    uploading: () => 'Uploading\u2026',
+    replaceCoverArt: () => 'Replace cover art',
+    addCoverArt: () => 'Add cover art',
+    coverRulesShort: () => 'Square, 1400–3000 pixels, no transparency',
+    coverRules: () => 'Square JPEG or PNG, 1400–3000 pixels, no transparency',
+    /**
+     * The language tag itself is not translated — it is a BCP 47 tag going
+     * into an RSS feed, and `en` is `en` in every language. The sentence
+     * around it is.
+     */
+    languagePlaceholder: () => 'en',
+    languageNote: () =>
+      'The language these conversations are in, as a tag like \u201cen\u201d or \u201cpt-BR\u201d. Left empty, the feed says English.',
+    explicit: () => 'These conversations are explicit',
+    done: () => 'Done',
+    /**
+     * **The categories themselves are Apple's and stay in English.** They are
+     * `ITUNES_CATEGORIES` in `core/publication.ts`, they go into the feed
+     * verbatim, and a directory matches them as written — a translated
+     * *True Crime* is a feed Apple will not file.
+     */
+    category: () => 'Category',
+    categoryUnset: () => 'Not set — a directory needs one',
+    couldNotReadLinks: () => 'Could not read the links.',
+    reading: () => 'Reading\u2026',
+    noGuestLinksYet: () =>
+      'No guest links yet. The channel screen makes one and hands it to the share sheet.',
+    linkOpen: () => 'Open — anybody with it can knock',
+    linkClosedWhenEmptied: () => 'Closed when the channel emptied',
+    linkRevoked: () => 'Revoked',
+    revoke: () => 'Revoke',
+    revokeNote: () =>
+      'Revoking stops new people knocking. Anybody already in the channel stays until they leave or somebody removes them.',
+    revokeStepIn: () =>
+      'Step in to revoke a link. Shutting a door onto a conversation is for whoever is in it.',
+    countOf: (n: number) => (n === 1 ? 'its one recording' : `its ${n} recordings`),
+  },
 };

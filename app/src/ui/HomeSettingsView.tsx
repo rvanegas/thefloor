@@ -14,6 +14,7 @@ import {
 import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
+import { useText } from '../i18n';
 
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
@@ -54,6 +55,8 @@ import type { ColorSchemePreference } from './appearance';
  */
 export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
+  const t = useText().homeSettings;
+  const shared = useText().shared;
   const [deleting, setDeleting] = useState(false);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [forgetting, setForgetting] = useState(false);
@@ -72,14 +75,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
    */
   const openPrivacy = async () => {
     if (!API_URL) {
-      setError('No server configured, so there is no policy to show.');
+      setError(t.noServerConfigured());
       return;
     }
     try {
       await Linking.openURL(`${API_URL}/privacy`);
     } catch {
       // A refusal by the OS looks exactly like a dead button otherwise.
-      Alert.alert('Could not open the privacy policy', `${API_URL}/privacy`);
+      Alert.alert(t.couldNotOpenPrivacy(), `${API_URL}/privacy`);
     }
   };
 
@@ -168,12 +171,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     try {
       const sessions = await app.signOutOthers();
       Alert.alert(
-        sessions === 0 ? 'Nothing else was signed in' : 'Other devices signed out',
-        sessions === 0
-          ? 'This is the only device signed in to your account.'
-          : sessions === 1
-            ? 'One other device was signed out. It will need a fresh code by email.'
-            : `${sessions} other devices were signed out. They will need a fresh code by email.`
+        sessions === 0 ? t.nothingElseSignedIn() : t.otherDevicesSignedOut(),
+        t.signedOutBody(sessions)
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -191,7 +190,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             reached by an identical gear from an identical header. A screen
             called only *Settings* leaves which of the two you are on to be
             inferred from what is on it, which is the wrong way round. */}
-        <Text style={type.heading}>Floor Settings</Text>
+        <Text style={type.heading}>{t.title()}</Text>
         {/* "Close" rather than "Home", which is what it said while this screen
             was reachable from one place, and rather than "Back", which is what
             it said while a phone was the only shape this app had.
@@ -215,7 +214,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             destination again, and there is no destination in a split. See
             `IconButton` and `CloseIcon`. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={onBack}
         />
@@ -281,29 +280,24 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         the one thing that is not guessable from the button: leave the channel
         first. See `state/useIntroduction.ts`.
       */}
-      <SectionLabel>Getting started</SectionLabel>
+      <SectionLabel>{t.gettingStarted()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.heading}>Show the checklist again</Text>
+        <Text style={type.heading}>{t.showTheChecklistAgain()}</Text>
         <Button
-          label={forgettingIntro ? 'Showing…' : 'Show the checklist again'}
+          label={forgettingIntro ? t.showing() : t.showTheChecklistAgain()}
           disabled={forgettingIntro}
           onPress={() =>
             Alert.alert(
-              'Show the checklist again?',
-              'Getting started comes back on Home with every rung to do again — stepping in, the four things to try in a channel, and anything you put away with the cross beside it.\n\nNothing else changes: you stay signed in, and your channels, contacts, recordings and settings are untouched.\n\nStep out of any channel first. Being in one with somebody ticks the first rung straight away, so the list would come back with it already done.',
+              t.showTheChecklistAgainAsk(),
+              t.showTheChecklistAgainBody(),
               [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Show it', onPress: () => void forgetIntroduction() },
+                { text: t.cancel(), style: 'cancel' },
+                { text: t.showIt(), onPress: () => void forgetIntroduction() },
               ]
             )
           }
         />
-        <Text style={type.muted}>
-          The list above your channels on Home. It goes for good once every
-          rung is done — the conversation, and the four things to try in a
-          channel — or once every rung has been put away with the cross beside
-          it, and this is the way to get it back.
-        </Text>
+        <Text style={type.muted}>{t.checklistNote()}</Text>
       </Card>
 
       {/*
@@ -340,11 +334,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       */}
       {Platform.OS === 'ios' ? (
         <>
-          <SectionLabel>Audio output</SectionLabel>
+          <SectionLabel>{t.audioOutput()}</SectionLabel>
           <Card style={styles.stack}>
             <Button
-              label="Choose where sound comes out"
-              sublabel="Headphones, AirPlay, or anything paired"
+              label={t.chooseWhereSoundComesOut()}
+              sublabel={t.chooseWhereSoundComesOutSub()}
               onPress={() => {
                 void showRoutePicker();
               }}
@@ -361,14 +355,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         which is where a screen puts what it is slightly ashamed of — this is
         opt-in and unfinished, not dangerous, and the card says which.
       */}
-      <SectionLabel>Labs</SectionLabel>
+      <SectionLabel>{t.labs()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.heading}>Show experimental features</Text>
+        <Text style={type.heading}>{t.showExperimental()}</Text>
         <View style={styles.choices}>
           {(
             [
-              [true, 'On'],
-              [false, 'Off'],
+              [true, t.on()],
+              [false, t.off()],
             ] as Array<[boolean, string]>
           ).map(([value, label]) => (
             <Button
@@ -385,15 +379,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           that somebody can tell afterwards what appeared. "Experimental
           features" alone is a setting whose effect nobody can find.
         */}
-        <Text style={type.muted}>
-          Off, which is where everybody starts. On, one unfinished thing
-          appears: transcripts of your recordings. It can change or go away.
-        </Text>
-        <Text style={type.muted}>
-          It follows your account rather than this phone, and it is only about
-          you — turning it on shows these to you, not to anybody else in your
-          channels.
-        </Text>
+        <Text style={type.muted}>{t.labsWhat()}</Text>
+        <Text style={type.muted}>{t.labsWhose()}</Text>
       </Card>
 
       {/*
@@ -420,20 +407,20 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       */}
       {app.debug ? (
         <>
-        <SectionLabel>Diagnostics</SectionLabel>
+        <SectionLabel>{t.diagnostics()}</SectionLabel>
         <Card style={styles.stack}>
-          <Text style={type.heading}>Forget this phone</Text>
+          <Text style={type.heading}>{t.forgetThisPhone()}</Text>
           <Button
-            label={forgetting ? 'Forgetting…' : 'Forget this phone'}
+            label={forgetting ? t.forgetting() : t.forgetThisPhone()}
             disabled={forgetting}
             onPress={() =>
               Alert.alert(
-                'Forget this phone?',
-                'This device forgets everything it has stored — the session, your appearance and tap settings, and that it has been asked about notifications. Your account, channels and recordings are untouched.\n\nDelete the app afterwards and install it again for a genuinely new install: the notification permission is the system’s and only deleting the app clears it.',
+                t.forgetThisPhoneAsk(),
+                t.forgetThisPhoneBody(),
                 [
-                  { text: 'Cancel', style: 'cancel' },
+                  { text: t.cancel(), style: 'cancel' },
                   {
-                    text: 'Forget',
+                    text: t.forget(),
                     style: 'destructive',
                     onPress: () => void forget(),
                   },
@@ -441,10 +428,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
               )
             }
           />
-          <Text style={type.muted}>
-            For seeing what somebody arriving new sees. Signing out does not do
-            this, and neither does deleting the app.
-          </Text>
+          <Text style={type.muted}>{t.forgetNote()}</Text>
         </Card>
 
         {/*
@@ -474,31 +458,25 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           `HomeView`.
         */}
         <Card style={styles.stack}>
-          <Text style={type.heading}>Show every dab</Text>
+          <Text style={type.heading}>{t.showEveryDab()}</Text>
           <Button
-            label={app.forcedDabs ? 'Stop showing every dab' : 'Show every dab'}
+            label={app.forcedDabs ? t.stopShowingEveryDab() : t.showEveryDab()}
             variant={app.forcedDabs ? 'primary' : 'default'}
             onPress={() => app.forceDabs(!app.forcedDabs)}
           />
-          <Text style={type.muted}>
-            Puts a mark on both Home tabs that can wear one, and on the Help
-            card behind Support, whether or not anything is waiting, so the
-            mark itself can be looked at. It
-            changes nothing else, and it is off again the next time the app
-            starts.
-          </Text>
+          <Text style={type.muted}>{t.dabsNote()}</Text>
         </Card>
         </>
       ) : null}
 
-      <SectionLabel>Appearance</SectionLabel>
+      <SectionLabel>{t.appearance()}</SectionLabel>
       <Card style={styles.stack}>
         <View style={styles.choices}>
           {(
             [
-              ['light', 'Light'],
-              ['dark', 'Dark'],
-              ['system', 'System'],
+              ['light', t.light()],
+              ['dark', t.dark()],
+              ['system', t.system()],
             ] as Array<[ColorSchemePreference, string]>
           ).map(([value, label]) => (
             <Button
@@ -510,10 +488,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             />
           ))}
         </View>
-        <Text style={type.muted}>
-          System follows the phone, and changes with it — including on a
-          schedule, if you have one set.
-        </Text>
+        <Text style={type.muted}>{t.appearanceNote()}</Text>
       </Card>
 
       {/*
@@ -549,14 +524,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         the shapes are saying different things: a box is a question nobody has
         answered yet, and this is an answer in force. See STYLE.md § *Checkbox*.
       */}
-      <SectionLabel>Email</SectionLabel>
+      <SectionLabel>{t.email()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.heading}>Occasional email about The Floor</Text>
+        <Text style={type.heading}>{t.occasionalEmail()}</Text>
         <View style={styles.choices}>
           {(
             [
-              [true, 'On'],
-              [false, 'Off'],
+              [true, t.on()],
+              [false, t.off()],
             ] as Array<[boolean, string]>
           ).map(([value, label]) => (
             <Button
@@ -568,42 +543,33 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             />
           ))}
         </View>
-        <Text style={type.muted}>
-          Off, which is where everybody starts unless they said otherwise when
-          they signed up. On, we may write to you about how to use The Floor
-          and what has changed in it.
-        </Text>
+        <Text style={type.muted}>{t.emailNote()}</Text>
         {/*
           Said because the setting's name does not say it, and because the
           fear a mail setting raises is the one about the mail somebody
           actually needs. Turning this off cannot cost anybody their way in.
         */}
-        <Text style={type.muted}>
-          Your sign-in codes arrive either way: those are how you get in, not
-          something we send you.
-        </Text>
+        <Text style={type.muted}>{t.codesArriveEitherWay()}</Text>
       </Card>
 
-      <SectionLabel>Privacy</SectionLabel>
+      <SectionLabel>{t.privacy()}</SectionLabel>
       <Card style={styles.stack}>
-        <Button label="Privacy policy" onPress={() => void openPrivacy()} />
-        <Text style={type.muted}>
-          What is stored, why, and for how long. It opens in your browser.
-        </Text>
+        <Button label={t.privacyPolicy()} onPress={() => void openPrivacy()} />
+        <Text style={type.muted}>{t.privacyNote()}</Text>
       </Card>
 
-      <SectionLabel>Account</SectionLabel>
+      <SectionLabel>{t.account()}</SectionLabel>
       <Card style={styles.stack}>
         <Button
-          label="Sign out"
+          label={t.signOut()}
           onPress={() =>
             Alert.alert(
-              'Sign out?',
-              'You will need a fresh code by email to sign back in. Your channels and recordings are kept.',
+              t.signOutAsk(),
+              t.signOutBody(),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t.cancel(), style: 'cancel' },
                 {
-                  text: 'Sign out',
+                  text: t.signOut(),
                   style: 'destructive',
                   onPress: () => void app.signOut(),
                 },
@@ -611,9 +577,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             )
           }
         />
-        <Text style={type.muted}>
-          Only this device. Anywhere else you are signed in stays signed in.
-        </Text>
+        <Text style={type.muted}>{t.signOutNote()}</Text>
 
         {/*
           Beside Sign out because it is the same act aimed the other way, and
@@ -631,16 +595,16 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           purpose.
         */}
         <Button
-          label={signingOutOthers ? 'Signing out…' : 'Sign out other devices'}
+          label={signingOutOthers ? t.signingOut() : t.signOutOtherDevices()}
           disabled={signingOutOthers}
           onPress={() =>
             Alert.alert(
-              'Sign out other devices?',
-              'Every other phone, tablet or computer signed in to your account is signed out. This device stays signed in. Your channels and recordings are kept.',
+              t.signOutOtherDevicesAsk(),
+              t.signOutOtherDevicesBody(),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t.cancel(), style: 'cancel' },
                 {
-                  text: 'Sign out others',
+                  text: t.signOutOthers(),
                   style: 'destructive',
                   onPress: () => void signOutOthers(),
                 },
@@ -648,10 +612,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             )
           }
         />
-        <Text style={type.muted}>
-          For a phone you have lost. It is the only way to end a session from a
-          device you no longer have.
-        </Text>
+        <Text style={type.muted}>{t.signOutOthersNote()}</Text>
 
         {/*
           Below Sign out, in the same card, because they are the two ways
@@ -668,17 +629,17 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           remedy.
         */}
         <Button
-          label={deleting ? 'Deleting…' : 'Delete account'}
+          label={deleting ? t.deleting() : t.deleteAccount()}
           variant="danger"
           disabled={deleting}
           onPress={() =>
             Alert.alert(
-              'Delete your account?',
-              'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
+              t.deleteAccountAsk(),
+              t.deleteAccountBody(),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t.cancel(), style: 'cancel' },
                 {
-                  text: 'Delete',
+                  text: t.deleteConfirm(),
                   style: 'destructive',
                   onPress: () => void remove(),
                 },

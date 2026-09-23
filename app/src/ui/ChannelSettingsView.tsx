@@ -81,6 +81,8 @@ export function ChannelSettingsView({
   /** Called once membership is given up, to get off this channel's screens. */
   onLeft: () => void;
 }) {
+  const t = useText().channelSettings;
+  const shared = useText().shared;
   const app = useApp();
   /**
    * Held locally as well as on the snapshot, so the On/Off pair answers the
@@ -208,18 +210,15 @@ export function ChannelSettingsView({
    */
   const confirmLeave = () =>
     Alert.alert(
-      'Leave this channel?',
-      `It disappears from your home screen and you will need a fresh invitation to come back. Everyone else keeps it${
-        recordingCount === 0
-          ? '.'
-          : `, and ${countOf(recordingCount)} with it — you will not be able to reach ${
-              recordingCount === 1 ? 'it' : 'them'
-            } again.`
-      }`,
+      t.leaveAsk(),
+      t.leaveBody(
+        recordingCount === 0 ? null : t.countOf(recordingCount),
+        recordingCount === 1
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.cancel(), style: 'cancel' },
         {
-          text: 'Leave',
+          text: t.leave(),
           style: 'destructive',
           // **Only leave the screen if the action left the app.** Queued, this
           // used to navigate you out as though you had gone — and you were
@@ -248,27 +247,23 @@ export function ChannelSettingsView({
    */
   const confirmDelete = () =>
     Alert.alert(
-      'Delete this channel?',
-      recordingCount === 0
-        ? 'You are its last member, so this is the end of it. It cannot be undone.'
-        : `You are its last member, so this deletes the channel and ${countOf(
-            recordingCount
-          )} made in it. Share anything you want to keep first — this cannot be undone.`,
+      t.deleteAsk(),
+      t.deleteBody(recordingCount === 0 ? null : t.countOf(recordingCount)),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.cancel(), style: 'cancel' },
         {
-          text: 'Continue',
+          text: t.continueLabel(),
           style: 'destructive',
           onPress: () =>
             Alert.alert(
-              recordingCount === 0
-                ? 'Delete for good?'
-                : `Delete ${countOf(recordingCount)} for good?`,
-              `Everything goes, permanently, after ${RETENTION_DAYS} days. There is no undo in the app.`,
+              t.deleteForGood(
+                recordingCount === 0 ? null : t.countOf(recordingCount)
+              ),
+              t.deleteForGoodBody(RETENTION_DAYS),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t.cancel(), style: 'cancel' },
                 {
-                  text: 'Delete',
+                  text: t.deleteConfirm(),
                   style: 'destructive',
                   // Gated as leaving is, and it matters more here: this is a
                   // confirmed, permanent, unrecoverable action, and queued it
@@ -287,7 +282,7 @@ export function ChannelSettingsView({
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Channel Settings</Text>
+        <Text style={type.heading}>{t.title()}</Text>
         {/* "Close" rather than "Channel". Naming the destination reads well
             until there are three settings screens and each names a different
             place — then the one word every one of them shares is the act, and
@@ -296,13 +291,13 @@ export function ChannelSettingsView({
             layouts, and it names a destination by implication; see
             HomeSettingsView, which carries the argument. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={done}
         />
       </View>
 
-      <SectionLabel>Channel name</SectionLabel>
+      <SectionLabel>{t.channelName()}</SectionLabel>
       <Card style={styles.stack}>
         {/*
           **The placeholder is the derived title, not a prompt.** It used to
@@ -331,10 +326,10 @@ export function ChannelSettingsView({
         />
         <Text style={type.muted}>
           {!mayEdit
-            ? 'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.'
+            ? t.renameStepIn()
             : isPublic
-              ? 'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel has a public page — the page is found by its name, and an unnamed channel is listed by who is in it.'
-              : 'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.'}
+              ? t.renamePublic()
+              : t.renamePrivate()}
         </Text>
       </Card>
 
@@ -349,14 +344,14 @@ export function ChannelSettingsView({
         a member somewhere else must not arrange for a conversation they are
         not in to be kept.
       */}
-      <SectionLabel>Recording</SectionLabel>
+      <SectionLabel>{t.recording()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.heading}>Record automatically</Text>
+        <Text style={type.heading}>{t.recordAutomatically()}</Text>
         <View style={styles.choices}>
           {(
             [
-              [true, 'On'],
-              [false, 'Off'],
+              [true, t.on()],
+              [false, t.off()],
             ] as Array<[boolean, string]>
           ).map(([value, label]) => (
             <Button
@@ -372,15 +367,9 @@ export function ChannelSettingsView({
             />
           ))}
         </View>
+        <Text style={type.muted}>{t.autoRecordNote()}</Text>
         <Text style={type.muted}>
-          Off, which is where every channel starts: a recording begins when
-          somebody presses Record. On, one begins by itself as soon as there
-          are two of you in the room, and everyone sees it running.
-        </Text>
-        <Text style={type.muted}>
-          {mayEdit
-            ? 'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.'
-            : 'Step in to change this. What is kept from a conversation is for whoever is in it.'}
+          {mayEdit ? t.autoRecordHow() : t.autoRecordStepIn()}
         </Text>
       </Card>
 
@@ -396,7 +385,7 @@ export function ChannelSettingsView({
         is welcome from the conversation somebody is waiting on and unwelcome
         from the one they joined for completeness.
       */}
-      <SectionLabel>Notifications</SectionLabel>
+      <SectionLabel>{t.notifications()}</SectionLabel>
       <Card style={styles.stack}>
         <NotificationLevelPicker channelId={channel.id} />
       </Card>
@@ -415,7 +404,7 @@ export function ChannelSettingsView({
         two ways anything here leaves the channel — and the bigger one is read
         first.
       */}
-      <SectionLabel>Public page</SectionLabel>
+      <SectionLabel>{t.publicPage()}</SectionLabel>
       <Card style={styles.stack}>
         <Publishing
           channelId={channel.id}
@@ -426,7 +415,7 @@ export function ChannelSettingsView({
         />
       </Card>
 
-      <SectionLabel>Guest links</SectionLabel>
+      <SectionLabel>{t.guestLinks()}</SectionLabel>
       <Card style={styles.stack}>
         {/*
           Revocable on the same terms as everything else here, and for the
@@ -447,27 +436,24 @@ export function ChannelSettingsView({
         action. The exception is being the last member, where the tap really
         does destroy something, and the colour is then telling the truth.
       */}
-      <SectionLabel>{lastMember ? 'Deleting' : 'Leaving'}</SectionLabel>
+      <SectionLabel>{lastMember ? t.deleting() : t.leaving()}</SectionLabel>
       <Card style={styles.stack}>
         <Button
-          label={lastMember ? 'Delete channel' : 'Leave channel'}
+          label={lastMember ? t.deleteChannel() : t.leaveChannel()}
           sublabel={
             lastMember
               ? recordingCount === 0
-                ? 'You are its last member — this destroys it for good'
-                : `This destroys it and ${countOf(recordingCount)}, for good`
+                ? t.lastMemberNoRecordings()
+                : t.lastMemberWithRecordings(t.countOf(recordingCount))
               : recordingCount === 0
-                ? 'Removes it from your home screen'
-                : `Removes it from your home screen, ${countOf(
-                    recordingCount
-                  )} included`
+                ? t.removesFromHome()
+                : t.removesFromHomeWith(t.countOf(recordingCount))
           }
           variant={lastMember ? 'danger' : 'default'}
           onPress={() => (lastMember ? confirmDelete() : confirmLeave())}
         />
         <Text style={type.muted}>
-          Stepping out is on the channel screen and is probably what you want:
-          it keeps your place here.
+          {t.steppingOutInstead()}
         </Text>
       </Card>
     </Screen>
@@ -518,6 +504,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
   const stored =
     app.channelViews[channelId]?.notificationLevel ?? DEFAULT_NOTIFICATION_LEVEL;
   const levels = useText().notificationLevel;
+  const t = useText().channelSettings;
   const [level, setLevel] = useState<NotificationLevel>(stored);
   const [error, setError] = useState<string | null>(null);
 
@@ -539,7 +526,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
         setError(
           failure instanceof Error
             ? failure.message
-            : 'Could not change that just now.'
+            : t.couldNotChange()
         );
       }
     );
@@ -642,6 +629,7 @@ function Publishing({
   /** Called with the new state, so the screen's own copy stays in step. */
   onChanged: (next: boolean, url: string | null) => void;
 }) {
+  const t = useText().channelSettings;
   const app = useApp();
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
@@ -656,7 +644,7 @@ function Publishing({
       onChanged(next, result.url);
     } catch (failure) {
       setError(
-        failure instanceof Error ? failure.message : 'That did not work.'
+        failure instanceof Error ? failure.message : t.thatDidNotWork()
       );
     } finally {
       setBusy(false);
@@ -665,10 +653,10 @@ function Publishing({
 
   return (
     <>
-      <Text style={type.heading}>This channel has a public page</Text>
+      <Text style={type.heading}>{t.hasAPublicPage()}</Text>
       <View style={styles.choices}>
         <Button
-          label="On"
+          label={t.on()}
           style={styles.choice}
           variant={isPublic ? 'primary' : 'default'}
           // Grey while the channel has no name, and while a call is in flight.
@@ -683,39 +671,29 @@ function Publishing({
             // already made uneditable.
             if (busy || isPublic || !named) return;
             Alert.alert(
-              'Give this channel a public page?',
-              'The page shows the channel’s name and description to anyone, ' +
-                'and the channel is listed publicly where it can be found by ' +
-                'people you have never met. Members are not named.\n\n' +
-                'No recording appears on it until everybody who was in that ' +
-                'recording has agreed to publish it, one at a time, from its ' +
-                'card on the channel screen.',
+              t.publishAsk(),
+              t.publishBody(),
               [
-                { text: 'Not now', style: 'cancel' },
-                { text: 'Create the page', onPress: () => void set(true) },
+                { text: t.notNow(), style: 'cancel' },
+                { text: t.createThePage(), onPress: () => void set(true) },
               ]
             );
           }}
         />
         <Button
-          label="Off"
+          label={t.off()}
           style={styles.choice}
           variant={isPublic ? 'default' : 'primary'}
           disabled={busy}
           onPress={() => {
             if (busy || !isPublic) return;
             Alert.alert(
-              'Take this page down?',
-              'The page and the feed stop answering at once, and the channel ' +
-                'leaves the public list. Anybody who subscribed in a podcast ' +
-                'app stops receiving it, and copies already downloaded are ' +
-                'not reached.\n\n' +
-                'Nobody’s agreement is taken back, so turning it on again puts ' +
-                'the same recordings at the same address.',
+              t.unpublishAsk(),
+              t.unpublishBody(),
               [
-                { text: 'Keep the page', style: 'cancel' },
+                { text: t.keepThePage(), style: 'cancel' },
                 {
-                  text: 'Take it down',
+                  text: t.takeItDown(),
                   style: 'destructive',
                   onPress: () => void set(false),
                 },
@@ -724,7 +702,7 @@ function Publishing({
           }}
         />
       </View>
-      {busy ? <Text style={type.muted}>Saving…</Text> : null}
+      {busy ? <Text style={type.muted}>{t.saving()}</Text> : null}
       {error ? <Text style={styles.warning}>{error}</Text> : null}
       {isPublic ? (
         <>
@@ -733,11 +711,7 @@ function Publishing({
               {url.replace(/^https?:\/\//, '')}
             </Text>
           ) : null}
-          <Text style={type.muted}>
-            Nothing is on the page until everybody in a recording agrees to
-            publish it. Each recording is asked about separately, on its own
-            card. The channel itself is listed publicly as soon as this is on.
-          </Text>
+          <Text style={type.muted}>{t.pageNote()}</Text>
           {/*
             Everything below is only needed by a channel that wants to be
             findable in Apple or Spotify. The page and the feed work without
@@ -745,23 +719,14 @@ function Publishing({
             the address — so it is grouped under one sentence saying so rather
             than presented as four things left undone.
           */}
-          <Text style={type.muted}>
-            To be listed in a podcast directory, a feed also needs these.
-          </Text>
+          <Text style={type.muted}>{t.directoryNeedsThese()}</Text>
           <CoverArt channelId={channelId} imageAt={settings?.imageAt ?? null} />
           <Declarations channelId={channelId} settings={settings} />
         </>
       ) : named ? (
-        <Text style={type.muted}>
-          Off, which is how every channel starts. There is no page and no feed,
-          and nothing here is reachable by anybody outside it.
-        </Text>
+        <Text style={type.muted}>{t.publicOffNote()}</Text>
       ) : (
-        <Text style={type.muted}>
-          Name this channel first, at the top of this screen. A public page is
-          found by its name, and this channel has none — it is listed by who is
-          in it, and a public page never names a member.
-        </Text>
+        <Text style={type.muted}>{t.nameItFirst()}</Text>
       )}
     </>
   );
@@ -784,6 +749,7 @@ function CoverArt({
   channelId: string;
   imageAt: number | null;
 }) {
+  const t = useText().channelSettings;
   const app = useApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -799,12 +765,12 @@ function CoverArt({
       if (result.cancelled) return;
       setNote(
         result.width
-          ? `Cover set — ${result.width}×${result.height}.`
-          : 'Cover set.'
+          ? t.coverSetAt(result.width, result.height ?? 0)
+          : t.coverSet()
       );
     } catch (failure) {
       setError(
-        failure instanceof Error ? failure.message : 'That did not work.'
+        failure instanceof Error ? failure.message : t.thatDidNotWork()
       );
     } finally {
       setBusy(false);
@@ -814,12 +780,10 @@ function CoverArt({
   return (
     <>
       <Button
-        label={busy ? 'Uploading…' : imageAt ? 'Replace cover art' : 'Add cover art'}
-        sublabel={
-          imageAt
-            ? 'Square, 1400–3000 pixels, no transparency'
-            : 'Square JPEG or PNG, 1400–3000 pixels, no transparency'
+        label={
+          busy ? t.uploading() : imageAt ? t.replaceCoverArt() : t.addCoverArt()
         }
+        sublabel={imageAt ? t.coverRulesShort() : t.coverRules()}
         disabled={busy}
         onPress={() => void choose()}
       />
@@ -854,6 +818,7 @@ function Declarations({
     imageAt: number | null;
   };
 }) {
+  const t = useText().channelSettings;
   const app = useApp();
   const [error, setError] = useState<string | null>(null);
   const [pickingCategory, setPickingCategory] = useState(false);
@@ -871,7 +836,7 @@ function Declarations({
       .setChannelDeclarations(channelId, declarations)
       .catch((failure: unknown) =>
         setError(
-          failure instanceof Error ? failure.message : 'That did not work.'
+          failure instanceof Error ? failure.message : t.thatDidNotWork()
         )
       );
   };
@@ -885,23 +850,20 @@ function Declarations({
         // is: a language tag is three characters and a request each would be
         // three requests for one decision.
         onBlur={() => send({ language: language.trim() || null })}
-        placeholder="en"
+        placeholder={t.languagePlaceholder()}
         autoCapitalize="none"
       />
-      <Text style={type.muted}>
-        The language these conversations are in, as a tag like “en” or
-        “pt-BR”. Left empty, the feed says English.
-      </Text>
+      <Text style={type.muted}>{t.languageNote()}</Text>
 
       <Checkbox
-        label="These conversations are explicit"
+        label={t.explicit()}
         checked={settings?.explicit === true}
         onChange={(next) => send({ explicit: next })}
       />
 
       <Button
-        label={pickingCategory ? 'Done' : 'Category'}
-        sublabel={settings?.category ?? 'Not set — a directory needs one'}
+        label={pickingCategory ? t.done() : t.category()}
+        sublabel={settings?.category ?? t.categoryUnset()}
         onPress={() => setPickingCategory((open) => !open)}
       />
       {pickingCategory
@@ -933,6 +895,7 @@ function GuestLinks({
   /** `hasTheRoom`, which the server asks again in `revokeGuestLink`. */
   mayRevoke: boolean;
 }) {
+  const t = useText().channelSettings;
   const app = useApp();
   const [links, setLinks] = useState<GuestLinkSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -943,7 +906,7 @@ function GuestLinks({
       .then(setLinks)
       .catch((failure: unknown) =>
         setError(
-          failure instanceof Error ? failure.message : 'Could not read the links.'
+          failure instanceof Error ? failure.message : t.couldNotReadLinks()
         )
       );
   }, [app, channelId]);
@@ -951,13 +914,10 @@ function GuestLinks({
   useEffect(load, [load]);
 
   if (error) return <Text style={styles.warning}>{error}</Text>;
-  if (!links) return <Text style={type.muted}>Reading…</Text>;
+  if (!links) return <Text style={type.muted}>{t.reading()}</Text>;
   if (links.length === 0) {
     return (
-      <Text style={type.muted}>
-        No guest links yet. The channel screen makes one and hands it to the
-        share sheet.
-      </Text>
+      <Text style={type.muted}>{t.noGuestLinksYet()}</Text>
     );
   }
 
@@ -971,37 +931,31 @@ function GuestLinks({
             </Text>
             <Text style={type.muted}>
               {link.revokedAt === null
-                ? 'Open — anybody with it can knock'
+                ? t.linkOpen()
                 : link.revokedBy === null
-                  ? 'Closed when the channel emptied'
-                  : 'Revoked'}
+                  ? t.linkClosedWhenEmptied()
+                  : t.linkRevoked()}
             </Text>
           </View>
           {link.revokedAt === null ? (
             <Button
-              label="Revoke"
+              label={t.revoke()}
               disabled={!mayRevoke}
               onPress={() => {
                 void app
                   .revokeGuestLink(channelId, link.token)
                   .then(load)
-                  .catch(() => setError('That did not work.'));
+                  .catch(() => setError(t.thatDidNotWork()));
               }}
             />
           ) : null}
         </View>
       ))}
       <Text style={type.muted}>
-        {mayRevoke
-          ? 'Revoking stops new people knocking. Anybody already in the channel stays until they leave or somebody removes them.'
-          : 'Step in to revoke a link. Shutting a door onto a conversation is for whoever is in it.'}
+        {mayRevoke ? t.revokeNote() : t.revokeStepIn()}
       </Text>
     </>
   );
-}
-
-function countOf(n: number): string {
-  return n === 1 ? 'its one recording' : `its ${n} recordings`;
 }
 
 /** Said in the warning, so it cannot disagree with what the server does. */

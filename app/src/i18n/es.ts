@@ -560,4 +560,203 @@ export const es: Strings = {
     menu: () =>
       'Abre el men\u00fa de tu navegador y elige Instalar, o A\u00f1adir a pantalla de inicio.',
   },
+  homeSettings: {
+    title: () => 'Ajustes de The Floor',
+    noServerConfigured: () =>
+      'No hay servidor configurado, as\u00ed que no hay pol\u00edtica que mostrar.',
+    couldNotOpenPrivacy: () =>
+      'No se ha podido abrir la pol\u00edtica de privacidad',
+    nothingElseSignedIn: () => 'No hab\u00eda nada m\u00e1s con la sesi\u00f3n iniciada',
+    otherDevicesSignedOut: () => 'Se ha cerrado la sesi\u00f3n en otros dispositivos',
+    signedOutBody: (sessions: number) =>
+      sessions === 0
+        ? 'Este es el \u00fanico dispositivo con la sesi\u00f3n iniciada en tu cuenta.'
+        : sessions === 1
+          ? 'Se ha cerrado la sesi\u00f3n en otro dispositivo. Necesitar\u00e1 un c\u00f3digo nuevo por correo.'
+          : `Se ha cerrado la sesi\u00f3n en ${sessions} dispositivos. Necesitar\u00e1n un c\u00f3digo nuevo por correo.`,
+    gettingStarted: () => 'Primeros pasos',
+    showTheChecklistAgain: () => 'Volver a mostrar la lista',
+    showing: () => 'Mostrando\u2026',
+    showTheChecklistAgainAsk: () => '\u00bfVolver a mostrar la lista?',
+    showTheChecklistAgainBody: () =>
+      'Primeros pasos vuelve al inicio con todos los pasos por hacer otra vez: entrar, las cuatro cosas que probar en un canal, y lo que hayas descartado con la cruz de al lado.\n\nNo cambia nada m\u00e1s: sigues con la sesi\u00f3n iniciada, y tus canales, contactos, grabaciones y ajustes quedan intactos.\n\nSal antes de cualquier canal. Estar en uno con alguien marca el primer paso al instante, as\u00ed que la lista volver\u00eda con ese ya hecho.',
+    cancel: () => 'Cancelar',
+    showIt: () => 'Mostrarla',
+    checklistNote: () =>
+      'La lista que hay encima de tus canales en el inicio. Desaparece para siempre cuando est\u00e1n todos los pasos hechos —la conversaci\u00f3n y las cuatro cosas que probar en un canal— o cuando has descartado todos con la cruz de al lado, y esta es la forma de recuperarla.',
+    audioOutput: () => 'Salida de audio',
+    chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
+    chooseWhereSoundComesOutSub: () =>
+      'Auriculares, AirPlay o cualquier cosa emparejada',
+    labs: () => 'Pruebas',
+    showExperimental: () => 'Mostrar funciones experimentales',
+    on: () => 'S\u00ed',
+    off: () => 'No',
+    labsWhat: () =>
+      'No, que es donde empieza todo el mundo. S\u00ed, aparece una cosa sin terminar: las transcripciones de tus grabaciones. Puede cambiar o desaparecer.',
+    labsWhose: () =>
+      'Va con tu cuenta y no con este tel\u00e9fono, y es solo cosa tuya: activarlo te las muestra a ti, no a nadie m\u00e1s de tus canales.',
+    diagnostics: () => 'Diagn\u00f3stico',
+    forgetThisPhone: () => 'Olvidar este tel\u00e9fono',
+    forgetting: () => 'Olvidando\u2026',
+    forgetThisPhoneAsk: () => '\u00bfOlvidar este tel\u00e9fono?',
+    forgetThisPhoneBody: () =>
+      'Este dispositivo olvida todo lo que tiene guardado: la sesi\u00f3n, tus ajustes de apariencia y de toque, y que ya se le ha preguntado por las notificaciones. Tu cuenta, tus canales y tus grabaciones quedan intactos.\n\nBorra la app despu\u00e9s y vuelve a instalarla para tener una instalaci\u00f3n realmente nueva: el permiso de notificaciones es del sistema y solo se borra al borrar la app.',
+    forget: () => 'Olvidar',
+    forgetNote: () =>
+      'Para ver lo que ve alguien que acaba de llegar. Cerrar sesi\u00f3n no hace esto, y borrar la app tampoco.',
+    showEveryDab: () => 'Mostrar todas las marcas',
+    stopShowingEveryDab: () => 'Dejar de mostrar todas las marcas',
+    dabsNote: () =>
+      'Pone una marca en las dos pesta\u00f1as del inicio que pueden llevarla, y en la tarjeta de Ayuda detr\u00e1s de Ayuda y apoyo, haya o no algo esperando, para poder mirar la marca en s\u00ed. No cambia nada m\u00e1s, y se apaga la pr\u00f3xima vez que arranque la app.',
+    appearance: () => 'Apariencia',
+    light: () => 'Claro',
+    dark: () => 'Oscuro',
+    system: () => 'Del sistema',
+    appearanceNote: () =>
+      'Del sistema sigue al tel\u00e9fono, y cambia con \u00e9l, incluso con un horario si tienes uno puesto.',
+    email: () => 'Correo',
+    occasionalEmail: () => 'Correo ocasional sobre The Floor',
+    emailNote: () =>
+      'No, que es donde empieza todo el mundo salvo que dijera otra cosa al registrarse. S\u00ed, podemos escribirte sobre c\u00f3mo usar The Floor y qu\u00e9 ha cambiado.',
+    codesArriveEitherWay: () =>
+      'Tus c\u00f3digos para entrar llegan igualmente: son c\u00f3mo entras, no algo que te enviemos.',
+    privacy: () => 'Privacidad',
+    privacyPolicy: () => 'Pol\u00edtica de privacidad',
+    privacyNote: () =>
+      'Qu\u00e9 se guarda, por qu\u00e9 y durante cu\u00e1nto tiempo. Se abre en tu navegador.',
+    account: () => 'Cuenta',
+    signOut: () => 'Cerrar sesi\u00f3n',
+    signOutAsk: () => '\u00bfCerrar sesi\u00f3n?',
+    signOutBody: () =>
+      'Necesitar\u00e1s un c\u00f3digo nuevo por correo para volver a entrar. Tus canales y tus grabaciones se conservan.',
+    signOutNote: () =>
+      'Solo en este dispositivo. Donde tengas sesi\u00f3n iniciada sigue igual.',
+    signingOut: () => 'Cerrando sesi\u00f3n\u2026',
+    signOutOtherDevices: () => 'Cerrar sesi\u00f3n en otros dispositivos',
+    signOutOtherDevicesAsk: () => '\u00bfCerrar sesi\u00f3n en otros dispositivos?',
+    signOutOtherDevicesBody: () =>
+      'Se cierra la sesi\u00f3n en cualquier otro tel\u00e9fono, tableta u ordenador con sesi\u00f3n iniciada en tu cuenta. Este dispositivo sigue con la sesi\u00f3n iniciada. Tus canales y tus grabaciones se conservan.',
+    signOutOthers: () => 'Cerrar en los dem\u00e1s',
+    signOutOthersNote: () =>
+      'Para un tel\u00e9fono que has perdido. Es la \u00fanica forma de terminar una sesi\u00f3n desde un dispositivo que ya no tienes.',
+    deleting: () => 'Borrando\u2026',
+    deleteAccount: () => 'Borrar la cuenta',
+    deleteAccountAsk: () => '\u00bfBorrar tu cuenta?',
+    deleteAccountBody: () =>
+      'Tu direcci\u00f3n, tu nombre, lo que escribiste sobre ti y tus contactos se eliminan de inmediato.\n\nLos canales que compartes con otras personas siguen sin ti, y tambi\u00e9n las grabaciones hechas en ellos: son del canal. Los canales en los que eres el \u00fanico miembro se borran con todo lo que hay dentro.\n\nEsto no se puede deshacer.',
+    deleteConfirm: () => 'Borrar',
+  },
+  channelSettings: {
+    title: () => 'Ajustes del canal',
+    leaveAsk: () => '\u00bfSalir de este canal?',
+    leaveBody: (recordings: string | null, one: boolean) =>
+      `Desaparece de tu pantalla de inicio y necesitar\u00e1s una invitaci\u00f3n nueva para volver. Los dem\u00e1s lo conservan${
+        recordings === null
+          ? '.'
+          : `, y ${recordings} con \u00e9l: ya no podr\u00e1s ${
+              one ? 'acceder a ella' : 'acceder a ellas'
+            }.`
+      }`,
+    cancel: () => 'Cancelar',
+    leave: () => 'Salir',
+    deleteAsk: () => '\u00bfBorrar este canal?',
+    deleteBody: (recordings: string | null) =>
+      recordings === null
+        ? 'Eres su \u00faltimo miembro, as\u00ed que esto es el final. No se puede deshacer.'
+        : `Eres su \u00faltimo miembro, as\u00ed que esto borra el canal y ${recordings}. Comparte antes lo que quieras conservar: no se puede deshacer.`,
+    continueLabel: () => 'Continuar',
+    deleteForGood: (recordings: string | null) =>
+      recordings === null
+        ? '\u00bfBorrar definitivamente?'
+        : `\u00bfBorrar ${recordings} definitivamente?`,
+    deleteForGoodBody: (days: number) =>
+      `Todo desaparece, para siempre, al cabo de ${days} d\u00edas. En la app no hay forma de deshacerlo.`,
+    deleteConfirm: () => 'Borrar',
+    channelName: () => 'Nombre del canal',
+    renameStepIn: () =>
+      'Entra para cambiar el nombre de este canal. Hay alguien dentro, y el nombre es c\u00f3mo llama al sitio en el que est\u00e1.',
+    renamePublic: () =>
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal tenga p\u00e1gina p\u00fablica: la p\u00e1gina se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
+    renamePrivate: () =>
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
+    recording: () => 'Grabaci\u00f3n',
+    recordAutomatically: () => 'Grabar autom\u00e1ticamente',
+    on: () => 'S\u00ed',
+    off: () => 'No',
+    autoRecordNote: () =>
+      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien pulsa Grabar. S\u00ed, empieza sola en cuanto hay dos personas en la sala, y todos la ven en marcha.',
+    autoRecordHow: () =>
+      'Pausar y Parar funcionan igual en ambos casos, y parar es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
+    autoRecordStepIn: () =>
+      'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
+    notifications: () => 'Notificaciones',
+    publicPage: () => 'P\u00e1gina p\u00fablica',
+    guestLinks: () => 'Enlaces de invitado',
+    deleting: () => 'Borrar',
+    leaving: () => 'Salir',
+    deleteChannel: () => 'Borrar el canal',
+    leaveChannel: () => 'Salir del canal',
+    lastMemberNoRecordings: () =>
+      'Eres su \u00faltimo miembro: esto lo destruye para siempre',
+    lastMemberWithRecordings: (recordings: string) =>
+      `Esto lo destruye, y ${recordings}, para siempre`,
+    removesFromHome: () => 'Lo quita de tu pantalla de inicio',
+    removesFromHomeWith: (recordings: string) =>
+      `Lo quita de tu pantalla de inicio, ${recordings} incluidas`,
+    steppingOutInstead: () =>
+      'Salir de la sala est\u00e1 en la pantalla del canal y es seguramente lo que quieres: conserva tu sitio aqu\u00ed.',
+    couldNotChange: () => 'Ahora mismo no se ha podido cambiar eso.',
+    thatDidNotWork: () => 'Eso no ha funcionado.',
+    hasAPublicPage: () => 'Este canal tiene p\u00e1gina p\u00fablica',
+    publishAsk: () => '\u00bfDarle a este canal una p\u00e1gina p\u00fablica?',
+    publishBody: () =>
+      'La p\u00e1gina muestra el nombre y la descripci\u00f3n del canal a cualquiera, y el canal aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. Los miembros no se nombran.\n\nNinguna grabaci\u00f3n aparece en ella hasta que todos los que estaban en esa grabaci\u00f3n acepten publicarla, uno a uno, desde su tarjeta en la pantalla del canal.',
+    notNow: () => 'Ahora no',
+    createThePage: () => 'Crear la p\u00e1gina',
+    unpublishAsk: () => '\u00bfRetirar esta p\u00e1gina?',
+    unpublishBody: () =>
+      'La p\u00e1gina y el feed dejan de responder al instante, y el canal sale de la lista p\u00fablica. Quien se hubiera suscrito en una app de podcasts deja de recibirlo, y las copias ya descargadas no se pueden alcanzar.\n\nNo se retira el permiso de nadie, as\u00ed que volver a activarlo pone las mismas grabaciones en la misma direcci\u00f3n.',
+    keepThePage: () => 'Conservar la p\u00e1gina',
+    takeItDown: () => 'Retirarla',
+    saving: () => 'Guardando\u2026',
+    pageNote: () =>
+      'No hay nada en la p\u00e1gina hasta que todos los de una grabaci\u00f3n acepten publicarla. Se pregunta por cada grabaci\u00f3n por separado, en su propia tarjeta. El canal en s\u00ed aparece en la lista p\u00fablica en cuanto esto est\u00e1 activado.',
+    directoryNeedsThese: () =>
+      'Para aparecer en un directorio de podcasts, un feed necesita adem\u00e1s esto.',
+    publicOffNote: () =>
+      'No, que es como empieza todo canal. No hay p\u00e1gina ni feed, y nada de aqu\u00ed es accesible desde fuera.',
+    nameItFirst: () =>
+      'Ponle antes un nombre a este canal, arriba en esta pantalla. Una p\u00e1gina p\u00fablica se encuentra por su nombre, y este canal no tiene: se lista por qui\u00e9n est\u00e1 dentro, y una p\u00e1gina p\u00fablica nunca nombra a un miembro.',
+    coverSetAt: (width: number, height: number) =>
+      `Portada puesta — ${width}×${height}.`,
+    coverSet: () => 'Portada puesta.',
+    uploading: () => 'Subiendo\u2026',
+    replaceCoverArt: () => 'Cambiar la portada',
+    addCoverArt: () => 'A\u00f1adir una portada',
+    coverRulesShort: () => 'Cuadrada, 1400–3000 p\u00edxeles, sin transparencia',
+    coverRules: () =>
+      'JPEG o PNG cuadrado, 1400–3000 p\u00edxeles, sin transparencia',
+    languagePlaceholder: () => 'es',
+    languageNote: () =>
+      'El idioma de estas conversaciones, como una etiqueta del tipo \u201ces\u201d o \u201cpt-BR\u201d. Si se deja vac\u00edo, el feed dice ingl\u00e9s.',
+    explicit: () => 'Estas conversaciones tienen contenido expl\u00edcito',
+    done: () => 'Listo',
+    category: () => 'Categor\u00eda',
+    categoryUnset: () => 'Sin poner — un directorio necesita una',
+    couldNotReadLinks: () => 'No se han podido leer los enlaces.',
+    reading: () => 'Leyendo\u2026',
+    noGuestLinksYet: () =>
+      'Todav\u00eda no hay enlaces de invitado. La pantalla del canal crea uno y lo pasa a compartir.',
+    linkOpen: () => 'Abierto — cualquiera que lo tenga puede llamar',
+    linkClosedWhenEmptied: () => 'Cerrado al quedarse vac\u00edo el canal',
+    linkRevoked: () => 'Anulado',
+    revoke: () => 'Anular',
+    revokeNote: () =>
+      'Anularlo impide que llame gente nueva. Quien ya est\u00e9 en el canal se queda hasta que salga o alguien lo quite.',
+    revokeStepIn: () =>
+      'Entra para anular un enlace. Cerrar una puerta a una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
+    countOf: (n: number) =>
+      n === 1 ? 'su grabaci\u00f3n' : `sus ${n} grabaciones`,
+  },
 };
