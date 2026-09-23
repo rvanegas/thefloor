@@ -130,7 +130,7 @@ import {
   type,
 } from './theme';
 import { louder, quieter } from './volume';
-import { useText } from '../i18n';
+import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
@@ -171,8 +171,11 @@ export type ChannelTab =
  * will not say how big the body is there is no number, and the button says
  * only that something is happening.
  */
-export function uploadingLabel(percent: number | null): string {
-  return percent === null ? 'Uploading…' : `Uploading… ${percent}%`;
+export function uploadingLabel(
+  percent: number | null,
+  t: Strings['channel']
+): string {
+  return percent === null ? t.uploading() : t.uploadingPercent(percent);
 }
 
 /**
@@ -264,6 +267,8 @@ export function ChannelView({
    */
   onTab?: (tab: ChannelTab) => void;
 }) {
+  const t = useText().channel;
+  const namingWords = useText().naming;
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
   // taken from a single slot, so a snapshot arriving for another watched
@@ -1422,19 +1427,18 @@ export function ChannelView({
       <View style={styles.centered}>
         {gone ? (
           <>
-            <Text style={type.heading}>Channel gone</Text>
+            <Text style={type.heading}>{t.channelGone()}</Text>
             <Text style={[type.muted, styles.centeredText]}>
-              This channel is no longer there. It may have ended a while ago,
-              or you may no longer be part of it.
+              {t.channelGoneBody()}
             </Text>
           </>
         ) : (
           <Text style={type.body}>
-            {app.status === 'open' ? 'Loading channel…' : 'Reconnecting…'}
+            {app.status === 'open' ? t.loadingChannel() : t.reconnecting()}
           </Text>
         )}
         <Button
-          label="Back to home"
+          label={t.backToHome()}
           variant={gone ? 'primary' : 'default'}
           onPress={onExit}
         />
@@ -1450,19 +1454,21 @@ export function ChannelView({
    * two screens draw it: the header below, and the settings field, whose
    * placeholder it is.
    */
-  const derivedTitle = describeChannel(others.map((other) => other.displayName));
+  const derivedTitle = describeChannel(
+    others.map((other) => other.displayName),
+    namingWords
+  );
   const nameOf = (id: string | null) =>
-    view.participants.find((p) => p.id === id)?.displayName ?? 'Someone';
+    view.participants.find((p) => p.id === id)?.displayName ?? t.someone();
   const now = app.serverNow();
   if (channel.status === 'ended') {
     return (
       <View style={styles.centered}>
-        <Text style={type.heading}>Channel ended</Text>
+        <Text style={type.heading}>{t.channelEnded()}</Text>
         <Text style={[type.muted, styles.centeredText]}>
-          Everyone left this channel, so it no longer exists. Start a new one
-          to talk again.
+          {t.channelEndedBody()}
         </Text>
-        <Button label="Back to home" variant="primary" onPress={onExit} />
+        <Button label={t.backToHome()} variant="primary" onPress={onExit} />
       </View>
     );
   }
@@ -2000,14 +2006,12 @@ export function ChannelView({
     setWatchPasteError(null);
     const text = await pasteText();
     if (text === null) {
-      setWatchPasteError('There is nothing on your clipboard to paste.');
+      setWatchPasteError(t.nothingOnClipboard());
       return;
     }
     const url = text.trim();
     if (parseYouTubeUrl(url) === null) {
-      setWatchPasteError(
-        'That is not a YouTube link. Copy one from YouTube, then press this again.'
-      );
+      setWatchPasteError(t.notAYouTubeLink());
       return;
     }
     act({ type: 'START_WATCH', url });
@@ -2047,7 +2051,7 @@ export function ChannelView({
   const pastFilmRows = watchedBefore.map((film) => (
     <Button
       key={film.videoId}
-      label={film.title ?? 'A film nobody named'}
+      label={film.title ?? t.aFilmNobodyNamed()}
       sublabel={
         film.durationMs === null ? undefined : formatDuration(film.durationMs)
       }
@@ -2090,32 +2094,32 @@ export function ChannelView({
   }[] = [
     {
       value: 'people',
-      label: 'People',
+      label: t.tabPeople(),
       icon: (color) => <PeopleIcon color={color} />,
     },
     {
       value: 'notepad',
-      label: 'Notepad',
+      label: t.tabNotepad(),
       icon: (color) => <NotepadIcon color={color} />,
     },
     {
       value: 'invites',
-      label: 'Invite',
+      label: t.tabInvite(),
       icon: (color) => <InviteIcon color={color} />,
     },
     {
       value: 'listen',
-      label: 'Listen',
+      label: t.tabListen(),
       icon: (color) => <ListenIcon color={color} />,
     },
     {
       value: 'recordings',
-      label: 'Recordings',
+      label: t.tabRecordings(),
       icon: (color) => <RecordingsIcon color={color} />,
     },
     {
       value: 'watch',
-      label: 'Watch',
+      label: t.tabWatch(),
       icon: (color) => <WatchIcon color={color} />,
     },
   ];
@@ -2150,15 +2154,15 @@ export function ChannelView({
    * this is the other browser.
    */
   const screenLabel = (screen: ScreenDevice) =>
-    screen.name ?? (screen.client === 'web' ? 'A browser' : 'Another phone');
+    screen.name ?? (screen.client === 'web' ? t.aBrowser() : t.anotherPhone());
 
   /** What the copy button says, once it has been pressed. */
   const copyLabel = (which: 'video', idle: string) =>
     watchCopied?.which !== which
       ? idle
       : watchCopied.ok
-        ? '✓ copied'
-        : '✗ copy failed';
+        ? t.copied()
+        : t.copyFailed();
 
   // `?? null` for the same reason `recordings` has its `?? []`: a server that
   // predates this field sends snapshots without it, which is what this build
@@ -2181,7 +2185,7 @@ export function ChannelView({
     setClipError(null);
     const text = await pasteText();
     if (text === null) {
-      setClipError('There is nothing on your clipboard to paste.');
+      setClipError(t.nothingOnClipboard());
       return;
     }
     if (text.length > MAX_CLIP_LENGTH) {
@@ -2189,9 +2193,7 @@ export function ChannelView({
       // paste travels as a socket action, which reports nothing back that this
       // screen shows. The cap is imported rather than restated so the sentence
       // and the rule cannot drift apart.
-      setClipError(
-        `That is too long to share. The channel clipboard holds ${MAX_CLIP_LENGTH} characters.`
-      );
+      setClipError(t.clipTooLong(MAX_CLIP_LENGTH));
       return;
     }
     act({ type: 'PASTE_CLIP', text });
@@ -2240,7 +2242,7 @@ export function ChannelView({
       await shareTrack(app.token, channelId, track.title);
     } catch (error) {
       Alert.alert(
-        'Could not share',
+        t.couldNotShare(),
         error instanceof Error ? error.message : String(error)
       );
     } finally {
@@ -2323,8 +2325,8 @@ export function ChannelView({
               accessibilityRole="image"
               accessibilityLabel={
                 channel.recording.status === 'paused'
-                  ? 'Recording paused'
-                  : 'Recording'
+                  ? t.recordingPaused()
+                  : t.recording()
               }
             >
               <View
@@ -2335,7 +2337,7 @@ export function ChannelView({
                 ]}
               />
               <Text style={styles.recordingLabel}>
-                {channel.recording.status === 'paused' ? 'Paused' : 'Recording'}
+                {channel.recording.status === 'paused' ? t.paused() : t.recording()}
               </Text>
               <Text style={styles.recordingTime}>
                 {formatDuration(recordedMs(channel.recording, now))}
@@ -2343,7 +2345,7 @@ export function ChannelView({
             </View>
           ) : null}
           <IconButton
-            label="Settings"
+            label={t.settings()}
             icon={(color) => <SettingsIcon color={color} />}
             onPress={() => setSettingsOpen(true)}
           />
@@ -2366,7 +2368,7 @@ export function ChannelView({
             without reading. Settings takes the place it vacated.
           */}
           <IconButton
-            label="Home"
+            label={t.home()}
             icon={(color) => <HomeIcon color={color} />}
             /*
               Counted, because the right swipe does exactly this and nobody
@@ -2551,23 +2553,15 @@ export function ChannelView({
         there.
       */}
       <FooterAction
-        label="In"
-        hint={
-          iAmPresent
-            ? 'You are in this channel'
-            : 'Step in to the conversation'
-        }
+        label={t.rungIn()}
+        hint={iAmPresent ? t.rungInHintPresent() : t.rungInHint()}
         icon={(color) => <StepIcon color={color} out={false} />}
         selected={iAmPresent}
         onPress={() => act({ type: 'ENTER' })}
       />
       <FooterAction
-        label="Nearby"
-        hint={
-          iAmNearby
-            ? 'You are nearby. Tap to restart the wait'
-            : 'Be reachable without joining the conversation'
-        }
+        label={t.rungNearby()}
+        hint={iAmNearby ? t.rungNearbyHintOn() : t.rungNearbyHint()}
         // The bell draws this rung and nothing else, which is the whole of why
         // it is a bell: what being nearby buys you is a notification and not
         // one thing more. See `BellIcon`.
@@ -2582,13 +2576,13 @@ export function ChannelView({
         }}
       />
       <FooterAction
-        label="Out"
+        label={t.rungOut()}
         hint={
           iAmPresent
-            ? 'Leave the conversation'
+            ? t.rungOutHintPresent()
             : iAmNearby
-              ? 'Stop being reachable here'
-              : 'You are not in this channel'
+              ? t.rungOutHintNearby()
+              : t.rungOutHint()
         }
         icon={(color) => <StepIcon color={color} out />}
         selected={!iAmPresent && !iAmNearby}
@@ -2605,13 +2599,13 @@ export function ChannelView({
     <View style={styles.footer}>
       <View style={styles.footerInner}>
       <FooterAction
-        label={iAmSelfMuted ? 'Unmute' : 'Mute'}
+        label={iAmSelfMuted ? t.unmute() : t.mute()}
         hint={
           noInput
-            ? 'This device has no microphone'
+            ? t.noMicrophone()
             : iAmSelfMuted
-              ? 'Your microphone is muted'
-              : 'Your microphone is open'
+              ? t.microphoneMuted()
+              : t.microphoneOpen()
         }
         icon={(color) => <MicIcon color={color} muted={iAmSelfMuted} />}
         // The same guard the card's button uses. Holding the floor is holding
@@ -2628,8 +2622,8 @@ export function ChannelView({
         onPress={() => act({ type: 'SET_SELF_MUTE', muted: !iAmSelfMuted })}
       />
       <FooterAction
-        label={iHoldFloor ? 'Release' : 'Claim'}
-        hint={iHoldFloor ? 'You have the floor' : 'Claim the floor'}
+        label={iHoldFloor ? t.release() : t.claim()}
+        hint={iHoldFloor ? t.youHaveTheFloor() : t.claimTheFloor()}
         icon={(color) => <FloorIcon color={color} />}
         disabled={!iHoldFloor && !claimable}
         tone={iHoldFloor ? 'active' : 'idle'}
@@ -2860,7 +2854,7 @@ export function ChannelView({
           transport beside it: how big the film is on this device is nobody
           else's business and nothing about it reaches the channel.
         */}
-        <Button label="Full screen" onPress={() => setPressedFullScreen(true)} />
+        <Button label={t.fullScreen()} onPress={() => setPressedFullScreen(true)} />
         {/*
           **The one control here that is not about the film, and it is about
           this device rather than about the party.** It declines the job: the
@@ -2958,8 +2952,8 @@ export function ChannelView({
             the room, and there is no picker, a second device's way out being
             to give the film back rather than to pass it on.
           */
-          label="Watch on another device"
-          sublabel="Moves the film back to the device you stepped in on"
+          label={t.watchOnAnotherDevice()}
+          sublabel={t.handBackSublabel()}
           onPress={() => {
             /*
               **It paused the film first until 2026-09-23**, for the reason
@@ -2987,11 +2981,7 @@ export function ChannelView({
           `Room` being LiveKit's noun for a LiveKit thing. See
           `planning/decisions/README.md` § *On vocabulary*.
         */}
-        <Text style={type.muted}>
-          The film is on this device. Everything else about the channel — who
-          is here, the floor, your microphone — is on the device you stepped in
-          on.
-        </Text>
+        <Text style={type.muted}>{t.filmIsOnThisDevice()}</Text>
       </Screen>
     );
   }
@@ -3034,20 +3024,11 @@ export function ChannelView({
         */}
         {cohortNotice.show && view.cohort ? (
           <Card style={styles.cohort}>
-            <Text style={type.body}>Your getting-started channel</Text>
-            <Text style={type.muted}>
-              The Floor is for talking with people you already know, and it is
-              no use at all on the first day, when nobody you know is here yet.
-              So you have been introduced to a few people who joined around the
-              same time as you, and to somebody who runs The Floor.
-            </Text>
-            <Text style={type.muted}>
-              Nobody here is one of your contacts, and nobody can see your email
-              address. Step in and say something, or leave whenever you like —
-              Channel Settings, at the top, has Leave this channel.
-            </Text>
+            <Text style={type.body}>{t.cohortTitle()}</Text>
+            <Text style={type.muted}>{t.cohortWhy()}</Text>
+            <Text style={type.muted}>{t.cohortWho()}</Text>
             <View style={styles.cohortActions}>
-              <Button label="Got it" onPress={cohortNotice.dismiss} />
+              <Button label={t.gotIt()} onPress={cohortNotice.dismiss} />
             </View>
           </Card>
         ) : null}
@@ -3082,22 +3063,12 @@ export function ChannelView({
         */}
         {view.publicNotice && publicNoticeRead !== channelId ? (
           <Card style={styles.cohort}>
-            <Text style={type.body}>This channel has a public page</Text>
-            <Text style={type.muted}>
-              Somebody in this channel has given it a page on the web, showing
-              its name and its notepad to anybody, and it is listed publicly
-              where it can be found by people you have never met. No member is
-              named on it, ever.
-            </Text>
-            <Text style={type.muted}>
-              No recording of yours goes on it unless you agree to that
-              recording yourself, on its own card under Recordings, and
-              everybody else in it agrees too. Any one of you can take that
-              back afterwards.
-            </Text>
+            <Text style={type.body}>{t.publicNoticeTitle()}</Text>
+            <Text style={type.muted}>{t.publicNoticeWhat()}</Text>
+            <Text style={type.muted}>{t.publicNoticeRecordings()}</Text>
             <View style={styles.cohortActions}>
               <Button
-                label="Got it"
+                label={t.gotIt()}
                 onPress={() => {
                   // Optimistic, then sent. A failure leaves the card to come
                   // back on the next snapshot, which is the honest outcome:
@@ -3249,9 +3220,7 @@ export function ChannelView({
           */}
           {!iAmPresent && elsewhereOnAnotherDevice ? (
             <Text style={type.muted}>
-              {takenByAnotherDevice
-                ? 'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.'
-                : 'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.'}
+              {takenByAnotherDevice ? t.elsewhereTaken() : t.elsewhere()}
             </Text>
           ) : null}
 
@@ -3292,7 +3261,7 @@ export function ChannelView({
           */}
           {iAmNearby && arrived.length > 0 ? (
             <Text style={type.muted}>
-              {`${describeChannel(arrived.map(nameOf))} just stepped in.`}
+              {t.justSteppedIn(describeChannel(arrived.map(nameOf), namingWords))}
             </Text>
           ) : null}
 
@@ -3317,28 +3286,24 @@ export function ChannelView({
             actually in the channel is being asked the same question.
           */}
           {iAmPresent && (channel.knocks ?? []).length > 0 ? (
-            <SectionLabel>At the door</SectionLabel>
+            <SectionLabel>{t.atTheDoor()}</SectionLabel>
           ) : null}
           {(iAmPresent ? (channel.knocks ?? []) : []).map((knock) => (
             <Card key={knock.id} style={styles.stack}>
               <Text style={type.body}>
-                <Text style={type.heading}>{knock.name}</Text> is at the door
-                with a link to this channel.
+                <Text style={type.heading}>{t.knockLead(knock.name)}</Text>
+                {t.knockRest()}
               </Text>
-              <Text style={type.muted}>
-                They will be able to listen, and to speak only if somebody
-                turns their microphone on. They cannot record, and they cannot
-                reach anything else of yours.
-              </Text>
+              <Text style={type.muted}>{t.knockWhatTheyGet()}</Text>
               <View style={styles.guestActions}>
                 <Button
-                  label="Let them in"
+                  label={t.letThemIn()}
                   onPress={() =>
                     act({ type: 'ANSWER_KNOCK', knockId: knock.id, accept: true })
                   }
                 />
                 <Button
-                  label="No"
+                  label={t.no()}
                   onPress={() =>
                     act({ type: 'ANSWER_KNOCK', knockId: knock.id, accept: false })
                   }
@@ -3354,7 +3319,7 @@ export function ChannelView({
             somebody who is not in there with them.
           */}
           {Object.keys(channel.guests ?? {}).length > 0 ? (
-            <SectionLabel>Guests</SectionLabel>
+            <SectionLabel>{t.guests()}</SectionLabel>
           ) : null}
           {Object.values(channel.guests ?? {}).map((guest) => (
             <GuestCard
@@ -3410,7 +3375,7 @@ export function ChannelView({
             a guest's roster is who is here.
           */}
           {pendingGuests(channel, now).length > 0 ? (
-            <SectionLabel>Invitations</SectionLabel>
+            <SectionLabel>{t.invitations()}</SectionLabel>
           ) : null}
           {pendingGuests(channel, now).map((invited) => (
             <Card key={invited.id} style={styles.stack}>
@@ -3431,7 +3396,7 @@ export function ChannelView({
                   deliberately not in `guests`.
                 */}
                 <Button
-                  label="Take back"
+                  label={t.takeBack()}
                   disabled={
                     !canWithdrawGuestInvite(channel, me, invited.id, now)
                   }
@@ -3442,8 +3407,8 @@ export function ChannelView({
               </View>
               <Text style={type.muted}>
                 {invited.invitedBy === me
-                  ? 'You asked them in as a guest. They have not been in yet.'
-                  : `${nameOf(invited.invitedBy)} asked them in as a guest. They have not been in yet.`}
+                  ? t.youAskedThemIn()
+                  : t.theyAskedThemIn(nameOf(invited.invitedBy))}
               </Text>
             </Card>
           ))}
@@ -3451,9 +3416,7 @@ export function ChannelView({
           {/* Same delay as Home's: a foreground drops the socket every time,
               and this used to announce it the instant it happened. */}
           {showOffline ? (
-            <Text style={styles.warning}>
-              Reconnecting — a dropped connection counts as leaving.
-            </Text>
+            <Text style={styles.warning}>{t.reconnectingIsLeaving()}</Text>
           ) : null}
         </View>
 
@@ -3613,10 +3576,10 @@ export function ChannelView({
                 <Button
                   label={
                     copied === 'done'
-                      ? '✓ copied'
+                      ? t.copied()
                       : copied === 'failed'
-                        ? '✗ copy failed'
-                        : 'Copy'
+                        ? t.copyFailed()
+                        : t.copy()
                   }
                   variant="primary"
                   style={styles.flexButton}
@@ -3624,13 +3587,13 @@ export function ChannelView({
                 />
                 {clipUrl ? (
                   <Button
-                    label="Open"
+                    label={t.open()}
                     style={styles.flexButton}
                     onPress={() => void openUrl(clipUrl)}
                   />
                 ) : null}
                 <Button
-                  label="Clear"
+                  label={t.clear()}
                   style={styles.flexButton}
                   disabled={!canClearClip(channel, me)}
                   onPress={() => act({ type: 'CLEAR_CLIP' })}
@@ -3638,19 +3601,17 @@ export function ChannelView({
               </View>
             </>
           ) : (
-            <Empty>Nothing on the channel clipboard.</Empty>
+            <Empty>{t.nothingOnTheChannelClipboard()}</Empty>
           )}
 
           <Button
-            label={clip ? 'Replace with my clipboard' : 'Paste my clipboard'}
+            label={clip ? t.replaceWithMyClipboard() : t.pasteMyClipboard()}
             disabled={!canPasteClip(channel, me)}
             onPress={() => void pasteClip()}
           />
 
           <Text style={type.muted}>
-            {canPasteClip(channel, me)
-              ? 'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.'
-              : 'Step in to put something on the channel clipboard.'}
+            {canPasteClip(channel, me) ? t.oneClipboard() : t.stepInToPaste()}
           </Text>
         </Card>
 
@@ -3705,7 +3666,7 @@ export function ChannelView({
                   onChangeText={(v) =>
                     setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
                   }
-                  placeholder="Links, a reading list, what this is for…"
+                  placeholder={t.notepadPlaceholder()}
                   autoCapitalize="sentences"
                   autoFocus
                   multiline
@@ -3722,7 +3683,7 @@ export function ChannelView({
                   multiline field having no return key that means finished.
                 */}
                 <Button
-                  label="Done"
+                  label={t.done()}
                   variant="primary"
                   onPress={() => {
                     persistNotepad();
@@ -3740,22 +3701,19 @@ export function ChannelView({
                   // something that failed to load.
                   <Text style={type.muted}>
                     {mayWriteNotepad
-                      ? 'Nothing on the notepad. Write on it.'
-                      : 'Nothing on the notepad. Step in to write on it.'}
+                      ? t.notepadEmptyWritable()
+                      : t.notepadEmpty()}
                   </Text>
                 )}
 
                 {mayWriteNotepad ? (
                   <Button
-                    label="Edit"
+                    label={t.edit()}
                     style={styles.notepadEdit}
                     onPress={() => setNotepadEditing(true)}
                   />
                 ) : notepadShown.trim() ? (
-                  <Text style={type.muted}>
-                    Step in to write on this. It is what the channel is for, and
-                    that is for whoever is in it to say.
-                  </Text>
+                  <Text style={type.muted}>{t.stepInToWrite()}</Text>
                 ) : null}
               </>
             )}
@@ -3812,7 +3770,7 @@ export function ChannelView({
 
               <View style={styles.buttonRow}>
                 <Button
-                  label="−15s"
+                  label={t.back15()}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback}
                   onPress={() =>
@@ -3820,7 +3778,7 @@ export function ChannelView({
                   }
                 />
                 <Button
-                  label={playback.status === 'playing' ? 'Pause' : 'Play'}
+                  label={playback.status === 'playing' ? t.pause() : t.play()}
                   variant="primary"
                   style={styles.flexButton}
                   disabled={!mayControlPlayback}
@@ -3829,7 +3787,7 @@ export function ChannelView({
                   }
                 />
                 <Button
-                  label="+15s"
+                  label={t.forward15()}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback}
                   onPress={() =>
@@ -3840,7 +3798,7 @@ export function ChannelView({
 
               <View style={styles.buttonRow}>
                 <Button
-                  label="Quieter"
+                  label={t.quieter()}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback || playback.volume <= 0}
                   onPress={() =>
@@ -3856,7 +3814,7 @@ export function ChannelView({
                   </Text>
                 </View>
                 <Button
-                  label="Louder"
+                  label={t.louder()}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback || playback.volume >= 1}
                   onPress={() =>
@@ -3870,7 +3828,7 @@ export function ChannelView({
 
               <View style={styles.buttonRow}>
                 <Button
-                  label={upload ? uploadingLabel(upload.percent) : 'Change'}
+                  label={upload ? uploadingLabel(upload.percent, t) : t.change()}
                   style={styles.flexButton}
                   disabled={!mayLoadTrack || uploading}
                   onPress={loadTrack}
@@ -3885,13 +3843,13 @@ export function ChannelView({
                   would change the room.
                 */}
                 <Button
-                  label={trackSharing ? 'Preparing…' : 'Share'}
+                  label={trackSharing ? t.preparing() : t.share()}
                   style={styles.flexButton}
                   disabled={trackSharing}
                   onPress={takeTrack}
                 />
                 <Button
-                  label="Remove"
+                  label={t.remove()}
                   style={styles.flexButton}
                   disabled={!mayControlPlayback}
                   onPress={() => act({ type: 'CLEAR_TRACK' })}
@@ -3900,8 +3858,10 @@ export function ChannelView({
             </>
           ) : (
             <Button
-              label={upload ? uploadingLabel(upload.percent) : 'Play something together'}
-              sublabel="An audio file from this phone"
+              label={
+                upload ? uploadingLabel(upload.percent, t) : t.playSomethingTogether()
+              }
+              sublabel={t.anAudioFile()}
               disabled={!mayLoadTrack || uploading}
               onPress={loadTrack}
             />
@@ -3914,7 +3874,7 @@ export function ChannelView({
             // closed, there is no task yet, and a Cancel that did nothing
             // would read as the stuck upload it exists to escape.
             <Button
-              label="Cancel upload"
+              label={t.cancelUpload()}
               disabled={!upload.cancel}
               onPress={() => upload.cancel?.()}
             />
@@ -3927,13 +3887,13 @@ export function ChannelView({
                 // stopping the party — said in those words because the control
                 // that lifts this is on another tab, and a reader who is not told
                 // which one goes looking for it here. See `watchIsPlaying`.
-                'The film is playing. Pause it to put something on here.'
+                t.filmIsPlaying()
               : theyHoldFloor
                 ? // The point of the mechanic, stated where it bites: the track
                   // does not stop, but it stops being yours to change.
-                  `${holderName} has the floor, so they decide what plays.`
+                  t.theyDecideWhatPlays(holderName)
                 : iHoldFloor
-                  ? 'You have the floor — only you can change what plays.'
+                  ? t.youDecideWhatPlays()
                   : !mayControlPlayback
                     ? // The only remaining way these are disabled, the floor
                       // and the film having been ruled out above. It used to
@@ -3941,10 +3901,10 @@ export function ChannelView({
                       // standing outside an empty channel, who could drive
                       // what was loaded but not replace it; since 2026-09-20
                       // that person is refused both and this covers them.
-                      'Step in to put something on. What everybody is listening to is for whoever is listening.'
+                      t.stepInToPlay()
                     : track
-                      ? 'Everyone hears this, and anyone present can change it.'
-                      : 'Whatever you play, everyone hears — and it is kept in the recording.'}
+                      ? t.everyoneHearsThis()
+                      : t.everyoneHearsAndItIsKept()}
           </Text>
         </Card>
 
@@ -4028,11 +3988,11 @@ export function ChannelView({
             <Button
               label={
                 channel.recording.status === 'paused'
-                  ? 'Resume recording'
-                  : 'Record'
+                  ? t.resumeRecording()
+                  : t.record()
               }
               sublabel={
-                channel.recording.status === 'paused' ? 'Resume' : 'Record'
+                channel.recording.status === 'paused' ? t.resume() : t.record()
               }
               variant="primary"
               style={styles.flexButton}
@@ -4052,16 +4012,16 @@ export function ChannelView({
               }
             />
             <Button
-              label="Pause recording"
-              sublabel="Pause"
+              label={t.pauseRecording()}
+              sublabel={t.pause()}
               style={styles.flexButton}
               icon={(color) => <PauseIcon color={color} />}
               disabled={!canPauseRecording(channel, me)}
               onPress={() => act({ type: 'PAUSE_RECORDING' })}
             />
             <Button
-              label="Stop recording"
-              sublabel="Stop"
+              label={t.stopRecording()}
+              sublabel={t.stop()}
               style={styles.flexButton}
               icon={(color) => <StopIcon color={color} />}
               disabled={!canStopRecording(channel, me)}
@@ -4145,8 +4105,8 @@ export function ChannelView({
                 playDisabled={!mayControlPlayback}
                 playDisabledReason={
                   channel.floor.holder
-                    ? 'the floor decides what plays'
-                    : 'step in to play'
+                    ? t.floorDecidesWhatPlays()
+                    : t.stepInToPlayShort()
                 }
                 manageable={iHaveTheRoom}
                 onOpenTranscript={() => setTranscriptFor(r.id)}
@@ -4262,7 +4222,7 @@ export function ChannelView({
                 */}
                 {screeningHere ? (
                   <Button
-                    label="Full screen"
+                    label={t.fullScreen()}
                     onPress={() => setPressedFullScreen(true)}
                   />
                 ) : null}
@@ -4306,11 +4266,9 @@ export function ChannelView({
                 */}
                 {muteRequested && !mayUnmuteRoom ? null : (
                   <Button
-                    label={muteRequested ? 'Unmute the room' : 'Mute the room'}
+                    label={muteRequested ? t.unmuteTheRoom() : t.muteTheRoom()}
                     sublabel={
-                      muteRequested
-                        ? 'Everyone can speak again; your own mute is unchanged'
-                        : 'Quiet while the video plays; pause to talk'
+                      muteRequested ? t.unmuteTheRoomSub() : t.muteTheRoomSub()
                     }
                     disabled={!mayControlWatch}
                     onPress={() =>
@@ -4346,15 +4304,15 @@ export function ChannelView({
                     ) : null}
                     <View style={styles.buttonRow}>
                       <Button
-                        label="Watch this instead"
-                        sublabel="Plays the YouTube link on your clipboard"
+                        label={t.watchThisInstead()}
+                        sublabel={t.watchThisInsteadSub()}
                         variant="primary"
                         style={styles.flexButton}
                         disabled={!mayStartWatch}
                         onPress={() => void pasteWatchUrl()}
                       />
                       <Button
-                        label="Cancel"
+                        label={t.cancel()}
                         style={styles.flexButton}
                         onPress={() => {
                           setWatchPasteError(null);
@@ -4372,9 +4330,7 @@ export function ChannelView({
                     */}
                     {pastFilmRows.length > 0 ? (
                       <>
-                        <Text style={type.muted}>
-                          Or put one of these back on.
-                        </Text>
+                        <Text style={type.muted}>{t.orPutOneOfTheseBackOn()}</Text>
                         {pastFilmRows}
                       </>
                     ) : null}
@@ -4382,13 +4338,13 @@ export function ChannelView({
                 ) : (
                   <View style={styles.buttonRow}>
                     <Button
-                      label="Change video"
+                      label={t.changeVideo()}
                       style={styles.flexButton}
                       disabled={!mayStartWatch}
                       onPress={() => setChanging(true)}
                     />
                     <Button
-                      label="Stop"
+                      label={t.stop()}
                       style={styles.flexButton}
                       disabled={!mayControlWatch}
                       onPress={() => act({ type: 'STOP_WATCH' })}
@@ -4448,7 +4404,7 @@ export function ChannelView({
                 */}
                 {screeningHere ? (
                   <Button
-                    label="Watch on another device"
+                    label={t.watchOnAnotherDevice()}
                     onPress={() => {
                       setChoosing(true);
                       app.listScreens();
@@ -4465,11 +4421,9 @@ export function ChannelView({
                       that, and it is the sentence Home's bar uses, the two
                       being the same fact reached from different screens.
                     */}
-                    <Text style={type.muted}>
-                      The film is on another device.
-                    </Text>
+                    <Text style={type.muted}>{t.filmIsOnAnotherDevice()}</Text>
                     <Button
-                      label="Watch on this device"
+                      label={t.watchOnThisDevice()}
                       onPress={() => {
                         setChoosing(false);
                         app.showScreenFor(channelId);
@@ -4480,10 +4434,7 @@ export function ChannelView({
                 {!inTheRoom ? (
                   // The same shape as the sentence below: beside the refused
                   // control, saying which rung answers it.
-                  <Text style={type.muted}>
-                    Step in to watch — a film does not play for somebody who
-                    is nearby or stepped out.
-                  </Text>
+                  <Text style={type.muted}>{t.stepInToWatch()}</Text>
                 ) : null}
                 {choosing && otherScreens.length > 1
                   ? otherScreens.map((screen) => (
@@ -4492,7 +4443,7 @@ export function ChannelView({
                         label={screenLabel(screen)}
                         sublabel={
                           screen.watching
-                            ? 'Already showing something'
+                            ? t.alreadyShowingSomething()
                             : undefined
                         }
                         onPress={() => {
@@ -4509,16 +4460,13 @@ export function ChannelView({
                   // did it for them — would put a full session credential in
                   // whatever they pasted it into. See planning/WATCH-IN-APP.md.
                   <Text style={type.muted}>
-                    <Text style={styles.emphasis}>
-                      No other device is signed in.
-                    </Text>{' '}
-                    Open The Floor on a laptop or tablet and sign in there, and
-                    it will show up here as somewhere to watch.
+                    <Text style={styles.emphasis}>{t.noOtherDeviceLead()}</Text>
+                    {t.noOtherDeviceRest()}
                   </Text>
                 ) : null}
 
                 <Button
-                  label={copyLabel('video', 'Copy video link')}
+                  label={copyLabel('video', t.copyVideoLink())}
                   onPress={() => void copyVideoLink()}
                 />
 
@@ -4560,8 +4508,8 @@ export function ChannelView({
                   link does.
                 */}
                 <Button
-                  label="Watch something together"
-                  sublabel="A YouTube link on your clipboard"
+                  label={t.watchSomethingTogether()}
+                  sublabel={t.watchSomethingTogetherSub()}
                   disabled={!mayStartWatch}
                   onPress={() => void pasteWatchUrl()}
                 />
@@ -4587,13 +4535,11 @@ export function ChannelView({
                     <Button
                       label={
                         pickingPast
-                          ? 'Hide what we have watched'
-                          : `Watched before (${pastFilmRows.length})`
+                          ? t.hideWhatWeHaveWatched()
+                          : t.watchedBefore(pastFilmRows.length)
                       }
                       sublabel={
-                        pickingPast
-                          ? undefined
-                          : 'Puts one of them back on, without a link'
+                        pickingPast ? undefined : t.watchedBeforeSub()
                       }
                       onPress={() => setPickingPast(!pickingPast)}
                     />
@@ -4628,9 +4574,8 @@ export function ChannelView({
                 // indistinguishable from a room where nobody is talking, so it
                 // says which, and how to get out of it.
                 <Text style={type.muted}>
-                  <Text style={styles.emphasis}>The room is muted.</Text> No
-                  microphone is open, so nothing leaks in from anybody's screen.
-                  Pause the video to talk.
+                  <Text style={styles.emphasis}>{t.roomIsMutedLead()}</Text>
+                  {t.roomIsMutedRest()}
                   {!mayUnmuteRoom
                     ? // The second half of the button that is not there. It is
                       // only ever said on a run where it is true, and it names
@@ -4638,8 +4583,7 @@ export function ChannelView({
                       // is is nobody else's business, and *somebody* is the
                       // whole of what anyone needs to know to understand why
                       // the previous sentence cannot be argued with.
-                      ' Somebody is watching on the device they are in the' +
-                      ' room on, so it stays muted until the video is paused.'
+                      t.roomStaysMuted()
                     : ''}
                 </Text>
               ) : muteRequested ? (
@@ -4648,8 +4592,8 @@ export function ChannelView({
                 // the next tap of Play would otherwise be the surprise: this is
                 // the one moment somebody learns the rule.
                 <Text style={type.muted}>
-                  <Text style={styles.emphasis}>Paused, so you can talk.</Text>{' '}
-                  The room goes quiet again when the video resumes.
+                  <Text style={styles.emphasis}>{t.pausedSoYouCanTalkLead()}</Text>
+                  {t.pausedSoYouCanTalkRest()}
                 </Text>
               ) : (
                 // Explicitly unmuted, which is a choice somebody made against the
@@ -4657,9 +4601,8 @@ export function ChannelView({
                 // the state in which the channel behaves least like the rest of
                 // the watch party.
                 <Text style={type.muted}>
-                  <Text style={styles.emphasis}>The room is unmuted.</Text>{' '}
-                  Everybody can be heard, including whatever their own screen is
-                  playing.
+                  <Text style={styles.emphasis}>{t.roomIsUnmutedLead()}</Text>
+                  {t.roomIsUnmutedRest()}
                 </Text>
               )
             ) : null}
@@ -4673,7 +4616,7 @@ export function ChannelView({
                   // with, in the same position for the same reason: it greys
                   // every control here, and the way out is a control on
                   // another tab. See `trackIsPlaying`.
-                  'Something is playing on Listen. Pause it to watch together.'
+                  t.somethingOnListen()
                 : !mayControlWatch
                   ? // Next, because it outranks the rest: somebody who is not in
                     // the room has no use for being told whose floor it is or that
@@ -4683,28 +4626,28 @@ export function ChannelView({
                     // for an absent member on the reasoning that an empty channel
                     // is nobody's conversation. See `canControlWatch`.
                     party
-                    ? 'Step in to drive the film. What everybody is watching is for whoever is here.'
-                    : 'Step in to start a watch party. What everybody is watching is for whoever is here.'
+                    ? t.stepInToDriveTheFilm()
+                    : t.stepInToStartAParty()
                   : recordingLive
                     ? // Said out loud rather than left as a dead button. The two are
                       // exclusive because the video's sound never reaches The Floor,
                       // so a recording made alongside one would be missing the thing
                       // everybody was reacting to.
-                      'Stop the recording first — a watch party is not recorded.'
+                      t.stopTheRecordingFirst()
                     : theyHoldFloor
-                      ? `${holderName} has the floor, so they decide what plays.`
+                      ? t.theyDecideWhatPlays(holderName)
                       : iHoldFloor
-                        ? 'You have the floor — only you can change what plays.'
+                        ? t.youDecideWhatPlays()
                         : !mayStartWatch
                           ? // Whatever is left, which after the branches above is
                             // little: presence is asked first now, so this is no
                             // longer the empty channel read from outside it. It
                             // said *step in* until 2026-09-20 and would have been
                             // addressing somebody already here.
-                            'Putting something on is not available just now.'
+                            t.notAvailableJustNow()
                           : party
-                            ? 'Everyone watches on their own screen, in step. Nothing about it is recorded.'
-                            : 'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.'}
+                            ? t.everyoneWatchesInStep()
+                            : t.everybodyWatchesInTheApp()}
             </Text>
           </Card>
           </>
@@ -4725,7 +4668,7 @@ export function ChannelView({
               pair *Contacts* and *Guest link* says which of the two ways in
               each card is.
             */}
-        <SectionLabel>Contacts</SectionLabel>
+        <SectionLabel>{t.contacts()}</SectionLabel>
         <Card style={styles.stack}>
           <InviteList
             channel={channel}
@@ -4742,7 +4685,7 @@ export function ChannelView({
                 setAskedIn((prior) => ({
                   ...prior,
                   [contactId]:
-                    error instanceof Error ? error.message : 'That did not work.',
+                    error instanceof Error ? error.message : t.thatDidNotWork(),
                 }));
               }
             }}
@@ -4756,22 +4699,19 @@ export function ChannelView({
           sharing the link is the beginning of the process rather than the end
           of it — which is why this says so rather than reading as "sent".
         */}
-        <SectionLabel>Guest link</SectionLabel>
+        <SectionLabel>{t.guestLink()}</SectionLabel>
         <Card style={styles.stack}>
-          <Text style={type.muted}>
-            A link anybody can open in a browser. They knock, and whoever is in
-            the channel decides. Manage the links this channel has in Settings.
-          </Text>
+          <Text style={type.muted}>{t.guestLinkWhat()}</Text>
           <Button
             label={
               sharing
-                ? 'Making a link…'
+                ? t.makingALink()
                 : // What it is about to do, rather than what it would rather
                   // do: a browser with no share sheet can keep the second
                   // promise and not the first. See src/share.ts.
                   canShare
-                  ? 'Share a guest link'
-                  : 'Copy a guest link'
+                  ? t.shareAGuestLink()
+                  : t.copyAGuestLink()
             }
             disabled={sharing || !canInviteGuest(channel, me)}
             onPress={async () => {
@@ -4785,13 +4725,13 @@ export function ChannelView({
                 app.markTried('guest');
                 const handoff = await shareLink(url);
                 if (handoff === 'copied') {
-                  setShareNote('Link copied. Paste it wherever you like.');
+                  setShareNote(t.linkCopied());
                 } else if (handoff === 'failed') {
-                  setShareError('The link would not copy. Try again.');
+                  setShareError(t.linkWouldNotCopy());
                 }
               } catch (error) {
                 setShareError(
-                  error instanceof Error ? error.message : 'That did not work.'
+                  error instanceof Error ? error.message : t.thatDidNotWork()
                 );
               } finally {
                 setSharing(false);
@@ -4799,10 +4739,7 @@ export function ChannelView({
             }}
           />
           {canInviteGuest(channel, me) ? null : (
-            <Text style={type.muted}>
-              Step in to make a link. Who can get into a conversation is for
-              the people having it.
-            </Text>
+            <Text style={type.muted}>{t.stepInToMakeALink()}</Text>
           )}
           {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
           {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}

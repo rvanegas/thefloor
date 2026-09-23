@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { colors, radius } from '../theme';
 import { PaneContext } from '../layout';
+import { en } from '../../i18n/en';
 import {
   AUDIO,
   ME,
@@ -897,9 +898,9 @@ describe('Channel', () => {
   it('has a label for an upload whose size the platform will not say', () => {
     // -1 expected bytes reaches the screen as a null percentage, and a button
     // reading "Uploading… null%" is worse than one that only says it is busy.
-    expect(uploadingLabel(null)).toBe('Uploading…');
-    expect(uploadingLabel(0)).toBe('Uploading… 0%');
-    expect(uploadingLabel(100)).toBe('Uploading… 100%');
+    expect(uploadingLabel(null, en.channel)).toBe('Uploading…');
+    expect(uploadingLabel(0, en.channel)).toBe('Uploading… 0%');
+    expect(uploadingLabel(100, en.channel)).toBe('Uploading… 100%');
   });
 
   it('shows the track and its position against the server clock', () => {

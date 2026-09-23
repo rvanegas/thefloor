@@ -1008,4 +1008,206 @@ export const en = {
     theyWillDecide: () =>
       'They will see a request on their home screen and decide.',
   },
+  channel: {
+    uploading: () => 'Uploading\u2026',
+    uploadingPercent: (percent: number) => `Uploading\u2026 ${percent}%`,
+    channelGone: () => 'Channel gone',
+    channelGoneBody: () =>
+      'This channel is no longer there. It may have ended a while ago, or you may no longer be part of it.',
+    loadingChannel: () => 'Loading channel\u2026',
+    reconnecting: () => 'Reconnecting\u2026',
+    backToHome: () => 'Back to home',
+    /** Whoever the roster has no name for — see `nameOf`. */
+    someone: () => 'Someone',
+    channelEnded: () => 'Channel ended',
+    channelEndedBody: () =>
+      'Everyone left this channel, so it no longer exists. Start a new one to talk again.',
+    nothingOnClipboard: () => 'There is nothing on your clipboard to paste.',
+    notAYouTubeLink: () =>
+      'That is not a YouTube link. Copy one from YouTube, then press this again.',
+    aFilmNobodyNamed: () => 'A film nobody named',
+    tabPeople: () => 'People',
+    tabNotepad: () => 'Notepad',
+    tabInvite: () => 'Invite',
+    tabListen: () => 'Listen',
+    tabRecordings: () => 'Recordings',
+    tabWatch: () => 'Watch',
+    aBrowser: () => 'A browser',
+    anotherPhone: () => 'Another phone',
+    copied: () => '\u2713 copied',
+    copyFailed: () => '\u2717 copy failed',
+    copy: () => 'Copy',
+    clipTooLong: (max: number) =>
+      `That is too long to share. The channel clipboard holds ${max} characters.`,
+    couldNotShare: () => 'Could not share',
+    recordingPaused: () => 'Recording paused',
+    recording: () => 'Recording',
+    paused: () => 'Paused',
+    settings: () => 'Settings',
+    home: () => 'Home',
+    /**
+     * The three rungs. **Short forms, deliberately** — the long forms are
+     * acts, and these name states at 11pt in a fifth of a phone.
+     */
+    rungIn: () => 'In',
+    rungInHintPresent: () => 'You are in this channel',
+    rungInHint: () => 'Step in to the conversation',
+    rungNearby: () => 'Nearby',
+    rungNearbyHintOn: () => 'You are nearby. Tap to restart the wait',
+    rungNearbyHint: () => 'Be reachable without joining the conversation',
+    rungOut: () => 'Out',
+    rungOutHintPresent: () => 'Leave the conversation',
+    rungOutHintNearby: () => 'Stop being reachable here',
+    rungOutHint: () => 'You are not in this channel',
+    unmute: () => 'Unmute',
+    mute: () => 'Mute',
+    noMicrophone: () => 'This device has no microphone',
+    microphoneMuted: () => 'Your microphone is muted',
+    microphoneOpen: () => 'Your microphone is open',
+    release: () => 'Release',
+    claim: () => 'Claim',
+    youHaveTheFloor: () => 'You have the floor',
+    claimTheFloor: () => 'Claim the floor',
+    fullScreen: () => 'Full screen',
+    watchOnAnotherDevice: () => 'Watch on another device',
+    handBackSublabel: () => 'Moves the film back to the device you stepped in on',
+    filmIsOnThisDevice: () =>
+      'The film is on this device. Everything else about the channel — who is here, the floor, your microphone — is on the device you stepped in on.',
+    gotIt: () => 'Got it',
+    cohortTitle: () => 'Your getting-started channel',
+    cohortWhy: () =>
+      'The Floor is for talking with people you already know, and it is no use at all on the first day, when nobody you know is here yet. So you have been introduced to a few people who joined around the same time as you, and to somebody who runs The Floor.',
+    cohortWho: () =>
+      'Nobody here is one of your contacts, and nobody can see your email address. Step in and say something, or leave whenever you like — Channel Settings, at the top, has Leave this channel.',
+    publicNoticeTitle: () => 'This channel has a public page',
+    publicNoticeWhat: () =>
+      'Somebody in this channel has given it a page on the web, showing its name and its notepad to anybody, and it is listed publicly where it can be found by people you have never met. No member is named on it, ever.',
+    publicNoticeRecordings: () =>
+      'No recording of yours goes on it unless you agree to that recording yourself, on its own card under Recordings, and everybody else in it agrees too. Any one of you can take that back afterwards.',
+    elsewhereTaken: () =>
+      'You are in this channel on another device. Stepping in here brings the conversation to this one and closes the microphone there.',
+    elsewhere: () =>
+      'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.',
+    /** `who` is already a phrase — see `describeChannel`. */
+    justSteppedIn: (who: string) => `${who} just stepped in.`,
+    atTheDoor: () => 'At the door',
+    knockLead: (name: string) => name,
+    knockRest: () => ' is at the door with a link to this channel.',
+    knockWhatTheyGet: () =>
+      'They will be able to listen, and to speak only if somebody turns their microphone on. They cannot record, and they cannot reach anything else of yours.',
+    letThemIn: () => 'Let them in',
+    no: () => 'No',
+    guests: () => 'Guests',
+    invitations: () => 'Invitations',
+    takeBack: () => 'Take back',
+    youAskedThemIn: () => 'You asked them in as a guest. They have not been in yet.',
+    theyAskedThemIn: (who: string) =>
+      `${who} asked them in as a guest. They have not been in yet.`,
+    reconnectingIsLeaving: () =>
+      'Reconnecting — a dropped connection counts as leaving.',
+    open: () => 'Open',
+    clear: () => 'Clear',
+    nothingOnTheChannelClipboard: () => 'Nothing on the channel clipboard.',
+    replaceWithMyClipboard: () => 'Replace with my clipboard',
+    pasteMyClipboard: () => 'Paste my clipboard',
+    oneClipboard: () =>
+      'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.',
+    stepInToPaste: () => 'Step in to put something on the channel clipboard.',
+    notepadPlaceholder: () => 'Links, a reading list, what this is for…',
+    done: () => 'Done',
+    notepadEmptyWritable: () => 'Nothing on the notepad. Write on it.',
+    notepadEmpty: () => 'Nothing on the notepad. Step in to write on it.',
+    edit: () => 'Edit',
+    stepInToWrite: () =>
+      'Step in to write on this. It is what the channel is for, and that is for whoever is in it to say.',
+    back15: () => '\u221215s',
+    pause: () => 'Pause',
+    play: () => 'Play',
+    forward15: () => '+15s',
+    quieter: () => 'Quieter',
+    louder: () => 'Louder',
+    change: () => 'Change',
+    preparing: () => 'Preparing\u2026',
+    share: () => 'Share',
+    remove: () => 'Remove',
+    playSomethingTogether: () => 'Play something together',
+    anAudioFile: () => 'An audio file from this phone',
+    cancelUpload: () => 'Cancel upload',
+    filmIsPlaying: () => 'The film is playing. Pause it to put something on here.',
+    theyDecideWhatPlays: (holder: string) =>
+      `${holder} has the floor, so they decide what plays.`,
+    youDecideWhatPlays: () => 'You have the floor — only you can change what plays.',
+    stepInToPlay: () =>
+      'Step in to put something on. What everybody is listening to is for whoever is listening.',
+    everyoneHearsThis: () => 'Everyone hears this, and anyone present can change it.',
+    everyoneHearsAndItIsKept: () =>
+      'Whatever you play, everyone hears — and it is kept in the recording.',
+    resumeRecording: () => 'Resume recording',
+    record: () => 'Record',
+    resume: () => 'Resume',
+    pauseRecording: () => 'Pause recording',
+    stopRecording: () => 'Stop recording',
+    stop: () => 'Stop',
+    floorDecidesWhatPlays: () => 'the floor decides what plays',
+    stepInToPlayShort: () => 'step in to play',
+    unmuteTheRoom: () => 'Unmute the room',
+    muteTheRoom: () => 'Mute the room',
+    unmuteTheRoomSub: () => 'Everyone can speak again; your own mute is unchanged',
+    muteTheRoomSub: () => 'Quiet while the video plays; pause to talk',
+    watchThisInstead: () => 'Watch this instead',
+    watchThisInsteadSub: () => 'Plays the YouTube link on your clipboard',
+    cancel: () => 'Cancel',
+    orPutOneOfTheseBackOn: () => 'Or put one of these back on.',
+    changeVideo: () => 'Change video',
+    filmIsOnAnotherDevice: () => 'The film is on another device.',
+    watchOnThisDevice: () => 'Watch on this device',
+    stepInToWatch: () =>
+      'Step in to watch — a film does not play for somebody who is nearby or stepped out.',
+    alreadyShowingSomething: () => 'Already showing something',
+    noOtherDeviceLead: () => 'No other device is signed in.',
+    noOtherDeviceRest: () =>
+      ' Open The Floor on a laptop or tablet and sign in there, and it will show up here as somewhere to watch.',
+    copyVideoLink: () => 'Copy video link',
+    watchSomethingTogether: () => 'Watch something together',
+    watchSomethingTogetherSub: () => 'A YouTube link on your clipboard',
+    hideWhatWeHaveWatched: () => 'Hide what we have watched',
+    watchedBefore: (count: number) => `Watched before (${count})`,
+    watchedBeforeSub: () => 'Puts one of them back on, without a link',
+    roomIsMutedLead: () => 'The room is muted.',
+    roomIsMutedRest: () =>
+      ' No microphone is open, so nothing leaks in from anybody\u2019s screen. Pause the video to talk.',
+    roomStaysMuted: () =>
+      ' Somebody is watching on the device they are in the room on, so it stays muted until the video is paused.',
+    pausedSoYouCanTalkLead: () => 'Paused, so you can talk.',
+    pausedSoYouCanTalkRest: () =>
+      ' The room goes quiet again when the video resumes.',
+    roomIsUnmutedLead: () => 'The room is unmuted.',
+    roomIsUnmutedRest: () =>
+      ' Everybody can be heard, including whatever their own screen is playing.',
+    somethingOnListen: () =>
+      'Something is playing on Listen. Pause it to watch together.',
+    stepInToDriveTheFilm: () =>
+      'Step in to drive the film. What everybody is watching is for whoever is here.',
+    stepInToStartAParty: () =>
+      'Step in to start a watch party. What everybody is watching is for whoever is here.',
+    stopTheRecordingFirst: () =>
+      'Stop the recording first — a watch party is not recorded.',
+    notAvailableJustNow: () => 'Putting something on is not available just now.',
+    everyoneWatchesInStep: () =>
+      'Everyone watches on their own screen, in step. Nothing about it is recorded.',
+    everybodyWatchesInTheApp: () =>
+      'Everybody watches in the app, in step — here, or on another device you are signed in on. Recording is off while a party is on.',
+    contacts: () => 'Contacts',
+    thatDidNotWork: () => 'That did not work.',
+    guestLink: () => 'Guest link',
+    guestLinkWhat: () =>
+      'A link anybody can open in a browser. They knock, and whoever is in the channel decides. Manage the links this channel has in Settings.',
+    makingALink: () => 'Making a link\u2026',
+    shareAGuestLink: () => 'Share a guest link',
+    copyAGuestLink: () => 'Copy a guest link',
+    linkCopied: () => 'Link copied. Paste it wherever you like.',
+    linkWouldNotCopy: () => 'The link would not copy. Try again.',
+    stepInToMakeALink: () =>
+      'Step in to make a link. Who can get into a conversation is for the people having it.',
+  },
 };

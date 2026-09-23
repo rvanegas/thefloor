@@ -854,4 +854,207 @@ export const es: Strings = {
     theyWillDecide: () =>
       'Ver\u00e1 una solicitud en su pantalla de inicio y decidir\u00e1.',
   },
+  channel: {
+    uploading: () => 'Subiendo\u2026',
+    uploadingPercent: (percent: number) => `Subiendo\u2026 ${percent}%`,
+    channelGone: () => 'El canal ya no est\u00e1',
+    channelGoneBody: () =>
+      'Este canal ya no existe. Puede que terminara hace tiempo, o que ya no formes parte de \u00e9l.',
+    loadingChannel: () => 'Cargando el canal\u2026',
+    reconnecting: () => 'Reconectando\u2026',
+    backToHome: () => 'Volver al inicio',
+    someone: () => 'Alguien',
+    channelEnded: () => 'El canal ha terminado',
+    channelEndedBody: () =>
+      'Todo el mundo sali\u00f3 de este canal, as\u00ed que ya no existe. Crea uno nuevo para volver a hablar.',
+    nothingOnClipboard: () => 'No hay nada en tu portapapeles que pegar.',
+    notAYouTubeLink: () =>
+      'Eso no es un enlace de YouTube. Copia uno desde YouTube y vuelve a pulsar.',
+    aFilmNobodyNamed: () => 'Una pel\u00edcula sin nombre',
+    tabPeople: () => 'Gente',
+    tabNotepad: () => 'Notas',
+    tabInvite: () => 'Invitar',
+    tabListen: () => 'Escuchar',
+    tabRecordings: () => 'Grabaciones',
+    tabWatch: () => 'Ver',
+    aBrowser: () => 'Un navegador',
+    anotherPhone: () => 'Otro tel\u00e9fono',
+    copied: () => '\u2713 copiado',
+    copyFailed: () => '\u2717 no se ha podido copiar',
+    copy: () => 'Copiar',
+    clipTooLong: (max: number) =>
+      `Eso es demasiado largo para compartir. El portapapeles del canal admite ${max} caracteres.`,
+    couldNotShare: () => 'No se ha podido compartir',
+    recordingPaused: () => 'Grabaci\u00f3n en pausa',
+    recording: () => 'Grabando',
+    paused: () => 'En pausa',
+    settings: () => 'Ajustes',
+    home: () => 'Inicio',
+    rungIn: () => 'Dentro',
+    rungInHintPresent: () => 'Est\u00e1s en este canal',
+    rungInHint: () => 'Entra en la conversaci\u00f3n',
+    rungNearby: () => 'Cerca',
+    rungNearbyHintOn: () => 'Est\u00e1s cerca. Toca para reiniciar la espera',
+    rungNearbyHint: () => 'Que se te pueda localizar sin entrar en la conversaci\u00f3n',
+    rungOut: () => 'Fuera',
+    rungOutHintPresent: () => 'Salir de la conversaci\u00f3n',
+    rungOutHintNearby: () => 'Dejar de estar localizable aqu\u00ed',
+    rungOutHint: () => 'No est\u00e1s en este canal',
+    unmute: () => 'Hablar',
+    mute: () => 'Silencio',
+    noMicrophone: () => 'Este dispositivo no tiene micr\u00f3fono',
+    microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
+    microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
+    release: () => 'Soltar',
+    claim: () => 'Pedir',
+    youHaveTheFloor: () => 'Tienes la palabra',
+    claimTheFloor: () => 'Pedir la palabra',
+    fullScreen: () => 'Pantalla completa',
+    watchOnAnotherDevice: () => 'Ver en otro dispositivo',
+    handBackSublabel: () =>
+      'Devuelve la pel\u00edcula al dispositivo desde el que entraste',
+    filmIsOnThisDevice: () =>
+      'La pel\u00edcula est\u00e1 en este dispositivo. Todo lo dem\u00e1s del canal —qui\u00e9n est\u00e1 aqu\u00ed, la palabra, tu micr\u00f3fono— est\u00e1 en el dispositivo desde el que entraste.',
+    gotIt: () => 'Entendido',
+    cohortTitle: () => 'Tu canal de bienvenida',
+    cohortWhy: () =>
+      'The Floor sirve para hablar con gente que ya conoces, y no sirve de nada el primer d\u00eda, cuando todav\u00eda no hay nadie que conozcas. As\u00ed que te hemos presentado a unas cuantas personas que se unieron por las mismas fechas, y a alguien que lleva The Floor.',
+    cohortWho: () =>
+      'Nadie de aqu\u00ed es contacto tuyo, y nadie puede ver tu direcci\u00f3n de correo. Entra y di algo, o sal cuando quieras: en Ajustes del canal, arriba, est\u00e1 Salir de este canal.',
+    publicNoticeTitle: () => 'Este canal tiene p\u00e1gina p\u00fablica',
+    publicNoticeWhat: () =>
+      'Alguien de este canal le ha dado una p\u00e1gina en la web, que muestra su nombre y sus notas a cualquiera, y aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. En ella no se nombra nunca a ning\u00fan miembro.',
+    publicNoticeRecordings: () =>
+      'Ninguna grabaci\u00f3n tuya aparece ah\u00ed salvo que lo aceptes t\u00fa, en su propia tarjeta bajo Grabaciones, y que lo acepten tambi\u00e9n todos los dem\u00e1s. Cualquiera de vosotros puede retirarlo despu\u00e9s.',
+    elsewhereTaken: () =>
+      'Est\u00e1s en este canal en otro dispositivo. Entrar aqu\u00ed trae la conversaci\u00f3n a este y cierra el micr\u00f3fono del otro.',
+    elsewhere: () =>
+      'Est\u00e1s en este canal, pero no en este dispositivo. Entrar aqu\u00ed trae la conversaci\u00f3n a este.',
+    justSteppedIn: (who: string) => `${who} acaba de entrar.`,
+    atTheDoor: () => 'En la puerta',
+    knockLead: (name: string) => name,
+    knockRest: () => ' est\u00e1 en la puerta con un enlace a este canal.',
+    knockWhatTheyGet: () =>
+      'Podr\u00e1 escuchar, y hablar solo si alguien le abre el micr\u00f3fono. No puede grabar, y no puede acceder a nada m\u00e1s vuestro.',
+    letThemIn: () => 'Dejarle entrar',
+    no: () => 'No',
+    guests: () => 'Invitados',
+    invitations: () => 'Invitaciones',
+    takeBack: () => 'Retirar',
+    youAskedThemIn: () =>
+      'Le invitaste como invitado. Todav\u00eda no ha entrado.',
+    theyAskedThemIn: (who: string) =>
+      `${who} le invit\u00f3 como invitado. Todav\u00eda no ha entrado.`,
+    reconnectingIsLeaving: () =>
+      'Reconectando: perder la conexi\u00f3n cuenta como salir.',
+    open: () => 'Abrir',
+    clear: () => 'Borrar',
+    nothingOnTheChannelClipboard: () => 'No hay nada en el portapapeles del canal.',
+    replaceWithMyClipboard: () => 'Sustituir por mi portapapeles',
+    pasteMyClipboard: () => 'Pegar mi portapapeles',
+    oneClipboard: () =>
+      'Un solo portapapeles para el canal: pegar sustituye lo que hay, y cualquiera de aqu\u00ed puede copiarlo.',
+    stepInToPaste: () => 'Entra para poner algo en el portapapeles del canal.',
+    notepadPlaceholder: () => 'Enlaces, una lista de lecturas, para qu\u00e9 es esto…',
+    done: () => 'Listo',
+    notepadEmptyWritable: () => 'No hay nada en las notas. Escribe algo.',
+    notepadEmpty: () => 'No hay nada en las notas. Entra para escribir.',
+    edit: () => 'Editar',
+    stepInToWrite: () =>
+      'Entra para escribir aqu\u00ed. Es para lo que sirve el canal, y eso lo dice quien est\u00e1 dentro.',
+    back15: () => '\u221215 s',
+    pause: () => 'Pausa',
+    play: () => 'Reproducir',
+    forward15: () => '+15 s',
+    quieter: () => 'M\u00e1s bajo',
+    louder: () => 'M\u00e1s alto',
+    change: () => 'Cambiar',
+    preparing: () => 'Preparando\u2026',
+    share: () => 'Compartir',
+    remove: () => 'Quitar',
+    playSomethingTogether: () => 'Poner algo para escuchar juntos',
+    anAudioFile: () => 'Un archivo de audio de este tel\u00e9fono',
+    cancelUpload: () => 'Cancelar la subida',
+    filmIsPlaying: () =>
+      'La pel\u00edcula est\u00e1 en marcha. P\u00e1usala para poner algo aqu\u00ed.',
+    theyDecideWhatPlays: (holder: string) =>
+      `${holder} tiene la palabra, as\u00ed que decide qu\u00e9 suena.`,
+    youDecideWhatPlays: () =>
+      'Tienes la palabra: solo t\u00fa puedes cambiar lo que suena.',
+    stepInToPlay: () =>
+      'Entra para poner algo. Lo que escucha todo el mundo es cosa de quien est\u00e1 escuchando.',
+    everyoneHearsThis: () =>
+      'Todos oyen esto, y cualquiera que est\u00e9 presente puede cambiarlo.',
+    everyoneHearsAndItIsKept: () =>
+      'Lo que pongas lo oye todo el mundo, y queda en la grabaci\u00f3n.',
+    resumeRecording: () => 'Reanudar la grabaci\u00f3n',
+    record: () => 'Grabar',
+    resume: () => 'Reanudar',
+    pauseRecording: () => 'Pausar la grabaci\u00f3n',
+    stopRecording: () => 'Parar la grabaci\u00f3n',
+    stop: () => 'Parar',
+    floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',
+    stepInToPlayShort: () => 'entra para reproducir',
+    unmuteTheRoom: () => 'Quitar el silencio de la sala',
+    muteTheRoom: () => 'Silenciar la sala',
+    unmuteTheRoomSub: () =>
+      'Todos pueden hablar otra vez; tu propio silencio no cambia',
+    muteTheRoomSub: () => 'En silencio mientras va el v\u00eddeo; pausa para hablar',
+    watchThisInstead: () => 'Ver esto en su lugar',
+    watchThisInsteadSub: () =>
+      'Reproduce el enlace de YouTube de tu portapapeles',
+    cancel: () => 'Cancelar',
+    orPutOneOfTheseBackOn: () => 'O vuelve a poner una de estas.',
+    changeVideo: () => 'Cambiar de v\u00eddeo',
+    filmIsOnAnotherDevice: () => 'La pel\u00edcula est\u00e1 en otro dispositivo.',
+    watchOnThisDevice: () => 'Ver en este dispositivo',
+    stepInToWatch: () =>
+      'Entra para ver: una pel\u00edcula no se reproduce para quien est\u00e1 cerca o ha salido.',
+    alreadyShowingSomething: () => 'Ya est\u00e1 mostrando algo',
+    noOtherDeviceLead: () => 'No hay ning\u00fan otro dispositivo con la sesi\u00f3n iniciada.',
+    noOtherDeviceRest: () =>
+      ' Abre The Floor en un port\u00e1til o una tableta y entra ah\u00ed, y aparecer\u00e1 aqu\u00ed como un sitio donde ver.',
+    copyVideoLink: () => 'Copiar el enlace del v\u00eddeo',
+    watchSomethingTogether: () => 'Ver algo juntos',
+    watchSomethingTogetherSub: () => 'Un enlace de YouTube de tu portapapeles',
+    hideWhatWeHaveWatched: () => 'Ocultar lo que hemos visto',
+    watchedBefore: (count: number) => `Vistas antes (${count})`,
+    watchedBeforeSub: () => 'Vuelve a poner una, sin enlace',
+    roomIsMutedLead: () => 'La sala est\u00e1 en silencio.',
+    roomIsMutedRest: () =>
+      ' No hay ning\u00fan micr\u00f3fono abierto, as\u00ed que no se cuela nada de la pantalla de nadie. Pausa el v\u00eddeo para hablar.',
+    roomStaysMuted: () =>
+      ' Alguien lo est\u00e1 viendo en el mismo dispositivo desde el que est\u00e1 en la sala, as\u00ed que sigue en silencio hasta que se pause el v\u00eddeo.',
+    pausedSoYouCanTalkLead: () => 'En pausa, pod\u00e9is hablar.',
+    pausedSoYouCanTalkRest: () =>
+      ' La sala vuelve al silencio cuando se reanude el v\u00eddeo.',
+    roomIsUnmutedLead: () => 'La sala no est\u00e1 en silencio.',
+    roomIsUnmutedRest: () =>
+      ' Se oye a todo el mundo, incluido lo que suene en su propia pantalla.',
+    somethingOnListen: () =>
+      'Hay algo sonando en Escuchar. P\u00e1usalo para ver algo juntos.',
+    stepInToDriveTheFilm: () =>
+      'Entra para manejar la pel\u00edcula. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
+    stepInToStartAParty: () =>
+      'Entra para empezar a ver algo juntos. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
+    stopTheRecordingFirst: () =>
+      'Para antes la grabaci\u00f3n: ver algo juntos no se graba.',
+    notAvailableJustNow: () => 'Ahora mismo no se puede poner nada.',
+    everyoneWatchesInStep: () =>
+      'Cada uno lo ve en su propia pantalla, a la vez. No se graba nada de ello.',
+    everybodyWatchesInTheApp: () =>
+      'Todo el mundo lo ve en la app, a la vez: aqu\u00ed, o en otro dispositivo donde tengas la sesi\u00f3n iniciada. La grabaci\u00f3n queda desactivada mientras dura.',
+    contacts: () => 'Contactos',
+    thatDidNotWork: () => 'Eso no ha funcionado.',
+    guestLink: () => 'Enlace de invitado',
+    guestLinkWhat: () =>
+      'Un enlace que cualquiera puede abrir en un navegador. Llama a la puerta, y decide quien est\u00e9 en el canal. Los enlaces de este canal se gestionan en Ajustes.',
+    makingALink: () => 'Creando un enlace\u2026',
+    shareAGuestLink: () => 'Compartir un enlace de invitado',
+    copyAGuestLink: () => 'Copiar un enlace de invitado',
+    linkCopied: () => 'Enlace copiado. P\u00e9galo donde quieras.',
+    linkWouldNotCopy: () => 'El enlace no se ha podido copiar. Int\u00e9ntalo otra vez.',
+    stepInToMakeALink: () =>
+      'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
+  },
 };
