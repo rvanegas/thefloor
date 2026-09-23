@@ -155,7 +155,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 542 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 549 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale, claiming 104
 lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
@@ -257,6 +257,13 @@ Three packages, and the split is load-bearing rather than tidy:
 
 A channel's live state exists in the server's memory and is written to SQLite as
 it changes; the app never holds authority over anything.
+
+**Several source files are past the 2,000-line read limit** — `channels.ts`,
+`ChannelView.tsx` and `app.ts` today; `wc -l` is the current list. A plain read
+stops at 2,000 and drops the tail *silently*, so reading one that way and
+concluding a function is absent is a conclusion about the tool, not the file.
+Grep for the line and read the range. The limit the archive is organised around
+governs source too — a reason to read in ranges, not to split a file.
 
 ---
 
