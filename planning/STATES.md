@@ -831,10 +831,11 @@ from somebody without that flag still arrives as a sentence rather than a log.
 The twelfth, absent from the request's list, and the one the audio items all
 turn on.
 
-**Three states, since 2026-09-08, and the third is nothing at all.** `CALL` and
-`LISTENING` in `app/src/audio/session.ts`, and **deactivated** — which is not a
-configuration and is why it has no name there. The rule that produces them is
-one sentence: **a session is held if and only if the phone is stepped in.**
+**Four states, since 2026-09-23, and one of them is nothing at all.** `CALL`,
+`LISTENING` and `SCREENING` in `app/src/audio/session.ts`, and **deactivated**
+— which is not a configuration and is why it has no name there. The rule that
+produces them is one sentence: **a session is held if and only if the phone is
+stepped in.**
 
 **These are our names, not Apple's, and the two that are configurations are
 requests rather than states.** Each is an `AppleAudioConfiguration` bundling a
@@ -847,6 +848,7 @@ asked for. See disagreement 10.
 | --- | --- | --- | --- | --- |
 | `CALL` | `playAndRecord` | `allowBluetooth`, `allowAirPlay`, `defaultToSpeaker` | `videoChat` | stepped in — a member, or a guest who may speak |
 | `LISTENING` | `playback` | *none* | `spokenAudio` | a guest with no speech grant |
+| `SCREENING` | `playAndRecord` | `allowBluetoothA2DP`, `allowAirPlay`, `defaultToSpeaker` | `default` | stepped in and showing the film, while it plays |
 | — | **deactivated** | | | nearby, stepped out, or not in a room |
 
 **Nothing mixes.** `mixWithOthers` left the codebase with `IDLE` on the same
@@ -855,8 +857,9 @@ system or given it back, and there is no configuration that half-holds it. That
 makes *no claim on audio* literal rather than approximate, which is what nearby
 was defined to mean.
 
-**Conditions.** `sessionFor(want)`: `call` when `microphoneNeeded` is true —
-which is being stepped in, minus the guest exception — and `listen` otherwise.
+**Conditions.** `sessionFor(want)`: `listen` when `microphoneNeeded` is false —
+which is not being stepped in, or the guest exception — `screen` when this
+device is showing a film that is playing, and `call` otherwise.
 The one thing that can make a stepped-in member ask for `listen` is a
 **deferred promotion**: iOS refuses a backgrounded app a *new* microphone, so
 the app stays on `LISTENING`, hears the person, and takes the call session at
@@ -871,20 +874,46 @@ session already `CALL` is left alone when the app goes off screen.
 | Stepped in, muted | `CALL` |
 | Stepped in, everybody muted | `CALL` |
 | Stepped in, watch party on another device, while it plays | `CALL` |
-| Stepped in, **watching here**, while it plays | `LISTENING` |
+| Stepped in, **watching here**, while it plays | `SCREENING` |
 | Guest in the room, no speech grant | `LISTENING` |
 | Stepped in, promotion deferred while backgrounded | `LISTENING` |
 
 **The watching-here row is the one exception to *a session follows whether you
-are stepped in*, and it is written down as an exception in
-`core/micNeeded.ts`.** A device that is showing the film gives up its
-microphone while the film plays, so the session can be `playback` and the film
-can be in stereo rather than mono, ducked and voice processed. Two properties
-of a watch party make it safe and neither generalises: a loaded party already
-refuses a recording, so the capture feeds nothing, and a run with a screen in
-the room is enforced-muted, so it feeds no subscription either. The price is a
-Bluetooth profile handover at each pause, paid knowingly — see
+are stepped in*, and what it is an exception about changed on 2026-09-23.** It
+is still `isScreening` in `core/micNeeded.ts` that decides it; what that answer
+is spent on moved.
+
+**It used to give the microphone up.** The device stopped capturing while the
+film played, so the session could be `playback` and the film could be stereo
+rather than mono, ducked and voice processed. Two properties of a watch party
+made it safe and neither generalises: a loaded party already refuses a
+recording, so the capture fed nothing, and a run with a screen in the room is
+enforced-muted, so it fed no subscription either. The price was written down as
+a Bluetooth profile handover at each pause, paid knowingly — see
 decisions/2026-09-17-the-screen-is-the-app.md.
+
+**The price turned out to be a second on every resume, and it was not the
+handover.** Build 277, instrumented: a press of Play left the application in 40
+to 120ms, and `engine stop play=F rec=F` landed at 0.92 to 1.11 seconds with
+the category change immediately behind it — the film could not start until the
+microphone had been torn down. A press of Pause, which tears nothing down,
+moved category in 0.27 to 0.41 seconds every time. That asymmetry is the whole
+finding, and it is why the row is now `SCREENING`: the device is **held** for
+the length of the party and the *configuration* changes instead.
+
+**`SCREENING` keeps what the old arrangement bought and drops what it cost.**
+`playAndRecord`, so nothing is released; `default` rather than a voice mode,
+because the nine configurations measured on 2026-09-08 say the category costs
+nothing and the mode costs everything; and `allowBluetoothA2DP` rather than
+`allowBluetooth`, which is stereo at 48kHz against hands-free mono at 24. The
+one thing given up is the system echo canceller, which this state does not
+need — `isScreening` makes the intent `muted`, so the device is open and
+publishes nothing.
+
+**The mode and the option are unverified on a device**, both being chosen from
+a measurement made under a different category. What iOS actually granted is a
+thing to read off `route` in the shipped log rather than to believe from this
+table. See planning/WATCH-RESPONSIVENESS.md.
 
 **The empty-channel row is the reversal, and it was made knowingly.**
 `core/micNeeded.ts` used to carry the principle *being in an empty channel

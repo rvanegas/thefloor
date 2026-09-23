@@ -84,6 +84,53 @@ export const LISTENING: AppleAudioConfiguration = {
 };
 
 /**
+ * What the session asks of the system while this device is showing the film.
+ *
+ * **It exists to stop the microphone being torn down, which is what a resume
+ * was actually waiting for.** Measured on build 277: a press of Play left the
+ * application in 40 to 120 milliseconds, and then `engine stop` landed at 0.92
+ * to 1.11 seconds with the category change immediately behind it. Pausing,
+ * which tears nothing down, changed category in 0.27 to 0.41 seconds every
+ * time. So the second somebody waited for was the device being let go and
+ * taken back, not `AVAudioSession` being slow — and the cure is to stop letting
+ * it go. See planning/WATCH-RESPONSIVENESS.md.
+ *
+ * **`playAndRecord`, so the device is never released**, and the film plays
+ * through a session that is already the one the room will want back the moment
+ * anybody pauses. Nothing is published from here: `isScreening` makes the
+ * intent `muted`, which holds the device open and sends nothing — a run with a
+ * screen in the room is enforced-muted for its length, so there was never
+ * anything for this device to contribute.
+ *
+ * **`default` rather than a voice mode, which is the half that keeps the
+ * film.** The nine configurations measured on 2026-09-08 say the category
+ * costs nothing and the *mode* costs everything: the voice modes assert
+ * `duckOthers` behind the caller's back and run the voice processor over
+ * everything. `videoChat` is what `CALL` is for and what makes a conversation
+ * work; over a film it is the thing that would make this trade not worth
+ * making. The price is the system echo canceller, which this state does not
+ * need — nothing is being captured for anybody.
+ *
+ * **`allowBluetoothA2DP` rather than `allowBluetooth`, which is the other
+ * half.** `allowBluetooth` is the hands-free profile: mono, 24 kHz, and
+ * visible in the build 277 log as `BluetoothHFP(wachowskis) sr=24000` against
+ * `BluetoothA2DPOutput sr=48000` a few lines away. A2DP is stereo out with the
+ * built-in microphone as the input, which is exactly the trade a screening
+ * device wants — it is not using its microphone for anything.
+ *
+ * **Unverified on a device at the time of writing.** The mode and the option
+ * are both chosen from a measurement made under a different category, so what
+ * iOS actually grants here is a thing to read off `route` in the log rather
+ * than to believe from this comment. `moviePlayback` is the next thing to try
+ * if `default` still ducks.
+ */
+export const SCREENING: AppleAudioConfiguration = {
+  audioCategory: 'playAndRecord',
+  audioCategoryOptions: ['allowBluetoothA2DP', 'allowAirPlay', 'defaultToSpeaker'],
+  audioMode: 'default',
+};
+
+/**
  * What the session asks of the system while the microphone is capturing.
  *
  * **`videoChat` is what turns on the system echo canceller.** Capturing under
@@ -196,7 +243,7 @@ export const CALL: AppleAudioConfiguration = {
  * not have the audio system*. Nothing means that any more while a connection
  * exists: the state it described is now a phone with no connection at all.
  */
-export type SessionWant = 'call' | 'listen';
+export type SessionWant = 'call' | 'listen' | 'screen';
 
 /**
  * Which configuration that is.
@@ -214,6 +261,7 @@ export type SessionWant = 'call' | 'listen';
  *             where they are computed.
  */
 export function sessionFor(want: SessionWant): AppleAudioConfiguration {
+  if (want === 'screen') return SCREENING;
   return want === 'call' ? CALL : LISTENING;
 }
 
@@ -279,8 +327,25 @@ export function sessionFor(want: SessionWant): AppleAudioConfiguration {
  * the SDK's caution about switching mid-call is about switching *paths*
  * (the deprecated JS callback against this native one), not about a policy.
  */
-export function policyFor(): IOSAudioSessionPolicy {
-  return { recording: CALL, playout: LISTENING, deactivateOnStop: true };
+export function policyFor(screening = false): IOSAudioSessionPolicy {
+  return {
+    /*
+      **The observer's recording value follows the screen, which is the whole
+      reason this stopped being a constant.**
+
+      The rule this file is built on is that every writer of the shared
+      configuration must write the same thing, because whoever writes last
+      wins. The native observer re-applies `recording` on every audio-engine
+      transition — and while the film is playing, what `sessionFor` would
+      return for a recording device is `SCREENING`, not `CALL`. Handing it
+      `CALL` there would mean a transition we did not ask for quietly putting
+      the film back under a voice mode, which is the 2026-08-19 route loss
+      arriving by a third door.
+    */
+    recording: screening ? SCREENING : CALL,
+    playout: LISTENING,
+    deactivateOnStop: true,
+  };
 }
 
 /**
@@ -293,6 +358,7 @@ export function policyFor(): IOSAudioSessionPolicy {
 export function nameOf(config: AppleAudioConfiguration): string {
   if (config === CALL) return 'CALL';
   if (config === LISTENING) return 'LISTENING';
+  if (config === SCREENING) return 'SCREENING';
   return 'unknown';
 }
 
@@ -411,7 +477,21 @@ export const ANDROID_OUTPUTS = [
  * not fork is the *question*, and it has not — both take a `SessionWant`.
  */
 export function androidSessionFor(want: SessionWant): AndroidAudioTypeOptions {
-  return want === 'call' ? ANDROID_CALL : ANDROID_LISTENING;
+  /*
+    **`screen` answers here as `call` does, because the device is held either
+    way.** The iOS half splits them to keep the film out of a voice mode while
+    the microphone stays open; Android has no third profile to split into, and
+    inventing one for a platform that has never been built would be a guess
+    dressed as a decision. What must not happen is this silently answering
+    `ANDROID_LISTENING` — a device that has released its microphone — for a
+    state whose whole point is that it has not.
+
+    So the two platforms agree about *whether* the device is held, which is
+    what `session.test.ts` pins, and the film-quality half of the trade has no
+    Android counterpart yet. See backlog § *Android has never been built or
+    run*.
+  */
+  return want === 'listen' ? ANDROID_LISTENING : ANDROID_CALL;
 }
 
 /**

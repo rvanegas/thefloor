@@ -270,6 +270,34 @@ The three ways to stop moving the category are in § *What each outcome
 licenses*; that decision is still open, and is worth re-measuring once the
 press is no longer being swallowed.
 
+## The teardown, and the fix for it — 2026-09-23
+
+Pairing every press with what followed it, across the whole build 277 log:
+
+| | engine event | category change |
+| --- | --- | --- |
+| **pause** | — | 0.27–0.41s, every time |
+| **play** | `engine stop` at **0.92–1.11s** | 1.08–1.16s, just behind it |
+
+The command leaves the application in 40 to 120ms — the follower is not in the
+way. **What a resume waits for is the microphone being torn down**, and the
+category change rides in behind it. Pause is immediate because it tears nothing
+down: it is *taking* the device, not releasing it.
+
+So the cure is not to stop moving the category, which was the framing for two
+days. It is to stop releasing the device. `SCREENING` holds `playAndRecord` for
+the length of the party under a non-voice mode with A2DP output, and publishes
+nothing; `decisions/2026-09-23-the-screen-keeps-its-microphone.md` has the
+argument and what was ruled out.
+
+**What to look for in the next log.** On a resume: no `engine stop`, and either
+no `why=categoryChange` at all or one at pause-like speed. `watch playing after
+Nms` should fall from 1.2–3.0s toward the 500ms floor, which is one follow
+tick. And `route` should say `BluetoothA2DPOutput sr=48000` rather than
+`BluetoothHFP sr=24000` while a film plays on a headset — that line is the
+verification that the mode and the option were granted, both being chosen from
+a measurement made under a different category.
+
 ## The protocol
 
 1. **Open the audio panel once** at the start of the session, on any channel.

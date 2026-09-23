@@ -38,8 +38,26 @@ import type { ChannelState, UserId } from './types';
  * kind of person the caller is, which is the guest case below.
  */
 export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
-  if (!hasMicrophone(channel, me)) return false;
-  return !isScreening(channel, me);
+  /*
+    **The watch exception left this predicate on 2026-09-23 and became a
+    question about the session instead.**
+
+    It used to subtract `isScreening` here — a device showing the film closed
+    its microphone, so that `sessionFor` could ask for `playback` and the film
+    got the stereo bloom. What that cost was measured on build 277 and is
+    worse than what it bought: closing the device takes about a second, and
+    the whole of it is spent between somebody pressing Play and the film
+    starting. `engine stop` at 0.92 to 1.11 seconds, with the category change
+    immediately behind it; pausing, which tears nothing down, moved category
+    in 0.27 to 0.41 seconds every time.
+
+    So the device is held for the length of the party and the *configuration*
+    changes instead — `SCREENING` in `app/src/audio/session.ts`, which is
+    `playAndRecord` under a non-voice mode with A2DP output. `isScreening` is
+    still the question; it is asked by the session rather than by this, and
+    nothing is published either way because a screening run is enforced-muted.
+  */
+  return hasMicrophone(channel, me);
 }
 
 /**
@@ -77,17 +95,27 @@ export function hasMicrophone(
 /**
  * Whether this device is showing the film right now, and so must not capture.
  *
+ * **What this answers moved on 2026-09-23.** It used to decide whether this
+ * device captured at all; it now decides which session configuration it holds
+ * while it does — `SCREENING` rather than `CALL`. The question is the same and
+ * the answer is spent differently; `microphoneNeeded` says why.
+ *
  * **The exception to the one rule above, and it is written down as one so that
  * nobody later deletes it as an inconsistency.** *You hold the audio system if
  * and only if you are stepped in* has been the whole of this file since the
  * 2026-09-08 redesign; this is the first thing to qualify it.
  *
- * **What it buys is stereo.** A screen and a microphone on one device cannot
- * both be served: an open microphone forces `playAndRecord` under a voice
- * mode, which is mono over Bluetooth, ducked, and voice processed — and the
- * film is the thing everybody came for. Closing it lets `sessionFor` ask for
- * `LISTENING`, which is `playback`, which is the stereo bloom. The price is a
- * profile handover at every pause, paid knowingly.
+ * **What it buys is stereo, and it no longer buys it by closing anything.**
+ * The sentence here used to read that a screen and a microphone on one device
+ * cannot both be served, because an open microphone forces `playAndRecord`
+ * under a voice mode — mono over Bluetooth, ducked, voice processed — and the
+ * film is what everybody came for. The category was never the problem: the
+ * *mode* is, and `allowBluetooth` is, and both are choices. `SCREENING` keeps
+ * `playAndRecord` with neither of them.
+ *
+ * **The price that used to be paid here was a profile handover at every
+ * pause, and it turned out to be a second on every resume.** See
+ * `microphoneNeeded`.
  *
  * **Two properties of a watch party make it safe, and neither generalises.**
  * A loaded party already refuses a recording — `canStartRecording` requires
@@ -104,7 +132,7 @@ export function hasMicrophone(
  * unmuted — and reading the sampled flag is what keeps this in step with the
  * room's expectations rather than a tick ahead of them.
  */
-function isScreening(channel: ChannelState, me: UserId): boolean {
+export function isScreening(channel: ChannelState, me: UserId): boolean {
   // Optional for `partyMuteRequested`'s reason: a server older than these
   // fields sends snapshots without them, which this build meets between its
   // release and the deploy that follows. No party and no screens is what those

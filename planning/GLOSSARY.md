@@ -2609,11 +2609,19 @@ See decisions/2026-09-20-the-roster-says-who-is-watching.md.
 ## Watching here
 
 **Your screen and your voice on one device**, which is the case that costs
-something. A device cannot both play a film in stereo and hold a microphone
-open — an open microphone forces a voice-mode session, which is mono, ducked
-and voice processed — so a screen that is also in the room stops capturing
-while the film plays, and the room's mute is **enforced** for that run so that
-nobody is waiting on a voice that cannot arrive.
+something. The room's mute is **enforced** for such a run, so that nobody is
+waiting on a voice that cannot arrive.
+
+**It used to cost the microphone and since 2026-09-23 it costs a
+configuration.** The claim here was that a device cannot both play a film in
+stereo and hold a microphone open, so a screen that was also in the room
+stopped capturing while the film played. The category was never what cost the
+stereo — the *mode* is, and the Bluetooth option is — and closing the device
+turned out to cost about a second on every resume, all of it spent tearing the
+microphone down before the session could move. So the device is held for the
+length of the party under `SCREENING`, and publishes nothing. See
+STATES.md § *Audio Session Configuration* and `isScreening` in
+core/micNeeded.ts.
 
 Sampled when a run starts rather than watched continuously: somebody switching
 to their only device mid-film changes nothing until the next Play, so no voice
@@ -3144,13 +3152,21 @@ does not register in sense 4 at all. See *silenced*.
 **This used to say that a watch party's tracks stay unmuted through a film,
 flatly, and Rule A was built on it.** True of anybody whose microphone is open
 — the film on a television, you in the room on your phone — and it says nothing
-about watching on the device you are in the room on, where the microphone is
-not muted but **closed**, for stereo. A closed microphone is not a muted track
-but no track at all, which is neither this sense nor sense 3 but the absence of
+about watching on the device you are in the room on. That microphone was
+**closed** for stereo, and a closed microphone is not a muted track but no
+track at all, which is neither this sense nor sense 3 but the absence of
 anything for either to describe. So a room watching a film the way the app
 defaults to published nothing and read as defunct. Fixed 2026-09-23 by asking
-`watch.status` in Rule A; see *Watch party*, `isScreening` in core/micNeeded.ts
-and decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
+`watch.status` in Rule A; see *Watch party* and
+decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
+
+**The device is held rather than closed since later the same day**, and that
+fix is still the one carrying this: a screening device now has a track and it
+is muted, and `publishing` counts *transmitting* microphones rather than
+existing ones — so the room is still publishing nothing while the film runs,
+and still needs Rule A to ask `watch.status`. What changed is the reason there
+is nothing: a muted track rather than no track. See `isScreening` in
+core/micNeeded.ts.
 
 ## Participant
 

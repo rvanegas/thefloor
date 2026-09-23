@@ -11,7 +11,7 @@ import {
   isWithheld,
   reduce,
 } from '../channel';
-import { hasMicrophone, microphoneNeeded } from '../micNeeded';
+import { hasMicrophone, isScreening, microphoneNeeded } from '../micNeeded';
 import {
   desiredFor,
   followInstructions,
@@ -303,31 +303,57 @@ describe('enforcement is lifted when its premise goes', () => {
   });
 });
 
-describe('the screen stops capturing', () => {
-  it('closes the microphone of whoever is watching here, while playing', () => {
+/**
+ * **The screen keeps its microphone and changes its session instead.**
+ *
+ * This described the opposite until 2026-09-23, and the reversal is measured
+ * rather than preferred. Closing the device bought the film a `playback`
+ * session and stereo; what it cost was about a second on every resume, all of
+ * it spent tearing the microphone down before the category could move —
+ * `engine stop` at 0.92 to 1.11 seconds on build 277, against 0.27 to 0.41
+ * seconds for a pause, which tears nothing down.
+ *
+ * So `isScreening` is still asked and is spent differently: it picks
+ * `SCREENING` over `CALL` in `app/src/audio/session.ts`, which is
+ * `playAndRecord` under a non-voice mode with A2DP output. Nothing is
+ * published from a screening device either way — a run with a screen in the
+ * room is enforced-muted for its length.
+ */
+describe('the screen keeps its microphone', () => {
+  it('does not close it for whoever is watching here, playing or not', () => {
     const state = apply(watching(), [
       [here(A), T0],
       [{ type: 'WATCH_PLAY', userId: A }, T0],
     ]);
-    expect(microphoneNeeded(state, A)).toBe(false);
-    // The person it is an exception for still has a microphone in the room —
-    // which is what stops the exception eating its own premise.
+    expect(microphoneNeeded(state, A)).toBe(true);
     expect(hasMicrophone(state, A)).toBe(true);
-    // And nobody else's is touched.
+    // And nobody else's is touched, which was true before and stays true.
     expect(microphoneNeeded(state, B)).toBe(true);
   });
 
-  it('gives it back at the pause', () => {
+  it('knows which device is screening, which is what the session reads', () => {
+    const state = apply(watching(), [
+      [here(A), T0],
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+    ]);
+    // The question survives the change; only what it is spent on moved.
+    expect(isScreening(state, A)).toBe(true);
+    expect(isScreening(state, B)).toBe(false);
+  });
+
+  it('stops screening at the pause, so the room is a room again', () => {
     const state = apply(watching(), [
       [here(A), T0],
       [{ type: 'WATCH_PLAY', userId: A }, T0],
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
     ]);
+    expect(isScreening(state, A)).toBe(false);
     expect(microphoneNeeded(state, A)).toBe(true);
   });
 
-  it('does not close it for a screen on another device', () => {
+  it('is not screening for a screen on another device', () => {
     const state = reduce(watching(), { type: 'WATCH_PLAY', userId: A }, T0);
+    expect(isScreening(state, A)).toBe(false);
     expect(microphoneNeeded(state, A)).toBe(true);
   });
 });

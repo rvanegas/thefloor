@@ -504,11 +504,12 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  * @param canCapture whether the microphone may be open, already adjusted for
  *                   what iOS will grant: false while a promotion is deferred.
  */
-function wantFor(canCapture: boolean): SessionWant {
-  return canCapture ? 'call' : 'listen';
+function wantFor(canCapture: boolean, screening = false): SessionWant {
+  if (!canCapture) return 'listen';
+  return screening ? 'screen' : 'call';
 }
 
-function pushPolicy(): void {
+function pushPolicy(screening = false): void {
   // **Android has no counterpart and is not missing one**, which is worth
   // stating because every other `Platform.OS !== 'ios'` guard in this
   // directory marks something Android still owes. This one does not: the
@@ -527,7 +528,7 @@ function pushPolicy(): void {
   // rather than once at startup, because a push is a single atomic property
   // assignment and re-stating it is how a superseded setup is superseded.
   if (Platform.OS !== 'ios') return;
-  setupIOSAudioManagement(true, policyFor());
+  setupIOSAudioManagement(true, policyFor(screening));
 }
 
 /**
@@ -549,8 +550,24 @@ function pushPolicy(): void {
  */
 export type MicIntent = 'capturing' | 'muted' | 'released';
 
-function intentFor(micNeeded: boolean, selfMuted: boolean): MicIntent {
+function intentFor(
+  micNeeded: boolean,
+  selfMuted: boolean,
+  screening = false
+): MicIntent {
   if (!micNeeded) return 'released';
+  /*
+    **A screening device holds its microphone and publishes nothing.**
+
+    `muted` rather than `capturing`, which is the difference between keeping
+    the device and using it. A run with a screen in the room is enforced-muted
+    for its length — `partyWithholds`, and `isScreening` is keyed on the same
+    flag — so there was never anything for this device to send; what changed on
+    2026-09-23 is that it stops letting the device *go* in order to send
+    nothing. Holding it is what removes the second that a resume was spending
+    on `engine stop`.
+  */
+  if (screening) return 'muted';
   return selfMuted ? 'muted' : 'capturing';
 }
 
@@ -727,7 +744,13 @@ export function useSessionAudio(
   hasAudioAsked: boolean,
   recoverPlayout = false,
   deferSubscribe = false,
-  holdForPlayout = false
+  holdForPlayout = false,
+  /**
+   * Whether this device is showing the party's film, which decides which
+   * configuration it holds rather than whether it holds one. See `SCREENING`
+   * in `session.ts`, and `isScreening` in core/micNeeded.ts.
+   */
+  screening = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -895,6 +918,9 @@ export function useSessionAudio(
    * re-run when it changes: a foreground is the moment the deferred promotion
    * becomes possible, and nothing else would notice.
    */
+  /** Same reason as `micNeededRef`: the observer is armed at every edge. */
+  const screeningRef = useRef(screening);
+  screeningRef.current = screening;
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -1420,7 +1446,11 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        const intent = intentFor(micNeededRef.current, selfMutedRef.current);
+        const intent = intentFor(
+          micNeededRef.current,
+          selfMutedRef.current,
+          screeningRef.current
+        );
 
         // The claim, taken before the session is: connecting at all means
         // stepping in, and stepping in is the claim. Applied ahead of
@@ -1433,8 +1463,8 @@ export function useSessionAudio(
         // and the collision build 90 was written to remove. The rule this asks
         // is about *me* and is already settled before the socket exists, so
         // nothing moves.
-        const anyWant = wantFor(micNeededRef.current);
-        pushPolicy();
+        const anyWant = wantFor(micNeededRef.current, screeningRef.current);
+        pushPolicy(screeningRef.current);
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
         update({
@@ -1445,7 +1475,7 @@ export function useSessionAudio(
             othersAudible: 0,
             intent,
             session: sessionFor(anyWant),
-            playout: policyFor().playout,
+            playout: policyFor(screeningRef.current).playout,
           },
         });
         recordEvent(`connect ${intent} ${nameOf(sessionFor(anyWant))}`);
@@ -1680,7 +1710,7 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const asked = intentFor(micNeeded, selfMuted);
+    const asked = intentFor(micNeeded, selfMuted, screening);
 
     /**
      * **A hold with nothing to hold, resolved rather than obeyed.**
@@ -1752,7 +1782,7 @@ export function useSessionAudio(
     // Bluetooth profile handover sits on. A self-mute does not reach it —
     // `micNeeded` is true for a muted member — so the 2026-08-19 route loss
     // stays fixed by the shortest argument it has ever had.
-    const want = wantFor(deferring ? false : micNeeded);
+    const want = wantFor(deferring ? false : micNeeded, screening);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`
@@ -1791,7 +1821,7 @@ export function useSessionAudio(
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor().playout,
+                playout: policyFor(screening).playout,
               },
             }
       );
@@ -1811,7 +1841,7 @@ export function useSessionAudio(
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor().playout,
+        playout: policyFor(screening).playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
@@ -1828,7 +1858,7 @@ export function useSessionAudio(
     // is what prevents it, the engine stays recording through a mute and
     // nothing moves. It needs two phones and a mute to settle, and no bench in
     // this repository can answer it.
-    pushPolicy();
+    pushPolicy(screening);
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
