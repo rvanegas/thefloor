@@ -114,6 +114,61 @@ And the ones that were already there: `capturing CALL`, `released LISTENING`,
 - `watch playing after …` consistently large with nothing else odd → ordinary
   latency, and the answer is a local echo of the press rather than a watchdog.
 
+## What the first log said — build 276, 2026-09-23
+
+**Candidate 1 is confirmed, with timestamps.** 93 lines off the phone, on the
+built-in speaker. Both resumes in the run look like this:
+
+```
++41.81  watch press play
++41.89  released LISTENING                       <- the session starts moving
++41.89  watch tell play                          <- the same millisecond
++42.74  route ... why=routeConfigurationChange
++42.90  route ... Playback/SpokenAudio why=categoryChange   <- it finishes
++43.13  watch playing after 1241ms               <- the film starts, 230ms later
+```
+
+The play command and the category change are issued **in the same
+millisecond**, and the player does not start until the category change has
+completed. The other resume in the run is the same shape: told at +57.61,
+category change lands at +58.67, playing at +59.17 — 1560ms.
+
+**The asymmetry is the proof.** Pausing took **106ms and 379ms**, and finished
+*before* the session had moved at all. Resuming took **1241ms and 1560ms**, and
+finished *after* the session had finished moving. Pausing does not need the
+media session; starting playback does, and it is held off for exactly as long
+as the category takes to change.
+
+Two things follow that were not obvious beforehand:
+
+- **It is not the Bluetooth handover.** This run is on `Speaker(Speaker)`
+  throughout, and the gate is still 1.2–1.6s. The profile handover would be
+  *additional*, so a Bluetooth route should be worse, not the cause.
+- **The gate pays for itself twice.** The transport's wall clock runs during
+  those 1.2s, so the follower then owes a correction: every resume in the log
+  is followed by `watch tell seek` and another 500–1000ms. Press to settled is
+  nearer 2.5s than 1.2s.
+
+For reference, a rotation — the cure that prompted all this — costs 1.0–1.5s
+to get playing again, which is the price of a fresh player.
+
+**Still outstanding: no permanent stick was captured.** Everything above is the
+gate in its ordinary, recoverable form. Whether the hard stick is the same
+mechanism latched — WebKit marking the media session interrupted and never
+seeing the end of it — is untested, and the thing to watch for now is a
+`watch rebuilding the player` line, which is the watchdog curing one unaided.
+
+### What it corrected in our own code
+
+`watch ignored paused x1 (player unstarted)` at +9.87, and `x2 (player
+buffering)` at +23.08 — on a party that was working perfectly. `hasArrived` is
+false for both of those states, and neither is a refusal: a cued player has not
+begun and a buffering one is on its way. Worse, the 1.2–1.6s gate above means a
+routine resume regularly outlives the 1500ms obedience fuse, so resumes were
+scoring against the count too. Three would have rebuilt a healthy picture in
+front of somebody who had just pressed Play. Fixed: only a settled `playing` or
+`paused` that contradicts the instruction counts.
+
 ## The protocol
 
 1. **Open the audio panel once** at the start of the session, on any channel.

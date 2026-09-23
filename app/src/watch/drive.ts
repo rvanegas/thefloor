@@ -185,11 +185,35 @@ export function useFollow(
         // See `WATCH_OBEDIENCE_MS`.
         if (now - state.since <= WATCH_OBEDIENCE_MS) return;
         doing.current = { phase: 'watching' };
-        ignored.current += 1;
-        recordEvent(
-          `watch ignored ${state.want.status} x${ignored.current} ` +
-            `(player ${reading.state})`
-        );
+        /*
+          **Only a steady state counts as a refusal, which the first log from
+          a phone corrected this on.**
+
+          `hasArrived` is false for `unstarted` and for `buffering`
+          unconditionally, and rightly: neither is where anything was asked
+          to be. But neither is a refusal either — a cued player has not
+          begun, and a buffering one is on its way — so counting them made
+          two ordinary things look like disobedience. A party paused with a
+          freshly built player sits at `unstarted` for as long as nobody
+          presses anything, and a resume that takes longer than the fuse
+          spends another. Build 276 reached two inside twenty seconds of an
+          entirely healthy party, which is one short of rebuilding a picture
+          that had nothing wrong with it, in front of somebody who had just
+          pressed Play.
+
+          What is left is the case this was written for: a player reporting a
+          settled `playing` or `paused` that contradicts what it was told,
+          which is the latched frame and nothing else.
+        */
+        const refusing =
+          reading.state !== 'unstarted' && reading.state !== 'buffering';
+        if (refusing) {
+          ignored.current += 1;
+          recordEvent(
+            `watch ignored ${state.want.status} x${ignored.current} ` +
+              `(player ${reading.state})`
+          );
+        }
         /*
           **Rebuilt, rather than told the same thing a fourth time.**
 
@@ -205,7 +229,7 @@ export function useFollow(
           not begun and position it properly, which is the path a screen
           arriving at a party already takes.
         */
-        if (ignored.current >= DEAF_AFTER && player.recover) {
+        if (refusing && ignored.current >= DEAF_AFTER && player.recover) {
           ignored.current = 0;
           buffering.current = null;
           recordEvent('watch rebuilding the player');
