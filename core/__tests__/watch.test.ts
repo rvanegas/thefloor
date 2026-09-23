@@ -8,6 +8,8 @@ import {
   canControlPlayback,
   canControlWatch,
   canLoadTrack,
+  canPlayWatch,
+  canResumeRecording,
   canStartRecording,
   canStartWatch,
   createChannel,
@@ -170,6 +172,24 @@ describe('starting a party', () => {
       // And the length it did report is kept regardless.
       expect(s.watch.party?.durationMs).toBe(LENGTH);
     }
+  });
+
+  /**
+   * **A report is still a report, and it is still only for the room.** What
+   * it writes is the name under the progress bar and the length the scrubber
+   * runs on, on every screen watching — so a member sitting outside the room,
+   * who has no player and sends this from nowhere the app can reach, does not
+   * get to name somebody else's film. `Picture` mounts on the same `inRoom`.
+   */
+  it('is refused to a member who is not in the room', () => {
+    const out = reduce(watching(), { type: 'STEP_OUT', userId: B }, T0);
+    const s = reduce(
+      out,
+      { type: 'WATCH_READY', userId: B, durationMs: 999_000, title: 'Theirs' },
+      T0 + 1_000
+    );
+    expect(s.watch.party?.durationMs).toBe(LENGTH);
+    expect(s.watch.party?.title).toBeNull();
   });
 
   it('ignores a duration nobody could have measured', () => {
@@ -555,6 +575,54 @@ describe('a channel attends to one thing', () => {
   it('lets a recording start again once the party is stopped', () => {
     const s = reduce(watching(), { type: 'STOP_WATCH', userId: A }, T0 + 1_000);
     expect(canStartRecording(s, A)).toBe(true);
+  });
+
+  /**
+   * **The two below describe a state no sequence of actions reaches**, and
+   * that is the point of them. A run cannot begin while a party is loaded and
+   * a party cannot begin unless the run is `idle`, so the pair is fenced off
+   * by two clauses that are both about a film being *loaded*. Relax either
+   * one to *playing*, as the two audio guards were relaxed on 2026-09-20, and
+   * these are the two doors it opens.
+   *
+   * So the state is spliced together from two halves that are each a real
+   * reducer's output, rather than pressed into existence — which is the only
+   * way to write a test for a guard whose job is to still be right after
+   * somebody changes the rule standing in front of it.
+   */
+  const withRun = (base: ChannelState, steps: Array<[ChannelAction, number]>) =>
+    ({ ...base, recording: apply(joined(), steps).recording }) as ChannelState;
+
+  it('refuses to play a film beside a run, and nothing else on the transport', () => {
+    const s = withRun(watching(), [
+      [{ type: 'START_RECORDING', userId: A, runId: 'run1' }, T0],
+    ]);
+    expect(canPlayWatch(s, A)).toBe(false);
+    expect(
+      reduce(s, { type: 'WATCH_PLAY', userId: A }, T0 + 1_000).watch.status
+    ).toBe('paused');
+    // The four ways out stay open for the length of the run. A rule that held
+    // all five would trap the channel inside a film it could not put down.
+    expect(canControlWatch(s, A)).toBe(true);
+    expect(
+      reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 1_000).watch.party
+    ).toBeNull();
+  });
+
+  it('refuses to resume a run beside a loaded party, as it refuses to start one', () => {
+    const s = withRun(watching(), [
+      [{ type: 'START_RECORDING', userId: A, runId: 'run1' }, T0],
+      [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
+    ]);
+    expect(canResumeRecording(s, A)).toBe(false);
+    expect(
+      reduce(s, { type: 'RESUME_RECORDING', userId: A }, T0 + 2_000).recording
+        .status
+    ).toBe('paused');
+    // And it comes back with the party, which is the same escape starting one
+    // has.
+    const stopped = reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 2_000);
+    expect(canResumeRecording(stopped, A)).toBe(true);
   });
 });
 

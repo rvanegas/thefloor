@@ -956,6 +956,17 @@ export function canPauseRecording(
  * all. It did not until 2026-09-12, and a guard with nobody to authorise is
  * one that cannot refuse the person who is not there. See
  * `canPauseRecording`.
+ *
+ * **And it carries `canStartRecording`'s party clause, since 2026-09-23.**
+ * Putting capture back on is starting a run for every purpose this rule has:
+ * what resumes is a recording of a room watching a film, missing the film.
+ * The clause was on the start alone, which was enough only because the two
+ * *loaded*-level fences hold each other shut — a run cannot begin while a
+ * party is loaded, and a party cannot begin unless the run is `idle`, which
+ * a paused one is not. So the pair is unreachable today and this changes
+ * nothing that can be pressed. It is here for the day somebody relaxes the
+ * other clause and finds that resume was the way around it. See
+ * `canPlayWatch`, which is the same argument in the other direction.
  */
 export function canResumeRecording(
   state: ChannelState,
@@ -964,6 +975,7 @@ export function canResumeRecording(
   return (
     state.status === 'active' &&
     state.recording.status === 'paused' &&
+    state.watch.party === null &&
     isPresent(state, userId)
   );
 }
@@ -1226,6 +1238,39 @@ export function canControlWatch(
   // of what `canControlPlayback` asks of the film. See `trackIsPlaying`.
   if (trackIsPlaying(state)) return false;
   return isParticipant(state, userId) && isPresent(state, userId);
+}
+
+/**
+ * Whether `userId` may set the film running, which is the one thing on that
+ * transport a recording refuses.
+ *
+ * **`canControlWatch` plus no run, and the *plus* is the whole of it.** The
+ * other four actions the transport carries stay on the shared guard
+ * deliberately: pausing, seeking, the room's mute and stopping are how
+ * somebody gets *out* of a party, and a rule that held all five for the
+ * length of a run would trap a channel inside a film it could not put down.
+ * A run can go for an hour. Refusing play refuses the thing the exclusivity
+ * is about — a film and a recording running at once — and refuses nothing
+ * else.
+ *
+ * That makes it the mirror of `canStartWatch`, which asks the same question
+ * at the other edge, and of the clause `canStartRecording` and
+ * `canResumeRecording` carry going the other way.
+ *
+ * **It changes nothing that can be pressed today**, for the reason spelt out
+ * under `canResumeRecording`: no run can be going while a party is loaded, so
+ * the state this refuses is unreachable. It exists because the two clauses
+ * holding it shut are both on *loaded* rather than on *playing* — and if the
+ * recording one is ever relaxed to `watchIsPlaying`, as the two audio guards
+ * were on 2026-09-20, this is the gap that opens. Loading a film, pausing it,
+ * starting a run and pressing play would put both on at once, which is the
+ * state every one of these guards exists to prevent.
+ *
+ * `isRecordingActive` rather than `status !== 'idle'`: a paused run is still
+ * a run, and resuming it is one tap.
+ */
+export function canPlayWatch(state: ChannelState, userId: UserId): boolean {
+  return canControlWatch(state, userId) && !isRecordingActive(state.recording);
 }
 
 /**
@@ -2559,6 +2604,12 @@ function reduceAction(
           // pair of states to keep in step, and one of them would drift.
           return { ...state, watch: setPartyMute(watch, action.muted) };
         case 'WATCH_PLAY':
+          // The one action on this transport a recording refuses, asked per
+          // branch the way `SET_WATCH_MUTE`'s enforcement is and for the same
+          // reason: the shared guard above is the four ways out of a party,
+          // and only this one puts a film on beside a run. See
+          // `canPlayWatch`.
+          if (!canPlayWatch(state, action.userId)) return state;
           // **The sampling point.** Whether this run's mute can be lifted is
           // decided here, once, from who is watching on the device they are
           // in the room on — and then left alone until the next pause. See
@@ -2580,7 +2631,18 @@ function reduceAction(
       // a player, not a control, and the floor has no business gating it —
       // the follower page of somebody who does not hold the floor is exactly
       // the one most likely to have loaded the video first.
-      if (!isParticipant(state, action.userId)) return state;
+      //
+      // **`inRoom` rather than `isParticipant`, which is what it said until
+      // 2026-09-23 while the comment said this.** A report is not a control
+      // and is still not one, but it is a report *about the film the room is
+      // watching*: it writes the title under the progress bar and the length
+      // the scrubber runs on, on everybody's screen. A member who is not in
+      // the room has no player — `Picture` mounts on this same `inRoom`, and
+      // is the only thing that sends this — so the loose guard admitted
+      // nothing the app does and one thing the wire could: renaming somebody
+      // else's film from outside the room. The same line `WATCH_HERE` draws
+      // ten lines below, and for the same reason.
+      if (!inRoom(state, action.userId)) return state;
       // Both facts from the one report, in the order they were learnt in —
       // the length since the party shipped, the name since 2026-09-20. A
       // report carrying no title is an older build or a player that could not

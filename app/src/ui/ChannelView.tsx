@@ -42,6 +42,7 @@ import {
   canLoadTrack,
   canStartWatch,
   canControlWatch,
+  canPlayWatch,
   watchIsPlaying,
   trackIsPlaying,
   canUnmuteRoom,
@@ -1879,6 +1880,16 @@ export function ChannelView({
   const watchedBefore = watch.history ?? [];
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
+  /**
+   * Play alone, which is the one thing on the transport a run refuses.
+   *
+   * Separate from `mayControlWatch` because the other four controls beside it
+   * are the ways out of a party and stay available for the length of any run
+   * — see `canPlayWatch`. Read here rather than inferred from the recording
+   * state so the greyed button and the reducer are one rule, which is what
+   * every guard on this screen does.
+   */
+  const mayPlayWatch = canPlayWatch(channel, me);
   const mayStartWatch = canStartWatch(channel, me);
   /**
    * The two transports, each of which is asked after by the other's card.
@@ -2732,7 +2743,11 @@ export function ChannelView({
           label={watch.status === 'playing' ? 'Pause' : 'Play'}
           variant="primary"
           style={styles.flexButton}
-          disabled={!mayControlWatch}
+          // Pause is the way out and is never refused for a run; play is.
+          // See `canPlayWatch`.
+          disabled={
+            watch.status === 'playing' ? !mayControlWatch : !mayPlayWatch
+          }
           onPress={() => {
             /*
               **The press, timestamped, and whether it left the device.**
