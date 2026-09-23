@@ -5438,27 +5438,53 @@ function ParticipantCard({
    * footer said *Nearby*. `isWaiting` already refuses anybody whose wait has
    * no clock at all.
    */
-  const nearby = !here && isWaiting(channel, participant.id);
+  const onWaitingRung = !here && isWaiting(channel, participant.id);
   /**
-   * Out of reach and worth calling — which is `nearby`, plus the minute before
-   * anybody is allowed to call it that.
+   * The other rung the word *Nearby* covers: still `present` to the roster,
+   * but the server has stopped hearing their socket and is holding the seat
+   * open for `DISCONNECT_GRACE_MS`.
    *
    * A phone suspends within a second of its owner pocketing it, and the room
-   * is not told for five seconds more, and then the grace holds them nominally
-   * present for a minute. Somebody who walked in on the arrival notification
-   * spent all of that looking at "Present · reconnecting…" with nothing to
-   * press — waiting out a timeout to be told what the line already said. The
-   * status keeps saying reconnecting, because that is still what it is; what
-   * changes is that the button is there while it does.
+   * is not told for five seconds more, and then the grace holds them
+   * nominally present for a minute. Somebody who walked in on the arrival
+   * notification spent all of that looking at "Present · reconnecting…" with
+   * nothing to press — waiting out a timeout to be told what the line already
+   * said.
+   *
+   * `here &&` is redundant and is written anyway, because it is the invariant
+   * that makes the two rungs disjoint: `DISCONNECT_EXPIRED` clears `present`
+   * and `disconnectedAt` in one step, so nobody is ever on both.
    */
-  const callable = nearby || reconnecting;
+  const onGraceRung = here && reconnecting;
   /**
-   * Whether this card is offering a ping. `callable` above is the answer to
-   * whether the speaking indicator is worth drawing, and the two are
-   * deliberately not the same question: somebody callable is somebody the room
-   * is not hearing, so the dot would be hollow for as long as they are —
-   * whether or not this reader is the one who may call them. Two marks that
-   * can never disagree, one of which says nothing.
+   * Out of reach and worth calling, which is the union of the two rungs above.
+   *
+   * **`callable` is exactly the state whose status line reads *Nearby*.** All
+   * four branches of `status` below agree: the grace rung says *Nearby*, the
+   * waiting rung says *Nearby* with a duration, and the two remaining cases
+   * say *Present* and *Stepped out*. Several rules hang off that equivalence
+   * rather than off the word, which is a rendered string and cannot be
+   * tested against — see `rail`.
+   */
+  const callable = onGraceRung || onWaitingRung;
+  /**
+   * Neither in the room nor callable: they stepped out, and far enough ago
+   * that the wait has lapsed and the roster has given up calling them nearby.
+   *
+   * Worth a name because the server's ping window outlives it — see `rail`,
+   * which keeps saying *Pinged* to a card that has stopped saying *Nearby*.
+   */
+  const departed = !here && !callable;
+  /**
+   * Whether this card is offering a ping this reader may actually press:
+   * `callable` says the person can be called, and `onPing` says *this reader*
+   * may call them — it is `mayPing` at the call site, which is `canPing` in
+   * `core/` plus an accepted contact.
+   *
+   * Deliberately narrower than `callable`, and `rail` uses both: what the
+   * room is hearing is a fact about the person, and whether there is a button
+   * is a fact about the reader. Conflating them is what drew a dot for
+   * somebody the room could not hear.
    */
   const pingable = !!onPing && callable;
   const [pinging, setPinging] = useState(false);
@@ -5486,24 +5512,50 @@ function ParticipantCard({
    */
   const windowOpen = pinged || pingWait !== null;
   /**
-   * Whether the control is drawn at all, which outlives being able to press
-   * it. `pingable` is the offer and lapses the moment they stop looking
-   * nearby; the window is five minutes (`PING_INTERVAL_MS`), and a card that
-   * dropped the word "Pinged" partway through would invite a second ping the
-   * server is going to refuse. So it stays until they can be called again —
-   * except once they are here, which is the answer to the ping and makes the
-   * speaking dot the more useful thing to hold the space.
+   * What the card's one trailing slot holds. Three outcomes, in this order:
    *
-   * **"Here" for that last clause is the room, not the roster's `present`.**
-   * The guard was written as `!here` when the grace period still read
-   * *Present · reconnecting…*, and 2026-09-08 changed the word to *Nearby*
-   * without changing this: a card inside the grace is `here`, so a reader who
-   * may not send the ping — not a contact, or out of the room themselves —
-   * saw the "Pinged" somebody else had earned replaced by a speaking dot, on
-   * a line that says the room cannot hear them. `callable` is the same two
-   * rungs the word *Nearby* covers, so it answers both halves at once.
+   * - **`ping`** — a `Ping` this reader may press, or a disabled `Pinged`
+   *   reporting a window somebody's ping has already opened.
+   * - **`nothing`** — a *Nearby* card with neither of those to show.
+   * - **`dot`** — the speaking indicator.
+   *
+   * **The rule is that `callable` makes the dot unreachable.** The dot is a
+   * claim about what the room is hearing, and *Nearby* is the word for
+   * somebody the room is not hearing at all, so there it could only ever sit
+   * hollow beside a line already explaining why — two marks that can never
+   * disagree, one of which says nothing. So a *Nearby* card's slot is the
+   * ping or it is empty.
+   *
+   * **Empty rather than a greyed `Ping`.** The case with neither half is a
+   * reader who may not ping: not an accepted contact of theirs, or out of the
+   * room themselves. Both are refusals, and STYLE.md § *Words on controls*
+   * wants a sentence beside a refused control; a roster card has no room for
+   * one, and a dead control is worse than an absent one. The answer to *why
+   * not* is a tap away — the card opens a profile whose Contact section
+   * offers *Add contact* — which is what the profile's own ping card was
+   * given for drawing nothing in its place.
+   *
+   * **`pingable` is the only term that makes the button pressable**; the rest
+   * decide whether it is drawn at all. The window is five minutes
+   * (`PING_INTERVAL_MS`) and outlives the offer, so a card that dropped the
+   * word "Pinged" partway through would invite a second ping the server is
+   * going to refuse.
+   *
+   * **`departed` is why that clause is not just `callable`.** Somebody who
+   * stepped out long enough ago to have lapsed off the waiting rung reads
+   * *Stepped out*, and the server's window may still be running against
+   * them; `callable` alone would drop the word there. The clause was `!here`
+   * until 2026-09-22, which covered that case and wrongly excluded the grace
+   * rung — where `here` is true but the line says *Nearby* — so a reader who
+   * may not ping saw a speaking dot in place of the *Pinged* somebody else
+   * had earned. One `!here` was doing two jobs and got one of them wrong.
    */
-  const showPing = pingable || (windowOpen && (callable || !here));
+  const rail: 'ping' | 'nothing' | 'dot' =
+    pingable || (windowOpen && (callable || departed))
+      ? 'ping'
+      : callable
+        ? 'nothing'
+        : 'dot';
 
   const sendPing = async () => {
     if (!onPing) return;
@@ -5711,22 +5763,20 @@ function ParticipantCard({
         </Text>
       ) : null}
       {/*
-        One rail, holding whichever of the two this card has something to say
-        with. The ping is offered only while they are out of reach and recently
-        so, which is the state it answers — somebody who stepped out an hour ago
-        is a different act, open their profile and say something, and a button
-        on every absent card would make the roster a row of buttons rather than
-        a picture of the room.
+        One rail, holding whichever of the three `rail` chose — which is where
+        the reasoning is, this being the shape of it rather than the rule.
+
+        The ping is offered only while they are out of reach and recently so:
+        somebody who stepped out an hour ago is a different act, open their
+        profile and say something, and a button on every absent card would
+        make the roster a row of buttons rather than a picture of the room.
 
         The dot is the dynamic part, and the only thing on this screen that
         changes several times a second: filled while they are audible, hollow
-        otherwise, always in the same place so a card does not reflow every time
-        somebody draws breath. It gives way on every card that reads *Nearby*,
-        since somebody out of reach is somebody the room is not hearing — the
-        dot could only sit hollow there, beside a button that says why or
-        beside nothing at all.
+        otherwise, always in the same place so a card does not reflow every
+        time somebody draws breath.
       */}
-      {showPing ? (
+      {rail === 'ping' ? (
         <Button
           label={pinging ? 'Pinging…' : windowOpen ? 'Pinged' : 'Ping'}
           style={styles.cardPing}
@@ -5738,23 +5788,7 @@ function ParticipantCard({
             void sendPing();
           }}
         />
-      ) : callable ? (
-        /*
-          Nothing, on a card that reads *Nearby* and has no ping to offer or
-          to report — the reader is not a contact of theirs, or has stepped
-          out of the room themselves. The dot is a claim about what the room
-          is hearing, and the room is hearing nobody who is *Nearby*: drawn
-          here it would sit permanently hollow beside a line saying why, which
-          is the one shape `pingable` above is careful to avoid. An empty rail
-          says the same thing and does not say it twice.
-
-          So the rail on a *Nearby* card is the ping and only ever the ping —
-          the action while there is one, its state while a window is spending,
-          and otherwise blank. The way to reach such a person is the card
-          itself, which opens a profile offering *Add contact*.
-        */
-        null
-      ) : (
+      ) : rail === 'nothing' ? null : (
         <View
           style={[styles.speakingDot, speaking && styles.speakingDotLive]}
           accessibilityElementsHidden
