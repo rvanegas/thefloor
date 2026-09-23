@@ -169,6 +169,32 @@ scoring against the count too. Three would have rebuilt a healthy picture in
 front of somebody who had just pressed Play. Fixed: only a settled `playing` or
 `paused` that contradicts the instruction counts.
 
+## Expanding stopped rebuilding the player — 2026-09-23
+
+The log measured the other thing rotation costs. Every `watch player ready`
+in it is followed by `watch tell seek+play (player unstarted at 0s …)` and
+then a second of catching up: **1517ms and 1001ms**, twice, because a turn of
+the wrist tore one `WebView` down and built another.
+
+That was never a necessity. `Dock` already moved the picture between docked
+and floating by changing a style object, and says that being structural
+rather than cosmetic is what reintroduces the reload. Full screen was the one
+place still doing it structurally: `ChannelView` returned `FullScreen` with a
+player of its own inside it, while `Picture` stood its own player down.
+
+Full screen is a third `Place` now. The player is given the whole window and
+never moves; `FullScreen` is the scrim alone, drawn by `Picture` over the
+picture — it has to be, since nothing below the picture in the tree can be
+painted above it. What the channel screen contributes is three booleans and a
+way out, because an element cannot be handed to an ancestor.
+
+**This removes the accidental cure, deliberately.** Rotating no longer hands
+the `WebView` a fresh media session, so it will no longer unstick a latched
+player — the watchdog does that now, on purpose and with a line in the log.
+It also removes a confound: every rotation was silently resetting the thing
+under investigation, so the stickiness that remains is now visible instead of
+being healed behind a gesture nobody meant as a repair.
+
 ## The protocol
 
 1. **Open the audio panel once** at the start of the session, on any channel.

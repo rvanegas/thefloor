@@ -50,11 +50,7 @@ function draw(onExit: () => void = () => {}) {
   let tree!: ReactTestRenderer;
   act(() => {
     tree = renderer.create(
-      <FullScreen
-        picture={<Text>picture</Text>}
-        chrome={<Text>transport</Text>}
-        onExit={onExit}
-      />
+      <FullScreen chrome={<Text>transport</Text>} onExit={onExit} />
     );
   });
   return tree;
@@ -76,11 +72,7 @@ describe('The expanded picture', () => {
     act(() => {
       tree = renderer.create(
         <WholeWindowContext.Provider value={{ taken: null, claim }}>
-          <FullScreen
-            picture={<Text>picture</Text>}
-            chrome={<Text>transport</Text>}
-            onExit={() => {}}
-          />
+          <FullScreen chrome={<Text>transport</Text>} onExit={() => {}} />
         </WholeWindowContext.Provider>
       );
     });

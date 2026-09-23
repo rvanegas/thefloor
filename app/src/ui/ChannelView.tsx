@@ -92,11 +92,9 @@ import {
   StopIcon,
   WatchIcon,
 } from './icons';
-import { FullScreen } from '../watch/FullScreen';
 import { WatchTransport } from '../watch/Transport';
 import { useIsTurned, useWatchShape, useWholeWindow } from './layout';
 import { DockSlot, usePicture } from '../watch/Picture';
-import { WatchPlayer } from '../watch/WatchPlayer';
 import {
   Button,
   Card,
@@ -631,11 +629,11 @@ export function ChannelView({
    */
   /*
     **Held by the picture rather than here, since the picture outlives this
-    screen.** The one player is mounted above the route table, and expanding
-    replaces it with `FullScreen`'s own — so the flag that says which of the
-    two is up cannot live in a component that either of them can outlast.
-    Local state is the fallback for a harness that renders this screen with no
-    picture above it, where there is no second player to collide with.
+    screen.** The one player is mounted above the route table and stays there
+    when the picture is expanded — `Dock.Place`, and the note on the effect
+    below — so the flag that says how big it is has to live where the player
+    does rather than on a screen the player outlasts. Local state is the
+    fallback for a harness that renders this screen with no picture above it.
   */
   const picture = usePicture();
   const [ownFullScreen, setOwnFullScreen] = useState(false);
@@ -645,12 +643,15 @@ export function ChannelView({
    * That the film will not play, as the player found out.
    *
    * Only the expanded picture reads it; see the collapse below, and
-   * `WatchPlayer`'s `onRefusal` for why it is reported at all. Either player
-   * may be the one that found out — the corner's, which reports through the
-   * picture, or the expanded one's, which is this screen's own.
+   * `WatchPlayer`'s `onRefusal` for why it is reported at all.
+   *
+   * **One source since 2026-09-23**, and it was two. There used to be a
+   * player on this screen as well as the one above the route table, so a
+   * refusal could arrive by either road and this screen kept its own half in
+   * state. There is one player now, wherever the picture is drawn, so there
+   * is one road.
    */
-  const [ownFilmRefused, setOwnFilmRefused] = useState(false);
-  const filmRefused = ownFilmRefused || !!picture?.refused;
+  const filmRefused = !!picture?.refused;
   const [watchError, setWatchError] = useState<string | null>(null);
   const [watchNote, setWatchNote] = useState<string | null>(null);
   /**
@@ -1035,6 +1036,76 @@ export function ChannelView({
   const collapse = useRef(setFullScreen);
   collapse.current = setFullScreen;
   useEffect(() => () => collapse.current(false), []);
+
+  /*
+    **What full screen is made of, as of 2026-09-23 — and it is no longer a
+    render.**
+
+    This screen used to hand back `FullScreen` with a player of its own inside
+    it, and that was the reload: a `WebView` reparented is a `WebView` rebuilt,
+    so a turn of the wrist tore one down and built another — 1.0 to 1.5
+    seconds of black, measured on build 276, on the most ordinary gesture
+    anybody makes at a film.
+
+    The player never moves now. It stays where it has been mounted since
+    2026-09-19, above the route table, and is given the whole window to fill;
+    the scrim goes over it, drawn by the component that draws the player,
+    because nothing below this point in the tree can be painted above it. So
+    this screen goes on rendering underneath, invisibly, and publishes the
+    three things the scrim cannot work out for itself.
+
+    **Publishing rather than passing**, and the shape is forced: an element
+    cannot be handed to an ancestor, and an element is a new object on every
+    render, so anything that carried one upward would re-render this screen
+    for ever. Booleans compare equal and stop. See `Picture.Controls`.
+
+    This screen still draws nothing at all while the state is on — see the
+    return further down, which is the old early return with its body removed.
+
+    **Up here with the other effects, and not beside the render it replaced.**
+    Half a dozen early returns stand between this point and there — an ended
+    channel, the settings, a transcript — and a hook after any of them is a
+    hook that is sometimes not called. It is the same trap the note on `act`
+    describes a few hundred lines above, in its more expensive form: a `const`
+    read too early throws where it is used, and a hook skipped takes the whole
+    screen down on the render after it.
+  */
+  useEffect(() => {
+    if (!picture) return;
+    const showing = fullScreen && partyLoaded && screenIsHere;
+    if (!showing || !channel) {
+      picture.setControls(null);
+      return;
+    }
+    picture.setControls({
+      mayControl: canControlWatch(channel, me),
+      mayPlay: canPlayWatch(channel, me),
+      /*
+        **No way out on the scrim while the phone is the way out.** A press of
+        an exit here would set a flag that is already down — the state is the
+        window's while `turned`, and the window does not change because
+        somebody pressed something — so the button would be visibly dead,
+        which is worse than absent. Turning the phone upright is what leaves,
+        and it is the gesture every other film on the phone answers to.
+
+        Everywhere else it is the whole of the control, and that is most
+        surfaces: a laptop, an iPad, and a phone held upright or lying flat,
+        all of which reached this state by pressing and none of which has a
+        turn that would get them out.
+      */
+      mayExit: !turned,
+    });
+  }, [picture, fullScreen, partyLoaded, screenIsHere, channel, me, turned]);
+
+  /*
+    The way out, registered once. `setExit` keeps it in a ref and
+    `setPressedFullScreen` is a setter, so neither end of this re-renders
+    anything and the effect has nothing to do on a later pass.
+  */
+  useEffect(() => {
+    picture?.setExit(() => setPressedFullScreen(false));
+  }, [picture]);
+
 
   /**
    * Stops being a screen when there is nothing to show.
@@ -2591,11 +2662,12 @@ export function ChannelView({
    * **The transport, which is one row drawn in two places.**
    *
    * The card has it under the picture and the expanded picture has it over
-   * the bottom of itself, and they are the same element rather than two that
-   * must be kept in step — a scrubber that learnt a new trick in one of them
-   * and not the other is exactly the drift this extraction exists to prevent.
-   * Only one of the two is ever mounted, `FullScreen` being an early return,
-   * so `trackWidth` below is unambiguous either way.
+   * the bottom of itself, and they are the same component rather than two
+   * that must be kept in step — a scrubber that learnt a new trick in one of
+   * them and not the other is exactly the drift `watch/Transport.tsx` exists
+   * to prevent. Both may now be mounted at once, the expanded one being drawn
+   * by `Picture`; each holds the width of its own track, so that is no longer
+   * a question this screen has to answer.
    *
    * Null with no party, there being nothing to drive.
    *
@@ -2688,40 +2760,26 @@ export function ChannelView({
     bar was buying reachability that was never more than a second off, at a
     fifth of a sideways phone. See `FullScreen`, which carries the rest of it.
   */
-  if (fullScreen && party && screeningHere) {
-    return (
-      <FullScreen
-        // **No name on the scrim**, which carries the transport and the way
-        // out and nothing else — see the flag on `watchTransport`.
-        chrome={watchTransport(false)}
-        /*
-          **No way out on the scrim while the phone is the way out.** A press
-          of an exit here would set a flag that is already down — the state is
-          the window's while `turned`, and the window does not change because
-          somebody pressed something — so the button would be visibly dead,
-          which is worse than absent. Turning the phone upright is what leaves,
-          and it is the gesture every other film on the phone answers to.
 
-          Everywhere else it is the whole of the control, and that is most
-          surfaces: a laptop, an iPad, and a phone held upright or lying flat,
-          all of which reached this state by pressing and none of which has a
-          turn that would get them out. See `FullScreen`.
-        */
-        onExit={turned ? null : () => setPressedFullScreen(false)}
-        picture={
-          <WatchPlayer
-            watch={watch}
-            channelId={channelId}
-            fill
-            onFilm={(durationMs, title) =>
-              act({ type: 'WATCH_READY', durationMs, title })
-            }
-            onRefusal={(message) => setOwnFilmRefused(message !== null)}
-          />
-        }
-      />
-    );
-  }
+  /*
+    **Nothing, while the picture has the glass.**
+
+    The old early return handed back `FullScreen` with a player inside it;
+    what is left of it hands back nothing, and the two are the same statement.
+    The picture is drawn above this whole route table and covers it, so
+    anything rendered here would be underneath an opaque film.
+
+    **It is not merely a saving.** A screen left mounted behind the picture is
+    one whose buttons still answer a finger at the edges of the scrim and
+    still appear to VoiceOver, which reads out a roster nobody can see over a
+    film. Drawing nothing is what keeps the expanded picture the only thing
+    there is, which is what it is for.
+
+    The publication above runs either way, being an effect: what the scrim may
+    offer is this screen's to say, and saying it is now the whole of this
+    screen's part in the state.
+  */
+  if (fullScreen && party && screeningHere) return null;
 
   /*
     **The second device, which is a television and is drawn as one.**

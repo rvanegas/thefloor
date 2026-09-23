@@ -11,8 +11,11 @@ import { inRoom } from '../../../core/guests';
 import { useApp } from '../state/AppProvider';
 import { COLUMN_GAP, useWatchShape } from '../ui/layout';
 import { colors } from '../ui/theme';
+import { watchPositionMs } from '../../../core/watch';
 import { WatchDock, type Rect } from './Dock';
+import { FullScreen } from './FullScreen';
 import { usePortraitUnlessAtTheFilm } from './orientation';
+import { WatchTransport } from './Transport';
 import { WatchPlayer } from './WatchPlayer';
 
 /**
@@ -36,10 +39,15 @@ import { WatchPlayer } from './WatchPlayer';
  * rather than of a body, which is what lets it sit over the pinned header and
  * footer and what makes it reachable from a screen that has neither.
  *
- * **Full screen is the one thing it stands down for.** `FullScreen` mounts a
- * player of its own — expanding has always cost a reload, and that price is
- * argued where it is paid, in `ChannelView` — so this one is torn down for as
- * long as that one is up. Two players on one party would be two sets of audio.
+ * **Full screen used to be the one thing it stood down for, and is not any
+ * more.** `FullScreen` mounted a player of its own until 2026-09-23, so
+ * expanding cost a reload: a black rectangle, a refetch of the IFrame API and
+ * a second of buffering, measured at 1.0 to 1.5 seconds on build 276 — paid on
+ * a turn of the wrist, which is the most ordinary thing anybody does at a
+ * film. It is a third *place* now, the same as the other two: the box changes
+ * and the player does not move. `FullScreen` is the scrim alone, and this
+ * component draws it, because a scrim over the picture cannot be drawn by
+ * anything the picture outranks. See planning/WATCH-RESPONSIVENESS.md.
  */
 
 /** A rectangle in window coordinates, which is what a measurement returns. */
@@ -85,6 +93,43 @@ type PictureApi = {
   setAtTheFilm: (there: boolean) => void;
   /** What the player last said about being refused, for whoever must react. */
   refused: boolean;
+  /**
+   * What the expanded picture's scrim may offer, published by the screen.
+   *
+   * **Three booleans rather than the row itself**, and the shape is forced.
+   * The scrim is drawn here, above the player; the answers are `ChannelView`'s,
+   * which is below. A React element cannot be handed upwards — and an element
+   * is a new object every render, so anything that stored one would re-render
+   * this component on every render of that one, for ever. Plain values compare
+   * equal and stop.
+   *
+   * Null while nothing is saying, which is every screen that is not a channel.
+   */
+  setControls: (controls: Controls | null) => void;
+  /**
+   * The way out of full screen, registered once by the screen that owns it.
+   *
+   * A callback rather than a flag because the flag it clears is
+   * `ChannelView`'s: what put the picture up was a press held there, and
+   * lowering this component's own `fullScreen` would be undone by that
+   * screen's next reconciliation. Kept in a ref, so registering it does not
+   * re-render anything.
+   */
+  setExit: (exit: () => void) => void;
+};
+
+/** What the scrim is allowed to offer, which only the channel screen knows. */
+export type Controls = {
+  mayControl: boolean;
+  mayPlay: boolean;
+  /**
+   * Whether a way out is drawn at all.
+   *
+   * False on a handheld that has been turned, where the state *is* the window
+   * and a press could not move it — a button that visibly does nothing is
+   * worse than no button. See `ChannelView`'s derivation.
+   */
+  mayExit: boolean;
 };
 
 const PictureContext = createContext<PictureApi | null>(null);
@@ -211,6 +256,9 @@ export function Picture({
   const [fullScreen, setFullScreen] = useState(false);
   const [atTheFilm, setAtTheFilm] = useState(false);
   const [refused, setRefused] = useState(false);
+  const [controls, setControlsState] = useState<Controls | null>(null);
+  /** The screen's own way out, which does not belong in state. See `setExit`. */
+  const exit = useRef<(() => void) | null>(null);
   /*
     Which way up the phone may be, which is decided here because this is the
     only place that knows the answer for the whole application. The rule is
@@ -246,6 +294,26 @@ export function Picture({
   const undock = useCallback((owner: object) => {
     setSlot((was) => (was && was.owner === owner ? null : was));
   }, []);
+  /*
+    Field by field, the same comparison `dock` makes and for the same reason:
+    the caller publishes on every change of any of them, and an object that
+    is equal in every field must not count as a change or this component
+    re-renders the whole application underneath it once a tick.
+  */
+  const setControls = useCallback((next: Controls | null) => {
+    setControlsState((was) => {
+      if (!next) return was === null ? was : null;
+      return was &&
+        was.mayControl === next.mayControl &&
+        was.mayPlay === next.mayPlay &&
+        was.mayExit === next.mayExit
+        ? was
+        : next;
+    });
+  }, []);
+  const setExit = useCallback((fn: () => void) => {
+    exit.current = fn;
+  }, []);
 
   const api = useMemo<PictureApi>(
     () => ({
@@ -256,8 +324,10 @@ export function Picture({
       atTheFilm,
       setAtTheFilm,
       refused,
+      setControls,
+      setExit,
     }),
-    [dock, undock, fullScreen, atTheFilm, refused]
+    [dock, undock, fullScreen, atTheFilm, refused, setControls, setExit]
   );
 
   /**
@@ -294,7 +364,7 @@ export function Picture({
    * of `inRoom`, and the same line the reducer draws for `WATCH_HERE`.
    */
   const picture =
-    channelId && channel && watch && party && inRoom(channel, me) && !fullScreen ? (
+    channelId && channel && watch && party && inRoom(channel, me) ? (
       <WatchDock
         /*
           **No second device ever reaches `floating`**, and the rule is kept
@@ -309,7 +379,15 @@ export function Picture({
           yet. The second is every arrival, and a rule written here would stop
           the film on the frame it started.
         */
-        place={slot ? 'docked' : 'floating'}
+        /*
+          **Full screen is a place now, which is the 2026-09-23 change.** It
+          used to be the one state this component stood down for, `FullScreen`
+          mounting a player of its own — so expanding cost a reload, measured
+          at 1.0 to 1.5 seconds of black on build 276, on the most ordinary
+          gesture anybody makes at a film. The player stays where it is and
+          the box changes; see `Dock.Place`.
+        */
+        place={fullScreen ? 'full' : slot ? 'docked' : 'floating'}
         /*
           **A paused film has no corner.** The floating rectangle is for a film
           that is still running while somebody is somewhere else in the
@@ -386,6 +464,40 @@ export function Picture({
         }}
       >
         {picture}
+        {/*
+          **The scrim, over the picture and drawn here for that reason.**
+
+          Everything on it belongs to the channel screen — what may be pressed,
+          and what leaving means — but it has to be painted above a player that
+          is this component's child, and nothing below this point in the tree
+          can be. So the screen publishes the three answers and registers its
+          way out, and the row itself is the same component the card draws.
+
+          `watchAt` is computed here rather than published, being a number that
+          changes twice a second: the application already re-renders on that
+          tick, and a value that arrived through state would be a render of
+          everything underneath this for every one of them.
+        */}
+        {fullScreen && channelId && watch && party ? (
+          <FullScreen
+            chrome={
+              <WatchTransport
+                watch={watch}
+                party={party}
+                watchAt={watchPositionMs(watch, app.serverNow())}
+                mayControl={controls?.mayControl ?? false}
+                mayPlay={controls?.mayPlay ?? false}
+                // The scrim carries the transport and the way out and nothing
+                // else; the name is for a page somebody is reading.
+                withTitle={false}
+                act={(action) => app.act(channelId, action)}
+              />
+            }
+            onExit={
+              controls?.mayExit ? () => exit.current?.() : null
+            }
+          />
+        ) : null}
       </View>
     </PictureContext.Provider>
   );

@@ -11,7 +11,7 @@ import {
   resetHarness,
   showChannel,
 } from '../../ui/testing/harness';
-import { DockSlot, Picture } from '../Picture';
+import { DockSlot, Picture, usePicture } from '../Picture';
 import { WatchDock } from '../Dock';
 import { WatchPlayer } from '../WatchPlayer';
 
@@ -121,6 +121,49 @@ describe('The picture outlives the screen it was started from', () => {
     expect(player()).toHaveLength(1);
     // The page was built once and has not been built again, which is the
     // difference between a film that kept playing and one that went black.
+    expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **Expanding does not rebuild it either, which is the 2026-09-23 change.**
+   *
+   * Full screen was the one state this component stood down for: `FullScreen`
+   * mounted a player of its own, so a turn of the wrist tore one `WebView`
+   * down and built another — 1.0 to 1.5 seconds of black, measured on build
+   * 276, on the most ordinary gesture anybody makes at a film. It is a third
+   * *place* now, and the box is the only thing that changes.
+   *
+   * Asserted on the mount count rather than on anything drawn, for the reason
+   * the test above is: the picture looks identical either way, and a rebuild
+   * is invisible in a tree and unmistakable on a phone.
+   */
+  it('keeps one player across expanding and collapsing', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+
+    let api: ReturnType<typeof usePicture> = null;
+    function Probe() {
+      api = usePicture();
+      return <Text>the channel</Text>;
+    }
+    const tree = render(
+      <Picture onOpen={() => {}}>
+        <Probe />
+      </Picture>
+    );
+    const player = () => tree.root.findAll((node) => node.type === WatchPlayer);
+    expect(mockMounts.count).toBe(1);
+
+    act(() => api!.setFullScreen(true));
+    expect(player()).toHaveLength(1);
+    expect(mockMounts.count).toBe(1);
+
+    // And back, which is the turn upright. Both directions, because the two
+    // used to be separate tear-downs: one mounted `FullScreen`'s player and
+    // the other mounted this one's.
+    act(() => api!.setFullScreen(false));
+    expect(player()).toHaveLength(1);
     expect(mockMounts.count).toBe(1);
     act(() => tree.unmount());
   });

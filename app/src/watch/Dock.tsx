@@ -12,12 +12,23 @@ import { colors, radius, spacing } from '../ui/theme';
 /**
  * Where the picture is, which is the whole of what this component decides.
  *
- * Two places and no third: **docked**, a pinned row under the tabs on the
- * *Watch* tab, and **floating**, a small rectangle in one of the four corners
- * of the application. Full screen is not one of them — it replaces the screen
- * rather than sitting in it, and `FullScreen` mounts its own player.
+ * Three places: **docked**, a pinned row under the tabs on the *Watch* tab;
+ * **floating**, a small rectangle in one of the four corners of the
+ * application; and **full**, the whole of it.
+ *
+ * **Full screen was not one of them until 2026-09-23**, and the reason it is
+ * now is the reason this file exists at all. It used to replace the screen —
+ * `FullScreen` mounted a player of its own and this one stood down — so
+ * expanding the picture tore one `WebView` down and built another: a black
+ * rectangle, a refetch of the IFrame API and a second of buffering, measured
+ * at 1.0 to 1.5 seconds on build 276, every time somebody turned their phone.
+ * That is the same reload this file's whole arrangement is written to avoid,
+ * and it was being paid on the most ordinary gesture a person makes at a film.
+ *
+ * So full screen is a style like the other two, `FullScreen` is the scrim
+ * alone, and the player never moves. See planning/WATCH-RESPONSIVENESS.md.
  */
-export type Place = 'docked' | 'floating';
+export type Place = 'docked' | 'floating' | 'full';
 
 /** The four corners the floating picture settles into, and no fifth. */
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -184,6 +195,7 @@ export function WatchDock({
   children: React.ReactNode;
 }): React.ReactElement {
   const floating = place === 'floating';
+  const full = place === 'full';
 
   /** Which corner it is resting in, which survives every tab and every route. */
   const [corner, setCorner] = useState<Corner>(HOME_CORNER);
@@ -277,7 +289,7 @@ export function WatchDock({
     would happen on the frame somebody taps *Watch*. Invisible in the corner
     costs a frame nobody sees.
   */
-  const unplaced = !floating && !slot;
+  const unplaced = !floating && !full && !slot;
 
   /*
     The two ways a picture is here and not on show, and they are one style:
@@ -287,13 +299,25 @@ export function WatchDock({
     so the drag surface goes with the paint, and the view itself takes no
     touches.
   */
+  /*
+    **A paused film in full screen is still on show**, which is why `hidden`
+    is read only for the floating case. The corner is for a film that is
+    running while somebody is elsewhere; the whole glass is where somebody is
+    looking, and blanking it on a pause would be blanking the thing they are
+    looking at.
+  */
   const unshown = unplaced || (floating && hidden);
 
   return (
     <Animated.View
       pointerEvents={unshown ? 'none' : undefined}
       style={
-        floating && !hidden
+        full
+          ? // The whole application, and the box is what that means. No
+            // corner radius and no shadow: those are a card's edge and this
+            // has none — the edge is the device's.
+            [styles.full, { width: box.width, height: box.height }]
+          : floating && !hidden
           ? [
               styles.pip,
               { left: at.x, top: at.y, transform: pan.getTranslateTransform() },
@@ -330,6 +354,8 @@ export function WatchDock({
 }
 
 const styles = StyleSheet.create({
+  /** The whole glass, which is what full screen is once the player stays put. */
+  full: { position: 'absolute', left: 0, top: 0, backgroundColor: '#000' },
   /**
    * The docked row, drawn into the hole the channel screen left for it.
    *

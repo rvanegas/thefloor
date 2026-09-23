@@ -110,12 +110,9 @@ const FADE_MS = 200;
  * the picture means.
  */
 export function FullScreen({
-  picture,
   chrome,
   onExit,
 }: {
-  /** The player, which fills whatever it is given. */
-  picture: React.ReactNode;
   /**
    * The transport — the same row the card has, drawn over the picture, and
    * with {@link onExit} the whole of what is drawn over the picture.
@@ -222,9 +219,20 @@ export function FullScreen({
     []
   );
 
+  /*
+    **The scrim alone, since 2026-09-23.** The picture used to be a child of
+    this component and is not any more: it stays where it is mounted, above
+    the route table, and is merely given the whole box to fill — see
+    `Dock.Place`. So this is drawn *over* it rather than around it, by the
+    same component that draws the player, and it is transparent throughout.
+
+    What that bought is the reload that expanding used to cost: a `WebView`
+    reparented is a `WebView` rebuilt, and a turn of the wrist was tearing one
+    down and building another for a second and a half of black.
+  */
   return (
     <View
-      style={styles.screen}
+      style={StyleSheet.absoluteFill}
       /*
         Every touch in this state, offered to nothing and recorded. Capture
         rather than a handler, and it always declines — so the transport's own
@@ -237,28 +245,26 @@ export function FullScreen({
         return false;
       }}
     >
-      <View style={styles.stage}>
-        {picture}
-        <View
-          style={StyleSheet.absoluteFill}
-          pointerEvents="box-only"
-          {...touch.panHandlers}
-        />
+      <View
+        style={StyleSheet.absoluteFill}
+        pointerEvents="box-only"
+        {...touch.panHandlers}
+      />
         {/*
           Inert while it is down, so that a tap aimed at bringing it back is
           not swallowed by the invisible row it is aimed through. Opacity alone
           would leave a full-width bar catching every touch along the bottom of
           the film.
         */}
-        <Animated.View
-          testID="chrome"
-          style={[
-            styles.chrome,
-            { opacity: fade, paddingBottom: spacing(1.5) + inset.bottom },
-          ]}
-          pointerEvents={shown ? 'box-none' : 'none'}
-        >
-          {chrome}
+      <Animated.View
+        testID="chrome"
+        style={[
+          styles.chrome,
+          { opacity: fade, paddingBottom: spacing(1.5) + inset.bottom },
+        ]}
+        pointerEvents={shown ? 'box-none' : 'none'}
+      >
+        {chrome}
           {/*
             **Words rather than a glyph**, against § *Icons*' licence for a
             header glyph and for the reason this button existed the first time:
@@ -273,27 +279,21 @@ export function FullScreen({
             follow. There is no phone to turn in a browser, which is how the
             other one came to be useless on half the surfaces that needed it.
           */}
-          {onExit ? <Button label="Exit full screen" onPress={onExit} /> : null}
-        </Animated.View>
-      </View>
+        {onExit ? <Button label="Exit full screen" onPress={onExit} /> : null}
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000' },
-  /**
-   * Black rather than `colors.bg`, for the reason the card's frame is black:
-   * what shows here is letterbox, which belongs to the film rather than to the
-   * application, and a light strip down each side of a picture is the one
-   * place this palette would be read as a mistake.
-   *
-   * **It is the whole window now**, the footer having stopped being a sibling
-   * that takes its own height: the film is fitted to all the glass there is and
-   * cropped by nothing. What is left over at the sides of a 16:9 film on a
-   * phone that is wider than that is the film's letterbox and stays black.
-   */
-  stage: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  /*
+    **Nothing here paints a background any more.** This component used to own
+    two black surfaces, because the picture was inside it and what showed
+    around a 16:9 film was letterbox that belongs to the film rather than to
+    the application. The picture is underneath now and brings its own black
+    with it — `Dock`'s `full` — so a background here would be a sheet of
+    paint over the very thing this is a scrim for.
+  */
   /**
    * **Over the picture, which is the one departure this file makes from
    * § *The shape of a screen*.** The rule is that pinned rows are siblings of

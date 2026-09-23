@@ -2232,9 +2232,12 @@ falls well short of the glass. What is left on the scrim fades after three
 seconds of nothing being pressed and comes back at a touch anywhere — the
 gesture every other player on the phone has already taught — and it starts up
 rather than down, so it is seen before it goes. The film is fitted, never cropped: what
-is left at the sides is the film's own letterbox. Expanding and collapsing each rebuild the
-player, so the film reloads and the follower drives it back to where everybody
-is; the cost is a few seconds of black for the one person who turned the phone.
+is left at the sides is the film's own letterbox. **Expanding and collapsing
+cost nothing since 2026-09-23**: full screen is a third *place* for the
+picture rather than a screen of its own, so the player is given the whole
+window and never rebuilt. It used to be rebuilt both ways — the film reloading
+and the follower driving it back — which was 1.0 to 1.5 seconds of black,
+measured on build 276, for the one person who turned their phone.
 
 ## Screen
 
@@ -2392,11 +2395,13 @@ application, dragged to any of them and tapped to go back to the controls; and
 
 **It is one player throughout, which is why the word is worth having.** A
 `WebView` that is reparented is rebuilt — the page reloads, the film starts
-from black and the follower drives it back — so docked and floating are one
-element in two styles rather than two renders in two branches of the screen.
-The one exception is full screen, which replaces the screen and does mount its
-own; that costs a few seconds of black to the person who turned the phone, and it is
-written down where it is paid.
+from black and the follower drives it back — so the three places are one
+element in three styles rather than renders in three branches of a screen.
+**Full screen was the exception until 2026-09-23** and is not one now: it
+mounted a player of its own, which cost 1.0 to 1.5 seconds of black to
+whoever turned their phone, measured on build 276. It is a place like the
+other two, and `FullScreen` is the scrim over the picture rather than a screen
+containing it.
 
 **Its parent is the application rather than any screen**, since 2026-09-19 and
 for exactly the reason above: wherever the player is mounted is the furthest

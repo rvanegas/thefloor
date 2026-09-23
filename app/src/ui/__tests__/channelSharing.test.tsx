@@ -10,6 +10,7 @@ import { type ChannelState } from '../../../../core/types';
 import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { WholeWindowContext } from '../layout';
+import { Picture } from '../../watch/Picture';
 import { WatchPlayer } from '../../watch/WatchPlayer';
 import { resetDiagnostics } from '../../audio/diagnostics';
 import { Share } from 'react-native';
@@ -162,6 +163,31 @@ describe('Channel, watching together', () => {
         onExit={() => {}}
       />);
   }
+
+  /**
+   * The screen with the picture above it, which is how the application puts
+   * them together and, since 2026-09-23, the only way to see full screen.
+   *
+   * The scrim is drawn by `Picture` now rather than returned by the screen:
+   * the player stays mounted above the route table so that expanding costs no
+   * reload, and controls have to be painted above a player that nothing below
+   * it in the tree can be painted above. What the screen does instead is
+   * publish what the scrim may offer — so a test that rendered the screen
+   * alone would be asserting against a publication nobody had drawn.
+   *
+   * Rendering both is also the truer test: the two halves have to agree about
+   * when the state is on, and that agreement is the thing that would break.
+   */
+  const composed = () => (
+    <Picture onOpen={() => {}}>
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    </Picture>
+  );
 
   /**
    * Labs off throughout, the watch party having left it on 2026-09-18: what
@@ -725,6 +751,12 @@ describe('Channel, watching together', () => {
   });
 
   describe('Full screen', () => {
+    /** Shadows the outer one, which renders the screen without a picture. */
+    function open() {
+      const tree = render(composed());
+      showWatch(tree);
+      return tree;
+    }
     /**
      * On the *Watch* tab, on the device showing the film, asked for.
      *
@@ -743,14 +775,7 @@ describe('Channel, watching together', () => {
 
     /** Whatever has changed, drawn again — the reading is taken at render. */
     const again = (tree: ReactTestRenderer) =>
-      act(() =>
-        tree.update(<ChannelView
-            channelId="sess_1"
-            audio={AUDIO}
-            onClose={() => {}}
-            onExit={() => {}}
-          />)
-      );
+      act(() => tree.update(composed()));
 
     /** What the card has and the expanded picture does not. */
     const onTheCard = (tree: ReactTestRenderer) =>
@@ -1670,13 +1695,18 @@ describe('Channel, watching together', () => {
    */
   describe('the second device', () => {
     /** The screen here, the room elsewhere, which is the whole of the state. */
-    function asSecondDevice(state = watching()) {
+    function asSecondDevice(
+      state = watching(),
+      // `openOnPeople` rather than `open`: there is no tab strip to tap, and
+      // `showWatch` would throw — which is itself asserted below. The one
+      // test that expands passes `composed` instead, the scrim being drawn
+      // above the route table rather than by this screen.
+      draw: () => ReactTestRenderer = openOnPeople
+    ) {
       showChannel(state);
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
-      // `openOnPeople` rather than `open`: there is no tab strip to tap, and
-      // `showWatch` would throw — which is itself asserted below.
-      return openOnPeople();
+      return draw();
     }
 
     it('keeps the role while the first snapshot is still on its way', () => {
@@ -1979,16 +2009,9 @@ describe('Channel, watching together', () => {
         *Members*. So the one surface whose entire purpose is the picture was
         the one that could not expand it.
       */
-      const tree = asSecondDevice();
+      const tree = asSecondDevice(watching(), () => render(composed()));
       act(() => findButton(tree, 'Full screen')!.props.onPress());
-      act(() =>
-        tree.update(<ChannelView
-            channelId="sess_1"
-            audio={AUDIO}
-            onClose={() => {}}
-            onExit={() => {}}
-          />)
-      );
+      act(() => tree.update(composed()));
       expect(findButton(tree, 'Exit full screen')).toBeDefined();
       // Expanded, the rungs go with everything else: the scrim is the
       // transport and the way out, which is what 2026-09-20 settled.
