@@ -128,6 +128,18 @@ describe('Channel, watching together', () => {
     );
   }
 
+  /**
+   * The two offers a device can make about where the film should be.
+   *
+   * One of them at most, and neither when no device of this account has the
+   * film — which is the shape *Watch on* took on 2026-09-23, having been a
+   * switch showing both answers with one of them always inert.
+   */
+  const sendOffer = (tree: ReactTestRenderer) =>
+    findButton(tree, 'Watch on another device');
+  const fetchOffer = (tree: ReactTestRenderer) =>
+    findButton(tree, 'Watch on this device');
+
   /** The same party, running — which is when a screen is evidence of anybody. */
   function playing(mutate: (s: ChannelState) => ChannelState = (s) => s) {
     return watching((s) =>
@@ -290,7 +302,7 @@ describe('Channel, watching together', () => {
     mockApp.screensElsewhere = ['sess_1'];
     showChannel(watching());
     const tree = open();
-    expect(chosen(tree, 'Other device')).toBe(true);
+    expect(fetchOffer(tree)).toBeDefined();
     expect(findButton(tree, 'Play')!.props.disabled).toBe(false);
     expect(findButton(tree, '−15s')!.props.disabled).toBe(false);
     expect(findButton(tree, '+15s')!.props.disabled).toBe(false);
@@ -356,12 +368,12 @@ describe('Channel, watching together', () => {
     // Choosing a screen of your own is not changing what the channel is doing,
     // so the floor has no business governing it. A claim decides what plays;
     // it does not decide which of your devices shows it.
+    mockApp.screenFor = 'sess_1';
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
-    expect(findChoice(tree, 'This device')!.props.disabled).toBeFalsy();
-    expect(findChoice(tree, 'Other device')!.props.disabled).toBeFalsy();
+    expect(sendOffer(tree)!.props.disabled).toBeFalsy();
     act(() => tree.unmount());
   });
 
@@ -439,9 +451,10 @@ describe('Channel, watching together', () => {
   });
 
   it('asks what this account has signed in, on the way to another device', () => {
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    act(() => findChoice(tree, 'Other device')!.props.onPress());
+    act(() => sendOffer(tree)!.props.onPress());
     // Asked at the moment of the tap rather than watched: a list that
     // refreshed itself would be a list that changed under a finger.
     expect(mockApp.listScreens).toHaveBeenCalled();
@@ -449,9 +462,10 @@ describe('Channel, watching together', () => {
   });
 
   it('says plainly when there is no other device to watch on', () => {
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    act(() => findChoice(tree, 'Other device')!.props.onPress());
+    act(() => sendOffer(tree)!.props.onPress());
     expect(textOf(tree)).toContain('No other device is signed in');
     // And the banner is the whole answer: no link is offered, because the one
     // that would help is a full session credential. See planning/WATCH-IN-APP.md.
@@ -464,9 +478,10 @@ describe('Channel, watching together', () => {
       { device: 'dev-me', name: 'iPhone 15 Pro', client: 'native', self: true, watching: false },
       { device: 'dev-laptop', name: 'Chrome on macOS', client: 'web', self: false, watching: false },
     ];
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    act(() => findChoice(tree, 'Other device')!.props.onPress());
+    act(() => sendOffer(tree)!.props.onPress());
     expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', 'dev-laptop');
     /*
       **And does not stop showing it here**, which reversed on 2026-09-18.
@@ -486,9 +501,10 @@ describe('Channel, watching together', () => {
     // find nowhere to go: an account with one device gets the banner and
     // keeps its film, where an eager clear would take it away and offer
     // nothing in its place.
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    act(() => findChoice(tree, 'Other device')!.props.onPress());
+    act(() => sendOffer(tree)!.props.onPress());
     expect(textOf(tree)).toContain('No other device is signed in');
     // Not *cleared*. Asking to be the screen is what a loaded party does by
     // default now, so the assertion is about the hand-over and not about
@@ -503,9 +519,10 @@ describe('Channel, watching together', () => {
       { device: 'dev-laptop', name: 'Chrome on macOS', client: 'web', self: false, watching: false },
       { device: 'dev-pad', name: null, client: 'native', self: false, watching: false },
     ];
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    act(() => findChoice(tree, 'Other device')!.props.onPress());
+    act(() => sendOffer(tree)!.props.onPress());
     expect(findButton(tree, 'Chrome on macOS')).toBeDefined();
     // A device that gave no name is described by its kind rather than by an
     // invented name, which in a list of real ones would be worse than a gap.
@@ -552,7 +569,7 @@ describe('Channel, watching together', () => {
     mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    expect(chosen(tree, 'This device')).toBe(true);
+    expect(sendOffer(tree)).toBeDefined();
     // The room is told, because a screen and a microphone on one device is
     // what decides whether the next run's mute can be lifted.
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -1340,15 +1357,16 @@ describe('Channel, watching together', () => {
 
   it('leaves the screen buttons alone when the link is copied', async () => {
     (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+    // The film is on this device, which is what gives the card an offer to
+    // leave alone — the default a stepped-in device applies for itself.
+    mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
     await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
 
-    // The copied state belongs to one button. The switch that decides where
-    // the film is shown is a different question and must go on offering both
-    // of its answers.
-    expect(findChoice(tree, 'This device')).toBeDefined();
-    expect(findChoice(tree, 'Other device')).toBeDefined();
+    // The copied state belongs to one button. Where the film is shown is a
+    // different question, and its offer must go on being made.
+    expect(sendOffer(tree)).toBeDefined();
     act(() => tree.unmount());
   });
 
@@ -1467,8 +1485,8 @@ describe('Channel, watching together', () => {
     // again for the next, so an idle card has nothing to ask.
     showChannel(channelOf());
     const tree = open();
-    expect(findChoice(tree, 'This device')).toBeUndefined();
-    expect(findChoice(tree, 'Other device')).toBeUndefined();
+    expect(sendOffer(tree)).toBeUndefined();
+    expect(fetchOffer(tree)).toBeUndefined();
     act(() => tree.unmount());
   });
   /**
@@ -1540,12 +1558,15 @@ describe('Channel, watching together', () => {
    * it just made rather than nothing at all.
    */
   describe('where the film is shown', () => {
-    it('asks once and offers two answers', () => {
+    it('offers the one move that applies and never the other', () => {
+      // The film lands on a stepped-in device by default, so what this card
+      // has to offer is sending it away. The opposite offer would be a
+      // control that did nothing if it were pressed.
+      mockApp.screenFor = 'sess_1';
       showChannel(watching());
       const tree = open();
-      expect(textOf(tree)).toContain('Watch on');
-      expect(findChoice(tree, 'This device')).toBeDefined();
-      expect(findChoice(tree, 'Other device')).toBeDefined();
+      expect(sendOffer(tree)).toBeDefined();
+      expect(fetchOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -1576,8 +1597,10 @@ describe('Channel, watching together', () => {
       showChannel(watching((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
       const tree = open();
       expect(mockApp.showScreenFor).not.toHaveBeenCalledWith('sess_1');
-      expect(chosen(tree, 'Other device')).toBe(true);
-      expect(chosen(tree, 'This device')).toBe(false);
+      // And neither offer at all: no device of this account has the film, so
+      // there is nothing to move and nothing to fetch.
+      expect(sendOffer(tree)).toBeUndefined();
+      expect(fetchOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -1601,8 +1624,8 @@ describe('Channel, watching together', () => {
       mockApp.screensElsewhere = ['sess_1'];
       showChannel(watching());
       const tree = open();
-      expect(chosen(tree, 'Other device')).toBe(true);
-      expect(chosen(tree, 'This device')).toBe(false);
+      expect(fetchOffer(tree)).toBeDefined();
+      expect(sendOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -1624,8 +1647,8 @@ describe('Channel, watching together', () => {
       mockApp.screenFor = 'sess_1';
       showChannel(watching());
       const tree = open();
-      expect(chosen(tree, 'This device')).toBe(true);
-      expect(chosen(tree, 'Other device')).toBe(false);
+      expect(sendOffer(tree)).toBeDefined();
+      expect(fetchOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -1645,11 +1668,8 @@ describe('Channel, watching together', () => {
     mockApp.screenFor = 'sess_1';
     showChannel(playing());
     const tree = open();
-    expect(findChoice(tree, 'This device')!.props.disabled).toBeFalsy();
-    expect(findChoice(tree, 'Other device')!.props.disabled).toBeFalsy();
-    // The switch goes on saying where the film is, which is the thing
-    // somebody looking for the picture needs to read.
-    expect(chosen(tree, 'This device')).toBe(true);
+    // The offer is there and takes a press, where it used to be refused.
+    expect(sendOffer(tree)!.props.disabled).toBeFalsy();
     // And the sentence that told people to pause first is gone with the rule.
     expect(textOf(tree)).not.toContain('Pause the film');
     act(() => tree.unmount());
@@ -1662,14 +1682,20 @@ describe('Channel, watching together', () => {
     // mean they do not want one.
     showChannel(playing((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
     const tree = open();
-    expect(findChoice(tree, 'This device')!.props.disabled).toBe(true);
+    // Not refused now but absent: with no device of this account showing the
+    // film there is nothing to move, and no question for an offer to answer.
+    expect(sendOffer(tree)).toBeUndefined();
+    expect(fetchOffer(tree)).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('makes this device the screen when the same answer is pressed', () => {
+  it('makes this device the screen when the offer to fetch is pressed', () => {
+      // The offer only exists while the film is on another of your devices,
+      // which is the only state in which claiming it does anything.
+      mockApp.screensElsewhere = ['sess_1'];
       showChannel(watching());
       const tree = open();
-      act(() => findChoice(tree, 'This device')!.props.onPress());
+      act(() => fetchOffer(tree)!.props.onPress());
       expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
       act(() => tree.unmount());
     });
@@ -1750,13 +1776,16 @@ describe('Channel, watching together', () => {
       expect(findButton(tree, 'Full screen')).toBeDefined();
       /*
         And none of the party's other controls, all of which belong to the
-        device holding the room. *Watch on* is the one that would be actively
-        wrong here: the switch that sent the film to this device is on the
-        other one, and a second copy of it pointing at itself is the remote
-        control being in two places.
+        device holding the room.
+
+        **The one offer it does carry is the send**, which is the same words
+        the card uses and the same act: this device has the film, so what it
+        can do about it is give it back. What would be actively wrong here is
+        the *fetch* — an offer to bring the film to the device it is already
+        on, which is the remote control being in two places.
       */
-      expect(findChoice(tree, 'This device')).toBeUndefined();
-      expect(findChoice(tree, 'Other device')).toBeUndefined();
+      expect(sendOffer(tree)).toBeDefined();
+      expect(fetchOffer(tree)).toBeUndefined();
       expect(findButton(tree, 'Stop')).toBeUndefined();
       expect(findButton(tree, 'Change video')).toBeUndefined();
       expect(findButton(tree, 'Settings')).toBeUndefined();
@@ -1862,7 +1891,7 @@ describe('Channel, watching together', () => {
         the device holding the room learns it from the server.
       */
       const tree = asSecondDevice();
-      act(() => findButton(tree, 'Other device')!.props.onPress());
+      act(() => sendOffer(tree)!.props.onPress());
       expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
       // The room is untouched: no STOP_WATCH and no rung. The transport is
       // the one thing it does say to the channel, and only while the film is
@@ -1883,7 +1912,7 @@ describe('Channel, watching together', () => {
         and should not look like one.
       */
       const tree = asSecondDevice(playing());
-      act(() => findButton(tree, 'Other device')!.props.onPress());
+      act(() => sendOffer(tree)!.props.onPress());
       expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
         type: 'WATCH_PAUSE',
       });
@@ -1913,7 +1942,7 @@ describe('Channel, watching together', () => {
         { device: 'dev-pad', name: 'iPad', client: 'native', self: false, watching: false },
       ];
       const tree = asSecondDevice(playing());
-      act(() => findButton(tree, 'Other device')!.props.onPress());
+      act(() => sendOffer(tree)!.props.onPress());
       expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', null);
       // No list and no picker: two other devices signed in is not a question
       // for the person who has walked away from this one.
@@ -1954,7 +1983,7 @@ describe('Channel, watching together', () => {
           />)
       );
       expect(textOf(tree)).toContain('Watching');
-      expect(findButton(tree, 'Other device')).toBeDefined();
+      expect(sendOffer(tree)).toBeDefined();
       act(() => tree.unmount());
     });
 
@@ -1965,7 +1994,7 @@ describe('Channel, watching together', () => {
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
       const tree = openOnPeople();
-      expect(findButton(tree, 'Other device')).toBeUndefined();
+      expect(sendOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 

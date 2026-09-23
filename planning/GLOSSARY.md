@@ -100,7 +100,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed and no recording begun. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
-- **Screen** — The app instance showing a party's film; any device you are signed in on, chosen with the *Watch on* switch — or, since 2026-09-23, by *tap to watch here* on Home's pinned bar, which is the same claim made from the device you have walked to rather than from the one holding the film — *this device* (the default once per film, while *stepped in*) or *other device* (the default outside the room), which is one fact each device states in its own terms, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
+- **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and neither when no device of yours has it; a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
 - **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home* — the way to stop being the second device is *Other device*, under *Full screen* — no corner to float into, and no channel list beside it however wide the window; a film sent here subscribes this device to the channel and opens it on *Watch*, taking the device over whatever it was showing — another channel, the channel list, a settings screen, a transcript, a profile — and only the server's ask counting as an arrival
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch* — or under the header alone on a *second device*, which has no tabs — or a column beside its transport where the pane is wide enough (see *watch shape*), a small draggable rectangle resting in one of the four corners of the application everywhere else — and that corner only while the film is *playing*, a paused one being hidden rather than parked over another tab — or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device. Two ways in, and a surface gets whichever it can perform: the *Full screen* button on the watch card everywhere, and on a *handheld*, *turning* the device sideways. *Exit full screen* on the scrim leaves — except on a turned handheld, where it is not drawn and the wrist is the way out. On the scrim, the transport and that button and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. Three automatic collapses besides. One device's own business and never the party's
@@ -2249,26 +2249,35 @@ be. A screen does not *step in*, so it neither displaces the device holding
 your voice nor claims an audio session of its own, which is why a film on a
 second device sounds best.
 
-**Two ways to choose it, and the second was added 2026-09-23 because only one
-of them was convenient.** *Watch on* is how you send the film away, and it is
-on the device you are holding, which is the right place for that. Fetching it
-back meant opening the app on the device you had walked to, finding the
-channel, opening it, going to *Watch* and throwing the switch — five steps for
-the gesture people actually make, which is to sit down in front of something
-and want the film there. So Home carries a pinned bar, *The film is on another
-device · tap to watch here*, whenever a film of yours is playing on another of
-your instances; one tap claims the screen and opens the channel on *Watch*. It
-can only ever be about the room you are standing in, a picture being refused to
-anybody who is not in one.
+**Moved by one offer, and it is only ever the one that applies.** A device
+showing the film offers **Watch on another device**; a device whose account is
+showing it somewhere else offers **Watch on this device**, over the line *The
+film is on another device*. Never both, and neither when there is no film of
+yours anywhere — so there is no control that would do nothing if it were
+pressed. Picking *another device* lists your own live instances, and only when
+there is more than one to choose between.
 
-Chosen with one switch, *Watch on*, whose two answers are **This device** and
-**Other device** — relative to the device in your hand, like the two buttons
-they replaced on 2026-09-17, but a matched pair rather than a *here* and an
-*another* that read as two unrelated acts and inverted their meanings as you
-walked between rooms. They read *same* and *separate* until 2026-09-18: same
-*as what* is a question the switch never answers, where *this* points at the
-thing in your hand and *other* at everything else. Picking *other* lists your
-own live instances, and only when there is more than one to choose between.
+**It was a switch until 2026-09-23** — *This device* against *Other device*,
+one of them always chosen, drawn on every device whatever the film was doing.
+That shape answered *where is the film* and offered the move as a side effect
+of reading the answer, which left half of it inert: the segment naming the
+device in your hand did nothing when the film was already there. The offer
+still says where the film is, by which one it makes and by whether the picture
+is on the screen in front of you.
+
+Before the switch there were two buttons, until 2026-09-17, and they read as
+two unrelated acts whose meanings inverted as you walked between rooms — the
+laptop's *Watch here* and the phone's *Watch here* being opposite instructions
+in identical words. What fixed that was naming the *device* rather than the
+place, which both offers still do.
+
+**The same offer is on Home**, as a pinned bar — *The film is on another device
+· tap to watch here* — since 2026-09-23, because only the sending half was ever
+convenient. Fetching the film back meant opening the app on the device you had
+walked to, finding the channel, opening it, going to *Watch* and throwing the
+switch: five steps for the gesture people actually make, which is to sit down
+in front of something and want the film there. It can only ever be about the
+room you are standing in, a picture being refused to anybody who is not in one.
 
 **It moves while the film is playing, since 2026-09-23.** It refused to for
 six days, on the argument that a move mid-scene is confusing — the film leaves

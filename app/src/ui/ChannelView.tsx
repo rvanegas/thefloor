@@ -168,30 +168,6 @@ export function uploadingLabel(percent: number | null): string {
  * enforces, so a greyed-out button and a refused action cannot disagree — but
  * the server is the authority and this only renders what it has been told.
  */
-/**
- * The two answers to *Watch on*, and the whole of what the switch offers.
- *
- * **Relative to the device you are holding, deliberately.** Both labels are,
- * and that is the improvement: *here* and *another device* were also
- * relative, and read as two unrelated buttons whose meanings swapped as you
- * walked between rooms. A matched pair lets the question be asked once and
- * the answer shown as chosen.
- *
- * *This* and *other* since 2026-09-18, where it read *same* and *separate*.
- * Same *as what* is a question the switch never answers — it invites the
- * reader to look for the other thing being compared, and there isn't one.
- * *This device* points at the thing in your hand and *other device* at
- * everything else, which is the actual division and needs no antecedent.
- *
- * A module constant because `Segmented` takes its options by value: an array
- * rebuilt each render is a new identity on every keystroke elsewhere on this
- * screen, which is the kind of thing that turns a switch into a re-render.
- */
-const WATCH_ON = [
-  { value: 'same' as const, label: 'This device' },
-  { value: 'separate' as const, label: 'Other device' },
-];
-
 export function ChannelView({
   channelId,
   audio,
@@ -2961,7 +2937,16 @@ export function ChannelView({
           tone was available to say it alongside.
         */}
         <Button
-          label="Other device"
+          /*
+            **The same words the card uses, since 2026-09-23.** This device is
+            showing the film, so the offer it makes is the one any device
+            showing the film makes; it said *Other device* when the card had a
+            switch with a segment of that name to match. The sublabel is what
+            keeps it honest — from here *another device* means the one holding
+            the room, and there is no picker, a second device's way out being
+            to give the film back rather than to pass it on.
+          */
+          label="Watch on another device"
           sublabel="Moves the film back to the device you stepped in on"
           onPress={() => {
             /*
@@ -4416,124 +4401,70 @@ export function ChannelView({
                   below for the sending case.
                 */}
                 {/*
-                  Where to watch: one question with two answers, which is what
-                  it always was and is now drawn as.
+                  **Where to watch: the one thing you can do about it, and
+                  nothing when there is nothing to do.**
 
-                  **"Here" and "another device" were two buttons and read as
-                  two different acts**, and the pair inverted itself as you
-                  walked across the room — the laptop's *Watch here* and the
-                  phone's *Watch here* are opposite instructions in identical
-                  words, and neither said what the other device was doing. A
-                  switch says the answer as well as the question, and *same*
-                  against *separate* is a matched pair where *here* against
-                  *another device* is not.
+                  It was a switch until 2026-09-23 — *This device* against
+                  *Other device*, one of them always chosen, drawn on every
+                  device whatever the film was doing. That shape answered
+                  *where is the film* and offered the move as a side effect of
+                  reading the answer, which meant half of it was always inert:
+                  the segment naming the device you were holding did nothing
+                  when the film was already there.
 
-                  **Relative to the device in your hand, and mirrored because
-                  of it.** Hand the film to the laptop and the phone shows
-                  *other device* while the laptop shows *this device*: both
-                  are saying the one true thing about where the film is, each
-                  in its own terms. What makes that possible on the device
-                  that gave the film away is `screensElsewhere`, which is
-                  pushed rather than asked for.
+                  So it is an action now, and only the one that applies.
+                  Showing the film here, the offer is to send it away; showing
+                  it elsewhere, the offer is to fetch it. There is never a
+                  control that would do nothing if pressed, and each device
+                  still says where the film is — by which offer it makes, and
+                  by whether the picture is on it.
+
+                  **It is the shape Home's bar already had.** *The film is on
+                  another device · tap to watch here* was the same offer made
+                  from the device you had walked to, and there was no reason
+                  for the same act to be a switch in one place and an offer in
+                  the other.
 
                   **Not "Play on".** *Play* is the transport's word and the
                   Play/Pause control is inches above this one; two acts
                   sharing one word on one screen is the drift GLOSSARY.md
                   exists to prevent.
 
-                  The label is above rather than beside the track: two
-                  segments and a lead-in do not fit across a phone, and a
-                  *Other device* that wraps or truncates is worse than a
-                  line of its own.
-
                   The picker below appears only when there is more than one
                   other device to choose between, which is unusual: one other
                   is not a choice, and is taken without asking.
                 */}
-                <Text style={type.muted}>Watch on</Text>
-                <Segmented
-                  // An answer to the question above it, not a way to another
-                  // view — which is a different announcement to a screen
-                  // reader and a different thing to the view harness. See
-                  // `Segmented`'s `role`.
-                  role="choice"
-                  options={WATCH_ON}
-                  // Neither, until somebody has chosen: a party can be loaded
-                  // with the film on nothing, and a switch that claimed
-                  // *same device* before anybody said so would be a control
-                  // reporting a state the channel is not in.
-                  /*
-                    **One of the two, always**, where this used to have a
-                    third answer of *neither* for a party whose film was on
-                    nothing. That state is gone rather than hidden, and the
-                    question this asks is now simply whether the film is
-                    here: it is *this device* when this device is showing it
-                    and *other device* the rest of the time, which covers a
-                    picture handed to the laptop and a channel being read
-                    from outside the room with the same sentence.
-
-                    What makes that an answer rather than a shrug is the
-                    default above: a film arriving on a device that is
-                    stepped in lands on it, so *this device* is a fact by the
-                    time it is shown rather than a claim the switch makes on
-                    the film's behalf. Stepped out, no film lands and *other
-                    device* is the honest reading — nothing here is showing
-                    it.
-                  */
-                  value={screeningHere ? 'same' : 'separate'}
-                  onChange={(where) => {
-                    if (where === 'same') {
-                      setChoosing(false);
-                      app.showScreenFor(channelId);
-                    } else {
+                {screeningHere ? (
+                  <Button
+                    label="Watch on another device"
+                    onPress={() => {
                       setChoosing(true);
                       app.listScreens();
-                    }
-                  }}
-                  /*
-                    **It refused a running film until 2026-09-23, and the
-                    reasoning under it had expired.**
-
-                    The argument was that moving a picture mid-scene is
-                    confusing whichever way it goes — the film vanishes from
-                    what you are looking at and reappears on something across
-                    the room *a second or two later and in the middle of a
-                    sentence* — and that pausing first costs one tap of a
-                    control inches above this one.
-
-                    Both halves turned out to be wrong by measurement. The
-                    second or two was the reload that expanding and arriving
-                    used to cost, and a screen now reaches playing in about a
-                    second and is seeked to the room's own position, so it
-                    resumes where everybody else is rather than where it left
-                    off. And it cost three taps rather than one — pause,
-                    switch, play — because the film had to be started again on
-                    the far side.
-
-                    What is left of the argument is the audio crossing the
-                    room, which is real and is what AirPlay and every
-                    device-switch like it does. **The tap is the consent**: a
-                    press on a device's name is not an ambush, and a party's
-                    clock never stopped, so nothing is missed by anybody.
-
-                    The *floor* is not a reason either. It governs what the
-                    channel is attending to and has no business saying which
-                    of your own devices shows a film, which is the rule the
-                    disabled transport above already asserts from the other
-                    side.
-
-                    **Being out of the room is, as of 2026-09-19.** *This
-                    device* would otherwise be a way to start a film playing
-                    at somebody who is *nearby* or *stepped out* — the two
-                    rungs that mean they do not want to watch one — and the
-                    rule that takes the picture away from them would then fire
-                    a tick later, which reads as a switch that does not work.
-                    Both halves go: with nothing of this account showing the
-                    film, there is nothing to move and no question for this to
-                    answer.
-                  */
-                  disabled={!inTheRoom}
-                />
+                    }}
+                  />
+                ) : screenElsewhere && inTheRoom ? (
+                  <>
+                    {/*
+                      **Said as well as implied.** The offer alone would carry
+                      it — you would not be asked to watch here if you already
+                      were — but the absence of a picture on this screen reads
+                      equally as *nothing is playing anywhere*, and the
+                      transport above is running either way. One line removes
+                      that, and it is the sentence Home's bar uses, the two
+                      being the same fact reached from different screens.
+                    */}
+                    <Text style={type.muted}>
+                      The film is on another device.
+                    </Text>
+                    <Button
+                      label="Watch on this device"
+                      onPress={() => {
+                        setChoosing(false);
+                        app.showScreenFor(channelId);
+                      }}
+                    />
+                  </>
+                ) : null}
                 {!inTheRoom ? (
                   // The same shape as the sentence below: beside the refused
                   // control, saying which rung answers it.
