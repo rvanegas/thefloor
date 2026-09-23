@@ -27,6 +27,15 @@
 #   * The two App Review accounts, `appreview@` and `appreview2@`, are Apple's
 #     and are torn down in an order that matters. See planning/DEMO-ACCOUNT.md.
 #
+# `paused` is 1 for somebody the server has stopped announcing arrivals to:
+# they were sent them for a week and never opened the app, so no more are sent
+# until they do. Arrivals only — a ping or an invitation still reaches them,
+# and neither counts towards the week. Blank for everybody else, including
+# everybody merely absent: an account nobody has had reason to notify has
+# ignored nothing. It clears the moment they are seen, so a row with a recent
+# `last_seen` and a 1 here cannot happen. See planning/GLOSSARY.md § Paused
+# (of arrivals).
+#
 # `build` is what they last connected from, and null means "at or below the
 # first build that says" — every build up to 36 sends nothing, so a blank is
 # not the same as an old number and cannot be compared with one. `expired` is
@@ -95,6 +104,9 @@ SELECT identifier,
        CASE WHEN last_seen_at IS NULL THEN ''
             ELSE ROUND((unixepoch() * 1000 - last_seen_at) / 86400000.0, 1)
        END AS days_ago,
+       CASE WHEN unanswered_since IS NOT NULL
+             AND unanswered_since <= unixepoch() * 1000 - 604800000
+            THEN 1 ELSE '' END AS paused,
        date(created_at / 1000, 'unixepoch') AS joined
 FROM accounts
 ORDER BY last_seen_at;
@@ -102,7 +114,9 @@ ORDER BY last_seen_at;
 .print ''
 SELECT COUNT(*) AS accounts,
        SUM(identifier LIKE 'erased:%') AS erased,
-       SUM(last_seen_at > unixepoch() * 1000 - 604800000) AS seen_this_week
+       SUM(last_seen_at > unixepoch() * 1000 - 604800000) AS seen_this_week,
+       SUM(unanswered_since IS NOT NULL
+           AND unanswered_since <= unixepoch() * 1000 - 604800000) AS paused
 FROM accounts;
 "
 

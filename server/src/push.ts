@@ -36,6 +36,33 @@ export { PRESENCE_LIFETIME_MS } from '../../core/constants';
 export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long somebody may be sent **arrivals** without opening the app before
+ * the server stops sending them.
+ *
+ * The one setting behind a **paused** account. Past this much silence from a
+ * person whose phone has been lighting up the whole time, no further arrival
+ * is sent, and none is until they turn up — see the notifier in app.ts and
+ * `Accounts.notificationsPaused`.
+ *
+ * **It is a defence of the switch, not of the battery.** A week of ignored
+ * banners is somebody who has stopped wanting them, and the move available to
+ * them is the iOS toggle — which is permanent in practice, applies to every
+ * notification this app will ever send, and is invisible from here: the
+ * server goes on sending into a phone that drops everything, and APNs answers
+ * 200. Going quiet first costs a handful of announcements nobody was reading;
+ * being switched off costs all of them, for ever. That asymmetry is the whole
+ * argument, and it is why the threshold is generous rather than tuned — a
+ * week is long enough that no ordinary holiday reaches it, and anything
+ * beyond it is not a lull.
+ *
+ * **Arrivals are what it is spent on** because they are the only kind that
+ * arrives in the volume the argument is about: a room reporting who walked
+ * in. `invited`, `pinged` and `accepted` are one person aiming something at
+ * another, are rare, and go on being sent to a paused account.
+ */
+export const NOTIFICATION_PAUSE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * The stack that somebody asking for you lands in.
  *
  * Shared by `invited`, `pinged` and `accepted` across every channel, which is

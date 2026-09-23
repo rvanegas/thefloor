@@ -94,6 +94,7 @@ import {
 import {
   ConsolePusher,
   createPushNotifier,
+  NOTIFICATION_PAUSE_MS,
   notifications,
   type Pusher,
 } from './push';
@@ -462,9 +463,10 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Turns "these people should know" into notifications actually sent.
    *
-   * Two filters now, in this order: look up where each person can be reached,
-   * and forget every address Apple says is dead. The registry supplies neither
-   * — it knows only that something happened.
+   * Three filters now, in this order: on an arrival, leave alone anybody who
+   * has been ignoring arrivals for a week, look up where each person can be
+   * reached, and forget every address Apple says is dead. The registry
+   * supplies none of them — it knows only that something happened.
    *
    * **There was a third and it is gone, on 2026-09-09.** It dropped any device
    * with a live session socket, on the premise that such a device is one
@@ -487,6 +489,46 @@ export function buildApp(options: BuildOptions = {}): App {
    * transition must not wait on Apple or fail because of it.
    */
   pushNotifier.notify = (userIds, message) => {
+    /**
+     * **Arrivals alone are pausable, and arrivals alone count towards it.**
+     *
+     * The pause exists because a week of unread banners is what makes
+     * somebody reach for the iOS switch, and the banners that arrive in that
+     * volume are all of one kind: a room saying who walked into it. The other
+     * three are somebody doing something aimed at one person — adding them to
+     * a channel, calling them into one, taking up their invitation — and they
+     * happen a handful of times, not a handful of times a day. Silencing
+     * those would be spending the whole cost of the feature on the
+     * notifications least responsible for it, and would make the pause
+     * self-perpetuating: a note from a human is the likeliest thing to bring
+     * a lapsed person back, and it would be the thing withheld.
+     *
+     * So the gate is the kind, and it governs **both halves**. Only an
+     * arrival is refused, and only an arrival starts the clock — a clock fed
+     * by notifications the rule would never withhold would be measuring one
+     * thing and deciding another, and a single ping could then pause a week
+     * of arrivals on its own.
+     */
+    const pausable = message.kind === 'arrived';
+    /**
+     * Whoever has been sent arrivals for a week without once opening the app,
+     * and is therefore owed quiet rather than another one.
+     *
+     * **Ahead of every other filter, so that a paused person costs nothing** —
+     * no address lookup, no grouping, and no stamp.
+     */
+    const paused = pausable
+      ? accounts.notificationsPaused(userIds, now() - NOTIFICATION_PAUSE_MS)
+      : new Set<string>();
+    /**
+     * Who is actually being sent to, for the stamp at the bottom.
+     *
+     * Written after the fact rather than from `userIds`, because the clock
+     * this starts has to measure arrivals that were really sent: a person
+     * with no registered device is not ignoring anything, and stamping them
+     * would pause an account that has never been reachable.
+     */
+    const notified: string[] = [];
     // Grouped by how loudly it should land rather than sent per person: two
     // recipients who chose the same thing share one request, and the common
     // case — nobody has touched the setting — is a single group again, which
@@ -515,6 +557,19 @@ export function buildApp(options: BuildOptions = {}): App {
      */
     const watched = new Map<string, string>();
     for (const [id, addresses] of devices.addressesByAccount(userIds)) {
+      if (paused.has(id)) {
+        // The debug account's half of the ledger, matching 'push intended'
+        // below: *nothing was even attempted* is the commonest answer to "why
+        // did that not arrive", and a pause is now one of the ways it happens.
+        if (accounts.byId(id)?.debug === 1) {
+          fastify.log.info(
+            { account: id, channelId: message.channelId, kind: message.kind },
+            'push paused'
+          );
+        }
+        continue;
+      }
+      notified.push(id);
       const alert = alertFor(message.kind, levels.get(id) ?? DEFAULT_NOTIFICATION_LEVEL);
       if (accounts.byId(id)?.debug === 1) {
         for (const address of addresses) watched.set(address.token, id);
@@ -554,16 +609,29 @@ export function buildApp(options: BuildOptions = {}): App {
       }
     }
     if (byGroup.size === 0) {
-      // Logged even though nothing was sent. There is one way to send nothing
-      // now — nobody has registered a device — where there used to be two, and
-      // the other was indistinguishable from a delivery failure, which is the
-      // confusion this feature shipped with.
+      // Logged even though nothing was sent. There are two ways to send
+      // nothing again — nobody has registered a device, and every arrival's
+      // recipient is paused — and they are named apart, because the second is
+      // the server deciding rather than the world being empty, and a pause
+      // that cannot be told from an unreachable account is one nobody will
+      // ever find at the bottom of a "why did that not arrive".
       fastify.log.info(
-        { channelId: message.channelId, asked: userIds.length, why: 'no registered devices' },
+        {
+          channelId: message.channelId,
+          asked: userIds.length,
+          paused: paused.size,
+          why: paused.size > 0 ? 'everybody paused or unreachable' : 'no registered devices',
+        },
         'push skipped'
       );
       return;
     }
+    // Stamped before the sends rather than in their callbacks: the clock is
+    // about having been notified, which is settled here, and a delivery
+    // result arrives per address rather than per person. A refusal from Apple
+    // does not un-notify anybody — the notification left — and the address it
+    // names is pruned by the 410 path instead.
+    if (pausable) accounts.noteNotified(notified, now());
     for (const { platform, alert, tokens } of byGroup.values()) {
       void pusherFor(platform)
         .send(tokens, message, alert)
@@ -596,6 +664,11 @@ export function buildApp(options: BuildOptions = {}): App {
             {
               channelId: message.channelId,
               kind: message.kind,
+              // How many of the people asked for were left alone because
+              // they have stopped opening the app. Zero for every kind but an
+              // arrival, and for almost every arrival; the only trace a pause
+              // leaves anywhere.
+              paused: paused.size,
               // Named because the two services refuse things differently, and
               // a bare status is ambiguous between them once both are live.
               platform,

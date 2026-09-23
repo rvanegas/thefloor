@@ -153,6 +153,8 @@ caused; the list carries the meaning.
 - **Nav action — `home` / `swipeOut` / `swipeIn` / `liveCard`** — The four ways between Home and the channel you are standing in, named so they can be counted against each other: the Home glyph and the right swipe are the same journey out, the pinned live line and the left swipe the same journey in — the swipe going to the topmost hoisted bar, which is the live line whenever one is drawn. Named by the *control* rather than by the outcome, because two of them mean the same thing to the application and differ only in what the thumb did, which is the whole question. Counted in `nav_counts`, which holds no account — so it can say which way is common and can never say what any one person did
 - **Notification kinds — invited / arrived / accepted / pinged** — The four things this server sends to a phone; only *pinged* is words somebody wrote, and only *accepted* is about a person rather than a room
 - **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
+- **Paused (of arrivals)** — That the server has stopped announcing arrivals to somebody who was sent them for a week and never opened the app, until they do; `NOTIFICATION_PAUSE_MS` and `accounts.unanswered_since`. **Arrivals alone**, both in what is withheld and in what counts towards the week — the other three kinds are one person aiming something at another and go on being sent. A state the server infers, and the only one that makes the app quieter without anybody choosing it: not a *notification level*, which is a choice, and not a *notification answer*, which is the phone's
+- **Unanswered (of an arrival)** — Announced to somebody who has not been seen since; the oldest one outstanding is `accounts.unanswered_since`, and a week of it is what *paused* measures
 - **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
@@ -1391,6 +1393,49 @@ could not have been watching a screen for it. It names a channel all the same,
 because becoming contacts creates the pair's channel in the same breath, and
 the three things this system keys on a channel — the recipient's level, the
 collapse key, the thread — all want a real id.
+
+## Paused (of arrivals)
+
+**The server has stopped announcing arrivals to somebody, and nobody chose
+it.** An account is *paused* once it has been sent arrivals for
+`NOTIFICATION_PAUSE_MS` — a week — without once being seen; no further arrival
+is sent until they are, and being seen is what it always is, `markSeen` as a
+socket opens. `accounts.unanswered_since` holds the oldest *unanswered*
+arrival, the notifier in app.ts reads it, and clearing it is the whole of
+resuming.
+
+**It is a defence of the iOS toggle, not of anybody's attention.** A person who
+has stopped answering has one move available to them, and it is permanent: the
+system switch, which silences every notification this app will ever send and is
+invisible from the server — APNs answers 200 for a phone that drops everything.
+A handful of announcements nobody was reading is the cheaper loss.
+
+**Arrivals alone, on both sides of it.** They are the only kind that lands in
+the volume the argument is about — a room reporting who walked in, several
+times a day in a busy channel. *invited*, *pinged* and *accepted* are one
+person aiming something at one other person, they happen a handful of times,
+and they go on reaching a paused account: spending the pause on them would cost
+the whole of its goodwill on the notifications least responsible for it, and
+would make the pause self-perpetuating, since a note from a human is the
+likeliest thing to bring a lapsed person back. The gate governs the clock too —
+only an arrival starts the week, or a single ping could pause a month of
+arrivals on its own.
+
+**Two things it is not.** Not a *notification level*, which is a preference
+somebody set per channel and which the pause neither reads nor changes; and not
+the *notification answer*, which is what the phone reports about permission.
+
+**Being absent is not being paused.** Somebody nobody has had reason to notify
+can be away for a year with nothing outstanding, and their first arrival is
+announced — it is the one most likely to bring them back. This is why the
+column is a stamp rather than a subtraction from `last_seen_at`. For the same
+reason the clock does not restart on each send: it marks the *oldest*
+unanswered arrival, or a busy channel would keep resetting the week for exactly
+the person the rule is for.
+
+The only trace it leaves is a `paused` count on the `push sent` and
+`push skipped` log lines, a `push paused` line for a *debug* account, and the
+`paused` column in `bin/people`.
 
 ## Offline
 

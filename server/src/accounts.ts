@@ -933,11 +933,32 @@ export class Accounts {
    * `build` is deliberately not guarded the same way: it is not a clock, and
    * the rule above governs it instead.
    */
+  /**
+   * **It also ends a notification pause**, by clearing `unanswered_since` —
+   * which is the whole of "until he opens the app again", and is free here
+   * because this UPDATE was already being written on every heartbeat.
+   *
+   * Riding on *being seen* rather than on a signal of its own is deliberate.
+   * There is exactly one definition in this server of somebody having the app
+   * open, every screen already renders it, and a second one would drift from
+   * it — a person shown as *about* on a contact's Home while the notifier
+   * still counted them absent. The cost is that the pause clears on whatever
+   * `markSeen` counts, including a socket a capturing app holds from a
+   * pocket; that is somebody using the app, which is the answer wanted.
+   *
+   * Unguarded by the `MAX` above, which governs the clock and not this. A
+   * dying socket stamping an old time can clear a stamp written after it,
+   * resetting the week by however long the corpse took to close — seconds,
+   * against seven days, in favour of the person being notified.
+   */
   markSeen(id: string, now: number, build?: number | null): void {
     if (build == null) {
       this.db
         .prepare(
-          'UPDATE accounts SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?) WHERE id = ?'
+          `UPDATE accounts
+              SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?),
+                  unanswered_since = NULL
+            WHERE id = ?`
         )
         .run(now, id);
       return;
@@ -945,10 +966,73 @@ export class Accounts {
     this.db
       .prepare(
         `UPDATE accounts
-            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?), last_build = ?
+            SET last_seen_at = MAX(COALESCE(last_seen_at, 0), ?), last_build = ?,
+                unanswered_since = NULL
           WHERE id = ?`
       )
       .run(now, build, id);
+  }
+
+  /**
+   * Which of these people have been receiving arrivals since before
+   * `sentBefore` without once opening the app.
+   *
+   * The read half of the pause. `sentBefore` is the caller's cutoff — now
+   * less `NOTIFICATION_PAUSE_MS` — rather than a duration, because the rule
+   * about how long neglect has to run before it is respected belongs beside
+   * the notifier that enforces it, and this class has no business holding a
+   * second copy of it.
+   *
+   * **Boundary inclusive**, so a stamp exactly a week old pauses. Nothing
+   * turns on which way that falls; stating it stops a test from having to
+   * guess.
+   *
+   * Accounts with nothing outstanding are simply absent from the answer, as
+   * are accounts that do not exist — a caller is asking who to leave alone,
+   * and "no" is the safe reading of every row it did not find.
+   */
+  notificationsPaused(
+    ids: readonly string[],
+    sentBefore: number
+  ): Set<string> {
+    if (ids.length === 0) return new Set();
+    const placeholders = ids.map(() => '?').join(', ');
+    const rows = this.db
+      .prepare(
+        `SELECT id FROM accounts
+          WHERE id IN (${placeholders})
+            AND unanswered_since IS NOT NULL
+            AND unanswered_since <= ?`
+      )
+      .all(...ids, sentBefore) as Array<{ id: string }>;
+    return new Set(rows.map((row) => row.id));
+  }
+
+  /**
+   * Records that these people have just been sent an arrival.
+   *
+   * The write half, and it is `IS NULL` rather than an assignment because the
+   * column holds the *oldest* unanswered arrival. Overwriting would restart
+   * the week on every send, which for somebody in a busy channel is a week
+   * that never elapses — precisely the person the pause is for.
+   *
+   * Called with whoever was actually sent to, after the pause has filtered
+   * and after addresses have been looked up. Stamping somebody unreachable
+   * would start a clock on announcements that never left the building.
+   *
+   * **The caller decides what counts**, which today is an arrival and nothing
+   * else — the notifier in app.ts holds that rule, since it is the same rule
+   * that decides what may be withheld and the two must not drift apart.
+   */
+  noteNotified(ids: readonly string[], now: number): void {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => '?').join(', ');
+    this.db
+      .prepare(
+        `UPDATE accounts SET unanswered_since = ?
+          WHERE id IN (${placeholders}) AND unanswered_since IS NULL`
+      )
+      .run(now, ...ids);
   }
 
   /**

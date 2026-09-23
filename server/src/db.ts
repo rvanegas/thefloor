@@ -42,6 +42,28 @@ export interface AccountRow {
   /** When that answer last changed. Null while `notifications` is. */
   notifications_at: number | null;
   /**
+   * When the oldest **unanswered arrival** was sent — the first announcement
+   * of somebody stepping into a room that this person was sent after the last
+   * time they were seen — and null when there is none outstanding.
+   *
+   * Set by the push notifier on the way out, cleared by `markSeen`. The gap
+   * between it and now is therefore *how long somebody has been having their
+   * phone lit up by rooms without opening the app*, which is the one question
+   * `NOTIFICATION_PAUSE_MS` asks: past a week of it, no more arrivals are
+   * sent. See `Accounts.noteNotified` and the notifier in app.ts.
+   *
+   * **Arrivals only, on both sides of the question.** The other three kinds
+   * are one person doing something aimed at another, they are rare, and they
+   * are neither withheld nor counted here — so this column is not "how long
+   * since we notified them", it is the narrower thing the rule acts on.
+   *
+   * **Not the same fact as `last_seen_at` being old.** An account nobody has
+   * had reason to notify can be absent for a year and has ignored nothing;
+   * the pause is owed only to somebody whose phone has actually been lighting
+   * up. Which is why this is a second column rather than a subtraction.
+   */
+  unanswered_since: number | null;
+  /**
    * Forces the donate link visible (1) or hidden (0), overriding what the
    * device's region suggests. Null — the default for everyone — means decide
    * automatically. See region.ts for why the automatic answer needs an
@@ -562,6 +584,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- moves on every heartbeat: this one moves only when the answer changes,
   -- so the gap between them is how long the answer has stood.
   notifications_at INTEGER,
+  -- When the first arrival this person has not yet come back for was sent,
+  -- and null when nothing is outstanding. Stamped by the push notifier when
+  -- it is null, cleared whenever they are seen — so now minus this is how
+  -- long they have been ignoring rooms lighting up their phone, and a week of
+  -- it stops the arrivals. Arrivals alone, in and out: see the row type
+  -- above, which also has why absence alone will not do.
+  unanswered_since INTEGER,
   -- Overrides the guess about whether this person may see the donate link.
   -- Null means decide from what their device reports, which is what everybody
   -- gets until somebody says otherwise; 1 forces it visible and 0 forces it
@@ -1901,6 +1930,16 @@ function migrate(db: Db): void {
   if (!accountColumns.some((c) => c.name === 'notifications')) {
     db.exec('ALTER TABLE accounts ADD COLUMN notifications TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN notifications_at INTEGER');
+  }
+  // Null for everyone, meaning nothing is outstanding, which is the only
+  // honest reading: the column counts arrivals sent since somebody was last
+  // seen, and this box has never recorded one. Backfilling it from
+  // `last_seen_at` would pause every dormant account on the strength of
+  // notifications nobody can show were ever sent — and pausing is the one
+  // direction that is invisible when it is wrong. Everybody starts unpaused
+  // and earns the stamp from the next notification they are actually sent.
+  if (!accountColumns.some((c) => c.name === 'unanswered_since')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN unanswered_since INTEGER');
   }
   // Left null for everyone, which is the value that means "decide from the
   // device". Backfilling it either way would be asserting something about
