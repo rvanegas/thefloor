@@ -797,6 +797,17 @@ The small marks, and what a diameter means:
 grammar, and it is why self-muting is a hollow grey rather than a second
 bright colour.
 
+**The speaking dot is not drawn at all on a member card that reads
+*Nearby*.** It reports whether the room is hearing somebody, and *Nearby* is
+the word for somebody the room is not hearing — so there it could only ever
+sit hollow, beside a line already saying why. That slot on the card is the
+ping instead: the button while there is one to offer, a disabled *Pinged*
+while a window is spending, and empty where there is neither, which is a
+non-contact or a reader who has stepped out themselves. Empty rather than a
+greyed *Ping*, per § *Words on controls* — there is no room for the sentence a
+refused control owes, and the card opens a profile that offers *Add contact*.
+`ChannelView`'s `ParticipantCard`.
+
 **The dab is the one mark that is not a dot, and the only one that carries a
 glyph.** Every other row above is 8 to 10 across and says what it means by
 where it sits; this one is an 18pt disc with an `!` in it, up and to the left of

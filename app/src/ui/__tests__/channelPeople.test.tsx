@@ -65,6 +65,34 @@ jest.mock('../../state/AppProvider', () =>
 
 beforeEach(resetHarness);
 
+/**
+ * How many speaking dots the roster is drawing.
+ *
+ * The dot is the one mark on a member's card with no text in it, so a test
+ * asserting on its absence has nothing to read — and its absence is a claim
+ * two of these tests make, the rail on a *Nearby* card being the ping and
+ * never the dot. Found by the shape rather than by the style name, which is
+ * not on the rendered tree: ten points across with a radius of five is the
+ * dot and is nothing else on this screen.
+ *
+ * Counted rather than tested for, because the reader's own card draws one all
+ * the while — a test expecting none would be passing on the roster having
+ * stopped rendering. The count is per pane and this screen renders two, so a
+ * two-person roster with both cards drawing one comes to four.
+ */
+function speakingDots(tree: ReactTestRenderer): number {
+  return tree.root.findAll((n) => {
+    const flat = StyleSheet.flatten(n.props?.style) as
+      | { width?: number; borderRadius?: number }
+      | undefined;
+    return (
+      n.props?.accessibilityElementsHidden === true &&
+      flat?.width === 10 &&
+      flat?.borderRadius === 5
+    );
+  }).length;
+}
+
 describe('Channel, with a guest in it', () => {
   const DANA_GUEST = 'guest_dana';
 
@@ -605,6 +633,8 @@ describe('Channel, with a guest in it', () => {
 });
 
 describe('who is in the channel, and who is talking', () => {
+
+
   /**
    * The card for one person, found by the name in its label. A card is a
    * Pressable for everybody but you, so its style is a function of press
@@ -1202,7 +1232,96 @@ describe('who is in the channel, and who is talking', () => {
 
     expect(textOf(tree)).toContain('Nearby');
     expect(findButton(tree, 'Ping')).toBeUndefined();
+    // And nothing in the button's place. See `speakingDots`: the dot is a
+    // claim about what the room is hearing, and this card says it is hearing
+    // nobody. Two rather than one, the roster being drawn in both panes.
+    expect(speakingDots(tree)).toBe(2);
     mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The rail on a *Nearby* card is the ping and only ever the ping — the
+   * action while there is one to offer, its state while a window is spending,
+   * and otherwise blank.
+   *
+   * The dot is what used to hold that space, and it cannot say anything true
+   * there: it reports whether the room is hearing somebody, and *Nearby* is
+   * the word for somebody the room is not hearing at all. So it sat
+   * permanently hollow beside a line explaining why, which is the pairing the
+   * card avoids everywhere else.
+   *
+   * A non-contact is the fixture because it is the case that has neither half
+   * of the ping — the button is a thing this reader may not press, and nobody
+   * has pressed it. The way to reach such a person is the card itself, which
+   * opens a profile offering *Add contact*.
+   */
+  it('draws no speaking dot beside somebody it cannot offer a ping for', () => {
+    knowing();
+    showChannel(
+      channelOf((s) => {
+        const dropped = reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW);
+        return reduce(dropped, { type: 'TICK' }, NOW + DISCONNECT_GRACE_MS + 1);
+      })
+    );
+    mockApp.serverNow = () => NOW + 5 * 60_000;
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Nearby');
+    expect(findButton(tree, 'Ping')).toBeUndefined();
+    expect(findButton(tree, 'Pinged')).toBeUndefined();
+    // The reader's own card, which draws one in each pane: they are in the
+    // room, which is the state the dot is about. Asserting a count rather
+    // than zero is what keeps this from passing because the roster stopped
+    // drawing dots — four is what the same fixture gives with both cards
+    // drawing one.
+    expect(speakingDots(tree)).toBe(2);
+    mockApp.serverNow = () => NOW;
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The same rule with its other half filled in, and the case the guard was
+   * actually written wrong for.
+   *
+   * *Nearby* covers two rungs: somebody whose wait is running, and somebody
+   * inside the disconnect grace — who is still `present` as far as the roster
+   * is concerned. The window clause tested `!here`, which is false for the
+   * second, so a reader who may not send the ping themselves watched the
+   * "Pinged" somebody else had earned be replaced by a speaking dot, on a
+   * line saying the room could not hear them. The status outlives the offer,
+   * and it has to outlive it on both rungs.
+   */
+  it('says Pinged inside the grace to a reader who may not ping', () => {
+    knowing();
+    showChannel(
+      channelOf((s) => reduce(s, { type: 'DISCONNECTED', userId: THEM }, NOW))
+    );
+    mockApp.channelViews.sess_1 = {
+      ...mockApp.channelViews.sess_1,
+      pingableAt: { [THEM]: NOW + 4 * 60_000 },
+    };
+    const tree = render(
+      <ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />
+    );
+
+    expect(textOf(tree)).toContain('Nearby');
+    const ping = findButton(tree, 'Pinged');
+    expect(ping).toBeDefined();
+    // Disabled, this reader being one of the two the server would refuse.
+    expect(ping!.props.accessibilityState.disabled).toBe(true);
     act(() => tree.unmount());
   });
 

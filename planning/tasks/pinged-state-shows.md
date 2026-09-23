@@ -1,1 +1,0 @@
-# Pinged state shows

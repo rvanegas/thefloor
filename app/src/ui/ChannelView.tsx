@@ -5453,10 +5453,12 @@ function ParticipantCard({
    */
   const callable = nearby || reconnecting;
   /**
-   * Whether this card is offering a ping — which is also the answer to whether
-   * the speaking indicator is worth drawing. Somebody callable is somebody the
-   * room is not hearing, so the dot would be hollow for as long as the button
-   * is there; two marks that can never disagree, one of which says nothing.
+   * Whether this card is offering a ping. `callable` above is the answer to
+   * whether the speaking indicator is worth drawing, and the two are
+   * deliberately not the same question: somebody callable is somebody the room
+   * is not hearing, so the dot would be hollow for as long as they are —
+   * whether or not this reader is the one who may call them. Two marks that
+   * can never disagree, one of which says nothing.
    */
   const pingable = !!onPing && callable;
   const [pinging, setPinging] = useState(false);
@@ -5491,8 +5493,17 @@ function ParticipantCard({
    * server is going to refuse. So it stays until they can be called again —
    * except once they are here, which is the answer to the ping and makes the
    * speaking dot the more useful thing to hold the space.
+   *
+   * **"Here" for that last clause is the room, not the roster's `present`.**
+   * The guard was written as `!here` when the grace period still read
+   * *Present · reconnecting…*, and 2026-09-08 changed the word to *Nearby*
+   * without changing this: a card inside the grace is `here`, so a reader who
+   * may not send the ping — not a contact, or out of the room themselves —
+   * saw the "Pinged" somebody else had earned replaced by a speaking dot, on
+   * a line that says the room cannot hear them. `callable` is the same two
+   * rungs the word *Nearby* covers, so it answers both halves at once.
    */
-  const showPing = pingable || (!here && windowOpen);
+  const showPing = pingable || (windowOpen && (callable || !here));
 
   const sendPing = async () => {
     if (!onPing) return;
@@ -5710,9 +5721,10 @@ function ParticipantCard({
         The dot is the dynamic part, and the only thing on this screen that
         changes several times a second: filled while they are audible, hollow
         otherwise, always in the same place so a card does not reflow every time
-        somebody draws breath. It gives way to the ping, since somebody out of
-        reach is somebody the room is not hearing — the dot could only sit
-        hollow beside a button that says why.
+        somebody draws breath. It gives way on every card that reads *Nearby*,
+        since somebody out of reach is somebody the room is not hearing — the
+        dot could only sit hollow there, beside a button that says why or
+        beside nothing at all.
       */}
       {showPing ? (
         <Button
@@ -5726,6 +5738,22 @@ function ParticipantCard({
             void sendPing();
           }}
         />
+      ) : callable ? (
+        /*
+          Nothing, on a card that reads *Nearby* and has no ping to offer or
+          to report — the reader is not a contact of theirs, or has stepped
+          out of the room themselves. The dot is a claim about what the room
+          is hearing, and the room is hearing nobody who is *Nearby*: drawn
+          here it would sit permanently hollow beside a line saying why, which
+          is the one shape `pingable` above is careful to avoid. An empty rail
+          says the same thing and does not say it twice.
+
+          So the rail on a *Nearby* card is the ping and only ever the ping —
+          the action while there is one, its state while a window is spending,
+          and otherwise blank. The way to reach such a person is the card
+          itself, which opens a profile offering *Add contact*.
+        */
+        null
       ) : (
         <View
           style={[styles.speakingDot, speaking && styles.speakingDotLive]}
