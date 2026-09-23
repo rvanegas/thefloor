@@ -323,11 +323,14 @@ describe('Channel, with a guest in it', () => {
       as long as it lasts and spends one of the forty.
 
       **Both were buttons on the row until 2026-09-22 and are now one `+` and
-      a prompt**, which is not the mode-before-acting shape that was rejected
-      when the contact picker came out: nothing is set in advance, the fork
-      arrives at the press, and each answer is the act. What has to keep being
-      true is that the two remain two — a prompt offering one word for both
-      would be the collapse the pair of buttons existed to prevent.
+      an offer that opens under it**, which is not the mode-before-acting shape
+      that was rejected when the contact picker came out: nothing is set in
+      advance, the fork arrives at the press, and each answer is the act. What
+      has to keep being true is that the two remain two — one word offered for
+      both would be the collapse the pair of buttons existed to prevent.
+
+      It was an `Alert` for a few hours of that day. The list is what the
+      choice is about, and a box over it covers the name it names.
     */
     mockApp.home = {
       invites: [],
@@ -344,12 +347,24 @@ describe('Channel, with a guest in it', () => {
 
     // One control on the row, and it says whose row it is — a list of eight
     // buttons all called *Invite* is one nobody can navigate by name.
+    const mark = findNamed(tree, 'Invite Miro Okafor')!;
+    expect(mark.props.accessibilityState.expanded).toBe(false);
+
+    // Both offers, both live, and the sentence that tells them apart.
     const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.title).toBe('Ask Miro Okafor in');
-    expect(prompt.choices).toEqual(['Guest', 'Member', 'Cancel']);
+    expect(prompt.choices).toEqual(['Guest', 'Member']);
+    expect(prompt.refused).toEqual([]);
+    expect(prompt.message).toContain('A member joins the channel and stays.');
+    // The mark is what opened it and is what closes it again — the way back
+    // is the way in, rather than a third control for one act.
+    expect(findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState.expanded).toBe(
+      true
+    );
+    act(() => findNamed(tree, 'Invite Miro Okafor')!.props.onPress());
+    expect(findButton(tree, 'Guest')).toBeUndefined();
 
     // The membership is the reducer's, and unchanged.
-    await prompt.take('Member');
+    await invitePrompt(tree, 'Miro Okafor').take('Member');
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',
       contactId: 'acct_3',
@@ -426,11 +441,13 @@ describe('Channel, with a guest in it', () => {
     );
     showInvites(tree);
     expect(textOf(tree)).toContain('Miro Okafor');
-    // The mark is live and the prompt is one offer shorter, with the reason
-    // in its own sentence — there is no greying a button inside an alert, so
-    // the absent half has to be accounted for in words.
+    // The mark is live and the membership is drawn and grey, with the reason
+    // in its own sentence. It used to be absent instead: there is no greying
+    // a button inside an alert, which is one of the things drawing the fork
+    // in the row bought back.
     const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.choices).toEqual(['Guest', 'Cancel']);
+    expect(prompt.choices).toEqual(['Guest', 'Member']);
+    expect(prompt.refused).toEqual(['Member']);
     expect(prompt.message).toContain('is full');
     expect(textOf(tree)).toContain('is full');
     act(() => tree.unmount());

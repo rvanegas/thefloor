@@ -364,6 +364,15 @@ the rule that outlived `ghost` rather than a replacement for it: it said "a
 `ghost` at those numbers" until 2026-09-21, and the numbers were always the
 half doing the work.
 
+**`primary` may mark the safer of two acts rather than a commitment**, and
+ChannelView's `InviteOffer` is the one place that does it. The pair is *Guest*
+and *Member*: a seat ends when the room does, a membership is one of six and
+is for good. Identical buttons would make somebody read two sentences to find
+out which of two permanent-looking things they were about to do, so the
+reversible one is filled and leads. It is still one filled button per screen —
+the offer is open for one contact at a time by construction — which is the
+property to keep if a second caller ever wants this.
+
 **A choice of more than three goes down the page rather than across it.** Two
 or three `Button`s at `flex: 1` in a `choices` row is what every yes-or-no and
 the three schemes on Floor Settings use, and it stops working at four: a

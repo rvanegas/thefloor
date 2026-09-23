@@ -406,7 +406,7 @@ describe('Channel', () => {
     // is nothing to press and no prompt to raise.
     expect(
       findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
-    ).toEqual({ disabled: true });
+    ).toEqual({ disabled: true, expanded: false });
     expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
     const invites = textOf(tree);
     expect(invites).toContain('Step in to ask anybody in');
@@ -476,7 +476,7 @@ describe('Channel', () => {
     showInvites(tree);
     expect(
       findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
-    ).toEqual({ disabled: false });
+    ).toEqual({ disabled: false, expanded: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecordings(tree);
@@ -1124,7 +1124,7 @@ describe('Channel', () => {
       />);
     showInvites(tree);
     const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.choices).toEqual(['Guest', 'Member', 'Cancel']);
+    expect(prompt.choices).toEqual(['Guest', 'Member']);
     await prompt.take('Member');
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',

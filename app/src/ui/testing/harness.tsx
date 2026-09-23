@@ -653,46 +653,56 @@ export function findNamed(
 }
 
 /**
- * The prompt a contact's `+` raises: its sentence, and the offers it makes.
+ * The offer a contact's `+` opens: its sentence, and the two ways in.
  *
- * Presses the mark for `name` and reads the last `Alert.alert` back, so the
- * caller must have mocked it — two files do, and a third asserting on an
- * invitation without one would silently be testing a real alert that never
- * appears in jest. Returning the buttons rather than taking one is the point:
- * `Member` is absent from the list when the roster is full, which is a thing
- * to assert on and not only a thing to press.
+ * Presses the mark for `name` and reads the expansion that appears under the
+ * row. **It read back the last `Alert.alert` until 2026-09-22**, which is why
+ * the callers still mock one — the fork is drawn in the list now, and nothing
+ * here raises an alert at all.
+ *
+ * `choices` is every offer drawn and `refused` those drawn and unavailable,
+ * which is the pair the alert could not express: a full roster used to remove
+ * `Member` from the list, there being no greying a button inside an alert,
+ * and now greys it. Pressing one is still awaited — the guest half is a round
+ * trip to the server.
  */
 export function invitePrompt(
   tree: ReactTestRenderer,
   name: string
 ): {
-  title: string;
-  message: string | undefined;
+  message: string;
   choices: string[];
+  refused: string[];
   /** Awaited always: one of the two offers is a round trip to the server. */
   take: (label: string) => Promise<void>;
 } {
   const mark = findNamed(tree, `Invite ${name}`);
   if (!mark) throw new Error(`No invite mark for ${name}.`);
-  const spy = Alert.alert as unknown as jest.Mock;
-  const before = spy.mock.calls.length;
-  act(() => mark.props.onPress());
-  if (spy.mock.calls.length === before)
-    throw new Error(`The invite mark for ${name} asked nothing.`);
-  const call = spy.mock.calls[spy.mock.calls.length - 1]!;
-  const buttons = (call[2] ?? []) as Array<{
-    text: string;
-    onPress?: () => void | Promise<void>;
-  }>;
+  if (!mark.props?.accessibilityState?.expanded) act(() => mark.props.onPress());
+  // By their words rather than by position: `Guest` and `Member` are exact
+  // labels that nothing else on this screen carries, and at most one row's
+  // offer is open at a time. `findNamed` is the wrong finder here — a
+  // `Button` that draws its word sets no `accessibilityLabel`, deliberately,
+  // so that a screen reader reads the word and any `sublabel` under it.
+  const offers = ['Guest', 'Member']
+    .map((label) => ({ label, node: findButton(tree, label) }))
+    .filter((offer) => offer.node);
+  if (offers.length === 0)
+    throw new Error(`The invite mark for ${name} opened nothing.`);
   return {
-    title: call[0] as string,
-    message: call[1] as string | undefined,
-    choices: buttons.map((button) => button.text),
+    // The sentence sits between the row and the buttons; the whole screen's
+    // text is what a caller wants to assert against anyway, and `textOf` is
+    // the thing every other test reaches for.
+    message: textOf(tree),
+    choices: offers.map((offer) => offer.label),
+    refused: offers
+      .filter((offer) => offer.node!.props.accessibilityState?.disabled)
+      .map((offer) => offer.label),
     take: async (label) => {
-      const button = buttons.find((b) => b.text === label);
-      if (!button) throw new Error(`The prompt for ${name} has no ${label}.`);
+      const offer = offers.find((o) => o.label === label);
+      if (!offer) throw new Error(`The offer for ${name} has no ${label}.`);
       await act(async () => {
-        await button.onPress?.();
+        await offer.node!.props.onPress?.();
       });
     },
   };

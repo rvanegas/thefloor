@@ -5843,6 +5843,17 @@ function InviteList({
       .filter((id): id is string => !!id)
   );
 
+  /**
+   * Whose offer is open, of the at most one that may be.
+   *
+   * **One at a time, which the alert got for free and this has to choose.**
+   * Two expanded rows would put two copies of the same two sentences on the
+   * screen a thumb's width apart, and each is the same question asked about a
+   * different person — so opening one closes the other, the way a prompt
+   * replaces a prompt.
+   */
+  const [open, setOpen] = React.useState<string | null>(null);
+
   if (invitable.length === 0) {
     return (
       <Text style={type.muted}>
@@ -5856,9 +5867,35 @@ function InviteList({
         const state = states[entry.account.id];
         const refusal =
           state && state !== 'asking' && state !== 'asked' ? state : null;
+        // The three states that are facts rather than offers. A row in any of
+        // them draws no mark, so it cannot be the open one either — and the
+        // guard is read here rather than at the mark because the expansion
+        // below rests on the same fact.
+        const quiet =
+          seated.has(entry.account.id) ||
+          state === 'asked' ||
+          state === 'asking';
         return (
           <View key={entry.account.id}>
             <View style={styles.inviteRow}>
+              {quiet ? (
+                // The mark's place, kept empty. A row whose offer has been
+                // taken up is still a row in the same list, and a name that
+                // slid left when the mark went would leave the column of
+                // names ragged for a reason that is about one of them.
+                <View style={styles.inviteMarkGap} />
+              ) : (
+                <InviteMark
+                  name={entry.account.displayName}
+                  disabled={!mayInvite}
+                  open={open === entry.account.id}
+                  onPress={() =>
+                    setOpen((prior) =>
+                      prior === entry.account.id ? null : entry.account.id
+                    )
+                  }
+                />
+              )}
               <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
                 {entry.account.displayName}
               </Text>
@@ -5875,17 +5912,22 @@ function InviteList({
                 <Text style={type.muted}>Asked in as a guest</Text>
               ) : state === 'asking' ? (
                 <Text style={type.muted}>Asking…</Text>
-              ) : (
-                <InviteMark
-                  name={entry.account.displayName}
-                  disabled={!mayInvite}
-                  full={full}
-                  mayBeMember={canInvite(channel, me, entry.account.id)}
-                  onGuest={() => onGuest(entry.account.id)}
-                  onMember={() => onInvite(entry.account.id)}
-                />
-              )}
+              ) : null}
             </View>
+            {!quiet && open === entry.account.id ? (
+              <InviteOffer
+                full={full}
+                mayBeMember={canInvite(channel, me, entry.account.id)}
+                onGuest={() => {
+                  setOpen(null);
+                  onGuest(entry.account.id);
+                }}
+                onMember={() => {
+                  setOpen(null);
+                  onInvite(entry.account.id);
+                }}
+              />
+            ) : null}
             {refusal ? <Text style={styles.warning}>{refusal}</Text> : null}
           </View>
         );
@@ -5916,8 +5958,24 @@ function InviteList({
  * contact picker came out.** That was a control you set and then used, so the
  * setting was a thing to get wrong before anything happened; this asks after
  * the press and answers with the act itself. What the two buttons carried in
- * their labels is carried by the prompt's own sentence, which has room to say
+ * their labels is carried by the offer's own sentence, which has room to say
  * more than a button's word ever did.
+ *
+ * **The fork was an `Alert` for a few hours of the same day and is now drawn
+ * in the row.** An alert is the OS's window over the application, and what it
+ * was covering is the list the choice is about — the name it names is behind
+ * it, and so is every other contact. Expanding in place leaves all of that on
+ * screen, which is what makes the second tap a continuation of the first
+ * rather than an answer to a box. It also buys back what the alert could not
+ * hold: `Member` may now be drawn and refused rather than simply absent, and
+ * `Guest` may be the filled one. See `InviteOffer`.
+ *
+ * **The mark is on the left of the name since 2026-09-22**, where it sat on
+ * the right beside the two buttons it replaced. On the right it was the last
+ * thing in a row it is the whole offer of, and it read as a trailing
+ * accessory to the name; on the left it is *Add a contact*'s row exactly —
+ * mark, then who — which is the same promise drawn the same way, and the
+ * shape the expansion under it already had.
  *
  * `+` and not a person-with-a-plus: the mark is the one on *Add a contact*,
  * deliberately, that being the same promise — somebody who is not here yet is
@@ -5929,14 +5987,86 @@ function InviteList({
 function InviteMark({
   name,
   disabled,
+  open,
+  onPress,
+}: {
+  name: string;
+  /** The room refuses both offers — nobody outside it asks anybody in. */
+  disabled: boolean;
+  /** This row's offer is the one showing, so the mark is what closes it. */
+  open: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Invite ${name}`}
+      // `expanded` rather than `selected`: what the mark holds open is a pair
+      // of choices about this person, not a state of theirs. A screen reader
+      // then says the control opened something and that it is open, which is
+      // the whole of what changed on the row.
+      accessibilityState={{ disabled, expanded: open }}
+      disabled={disabled}
+      // The disc is 28 and a target is 44, and the row is too tight to pad it
+      // out: the slop is the difference, so the thumb gets the target the
+      // drawing does not.
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.inviteMark,
+        disabled && styles.inviteMarkOff,
+        pressed && styles.inviteMarkPressed,
+      ]}
+    >
+      {/*
+        The same mark turned through an eighth of a turn when it is holding
+        something open, which is a `×` drawn by the glyph that is already
+        there rather than a second glyph swapped in. What it says is *this is
+        the thing you pressed*, and the way back is the way in — a separate
+        Cancel among the choices would be a third control for the one act the
+        mark is already doing.
+      */}
+      <Text
+        style={[
+          styles.inviteMarkGlyph,
+          open && styles.inviteMarkGlyphOpen,
+          disabled && styles.inviteMarkGlyphOff,
+        ]}
+      >
+        +
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * The fork, under the row it belongs to: what the two ways in mean, and a
+ * button for each.
+ *
+ * **`Guest` is `primary` and `Member` is not**, which is the one place this
+ * screen spends that fill — and it is spent on a default rather than on a
+ * commitment, which is a departure from planning/STYLE.md § *Button* worth
+ * saying out loud. The reason is that the two acts are not equals: a guest is
+ * here for this conversation and the seat ends with the room, where a member
+ * is written into a roster of six for good. The reversible one is the one to
+ * lead with, and a pair of identical buttons makes somebody read two
+ * sentences to discover which of two permanent-looking things they are about
+ * to do. It is still one filled button per screen — the fork is open for one
+ * contact at a time, by construction.
+ *
+ * **`Member` is drawn and refused when the roster is full**, where the alert
+ * this replaced had to leave it out: there is no greying a button inside an
+ * alert, so the absent half had to be accounted for in a sentence. Grey is
+ * this interface's word for refused, and a full channel is exactly that — so
+ * the button says what is not on offer better than its absence did, and the
+ * sentence says why.
+ */
+function InviteOffer({
   full,
   mayBeMember,
   onGuest,
   onMember,
 }: {
-  name: string;
-  /** The room refuses both offers — nobody outside it asks anybody in. */
-  disabled: boolean;
   /** The membership is spent, which is a thing to say rather than to imply. */
   full: boolean;
   mayBeMember: boolean;
@@ -5944,50 +6074,35 @@ function InviteMark({
   onMember: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Invite ${name}`}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      // The disc is 28 and a target is 44, and the row is too tight to pad it
-      // out: the slop is the difference, so the thumb gets the target the
-      // drawing does not.
-      hitSlop={8}
-      onPress={() =>
-        Alert.alert(
-          `Ask ${name} in`,
-          // The pair of sentences the list's footer carries, said again where
-          // the choice actually is — and it is the same text deliberately, so
-          // that reading it twice teaches one distinction rather than leaving
-          // somebody to work out whether two wordings mean two things.
-          mayBeMember
-            ? 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'
-            : full
-              ? `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${MAX_CHANNEL_PARTICIPANTS} and is full.`
-              : 'A guest is here for this conversation only, and the seat ends when the room does.',
-          [
-            { text: 'Guest', onPress: onGuest },
-            // Absent rather than present and dead when the roster is full —
-            // there is no greying a button in an alert, and the sentence
-            // above has just said why it is not there. The guest half stands,
-            // six members and forty seats being two ceilings.
-            ...(mayBeMember ? [{ text: 'Member', onPress: onMember }] : []),
-            { text: 'Cancel', style: 'cancel' as const },
-          ]
-        )
-      }
-      style={({ pressed }) => [
-        styles.inviteMark,
-        disabled && styles.inviteMarkOff,
-        pressed && styles.inviteMarkPressed,
-      ]}
-    >
-      <Text
-        style={[styles.inviteMarkGlyph, disabled && styles.inviteMarkGlyphOff]}
-      >
-        +
+    <View style={styles.inviteOffer}>
+      {/*
+        The pair of sentences the list's footer carries, said again where the
+        choice actually is — and it is the same text deliberately, so that
+        reading it twice teaches one distinction rather than leaving somebody
+        to work out whether two wordings mean two things.
+      */}
+      <Text style={type.muted}>
+        {mayBeMember
+          ? 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'
+          : full
+            ? `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${MAX_CHANNEL_PARTICIPANTS} and is full.`
+            : 'A guest is here for this conversation only, and the seat ends when the room does.'}
       </Text>
-    </Pressable>
+      <View style={styles.buttonRow}>
+        <Button
+          label="Guest"
+          variant="primary"
+          style={styles.flexButton}
+          onPress={onGuest}
+        />
+        <Button
+          label="Member"
+          disabled={!mayBeMember}
+          style={styles.flexButton}
+          onPress={onMember}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -6544,8 +6659,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.floorDim,
   },
+  /**
+   * The mark's footprint with no mark in it, so that a row whose offer has
+   * been taken up keeps its name in the same column as every row that still
+   * has one. The gap is `inviteRow`'s own, so only the disc is named here.
+   */
+  inviteMarkGap: { width: 28, height: 28 },
   inviteMarkOff: { backgroundColor: colors.disabled },
   inviteMarkPressed: { opacity: 0.6 },
+  /**
+   * What the offer below this row is closed with: the same `+` at an eighth
+   * of a turn, which is a `×`. A rotation rather than a second glyph so that
+   * the thing on screen is visibly the mark that was pressed, and so that the
+   * disc under it never changes size or colour — the offer being open is not
+   * a state of the person, and the accent stays where it was.
+   */
+  inviteMarkGlyphOpen: { transform: [{ rotate: '45deg' }] },
   inviteMarkGlyph: {
     color: colors.floor,
     fontSize: 19,
@@ -6554,4 +6683,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   inviteMarkGlyphOff: { color: colors.textFaint },
+  /**
+   * The expansion, indented to the mark's far edge so that it reads as
+   * belonging to the row above rather than as the next thing in the list.
+   * The offset is the disc and `inviteRow`'s gap, which is what puts its left
+   * edge under the name that names it.
+   */
+  inviteOffer: {
+    gap: spacing(1),
+    paddingLeft: 28 + spacing(1.5),
+    paddingBottom: spacing(0.5),
+  },
 });
