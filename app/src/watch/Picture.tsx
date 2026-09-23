@@ -343,11 +343,11 @@ export function Picture({
   const me = app.me?.id ?? '';
 
   /**
-   * **Nobody outside the room gets one**, checked here rather than only where
-   * the screen role is given up: an effect runs after a commit, so a rule
-   * written only there would load the page and take it away again. *Nearby*
-   * fails it exactly as *out* does, and a *guest* passes — which is the whole
-   * of `inRoom`, and the same line the reducer draws for `WATCH_HERE`.
+   * The layer's own size, which is what a corner is measured against.
+   *
+   * The floating picture rests against one of four corners of the application
+   * rather than of a body, so the box it is clamped inside is this layer —
+   * the whole window less the safe areas — and nothing else on screen.
    */
   const measure = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
