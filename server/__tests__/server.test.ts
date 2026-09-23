@@ -173,7 +173,7 @@ describe('one-time codes', () => {
 
     // Which they can accept, exactly as if it had always been one.
     expect(
-      app.accounts.acceptContact(later.account.id, alice.account.id)
+      app.accounts.acceptContact(later.account.id, alice.account.id, Date.now())
     ).toBe(true);
     expect(app.accounts.areContacts(alice.account.id, later.account.id)).toBe(true);
   });

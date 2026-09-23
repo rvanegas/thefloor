@@ -1520,7 +1520,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
-    if (!accounts.acceptContact(account.id, id)) {
+    if (!accounts.acceptContact(account.id, id, now())) {
       return reply.code(400).send({ error: 'No pending request from that user.' });
     }
     // Becoming contacts is what creates the place the two of you talk. Home is

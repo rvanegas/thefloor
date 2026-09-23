@@ -94,11 +94,35 @@ export interface AccountRow {
    * Who invited this person, or null when nobody did — they signed up on their
    * own, or their invitation had expired by the time they got round to it.
    *
-   * Written once, when the account is created, and never again: it is a fact
-   * about how somebody arrived, not a relationship that can be revised. See
-   * `Accounts.resolveInvitesFor`, which is the only writer.
+   * Written once and never revised: it is a fact about how somebody arrived,
+   * not a relationship that can change. **Written once is not written early.**
+   * `resolveInvitesFor` sets it at account creation and was the only writer
+   * until `creditInviter` arrived, which names an inviter for an account that
+   * has been here for weeks — so the value is settled the first time anything
+   * can say who brought this person, which is not always the first moment the
+   * row exists. `invited_via` says which of those it was.
    */
   invited_by: string | null;
+  /**
+   * How `invited_by` was arrived at, or null when there is no inviter.
+   *
+   * Four ways, and they are not equally strong evidence. `email` is a
+   * `pending_invites` row resolving at sign-up — somebody wrote to this
+   * address before there was an account behind it. `link` is an invite pin
+   * redeemed. `guest_ask` is a guest making an account inside a room to accept
+   * a member's ask. All three are *records*: the act that brought this person
+   * here was witnessed and stored.
+   *
+   * **`inferred` is not a record, and that is the whole reason this column
+   * exists.** It is a guess from the shape of the contact graph — somebody's
+   * first contact, made within a month of signing up, with a person already in
+   * the network — and it is right often enough to be worth making and wrong
+   * often enough to be worth labelling. Without this column the guess and the record
+   * become the same value, and no later query can ask how many people were
+   * actually *asked* here, which is the question `bin/growth` exists to
+   * answer. See planning/decisions/2026-09-23-credit-follows-the-first-contact.md.
+   */
+  invited_via: 'email' | 'link' | 'guest_ask' | 'inferred' | null;
   /**
    * Whether this account may see the invitation standings: 1 for yes, null or
    * 0 for no. Nobody has it by default and there is no screen that grants it —
@@ -607,6 +631,12 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- is the size of the subtree under it. Acyclic by construction: an inviter
   -- had to exist before the account that names them.
   invited_by TEXT REFERENCES accounts(id),
+  -- How that edge was arrived at: 'email', 'link', 'guest_ask' or 'inferred',
+  -- null exactly when invited_by is. The first three are records of an act;
+  -- 'inferred' is a guess from the contact graph and is kept separable so the
+  -- growth numbers can still say how many arrivals were actually asked for.
+  -- See the row type above.
+  invited_via TEXT,
   -- Lets this account see the invitation standings. Null for everyone until
   -- somebody sets it by hand; see the row type above for why there is no
   -- screen that does.
@@ -1953,14 +1983,32 @@ function migrate(db: Db): void {
   if (!accountColumns.some((c) => c.name === 'debug')) {
     db.exec('ALTER TABLE accounts ADD COLUMN debug INTEGER');
   }
-  // Null for every account that predates the column, and deliberately not
-  // backfilled. The `pending_invites` row that would have said who invited
-  // somebody is deleted the moment it resolves, so for an existing account
-  // the answer is simply not recorded anywhere — and reconstructing it from
-  // who they became contacts with first would credit whoever happened to be
-  // earliest in a table that was never keeping score.
+  // Null for every account that predates the column, and not backfilled by
+  // this migration. It said until 2026-09-23 that reconstructing the value
+  // from who somebody became contacts with first "would credit whoever
+  // happened to be earliest in a table that was never keeping score", and
+  // that reasoning is no longer the whole story — see
+  // planning/decisions/2026-09-23-credit-follows-the-first-contact.md, which
+  // supersedes it. What changed is that the reconstruction is no longer blind:
+  // it is bounded to a newcomer's *first* contact inside a window of signing
+  // up, refuses a pair who are both new to the graph, and records itself as
+  // 'inferred' rather than passing as a record. What has not changed is that
+  // a migration is the wrong place for it. Existing rows were left alone
+  // deliberately: the rule fires on contacts made from now on, so everybody
+  // already here keeps whatever the record says, including the roots who
+  // would have been credited by a backfill. See the decision.
   if (!accountColumns.some((c) => c.name === 'invited_by')) {
     db.exec('ALTER TABLE accounts ADD COLUMN invited_by TEXT REFERENCES accounts(id)');
+  }
+  // Null for every account that predates the column, including those that
+  // already have an `invited_by`. Deliberately not backfilled to 'email':
+  // most of them did arrive that way, but `guest_ask` and `link` accounts are
+  // in there too and nothing distinguishes them after the fact. A null here
+  // means "written before this column existed", which is honest; guessing
+  // would put invented provenance on the very rows the column exists to keep
+  // honest. bin/growth reports it as `unrecorded`.
+  if (!accountColumns.some((c) => c.name === 'invited_via')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN invited_via TEXT');
   }
   // Null for everyone, which is the value that means no standings. There is
   // nobody this should be true of by default: it is the only view in this

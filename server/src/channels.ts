@@ -5925,7 +5925,7 @@ export class ChannelRegistry {
   ): void {
     const account = this.accounts.byId(accountId);
     if (account && account.created_at > session.admitted_at) {
-      this.accounts.creditInviter(accountId, askerId);
+      this.accounts.creditInviter(accountId, askerId, 'guest_ask');
     }
   }
 
@@ -6025,7 +6025,13 @@ export class ChannelRegistry {
       if (!asked.ok) return { ok: false, error: asked.error, code: 'invalid' };
       // `accepted` when they had already asked the asker from the app, which
       // settles it without a second act.
-      if (!asked.accepted) this.accounts.acceptContact(accountId, askerId);
+      // `infer: false` because the credit question is settled below, on
+      // better evidence than the inference has: whether this account was made
+      // during the visit. See `Accounts.acceptContact`.
+      if (!asked.accepted)
+        this.accounts.acceptContact(accountId, askerId, this.now(), {
+          infer: false,
+        });
       this.ensurePairChannel(askerId, accountId);
     }
 

@@ -138,6 +138,7 @@ caused; the list carries the meaning.
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
+- **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under

@@ -152,6 +152,50 @@ export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const INVITE_PINS_PER_ACCOUNT = 10;
 
 /**
+ * How `accounts.invited_by` was arrived at. See the column in db.ts.
+ *
+ * Three records and one guess, and the guess is the reason the type exists.
+ */
+export type InviteCredit = 'email' | 'link' | 'guest_ask' | 'inferred';
+
+/**
+ * How long after signing up a first contact is still evidence of an arrival.
+ *
+ * The inference in `inferInviterFromFirstContact` needs a line between "this
+ * person is here because of the person they just connected to" and "this
+ * person found a friend". Nothing distinguishes those two edges except when
+ * they happen, so this is the whole of that distinction and it is a judgement
+ * rather than a measurement.
+ *
+ * **`INVITE_TTL_MS` itself, rather than thirty days written again.** An
+ * invitation does not outlive that: `pending_invites` rows and `invite_pins`
+ * are both swept at it, so past the window there is no invitation left
+ * anywhere in this database that *could* have been the one this edge stands in
+ * for. Crediting beyond it would reconstruct an act that had already expired,
+ * which is the one thing the sweep exists to make impossible — *an expired
+ * invitation credits nobody* is a rule older than this one.
+ *
+ * **So it is the same constant and not merely the same number.** The window is
+ * justified *by* the lifetime of an invitation, so the two must move together;
+ * two thirty-days sitting in one file would leave this paragraph quietly false
+ * the day somebody changed the other one. An alias with a reason is cheaper to
+ * keep true than a coincidence with a comment about it.
+ *
+ * **It was an hour until 2026-09-23 and the widening is a real change**, not a
+ * loosened tolerance. Every observed case fell inside 230 seconds, so nothing
+ * between four minutes and a month has ever been seen; what the month admits
+ * is the case an hour was chosen to exclude — somebody who signed up, sat
+ * alone for weeks, and was then added by an established member. That person is
+ * now credited to whoever added them. The judgement behind it is that this
+ * application is useless alone, so a first contact is an entry into the
+ * network whenever it lands, and the person on the other end of it is why
+ * somebody is here in the only sense the database can see. `invited_via`
+ * carries the cost: every one of these is marked `inferred`, so the standings
+ * can still be read without them.
+ */
+export const INFERRED_CREDIT_WINDOW_MS = INVITE_TTL_MS;
+
+/**
  * How many wrong pins may be offered against one account before it stops
  * answering, and for how long.
  *
@@ -711,14 +755,20 @@ export class Accounts {
   /**
    * Names an inviter for an account that arrived without one.
    *
-   * The second way credit is earned, and the only one that is not an email
-   * address resolving at sign-up. Somebody follows a guest link, makes an
-   * account inside the room to accept a member's ask, and `pending_invites`
-   * has never heard of them — so the walk in `invitedCount` would stop at a
-   * person who is plainly here because a member brought them. See
-   * `ChannelRegistry.acceptGuestAsk`, which is the one caller and which owns
-   * the harder half of the judgement: *whether this account is new*, which
-   * this cannot see and will not guess at.
+   * Every way credit is earned that is not an email address resolving at
+   * sign-up. Somebody follows a guest link, makes an account inside the room
+   * to accept a member's ask, and `pending_invites` has never heard of them —
+   * so the walk in `invitedCount` would stop at a person who is plainly here
+   * because a member brought them.
+   *
+   * **Three callers, and each owns a judgement this cannot make.**
+   * `ChannelRegistry.acceptGuestAsk` owns *whether this account is new*;
+   * `redeemInvitePin` owns *whether this pin was live and unspent*; and
+   * `inferInviterFromFirstContact` owns the weakest of the three — *whether
+   * the shape of the contact graph is evidence of an arrival at all*. They
+   * pass `via` so the row says which, because a guess and a record must not
+   * become the same value. This was documented as having one caller until
+   * 2026-09-23, when it had had two for weeks.
    *
    * What it does own is that credit is written once and never moved. An
    * account with an inviter keeps the one it has, so a second ask from a
@@ -732,7 +782,11 @@ export class Accounts {
    * close a loop. `invitedCount` returns a wrong number rather than looping on
    * a corrupt table, which is not a guarantee worth spending.
    */
-  creditInviter(accountId: string, inviterId: string): boolean {
+  creditInviter(
+    accountId: string,
+    inviterId: string,
+    via: InviteCredit = 'guest_ask'
+  ): boolean {
     if (accountId === inviterId) return false;
     const account = this.byId(accountId);
     if (!account || account.invited_by) return false;
@@ -747,9 +801,103 @@ export class Accounts {
     }
 
     this.db
-      .prepare('UPDATE accounts SET invited_by = ? WHERE id = ?')
-      .run(inviterId, accountId);
+      .prepare('UPDATE accounts SET invited_by = ?, invited_via = ? WHERE id = ?')
+      .run(inviterId, via, accountId);
     return true;
+  }
+
+  /**
+   * How many accepted contacts this account has with anybody but one person.
+   *
+   * Counted rather than dated, which is what lets the caller run *after* the
+   * edge it is asking about is already written: excluding the counterpart is
+   * the same question as "before this edge" without depending on a clock that
+   * two rows can share a millisecond of.
+   */
+  private otherAcceptedContacts(accountId: string, exceptId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM contacts
+          WHERE state = 'accepted'
+            AND (a_id = ? OR b_id = ?)
+            AND a_id <> ? AND b_id <> ?`
+      )
+      .get(accountId, accountId, exceptId, exceptId) as { n: number };
+    return Number(row.n);
+  }
+
+  /**
+   * Credit an arrival to the first person they connected to, when the shape of
+   * that connection is evidence they were brought here.
+   *
+   * **The weakest of the four ways credit is earned, and the only one that is
+   * a guess.** The other three witness an act: an address written to, a pin
+   * redeemed, an ask accepted in a room. This one witnesses nothing. It reads
+   * a contact edge and asks whether it looks like an arrival, which it cannot
+   * know — so everything here is about making the guess wrong rarely, and
+   * labelling it when it is made.
+   *
+   * It exists because the acts are losable. Somebody mints an invite link,
+   * sends it, and the recipient installs from the App Store instead of
+   * accepting in the browser: the pin is never redeemed, no `pending_invites`
+   * row was ever written, and the most plainly invited person in the database
+   * arrives owing nobody. `invite.ts` has warned about that route on the page
+   * itself for as long as the page has existed, and people take it anyway.
+   *
+   * **Three conditions, and each one rules out a different wrong answer.**
+   *
+   * *This must be the arrival's first accepted contact.* Credit is about how
+   * somebody got here, so only the edge that could have brought them is
+   * evidence. A second contact is a person making friends.
+   *
+   * *The counterpart must already have one.* This is the guard against two
+   * strangers arriving together and crediting each other — both directions
+   * pass every other test, and `creditInviter`'s cycle check would then refuse
+   * whichever fired second, minting a inviter out of a coin toss. Requiring
+   * the counterpart to be somebody the network already holds makes the rule
+   * asymmetric, which is what the truth is: one of them was here, one of them
+   * arrived. **It also means a pair who are both new get nothing, deliberately
+   * and permanently** — nothing later can tell which of them brought the other.
+   *
+   * *It must be inside `INFERRED_CREDIT_WINDOW_MS` of signing up.* The line
+   * between arriving and finding a friend, discussed at that constant.
+   *
+   * Both directions are attempted, because the caller knows only that two
+   * accounts became contacts and not which of them is new. At most one can
+   * pass: the conditions are mutually exclusive on the counterpart's contact
+   * count, so this cannot credit both ways round.
+   *
+   * A tombstone is refused at both ends — an erased account is not a person to
+   * credit and not a person to name as an inviter, which is the distinction
+   * `invitedCount` already draws.
+   *
+   * Returns the account that was credited, or null when nothing was.
+   */
+  inferInviterFromFirstContact(
+    xId: string,
+    yId: string,
+    now: number
+  ): string | null {
+    for (const [arrivalId, inviterId] of [
+      [xId, yId],
+      [yId, xId],
+    ]) {
+      const arrival = this.byId(arrivalId);
+      const inviter = this.byId(inviterId);
+      if (!arrival || !inviter) continue;
+      if (arrival.invited_by) continue;
+      if (arrival.identifier.startsWith(ERASED_IDENTIFIER_PREFIX)) continue;
+      if (inviter.identifier.startsWith(ERASED_IDENTIFIER_PREFIX)) continue;
+
+      const age = now - arrival.created_at;
+      if (age < 0 || age > INFERRED_CREDIT_WINDOW_MS) continue;
+
+      if (this.otherAcceptedContacts(arrivalId, inviterId) !== 0) continue;
+      if (this.otherAcceptedContacts(inviterId, arrivalId) === 0) continue;
+
+      if (this.creditInviter(arrivalId, inviterId, 'inferred')) return arrivalId;
+    }
+    return null;
   }
 
   /**
@@ -1648,7 +1796,9 @@ export class Accounts {
     const first = invites.find(({ requester_id }) => requester_id !== account.id);
     if (first && options.credit) {
       this.db
-        .prepare('UPDATE accounts SET invited_by = ? WHERE id = ?')
+        .prepare(
+          "UPDATE accounts SET invited_by = ?, invited_via = 'email' WHERE id = ?"
+        )
         .run(first.requester_id, account.id);
     }
 
@@ -2080,7 +2230,7 @@ export class Accounts {
         return { ok: false, error: 'Request already sent.' };
       }
       // They asked first; treat this as accepting.
-      this.acceptContact(from, targetId);
+      this.acceptContact(from, targetId, now);
       return { ok: true, accepted: true, targetId };
     }
 
@@ -2093,8 +2243,34 @@ export class Accounts {
     return { ok: true, accepted: false, targetId };
   }
 
-  /** Only the recipient may accept — the requester cannot accept their own. */
-  acceptContact(userId: string, otherId: string): boolean {
+  /**
+   * Only the recipient may accept — the requester cannot accept their own.
+   *
+   * **The funnel every accepted contact passes through**, which is why the
+   * inference hangs here rather than at each of the three places a contact
+   * can be asked for. `redeemInvitePin` is the one exception and does not need
+   * it: a redeemed pin is a record, so it credits directly and
+   * `creditInviter` refuses the second attempt anyway.
+   *
+   * `now` is passed rather than read so the window the inference applies is a
+   * caller's clock, in the manner of `requestContact` and `redeemInvitePin`.
+   *
+   * **`infer: false` is for a caller that has already decided the question**,
+   * and there is exactly one: `acceptGuestAsk` knows whether the account was
+   * made during the visit, by comparing it with the seat's `admitted_at`, and
+   * credits or declines on that. The inference cannot see a seat and would
+   * answer from the clock alone — so for an account that signed up minutes
+   * before being asked, it would credit the asker that `acceptGuestAsk` had
+   * just deliberately refused to credit. **A guess may not overturn a
+   * judgement made with better evidence**, which is the rule that keeps
+   * `inferred` the weakest thing in the column rather than the loudest.
+   */
+  acceptContact(
+    userId: string,
+    otherId: string,
+    now: number,
+    options: { infer?: boolean } = {}
+  ): boolean {
     const [a, b] = pairKey(userId, otherId);
     const existing = this.contactState(userId, otherId);
     if (!existing || existing.state !== 'pending') return false;
@@ -2104,6 +2280,12 @@ export class Accounts {
         "UPDATE contacts SET state = 'accepted' WHERE a_id = ? AND b_id = ?"
       )
       .run(a, b);
+    // After the edge is written, never before: the inference counts accepted
+    // contacts, and this one has to be among them for "their first" to mean
+    // what it says.
+    if (options.infer !== false) {
+      this.inferInviterFromFirstContact(userId, otherId, now);
+    }
     return true;
   }
 
@@ -2416,7 +2598,7 @@ export class Accounts {
     // `creditInviter` refuses a self-edge, a cycle and an account already
     // credited, so redeeming a link after arriving some other way leaves the
     // standings alone.
-    this.creditInviter(redeemerId, ownerId);
+    this.creditInviter(redeemerId, ownerId, 'link');
 
     return { ok: true, owner };
   }

@@ -28,10 +28,17 @@
 #     first circle can be bought with effort, onward cannot.
 #
 # The three are exhaustive and disjoint, which is the point of naming them by
-# depth rather than by how the invitation was sent. There are two ways an edge
-# gets written — an email address resolving at sign-up, and `creditInviter`
-# when somebody makes an account inside a room to accept a member's ask — and
-# neither is more of an arrival than the other.
+# depth rather than by how the invitation was sent. There are four ways an
+# edge gets written — an address resolving at sign-up, an invite pin redeemed,
+# a guest making an account in a room to accept an ask, and, since 2026-09-23,
+# an inference from somebody's first contact — and none of the four is more of
+# an arrival than another *once written*.
+#
+# **They are not equally good evidence that it should have been written**, and
+# the `credit` report is that distinction: the first three witness an act and
+# the fourth is a guess. Read it beside these classes whenever the size of
+# *alone* matters, since inference is the only thing that moves people out of
+# that class without anybody having done anything.
 #
 # **Depth 0 is not a claim about how somebody got here.** It says only that
 # the box knows of no invitation: word of mouth, a link passed on, a store
@@ -385,6 +392,39 @@ CREATE TEMP VIEW together_end AS
   SELECT channel_id, day, started_at, account_id AS id FROM together
   UNION ALL
   SELECT channel_id, day, started_at, peer_id FROM together;
+SQL
+}
+
+report_credit() {
+  cat <<'SQL'
+.print ''
+.print '── How each credit was earned ──────────────────────────────────'
+.print ''
+-- **The column that keeps the classes honest.** Three of these witness an act
+-- and one does not: `inferred` is a guess from the shape of the contact graph
+-- — somebody's first contact, made within a month of signing up, with a
+-- person already in the network — and it is written because the acts are
+-- losable.
+-- An invite link followed to the App Store rather than accepted in a browser
+-- leaves no record at all, and the most plainly invited person in the
+-- database arrives owing nobody.
+--
+-- Read it against the classes above rather than instead of them. `alone` is
+-- the class that shrinks when inference is working, so a growing `inferred`
+-- number is arrivals moving out of *alone* on evidence that is weaker than a
+-- record. If it ever becomes the largest row here, the standings have stopped
+-- being a count of invitations and become a count of first contacts, which is
+-- a different claim and should be said out loud rather than discovered.
+--
+-- `unrecorded` is every edge written before the column existed, deliberately
+-- not guessed at. It shrinks only by attrition.
+SELECT COALESCE(invited_via, 'unrecorded') AS earned,
+       COUNT(*) AS people,
+       CAST(ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) AS INT) AS share
+  FROM person
+ WHERE invited_by IS NOT NULL
+ GROUP BY earned
+ ORDER BY people DESC, earned;
 SQL
 }
 
@@ -1171,11 +1211,12 @@ SELECT CASE WHEN answered_at - sent_at < 30000 THEN '1 under 30s'
 SQL
 }
 
-report_names=(classes weeks months depth roots islands pairs channels talking groups notify pings defects)
+report_names=(classes credit weeks months depth roots islands pairs channels talking groups notify pings defects)
 
 list_reports() {
   cat <<'TXT'
 classes   the three classes: how many, what share, and how many each brought
+credit    how each invitation edge was earned — record or inference
 weeks     arrivals per week by class, with the running total
 months    the same by calendar month, for comparing against anything monthly
 depth     how many people sit at each generation, and how recent each is
