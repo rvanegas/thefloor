@@ -18,7 +18,6 @@ import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { leaveSeat, leaveSeatChannel } from './handover';
-import { API_URL } from '../api/config';
 import { Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
@@ -63,20 +62,6 @@ import { colors, radius, spacing, type } from './theme';
  * Everything here is a server snapshot. Nothing is computed locally except
  * which section a channel belongs in, which is a display question.
  */
-/**
- * The address a browser would open this install's Floor at, said the way
- * somebody would type it.
- *
- * The API and the web app are one origin — the server serves `/app` beside
- * `/g/…` and the routes themselves — so where this app is talking is where
- * its browser half is. Stripped of the scheme because this ends up in a
- * sentence rather than in a link: nothing here is tappable, and `https://`
- * in prose is noise somebody has to read past.
- */
-function webAddress(): string {
-  return API_URL.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'The Floor';
-}
-
 export function ChannelsView({
   onEnterChannel,
   liveChannelId = null,
@@ -160,20 +145,16 @@ export function ChannelsView({
   // here, where the app knows what it is actually connected to.
   const cards = [
     ...(home?.invites ?? []).map(inviteCard),
-    ...(home?.rejoinable ?? [])
-      // A seat can only be used where one can exist. The same account may hold
-      // one opened on a laptop, which makes the row true on a phone and still
-      // unopenable there — so it is drawn where it leads somewhere.
-      //
-      // **This is what a native guest screen would lift, and nothing else.**
-      // The server can already put this app into a seat —
-      // `POST /channels/:id/seat/enter` answers with a `GuestView` — so what
-      // is missing is the screen that draws one, which needs a LiveKit
-      // connection of its own and an iOS audio session configured for it. The
-      // row stays hidden until that exists: a card that opens nothing is worse
-      // than no card, which is the judgement this line has always made.
-      .filter((entry) => !entry.seat || Platform.OS === 'web')
-      .map(memberCard),
+    /*
+      **Every seat is drawn now, on every platform.** This filtered them out
+      on anything but the web, on the judgement that a card which opens
+      nothing is worse than no card — true, and it stopped being the
+      situation on 2026-09-22 when the app learned to sit in one. The comment
+      that stood here named exactly what was missing, a screen and an audio
+      session; both exist, so the line that was waiting on them goes rather
+      than being softened. See `SeatView`.
+    */
+    ...(home?.rejoinable ?? []).map(memberCard),
   ].filter(
     (card) =>
       card.channelId !== liveChannelId &&
@@ -285,30 +266,32 @@ export function ChannelsView({
    * by a different document reads as the page having stalled.
    */
   const takeUpSeat = async (channelId: string) => {
-    /*
-      **A phone says where the seat opens rather than hiding the offer**, and
-      that is the one place this parts company with the dormant seats filtered
-      out of the list below. Those were never announced; an invitation is —
-      `notifications.invitedAsGuest` wakes the phone with *Invited you to X as
-      a guest*. A card that vanished would leave that alert pointing at a Home
-      screen with nothing on it, which reads as the invitation having been
-      withdrawn.
-
-      So the card stands, and the tap answers the only question it can: this
-      is a seat, seats are drawn in a browser, and there is one at the address
-      this app is already talking to. See `AppProvider.enterSeat` for why the
-      screen does not exist here yet.
-    */
-    if (Platform.OS !== 'web') {
-      Alert.alert(
-        'This is a seat, not a membership',
-        `A guest joins in a browser. Open ${webAddress()} on any device and sign in, and it will be on your home screen there.`,
-        [{ text: 'Got it' }]
-      );
-      return;
-    }
     try {
       const { guestId, secret } = await app.enterSeat(channelId);
+      /*
+        **The app opens its own screen; the browser still walks.**
+
+        Two documents, one origin: the guest page is served separately, so on
+        the web this is a navigation rather than a route change and the seat's
+        credential has to be left where that page looks for it. The app has
+        neither problem — the seat's snapshot arrives on the socket it is
+        already holding, and the screen for it is a case in this one's own
+        router. See `SeatView`, and `ServerMessage.seat` for why no credential
+        travels.
+
+        **Which is why the app ignores the secret it was just handed.** It is
+        minted for the page, by a server that cannot tell which of the two
+        asked; an app that kept it would be holding a guest credential it has
+        no use for, beside a session that is strictly better.
+
+        `onEnterChannel` and not a route of its own: which screen a channel
+        opens is the server's answer rather than this list's, and asking here
+        would be a second place that could get it wrong. See App.tsx.
+      */
+      if (Platform.OS !== 'web') {
+        onEnterChannel(channelId);
+        return;
+      }
       // No secret means a server too old to mint one on the way in. The seat
       // is taken up either way — refusing to walk would strand somebody in
       // the app with an invitation the server has already spent.
@@ -327,6 +310,16 @@ export function ChannelsView({
   };
 
   const openSeat = (channelId: string) => {
+    // A seat already held, and in the app that is the same act as taking one
+    // up: `enterSeat` is idempotent for a seat this account is already
+    // sitting in, and it is what puts the room back into this device's
+    // standing after a step-out. The browser's two paths differ because one
+    // of them has a credential in storage already; neither half of that is
+    // true here.
+    if (Platform.OS !== 'web') {
+      void takeUpSeat(channelId);
+      return;
+    }
     // **Which channel travels in `sessionStorage`, not in the path.** No
     // address in this application carries an id, and the seat page is on this
     // origin and this tab, which is what makes the walk possible at all — the

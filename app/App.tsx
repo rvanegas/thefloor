@@ -24,6 +24,7 @@ import { HelpView } from './src/ui/HelpView';
 import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
+import { SeatView } from './src/ui/SeatView';
 import { nearbyChannels } from './src/ui/ChannelsView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
@@ -154,10 +155,36 @@ function Root() {
   const here = liveChannelHere(app.channelViews, me, app.standingIn, app.expired);
   const live = here?.channel ?? null;
 
+  /**
+   * The seat this device is sitting in, which is the other way to be in a
+   * room — and there is at most one.
+   *
+   * **A seat's snapshot existing *is* being in the room.** `Channels.seatIn`
+   * answers only for a guest the room is actually holding, so a dormant seat
+   * and an invitation nobody has taken up produce no view at all; stepping
+   * out ends the seat and the server answers `channel.gone`. There is
+   * therefore no second `standingIn` to consult, which is the one asymmetry
+   * with a membership: a member's snapshot outlives their presence and a
+   * seat's does not.
+   *
+   * **After the membership and never beside it.** A seat takes this device's
+   * standing when it is entered — see `AppProvider.enterSeat` — so the two
+   * cannot both be live, and reading them in this order means a bug that made
+   * them overlap is a seat ignored rather than two rooms in one pair of ears.
+   */
+  const seat = live
+    ? null
+    : (Object.values(app.seatViews)[0] ?? null);
+
   // Whether this device should be capturing, which since 2026-09-08 is whether
   // it is stepped in — and, for a guest, whether they have been granted the
   // microphone.
-  const micNeeded = !!live && microphoneNeeded(live, me);
+  const micNeeded = live
+    ? microphoneNeeded(live, me)
+    : // A guest's microphone is the grant a member said yes to, and holding
+      // it muted is still holding it — the same reading `microphoneNeeded`
+      // makes of a member who has muted themselves. See `GuestView.you.mic`.
+      seat?.you.mic === 'open' || seat?.you.mic === 'muted';
 
   // Whether this app claims the audio system at all, where `micNeeded` decides
   // only whether we publish.
@@ -174,17 +201,31 @@ function Root() {
   // none, and it had to be assumed before the server confirmed it; standing in
   // the room is now the whole answer, so there is nothing left for the round
   // trip to be ahead of.
-  const hasAudio = !!live && channelHasAudio(live, me);
+  // A seat listens from the moment it is in the room, which is why this is
+  // simply *is there a seat* where the line above asks about a grant. It is
+  // the one case that makes these two differ for a member as well: being in a
+  // room without a microphone is `LISTENING` rather than `CALL`.
+  const hasAudio = live ? channelHasAudio(live, me) : !!seat;
 
   const audio = useSessionAudio(
-    // Keyed on the audio rather than on the channel, which are no longer the
-    // same thing: a conversation that moves takes its room with it, and this
-    // hook tearing down and rebuilding on the new channel id would turn pure
-    // bookkeeping into a dropped call for everybody in it.
-    live ? live.mediaRoom : null,
-    live ? live.id : null,
+    /*
+      **A seat is keyed on its channel, a membership on its media room**, and
+      the difference is a fact about what each can do rather than an
+      inconsistency. A conversation that moves takes its room with it, and a
+      member keyed on the channel id would tear the connection down and
+      rebuild it — a dropped call for everybody in it. A seat cannot move:
+      `GuestView` carries no room name, deliberately, and there is nothing
+      about a seat that survives the channel it is a seat in. The key only has
+      to be stable and distinct, and this is both.
+
+      The credential is fetched rather than carried either way — the hook asks
+      `POST /channels/:id/media-token`, which answers a seat with the seat's
+      own grant. See server/src/app.ts.
+    */
+    live ? live.mediaRoom : seat ? `seat:${seat.channelId}` : null,
+    live ? live.id : (seat?.channelId ?? null),
     token,
-    !!live?.selfMuted[me],
+    live ? !!live.selfMuted[me] : seat?.you.mic === 'muted',
     micNeeded,
     hasAudio,
     // **`false`, and staying that way.** The automatic rebind ran three times
@@ -747,7 +788,26 @@ function Root() {
           />
         );
 
-      case 'channel':
+      case 'channel': {
+        /*
+          **The server decides which of the two screens this is, and the app
+          reads its answer rather than keeping one of its own.** A watch on a
+          channel is answered with a membership where there is one and a seat
+          otherwise — `pushChannel` makes that choice once, on the only side
+          that can — so a snapshot in `seatViews` is the whole of what says
+          this channel is somewhere we are a guest. A flag carried alongside
+          would be a second answer to a question already answered, and the
+          moment the two disagreed is the moment a guest's data is drawn by a
+          member's screen.
+
+          A channel with neither snapshot yet falls through to `ChannelView`,
+          which already has the waiting state for a snapshot that has not
+          arrived and the gone state for one that never will.
+        */
+        const seated = app.seatViews[detail.channelId];
+        if (seated && !app.channelViews[detail.channelId]) {
+          return <SeatView view={seated} onClose={close} />;
+        }
         return (
           <ChannelView
             channelId={detail.channelId}
@@ -779,6 +839,7 @@ function Root() {
             onEnterChannel={enterChannel}
           />
         );
+      }
 
       // Reached from Home rather than from a channel, because what is in here
       // is about you rather than about whichever conversation you are in.

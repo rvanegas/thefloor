@@ -5955,9 +5955,58 @@ export class ChannelRegistry {
     const claimed = this.claimSeat(accountId, guestId, secret);
     if (!claimed.ok) return claimed;
     const { session, channel, guest } = claimed;
+    return this.answerContactAsk(accountId, askerId, session, channel, guest);
+  }
+
+  /**
+   * The same acceptance from an account *sitting in* the seat, with no secret
+   * to present.
+   *
+   * **The seat's binding is the credential**, which is `enterSeat`'s argument
+   * exactly: a secret exists because an anonymous visitor has nothing better,
+   * and a seat carrying `account_id` has the better answer. `seatIn` will not
+   * return a seat belonging to anybody else, so what `claimSeat` proves by
+   * hash is proved here by the lookup.
+   *
+   * It cannot *claim* an unidentified seat, which `acceptGuestAsk` can and
+   * which is the one thing the two do differently. That path is for somebody
+   * who has just made an account inside the room; this one is for somebody
+   * who walked in holding one.
+   */
+  acceptSeatAsk(
+    accountId: string,
+    channelId: string,
+    askerId: string
+  ): { ok: true } | Refused {
+    const guestId = this.seatIn(channelId, accountId);
+    const channel = this.channels.get(channelId);
+    const guest = guestId === undefined ? undefined : channel?.guests[guestId];
+    const session = guestId === undefined ? undefined : this.guests.byId(guestId);
+    if (!channel || !guest || !session) {
+      return { ok: false, error: 'You are not in this channel.', code: 'forbidden' };
+    }
+    return this.answerContactAsk(accountId, askerId, session, channel, guest);
+  }
+
+  /**
+   * What accepting a contact ask does once the seat has been proved, by
+   * whichever of the two credentials proved it.
+   *
+   * Shared rather than written twice: the acceptance writes a contact row, a
+   * pair channel, an arrival credit and a card on the guest, and two copies of
+   * that would be two things to keep in step for the sake of one lookup.
+   */
+  private answerContactAsk(
+    accountId: string,
+    askerId: string,
+    session: GuestSessionRow,
+    channel: ChannelState,
+    guest: Guest
+  ): { ok: true } | Refused {
     if (guest.asks?.[askerId] !== 'asking') {
       return { ok: false, error: 'Nobody asked.', code: 'not_found' };
     }
+    const guestId = guest.id;
     this.creditArrival(accountId, askerId, session);
 
     // Already contacts is an ordinary way to arrive here: somebody may open a
@@ -6175,6 +6224,82 @@ export class ChannelRegistry {
       clip: channel.clip,
       serverNow: this.now(),
     };
+  }
+
+  /**
+   * The seat this account is *sitting in* in one channel, or undefined.
+   *
+   * **In the room, not merely holding a row.** `Guests.seatFor` answers the
+   * wider question — a seat exists, answered or not — which is what
+   * `enterSeat` needs and what Home draws an invitation from. This is the
+   * narrower one every live read wants: `channel.guests` is who is actually
+   * here, so a dormant seat and an invitation nobody has taken up both come
+   * back undefined and the caller draws nothing rather than an empty room.
+   *
+   * **A member is never found by it**, which is the same precedence
+   * `enterSeat` states: the seat is the lesser standing, so somebody who is
+   * both is answered about the membership by whatever asked. Checked here as
+   * well as there because the callers are different — a socket pushing a
+   * snapshot has no reason to have asked.
+   */
+  seatIn(channelId: string, accountId: string): string | undefined {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') return undefined;
+    if (isParticipant(channel, accountId)) return undefined;
+    for (const guest of Object.values(channel.guests)) {
+      if (guest.accountId === accountId) return guest.id;
+    }
+    return undefined;
+  }
+
+  /**
+   * What a seated account is shown, which is a guest's projection and not a
+   * member's. Undefined when there is no seat, so one call answers both *is
+   * there one* and *what does it say*.
+   */
+  seatView(channelId: string, accountId: string): GuestView | undefined {
+    const guestId = this.seatIn(channelId, accountId);
+    return guestId === undefined ? undefined : this.guestView(channelId, guestId);
+  }
+
+  /**
+   * A seat's media credential, asked for by the account that holds it.
+   *
+   * The seat is looked up rather than named: `guestMediaToken` takes a guest
+   * id, which the app has no business presenting — what it holds is a session,
+   * and which seat that session is sitting in is the server's to know. The
+   * grant is the guest's own, `canPublish` following `maySpeak` exactly as it
+   * does for the page.
+   */
+  async seatMediaToken(
+    channelId: string,
+    accountId: string
+  ): Promise<{ ok: true; token: string } | Refused> {
+    const guestId = this.seatIn(channelId, accountId);
+    if (guestId === undefined) {
+      return { ok: false, error: 'You have no seat here.', code: 'forbidden' };
+    }
+    return this.guestMediaToken(channelId, guestId);
+  }
+
+  /**
+   * An action from an account sitting in a seat.
+   *
+   * The seat is resolved from the account for `seatMediaToken`'s reason, and
+   * then this is `dispatchGuest` unchanged — what a guest may do is one
+   * allowlist however they are connected, and a second copy of it would be a
+   * second thing to keep in step.
+   */
+  dispatchSeat(
+    channelId: string,
+    accountId: string,
+    action: { type: string; [key: string]: unknown }
+  ): { ok: true } | Refused {
+    const guestId = this.seatIn(channelId, accountId);
+    if (guestId === undefined) {
+      return { ok: false, error: 'You are not in this channel.', code: 'forbidden' };
+    }
+    return this.dispatchGuest(channelId, guestId, action);
   }
 
   /**

@@ -57,7 +57,7 @@ caused; the list carries the meaning.
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
 - **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six, but it does hold one of the forty and is drawn under *Invitations* on the *People* tab. Expires when the room empties, or when a member takes it back
-- **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account
+- **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account. Always the browser: the *seat* it produces is openable in the app afterwards, and only for an account
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, the *Podcasts* tab and the *Support* tab, not one thing
@@ -91,7 +91,7 @@ caused; the list carries the meaning.
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
-- **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet
+- **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
@@ -1808,8 +1808,18 @@ disabled, rather than being withheld with nothing to explain the gap.
 ## Seat
 
 A guest's standing in a channel: a place they may go back to for as long as it
-lasts, rather than a membership. It appears on Home as a smaller card that
-opens the guest page, and it expires on its own if unused.
+lasts, rather than a membership. It appears on Home as a smaller card, and it
+expires on its own if unused.
+
+**Where that card opens depends on whether there is an account behind it**,
+since 2026-09-22. A seat with one opens in the app, on a screen of its own —
+the app holds seats now, over the account's own socket, and a contact asked in
+as a guest stays where they already were. A seat with nobody behind it opens
+the guest page in a browser, which is what a *guest link* always produces and
+is unchanged: the app boots into a sign-in, and an anonymous seat has nothing
+to sign in as. Before that date every seat was the browser's, and a phone was
+shown an alert naming a web address. See
+`decisions/2026-09-22-a-seat-rides-the-member-socket.md`.
 
 **A seat may exist before anybody has sat in it**, since 2026-09-21: that is
 what a *guest invitation* is, and it is the one kind whose holder has never been
@@ -1821,6 +1831,10 @@ roster, no recordings and no history of the channel, only when it was admitted.
 Distinct also from being *present*: a seat outlives the visit, which is what
 lets a guest come back. **And distinct from having an account**, which a seat
 may or may not have behind it; the two are what *guest* used to run together.
+
+**A seat takes the standing of the device that opens it**, exactly as opening
+another channel does: walking into one is walking into a conversation, and two
+at once is two conversations in one pair of ears.
 
 **A seat ends in one of two directions.** Downwards, when it is ejected,
 expires, or goes with the last member out. Upwards, when the account behind it

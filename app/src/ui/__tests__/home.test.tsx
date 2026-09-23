@@ -100,11 +100,18 @@ describe('Home', () => {
     act(() => tree.unmount());
   });
 
-  it('draws a seat as somewhere to go back to, and never on a phone', () => {
-    // A channel you are a guest of is a place you can return to, which is what
-    // this list means — so it belongs among the rest rather than in a section
-    // of its own. It opens the guest page, a document this app does not own,
-    // and it can only do that in a browser.
+  it('draws a seat as somewhere to go back to, on every platform', () => {
+    /*
+      A channel you are a guest of is a place you can return to, which is what
+      this list means — so it belongs among the rest rather than in a section
+      of its own.
+
+      **It was drawn in a browser and nowhere else until 2026-09-22**, because
+      a seat was a document this app did not own and a row a phone could not
+      open is worse than no row. The app sits in seats of its own now, so both
+      halves of that are gone: the row stands everywhere, and it says the same
+      thing on each. See `SeatView`.
+    */
     const seat = {
       channelId: 'sess_seat',
       name: 'Alice and Bob',
@@ -121,11 +128,15 @@ describe('Home', () => {
       contacts: [],
     };
 
+    // `Platform.OS` is 'ios' under the preset, which is the case that used to
+    // be withheld and is now the ordinary one.
     const phone = render(<HomeView {...homeNav} />);
-    // `Platform.OS` is 'ios' under the preset, which is the case this guards:
-    // the same account may hold a seat opened on a laptop, and a row a phone
-    // cannot open is worse than no row.
-    expect(textOf(phone)).not.toContain('Alice and Bob');
+    const onPhone = textOf(phone);
+    expect(onPhone).toContain('Alice and Bob');
+    // Still said plainly, on both: a row that read like the others would
+    // promise a membership where there is a seat.
+    expect(onPhone).toContain('You are a guest here');
+    expect(onPhone).toContain('2 present');
     act(() => phone.unmount());
 
     const wasOs = Platform.OS;
@@ -136,8 +147,6 @@ describe('Home', () => {
       const browser = render(<HomeView {...homeNav} />);
       const text = textOf(browser);
       expect(text).toContain('Alice and Bob');
-      // Said plainly: a row that read like the others would promise the
-      // channel screen and open a different page.
       expect(text).toContain('You are a guest here');
       expect(text).toContain('2 present');
       act(() => browser.unmount());
@@ -1542,13 +1551,18 @@ describe('a guest invitation', () => {
     }
   });
 
-  it('says where a seat opens rather than hiding it, on a phone', async () => {
+  it('takes up a seat in the app on a phone, rather than sending it away', async () => {
     /*
-      **The one place this parts company with a dormant seat**, which is
-      filtered out of the list entirely. That one was never announced; this
-      one was — the invitation wakes the phone. A card that vanished would
-      leave that notification pointing at a Home screen with nothing on it,
-      which reads as the invitation having been withdrawn.
+      **This used to be an alert saying *a guest joins in a browser*.** The
+      offer had to stand — the invitation wakes the phone, and a card that
+      vanished would leave that notification pointing at an empty Home screen
+      — but all the tap could do was name a web address and a second sign-in,
+      for a conversation that was happening now.
+
+      It takes the seat and opens it. Which screen the channel then draws is
+      the server's answer rather than this list's: a watch is answered with a
+      seat where there is no membership, and `App.tsx` reads that. See
+      `SeatView` and planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
     */
     mockApp.home = {
       invites: [invite({ guest: true })],
@@ -1556,16 +1570,15 @@ describe('a guest invitation', () => {
       contacts: [],
     };
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = render(<HomeView {...homeNav} />);
+    const opened = jest.fn();
+    const tree = render(<HomeView {...homeNav} onEnterChannel={opened} />);
     await act(async () => {
       findButton(tree, 'asked you in as a guest')!.props.onPress();
     });
-    expect(mockApp.enterSeat).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenCalledWith(
-      'This is a seat, not a membership',
-      expect.stringContaining('browser'),
-      expect.anything()
-    );
+    expect(mockApp.enterSeat).toHaveBeenCalledWith('sess_asked');
+    expect(opened).toHaveBeenCalledWith('sess_asked');
+    // Nothing is said about browsers any more, there being nowhere else to go.
+    expect(alert).not.toHaveBeenCalled();
     act(() => tree.unmount());
     alert.mockRestore();
   });

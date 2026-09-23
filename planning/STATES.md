@@ -372,6 +372,15 @@ things that this file keeps apart:
   of its devices is doing it is settled by `displaceOtherSessions` telling the
   others they are not. See disagreement 12.
 
+  **A seat takes it too, since 2026-09-22**, and that is the one addition to
+  this paragraph the app holding seats makes. Walking into a seat is walking
+  into a conversation, so `AppProvider.enterSeat` steps this device out of
+  whatever channel it was in first — exactly as opening another channel does.
+  It is a client-side step-out rather than a server rule, because standing is
+  a fact about a device and the server cannot tell which of an account's
+  sockets asked. **What it does not give the seat is presence**: a guest is in
+  the room and in `present` nowhere, which is the entry below.
+
 - **A seat**, which is none of the four above and is worth naming here because
   it looks like two of them. Somebody holding one is *in the room* — audible,
   countable, in `roomOccupants` — and is in `participants`, `present` and

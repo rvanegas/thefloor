@@ -6,6 +6,8 @@ import {
 import type {
   ClientAction,
   ClientMessage,
+  GuestAction,
+  GuestView,
   HomeView,
   ScreenDevice,
   ServerMessage,
@@ -54,6 +56,15 @@ export interface RealtimeHandlers {
   onSettings?: (settings: AccountSettings) => void;
   onHome?: (home: HomeView) => void;
   onChannel?: (view: ChannelView) => void;
+  /**
+   * A channel this account holds a seat in, as the seat sees it.
+   *
+   * Its own handler rather than a shape `onChannel` learns to tell apart: the
+   * two views carry different types on purpose, and a caller that had to ask
+   * which it was holding would be one mistake away from drawing a member's
+   * screen out of a guest's data. See `ServerMessage.seat`.
+   */
+  onSeat?: (view: GuestView) => void;
   onChannelGone?: (channelId: string) => void;
   /**
    * The conversation moved to another channel — somebody was asked into an
@@ -449,6 +460,10 @@ export class Realtime {
         case 'channel':
           this.handlers.onServerTime?.(message.view.serverNow);
           this.handlers.onChannel?.(message.view);
+          break;
+        case 'seat':
+          this.handlers.onServerTime?.(message.view.serverNow);
+          this.handlers.onSeat?.(message.view);
           break;
         case 'channel.gone':
           if (this.enteredChannel === message.channelId) this.setStanding(null);
@@ -959,6 +974,27 @@ export class Realtime {
     // After the send, which either wrote it or queued it. Either way somebody
     // is here and waiting on an answer, which is the one thing a backoff is
     // not allowed to sit on. See `reconnectNow`.
+    this.reconnectNow();
+    return sent;
+  }
+
+  /**
+   * One of a guest's acts, in a channel this account holds a seat in.
+   *
+   * **No standing is tracked, which is the difference from `act`.** That
+   * method records `ENTER` and the four departures so a reconnect can restore
+   * presence, and a seat has nothing of the kind to restore: it is taken up
+   * over HTTP — `POST /channels/:id/seat/enter` — and the socket coming back
+   * finds whatever the server says is there. A seat that lapsed while the
+   * connection was down is a `channel.gone`, and walking back in is a fresh
+   * act by a person rather than a replay by a socket.
+   *
+   * Watched and hurried along exactly as an action is: somebody is waiting on
+   * the answer either way.
+   */
+  actAsSeat(channelId: string, action: GuestAction): boolean {
+    this.watchedChannel = channelId;
+    const sent = this.send({ type: 'seat.action', channelId, action });
     this.reconnectNow();
     return sent;
   }

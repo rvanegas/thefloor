@@ -11,6 +11,8 @@ import React, {
 import { AppState as NativeAppState, Platform } from 'react-native';
 import type {
   ClientAction,
+  GuestAction,
+  GuestView,
   HelpQuestion,
   HelpView,
   HomeView,
@@ -237,6 +239,24 @@ interface AppState {
    * two channels is enough to produce it. See planning/decisions/DECISIONS.md.
    */
   channelViews: Record<string, ChannelView>;
+  /**
+   * The same, for channels this account holds a *seat* in rather than a
+   * membership — a guest's projection, keyed the same way and arriving on the
+   * same socket. See `ServerMessage.seat`.
+   *
+   * **Its own map rather than a second kind of value in `channelViews`.** The
+   * two views have almost nothing in common: one carries the roster, the
+   * recordings, the floor and the playback, the other carries names. A single
+   * map would make every reader ask which it had, and the readers are the
+   * screens — so the question would be asked in the one place where getting
+   * it wrong means showing a guest a member's channel.
+   *
+   * An id is in at most one of them: the server answers a watch with a
+   * membership where there is one and a seat otherwise, and `seatIn` refuses
+   * a participant. Both are cleared by `channel.gone`, which is the one
+   * message that ends either.
+   */
+  seatViews: Record<string, GuestView>;
   /**
    * Channels the server has said are gone — ended and cleaned up, or no longer
    * ours to see. Kept so a screen still open on one can say so, rather than
@@ -709,6 +729,14 @@ interface AppValue extends AppState {
    */
   act: (channelId: string, action: ClientAction) => boolean;
   /**
+   * The same for a channel this account holds a seat in — a guest's short list
+   * of acts, over the account's own socket. See `ClientMessage.seat.action`.
+   *
+   * **Which seat is never named**, here or on the wire: the server resolves it
+   * from the account, so nothing in the app holds a guest credential.
+   */
+  actAsSeat: (channelId: string, action: GuestAction) => boolean;
+  /**
    * Records that somebody arrived in one of the channels this device is nearby
    * in.
    *
@@ -1149,6 +1177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     leaderboard: false,
     home: null,
     channelViews: {},
+    seatViews: {},
     goneChannels: [],
     recordingAsked: null,
     movedChannel: null,
@@ -1287,12 +1316,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ? s.goneChannels.filter((id) => id !== view.channel.id)
               : s.goneChannels,
           })),
+        // The seat's half of `onChannel`, and deliberately the same shape:
+        // keyed by the channel it is about, so whoever is looking picks the
+        // one they want. Nothing about recordings — a seat is never told
+        // about one beyond whether it is running.
+        onSeat: (view) =>
+          setState((s) => ({
+            ...s,
+            seatViews: { ...s.seatViews, [view.channelId]: view },
+            goneChannels: s.goneChannels.includes(view.channelId)
+              ? s.goneChannels.filter((id) => id !== view.channelId)
+              : s.goneChannels,
+          })),
         onChannelGone: (channelId) =>
           setState((s) => {
             const { [channelId]: gone, ...rest } = s.channelViews;
+            // A seat ends the same way a membership does, and by the same
+            // message: ejected, expired, or a room that emptied. See
+            // `ServerMessage.seat`.
+            const { [channelId]: seatGone, ...seats } = s.seatViews;
             return {
               ...s,
               channelViews: rest,
+              seatViews: seats,
               goneChannels: s.goneChannels.includes(channelId)
                 ? s.goneChannels
                 : [...s.goneChannels, channelId],
@@ -1758,6 +1804,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         screenAsked: null,
         home: null,
         channelViews: {},
+        seatViews: {},
         goneChannels: [],
         recordingAsked: null,
         movedChannel: null,
@@ -2057,6 +2104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           leaderboard: false,
           home: null,
           channelViews: {},
+          seatViews: {},
           goneChannels: [],
           recordingAsked: null,
           movedChannel: null,
@@ -2115,6 +2163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           leaderboard: false,
           home: null,
           channelViews: {},
+          seatViews: {},
           goneChannels: [],
           recordingAsked: null,
           movedChannel: null,
@@ -2241,7 +2290,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       enterSeat: async (channelId) => {
         if (!state.token) throw new ApiError('Not signed in.', 401);
+        /*
+          **A seat is a room, so it takes this device's standing.** Walking
+          into one is walking into a conversation, and a phone holding two at
+          once is two conversations in one pair of ears — which is exactly
+          what opening another channel already steps out of. See
+          GUEST-LADDER.md § *The app holds seats too*, and STATES.md
+          § *Present-in-Channel*.
+
+          **Before the seat rather than after it**, so there is never a moment
+          where both are held; a failed entry has cost a step-out, which is
+          the safe direction — the alternative is a microphone still open in a
+          room nobody is looking at.
+
+          Here rather than on the server, because standing is a fact about
+          *this device* and the server has no way to know which of an
+          account's sockets asked. `realtime.act` is what records it, and
+          `STEP_OUT` is what clears it there too.
+        */
+        if (state.standingIn) {
+          realtime.act(state.standingIn, { type: 'STEP_OUT' });
+        }
         const { guestId, secret } = await api.enterSeat(state.token, channelId);
+        // **Watched before anybody looks**, so the snapshot that says this is
+        // a seat is on its way before the screen that reads it opens. The
+        // socket answers a watch on a channel we are not a member of with the
+        // seat's own view — see `ServerMessage.seat`.
+        realtime.watchChannel(channelId);
         return { guestId, secret };
       },
 
@@ -2393,9 +2468,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         realtime.unwatchChannel(channelId);
         setState((s) => {
           const { [channelId]: left, ...rest } = s.channelViews;
-          return { ...s, channelViews: rest };
+          // The seat's snapshot goes with it, for the membership's reason:
+          // what is being dropped is the watch, and an id can be in one map
+          // or the other but never both.
+          const { [channelId]: seatLeft, ...seats } = s.seatViews;
+          return { ...s, channelViews: rest, seatViews: seats };
         });
       },
+
+      /**
+       * A guest's act, in a seat. Nothing is anticipated on the way out —
+       * unlike `act`, which is ahead of the server about being displaced and
+       * about a recording it is waiting on. Neither has an equivalent here: a
+       * seat has no recording of its own to ask for, and being displaced is a
+       * fact about where an account is *present*, which a seat is not.
+       */
+      actAsSeat: (channelId, action) => realtime.actAsSeat(channelId, action),
 
       act: (channelId, action) => {
         // Standing somewhere again, which is the whole of what being displaced

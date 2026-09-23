@@ -1492,3 +1492,212 @@ describe('being asked in as a guest', () => {
     member.close();
   });
 });
+
+/**
+ * A seat on the account's own socket, which is what lets the app draw one.
+ *
+ * **The departure from GUEST-LADDER.md § *The app holds seats too***, which
+ * called for a second client speaking the guest protocol. What is here
+ * instead: a watch on a channel the account is not a member of is answered
+ * with the seat's own `GuestView`, a guest's acts are sent over the same
+ * socket, and the media token route serves the seat's grant. The credential
+ * throughout is the session — see
+ * planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+ *
+ * Every test here drives Dana's *member* socket. She is a member of nothing;
+ * the socket is hers because the account is.
+ */
+describe('a seat on the member socket', () => {
+  /** Dana, signed in, holding a live seat in Alice's channel. */
+  async function danaSeated() {
+    const room = await channelWithLink();
+    const dana = await signIn('dana@example.com', 'Dana');
+    const guest: Guest = guestSocket(`link=${room.link.token}`);
+    await guest.open();
+    await guest.next('door');
+    guest.send({ type: 'knock', name: 'Dana', token: dana.token });
+    await guest.next('knocking');
+    const knocked = await room.member.next(
+      'channel',
+      (m) => m.view.channel.knocks.length > 0
+    );
+    room.member.send({
+      type: 'channel.action',
+      channelId: room.channelId,
+      action: {
+        type: 'ANSWER_KNOCK',
+        knockId: knocked.view.channel.knocks[0].id,
+        accept: true,
+      },
+    });
+    const admission = await guest.next('admitted');
+
+    const app2: Member = new Socket(`ws://${baseUrl}/ws?token=${dana.token}`);
+    await app2.open();
+    await app2.next('hello');
+    return { ...room, dana, guest, admission, app: app2 };
+  }
+
+  it('answers a watch with the seat rather than with the channel', async () => {
+    const { app: dana, channelId, guest, member } = await danaSeated();
+    dana.send({ type: 'watch.channel', channelId });
+
+    const seat = await dana.next('seat');
+    expect(seat.view.channelId).toBe(channelId);
+    expect(seat.view.you.name).toBe('Dana');
+    // The boundary the whole guest design rests on, asserted on the socket
+    // rather than only on the route: names, and no ids or recordings.
+    expect(seat.view.others.map((o) => o.name).sort()).toEqual(['Alice']);
+    expect(seat.view.others[0]).not.toHaveProperty('id');
+    // And no member's snapshot for this channel, ever — a client holding both
+    // would have to choose, and choosing is what the server did here.
+    expect(dana.received.some((m) => m.type === 'channel')).toBe(false);
+
+    guest.close();
+    member.close();
+    dana.close();
+  });
+
+  it('pushes the seat again whenever the room changes', async () => {
+    // The whole reason this rides `pushChannel`: a seat learns about the room
+    // on the same terms a member does, from the one fan-out, rather than from
+    // a second broadcast that could come to disagree with it.
+    const { app: dana, channelId, guest, member, admission } = await danaSeated();
+    dana.send({ type: 'watch.channel', channelId });
+    await dana.next('seat');
+
+    member.send({
+      type: 'channel.action',
+      channelId,
+      action: { type: 'SET_GUEST_SPEECH', guestId: admission.guestId, maySpeak: true },
+    });
+
+    const granted = await dana.next('seat', (m) => m.view.you.mic === 'open');
+    expect(granted.view.you.mic).toBe('open');
+
+    guest.close();
+    member.close();
+    dana.close();
+  });
+
+  it('takes a guest’s act from the account that holds the seat', async () => {
+    const { app: dana, channelId, guest, member, admission } = await danaSeated();
+    dana.send({ type: 'watch.channel', channelId });
+    await dana.next('seat');
+
+    dana.send({
+      type: 'seat.action',
+      channelId,
+      action: { type: 'SET_GUEST_NAME', name: 'Robert' },
+    });
+
+    // The room sees it, which is what says the act reached the reducer and
+    // not merely the socket that sent it.
+    const seen = await member.next(
+      'channel',
+      (m) => m.view.channel.guests[admission.guestId]?.name === 'Robert'
+    );
+    expect(seen.view.channel.guests[admission.guestId].name).toBe('Robert');
+
+    guest.close();
+    member.close();
+    dana.close();
+  });
+
+  it('refuses a member’s action sent as a guest’s, and the other way about', async () => {
+    /*
+      The property the two dispatchers exist to hold, and the reason
+      `seat.action` is a case of its own rather than a flag on
+      `channel.action`: a seat may not reach a member's allowlist, and a seat
+      is not a participant so the member's path refuses it outright.
+    */
+    const { app: dana, channelId, guest, member } = await danaSeated();
+    dana.send({ type: 'watch.channel', channelId });
+    await dana.next('seat');
+
+    // A member's action, from a seat. `CLAIM_FLOOR` stopped being a guest's
+    // to make on 2026-08-30.
+    dana.send({
+      type: 'seat.action',
+      channelId,
+      action: { type: 'CLAIM_FLOOR' } as never,
+    });
+    await dana.next('error');
+    expect(app.channels.get(channelId)!.floor.holder).toBeNull();
+
+    guest.close();
+    member.close();
+    dana.close();
+  });
+
+  it('refuses a seat action from somebody with no seat there', async () => {
+    const { channelId, bob, member, guest } = await danaSeated();
+    // Bob is a *member* of this channel, which is the standing that must not
+    // be answered by the seat path: `seatIn` refuses a participant.
+    const asBob: Member = new Socket(`ws://${baseUrl}/ws?token=${bob.token}`);
+    await asBob.open();
+    await asBob.next('hello');
+    asBob.send({
+      type: 'seat.action',
+      channelId,
+      action: { type: 'SET_GUEST_NAME', name: 'Nobody' },
+    });
+    await asBob.next('error');
+
+    asBob.close();
+    guest.close();
+    member.close();
+  });
+
+  it('serves the seat’s own media grant on the channel’s token route', async () => {
+    // What makes the audio work without a second credential: the app's audio
+    // hook asks the one route it always asks, and the server answers the
+    // standing the caller actually has.
+    const { dana, channelId, guest, member, admission } = await danaSeated();
+
+    const got = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/media-token`,
+      headers: auth(dana.token),
+    });
+    expect(got.statusCode).toBe(200);
+    // The identity is the seat's, never the account's — a guest is in the
+    // room as a guest, and the room's roster is built from that id.
+    expect(media.issued.at(-1)?.identity).toBe(admission.guestId);
+    // And no publish grant, nobody having given her the microphone.
+    expect(media.issued.at(-1)?.canPublish).toBeFalsy();
+
+    guest.close();
+    member.close();
+  });
+
+  it('refuses the token to an account with neither standing', async () => {
+    const { channelId, guest, member } = await danaSeated();
+    const stranger = await signIn('eve@example.com', 'Eve');
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/media-token`,
+      headers: auth(stranger.token),
+    });
+    expect(refused.statusCode).toBeGreaterThanOrEqual(400);
+
+    guest.close();
+    member.close();
+  });
+
+  it('ends the seat with channel.gone when it is stepped out of', async () => {
+    // One message ends either standing, which is what lets a client watching
+    // a channel stop drawing it without asking why. See `ServerMessage.seat`.
+    const { app: dana, channelId, guest, member } = await danaSeated();
+    dana.send({ type: 'watch.channel', channelId });
+    await dana.next('seat');
+
+    dana.send({ type: 'seat.action', channelId, action: { type: 'STEP_OUT' } });
+    const gone = await dana.next('channel.gone');
+    expect(gone.channelId).toBe(channelId);
+
+    guest.close();
+    member.close();
+    dana.close();
+  });
+});

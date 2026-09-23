@@ -8,6 +8,7 @@ import { createChannel, reduce } from '../../../../core/channel';
 import { DEFAULT_ACCOUNT_SETTINGS } from '../../../../core/settings';
 import type { ChannelState } from '../../../../core/types';
 import type {
+  GuestView,
   HomeView as HomeViewData,
   ProfileView as ProfileViewData,
   RecordingView,
@@ -87,6 +88,12 @@ export const mockApp = {
   token: 'token',
   me: { id: ME, displayName: 'Me' },
   home: null as HomeViewData | null,
+  /**
+   * The seats this account is sitting in, empty for every test but the ones
+   * about them — as it is on a phone, most of the time. `App.tsx` reads it
+   * for the audio and for which screen a channel opens.
+   */
+  seatViews: {} as Record<string, GuestView>,
   channelViews: {} as Record<
     string,
     {
@@ -330,6 +337,10 @@ export const mockApp = {
   // which is the honest reading of `undefined` and the wrong default for a
   // fixture. See AppProvider's `act` and planning/decisions/2026-09-16-being-offline-is-one-state.md.
   act: jest.fn(() => true),
+  // The seat's half, on the same terms and with the same default: `true` is
+  // "it went", which is what every screen reading the answer is written
+  // against. See `AppProvider.actAsSeat`.
+  actAsSeat: jest.fn(() => true),
   clearError: jest.fn(),
   removeContact: jest.fn(async () => {}),
   setEmailShown: jest.fn(async () => {}),
@@ -846,6 +857,7 @@ export function resetHarness(): void {
   mockApp.me = { id: ME, displayName: 'Me' };
   mockApp.home = null;
   mockApp.channelViews = {};
+  mockApp.seatViews = {};
   mockApp.goneChannels = [];
   mockApp.standingIn = null;
   mockApp.nearbyIn = [];

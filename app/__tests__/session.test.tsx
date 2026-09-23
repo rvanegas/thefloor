@@ -26,6 +26,9 @@ const mockApp = {
   me: { id: 'acct_me', displayName: 'Me' },
   home: null as unknown,
   channelViews: {} as Record<string, unknown>,
+  // No seat, which is every test in this file: they are about a session
+  // ending and a notification opening a channel, neither of which a guest has.
+  seatViews: {} as Record<string, unknown>,
   /**
    * Which channel this *device* is standing in — the narrowing App.tsx puts on
    * the roster before anything opens a microphone. A snapshot says where the

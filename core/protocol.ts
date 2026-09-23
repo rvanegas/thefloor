@@ -1640,6 +1640,30 @@ export type ClientMessage =
   | { type: 'unwatch.channel'; channelId: string }
   | { type: 'channel.action'; channelId: string; action: ClientAction }
   /**
+   * The same thing for a channel this account holds a *seat* in rather than a
+   * membership: a guest's short list of acts, sent over the account's own
+   * socket.
+   *
+   * **A seat over the member socket is the whole of the 2026-09-22 change**,
+   * and it is a departure from GUEST-LADDER.md § *The app holds seats too*,
+   * which called for a second client speaking `GuestClientMessage` against
+   * `/gws`. That protocol authenticates with a guest id and a secret because
+   * a browser has nothing better — the seat secret exists precisely for
+   * somebody with no session. An app holding a seat *does* have a session, by
+   * construction: the decision's own first line is that the app may be a
+   * guest only for an account. So the credential it would present is the
+   * weaker of the two it holds, over a second socket, with a second heartbeat
+   * and a second reconnect loop, in order to reach a room whose standing is
+   * tracked on the first one. See
+   * planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+   *
+   * `channelId` rather than a guest id: which seat is the server's to know,
+   * and a client naming one would be naming a credential it has no business
+   * holding. The action is `GuestAction` unchanged — what a guest may say is
+   * the same short list whichever socket carries it.
+   */
+  | { type: 'seat.action'; channelId: string; action: GuestAction }
+  /**
    * Heartbeat. Sent by the client because React Native's WebSocket cannot send
    * protocol-level pings, so a single application-level exchange is what lets
    * *both* ends notice a connection that has died quietly.
@@ -1780,6 +1804,28 @@ export type ServerMessage =
   | { type: 'settings'; settings: AccountSettings }
   | { type: 'home'; home: HomeView }
   | { type: 'channel'; view: ChannelView }
+  /**
+   * A channel this account holds a *seat* in, as the seat sees it.
+   *
+   * The same `GuestView` the guest page gets, arriving on the member socket —
+   * see `seat.action` for why that socket rather than a second one. It is
+   * sent in answer to `watch.channel` for a channel the account is not a
+   * member of but has a live seat in, and on every change to that channel
+   * afterwards, exactly as `channel` is.
+   *
+   * **A separate message from `channel` rather than a narrowed one**, because
+   * the two carry different types and the difference is the point: a seat is
+   * shown names and nothing else, and a client that had to ask which kind of
+   * view it was holding would be one tap away from rendering a member's
+   * screen from a guest's data. What replaces it is a screen of its own.
+   *
+   * **`channel.gone` is still what ends it.** A seat that is ejected,
+   * expires, or whose room empties stops being viewable by either route, and
+   * the one message says so for both — a client watching a channel it can no
+   * longer see needs to stop drawing it, and why is not a distinction any
+   * screen acts on differently.
+   */
+  | { type: 'seat'; view: GuestView }
   /** The channel ended or is no longer visible to this user. */
   | { type: 'channel.gone'; channelId: string }
   /**

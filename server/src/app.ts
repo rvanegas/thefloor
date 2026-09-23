@@ -1588,6 +1588,37 @@ export function buildApp(options: BuildOptions = {}): App {
     return { guestId: entered.guestId, secret: entered.secret, view };
   });
 
+  /**
+   * The same acceptance from the app, where the seat is held by an account.
+   *
+   * **The channel rather than the seat, and no secret.** The caller has a
+   * session and is sitting in the room; which seat that is is the server's to
+   * resolve, and a client naming a guest id would be holding a credential it
+   * has no business with. See `Channels.acceptSeatAsk`.
+   *
+   * Beside the guest page's route rather than folded into it: the two
+   * authenticate differently, and one route that took either shape would be
+   * one edit away from accepting a guest id with no secret behind it.
+   */
+  fastify.post('/channels/:id/seat/contact-ask/accept', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { askerId?: string } | undefined;
+    if (!body?.askerId) {
+      return reply.code(400).send({ error: 'askerId is required' });
+    }
+
+    const result = channels.acceptSeatAsk(account.id, id, body.askerId);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    // Both, as every contact mutation does — see the guest page's route, whose
+    // audience is the same pair for the same reason.
+    homeNotifier.notify([account.id, body.askerId]);
+    return { ok: true };
+  });
+
   fastify.post('/contacts/guest-ask/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
@@ -3270,10 +3301,26 @@ export function buildApp(options: BuildOptions = {}): App {
     const { id } = request.params as { id: string };
 
     const result = await channels.mediaToken(id, account.id);
-    if (!result.ok) {
-      return reply.code(statusFor(result.code)).send({ error: result.error });
+    if (result.ok) {
+      return { token: result.token, url: options.mediaUrl };
     }
-    return { token: result.token, url: options.mediaUrl };
+    /*
+      **A seat is the other standing this route serves**, since 2026-09-22 and
+      the app holding seats of its own. The membership is asked first and the
+      seat only when it refuses, which is the precedence every seat lookup
+      makes: somebody who is both is here as a member, and their token must
+      carry a member's identity rather than a guest id.
+
+      The refusal that comes back is the seat's where there is no membership
+      at all, because that is the one the caller is actually in a position to
+      act on — *you have no seat here* names the standing they were asking
+      about. A channel that does not exist refuses the same way either way.
+    */
+    const seat = await channels.seatMediaToken(id, account.id);
+    if (!seat.ok) {
+      return reply.code(statusFor(seat.code)).send({ error: seat.error });
+    }
+    return { token: seat.token, url: options.mediaUrl };
   });
 
   /**

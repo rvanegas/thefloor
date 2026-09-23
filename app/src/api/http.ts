@@ -590,6 +590,21 @@ export const api = {
     ),
 
   /**
+   * Accepts one member's ask that the person in this seat become a contact.
+   *
+   * The one act on the seat screen that is not a `GuestAction`, and it is why
+   * it is here rather than on the socket: what it writes is a contact row and
+   * a pair channel, neither of which is a channel action, and the other two
+   * answers to an ask — refusing it, and refusing the join — are reducer
+   * business and go the other way. See `Channels.acceptSeatAsk`.
+   */
+  acceptSeatContactAsk: (token: string, channelId: string, askerId: string) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/seat/contact-ask/accept`,
+      { method: 'POST', token, body: { askerId } }
+    ),
+
+  /**
    * Takes back a seat that was offered and not taken up.
    *
    * Any member with the room may, not only whoever offered it — the same rule

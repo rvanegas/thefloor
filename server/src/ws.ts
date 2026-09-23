@@ -868,6 +868,31 @@ export function registerWebsocket(deps: {
   function pushChannel(connection: Connection, channelId: string): void {
     const channel = channels.viewableBy(channelId, connection.userId);
     if (!channel) {
+      /*
+        **A seat is the other way a channel can be watchable, and it is tried
+        here because this is the one place every push goes through.** Every
+        fan-out in this file calls `pushChannel` for each connection watching
+        the id, so a seat learns about the room on exactly the same terms a
+        member does — the same changes, the same moment — without a second
+        broadcast that could come to disagree with this one.
+
+        After the membership and never instead of it: the seat is the lesser
+        standing, and `seatIn` refuses a participant for the same reason.
+
+        **The scope test is true of every connection today** — `Scope` is a
+        union of one since the follower page went — and it is written anyway
+        because `seatView` keys on `connection.userId`, which a narrower scope
+        would make somebody else's account. That is precisely the narrowing
+        the type is kept in this shape for; see its own header.
+      */
+      const seat =
+        connection.scope.kind === 'session'
+          ? channels.seatView(channelId, connection.userId)
+          : undefined;
+      if (seat) {
+        send(connection, { type: 'seat', view: seat });
+        return;
+      }
       send(connection, { type: 'channel.gone', channelId });
       connection.watchingChannels.delete(channelId);
       return;
@@ -1547,6 +1572,37 @@ export function registerWebsocket(deps: {
           connection.watchingChannels.delete(message.channelId);
           return;
 
+        /**
+         * One of a guest's acts, from an account sitting in a seat.
+         *
+         * **Beside `channel.action` and not folded into it.** The two carry
+         * different allowlists over different standings, and the registry
+         * keeps them apart deliberately — `dispatch` refuses anybody who is
+         * not a participant, which is the property the guest design rests on.
+         * A single case that picked a dispatcher by looking the sender up
+         * would be one edit away from letting a seat send a member's action.
+         *
+         * Which seat is resolved from the account, so nothing here names a
+         * guest id. The push afterwards is this connection's own: the
+         * registry emits for anything that changed the room, and the acts
+         * that change nothing anybody else can see — a rename that collides,
+         * a consent — still have to reach the screen that asked.
+         */
+        case 'seat.action': {
+          if (typeof message.channelId !== 'string') return;
+          const result = channels.dispatchSeat(
+            message.channelId,
+            connection.userId,
+            message.action as { type: string; [key: string]: unknown }
+          );
+          if (!result.ok) {
+            send(connection, { type: 'error', message: result.error });
+            return;
+          }
+          pushChannel(connection, message.channelId);
+          return;
+        }
+
         case 'screens.showing': {
           // Nothing to say when a device repeats itself, which it does: the
           // app reconciles this rather than firing it on a tap, so the
@@ -1873,6 +1929,36 @@ export function registerWebsocket(deps: {
             'socket',
             connection.lastSeen
           );
+          /*
+            **And the seat, which the line above cannot speak for.** That
+            report is keyed on the account, and a seat acts in the room under
+            its *guest* id — so for a channel this account is a guest of
+            rather than a member of, the whole of the departure would
+            otherwise go unsaid by the socket.
+
+            What it costs to leave out is latency rather than correctness, and
+            that is also why it carries no test of its own: a guest is an
+            occupant on the media roster's terms, so the sweep starts the same
+            grace within a poll either way, and a test asserting the flag
+            passes with this line deleted. What this buys is that the ordinary
+            departure — closing the app, a phone going into a pocket —
+            resolves at once instead of at the next sweep, which is exactly
+            what the report above buys for a member and what the guest page's
+            own socket close has always done.
+
+            `'room'` rather than `'socket'`, deliberately, and that is the one
+            thing it does differently from its neighbour: the scope above
+            refuses to let the media roster cancel the grace, because a
+            member's place is held by a phone that is demonstrably gone. A
+            seat has nothing but the room — being in it *is* the standing —
+            so a media connection that outlives this socket is evidence, not
+            noise. It is the scope the guest socket reports under, for the
+            same reason.
+          */
+          const seatId = channels.seatIn(channelId, connection.userId);
+          if (seatId !== undefined) {
+            channels.reportGuest(channelId, seatId, 'DISCONNECTED');
+          }
         }
       }
       // The departure, on the same test the loop above uses and for the same

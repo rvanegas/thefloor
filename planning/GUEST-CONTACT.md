@@ -371,10 +371,13 @@ into this channel.
   route that finds the caller's live seat for a channel, rather than one
   rebuilt from `link_token`, which is nullable once that link's row is gone
   while the seat outlives it.
-- **Web only, on the client.** A seat can only exist in a browser, so a phone
-  rendering this row would offer a place it cannot open. The same account may
-  well hold a seat opened on a laptop, which makes the row true and still
-  useless on iOS.
+- **Web only, on the client — and this stopped being true on 2026-09-22.** It
+  read: a seat can only exist in a browser, so a phone rendering this row would
+  offer a place it cannot open. The app holds seats of its own now, for an
+  account, and the row is drawn everywhere; an anonymous seat is still the
+  browser's. See `decisions/2026-09-22-a-seat-rides-the-member-socket.md`, and
+  GUEST-LADDER.md § *The app holds seats too*, which gated this sentence's
+  removal on exactly that work.
 
 **The seam worth naming: leaving the guest page costs the room.** Following the
 Home link ends the connection and the audio with it; the seat survives — six

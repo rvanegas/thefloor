@@ -159,10 +159,27 @@ authority on what a row of three looks like before any of them is drawn.
 
 ## The app holds seats too
 
-**Decided 2026-09-16 and not built.** The ladder above went in without it: a
-seat still exists only in a browser, so the app's three controls put questions
-to somebody sitting on a web page. Nothing below is written; it is here because
-the decision was taken and the reasons will not survive being re-derived.
+**Built on 2026-09-22, with one of the bullets below reversed.** This section
+was the last unbuilt part of this file; what is here now is the account of what
+was decided, and `decisions/2026-09-22-a-seat-rides-the-member-socket.md` is the
+account of what was written and why it differs. **Read that one first if the
+two disagree** — it is the later document and it argues the difference.
+
+**The reversal, in one line: there is no second protocol client.** A seat is
+watched and acted on over the account's own socket — a new `seat` server
+message carrying the same `GuestView`, and a `seat.action` client message
+carrying the same `GuestAction`. The guest protocol's credential is a guest id
+and a secret, which exists because an anonymous browser has nothing better; an
+app holding a seat always has a session, this section's own first line being
+why. So the bullet below that begins *A second protocol client* is what was
+decided and not what was done. Its **second sentence still holds**: the app
+needs its own room screen, `ChannelView` being member-shaped and `GuestView`
+withholding ids deliberately. That screen is `app/src/ui/SeatView.tsx`.
+
+**The bullet about versioning the wire is void.** Nothing installed speaks
+`/gws`, so that protocol keeps its lockstep-with-the-server policy; the two new
+messages are the member protocol's, which is already versioned and already has
+a register.
 
 **The decision: the app can be a guest, and only for an account.**
 Anonymous seats stay in the browser, which is what the guest page is for and
@@ -187,8 +204,9 @@ already serves.
   where the seat has to be named.
 - **The rejoinable seat stops being web-only.** `GUEST-CONTACT.md` says a seat
   row on Home is "web only, on the client … a phone rendering this row would
-  offer a place it cannot open." That sentence goes — **and until this is
-  built it is still true**, which is why it has not gone yet.
+  offer a place it cannot open." **That sentence is now false**, and the
+  filter it described is gone from `ChannelsView`: every seat row is drawn on
+  every platform, and a tap takes the seat and opens it.
 
 ## Getting into the app, which is a button and not a link
 
