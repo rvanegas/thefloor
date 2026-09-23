@@ -14,7 +14,7 @@ import type {
 } from '../../../core/protocol';
 import { WAITING_WINDOW_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
-import { useText } from '../i18n';
+import { useText, type Strings } from '../i18n';
 import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
@@ -101,6 +101,8 @@ export function ChannelsView({
    * answering one replaces the document.
    */
   const [seatTrouble, setSeatTrouble] = React.useState<string | null>(null);
+  const t = useText().channels;
+  const words: CardWords = { channels: t, naming: useText().naming };
 
   /**
    * Declining, which is what the ✕ on an invitation does.
@@ -124,14 +126,12 @@ export function ChannelsView({
    */
   const declineInvite = (card: Card) =>
     Alert.alert(
-      'Decline this invitation?',
-      `It disappears from your home screen and you will need a fresh invitation to ${
-        card.from ? `join ${card.from}` : 'come back'
-      }.`,
+      t.declineTitle(),
+      t.declineBody(card.from ?? null),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.cancel(), style: 'cancel' },
         {
-          text: 'Decline',
+          text: t.decline(),
           style: 'destructive',
           onPress: () => app.act(card.channelId, { type: 'LEAVE_CHANNEL' }),
         },
@@ -145,7 +145,7 @@ export function ChannelsView({
   // channel entirely when it was; whether you are *live* somewhere is settled
   // here, where the app knows what it is actually connected to.
   const cards = [
-    ...(home?.invites ?? []).map(inviteCard),
+    ...(home?.invites ?? []).map((invite) => inviteCard(invite, words)),
     /*
       **Every seat is drawn now, on every platform.** This filtered them out
       on anything but the web, on the judgement that a card which opens
@@ -155,7 +155,7 @@ export function ChannelsView({
       session; both exist, so the line that was waiting on them goes rather
       than being softened. See `SeatView`.
     */
-    ...(home?.rejoinable ?? []).map(memberCard),
+    ...(home?.rejoinable ?? []).map((channel) => memberCard(channel, words)),
   ].filter(
     (card) =>
       card.channelId !== liveChannelId &&
@@ -221,7 +221,7 @@ export function ChannelsView({
       onEnterChannel(id);
     } catch (e) {
       Alert.alert(
-        'Could not start channel',
+        t.couldNotStartChannel(),
         e instanceof Error ? e.message : String(e)
       );
     }
@@ -305,7 +305,7 @@ export function ChannelsView({
       // rather than about the offer. So the card stays and says what
       // happened, which is what the next tap needs to know.
       setSeatTrouble(
-        error instanceof Error ? error.message : 'That did not work.'
+        error instanceof Error ? error.message : t.thatDidNotWork()
       );
     }
   };
@@ -349,9 +349,7 @@ export function ChannelsView({
       {showOffline ? (
         <View style={styles.offline}>
           <Text style={styles.offlineText}>
-            {app.status === 'connecting'
-              ? 'Reconnecting…'
-              : 'Not connected — invites and channels will not update.'}
+            {app.status === 'connecting' ? t.reconnecting() : t.notConnected()}
           </Text>
         </View>
       ) : null}
@@ -561,13 +559,29 @@ type Card = {
   from?: string;
 };
 
-function inviteCard(invite: InviteView): Card {
+/**
+ * The two words a card can need before anything has rendered it.
+ *
+ * **Passed in rather than read from a hook**, because these builders are not
+ * components: `nearbyChannels` is exported and called from `App.tsx` to decide
+ * which bar to draw, and a hook in here would make that a thing only a
+ * component could ask. Same arrangement as `availability.ts`.
+ */
+export interface CardWords {
+  channels: Strings['channels'];
+  naming: Strings['naming'];
+}
+
+function inviteCard(invite: InviteView, words: CardWords): Card {
   // Named where it has a name, described by its roster where it has not —
   // exactly as a channel row does, since the reader is choosing between them
   // and they should speak the same way. An older server sends neither, and
   // then the sender's name is the only thing there is to call it.
   const described = invite.others?.length
-    ? describeChannel(invite.others.map((other) => other.displayName))
+    ? describeChannel(
+        invite.others.map((other) => other.displayName),
+        words.naming
+      )
     : null;
   return {
     channelId: invite.channelId,
@@ -609,7 +623,7 @@ function withCohortNumber(title: string, cohort: number | null | undefined): str
   return cohort == null ? title : `${title} ${cohort}`;
 }
 
-function memberCard(channel: RejoinableView): Card {
+function memberCard(channel: RejoinableView, words: CardWords): Card {
   // A seat carries the resolved name and the present count and nothing else —
   // the roster is names-only to a guest and the history is not theirs to read
   // — so the card is built from what is there rather than from what is
@@ -620,7 +634,7 @@ function memberCard(channel: RejoinableView): Card {
     return {
       channelId: channel.channelId,
       kind: 'seat',
-      title: channel.name ?? 'A channel',
+      title: channel.name ?? words.channels.aChannel(),
       presentCount: channel.presentCount,
       lastPresenceAt: undefined,
       lastPresenceByOthers: undefined,
@@ -701,11 +715,14 @@ export type NearbyChannel = {
  * exclusive, so their order has to be somebody's decision rather than the
  * order the server happened to build its list in.
  */
-export function nearbyChannels(home: HomeViewData | null): NearbyChannel[] {
+export function nearbyChannels(
+  home: HomeViewData | null,
+  words: CardWords
+): NearbyChannel[] {
   if (!home) return [];
   return [
-    ...(home.invites ?? []).map(inviteCard),
-    ...(home.rejoinable ?? []).map(memberCard),
+    ...(home.invites ?? []).map((invite) => inviteCard(invite, words)),
+    ...(home.rejoinable ?? []).map((channel) => memberCard(channel, words)),
   ]
     .filter((card) => card.nearby)
     .sort(byIdleness)
@@ -832,6 +849,7 @@ function ChannelCard({
   const live = isLive(card);
   // Null only for an invitation from a server that predates the stamp, which
   // is a line that goes away rather than a line that says nothing.
+  const t = useText().channels;
   const quiet = describeQuiet(card, now, useText().availability);
   /**
    * Whether the reader stepped in here recently enough to be worth being
@@ -888,8 +906,8 @@ function ChannelCard({
   // standing. A card that said *asked you in* for both would be describing
   // only one of them, and the reader is deciding whether to tap.
   const asked = card.guest
-    ? `${card.from} asked you in as a guest`
-    : `${card.from} asked you in`;
+    ? t.askedYouInAsGuest(card.from ?? '')
+    : t.askedYouIn(card.from ?? '');
   const line =
     card.kind === 'invite'
       ? live
@@ -900,12 +918,12 @@ function ChannelCard({
           // No "tap to join": the tap opens the channel and joins nothing,
           // and promising otherwise would be the one place in this list that
           // said a tap does something it has not done since 2026-09-21.
-          `${asked} · waiting`
-        : `${asked}${quiet ? ` · ${quiet}` : ''}`
+          t.waiting(asked)
+        : t.askedAnd(asked, quiet)
       : card.kind === 'seat'
         ? // Said plainly, because a row that looked like the others would be
           // promising the channel screen and opening a different page.
-          `You are a guest here${live ? ` · ${card.presentCount} present` : ''}`
+          t.youAreAGuestHere(live ? (card.presentCount ?? 0) : null)
         : live
           ? // **Present first, nearby only when there is nobody**, since
             // 2026-09-12. The two are not added together and are not said
@@ -917,8 +935,8 @@ function ChannelCard({
             // with nobody in it and people beside it says the only true thing
             // there is to say, which is what earns it this section at all.
             card.presentCount !== undefined && card.presentCount > 0
-            ? `${card.presentCount} present`
-            : `${card.nearbyCount} nearby`
+            ? t.present(card.presentCount)
+            : t.nearby(card.nearbyCount ?? 0)
         : // An empty channel used to be sixty seconds from destruction, and
           // saying so was a reason to hurry back. Channels are permanent now:
           // nobody being in one is a resting state, not a countdown.
@@ -942,15 +960,16 @@ function ChannelCard({
       // separates them. It outlived the glyph it was written beside and is
       // kept deliberately: the stutter it fixes is a property of the label,
       // not of the mark.
-      accessibilityLabel={`${card.title}. ${line ? `${line}. ` : ''}${
-        steppedIn ? 'Stepped in and out. ' : ''
-      }${
-        // A seat opens the guest page, where the way in is the door rather
-        // than a step. Everything else opens a channel screen and nothing
-        // else: *Join* and *Step in* were the other two answers here, and
-        // both described a tap that arrived in the room.
-        card.kind === 'seat' ? 'Open as a guest.' : 'Open.'
-      }`}
+      // A seat opens the guest page, where the way in is the door rather than
+      // a step. Everything else opens a channel screen and nothing else:
+      // *Join* and *Step in* were the other two answers here, and both
+      // described a tap that arrived in the room.
+      accessibilityLabel={t.rowLabel(
+        card.title,
+        line || null,
+        steppedIn,
+        card.kind === 'seat'
+      )}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >
@@ -1007,7 +1026,7 @@ function ChannelCard({
           <Pressable
             onPress={onDecline}
             hitSlop={12}
-            accessibilityLabel="Decline invite"
+            accessibilityLabel={t.declineInvite()}
           >
             <Text style={styles.decline}>✕</Text>
           </Pressable>
@@ -1030,10 +1049,11 @@ function ChannelCard({
  * and not the plus sign, which is decoration and does not read as a word.
  */
 function StartChannelRow({ onPress }: { onPress: () => void }) {
+  const t = useText().channels;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Start a channel"
+      accessibilityLabel={t.startAChannel()}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.rowPressed}
     >
@@ -1041,7 +1061,7 @@ function StartChannelRow({ onPress }: { onPress: () => void }) {
         <View style={styles.startMark}>
           <Text style={styles.startMarkGlyph}>+</Text>
         </View>
-        <Text style={styles.startLabel}>Start a channel</Text>
+        <Text style={styles.startLabel}>{t.startAChannel()}</Text>
       </Card>
     </Pressable>
   );

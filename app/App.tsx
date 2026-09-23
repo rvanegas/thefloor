@@ -12,7 +12,7 @@ import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
-import { TextProvider, stringsFor } from './src/i18n';
+import { TextProvider, stringsFor, useText } from './src/i18n';
 import { deviceRegion } from './src/api/region';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
@@ -90,6 +90,7 @@ import {
  */
 function Root() {
   const app = useApp();
+  const text = useText();
   const { ready, token } = app;
   /**
    * What the detail pane is showing, as **one value rather than five flags.**
@@ -1028,7 +1029,9 @@ function Root() {
    * bar by another route, and that opens a channel the way every other tap
    * does.
    */
-  const nearest = live ? undefined : nearbyChannels(app.home)[0];
+  const nearest = live
+    ? undefined
+    : nearbyChannels(app.home, { channels: text.channels, naming: text.naming })[0];
   const hoisted: { channelId: string; tab?: ChannelTab } | undefined = live
     ? { channelId: live.id, tab: lastTab.current.get(live.id) }
     : nearest && { channelId: nearest.channelId };

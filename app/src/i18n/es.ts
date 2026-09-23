@@ -35,6 +35,7 @@ export const es: Strings = {
   },
   shared: {
     close: () => 'Cerrar',
+    labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
   },
   offline: {
     partlyConnected: () => 'Conexión parcial',
@@ -239,5 +240,89 @@ export const es: Strings = {
     linkCopied: () =>
       'Enlace copiado. Sirve una sola vez, para la primera persona que lo abra.',
     clipboardRefused: () => 'El portapapeles lo ha rechazado. Int\u00e9ntalo otra vez.',
+  },
+  channels: {
+    declineTitle: () => '\u00bfRechazar esta invitaci\u00f3n?',
+    declineBody: (from: string | null) =>
+      `Desaparece de tu pantalla de inicio y necesitar\u00e1s una invitaci\u00f3n nueva para ${
+        from ? `entrar en ${from}` : 'volver'
+      }.`,
+    cancel: () => 'Cancelar',
+    decline: () => 'Rechazar',
+    couldNotStartChannel: () => 'No se ha podido crear el canal',
+    thatDidNotWork: () => 'Eso no ha funcionado.',
+    reconnecting: () => 'Reconectando\u2026',
+    notConnected: () =>
+      'Sin conexi\u00f3n: las invitaciones y los canales no se actualizar\u00e1n.',
+    startAChannel: () => 'Crear un canal',
+    declineInvite: () => 'Rechazar la invitaci\u00f3n',
+    aChannel: () => 'Un canal',
+    askedYouInAsGuest: (from: string) => `${from} te ha invitado como invitado`,
+    askedYouIn: (from: string) => `${from} te ha invitado`,
+    waiting: (asked: string) => `${asked} · esperando`,
+    askedAnd: (asked: string, quiet: string | null) =>
+      `${asked}${quiet ? ` · ${quiet}` : ''}`,
+    youAreAGuestHere: (present: number | null) =>
+      `Aqu\u00ed eres invitado${present !== null ? ` · ${present} presentes` : ''}`,
+    present: (count: number) => `${count} ${count === 1 ? 'presente' : 'presentes'}`,
+    nearby: (count: number) => `${count} cerca`,
+    rowLabel: (
+      title: string,
+      line: string | null,
+      steppedIn: boolean,
+      asGuest: boolean
+    ) =>
+      `${title}. ${line ? `${line}. ` : ''}${
+        steppedIn ? 'Has entrado y salido. ' : ''
+      }${asGuest ? 'Abrir como invitado.' : 'Abrir.'}`,
+  },
+  home: {
+    settings: () => 'Ajustes',
+    liveBarLabel: (title: string, muted: boolean) =>
+      `${title}, ${
+        muted ? 'tienes el micr\u00f3fono silenciado' : 'est\u00e1s aqu\u00ed'
+      }. Toca para volver.`,
+    nobodyElseHereYet: () => 'Todav\u00eda no hay nadie m\u00e1s',
+    present: (count: number) => `${count} ${count === 1 ? 'presente' : 'presentes'}`,
+    tapToGoBack: () => ' · toca para volver',
+    filmElsewhere: (title: string) =>
+      `${title}: la pel\u00edcula est\u00e1 en otro de tus dispositivos. Toca para verla aqu\u00ed.`,
+    nearbyBarLabel: (title: string, present: number) =>
+      `${title}, est\u00e1s cerca. ${
+        present === 0
+          ? 'No hay nadie.'
+          : `${present} ${present === 1 ? 'presente' : 'presentes'}.`
+      } Toca para abrir.`,
+    nearbySub: (present: number) =>
+      present === 0
+        ? 'Cerca · no hay nadie'
+        : `Cerca · ${present} ${present === 1 ? 'presente' : 'presentes'}`,
+    help: () => 'Ayuda',
+    answered: () => 'respondida',
+    askUsSomething: () =>
+      'Preg\u00fantanos algo, o cuenta qu\u00e9 est\u00e1 roto. Una persona lo lee y responde, y la respuesta te espera aqu\u00ed debajo de tu pregunta.',
+    chipIn: () => 'Contribuir',
+    whatItCosts: () =>
+      'La m\u00e1quina en la que funciona, el audio que lleva una conversaci\u00f3n y el almacenamiento de tus grabaciones cuestan dinero cada mes.',
+    leaderboard: () => 'Clasificaci\u00f3n',
+    leaderboardWhy: () =>
+      'Qui\u00e9n ha tra\u00eddo a m\u00e1s gente a The Floor. Est\u00e1 aqu\u00ed porque se activ\u00f3 para tu cuenta.',
+    audioLab: () => 'Laboratorio de audio',
+    audioLabWhy: () =>
+      'Un banco de pruebas para la sesi\u00f3n de audio de iOS. Haz una prueba fuera de cualquier canal, o lo que mide son tres cosas discutiendo.',
+    putItOnYourPhone: () => 'Instala The Floor en tu tel\u00e9fono',
+    browserCannotNotify: () =>
+      'Un navegador no puede avisarte, as\u00ed que nadie puede localizarte aqu\u00ed a menos que est\u00e9s mirando. La app s\u00ed.',
+    notNow: () => 'Ahora no',
+    getTheApp: () => 'Instalar la app',
+    nobodyCanReachYou: () => 'Nadie puede localizarte',
+    notificationsAreOff: () =>
+      'Las notificaciones de The Floor est\u00e1n desactivadas, as\u00ed que una invitaci\u00f3n o un toque solo llegan si por casualidad est\u00e1s mirando.',
+    tellMeMore: () => 'Cu\u00e9ntame m\u00e1s',
+    contacts: () => 'Contactos',
+    requestsWaiting: () => 'solicitudes pendientes',
+    channels: () => 'Canales',
+    podcasts: () => 'Podcasts',
+    support: () => 'Ayuda y apoyo',
   },
 };

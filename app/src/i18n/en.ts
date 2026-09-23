@@ -41,6 +41,12 @@ export const en = {
    */
   shared: {
     close: () => 'Close',
+    /**
+     * A control's name and the mark on it, for a screen reader. Here rather
+     * than composed at the call site because the comma is a choice and a
+     * language may make a different one.
+     */
+    labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
   },
   offline: {
     partlyConnected: () => 'Partly connected',
@@ -303,5 +309,115 @@ export const en = {
     linkCopied: () =>
       'Link copied. It works once, for the first person who opens it.',
     clipboardRefused: () => 'The clipboard refused. Try again.',
+  },
+  channels: {
+    declineTitle: () => 'Decline this invitation?',
+    /**
+     * `from` is who invited you, or null when the server did not say. The
+     * clause changes and not only the noun, which is why the whole sentence
+     * is built here.
+     */
+    declineBody: (from: string | null) =>
+      `It disappears from your home screen and you will need a fresh invitation to ${
+        from ? `join ${from}` : 'come back'
+      }.`,
+    cancel: () => 'Cancel',
+    decline: () => 'Decline',
+    couldNotStartChannel: () => 'Could not start channel',
+    thatDidNotWork: () => 'That did not work.',
+    reconnecting: () => 'Reconnecting\u2026',
+    notConnected: () => 'Not connected — invites and channels will not update.',
+    startAChannel: () => 'Start a channel',
+    declineInvite: () => 'Decline invite',
+    /** What an unnamed channel is called on a seat's card. */
+    aChannel: () => 'A channel',
+    askedYouInAsGuest: (from: string) => `${from} asked you in as a guest`,
+    askedYouIn: (from: string) => `${from} asked you in`,
+    waiting: (asked: string) => `${asked} · waiting`,
+    askedAnd: (asked: string, quiet: string | null) =>
+      `${asked}${quiet ? ` · ${quiet}` : ''}`,
+    youAreAGuestHere: (present: number | null) =>
+      `You are a guest here${present !== null ? ` · ${present} present` : ''}`,
+    present: (count: number) => `${count} present`,
+    nearby: (count: number) => `${count} nearby`,
+    /**
+     * The whole of what a screen reader says about one row: the name, the
+     * status line if there is one, whether this reader has been in and out,
+     * and what a tap does.
+     *
+     * **"in and out" rather than "in"**, and the extra two words are not
+     * padding: the action at the end of the same label is *Step in*, and
+     * "Stepped in. Step in." is what the shorter version read as.
+     */
+    rowLabel: (
+      title: string,
+      line: string | null,
+      steppedIn: boolean,
+      asGuest: boolean
+    ) =>
+      `${title}. ${line ? `${line}. ` : ''}${
+        steppedIn ? 'Stepped in and out. ' : ''
+      }${asGuest ? 'Open as a guest.' : 'Open.'}`,
+  },
+  home: {
+    settings: () => 'Settings',
+    /** The pinned bar for the room you are standing in, for a screen reader. */
+    liveBarLabel: (title: string, muted: boolean) =>
+      `${title}, ${
+        muted ? 'your microphone is muted' : 'you are here'
+      }. Tap to return.`,
+    nobodyElseHereYet: () => 'Nobody else is here yet',
+    present: (count: number) => `${count} present`,
+    tapToGoBack: () => ' · tap to go back',
+    filmElsewhere: (title: string) =>
+      `${title}: the film is on another of your devices. Tap to watch it here instead.`,
+    nearbyBarLabel: (title: string, present: number) =>
+      `${title}, you are nearby. ${
+        present === 0 ? 'Nobody is there.' : `${present} present.`
+      } Tap to open.`,
+    /**
+     * *Nearby* first, because the state is the point of the bar and the count
+     * is what to do about it. Nought is not said as a number: a nought beside
+     * a word like *present* reads as a failure to load.
+     */
+    nearbySub: (present: number) =>
+      present === 0 ? 'Nearby · nobody there' : `Nearby · ${present} present`,
+    help: () => 'Help',
+    /**
+     * The mark on the Support tab and on the Help card. The word is
+     * *answered* because what is waiting is the reading of it — a screen
+     * reader hears "Help, answered".
+     */
+    answered: () => 'answered',
+    askUsSomething: () =>
+      'Ask us something, or say what is broken. A person reads it and writes back, and the answer waits here under your question.',
+    chipIn: () => 'Chip in',
+    whatItCosts: () =>
+      'The box this runs on, the audio that carries a conversation and the storage your recordings sit in all cost money every month.',
+    leaderboard: () => 'Leaderboard',
+    leaderboardWhy: () =>
+      'Who has brought the most people to The Floor. It is here because it was turned on for your account.',
+    audioLab: () => 'Audio lab',
+    audioLabWhy: () =>
+      'A bench for the iOS audio session. Run a trial outside any channel, or what it measures is three writers arguing.',
+    putItOnYourPhone: () => 'Put The Floor on your phone',
+    browserCannotNotify: () =>
+      'A browser cannot notify you, so nobody can reach you here unless you are looking. The app can.',
+    notNow: () => 'Not now',
+    getTheApp: () => 'Get the app',
+    nobodyCanReachYou: () => 'Nobody can reach you',
+    notificationsAreOff: () =>
+      'Notifications are off for The Floor, so an invitation or a ping arrives only if you happen to be looking.',
+    tellMeMore: () => 'Tell me more',
+    contacts: () => 'Contacts',
+    /**
+     * Plural unconditionally. A screen reader hearing "requests waiting" and
+     * finding one is told nothing untrue, and the alternative is the tier
+     * knowing how to count for the sake of a case it cannot see.
+     */
+    requestsWaiting: () => 'requests waiting',
+    channels: () => 'Channels',
+    podcasts: () => 'Podcasts',
+    support: () => 'Support',
   },
 };

@@ -17,6 +17,7 @@ import {
   SettingsIcon,
   SupportIcon,
 } from "./icons";
+import { useText } from '../i18n';
 import { ChannelsView, nearbyChannels } from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
 import { ContactsView, answerableRequests } from "./ContactsView";
@@ -178,6 +179,7 @@ export function HomeView({
    */
   onReturnToChannel?: (channelId: string, tab?: ChannelTab) => void;
 }) {
+  const t = useText().home;
   const app = useApp();
 
   /**
@@ -225,7 +227,10 @@ export function HomeView({
    * the exclusion passed to `ChannelsView` being one decision made in one
    * place.
    */
-  const nearby = nearbyChannels(app.home).filter(
+  const nearby = nearbyChannels(app.home, {
+    channels: useText().channels,
+    naming: useText().naming,
+  }).filter(
     (channel) => channel.channelId !== liveChannel?.channelId,
   );
 
@@ -335,7 +340,7 @@ export function HomeView({
           */}
           <View style={styles.headerActions}>
             <IconButton
-              label="Settings"
+              label={t.settings()}
               icon={(color) => <SettingsIcon color={color} />}
               onPress={onOpenSettings}
             />
@@ -351,9 +356,10 @@ export function HomeView({
         {liveChannel ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${liveChannel.title}, ${
-              liveChannel.muted ? "your microphone is muted" : "you are here"
-            }. Tap to return.`}
+            accessibilityLabel={t.liveBarLabel(
+              liveChannel.title,
+              liveChannel.muted
+            )}
             /*
               Counted as the tap the left swipe is measured against — this
               line and that gesture are the two ways back into the room you
@@ -400,9 +406,9 @@ export function HomeView({
               </View>
               <Text style={styles.liveSub}>
                 {liveChannel.present === 1
-                  ? "Nobody else is here yet"
-                  : `${liveChannel.present} present`}{" "}
-                · tap to go back
+                  ? t.nobodyElseHereYet()
+                  : t.present(liveChannel.present)}
+                {t.tapToGoBack()}
               </Text>
             </View>
           </Pressable>
@@ -432,10 +438,7 @@ export function HomeView({
         {filmElsewhere && liveChannel ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={
-              `${liveChannel.title}: the film is on another of your ` +
-              `devices. Tap to watch it here instead.`
-            }
+            accessibilityLabel={t.filmElsewhere(liveChannel.title)}
             onPress={() => {
               /*
                 The whole claim, in one call: `showScreenFor` tells the server
@@ -487,11 +490,10 @@ export function HomeView({
             accessibilityRole="button"
             // Said in words for the reason the live bar's is: the dot is the
             // whole of the distinction on screen, and a dot reads as nothing.
-            accessibilityLabel={`${channel.title}, you are nearby. ${
-              channel.presentCount === 0
-                ? "Nobody is there."
-                : `${channel.presentCount} present.`
-            } Tap to open.`}
+            accessibilityLabel={t.nearbyBarLabel(
+              channel.title,
+              channel.presentCount
+            )}
             // `onEnterChannel` rather than `onReturnToChannel`, which is the
             // live bar's — and neither of them steps in. Both navigate and
             // nothing more; the tap that arrives is `ENTER`, dispatched by
@@ -524,9 +526,7 @@ export function HomeView({
                 load.
               */}
               <Text style={styles.nearbySub}>
-                {channel.presentCount === 0
-                  ? "Nearby · nobody there"
-                  : `Nearby · ${channel.presentCount} present`}
+                {t.nearbySub(channel.presentCount)}
               </Text>
             </View>
           </Pressable>
@@ -686,6 +686,7 @@ function SupportBody({
   onOpenLeaderboard?: () => void;
   onOpenAudioLab?: () => void;
 }) {
+  const t = useText().home;
   // The mark on the tab that got somebody here, carried one step further in.
   const answered = useAnswerWaiting();
   return (
@@ -723,22 +724,19 @@ function SupportBody({
           answered".
         */}
         <Button
-          label="Help"
-          badge={answered ? "answered" : undefined}
+          label={t.help()}
+          badge={answered ? t.answered() : undefined}
           onPress={onOpenHelp}
         />
         {/* What the screen behind it actually is, which is a question box
             rather than a chat, and no promise about when — see `HelpView`,
             which refuses to make one for the same reason. */}
-        <Text style={type.muted}>
-          Ask us something, or say what is broken. A person reads it and writes
-          back, and the answer waits here under your question.
-        </Text>
+        <Text style={type.muted}>{t.askUsSomething()}</Text>
       </Card>
 
       {canSupport ? (
         <Card style={styles.card}>
-          <Button label="Chip in" onPress={onOpenSupport} />
+          <Button label={t.chipIn()} onPress={onOpenSupport} />
           {/*
             **As loud as it was**, which is the decision HOME.md was written to
             make and which neither the tab, nor this line, nor the fill
@@ -752,10 +750,7 @@ function SupportBody({
             away in `SupportView`, where it has been chosen rather than
             imposed, and a test holds it there.
           */}
-          <Text style={type.muted}>
-            The box this runs on, the audio that carries a conversation and the
-            storage your recordings sit in all cost money every month.
-          </Text>
+          <Text style={type.muted}>{t.whatItCosts()}</Text>
         </Card>
       ) : null}
 
@@ -768,11 +763,8 @@ function SupportBody({
       */}
       {onOpenLeaderboard ? (
         <Card style={styles.card}>
-          <Button label="Leaderboard" onPress={onOpenLeaderboard} />
-          <Text style={type.muted}>
-            Who has brought the most people to The Floor. It is here because it
-            was turned on for your account.
-          </Text>
+          <Button label={t.leaderboard()} onPress={onOpenLeaderboard} />
+          <Text style={type.muted}>{t.leaderboardWhy()}</Text>
         </Card>
       ) : null}
 
@@ -784,11 +776,8 @@ function SupportBody({
       */}
       {onOpenAudioLab ? (
         <Card style={styles.card}>
-          <Button label="Audio lab" onPress={onOpenAudioLab} />
-          <Text style={type.muted}>
-            A bench for the iOS audio session. Run a trial outside any channel,
-            or what it measures is three writers arguing.
-          </Text>
+          <Button label={t.audioLab()} onPress={onOpenAudioLab} />
+          <Text style={type.muted}>{t.audioLabWhy()}</Text>
         </Card>
       ) : null}
     </View>
@@ -840,6 +829,7 @@ function SupportBody({
  * argument that put Settings in this header.
  */
 function InstallNotice() {
+  const t = useText().home;
   const { updateUrl } = useApp();
   // Read once on mount rather than watched: nothing else in this tab writes
   // it, and the only writer is the button below.
@@ -850,22 +840,19 @@ function InstallNotice() {
   return (
     <Card style={styles.install}>
       <View style={styles.noticeMain}>
-        <Text style={type.body}>Put The Floor on your phone</Text>
-        <Text style={type.muted}>
-          A browser cannot notify you, so nobody can reach you here unless you
-          are looking. The app can.
-        </Text>
+        <Text style={type.body}>{t.putItOnYourPhone()}</Text>
+        <Text style={type.muted}>{t.browserCannotNotify()}</Text>
       </View>
       <View style={styles.installActions}>
         <Button
-          label="Not now"
+          label={t.notNow()}
           onPress={() => {
             dismissInstallNotice();
             setDismissed(true);
           }}
         />
         <Button
-          label="Get the app"
+          label={t.getTheApp()}
           onPress={() => {
             // Left standing rather than dismissed: they have not installed
             // anything yet, and a tab that quietly forgets is one that cannot
@@ -899,6 +886,7 @@ function InstallNotice() {
  * — that install is heading for the explanation itself.
  */
 function NotificationNotice({ onExplain }: { onExplain: () => void }) {
+  const t = useText().home;
   const { notifications } = useApp();
   const { ask, noteShown } = notifications;
   /**
@@ -926,11 +914,8 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
   return (
     <Card style={styles.install}>
       <View style={styles.noticeMain}>
-        <Text style={type.body}>Nobody can reach you</Text>
-        <Text style={type.muted}>
-          Notifications are off for The Floor, so an invitation or a ping
-          arrives only if you happen to be looking.
-        </Text>
+        <Text style={type.body}>{t.nobodyCanReachYou()}</Text>
+        <Text style={type.muted}>{t.notificationsAreOff()}</Text>
       </View>
       <View style={styles.installActions}>
         {/*
@@ -942,10 +927,10 @@ function NotificationNotice({ onExplain }: { onExplain: () => void }) {
           worth knowing about.
         */}
         <Button
-          label="Not now"
+          label={t.notNow()}
           onPress={() => setDismissed(true)}
         />
-        <Button label="Tell me more" onPress={onExplain} />
+        <Button label={t.tellMeMore()} onPress={onExplain} />
       </View>
     </Card>
   );
@@ -1010,6 +995,7 @@ function ListSwitch({
   list: List;
   onList: (list: List) => void;
 }) {
+  const t = useText().home;
   const app = useApp();
   const requests = answerableRequests(app.home).length;
   // The same read the Support body makes, so the tab and the card behind it
@@ -1038,7 +1024,7 @@ function ListSwitch({
       options={[
         {
           value: "contacts",
-          label: "Contacts",
+          label: t.contacts(),
           icon: (color) => <ContactsIcon color={color} />,
           /*
             The words rather than a number, which is what `badge` takes — see
@@ -1047,11 +1033,11 @@ function ListSwitch({
             alternative is this tier knowing how to count in English for the
             sake of a case it cannot see.
           */
-          badge: forced || requests > 0 ? "requests waiting" : undefined,
+          badge: forced || requests > 0 ? t.requestsWaiting() : undefined,
         },
         {
           value: "channels",
-          label: "Channels",
+          label: t.channels(),
           icon: (color) => <ChannelsIcon color={color} />,
         },
         /*
@@ -1067,7 +1053,7 @@ function ListSwitch({
         */
         {
           value: "podcasts",
-          label: "Podcasts",
+          label: t.podcasts(),
           icon: (color) => <PodcastsIcon color={color} />,
         },
         /*
@@ -1080,13 +1066,13 @@ function ListSwitch({
         */
         {
           value: "support",
-          label: "Support",
+          label: t.support(),
           icon: (color) => <SupportIcon color={color} />,
           // "answered" rather than "an answer waiting": what is waiting is the
           // reading of it, and the answer is already here. The override is
           // inside `useAnswerWaiting`, unlike the Contacts mark above, because
           // the card behind this tab has to be forced with it.
-          badge: answered ? "answered" : undefined,
+          badge: answered ? t.answered() : undefined,
         },
       ]}
       value={list}

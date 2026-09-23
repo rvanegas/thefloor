@@ -23,6 +23,7 @@ import { CheckIcon } from './icons';
 import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
+import { useText } from '../i18n';
 
 /**
  * The mark: something is waiting behind this.
@@ -879,6 +880,7 @@ export function Segmented<T extends string>({
    */
   disabled?: boolean;
 }) {
+  const shared = useText().shared;
   const tabs = role !== 'choice';
   /*
     **How wide this control is, which is what decides how many rows it takes.**
@@ -936,7 +938,9 @@ export function Segmented<T extends string>({
                 // Spelled out only when there is a dab, so the six tabs that
                 // have none keep announcing their label and nothing else.
                 accessibilityLabel={
-                  option.badge ? `${option.label}, ${option.badge}` : undefined
+                  option.badge
+                    ? shared.labelWithBadge(option.label, option.badge)
+                    : undefined
                 }
                 onPress={() => onChange(option.value)}
                 style={({ pressed }) => [
