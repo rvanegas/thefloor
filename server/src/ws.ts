@@ -197,6 +197,22 @@ interface Connection {
    * settle. See `logClose`.
    */
   endedBy: 'silence' | 'unauthorized' | null;
+  /**
+   * Whether this session's chance to claim the rooms its account is still
+   * standing in has been read, which happens once and never again.
+   *
+   * A new process gets `REENTRY_MS` to say where it is — the reconnect path
+   * sends `ENTER` from `enteredChannel` in the same burst as `watch.channel`,
+   * so the window only has to outlast one round trip. When it closes, the
+   * rooms this account is present in with a grace running and nobody standing
+   * in them are abandoned: see `Channels.abandoned`.
+   *
+   * A flag rather than a recomputation because the judgement is about this
+   * socket's arrival and is made on it once. Without one the sweep would walk
+   * every channel of every account for the life of every connection, to
+   * answer a question that stopped being interesting a few seconds in.
+   */
+  claimRead: boolean;
 }
 
 /**
@@ -285,6 +301,30 @@ function deviceKey(connection: Connection): string {
 
 /** Close code for a credential the server will not accept. */
 const UNAUTHORIZED_CLOSE = 4401;
+
+/**
+ * How long a new session has to claim the rooms its account is still standing
+ * in before the grace holding them is judged abandoned.
+ *
+ * **It is a burst, not a deliberation.** A client that really is in a channel
+ * says so the moment its socket opens: `onopen` in app/src/api/socket.ts sends
+ * `watch.home`, `watch.channel` and then `ENTER` from `enteredChannel`, all in
+ * one turn. So this has to outlast one round trip and nothing else, and every
+ * millisecond past that is a millisecond of the very state it exists to end —
+ * an account present with no device of theirs in the room.
+ *
+ * Five seconds rather than one, because the cost of being early is worse than
+ * the cost of being late by the same amount: too short and a slow first round
+ * trip retires somebody who was coming straight back, which is a departure
+ * their room watched happen. Too long and the window it leaves is still a
+ * twelfth of the minute it replaces.
+ *
+ * Deliberately not derived from `DISCONNECT_GRACE_MS`. That one asks whether a
+ * connection is coming back; this one asks how long a connection that has
+ * *already arrived* may stay silent about where it is, and the two have no
+ * reason to move together.
+ */
+export const REENTRY_MS = 5_000;
 
 /**
  * One guest's page, which is a much smaller thing than a member's connection.
@@ -771,6 +811,42 @@ export function registerWebsocket(deps: {
         connection.endedBy = 'silence';
         connection.socket.terminate();
         continue;
+      }
+      /*
+        **The window in which a new session says where it is standing.**
+
+        A socket that has been open for `REENTRY_MS` and has claimed nothing
+        has answered the question the grace period was waiting on. Every room
+        this account is present in with a grace running, and with no session
+        of theirs standing in it, is abandoned — `Channels.abandoned`, which
+        carries the argument for why a fresh process is better evidence than
+        the timer.
+
+        **Here rather than in a timer of its own**, because this loop already
+        walks every connection on a clock and the question is the same kind:
+        what is true of a socket now that some time has passed. A `setTimeout`
+        per connection would be a second schedule to cancel on close, and one
+        that fires for sockets that have gone.
+
+        **Read once**, so the ordinary case — a session that claimed its room
+        in the first turn, or has nothing to claim — costs one boolean per
+        sweep rather than a walk of every channel. See `Connection.claimRead`.
+
+        The judgement is per *account*, not per socket: `standingConnectionFor`
+        asks whether any live session of theirs is standing there, so a phone
+        that is genuinely in the room is not retired by a laptop connecting
+        beside it.
+      */
+      if (
+        !connection.claimRead &&
+        connection.scope.kind === 'session' &&
+        at - connection.openedAt >= REENTRY_MS
+      ) {
+        connection.claimRead = true;
+        for (const channelId of channels.standingIn(connection.userId)) {
+          if (standingConnectionFor(connection, channelId)) continue;
+          channels.abandoned(channelId, connection.userId);
+        }
       }
       // Re-checked here rather than pushed from the revocation, so there is
       // one place that decides a socket is no longer authorised and no wiring
@@ -1343,6 +1419,7 @@ export function registerWebsocket(deps: {
       standing: null,
       openedAt: now(),
       endedBy: null,
+      claimRead: false,
     };
     // Asked before the add, so it answers about the sockets that were already
     // here: a second device connecting is not an arrival, and announcing one

@@ -7,6 +7,7 @@ import {
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
 import { OTP_RESEND_INTERVAL_MS } from '../src/accounts';
+import { REENTRY_MS } from '../src/ws';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 import { MemoryMailer } from '../src/mail';
 
@@ -2565,5 +2566,121 @@ describe('websocket', () => {
       expect(contacts[0].status).toBe('outgoing');
       expect(contacts[0].inApp).toBeUndefined();
     });
+  });
+});
+
+/**
+ * **A new session says where it is standing, or it is not standing anywhere.**
+ *
+ * The grace period waits out a timeout because a quiet socket is ambiguous —
+ * the connection may be coming back, and the ordinary reconnect re-asserts
+ * `ENTER` inside the minute and keeps the place. A *fresh* process is not
+ * ambiguous: it is the thing the grace was waiting for, and if it claims
+ * nothing in `REENTRY_MS` the answer to where its owner is standing is
+ * *nowhere*.
+ *
+ * **What the unclaimed minute was costing.** `isPresent` is the account's, and
+ * every guard over the shared features reads it, while the screen's own rung
+ * is the account's *and* this device's. So a phone that had force-quit and
+ * reopened could play, pause, seek and stop the film the room was watching
+ * from a screen whose footer read *Out* — reported from a phone, and the
+ * reason this window exists. The consequence is asserted in `presence.test.ts`
+ * § *a grace a new session did not claim*; what is asserted here is the socket
+ * that ends it.
+ */
+describe('a session that claims nothing', () => {
+  it('ends the grace its account was still standing on', async () => {
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+
+    // The force quit. The socket goes, the grace starts, and the account is
+    // still in the room — which is the state the whole of this is about.
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(app.channels.get(channelId)!.disconnectedAt[bob.account.id]).toBeDefined();
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
+
+    // The app reopened. A new process has no `enteredChannel` to re-assert, so
+    // it watches the channel and says nothing about standing in it.
+    const again = new Client(bob.token, baseUrl);
+    await again.open();
+    again.send({ type: 'watch.channel', channelId });
+    await again.next('channel');
+
+    // Inside the window, nothing has been judged: a claim may still arrive.
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
+
+    clock += REENTRY_MS;
+    await sweeps();
+
+    // *Nearby*, which is the ordinary way out of a dropped connection. Well
+    // short of DISCONNECT_GRACE_MS, which is the point.
+    const channel = app.channels.get(channelId)!;
+    expect(channel.present).not.toContain(bob.account.id);
+    expect(channel.waiting).toContain(bob.account.id);
+    a.close();
+    again.close();
+  });
+
+  it('leaves a session that does claim its room alone', async () => {
+    // The reconnect the grace was written for: the same client comes back and
+    // re-asserts `ENTER` from what it believed before the drop. Nothing here
+    // may touch that, or every blip becomes a departure.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const b = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), b.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    b.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await b.next('channel', (m) => m.view.channel.present.length === 2);
+
+    b.close();
+    await new Promise((r) => setTimeout(r, 200));
+
+    const again = new Client(bob.token, baseUrl);
+    await again.open();
+    again.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await again.next('channel', (m) => m.view.channel.present.length === 2);
+
+    clock += REENTRY_MS;
+    await sweeps();
+
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
+    a.close();
+    again.close();
+  });
+
+  it('leaves a room another device of the account is standing in', async () => {
+    // Two devices, one voice: the laptop connecting says nothing about the
+    // phone that is genuinely in the room. The judgement is per account, so
+    // the phone's `standing` is what answers for the channel.
+    const { alice, bob, channelId } = await pairInSession();
+    const a = new Client(alice.token, baseUrl);
+    const phone = new Client(bob.token, baseUrl);
+    await Promise.all([a.open(), phone.open()]);
+
+    a.send({ type: 'watch.channel', channelId });
+    phone.send({ type: 'channel.action', channelId, action: { type: 'ENTER' } });
+    await phone.next('channel', (m) => m.view.channel.present.length === 2);
+
+    const laptop = new Client(bob.token, baseUrl);
+    await laptop.open();
+    laptop.send({ type: 'watch.channel', channelId });
+    await laptop.next('channel');
+
+    clock += REENTRY_MS;
+    await sweeps();
+
+    expect(app.channels.get(channelId)!.present).toContain(bob.account.id);
+    a.close();
+    phone.close();
+    laptop.close();
   });
 });

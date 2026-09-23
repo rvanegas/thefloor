@@ -852,27 +852,30 @@ describe('how many channels you may be nearby in', () => {
 });
 
 /**
- * **What an inherited presence can still do, which is the whole channel.**
+ * **A grace nobody came back to claim, and what ending it takes with it.**
  *
- * The grace period above is the honest answer to a force quit: the account
- * stays in the room for DISCONNECT_GRACE_MS, and the process that reopened the
- * app holds a presence it never asserted — the case the header of this file
- * describes, where *the roster said the person was there* and *their own
- * screen, correctly, offered Step in*.
+ * The minute above is the honest answer to a force quit while a socket is
+ * merely *quiet*: the connection may be coming back, and the ordinary
+ * reconnect re-asserts `ENTER` inside it and keeps the place. What it cannot
+ * survive is the process coming back and saying it is standing somewhere else
+ * — or nowhere — which is `Channels.abandoned`, raised by the socket sweep
+ * once a new session has had `REENTRY_MS` to claim its rooms.
  *
- * What was never checked is what that minute *permits*. Every guard over the
- * two shared features asks `isPresent`, which is the account's, while the
- * screen's own rung is the account's **and** this device's — see `iAmPresent`
- * in app/src/ui/ChannelView.tsx. So for the length of the grace a process
- * showing *Out* may drive the film the room is watching, and the reducer
- * agrees with it rather than with the screen.
+ * **Why it was worth ending early.** For the length of that minute the account
+ * is `present` while no device of theirs is in the room, and every guard over
+ * the shared features reads exactly that, `isPresent` being the account's —
+ * while the screen's own rung is the account's **and** this device's, see
+ * `iAmPresent` in app/src/ui/ChannelView.tsx. So a phone that had force-quit
+ * and reopened could play, pause, seek and stop the film the room was watching
+ * from a screen whose footer read *Out*, which is how this was reported. The
+ * guards were right and the fact under them was wrong.
  *
- * Reported from a phone: play and pause worked from a channel the person was
- * not in. The film is only where it is noticeable, the party being the one
- * thing still running while somebody looks at it.
+ * The socket half of this is `ws.test.ts` § *a session that claims nothing*.
+ * What is asserted here is the consequence: ending the grace is what takes the
+ * controls away, so the two halves are one repair rather than two rules.
  */
-describe('a presence a reopened app inherited', () => {
-  it('may drive the watch party from a screen saying Out', async () => {
+describe('a grace a new session did not claim', () => {
+  it('takes the room, and the film with it', async () => {
     const { bob, channelId } = await roomOfTwo();
     app.channels.dispatch(channelId, bob.id, {
       type: 'START_WATCH',
@@ -887,16 +890,31 @@ describe('a presence a reopened app inherited', () => {
     pastTheJoinWindow();
     await poll();
     expect(graceOn(channelId, bob.id)).toBe(true);
-
-    // The reopened process. It asserts no ENTER — it has none to assert — so
-    // this is the minute in which the account is present and the device is
-    // not. Alice is still in the room, so the party is nobody else's to have
-    // paused.
     expect(channel(channelId).present).toContain(bob.id);
-    app.channels.dispatch(channelId, bob.id, { type: 'WATCH_PAUSE' });
 
-    // The assertion the report is: somebody who is not in the channel stopped
-    // the film for everybody who is.
+    // The reopened process, having claimed nothing in its window.
+    app.channels.abandoned(channelId, bob.id);
+
+    // *Nearby*, which is the ordinary way out of a dropped connection rather
+    // than a second one invented for this.
+    expect(channel(channelId).present).not.toContain(bob.id);
+    expect(isWaiting(channel(channelId), bob.id)).toBe(true);
+
+    // And the report, refused: Alice is still in the room and it is still her
+    // film, because the person pressing is no longer in the channel.
+    app.channels.dispatch(channelId, bob.id, { type: 'WATCH_PAUSE' });
     expect(channel(channelId).watch.status).toBe('playing');
+  });
+
+  it('leaves a presence nothing is waiting on alone', async () => {
+    // The rule that keeps this from being a way to evict anybody: no grace
+    // running means a live socket is holding the place, and this may never
+    // take one of those away. Bob is present and undropped here.
+    const { bob, channelId } = await roomOfTwo();
+    expect(graceOn(channelId, bob.id)).toBe(false);
+
+    app.channels.abandoned(channelId, bob.id);
+
+    expect(channel(channelId).present).toContain(bob.id);
   });
 });

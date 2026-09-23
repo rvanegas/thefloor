@@ -2213,6 +2213,56 @@ export class ChannelRegistry {
   }
 
   /**
+   * The grace a lost socket started is over, because the process it was
+   * waiting for has come back and is standing somewhere else — or nowhere.
+   *
+   * **Evidence rather than a clock, which is the whole of why this exists.**
+   * `DISCONNECT_GRACE_MS` waits out a *timeout* because a socket that went
+   * quiet is ambiguous: the connection may be coming back, and the ordinary
+   * reconnect re-asserts `ENTER` inside the minute and keeps the place. A
+   * fresh session of the same account that has had its window and claimed
+   * nothing is not ambiguous. It is the process the grace was waiting for,
+   * saying where it is standing, and the answer is *not here* — which is
+   * better evidence than the timer it would otherwise sit out.
+   *
+   * The same argument `2026-09-08-the-socket-is-what-holds-a-place.md` makes
+   * about the socket that went, applied to the socket that arrived.
+   *
+   * **What the minute was buying, spent.** For as long as it runs the account
+   * is `present` while no device of theirs is in the room, and every guard
+   * over the shared features reads exactly that — see `canControlWatch`. So
+   * the film the room is watching could be played, paused, seeked and stopped
+   * from a screen whose own footer read *Out*, which is how this was reported.
+   * Ending the grace is what closes that, rather than any new rule about who
+   * may press what: the guards were right, and the fact under them was wrong.
+   *
+   * `DISCONNECT_EXPIRED`, so the departure is the ordinary one — *Nearby*,
+   * with every clock stamped as a dropped connection stamps them. There is
+   * deliberately no second way out of a room.
+   *
+   * Silent when no grace is running: a presence nothing is waiting on is
+   * somebody's live socket, and this may never take one of those away.
+   */
+  abandoned(channelId: string, userId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+    if (channel.disconnectedAt[userId] === undefined) return;
+    // The grace was the socket's to end and this is it ending, so the mark
+    // that says so goes with it. `reconcilePresence` self-heals this for
+    // anybody still in the room; somebody leaving by this path is not.
+    this.socketDropped.get(channelId)?.delete(userId);
+    const next = reduce(
+      channel,
+      { type: 'DISCONNECT_EXPIRED', userId },
+      this.now()
+    );
+    if (next !== channel) {
+      this.commit(channel, next);
+      this.emit([channelId]);
+    }
+  }
+
+  /**
    * Evidence that somebody present in this channel is still there, from
    * whatever the transport last heard.
    *

@@ -367,10 +367,22 @@ things that this file keeps apart:
   **Presence is an account's and standing is a device's**, and the two come
   apart whenever somebody is signed in twice: the account is present while a
   phone holds the room, and a second phone that has opened the same channel is
-  present-but-not-standing. There is no server-side name for this, because the
-  server has no reason to hold one — an account is present or not, and which
-  of its devices is doing it is settled by `displaceOtherSessions` telling the
-  others they are not. See disagreement 12.
+  present-but-not-standing. The server holds its own half as
+  `Connection.standing`, written by the same actions displacement is — an
+  `ENTER` sets it and clears it on the account's other sockets — and it is
+  connection state, so it dies with the socket rather than being stored. See
+  disagreement 12.
+
+  **What the server reads it for, since 2026-09-23, is a presence nobody is
+  standing on.** A session that has been open for `REENTRY_MS` and has claimed
+  nothing gives up every room its account is present in with a grace running:
+  force quit, reopen, and the new process has no `enteredChannel` to re-assert,
+  so it would otherwise inherit the presence for the rest of
+  `DISCONNECT_GRACE_MS` while showing *Out*. That minute was live to every
+  guard that reads `isPresent` — the transport, the floor, a recording, a
+  track — which is how it was found. Nothing changes for a reconnect that does
+  re-assert `ENTER`, which is the case the grace exists for. See
+  decisions/2026-09-23-a-new-session-claims-its-rooms-or-loses-them.md.
 
   **A seat takes it too, since 2026-09-22**, and that is the one addition to
   this paragraph the app holding seats makes. Walking into a seat is walking
