@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { describeLevel, NOTIFICATION_LEVELS } from '../../../core/notifications';
+import { NOTIFICATION_LEVELS } from '../../../core/notifications';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Screen, SectionLabel } from './components';
 import { colors, spacing, type } from './theme';
@@ -24,13 +25,16 @@ import { colors, spacing, type } from './theme';
  * That it is not all-or-nothing — the levels are per channel, the middle one
  * is the default, and the quiet one is genuinely quiet.
  *
- * The levels are read from `describeLevel` rather than written out here, on
- * this repository's standing rule about a second copy of the same words: the
- * settings screen shows those sentences, and a promise here that had drifted
- * from them would be a promise about a screen that no longer exists.
+ * The levels are read from the catalogue's `notificationLevel` group rather
+ * than written out here, on this repository's standing rule about a second
+ * copy of the same words: the settings screen shows those sentences, and a
+ * promise here that had drifted from them would be a promise about a screen
+ * that no longer exists.
  */
 export function NotificationsView({ onDone }: { onDone: () => void }) {
   const { notifications } = useApp();
+  const t = useText().notifications;
+  const levels = useText().notificationLevel;
   const [asking, setAsking] = useState(false);
 
   /**
@@ -69,7 +73,7 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.stack}>
-        <Text style={type.title}>Being reachable</Text>
+        <Text style={type.title}>{t.title()}</Text>
 
         {/*
           First, and only for the one reader it is true of: somebody who
@@ -84,53 +88,27 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
         */}
         {notifications.cohortEligible ? (
           <Card style={styles.card}>
-            <Text style={type.body}>
-              You arrived without anybody here. Turn these on and we will put
-              you in a channel with a few other people who joined around the
-              same time, and one of us, so there is somebody to talk to.
-            </Text>
-            <Text style={type.muted}>
-              It is one channel, it happens once, and you can leave it whenever
-              you like. Nobody in it becomes a contact.
-            </Text>
+            <Text style={type.body}>{t.cohortOffer()}</Text>
+            <Text style={type.muted}>{t.cohortOnce()}</Text>
           </Card>
         ) : null}
 
         <Card style={styles.card}>
-          <Text style={type.body}>
-            The Floor is people talking, not messages waiting. Somebody walks
-            into a channel, or pings you from one, and the whole of it happens
-            while they are there.
-          </Text>
-          <Text style={type.muted}>
-            Without notifications this phone can only be reached while you
-            happen to be looking at it. Everyone else sees you as somebody who
-            never answers.
-          </Text>
+          <Text style={type.body}>{t.peopleNotMessages()}</Text>
+          <Text style={type.muted}>{t.otherwiseUnreachable()}</Text>
         </Card>
 
-        <SectionLabel>What we will send</SectionLabel>
+        <SectionLabel>{t.whatWeWillSend()}</SectionLabel>
         <Card style={styles.card}>
-          <Text style={type.body}>
-            Only a person. Somebody invited you, somebody pinged you, or
-            somebody walked into a channel you belong to. That is all three
-            kinds there are.
-          </Text>
-          <Text style={type.muted}>
-            Nothing to bring you back, nothing about what you have missed, and
-            nothing the app decided to send on its own behalf. There is no
-            version of this that is good for us and bad for you.
-          </Text>
+          <Text style={type.body}>{t.onlyAPerson()}</Text>
+          <Text style={type.muted}>{t.nothingOnOurBehalf()}</Text>
         </Card>
 
-        <SectionLabel>How loud, per channel</SectionLabel>
+        <SectionLabel>{t.howLoudPerChannel()}</SectionLabel>
         <Card style={styles.card}>
-          <Text style={type.muted}>
-            Each channel is set on its own, in its settings, whenever you like.
-            New ones start at Pings only.
-          </Text>
+          <Text style={type.muted}>{t.setPerChannel()}</Text>
           {NOTIFICATION_LEVELS.map((level) => {
-            const { label, detail } = describeLevel(level);
+            const { label, detail } = levels[level]();
             return (
               <View key={level} style={styles.level}>
                 <Text style={styles.levelLabel}>{label}</Text>
@@ -142,21 +120,17 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
 
         {notifications.canPrompt ? (
           <Button
-            label={asking ? 'Asking…' : 'Turn on notifications'}
+            label={asking ? t.asking() : t.turnOn()}
             variant="primary"
             onPress={allow}
           />
         ) : (
           <>
             <Card style={styles.card}>
-              <Text style={type.muted}>
-                You have already answered this once, and iOS only asks the
-                once. Turning it on now happens in Settings, under
-                Notifications.
-              </Text>
+              <Text style={type.muted}>{t.alreadyAnswered()}</Text>
             </Card>
             <Button
-              label="Open Settings"
+              label={t.openSettings()}
               variant="primary"
               onPress={() => {
                 void Linking.openSettings();
@@ -165,7 +139,7 @@ export function NotificationsView({ onDone }: { onDone: () => void }) {
             />
           </>
         )}
-        <Button label="Not now" onPress={onDone} />
+        <Button label={t.notNow()} onPress={onDone} />
       </View>
     </Screen>
   );

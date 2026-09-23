@@ -134,18 +134,37 @@ export const foldUsername = (username: string): string =>
  * says it, once, when a save is attempted.
  */
 export function usernameProblem(typed: string): string | null {
+  const fault = usernameFault(typed);
+  if (fault === null) return null;
+  if (fault === 'too-long')
+    return `A username can be at most ${MAX_USERNAME_LENGTH} characters.`;
+  if (fault === 'too-short')
+    return `A username needs at least ${MIN_USERNAME_LENGTH} characters.`;
+  return 'Letters, digits and underscores only — no spaces, dots or dashes.';
+}
+
+/**
+ * The same judgement with the sentence taken off — which of the three rules a
+ * string breaks, or null when it breaks none.
+ *
+ * **This is the half the app uses, and `usernameProblem` above is the half the
+ * server does.** They are not two judgements: the rules are decided once, here,
+ * and rendered twice. The server's rendering is an API error and is English
+ * because an API is; the app's is a line under a field and is in whatever
+ * language the reader has, which it gets from `app/src/i18n`. Keeping the
+ * English in core rather than deleting it is what stops the route and the
+ * field from drifting apart about *what* is wrong while disagreeing only about
+ * the words.
+ */
+export type UsernameFault = 'too-long' | 'too-short' | 'charset';
+
+export function usernameFault(typed: string): UsernameFault | null {
   const name = strip(typed);
   if (name === '') return null;
-  if (name.length > MAX_USERNAME_LENGTH) {
-    return `A username can be at most ${MAX_USERNAME_LENGTH} characters.`;
-  }
+  if (name.length > MAX_USERNAME_LENGTH) return 'too-long';
   // Before the alphabet check, deliberately: `ab` is short *and* well formed,
   // and being told about the characters it is allowed to use would send
   // somebody looking for a character that is not there.
-  if (name.length < MIN_USERNAME_LENGTH) {
-    return `A username needs at least ${MIN_USERNAME_LENGTH} characters.`;
-  }
-  return USERNAME.test(name)
-    ? null
-    : 'Letters, digits and underscores only — no spaces, dots or dashes.';
+  if (name.length < MIN_USERNAME_LENGTH) return 'too-short';
+  return USERNAME.test(name) ? null : 'charset';
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL, describeMissingConfig } from '../api/config';
 import { copyText } from '../clipboard';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Checkbox, Field, Screen } from './components';
 import { currentLink, inEmbeddedBrowser } from './embedded';
@@ -18,6 +19,7 @@ import { colors, spacing, type } from './theme';
  */
 export function AuthView() {
   const { requestCode, verify, lastError, clearError, signedInHere } = useApp();
+  const t = useText().auth;
   const [step, setStep] = useState<'identify' | 'verify'>('identify');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
@@ -36,7 +38,7 @@ export function AuthView() {
 
   async function sendCode() {
     if (!identifier.trim()) {
-      setError('Enter your email address.');
+      setError(t.enterEmail());
       return;
     }
     setBusy(true);
@@ -55,7 +57,7 @@ export function AuthView() {
 
   async function submitCode() {
     if (!code.trim()) {
-      setError('Enter the code from your email.');
+      setError(t.enterCode());
       return;
     }
     setBusy(true);
@@ -78,7 +80,7 @@ export function AuthView() {
   if (missingConfig) {
     return (
       <View style={styles.configError}>
-        <Text style={type.heading}>Not configured</Text>
+        <Text style={type.heading}>{t.notConfigured()}</Text>
         <Text style={styles.configText}>{missingConfig}</Text>
       </View>
     );
@@ -87,10 +89,8 @@ export function AuthView() {
   return (
     <Screen contentStyle={styles.container}>
         <View style={styles.brand}>
-          <Text style={type.title}>The Floor</Text>
-          <Text style={[type.muted, styles.tagline]}>
-            Audio channels where either party can claim uninterrupted time.
-          </Text>
+          <Text style={type.title}>{t.brand()}</Text>
+          <Text style={[type.muted, styles.tagline]}>{t.tagline()}</Text>
         </View>
 
         {/*
@@ -113,14 +113,14 @@ export function AuthView() {
             <Field
               value={identifier}
               onChangeText={setIdentifier}
-              placeholder="Email address"
+              placeholder={t.emailPlaceholder()}
               keyboardType="email-address"
               autoFocus
               onSubmit={sendCode}
               submitLabel="send"
             />
             <Button
-              label={busy ? 'Sending…' : 'Send code'}
+              label={busy ? t.sending() : t.sendCode()}
               variant="primary"
               disabled={busy}
               onPress={sendCode}
@@ -129,12 +129,12 @@ export function AuthView() {
         ) : (
           <>
             <Text style={[type.muted, styles.sentTo]}>
-              We emailed a six-digit code to {identifier.trim()}
+              {t.emailedCodeTo(identifier.trim())}
             </Text>
             <Field
               value={code}
               onChangeText={setCode}
-              placeholder="Six-digit code"
+              placeholder={t.codePlaceholder()}
               keyboardType="number-pad"
               autoFocus
               onSubmit={submitCode}
@@ -143,7 +143,7 @@ export function AuthView() {
             <Field
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="Display name (blank keeps your current one)"
+              placeholder={t.displayNamePlaceholder()}
               autoCapitalize="words"
               onSubmit={submitCode}
               submitLabel="go"
@@ -183,19 +183,19 @@ export function AuthView() {
             */}
             {signedInHere(identifier) ? null : (
               <Checkbox
-                label="Email me occasionally about The Floor — how to use it, and what is new."
+                label={t.marketingConsent()}
                 checked={marketingEmail}
                 onChange={setMarketingEmail}
               />
             )}
             <Button
-              label={busy ? 'Checking…' : 'Sign in'}
+              label={busy ? t.checking() : t.signIn()}
               variant="primary"
               disabled={busy}
               onPress={submitCode}
             />
             <Button
-              label="Use a different address"
+              label={t.useDifferentAddress()}
               onPress={() => {
                 setStep('identify');
                 setCode('');
@@ -215,7 +215,7 @@ export function AuthView() {
           <Text style={styles.error}>{error ?? lastError}</Text>
         ) : null}
 
-        <Text style={styles.hint}>Server: {API_URL}</Text>
+        <Text style={styles.hint}>{t.serverHint(API_URL)}</Text>
     </Screen>
   );
 }
@@ -234,26 +234,25 @@ export function AuthView() {
  * clipboard works whether or not the menu was found.
  */
 function EmbeddedNotice() {
+  const t = useText().auth;
+  const advice = t.embeddedAdvice();
   const [copied, setCopied] = useState(false);
 
   return (
     <Card style={styles.embedded}>
       <Text style={type.body}>
-        <Text style={styles.embeddedLead}>
-          You are in an app&rsquo;s built-in browser.
-        </Text>{' '}
-        On iOS these browsers often hand a page a microphone that produces
-        silence — everyone hears nothing and nothing says so.
+        <Text style={styles.embeddedLead}>{t.embeddedLead()}</Text>
+        {t.embeddedWhy()}
       </Text>
       <Text style={[type.muted, styles.embeddedNote]}>
-        Open this link in Safari or Chrome instead: the menu at the top or
-        bottom of this window has <Text style={styles.embeddedEm}>Open in
-        Safari</Text> or <Text style={styles.embeddedEm}>Open in browser</Text>.
-        If you cannot find it, copy the link and paste it into a browser
-        yourself.
+        {advice.before}
+        <Text style={styles.embeddedEm}>{advice.firstMenuItem}</Text>
+        {advice.between}
+        <Text style={styles.embeddedEm}>{advice.secondMenuItem}</Text>
+        {advice.after}
       </Text>
       <Button
-        label={copied ? 'Link copied' : 'Copy the link'}
+        label={copied ? t.linkCopied() : t.copyTheLink()}
         onPress={() => {
           // The result is ignored on purpose. `copyText` answers whether it
           // worked and there is nothing useful to do with a `false` here —

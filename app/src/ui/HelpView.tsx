@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { HelpQuestion } from '../../../core/protocol';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, IconButton, Screen, SectionLabel } from './components';
 import { CloseIcon } from './icons';
@@ -36,6 +37,8 @@ import { colors, spacing, type } from './theme';
  */
 export function HelpView({ onBack }: { onBack: () => void }) {
   const app = useApp();
+  const t = useText().help;
+  const shared = useText().shared;
   const [questions, setQuestions] = useState<HelpQuestion[]>([]);
   const [canAsk, setCanAsk] = useState(true);
   const [askBlocked, setAskBlocked] = useState<string | null>(null);
@@ -103,32 +106,28 @@ export function HelpView({ onBack }: { onBack: () => void }) {
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Help</Text>
+        <Text style={type.heading}>{t.title()}</Text>
         {/* "Close", not "Back": beside a list there is nothing underneath this
             to go back to. See HomeSettingsView. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={onBack}
         />
       </View>
 
       <Card style={styles.stack}>
-        <Text style={type.muted}>
-          Ask anything about The Floor — how something works, or what went
-          wrong. A person reads these and writes back, and the answer appears
-          here under your question.
-        </Text>
+        <Text style={type.muted}>{t.whatThisIs()}</Text>
         <Field
           value={draft}
           onChangeText={setDraft}
-          placeholder="What would you like to know?"
+          placeholder={t.placeholder()}
           autoCapitalize="sentences"
           multiline
           editable={canAsk && !asking}
         />
         <Button
-          label={asking ? 'Sending…' : 'Ask'}
+          label={asking ? t.sending() : t.ask()}
           variant="primary"
           onPress={() => void ask()}
           disabled={!canAsk || asking || !draft.trim()}
@@ -149,7 +148,7 @@ export function HelpView({ onBack }: { onBack: () => void }) {
         <ActivityIndicator color={colors.textMuted} style={styles.loading} />
       ) : questions.length > 0 ? (
         <>
-          <SectionLabel>Your questions</SectionLabel>
+          <SectionLabel>{t.yourQuestions()}</SectionLabel>
           <View style={styles.list}>
             {questions.map((question) => (
               <QuestionCard
@@ -187,21 +186,20 @@ function QuestionCard({
   /** How long ago it was asked, by the server's clock. */
   since: number;
 }) {
+  const t = useText().help;
   return (
     <Card style={styles.stack}>
       <Text style={type.body}>{question.text}</Text>
       {question.answer !== null ? (
         <>
-          <Text style={styles.answerLabel}>Answer</Text>
+          <Text style={styles.answerLabel}>{t.answer()}</Text>
           <Text style={type.muted}>{question.answer}</Text>
         </>
       ) : (
         // Said as a state rather than as an apology. "Not answered yet" is
         // information; "sorry for the delay" is a promise about a queue nobody
         // has committed to.
-        <Text style={styles.pending}>
-          Asked {ago(since)} · not answered yet
-        </Text>
+        <Text style={styles.pending}>{t.askedNotAnswered(ago(since))}</Text>
       )}
     </Card>
   );

@@ -1,6 +1,5 @@
 import {
   alertFor,
-  describeLevel,
   DEFAULT_NOTIFICATION_LEVEL,
   NOTIFICATION_LEVELS,
   type NotificationKind,
@@ -62,16 +61,5 @@ describe('how loudly a channel may interrupt', () => {
         );
       }
     }
-  });
-
-  it('says what each level does in words somebody can act on', () => {
-    for (const level of NOTIFICATION_LEVELS) {
-      const { label, detail } = describeLevel(level);
-      expect(label).not.toHaveLength(0);
-      expect(detail).not.toHaveLength(0);
-    }
-    // The one that has to be unambiguous: choosing it should not read as
-    // turning notifications off altogether.
-    expect(describeLevel('low').detail).toMatch(/pings/i);
   });
 });

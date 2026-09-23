@@ -7,7 +7,6 @@ import {
 import { canEditChannel, hasTheRoom } from '../../../core/channel';
 import {
   DEFAULT_NOTIFICATION_LEVEL,
-  describeLevel,
   NOTIFICATION_LEVELS,
   type NotificationLevel,
 } from '../../../core/notifications';
@@ -15,6 +14,7 @@ import type { ChannelState } from '../../../core/types';
 import { type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -517,6 +517,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
   const app = useApp();
   const stored =
     app.channelViews[channelId]?.notificationLevel ?? DEFAULT_NOTIFICATION_LEVEL;
+  const levels = useText().notificationLevel;
   const [level, setLevel] = useState<NotificationLevel>(stored);
   const [error, setError] = useState<string | null>(null);
 
@@ -547,7 +548,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
   return (
     <>
       {NOTIFICATION_LEVELS.map((option) => {
-        const { label, detail } = describeLevel(option);
+        const { label, detail } = levels[option]();
         return (
           <Button
             key={option}

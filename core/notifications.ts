@@ -153,33 +153,12 @@ export function alertFor(
 }
 
 /**
- * What each level promises, in the words a person reading the setting needs.
- *
- * Phrased as what *arrives*, not as what is suppressed. Somebody choosing
- * `low` is not asking for less software, they are asking to be left alone
- * about this channel — and the sentence has to make clear that the messages
- * still exist and can be gone and read, or the setting reads as an off switch
- * and gets avoided by people who wanted exactly it.
+ * **What each level promises in words is not here, and that is deliberate.**
+ * It used to be — `describeLevel`, returning a label and a sentence — and it
+ * moved to `app/src/i18n/en.ts` on the internationalization pass. Nothing but
+ * the two settings screens ever read it, it had no structure to share, and a
+ * function in core is a function core would have to hold in every language
+ * the app learns while importing nothing. The *levels* stay here, because
+ * which ones exist and what each one does to an alert is a rule the server
+ * enforces; the sentences are the app's to say.
  */
-export function describeLevel(level: NotificationLevel): {
-  label: string;
-  detail: string;
-} {
-  switch (level) {
-    case 'low':
-      return {
-        label: 'Quiet',
-        detail: 'Nothing makes a sound or lights the screen, pings included.',
-      };
-    case 'high':
-      return {
-        label: 'Everything',
-        detail: 'Arrivals and invitations make a sound, as pings do.',
-      };
-    default:
-      return {
-        label: 'Pings only',
-        detail: 'A ping makes a sound. Nothing else does.',
-      };
-  }
-}

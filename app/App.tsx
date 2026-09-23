@@ -12,6 +12,8 @@ import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
+import { TextProvider, stringsFor } from './src/i18n';
+import { deviceRegion } from './src/api/region';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
@@ -1290,20 +1292,37 @@ function Glass({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The language the app speaks, decided once at launch.
+ *
+ * **Read from the same place the region is**, `Intl` via `deviceRegion`, so
+ * there is one answer to "what does this device say about itself" and no new
+ * dependency for a second one. Once at launch rather than on every render:
+ * changing the phone's language relaunches the app on iOS, so nothing can
+ * change underneath this that does not also restart it.
+ *
+ * The provider is here rather than the catalogue being a module singleton so
+ * that a language chosen in Settings, if there is ever one, is a value change
+ * that redraws rather than a restart — and so a test can render one screen in
+ * Spanish without touching the others.
+ */
 export default function App() {
+  const strings = useMemo(() => stringsFor(deviceRegion().locale), []);
   return (
-    <SafeAreaProvider>
-      <WholeWindow>
-        <Glass>
-          <StatusBar style="auto" />
-          <AppProvider>
-            <Attending>
-              <Root />
-            </Attending>
-          </AppProvider>
-        </Glass>
-      </WholeWindow>
-    </SafeAreaProvider>
+    <TextProvider strings={strings}>
+      <SafeAreaProvider>
+        <WholeWindow>
+          <Glass>
+            <StatusBar style="auto" />
+            <AppProvider>
+              <Attending>
+                <Root />
+              </Attending>
+            </AppProvider>
+          </Glass>
+        </WholeWindow>
+      </SafeAreaProvider>
+    </TextProvider>
   );
 }
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { API_URL } from '../api/config';
+import { useText } from '../i18n';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -36,6 +37,7 @@ import { colors, spacing, type } from './theme';
  * `PodcastsView.web.tsx`.
  */
 export function PodcastsView() {
+  const t = useText().podcasts;
   const uri = `${API_URL}/podcasts`;
 
   // The one state that is not a page. `API_URL` is empty only on a native
@@ -45,8 +47,7 @@ export function PodcastsView() {
   if (!API_URL) {
     return (
       <View style={styles.empty}>
-        <Text style={type.muted}>No server is configured, so there is
-        nothing to list.</Text>
+        <Text style={type.muted}>{t.noServer()}</Text>
       </View>
     );
   }

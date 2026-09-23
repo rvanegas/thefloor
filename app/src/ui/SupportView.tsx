@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import type { SupportView as SupportSnapshot } from '../../../core/protocol';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, IconButton, Screen } from './components';
 import { CloseIcon } from './icons';
@@ -28,6 +29,8 @@ import { colors, spacing, type } from './theme';
  */
 export function SupportView({ onBack }: { onBack: () => void }) {
   const app = useApp();
+  const t = useText().support;
+  const shared = useText().shared;
   const [support, setSupport] = useState<SupportSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,11 +55,11 @@ export function SupportView({ onBack }: { onBack: () => void }) {
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Support</Text>
+        <Text style={type.heading}>{t.title()}</Text>
         {/* "Close", not "Back": beside a list there is nothing underneath this
             to go back to. See HomeSettingsView. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={onBack}
         />
@@ -67,23 +70,14 @@ export function SupportView({ onBack }: { onBack: () => void }) {
       ) : (
         <>
           <Card style={styles.stack}>
-            <Text style={type.muted}>
-              The Floor runs on a server that costs money every month — the box
-              it lives on, the audio that carries a conversation, and the
-              storage your recordings sit in.
-            </Text>
-            <Text style={type.muted}>
-              Giving is entirely optional and unlocks nothing. Every part of the
-              app works the same whether you do or not, and nobody is told who
-              has and who has not.
-            </Text>
+            <Text style={type.muted}>{t.whatItCosts()}</Text>
+            <Text style={type.muted}>{t.unlocksNothing()}</Text>
           </Card>
 
           {support?.mine ? (
             <Card style={styles.stack}>
               <Text style={type.muted}>
-                You have given {describeGiving(support.mine)}. Thank you —
-                genuinely.
+                {t.thankYou(describeGiving(support.mine))}
               </Text>
             </Card>
           ) : null}
@@ -91,7 +85,7 @@ export function SupportView({ onBack }: { onBack: () => void }) {
           {support?.url ? (
             <>
               <Button
-                label="Chip in"
+                label={t.chipIn()}
                 variant="primary"
                 onPress={() => void Linking.openURL(support.url!)}
               />
@@ -103,15 +97,11 @@ export function SupportView({ onBack }: { onBack: () => void }) {
                 machinery on our side.
               */}
               <Text style={type.muted}>
-                Opens in your browser. Use {support.identifier} there and it
-                will show up here; pay with anything else and it arrives
-                without a name on it.
+                {t.useThisAddress(support.identifier)}
               </Text>
             </>
           ) : (
-            <Text style={type.muted}>
-              There is no way to give from here at the moment.
-            </Text>
+            <Text style={type.muted}>{t.noWayToGive()}</Text>
           )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}

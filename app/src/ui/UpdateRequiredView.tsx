@@ -1,5 +1,6 @@
 import React from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Screen } from './components';
 import { spacing, type } from './theme';
@@ -23,25 +24,19 @@ import { spacing, type } from './theme';
  */
 export function UpdateRequiredView() {
   const { updateUrl } = useApp();
+  const t = useText().updateRequired;
 
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.stack}>
-        <Text style={type.title}>Time to update</Text>
+        <Text style={type.title}>{t.title()}</Text>
         <Card style={styles.stack}>
-          <Text style={type.body}>
-            This version of The Floor is too old for the server it talks to, so
-            it has stopped rather than showing you something it cannot promise
-            is true.
-          </Text>
-          <Text style={type.muted}>
-            Update from the App Store and everything — your channels, your
-            contacts, your recordings — will be where you left it.
-          </Text>
+          <Text style={type.body}>{t.tooOld()}</Text>
+          <Text style={type.muted}>{t.everythingKept()}</Text>
         </Card>
         {updateUrl ? (
           <Button
-            label="Open the App Store"
+            label={t.openAppStore()}
             variant="primary"
             onPress={() => void Linking.openURL(updateUrl)}
           />

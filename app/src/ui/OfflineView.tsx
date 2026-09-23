@@ -1,5 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useText } from '../i18n';
 import { Card, Screen } from './components';
 import { colors, spacing, type } from './theme';
 
@@ -40,53 +41,40 @@ export function OfflineView({ roster }: { roster: string[] | null }) {
    * with the socket down the microphone is as unreachable as the settings.
    */
   const inRoom = roster !== null;
+  const t = useText().offline;
 
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.stack}>
         <Text style={type.title}>
-          {inRoom ? 'Partly connected' : 'Not connected'}
+          {inRoom ? t.partlyConnected() : t.notConnected()}
         </Text>
 
         <Card style={styles.stack}>
           {inRoom ? (
-            <Text style={type.body}>
-              You can still hear the room, and if you had the floor you can
-              still be heard — the conversation travels on its own connection.
-              Everything that manages it is down: the microphone, the floor,
-              and every other screen.
-            </Text>
+            <Text style={type.body}>{t.roomStillAudible()}</Text>
           ) : (
-            <Text style={type.body}>
-              The Floor cannot reach the server, so nothing here can be changed
-              and nothing shown would be current.
-            </Text>
+            <Text style={type.body}>{t.cannotReach()}</Text>
           )}
-          <Text style={type.muted}>
-            Anything you did in the last few seconds did not go through. It is
-            not waiting to be sent, so do it again once this clears.
-          </Text>
+          <Text style={type.muted}>{t.queueDropped()}</Text>
         </Card>
 
         {roster && roster.length > 0 ? (
           <Card style={styles.stack}>
-            <Text style={type.heading}>Who was in the room</Text>
+            <Text style={type.heading}>{t.whoWasInTheRoom()}</Text>
             {roster.map((name, i) => (
               <Text key={`${name}-${i}`} style={type.body}>
                 {name}
               </Text>
             ))}
-            <Text style={type.muted}>
-              As of the last update that arrived. Nobody is being added or
-              removed here until the connection is back.
-            </Text>
+            <Text style={type.muted}>{t.asOfLastUpdate()}</Text>
           </Card>
         ) : null}
 
         {/* Evidence rather than a control; see the note above about buttons. */}
         <View style={styles.trying}>
           <ActivityIndicator color={colors.textMuted} />
-          <Text style={type.muted}>Trying again…</Text>
+          <Text style={type.muted}>{t.tryingAgain()}</Text>
         </View>
       </View>
     </Screen>

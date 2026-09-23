@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { LeaderboardEntry } from '../../../core/protocol';
+import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, IconButton, Screen } from './components';
 import { CloseIcon } from './icons';
@@ -22,6 +23,8 @@ import { colors, radius, spacing, type } from './theme';
  */
 export function LeaderboardView({ onBack }: { onBack: () => void }) {
   const app = useApp();
+  const t = useText().leaderboard;
+  const shared = useText().shared;
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +49,11 @@ export function LeaderboardView({ onBack }: { onBack: () => void }) {
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={type.heading}>Invitations</Text>
+        <Text style={type.heading}>{t.title()}</Text>
         {/* "Close", not "Back": beside a list there is nothing underneath this
             to go back to. See HomeSettingsView. */}
         <IconButton
-          label="Close"
+          label={shared.close()}
           icon={(color) => <CloseIcon color={color} />}
           onPress={onBack}
         />
@@ -79,15 +82,10 @@ export function LeaderboardView({ onBack }: { onBack: () => void }) {
             counts invitations sent, which is a different and much larger
             number.
           */}
-          <Text style={type.muted}>
-            Everybody who signed up from that person’s invitation, plus
-            everybody those people went on to invite, all the way down.
-          </Text>
+          <Text style={type.muted}>{t.whatTheNumberMeans()}</Text>
         </>
       ) : (
-        <Text style={type.muted}>
-          Nobody has brought anybody here yet.
-        </Text>
+        <Text style={type.muted}>{t.nobodyYet()}</Text>
       )}
     </Screen>
   );
