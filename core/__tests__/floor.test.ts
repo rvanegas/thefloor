@@ -15,6 +15,7 @@ import {
   canLeaveChannel,
   canMuteOther,
   canSetSelfMute,
+  isPresent,
   mutableAt,
   createChannel,
   reduce,
@@ -185,6 +186,92 @@ describe('the floor and self-mute', () => {
 });
 
 /**
+ * Muting yourself out of the room, which is a race rather than a gesture,
+ * fixed 2026-09-23.
+ *
+ * Nobody presses mute from outside a channel — the footer's control is
+ * disabled the moment you are not present, and it was disabled all along.
+ * What reaches the reducer is the other thing: a mute and a departure in
+ * flight together, applied in that order. The departure is most often this
+ * end's own doing, the `dropped` and `inattentive` exits firing while the app
+ * is alive and still sending, so no amount of care at the client closes it.
+ *
+ * Two faults, and they compound. `canSetSelfMute` asked only about the floor,
+ * where `canMuteOther` had always asked about the room, so the write was
+ * accepted onto somebody who had gone; and `ENTER` wrote nothing to
+ * `selfMuted`, so what the roster was announcing as *Stepped out · muted* was
+ * a real mute waiting to take effect on their return — the precise thing
+ * `stepOut` clears the mute to prevent.
+ */
+describe('muting yourself while out of the room', () => {
+  const selfMute = (who: string, muted = true): ChannelAction => ({
+    type: 'SET_SELF_MUTE',
+    userId: who,
+    muted,
+  });
+
+  it('refuses a mute from somebody who has stepped out', () => {
+    let s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
+    expect(canSetSelfMute(s, B, true)).toBe(false);
+    s = reduce(s, selfMute(B), T0 + 1_000);
+    expect(s.selfMuted[B]).toBe(false);
+  });
+
+  it('refuses one that lands just after the departure it raced', () => {
+    // The shape of the bug as it actually occurs: the server drops them for
+    // inattention, and the mute their phone had already sent arrives next.
+    let s = reduce(joined(), { type: 'ATTENTION_EXPIRED', userId: B }, T0);
+    expect(isPresent(s, B)).toBe(false);
+    s = reduce(s, selfMute(B), T0 + 1);
+    expect(s.selfMuted[B]).toBe(false);
+  });
+
+  it('never leaves the roster saying they are absent and muted at once', () => {
+    // The two halves of that line, asserted together: the status word is read
+    // from presence and the suffix from this key, and there is no state in
+    // which both are true of the same person.
+    const s = reduce(
+      reduce(joined(), { type: 'STEP_OUT', userId: B }, T0),
+      selfMute(B),
+      T0 + 1_000
+    );
+    expect(isPresent(s, B) || !s.selfMuted[B]).toBe(true);
+  });
+
+  it('lets them unmute from out there, the remedy being always theirs', () => {
+    // Unmuting is the one direction that is never refused. A no-op against a
+    // cleared key, and refusing it would be refusing the way back.
+    const s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
+    expect(canSetSelfMute(s, B, false)).toBe(true);
+  });
+
+  it('brings them back unmuted even if a mute did get written', () => {
+    // The guard closes the write and this closes what any state persisted
+    // before it still holds. Written straight into the state rather than
+    // through the reducer, which now refuses to produce it.
+    const out = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
+    const stale: ChannelState = {
+      ...out,
+      selfMuted: { ...out.selfMuted, [B]: true },
+    };
+    const back = reduce(stale, { type: 'ENTER', userId: B }, T0 + 1_000);
+    expect(isPresent(back, B)).toBe(true);
+    expect(back.selfMuted[B]).toBe(false);
+  });
+
+  it('leaves a reconnecting member their mute, having never left', () => {
+    // ENTER is what a client re-asserts on every reconnection, and inside the
+    // grace period the sender is still present. Clearing there would undo a
+    // mute set a second earlier in a conversation that never ended.
+    let s = reduce(joined(), selfMute(B), T0);
+    s = reduce(s, { type: 'DISCONNECTED', userId: B }, T0 + 1_000);
+    s = reduce(s, { type: 'ENTER', userId: B }, T0 + 2_000);
+    expect(isPresent(s, B)).toBe(true);
+    expect(s.selfMuted[B]).toBe(true);
+  });
+});
+
+/**
  * Muting somebody else, added 2026-09-07.
  *
  * The favour among friends: a member in the room may close or open the
@@ -239,8 +326,10 @@ describe('muting somebody else', () => {
   });
 
   it('refuses a target who is not in the room', () => {
-    // Nothing to reach: stepping out clears the mute, so a write here would
-    // be a key the next step-in discards.
+    // Nothing to reach: out there is no microphone to close, and the write
+    // would be a mute lying in wait for their return. The describe below is
+    // the same clause asked of somebody muting themselves, which is where it
+    // was missing.
     let s = reduce(joined(), { type: 'STEP_OUT', userId: B }, T0);
     expect(canMuteOther(s, A, B, true, T0)).toBe(false);
     s = reduce(s, mute(A, B), T0 + 1_000);

@@ -615,12 +615,29 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
  * for part of an afternoon, and the trouble with that shape is that the
  * favour's clauses arrive as defaults, which is exactly how a clock ends up
  * being skipped by a caller that did not know to pass one.
+ *
+ * **And the room, since 2026-09-23.** `canMuteOther` has always required its
+ * target to be `inRoom`, on the grounds that there is no microphone to close
+ * out there; the self case had no such clause, and a mute racing a departure
+ * was therefore accepted and written onto somebody who had already gone. The
+ * roster said *Stepped out · muted*, which is two states that cannot both
+ * hold, and `ENTER` did not clear it, so what the suffix was announcing was a
+ * real mute waiting to make them inaudible on their return — the exact
+ * outcome `stepOut` clears the mute to prevent. A client cannot avoid this by
+ * disabling the control, and the footer's already is: the two acts are in
+ * flight together, and the departure most often comes from this end, the
+ * `dropped` and `inattentive` exits firing while the app is alive and still
+ * sending.
  */
 export function canSetSelfMute(
   state: ChannelState,
   userId: UserId,
   muted: boolean
 ): boolean {
+  // Nothing to close. Said of muting only: an unmute from out there is already
+  // a no-op against a cleared key, and refusing it would be refusing the
+  // remedy — the one direction this function exists to keep always available.
+  if (muted && !inRoom(state, userId)) return false;
   // Only muting is refused. Unmuting is always allowed, and is a no-op for a
   // holder who is already unmuted.
   return !muted || state.floor.holder !== userId;
@@ -648,10 +665,15 @@ export function canSetSelfMute(
  *
  * - **Both ends in the room, and the actor present.** Not a rule about
  *   permission but about there being anything to do: `selfMuted` is cleared on
- *   the way out, so muting somebody who has stepped out writes a key their
- *   next step-in discards. `inRoom` at the target end rather than `isPresent`,
- *   so a guest can be the object of the favour — they are in the room and they
- *   are audible, which is the whole of what qualifies anybody.
+ *   the way out, so out there is nobody's microphone to close. This said the
+ *   write was harmless because a step-in discarded it, which was never true —
+ *   `ENTER` wrote nothing to `selfMuted` until 2026-09-23, and the key sat
+ *   there waiting to make somebody inaudible on their return. It is now
+ *   cleared at both edges, and `canSetSelfMute` carries this same clause, so
+ *   the two halves of a mute agree about the room. `inRoom` at the target end
+ *   rather than `isPresent`, so a guest can be the object of the favour — they
+ *   are in the room and they are audible, which is the whole of what
+ *   qualifies anybody.
  * - **A guest may not do it to anybody.** `GUEST_ACTIONS` names
  *   `SET_SELF_MUTE`, and that entry was written when the action could only
  *   ever be about the sender. Stated here rather than left to be inferred from
@@ -1958,6 +1980,21 @@ function reduceAction(
         lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
         // Whatever they were waiting for, they have stopped: they are here.
         waiting: state.waiting.filter((id) => id !== action.userId),
+        // **Arriving unmuted, which is what departing already promised.**
+        // `stepOut` clears the mute on the way out and says why — a mute is
+        // scoped to a conversation, and carried across it stops being an act
+        // and becomes a setting nobody remembers choosing. This is the same
+        // rule stated at the other edge, and it is here because the way out
+        // turned out not to be the only way the key gets written: a mute
+        // racing a departure landed after it, and until `canSetSelfMute`
+        // learned to refuse that, the roster carried *Stepped out · muted*
+        // over a mute that was waiting to take effect on this arrival.
+        //
+        // Redundant now that the guard refuses the write, and kept anyway.
+        // The promise is about what a person hears themselves do on the way
+        // in, which is nothing; leaving it to hold only because no other
+        // clause happens to write the key is leaving it to hold by accident.
+        selfMuted: { ...state.selfMuted, [action.userId]: false },
         // And the declaration is over, so its clock goes with it. Left behind
         // it would time their *next* nearby from this one, which is exactly
         // the fault this stamp was added to fix, arrived at from the other
