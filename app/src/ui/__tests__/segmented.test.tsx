@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Segmented, segmentRows } from '../components';
 import { colors } from '../theme';
 
@@ -225,7 +225,7 @@ describe('the dab on a tab', () => {
     tree.root.findAll(
       (n) =>
         typeof n.type === 'string' &&
-        n.props?.style?.backgroundColor === colors.waiting
+        StyleSheet.flatten(n.props?.style)?.backgroundColor === colors.waiting
     );
 
   /** Nothing anywhere until something asks: the six channel tabs have none. */
@@ -306,14 +306,18 @@ describe('the dab on a tab', () => {
   });
 
   /**
-   * **The top-right corner of the box it hangs on.** The mark sat up and to
-   * the left of the *label* until 2026-09-22, which put it in a different
+   * **The segment's top-right corner, from the inside.** The mark sat up and
+   * to the left of the *label* until 2026-09-22, which put it in a different
    * place on every tab — a label is as wide as it reads — and on the short
-   * ones left it adrift between two tabs rather than on either. What is
-   * pinned here is the corner: a negative `top` and a negative `right`, and
-   * no `left` to pull it back across the box.
+   * ones left it adrift between two tabs rather than on either; it hung on the
+   * 24pt glyph box for the day after that, which read as part of the icon.
+   * What is pinned here is the corner it settled on: a `top` and a `right`,
+   * and no `left` to pull it back across the segment. They are positive where
+   * a button's are negative, which is the one difference between the two
+   * callers and is deliberate — a segment has no padding around it to overhang
+   * into, only the next tab.
    */
-  it('hangs off the top-right corner', () => {
+  it('sits in the top-right corner of the segment', () => {
     const tree = render(
       <Segmented
         options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
@@ -321,10 +325,10 @@ describe('the dab on a tab', () => {
         onChange={() => {}}
       />
     );
-    const style = marks(tree)[0]!.props.style;
+    const style = StyleSheet.flatten(marks(tree)[0]!.props.style);
     expect(style.position).toBe('absolute');
-    expect(style.top).toBeLessThan(0);
-    expect(style.right).toBeLessThan(0);
+    expect(style.top).toBeGreaterThanOrEqual(0);
+    expect(style.right).toBeGreaterThanOrEqual(0);
     expect(style.left).toBeUndefined();
     // A disc rather than a lozenge, and larger than every mark in STYLE.md's
     // dots table, all of which are dots rather than a glyph in a disc.
@@ -334,12 +338,13 @@ describe('the dab on a tab', () => {
   });
 
   /**
-   * **And the corner it hangs on is the glyph's**, which is what makes the
-   * mark land in the same place on every tab: the icon is a fixed box in the
-   * middle of the segment where the label is not. Read as the disc being a
-   * child of the icon's box rather than of the label's.
+   * **And the corner is the segment's, not the glyph's.** A mark on the icon's
+   * own box reads as being about the icon; a mark on the tab reads as being
+   * about the tab, which is what it is about. Read as the disc being a sibling
+   * of the icon's box rather than a child of it — and as the same corner
+   * whether the tab has a glyph or, like the six channel tabs, only a word.
    */
-  it('hangs on the tab\'s glyph when it has one', () => {
+  it('hangs on the segment rather than on the tab\'s glyph', () => {
     const tree = render(
       <Segmented
         options={[
@@ -364,13 +369,15 @@ describe('the dab on a tab', () => {
         (n) => typeof n.type === 'string' && n.props?.testID === 'glyph'
       )
     ).toHaveLength(1);
+    // The mark is on the screen, and it is not in there.
+    expect(marks(tree)).toHaveLength(1);
     expect(
       box.findAll(
         (n) =>
           typeof n.type === 'string' &&
-          n.props?.style?.backgroundColor === colors.waiting
+          StyleSheet.flatten(n.props?.style)?.backgroundColor === colors.waiting
       )
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     act(() => tree.unmount());
   });
 

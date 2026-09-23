@@ -49,7 +49,7 @@ caused; the list carries the meaning.
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
-- **Dab** — The soft rose disc carrying an `!`, hung over the top-right corner of a Home tab's glyph: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
+- **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -574,8 +574,8 @@ Decline or Withdraw on itself.
 ## Dab
 
 **The mark that says something is waiting behind a tab or a control**: a soft
-rose disc with an `!` in it, hung over the top-right corner of a tab's glyph —
-or of the control itself, where a button wears one. `styles.dab` in
+rose disc with an `!` in it, in the top-right corner of the control it is
+about — inside a tab's segment, and hung over a button's corner. `styles.dab` in
 `ui/components.tsx`, drawn by one `Dab` there and reached
 through `badge` — on `Segmented` for whichever tabs `HomeView` asks, and on
 `Button` for the one control that wears one.
@@ -593,9 +593,9 @@ for it to say and the wrong way to say it: the mark covered the trailing
 letters, which on *Contacts* and *Support* are what tell the two apart, and a
 shape with nothing in it still had to be guessed at. The `!` says it outright,
 so the disc can go where nothing is lost — which from 2026-09-15 was the
-leading edge of the word, and from 2026-09-22 is a corner: a label is as wide
-as it reads, so hanging the mark on one put it in a different place on every
-tab. STYLE.md § *Dots, pills and rules* has the geometry.
+leading edge of the word, and from 2026-09-22 is the control's own corner: a
+label is as wide as it reads, so hanging the mark on one put it in a different
+place on every tab. STYLE.md § *Dots, pills and rules* has the geometry.
 
 **Two things raise one, and they are not symmetrical.** On *Contacts* it means
 somebody has asked to be a contact and it is your turn — live state off the Home

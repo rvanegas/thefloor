@@ -214,14 +214,24 @@ describe('the two arrangements', () => {
         <Panes layout="split" list={<List />} detail={<Detail />} />
       );
     });
-    const widths = tree.root
+    const panes = tree.root
       .findAll((node) => node.type === View)
-      .map((node) => node.props.style?.width)
-      .filter((width: unknown) => typeof width === 'number');
+      .map((node) => node.props.style)
+      .filter((style: { width?: unknown }) => typeof style?.width === 'number');
     // The constant rather than its value: what this test is about is that the
     // list has a width at all and the detail has none. Which width it is, and
     // what the detail pane is left with at the breakpoint, is `layout.ts`'s
     // and is pinned there.
-    expect(widths).toEqual([LIST_WIDTH]);
+    //
+    // **The width read is the content's, not the box's.** A border is inside
+    // the box in React Native, so the rule between the panes is added to the
+    // width rather than taken out of it — the hairline it would otherwise eat
+    // is the hairline Home's four tabs wrap for. See `Panes`'s `list` style.
+    expect(
+      panes.map(
+        (style: { width: number; borderRightWidth?: number }) =>
+          style.width - (style.borderRightWidth ?? 0)
+      )
+    ).toEqual([LIST_WIDTH]);
   });
 });

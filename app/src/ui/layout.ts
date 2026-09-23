@@ -127,6 +127,13 @@ export function isHandheld(size: { width: number; height: number }): boolean {
  * written against were one row. 360 measures the strip 320, which is that sum
  * exactly.
  *
+ * **Exactly, which is why the pane's rule is drawn outside this number.** A
+ * border is part of the box in React Native, so the hairline between the panes
+ * came out of the 360 and the strip measured 319.67 — under the sum by a third
+ * of a point, and wrapped, so the widening changed nothing anybody could see
+ * until `Panes` added the hairline back on 2026-09-23. Anything else that
+ * takes a fraction out of this column will do it again.
+ *
  * **It is a transfer, not a widening**, and the detail pane pays: the row is
  * this column plus a `flex: 1`, so twenty points leave the conversation at
  * every width above the breakpoint. That is the cheapest thing on the screen

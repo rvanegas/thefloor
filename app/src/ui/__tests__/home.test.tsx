@@ -1234,7 +1234,7 @@ describe('the dab on Home\'s tabs', () => {
     tree.root.findAll(
       (n) =>
         typeof n.type === 'string' &&
-        n.props?.style?.backgroundColor === colors.waiting
+        StyleSheet.flatten(n.props?.style)?.backgroundColor === colors.waiting
     );
 
   const withContacts = (

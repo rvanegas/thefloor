@@ -254,9 +254,19 @@ const styles = StyleSheet.create({
    * Fixed rather than a fraction, so every point above the breakpoint goes to
    * the conversation. A list of channel names is the one thing on screen that
    * does not get better for being wider.
+   *
+   * **The rule is drawn outside the width, not inside it.** A border is part
+   * of the box in React Native, so `width: LIST_WIDTH` with a border on it
+   * hands the pane `LIST_WIDTH` minus a hairline to lay anything out in — and
+   * that hairline is exactly what `LIST_WIDTH` has no slack for. 360 is
+   * chosen so Home's strip measures `4 * MIN_SEGMENT` = 320 to the point, so
+   * 359.67 measured it 319.67, the tabs wrapped to two rows, and the widening
+   * that was meant to unwrap them changed nothing anybody could see. Adding
+   * the hairline back makes the *content* LIST_WIDTH, which is what every
+   * sentence about this number in `layout.ts` assumes it is.
    */
   list: {
-    width: LIST_WIDTH,
+    width: LIST_WIDTH + StyleSheet.hairlineWidth,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
   },

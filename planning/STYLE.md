@@ -812,8 +812,8 @@ refused control owes, and the card opens a profile that offers *Add contact*.
 
 **The dab is the one mark that is not a dot, and the only one that carries a
 glyph.** Every other row above is 8 to 10 across and says what it means by
-where it sits; this one is an 18pt disc with an `!` in it, hung over the
-top-right corner of a tab's glyph or of the control it marks. A dot beside a word is a status
+where it sits; this one is an 18pt disc with an `!` in it, in the
+top-right corner of the control it marks — a tab, or a button. A dot beside a word is a status
 light — a thing reporting, which you read and move on from. The `!` is a thing
 asking: **attend to this, but it can wait a beat.**
 
@@ -831,12 +831,20 @@ then.** The label is the wrong box to hang it on: a word is as wide as it
 reads, so the mark moved from tab to tab, and on the short ones it came out in
 the whitespace between two tabs rather than on either; on a button, whose label
 is centred in a control as wide as its card, it floated in the middle of an
-empty fill with nothing to attach it to. So a tab hangs it on its *glyph* —
-a fixed 24pt box in the middle of the segment, in the same place on every tab —
-and a button hangs it on the button. `top: -6, right: -6` leaves two thirds of
-the disc outside the corner, which is what makes it read as *on* the thing
-rather than *in* it; the overhang is spent against the card's padding on a
-button and the track's gap on a tab, and neither control clips. `styles.dab` in
+empty fill with nothing to attach it to. So each hangs it on the control
+itself: a button on the button, and a tab on its segment — which is the box
+that is there whatever the label reads and whether or not there is a glyph.
+It hung on a tab's 24pt *glyph* box for a day, which is a fixed box in the
+middle of the segment and was steady enough, but put the disc a few points off
+the icon where it read as part of the icon rather than as a mark on the tab.
+
+**The two corners differ in sign, and that is the whole of what they differ
+in.** A button's is `top: -6, right: -6`, leaving two thirds of the disc
+outside the corner, which is what makes it read as *on* the control rather than
+*in* it; the overhang is spent against the card's own 16pt padding. A tab has
+no such room — a segment's corner has the track's 3pt gap and then the next tab
+— so it sits *inside* the corner at `top: 2, right: 2`, clear of the glyph
+below it and of the neighbour beside it. Neither control clips. `styles.dab` in
 `components.tsx`, drawn by one `Dab` there and by nothing else, and reached
 through `badge` on `Segmented` and on `Button`, which takes the words a screen
 reader is given rather than a boolean, an `!` being a shape rather than a
