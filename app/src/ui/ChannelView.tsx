@@ -5780,27 +5780,29 @@ function ParticipantCard({
 
 /**
  * Who can be asked in: accepted contacts of *this user* who are not already in
- * the channel. **Two offers each, and they are different things** — `Member`
- * writes them into the roster and spends one of the six; `Guest` opens the
- * room to them for as long as it lasts and spends one of the forty. The guard
- * under each is the one the server enforces, so a shown button and a refused
- * action cannot disagree — except on contacts, which are the server's check;
- * the list only offers contacts, so the two disagree only if a contact was
- * dropped mid-channel.
+ * the channel. **One mark each, and two offers behind it** — `Member` writes
+ * them into the roster and spends one of the six; `Guest` opens the room to
+ * them for as long as it lasts and spends one of the forty. Both were buttons
+ * on the row until 2026-09-22; `InviteMark` has the account of why they are
+ * one mark and a prompt now. The guards are unchanged and are the ones the
+ * server enforces, so a shown offer and a refused action cannot disagree —
+ * except on contacts, which are the server's check; the list only offers
+ * contacts, so the two disagree only if a contact was dropped mid-channel.
  *
  * **`canInvite` is asked about the contact, not about the room.** It carries
  * `hasTheRoom` too, so filtering on it whole would empty this list for
  * somebody standing outside an occupied channel — and an empty list here says
  * "every contact you could invite is already in this channel", which would be
  * false and unrecoverable, there being nothing left on screen to explain
- * itself. So the room half arrives as `mayInvite` and disables the buttons,
- * and the list still shows who is there to be asked.
+ * itself. So the room half arrives as `mayInvite` and disables the mark, and
+ * the list still shows who is there to be asked.
  *
  * **A full membership no longer empties this list**, which is the change of
  * 2026-09-22 and the reason the cap moved from a `return` to a line. Six
  * members is exactly the room that wants a guest, and a list replaced by
  * *Channels hold up to 6 people* offered no way to ask anybody anything. The
- * cap now disables one button and says why, and the other stays live.
+ * cap now takes `Member` out of the prompt and says why there, and the guest
+ * half stands.
  */
 function InviteList({
   channel,
@@ -5863,34 +5865,25 @@ function InviteList({
               {seated.has(entry.account.id) ? (
                 <Text style={type.muted}>In the room as a guest</Text>
               ) : state === 'asked' ? (
-                // **The row goes quiet rather than offering the same button
+                // **The row goes quiet rather than offering the same mark
                 // again.** A second tap is refused by the server — they have
                 // a seat now — and an offer that has been made is not a
-                // control, it is a fact. `Member` goes with it: what is
+                // control, it is a fact. The membership goes with it: what is
                 // outstanding is one question about one room, and asking the
                 // larger one on top of it is a thing to do from the roster
                 // once they are in.
                 <Text style={type.muted}>Asked in as a guest</Text>
+              ) : state === 'asking' ? (
+                <Text style={type.muted}>Asking…</Text>
               ) : (
-                <>
-                  {/*
-                    Guest first, Member second, and the order is the offer's
-                    weight rather than its likelihood: the trailing edge is
-                    where the thumb goes, and the permanent one of the two
-                    belongs there. A seat ends with the room; a membership
-                    does not end at all.
-                  */}
-                  <Button
-                    label={state === 'asking' ? 'Asking…' : 'Guest'}
-                    disabled={!mayInvite || state === 'asking'}
-                    onPress={() => onGuest(entry.account.id)}
-                  />
-                  <Button
-                    label="Member"
-                    disabled={!canInvite(channel, me, entry.account.id)}
-                    onPress={() => onInvite(entry.account.id)}
-                  />
-                </>
+                <InviteMark
+                  name={entry.account.displayName}
+                  disabled={!mayInvite}
+                  full={full}
+                  mayBeMember={canInvite(channel, me, entry.account.id)}
+                  onGuest={() => onGuest(entry.account.id)}
+                  onMember={() => onInvite(entry.account.id)}
+                />
               )}
             </View>
             {refusal ? <Text style={styles.warning}>{refusal}</Text> : null}
@@ -5905,6 +5898,96 @@ function InviteList({
             : 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'}
       </Text>
     </>
+  );
+}
+
+/**
+ * One contact's way in: a `+` mark, and the question of what kind is asked
+ * when it is pressed.
+ *
+ * **It was two buttons until 2026-09-22, `Guest` and `Member` on every row.**
+ * They said the truth — that these are two different acts — but they said it
+ * once per contact, so a list of eight people was sixteen buttons and two
+ * columns of repeated words wider than the names beside them. The mark is the
+ * row's whole offer, and the fork arrives at the moment somebody has already
+ * decided they want this person in.
+ *
+ * **Which is not the mode-before-acting shape that was rejected when the
+ * contact picker came out.** That was a control you set and then used, so the
+ * setting was a thing to get wrong before anything happened; this asks after
+ * the press and answers with the act itself. What the two buttons carried in
+ * their labels is carried by the prompt's own sentence, which has room to say
+ * more than a button's word ever did.
+ *
+ * `+` and not a person-with-a-plus: the mark is the one on *Add a contact*,
+ * deliberately, that being the same promise — somebody who is not here yet is
+ * about to be. It is the row's only control, so it takes the row's name as
+ * its accessible label; a list of eight identically named *Invite* buttons is
+ * one nobody can navigate, which is the rule the introduction's crosses
+ * follow. See planning/STYLE.md § *Icons*.
+ */
+function InviteMark({
+  name,
+  disabled,
+  full,
+  mayBeMember,
+  onGuest,
+  onMember,
+}: {
+  name: string;
+  /** The room refuses both offers — nobody outside it asks anybody in. */
+  disabled: boolean;
+  /** The membership is spent, which is a thing to say rather than to imply. */
+  full: boolean;
+  mayBeMember: boolean;
+  onGuest: () => void;
+  onMember: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Invite ${name}`}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      // The disc is 28 and a target is 44, and the row is too tight to pad it
+      // out: the slop is the difference, so the thumb gets the target the
+      // drawing does not.
+      hitSlop={8}
+      onPress={() =>
+        Alert.alert(
+          `Ask ${name} in`,
+          // The pair of sentences the list's footer carries, said again where
+          // the choice actually is — and it is the same text deliberately, so
+          // that reading it twice teaches one distinction rather than leaving
+          // somebody to work out whether two wordings mean two things.
+          mayBeMember
+            ? 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'
+            : full
+              ? `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${MAX_CHANNEL_PARTICIPANTS} and is full.`
+              : 'A guest is here for this conversation only, and the seat ends when the room does.',
+          [
+            { text: 'Guest', onPress: onGuest },
+            // Absent rather than present and dead when the roster is full —
+            // there is no greying a button in an alert, and the sentence
+            // above has just said why it is not there. The guest half stands,
+            // six members and forty seats being two ceilings.
+            ...(mayBeMember ? [{ text: 'Member', onPress: onMember }] : []),
+            { text: 'Cancel', style: 'cancel' as const },
+          ]
+        )
+      }
+      style={({ pressed }) => [
+        styles.inviteMark,
+        disabled && styles.inviteMarkOff,
+        pressed && styles.inviteMarkPressed,
+      ]}
+    >
+      <Text
+        style={[styles.inviteMarkGlyph, disabled && styles.inviteMarkGlyphOff]}
+      >
+        +
+      </Text>
+    </Pressable>
   );
 }
 
@@ -6447,4 +6530,28 @@ const styles = StyleSheet.create({
     gap: spacing(1.5),
   },
   inviteName: { flex: 1 },
+  /**
+   * The mark on a contact's row, which is *Add a contact*'s mark to the
+   * number: same disc, same disposition of the accent — only the mark carries
+   * it, the offer being available rather than urgent. Two identical promises
+   * drawn two different ways would be two promises.
+   */
+  inviteMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.floorDim,
+  },
+  inviteMarkOff: { backgroundColor: colors.disabled },
+  inviteMarkPressed: { opacity: 0.6 },
+  inviteMarkGlyph: {
+    color: colors.floor,
+    fontSize: 19,
+    // Centred by hand, as on Contacts: the glyph's box is taller than its ink.
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  inviteMarkGlyphOff: { color: colors.textFaint },
 });

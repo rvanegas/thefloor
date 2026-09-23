@@ -1219,6 +1219,16 @@ the copy.
   already says. In both, the word survives as the accessibility label — and on
   the transport, since 2026-09-13, under the glyph as well, which is what lets
   the prose that used to explain its grey controls be gone. See § *Button*.
+- **A third exception, since 2026-09-22: the `+` on a contact's row under
+  *Invite*.** The row is the name and the mark, the way *Add a contact* is the
+  mark and its words, and the sentence under the list says what the two ways
+  in are — so the mark is the one control on a line that is already labelled
+  by the person it is about. It was `Guest` and `Member` as two buttons per
+  row, which at eight contacts was sixteen buttons and two columns of repeated
+  words wider than the names; the choice is now made in the prompt the press
+  raises. **Its accessible name is *Invite <name>*, never *Invite*** — a list
+  of eight identically named controls is one nobody can navigate, which is the
+  rule the introduction's crosses follow above.
 - **Only the microphone changes glyph between states**, because a
   struck-through mic is the one piece of this vocabulary everybody already
   knows. The floor keeps one hand in both states: no icon set has a "released

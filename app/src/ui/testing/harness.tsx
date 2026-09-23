@@ -16,6 +16,7 @@ import type {
 import type { UploadHooks } from '../../api/upload';
 import type { GuestLinkSummary } from '../../api/http';
 import type { Introduction } from '../../state/introduction';
+import { Alert } from 'react-native';
 
 /**
  * The fixture every view test renders against: one mutable `mockApp` standing
@@ -629,6 +630,72 @@ export function findExactButton(
   return tree.root
     .findAll((n) => n.props?.accessibilityRole === 'button')
     .find((n) => labelOf(n) === label);
+}
+
+/**
+ * The button whose *accessible name* is exactly this, whatever it draws.
+ *
+ * `labelOf` prefers the words under a control and falls back to the
+ * `accessibilityLabel` only when there are none — which is right for a glyph
+ * and wrong for a glyph that happens to be a character. The `+` on a
+ * contact's invite row draws the text `+` and is named *Invite Miro Okafor*,
+ * so `findButton` sees a button called `+` and a test naming the person finds
+ * nothing. This searches the name a screen reader would read out, which is
+ * the one a test should be spelling anyway.
+ */
+export function findNamed(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  return tree.root
+    .findAll((n) => n.props?.accessibilityRole === 'button')
+    .find((n) => n.props?.accessibilityLabel === label);
+}
+
+/**
+ * The prompt a contact's `+` raises: its sentence, and the offers it makes.
+ *
+ * Presses the mark for `name` and reads the last `Alert.alert` back, so the
+ * caller must have mocked it — two files do, and a third asserting on an
+ * invitation without one would silently be testing a real alert that never
+ * appears in jest. Returning the buttons rather than taking one is the point:
+ * `Member` is absent from the list when the roster is full, which is a thing
+ * to assert on and not only a thing to press.
+ */
+export function invitePrompt(
+  tree: ReactTestRenderer,
+  name: string
+): {
+  title: string;
+  message: string | undefined;
+  choices: string[];
+  /** Awaited always: one of the two offers is a round trip to the server. */
+  take: (label: string) => Promise<void>;
+} {
+  const mark = findNamed(tree, `Invite ${name}`);
+  if (!mark) throw new Error(`No invite mark for ${name}.`);
+  const spy = Alert.alert as unknown as jest.Mock;
+  const before = spy.mock.calls.length;
+  act(() => mark.props.onPress());
+  if (spy.mock.calls.length === before)
+    throw new Error(`The invite mark for ${name} asked nothing.`);
+  const call = spy.mock.calls[spy.mock.calls.length - 1]!;
+  const buttons = (call[2] ?? []) as Array<{
+    text: string;
+    onPress?: () => void | Promise<void>;
+  }>;
+  return {
+    title: call[0] as string,
+    message: call[1] as string | undefined,
+    choices: buttons.map((button) => button.text),
+    take: async (label) => {
+      const button = buttons.find((b) => b.text === label);
+      if (!button) throw new Error(`The prompt for ${name} has no ${label}.`);
+      await act(async () => {
+        await button.onPress?.();
+      });
+    },
+  };
 }
 
 export function render(element: React.ReactElement): ReactTestRenderer {

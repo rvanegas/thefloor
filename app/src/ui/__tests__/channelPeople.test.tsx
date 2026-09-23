@@ -13,7 +13,7 @@ import { ChannelView } from '../ChannelView';
 import { AudioDebugPanel } from '../AudioDebugPanel';
 import { Screen, SectionLabel } from '../components';
 import { ProfileView } from '../ProfileView';
-import { Share, StyleSheet } from 'react-native';
+import { Alert, Share, StyleSheet } from 'react-native';
 import { colors } from '../theme';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -24,7 +24,9 @@ import {
   audioWith,
   channelOf,
   findButton,
+  findNamed,
   findTab,
+  invitePrompt,
   knowing,
   labelOf,
   mockApp,
@@ -313,14 +315,19 @@ describe('Channel, with a guest in it', () => {
   });
 
   it('offers a contact two ways in, and they are different offers', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
       **Guest and Member, where there was one button called Invite.** They are
       not two spellings of one act: `Member` writes somebody into the roster
       and spends one of the six permanently; `Guest` opens the room to them for
-      as long as it lasts and spends one of the forty. Two buttons is the only
-      shape that can say so — a single control with a mode would be a form to
-      set before acting, which is what the contact picker was before it was
-      taken out.
+      as long as it lasts and spends one of the forty.
+
+      **Both were buttons on the row until 2026-09-22 and are now one `+` and
+      a prompt**, which is not the mode-before-acting shape that was rejected
+      when the contact picker came out: nothing is set in advance, the fork
+      arrives at the press, and each answer is the act. What has to keep being
+      true is that the two remain two — a prompt offering one word for both
+      would be the collapse the pair of buttons existed to prevent.
     */
     mockApp.home = {
       invites: [],
@@ -335,8 +342,14 @@ describe('Channel, with a guest in it', () => {
     );
     showInvites(tree);
 
+    // One control on the row, and it says whose row it is — a list of eight
+    // buttons all called *Invite* is one nobody can navigate by name.
+    const prompt = invitePrompt(tree, 'Miro Okafor');
+    expect(prompt.title).toBe('Ask Miro Okafor in');
+    expect(prompt.choices).toEqual(['Guest', 'Member', 'Cancel']);
+
     // The membership is the reducer's, and unchanged.
-    act(() => findButton(tree, 'Member')!.props.onPress());
+    await prompt.take('Member');
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',
       contactId: 'acct_3',
@@ -344,18 +357,17 @@ describe('Channel, with a guest in it', () => {
 
     // The seat is the server's: no `ChannelState` carries a pending
     // invitation, so there is no action to dispatch and this is a round trip.
-    await act(async () => {
-      findButton(tree, 'Guest')!.props.onPress();
-    });
+    await invitePrompt(tree, 'Miro Okafor').take('Guest');
     expect(mockApp.askInAsGuest).toHaveBeenCalledWith('sess_1', 'acct_3');
 
     // And the row goes quiet rather than offering the same thing twice.
     expect(textOf(tree)).toContain('Asked in as a guest');
-    expect(findButton(tree, 'Guest')).toBeUndefined();
+    expect(findNamed(tree, 'Invite Miro Okafor')).toBeUndefined();
     act(() => tree.unmount());
   });
 
   it('says what the server refused, on the row it was refused about', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
       Three refusals cannot be drawn as a disabled button, because the facts
       they rest on are `guest_sessions` rows that no `ChannelState` carries: a
@@ -378,17 +390,16 @@ describe('Channel, with a guest in it', () => {
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showInvites(tree);
-    await act(async () => {
-      findButton(tree, 'Guest')!.props.onPress();
-    });
+    await invitePrompt(tree, 'Miro Okafor').take('Guest');
     expect(textOf(tree)).toContain('They already have a seat here.');
     // And the offer stands, a refusal being an answer about now rather than a
     // door closing.
-    expect(findButton(tree, 'Guest')).toBeDefined();
+    expect(findNamed(tree, 'Invite Miro Okafor')).toBeDefined();
     act(() => tree.unmount());
   });
 
   it('keeps the guest offer alive in a channel whose membership is full', () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
       **The full room is exactly the room that wants a guest.** This list used
       to be replaced entirely by *Channels hold up to 6 people* — one sentence
@@ -415,8 +426,12 @@ describe('Channel, with a guest in it', () => {
     );
     showInvites(tree);
     expect(textOf(tree)).toContain('Miro Okafor');
-    expect(findButton(tree, 'Member')!.props.disabled).toBe(true);
-    expect(findButton(tree, 'Guest')!.props.disabled).toBe(false);
+    // The mark is live and the prompt is one offer shorter, with the reason
+    // in its own sentence — there is no greying a button inside an alert, so
+    // the absent half has to be accounted for in words.
+    const prompt = invitePrompt(tree, 'Miro Okafor');
+    expect(prompt.choices).toEqual(['Guest', 'Cancel']);
+    expect(prompt.message).toContain('is full');
     expect(textOf(tree)).toContain('is full');
     act(() => tree.unmount());
   });

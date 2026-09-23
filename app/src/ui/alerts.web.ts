@@ -36,9 +36,10 @@ export interface AlertIo {
  *   A browser that refuses the dialog answers false, which takes the cancel —
  *   the safe direction, every one of these being destructive.
  * - **Several choices** have no single browser equivalent, so they are asked
- *   in order, one `confirm` each, until one is accepted. Clumsy, and it is one
- *   caller: the transcript's export format. The alternative was a menu
- *   component built for a single menu.
+ *   in order, one `confirm` each, until one is accepted. Clumsy, and it is two
+ *   callers: the transcript's export format, and — since 2026-09-22 — asking
+ *   whether a contact comes in as a guest or as a member. The alternative was
+ *   a menu component built for two menus.
  *
  * A cancel is found by `style` rather than by position, because the callers
  * disagree about where it goes and RN's own convention is the style.

@@ -28,8 +28,10 @@ import {
   channelOf,
   findButton,
   findChoice,
+  findNamed,
   findTab,
   findExactButton,
+  invitePrompt,
   labelOf,
   mockApp,
   render,
@@ -399,10 +401,12 @@ describe('Channel', () => {
     );
 
     showInvites(tree);
-    // Both halves of the pair, which are two different offers and one guard:
-    // who may open the room is the room's business either way.
-    expect(disabled('Member')).toEqual(off('Member'));
-    expect(disabled('Guest')).toEqual(off('Guest'));
+    // The mark, which carries both offers behind one guard: who may open the
+    // room is the room's business whichever way somebody comes in, so there
+    // is nothing to press and no prompt to raise.
+    expect(
+      findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
+    ).toEqual({ disabled: true });
     expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
     const invites = textOf(tree);
     expect(invites).toContain('Step in to ask anybody in');
@@ -470,8 +474,9 @@ describe('Channel', () => {
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
 
     showInvites(tree);
-    expect(on('Member')).toEqual({ disabled: false });
-    expect(on('Guest')).toEqual({ disabled: false });
+    expect(
+      findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
+    ).toEqual({ disabled: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecordings(tree);
@@ -1101,7 +1106,8 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('offers to invite an accepted contact who is not in the channel', () => {
+  it('offers to invite an accepted contact who is not in the channel', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -1117,9 +1123,9 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showInvites(tree);
-    const invite = findButton(tree, 'Member');
-    expect(invite).toBeDefined();
-    act(() => invite!.props.onPress());
+    const prompt = invitePrompt(tree, 'Miro Okafor');
+    expect(prompt.choices).toEqual(['Guest', 'Member', 'Cancel']);
+    await prompt.take('Member');
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',
       contactId: 'acct_3',
