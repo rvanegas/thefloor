@@ -325,4 +325,93 @@ export const es: Strings = {
     podcasts: () => 'Podcasts',
     support: () => 'Ayuda y apoyo',
   },
+  channelCards: {
+    guestSuffix: () => ' · invitado',
+    notReceivingYou: () => 'No se te recibe',
+    listeningAsking: () => 'Escuchando · pide la palabra',
+    listeningRefused: () => 'Escuchando · se le dijo que no',
+    listening: () => 'Escuchando',
+    hasTheFloor: () => 'Tiene la palabra',
+    canSpeakMuted: () => 'Puede hablar · se ha silenciado',
+    speaking: () => 'Hablando',
+    canSpeak: () => 'Puede hablar',
+    turnTheirMicrophoneOff: () => 'Apagar su micr\u00f3fono',
+    letThemSpeak: () => 'Dejarle hablar',
+    turnTheirMicrophoneOn: () => 'Encender su micr\u00f3fono',
+    asked: () => 'Pedido',
+    theySaidNo: () => 'Ha dicho que no',
+    contact: () => 'Contacto',
+    addContact: () => 'A\u00f1adir a contactos',
+    askThemToJoin: () => 'Proponerle registrarse',
+    addToChannel: () => 'A\u00f1adir al canal',
+    remove: () => 'Quitar',
+    stepInToAnswerForAGuest: () =>
+      'Entra para decidir qu\u00e9 puede hacer un invitado.',
+    theyCanHearYouCannot: () => 'Puede o\u00edr el canal. Nadie puede o\u00edrle.',
+    nearby: () => 'Cerca',
+    presentNotReceivingYou: () => 'Presente · no se te recibe',
+    present: () => 'Presente',
+    nearbyFor: (since: string) => `Cerca ${since}`,
+    steppedOut: () => 'Ha salido',
+    steppedOutAgo: (since: string) => `Sali\u00f3 hace ${since}`,
+    /**
+     * *Sin entrar*, not *Invitado*.
+     *
+     * *Invitado* is the guest and the pending seat is *Invitaciones*, so the
+     * participle here would say that a member of the channel is a guest of it
+     * — the one thing this roster must never say. Naming the absence collides
+     * with neither and is true of exactly this state.
+     */
+    invited: () => 'Sin entrar',
+    you: (name: string) => `${name} (t\u00fa)`,
+    muted: () => ' · silenciado',
+    hasTheFloorSuffix: () => ' · tiene la palabra',
+    watching: () => ' · viendo',
+    waitFor: (seconds: string) => `espera ${seconds}`,
+    pinging: () => 'Avisando\u2026',
+    pinged: () => 'Avisado',
+    ping: () => 'Avisar',
+    participantLabel: (
+      name: string,
+      self: boolean,
+      status: string,
+      holdsFloor: boolean,
+      watching: boolean,
+      speaking: boolean,
+      openable: boolean
+    ) =>
+      `${name}${self ? ', t\u00fa' : ''}. ${status}.${
+        holdsFloor ? ' Tiene la palabra.' : ''
+      }${watching ? ' Viendo.' : ''}${speaking ? ' Hablando.' : ''}${
+        openable ? ' Ver perfil.' : ''
+      }`,
+    stepInToAskAnybodyIn: () =>
+      'Entra para invitar a alguien. Una invitaci\u00f3n cae en medio de lo que se est\u00e9 diciendo, as\u00ed que es de quien lo est\u00e9 diciendo.',
+    memberOrGuestFull: (cap: number) =>
+      `Un miembro se une al canal y se queda; caben ${cap} y est\u00e1 lleno. Un invitado est\u00e1 solo para esta conversaci\u00f3n, y su sitio termina cuando termina la sala.`,
+    memberOrGuest: () =>
+      'Un miembro se une al canal y se queda. Un invitado est\u00e1 solo para esta conversaci\u00f3n: ve nombres y nada m\u00e1s, y su sitio termina cuando termina la sala.',
+    guestOnlyFull: (cap: number) =>
+      `Un invitado est\u00e1 solo para esta conversaci\u00f3n, y su sitio termina cuando termina la sala. No se ofrece ser miembro: el canal tiene ${cap} y est\u00e1 lleno.`,
+    guestOnly: () =>
+      'Un invitado est\u00e1 solo para esta conversaci\u00f3n, y su sitio termina cuando termina la sala.',
+    invite: (name: string) => `Invitar a ${name}`,
+    guest: () => 'Invitado',
+    member: () => 'Miembro',
+    audioNotConnected: () => 'Audio sin conectar.',
+    connectingAudio: () => 'Conectando el audio\u2026',
+    audioDropped: () => 'Se ha cortado el audio: reconectando\u2026',
+    audioMovedToOtherDevice: () => 'El audio se ha ido a tu otro dispositivo.',
+    microphoneRefused: () => 'Acceso al micr\u00f3fono denegado.',
+    audioNotConfigured: () => 'El audio no est\u00e1 configurado en el servidor.',
+    audioFailed: (message: string | null) =>
+      `Fallo de audio: ${message ?? 'error desconocido'}`,
+    playbackBlockedLead: () => 'Este navegador todav\u00eda no reproduce sonido.',
+    playbackBlockedRest: () =>
+      ' Espera a que se lo pidan, as\u00ed que nada de lo que se dice en este canal te est\u00e1 llegando.',
+    playTheChannel: () => 'Reproducir el canal',
+    microphoneSilentLead: () => 'No llega nada de tu micr\u00f3fono.',
+    microphoneSilentRest: () =>
+      ' Si has estado hablando, nadie te oye: es lo que suele pasar en iOS con el navegador integrado de una app. Abre esto en Safari o Chrome; salir y volver a entrar repite la medici\u00f3n.',
+  },
 };

@@ -130,6 +130,7 @@ import {
   type,
 } from './theme';
 import { louder, quieter } from './volume';
+import { useText } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
@@ -1883,7 +1884,7 @@ export function ChannelView({
    * What is wrong with the audio, in words, or null while nothing is — which
    * is also whether the *Audio* card is drawn at all. See `describeAudio`.
    */
-  const audioNote = describeAudio(audio);
+  const audioNote = describeAudio(audio, useText().channelCards);
   // Leaving is ordinary until you are the last one, at which point the same
   // tap destroys the channel. Nothing else in the interface would say so.
   const lastMember = channel.participants.length === 1;

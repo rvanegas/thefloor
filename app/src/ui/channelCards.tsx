@@ -30,6 +30,7 @@ import { Button, Card } from './components';
 import { styles } from './channelStyles';
 import { ago, duration } from './relativeTime';
 import { colors, formatSeconds, type } from './theme';
+import { useText, type Strings } from '../i18n';
 
 /**
  * One of the four controls in the pinned footer: an icon, a word, and the
@@ -249,26 +250,28 @@ export function GuestCard({
   onAskJoin: () => void;
   onAddToChannel: () => void;
 }) {
+  const t = useText().channelCards;
   const status = failing
-    ? 'Not receiving you'
+    ? t.notReceivingYou()
     : !guest.maySpeak
     ? guest.request === 'asking'
-      ? 'Listening · asking to speak'
+      ? t.listeningAsking()
       : guest.request === 'refused'
-        ? 'Listening · was told no'
-        : 'Listening'
+        ? t.listeningRefused()
+        : t.listening()
     : holdsFloor
-      ? 'Has the floor'
+      ? t.hasTheFloor()
       : muted
-        ? 'Can speak · muted themselves'
+        ? t.canSpeakMuted()
         : speaking
-          ? 'Speaking'
-          : 'Can speak';
+          ? t.speaking()
+          : t.canSpeak();
 
   return (
     <Card style={styles.stack}>
       <Text style={type.body}>
-        <Text style={type.heading}>{guest.name}</Text> · guest
+        <Text style={type.heading}>{guest.name}</Text>
+        {t.guestSuffix()}
       </Text>
       <Text style={[type.muted, failing && styles.statusBad]}>{status}</Text>
       <View style={styles.guestActions}>
@@ -277,10 +280,10 @@ export function GuestCard({
           // so the button says what it answers.
           label={
             guest.maySpeak
-              ? 'Turn their microphone off'
+              ? t.turnTheirMicrophoneOff()
               : guest.request === 'asking'
-                ? 'Let them speak'
-                : 'Turn their microphone on'
+                ? t.letThemSpeak()
+                : t.turnTheirMicrophoneOn()
           }
           variant={guest.request === 'asking' ? 'primary' : 'default'}
           disabled={!manageable}
@@ -298,12 +301,12 @@ export function GuestCard({
         <Button
           label={
             asked === 'asking'
-              ? 'Asked'
+              ? t.asked()
               : asked === 'refused'
-                ? 'They said no'
+                ? t.theySaidNo()
                 : asked === 'accepted'
-                  ? 'Contact'
-                  : 'Add contact'
+                  ? t.contact()
+                  : t.addContact()
           }
           disabled={!manageable || !!asked}
           onPress={onAskContact}
@@ -320,10 +323,10 @@ export function GuestCard({
           <Button
             label={
               invited === 'asking'
-                ? 'Asked'
+                ? t.asked()
                 : invited === 'refused'
-                  ? 'They said no'
-                  : 'Ask them to join'
+                  ? t.theySaidNo()
+                  : t.askThemToJoin()
             }
             disabled={!askable || !!invited}
             onPress={onAskJoin}
@@ -339,26 +342,22 @@ export function GuestCard({
         */}
         {addable ? (
           <Button
-            label="Add to channel"
+            label={t.addToChannel()}
             disabled={!manageable}
             onPress={onAddToChannel}
           />
         ) : null}
         <Button
-          label="Remove"
+          label={t.remove()}
           disabled={!manageable}
           onPress={onEject}
         />
       </View>
       {manageable ? null : (
-        <Text style={type.muted}>
-          Step in to answer for what a guest may do.
-        </Text>
+        <Text style={type.muted}>{t.stepInToAnswerForAGuest()}</Text>
       )}
       {guest.maySpeak ? null : (
-        <Text style={type.muted}>
-          They can hear the channel. Nobody can hear them.
-        </Text>
+        <Text style={type.muted}>{t.theyCanHearYouCannot()}</Text>
       )}
     </Card>
   );
@@ -474,6 +473,7 @@ export function ParticipantCard({
    */
   watching?: boolean;
 }) {
+  const t = useText().channelCards;
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
   const muted = !!channel.selfMuted[participant.id];
@@ -726,10 +726,10 @@ export function ParticipantCard({
       // do not come back the row simply keeps the word and gains the number.
       // See planning/decisions/2026-09-08-the-grace-is-not-a-presence.md.
       reconnecting
-      ? 'Nearby'
+      ? t.nearby()
       : failing
-        ? 'Present · not receiving you'
-        : 'Present'
+        ? t.presentNotReceivingYou()
+        : t.present()
     : isWaiting(channel, participant.id)
       ? // They did not leave; their phone did. Walking into a channel and
         // pocketing the phone suspends the process in under a second, so this
@@ -769,7 +769,7 @@ export function ParticipantCard({
         // reader to work out how much of the fifteen minutes is left. See
         // `attentiveAt`, and `waitingFor` for what is shown when the server
         // has no attention clock for them.
-        `Nearby ${duration(attention ?? waitingFor ?? 0)}`
+        t.nearbyFor(duration(attention ?? waitingFor ?? 0))
       : channel.everPresent.includes(participant.id)
         ? // **The presence clock, not the attention clock.** For one day this
           // read `Away ${duration(attention)}`, on the argument that *stepped
@@ -784,8 +784,8 @@ export function ParticipantCard({
           // it. `idleMs` is that and nothing else. Whether they are reachable
           // *now* is the line above, and somebody who is both gets it.
           away === null
-          ? 'Stepped out'
-          : `Stepped out ${ago(away)}`
+          ? t.steppedOut()
+          : t.steppedOutAgo(ago(away))
         : // Never once here, so there is no interval since they were, and no
           // number belongs on this line. It carried `Invited · away ${…}` for
           // a day — the attention clock again, standing in for a presence that
@@ -793,7 +793,7 @@ export function ParticipantCard({
           // conflation away: a channel you have just been invited to, opened
           // for the first time, telling you that you have been away a few
           // seconds. An invitation is a standing fact with no clock on it.
-          'Invited';
+          t.invited();
 
   const body = (
     /**
@@ -807,7 +807,7 @@ export function ParticipantCard({
         {/* One string rather than a name and a suffix, so it is one run of
             text to a screen reader and to anything else reading the tree. */}
         <Text style={styles.cardName} numberOfLines={1}>
-          {self ? `${participant.displayName} (you)` : participant.displayName}
+          {self ? t.you(participant.displayName) : participant.displayName}
         </Text>
         {/*
           **The tone follows the word, not the flag it came from.** `failing`
@@ -827,8 +827,8 @@ export function ParticipantCard({
           ]}
         >
           {status}
-          {muted ? ' · muted' : ''}
-          {holdsFloor ? ' · has the floor' : ''}
+          {muted ? t.muted() : ''}
+          {holdsFloor ? t.hasTheFloorSuffix() : ''}
           {/*
             **Last of the three, because it is the least urgent of them.** The
             suffixes read as a sentence and the order is what ranks them: a
@@ -840,7 +840,7 @@ export function ParticipantCard({
             screen without a voice — so putting it first would open every such
             line with the fact that matters least about them.
           */}
-          {watching ? ' · watching' : ''}
+          {watching ? t.watching() : ''}
         </Text>
       </View>
       {/*
@@ -864,7 +864,7 @@ export function ParticipantCard({
         <Text style={styles.cardClock}>{formatSeconds(floorRemaining)}</Text>
       ) : cooldown !== null ? (
         <Text style={[styles.cardClock, styles.cardClockMuted]}>
-          {`wait ${formatSeconds(cooldown)}`}
+          {t.waitFor(formatSeconds(cooldown))}
         </Text>
       ) : null}
       {/*
@@ -883,7 +883,7 @@ export function ParticipantCard({
       */}
       {rail === 'ping' ? (
         <Button
-          label={pinging ? 'Pinging…' : windowOpen ? 'Pinged' : 'Ping'}
+          label={pinging ? t.pinging() : windowOpen ? t.pinged() : t.ping()}
           style={styles.cardPing}
           // Disabled rather than hidden inside the window. The button
           // vanishing at the moment it is pressed reads as a mistake; saying
@@ -908,11 +908,15 @@ export function ParticipantCard({
    * card afresh every time — the fact worth saying is whose the floor is, and
    * that does not change while the number does.
    */
-  const label = `${participant.displayName}${self ? ', you' : ''}. ${status}.${
-    holdsFloor ? ' Has the floor.' : ''
-  }${watching ? ' Watching.' : ''}${speaking ? ' Speaking.' : ''}${
-    onPress ? ' View profile.' : ''
-  }`;
+  const label = t.participantLabel(
+    participant.displayName,
+    self,
+    status,
+    holdsFloor,
+    watching,
+    speaking,
+    !!onPress
+  );
 
   if (!onPress) {
     return (
@@ -987,6 +991,7 @@ export function InviteList({
   onInvite: (contactId: string) => void;
   onGuest: (contactId: string) => void;
 }) {
+  const t = useText().channelCards;
   const app = useApp();
   const invitable = (app.home?.contacts ?? []).filter(
     (entry) =>
@@ -1101,10 +1106,10 @@ export function InviteList({
       })}
       <Text style={type.muted}>
         {!mayInvite
-          ? 'Step in to ask anybody in. An invitation lands in whatever is being said, so it belongs to whoever is saying it.'
+          ? t.stepInToAskAnybodyIn()
           : full
-            ? `A member joins the channel and stays; it holds ${MAX_CHANNEL_PARTICIPANTS}, and is full. A guest is here for this conversation only, and the seat ends when the room does.`
-            : 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'}
+            ? t.memberOrGuestFull(MAX_CHANNEL_PARTICIPANTS)
+            : t.memberOrGuest()}
       </Text>
     </>
   );
@@ -1164,10 +1169,11 @@ function InviteMark({
   open: boolean;
   onPress: () => void;
 }) {
+  const t = useText().channelCards;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Invite ${name}`}
+      accessibilityLabel={t.invite(name)}
       // `expanded` rather than `selected`: what the mark holds open is a pair
       // of choices about this person, not a state of theirs. A screen reader
       // then says the control opened something and that it is open, which is
@@ -1240,6 +1246,7 @@ function InviteOffer({
   onGuest: () => void;
   onMember: () => void;
 }) {
+  const t = useText().channelCards;
   return (
     <View style={styles.inviteOffer}>
       {/*
@@ -1250,20 +1257,20 @@ function InviteOffer({
       */}
       <Text style={type.muted}>
         {mayBeMember
-          ? 'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.'
+          ? t.memberOrGuest()
           : full
-            ? `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${MAX_CHANNEL_PARTICIPANTS} and is full.`
-            : 'A guest is here for this conversation only, and the seat ends when the room does.'}
+            ? t.guestOnlyFull(MAX_CHANNEL_PARTICIPANTS)
+            : t.guestOnly()}
       </Text>
       <View style={styles.buttonRow}>
         <Button
-          label="Guest"
+          label={t.guest()}
           variant="primary"
           style={styles.flexButton}
           onPress={onGuest}
         />
         <Button
-          label="Member"
+          label={t.member()}
           disabled={!mayBeMember}
           style={styles.flexButton}
           onPress={onMember}
@@ -1292,24 +1299,27 @@ function InviteOffer({
  * to know it**; anything else belongs in the diagnostics panel, which has its
  * own card and its own audience.
  */
-export function describeAudio(audio: SessionAudio): string | null {
+export function describeAudio(
+  audio: SessionAudio,
+  t: Strings['channelCards']
+): string | null {
   switch (audio.status) {
     case 'idle':
-      return 'Audio not connected.';
+      return t.audioNotConnected();
     case 'connecting':
-      return 'Connecting audio…';
+      return t.connectingAudio();
     // Distinct from 'idle' on purpose. Both used to read as "not connected",
     // so audio that had died mid-conversation looked exactly like audio that
     // had never started — and since the only recovery was force-quitting, the
     // screen was quietly wrong about the one thing it is here to report.
     case 'reconnecting':
-      return 'Audio dropped — reconnecting…';
+      return t.audioDropped();
     // Not a failure and not a quiet channel, which is why it is neither of the
     // two above. The room is fine and somebody is in it; it is just not this
     // screen. `elsewhereOnAnotherDevice` says the same thing about presence,
     // and this says it about the audio.
     case 'displaced':
-      return 'Audio moved to your other device.';
+      return t.audioMovedToOtherDevice();
     // Nothing to say. The three sentences this used to pick between reported
     // a working connection, whether anybody else was audible, and whether the
     // microphone was open — the first needs no saying, and the other two are
@@ -1317,11 +1327,11 @@ export function describeAudio(audio: SessionAudio): string | null {
     case 'connected':
       return null;
     case 'denied':
-      return audio.message ?? 'Microphone access refused.';
+      return audio.message ?? t.microphoneRefused();
     case 'unavailable':
-      return 'Audio is not configured on the server.';
+      return t.audioNotConfigured();
     case 'error':
-      return `Audio failed: ${audio.message ?? 'unknown error'}`;
+      return t.audioFailed(audio.message ?? null);
   }
 }
 
@@ -1340,13 +1350,14 @@ export function describeAudio(audio: SessionAudio): string | null {
  * all unless the browser has said no.
  */
 export function PlaybackBlocked({ onAllow }: { onAllow: () => void }) {
+  const t = useText().channelCards;
   return (
     <>
       <Text style={type.body}>
-        <Text style={styles.emphasis}>This browser will not play sound yet.</Text>{' '}
-        It waits to be asked, so nothing said in this channel is reaching you.
+        <Text style={styles.emphasis}>{t.playbackBlockedLead()}</Text>
+        {t.playbackBlockedRest()}
       </Text>
-      <Button label="Play the channel" variant="primary" onPress={onAllow} />
+      <Button label={t.playTheChannel()} variant="primary" onPress={onAllow} />
     </>
   );
 }
@@ -1366,12 +1377,11 @@ export function PlaybackBlocked({ onAllow }: { onAllow: () => void }) {
  * back in publishes a fresh microphone, which is what takes the reading again.
  */
 export function MicrophoneSilent() {
+  const t = useText().channelCards;
   return (
     <Text style={type.body}>
-      <Text style={styles.emphasis}>Nothing is coming from your microphone.</Text>{' '}
-      If you have been talking, nobody is hearing it — which is what an app&rsquo;s
-      built-in browser usually does on iOS. Open this in Safari or Chrome
-      instead; stepping out and back in takes the reading again.
+      <Text style={styles.emphasis}>{t.microphoneSilentLead()}</Text>
+      {t.microphoneSilentRest()}
     </Text>
   );
 }

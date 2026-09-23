@@ -420,4 +420,104 @@ export const en = {
     podcasts: () => 'Podcasts',
     support: () => 'Support',
   },
+  channelCards: {
+    guestSuffix: () => ' · guest',
+    notReceivingYou: () => 'Not receiving you',
+    listeningAsking: () => 'Listening · asking to speak',
+    listeningRefused: () => 'Listening · was told no',
+    listening: () => 'Listening',
+    hasTheFloor: () => 'Has the floor',
+    canSpeakMuted: () => 'Can speak · muted themselves',
+    speaking: () => 'Speaking',
+    canSpeak: () => 'Can speak',
+    turnTheirMicrophoneOff: () => 'Turn their microphone off',
+    letThemSpeak: () => 'Let them speak',
+    turnTheirMicrophoneOn: () => 'Turn their microphone on',
+    asked: () => 'Asked',
+    theySaidNo: () => 'They said no',
+    contact: () => 'Contact',
+    addContact: () => 'Add contact',
+    askThemToJoin: () => 'Ask them to join',
+    addToChannel: () => 'Add to channel',
+    remove: () => 'Remove',
+    stepInToAnswerForAGuest: () => 'Step in to answer for what a guest may do.',
+    theyCanHearYouCannot: () =>
+      'They can hear the channel. Nobody can hear them.',
+    nearby: () => 'Nearby',
+    presentNotReceivingYou: () => 'Present · not receiving you',
+    present: () => 'Present',
+    /** `since` is already a phrase — see `relativeTime.duration`. */
+    nearbyFor: (since: string) => `Nearby ${since}`,
+    steppedOut: () => 'Stepped out',
+    steppedOutAgo: (since: string) => `Stepped out ${since}`,
+    /**
+     * A member who has never come into the channel.
+     *
+     * **This is the second of the three *invitado* collisions**, and the one
+     * `decisions/2026-09-22-the-members-tab-is-the-people-tab.md` left to the
+     * extraction. In English *Invited* sits a word away from *Guest* and from
+     * the *Invitations* group, and in Spanish all three want the same word —
+     * which would make a member read as a guest, the one distinction this
+     * roster cannot afford to blur. Settled by naming the absence instead of
+     * the invitation: see `es.ts`, where this is *Sin entrar*.
+     */
+    invited: () => 'Invited',
+    you: (name: string) => `${name} (you)`,
+    muted: () => ' · muted',
+    hasTheFloorSuffix: () => ' · has the floor',
+    watching: () => ' · watching',
+    /** `seconds` is already formatted — see `formatSeconds`. */
+    waitFor: (seconds: string) => `wait ${seconds}`,
+    pinging: () => 'Pinging\u2026',
+    pinged: () => 'Pinged',
+    ping: () => 'Ping',
+    /**
+     * The whole of what a screen reader says about one roster card. No
+     * seconds in it, deliberately: the clock beside the name ticks once a
+     * second and a label carrying it would announce the card afresh each
+     * time.
+     */
+    participantLabel: (
+      name: string,
+      self: boolean,
+      status: string,
+      holdsFloor: boolean,
+      watching: boolean,
+      speaking: boolean,
+      openable: boolean
+    ) =>
+      `${name}${self ? ', you' : ''}. ${status}.${
+        holdsFloor ? ' Has the floor.' : ''
+      }${watching ? ' Watching.' : ''}${speaking ? ' Speaking.' : ''}${
+        openable ? ' View profile.' : ''
+      }`,
+    stepInToAskAnybodyIn: () =>
+      'Step in to ask anybody in. An invitation lands in whatever is being said, so it belongs to whoever is saying it.',
+    memberOrGuestFull: (cap: number) =>
+      `A member joins the channel and stays; it holds ${cap}, and is full. A guest is here for this conversation only, and the seat ends when the room does.`,
+    memberOrGuest: () =>
+      'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.',
+    guestOnlyFull: (cap: number) =>
+      `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${cap} and is full.`,
+    guestOnly: () =>
+      'A guest is here for this conversation only, and the seat ends when the room does.',
+    invite: (name: string) => `Invite ${name}`,
+    guest: () => 'Guest',
+    member: () => 'Member',
+    audioNotConnected: () => 'Audio not connected.',
+    connectingAudio: () => 'Connecting audio\u2026',
+    audioDropped: () => 'Audio dropped — reconnecting\u2026',
+    audioMovedToOtherDevice: () => 'Audio moved to your other device.',
+    microphoneRefused: () => 'Microphone access refused.',
+    audioNotConfigured: () => 'Audio is not configured on the server.',
+    audioFailed: (message: string | null) =>
+      `Audio failed: ${message ?? 'unknown error'}`,
+    playbackBlockedLead: () => 'This browser will not play sound yet.',
+    playbackBlockedRest: () =>
+      ' It waits to be asked, so nothing said in this channel is reaching you.',
+    playTheChannel: () => 'Play the channel',
+    microphoneSilentLead: () => 'Nothing is coming from your microphone.',
+    microphoneSilentRest: () =>
+      ' If you have been talking, nobody is hearing it — which is what an app\u2019s built-in browser usually does on iOS. Open this in Safari or Chrome instead; stepping out and back in takes the reading again.',
+  },
 };
