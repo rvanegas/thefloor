@@ -1280,4 +1280,15 @@ export const en = {
   podcastsWeb: {
     frameTitle: () => 'Published conversations',
   },
+  /**
+   * The two words the lock-screen card says, resolved here and sent to the
+   * widget as finished strings — see `LockScreenState.micLabel`. They are the
+   * footer's own words, deliberately: it is the same control.
+   */
+  lockScreen: {
+    unmute: () => 'Unmute',
+    mute: () => 'Mute',
+    microphoneMuted: () => 'Your microphone is muted',
+    microphoneOpen: () => 'Your microphone is open',
+  },
 };

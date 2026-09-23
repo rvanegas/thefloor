@@ -12,6 +12,7 @@ import * as liveActivity from '../../../modules/live-activity';
 import type { LockScreenState } from '../../../modules/live-activity';
 import { lockScreenStateFor, useLockScreen } from '../useLockScreen';
 import { channelOfUrl } from '../useChannelLink';
+import { en } from '../../i18n/en';
 
 /**
  * The card on the lock screen: what it says, and what its Mute button does.
@@ -68,21 +69,21 @@ function viewOf(channel: ChannelState): ChannelView {
 
 describe('lockScreenStateFor', () => {
   it('names the channel after who is in it when nobody has named it', () => {
-    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, true);
+    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, true, en.lockScreen, en.naming);
     // `describeChannel` over the others, which is what the header, the list
     // row and the profile card all draw. A card headed `null` is the bug.
     expect(state.channelName).toBe('Dana');
   });
 
   it('counts a device with no microphone as muted, and offers no unmute', () => {
-    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, false);
+    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, false, en.lockScreen, en.naming);
     expect(state.muted).toBe(true);
     // Grey rather than a button that would promise a microphone there is not.
     expect(state.canToggle).toBe(false);
   });
 
   it('offers Mute to somebody present and unmuted', () => {
-    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, true);
+    const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, true, en.lockScreen, en.naming);
     expect(state.muted).toBe(false);
     expect(state.canToggle).toBe(true);
   });
@@ -93,7 +94,7 @@ describe('lockScreenStateFor', () => {
       { type: 'CLAIM_FLOOR', userId: ME },
       T0
     );
-    const state = lockScreenStateFor(viewOf(channel), ME, true);
+    const state = lockScreenStateFor(viewOf(channel), ME, true, en.lockScreen, en.naming);
     expect(state.muted).toBe(false);
     // `canSetSelfMute` refuses it: the way to stop talking is to release.
     expect(state.canToggle).toBe(false);
@@ -105,7 +106,7 @@ describe('lockScreenStateFor', () => {
       { type: 'CLAIM_FLOOR', userId: THEM },
       T0
     );
-    const state = lockScreenStateFor(viewOf(channel), ME, true);
+    const state = lockScreenStateFor(viewOf(channel), ME, true, en.lockScreen, en.naming);
     // Their mute does nothing while the claim stands, and it is still theirs
     // to set — it is what they are left with when the claim ends. The footer
     // keeps the control live here too.

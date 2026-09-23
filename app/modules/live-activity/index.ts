@@ -52,6 +52,23 @@ export interface LockScreenState {
    */
   channelName: string;
   /**
+   * What the microphone control is called, resolved.
+   *
+   * **The finished word rather than a flag**, for `channelName`'s reason one
+   * step further on: the extension is a separate binary with no catalogue in
+   * it and no way to reach one, and an `es.lproj` inside the widget would be a
+   * second place the app's vocabulary lives and a second place it goes stale.
+   * The app knows which language it is speaking and what state the microphone
+   * is in, so it sends the sentence.
+   */
+  micLabel: string;
+  /**
+   * The same thing said as a state rather than as an act, for the iOS 16 card
+   * — which has no button, `Button(intent:)` being iOS 17, and so announces
+   * what is true instead of what a tap would do.
+   */
+  micState: string;
+  /**
    * Whether you are being heard, and the word is deliberately the icon's
    * rather than the reducer's.
    *

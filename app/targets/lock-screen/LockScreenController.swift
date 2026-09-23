@@ -132,6 +132,8 @@ import UIKit
 
     let state = FloorActivityAttributes.ContentState(
       channelName: payload.channelName,
+      micLabel: payload.micLabel,
+      micState: payload.micState,
       muted: payload.muted,
       canToggle: payload.canToggle
     )

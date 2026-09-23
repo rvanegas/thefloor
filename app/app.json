@@ -62,7 +62,8 @@
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
       "./plugins/with-google-services",
-      "./plugins/with-live-activity"
+      "./plugins/with-live-activity",
+      "./plugins/with-localizations"
     ]
   }
 }

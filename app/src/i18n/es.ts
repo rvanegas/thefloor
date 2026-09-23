@@ -1126,4 +1126,10 @@ export const es: Strings = {
   podcastsWeb: {
     frameTitle: () => 'Conversaciones publicadas',
   },
+  lockScreen: {
+    unmute: () => 'Quitar el silencio',
+    mute: () => 'Silenciar',
+    microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
+    microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
+  },
 };

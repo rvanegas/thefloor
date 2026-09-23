@@ -4,6 +4,7 @@ import { DISCONNECT_GRACE_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import type { ChannelView } from '../../../core/protocol';
 import type { UserId } from '../../../core/types';
+import { useText, type Strings } from '../i18n';
 import {
   addLockScreenToggleListener,
   hideLockScreen,
@@ -42,7 +43,9 @@ import {
 export function lockScreenStateFor(
   view: ChannelView,
   me: UserId,
-  inputAvailable: boolean | undefined
+  inputAvailable: boolean | undefined,
+  words: Strings['lockScreen'],
+  naming: Strings['naming']
 ): LockScreenState {
   const channel = view.channel;
   /**
@@ -69,8 +72,11 @@ export function lockScreenStateFor(
       describeChannel(
         view.participants
           .filter((p) => p.id !== me)
-          .map((other) => other.displayName)
+          .map((other) => other.displayName),
+        naming
       ),
+    micLabel: muted ? words.unmute() : words.mute(),
+    micState: muted ? words.microphoneMuted() : words.microphoneOpen(),
     muted,
     /**
      * The footer's guard, minus its presence clause — a non-null channel here
@@ -115,6 +121,8 @@ export function useLockScreen(
     handle: (muted: boolean) => void
   ) => () => void = addLockScreenToggleListener
 ): void {
+  const words = useText().lockScreen;
+  const naming = useText().naming;
   /**
    * Whether this device has been out of contact long enough that the server
    * has stopped counting it as present.
@@ -146,7 +154,9 @@ export function useLockScreen(
   }, [inTouch]);
 
   const state =
-    view && !adrift ? lockScreenStateFor(view, me, inputAvailable) : null;
+    view && !adrift
+      ? lockScreenStateFor(view, me, inputAvailable, words, naming)
+      : null;
 
   /**
    * The payload as a string, which is what the effect actually depends on.

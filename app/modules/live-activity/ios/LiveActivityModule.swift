@@ -18,6 +18,10 @@ import ExpoModulesCore
 public struct LockScreenPayload {
   public let channelId: String
   public let channelName: String
+  /** Already resolved by the app — see `ContentState.micLabel`. */
+  public let micLabel: String
+  /** The same, said as a state, for the iOS 16 card. */
+  public let micState: String
   public let muted: Bool
   public let canToggle: Bool
 }
@@ -114,6 +118,8 @@ public class LiveActivityModule: Module {
       guard
         let channelId = state["channelId"] as? String,
         let channelName = state["channelName"] as? String,
+        let micLabel = state["micLabel"] as? String,
+        let micState = state["micState"] as? String,
         let muted = state["muted"] as? Bool,
         let canToggle = state["canToggle"] as? Bool
       else {
@@ -126,6 +132,8 @@ public class LiveActivityModule: Module {
         LockScreenPayload(
           channelId: channelId,
           channelName: channelName,
+          micLabel: micLabel,
+          micState: micState,
           muted: muted,
           canToggle: canToggle
         )

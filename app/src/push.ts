@@ -271,6 +271,13 @@ async function claim(authToken: string): Promise<string> {
  */
 async function ensureChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
+  // **The two names are English and stay English for now.** They appear in
+  // Android's own notification settings, so they are user-facing — but this
+  // runs at registration, outside any React tree, with no provider above it to
+  // read a catalogue from, and Android is not a platform this app is released
+  // on. The honest fix when it is one is `strings.xml` per locale, which is a
+  // mechanism nothing else here uses; the dishonest one is a second catalogue
+  // reachable from module scope. See `app/src/i18n/en.ts`.
   try {
     await Notifications.setNotificationChannelAsync(
       ANDROID_CHANNEL_IDS.audible,

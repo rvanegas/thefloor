@@ -38,6 +38,26 @@ struct FloorActivityAttributes: ActivityAttributes {
     var channelName: String
 
     /**
+     What the microphone control is called, already resolved.
+
+     **The finished word, for `channelName`'s reason carried one step
+     further.** This extension is a separate binary: it has no catalogue in it
+     and no way to reach the app's, and an `es.lproj` of its own would be a
+     second place this project's vocabulary lives and a second place it goes
+     stale. The app knows which language it is speaking and which state the
+     microphone is in, so it sends the word rather than the ingredients. See
+     `LockScreenState` in `modules/live-activity/index.ts`.
+     */
+    var micLabel: String
+
+    /**
+     The same thing as a state rather than as an act, for the iOS 16 card —
+     which has no button, `Button(intent:)` being iOS 17, and so announces
+     what is true instead of what a tap would do.
+     */
+    var micState: String
+
+    /**
      Whether you are not being heard — all three causes, under one word.
 
      Deliberately not the reducer's `selfMuted`: the app folds in a device with

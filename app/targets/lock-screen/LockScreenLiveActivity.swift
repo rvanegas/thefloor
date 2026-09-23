@@ -266,8 +266,14 @@ private struct MuteControl: View {
   let dark: Bool
   var scale: CGFloat = 1
 
-  /** What the glyph would have said. The screen reader still gets it. */
-  private var label: String { state.muted ? "Unmute" : "Mute" }
+  /**
+   What the glyph would have said. The screen reader still gets it.
+
+   Read off the state rather than chosen here, since the app learned a second
+   language: this target has no catalogue and the app has one. See
+   `ContentState.micLabel`.
+   */
+  private var label: String { state.micLabel }
 
   var body: some View {
     if #available(iOS 17.0, *) {
@@ -279,9 +285,7 @@ private struct MuteControl: View {
       .accessibilityLabel(label)
     } else {
       glyph(enabled: false)
-        .accessibilityLabel(
-          state.muted ? "Your microphone is muted" : "Your microphone is open"
-        )
+        .accessibilityLabel(state.micState)
     }
   }
 
