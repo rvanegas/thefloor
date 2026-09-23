@@ -2962,9 +2962,15 @@ export function ChannelView({
         */}
         <Button
           label="Other device"
-          sublabel="Pauses the film and moves it back to the device you stepped in on"
+          sublabel="Moves the film back to the device you stepped in on"
           onPress={() => {
-            if (watch.status === 'playing') act({ type: 'WATCH_PAUSE' });
+            /*
+              **It paused the film first until 2026-09-23**, for the reason
+              the *Watch on* switch refused a running one, and it stops for
+              the same reason: the film does not restart on the far side, it
+              carries on from where the room has got to. Handing the picture
+              back is not an ending and no longer looks like one.
+            */
             app.showScreenFor(null);
             // Null is *the device standing in this channel*, which is the one
             // the person is holding and the one no list can name.
@@ -4485,21 +4491,32 @@ export function ChannelView({
                     }
                   }}
                   /*
-                    **Not while the film is running.** Moving a picture
-                    between devices mid-scene is the confusing act whichever
-                    way it goes: the film vanishes from what you are looking
-                    at and reappears on something across the room, a second
-                    or two later and in the middle of a sentence, and the
-                    audio crosses with it. Pausing first makes the move
-                    deliberate and costs one tap of a control that is inches
-                    above this one.
+                    **It refused a running film until 2026-09-23, and the
+                    reasoning under it had expired.**
 
-                    Refused rather than hidden, so that the answer goes on
-                    saying where the film is while it cannot be changed —
-                    which is the thing somebody looking for the picture most
-                    needs to read.
+                    The argument was that moving a picture mid-scene is
+                    confusing whichever way it goes — the film vanishes from
+                    what you are looking at and reappears on something across
+                    the room *a second or two later and in the middle of a
+                    sentence* — and that pausing first costs one tap of a
+                    control inches above this one.
 
-                    The *floor* is not the other one. It governs what the
+                    Both halves turned out to be wrong by measurement. The
+                    second or two was the reload that expanding and arriving
+                    used to cost, and a screen now reaches playing in about a
+                    second and is seeked to the room's own position, so it
+                    resumes where everybody else is rather than where it left
+                    off. And it cost three taps rather than one — pause,
+                    switch, play — because the film had to be started again on
+                    the far side.
+
+                    What is left of the argument is the audio crossing the
+                    room, which is real and is what AirPlay and every
+                    device-switch like it does. **The tap is the consent**: a
+                    press on a device's name is not an ambush, and a party's
+                    clock never stopped, so nothing is missed by anybody.
+
+                    The *floor* is not a reason either. It governs what the
                     channel is attending to and has no business saying which
                     of your own devices shows a film, which is the rule the
                     disabled transport above already asserts from the other
@@ -4515,7 +4532,7 @@ export function ChannelView({
                     film, there is nothing to move and no question for this to
                     answer.
                   */
-                  disabled={watch.status === 'playing' || !inTheRoom}
+                  disabled={!inTheRoom}
                 />
                 {!inTheRoom ? (
                   // The same shape as the sentence below: beside the refused
@@ -4525,15 +4542,6 @@ export function ChannelView({
                     is nearby or stepped out.
                   </Text>
                 ) : null}
-                {watch.status === 'playing' ? (
-                  // Beside the refused control rather than up in a summary,
-                  // which is what every disabled control here does. See
-                  // STYLE.md § *Words on controls*.
-                  <Text style={type.muted}>
-                    Pause the film to move it to another device.
-                  </Text>
-                ) : null}
-
                 {choosing && otherScreens.length > 1
                   ? otherScreens.map((screen) => (
                       <Button

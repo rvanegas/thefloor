@@ -1629,38 +1629,40 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('refuses to be moved while the film is running', () => {
-    // **Moving a picture between devices mid-scene is the confusing act
-    // whichever way it goes**: the film leaves what you are looking at and
-    // turns up on something across the room, a second later and in the
-    // middle of a sentence. Pausing first makes the move deliberate, and
-    // the Play/Pause control is inches above this one.
+    it('moves while the film is running, which it refused to until 2026-09-23', () => {
+    /*
+      **The argument for refusing had expired rather than been overturned.**
+      It was that a move mid-scene is confusing — the film leaves what you are
+      looking at and turns up on something across the room *a second or two
+      later and in the middle of a sentence* — and that pausing first costs
+      one tap.
+
+      Both halves were wrong by measurement. The second or two was the reload
+      that arriving used to cost, and an arriving screen is seeked to the
+      room's own position, so it resumes where everybody else is rather than
+      where it left off. And it cost three taps, not one: pause, switch, play.
+    */
     mockApp.screenFor = 'sess_1';
     showChannel(playing());
     const tree = open();
-    expect(findChoice(tree, 'This device')!.props.disabled).toBe(true);
-    expect(findChoice(tree, 'Other device')!.props.disabled).toBe(true);
-    // Refused rather than hidden: the answer goes on saying where the film
-    // is, which is what somebody looking for the picture needs to read.
+    expect(findChoice(tree, 'This device')!.props.disabled).toBeFalsy();
+    expect(findChoice(tree, 'Other device')!.props.disabled).toBeFalsy();
+    // The switch goes on saying where the film is, which is the thing
+    // somebody looking for the picture needs to read.
     expect(chosen(tree, 'This device')).toBe(true);
-    // And a sentence beside it, as every disabled control here has.
-    expect(textOf(tree)).toContain('Pause the film');
+    // And the sentence that told people to pause first is gone with the rule.
+    expect(textOf(tree)).not.toContain('Pause the film');
     act(() => tree.unmount());
   });
 
-  it('can be moved again the moment it is paused', () => {
-    showChannel(
-      watching((s) =>
-        reduce(
-          reduce(s, { type: 'WATCH_PLAY', userId: ME }, NOW),
-          { type: 'WATCH_PAUSE', userId: ME },
-          NOW + 5_000
-        )
-      )
-    );
+  it('is still refused to somebody who is not in the room', () => {
+    // The other half of the guard, which has nothing to do with the
+    // transport: *This device* would otherwise start a film playing at
+    // somebody who is nearby or stepped out, which are the two rungs that
+    // mean they do not want one.
+    showChannel(playing((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
     const tree = open();
-    expect(findChoice(tree, 'This device')!.props.disabled).toBeFalsy();
-    expect(textOf(tree)).not.toContain('Pause the film');
+    expect(findChoice(tree, 'This device')!.props.disabled).toBe(true);
     act(() => tree.unmount());
   });
 
@@ -1872,29 +1874,21 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('pauses a running film rather than tearing it off the scene', () => {
+    it('hands a running film back without stopping it', () => {
       /*
-        **The *Watch on* switch thrown from the far end.** That switch refuses
-        a move while the film is running — *pause the film to move it to
-        another device* — so a press here, which is the same move made from
-        the television, does the pause the person would have done first.
+        **The *Watch on* switch thrown from the far end**, and it stops
+        pausing for the same reason that switch stopped refusing: the film
+        does not restart on the device it arrives at, it carries on from
+        where the room has got to. Handing the picture back is not an ending
+        and should not look like one.
       */
       const tree = asSecondDevice(playing());
-      act(() => findButton(tree, 'Other device')!.props.onPress());
-      expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-        type: 'WATCH_PAUSE',
-      });
-      act(() => tree.unmount());
-    });
-
-    it('says nothing to the transport when the film is already paused', () => {
-      // A paused film needs no pause, and a channel told to pause one twice
-      // is this screen inventing traffic.
-      const tree = asSecondDevice();
       act(() => findButton(tree, 'Other device')!.props.onPress());
       expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
         type: 'WATCH_PAUSE',
       });
+      // And it still hands the screen back, which is the whole of the press.
+      expect(mockApp.useScreen).toHaveBeenCalledWith('sess_1', null);
       act(() => tree.unmount());
     });
 
