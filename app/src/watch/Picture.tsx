@@ -47,7 +47,7 @@ import { WatchPlayer } from './WatchPlayer';
  * film. It is a third *place* now, the same as the other two: the box changes
  * and the player does not move. `FullScreen` is the scrim alone, and this
  * component draws it, because a scrim over the picture cannot be drawn by
- * anything the picture outranks. See planning/WATCH-RESPONSIVENESS.md.
+ * anything the picture outranks. See planning/decisions/2026-09-23-the-watch-transport-answers-the-press.md.
  */
 
 /** A rectangle in window coordinates, which is what a measurement returns. */

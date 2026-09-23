@@ -51,16 +51,6 @@ const REPORT_MS = 250;
 const READING_STALE_MS = 1_500;
 
 /**
- * How long a silent page is given before it is built again.
- *
- * Longer than `READING_STALE_MS`, because the two answer different questions:
- * that one is *may I act on this*, and this one is *is this page gone*. A
- * page is allowed to be quiet for a moment — the first seconds while the
- * IFrame API is fetched are silent, and that silence ends by itself.
- */
-const SILENT_FOR_MS = 6_000;
-
-/**
  * The least time between one rebuild and the next.
  *
  * **A rebuild is the cure and it must not become the fault.** Everything that
@@ -300,8 +290,6 @@ export function WatchPlayer({
   const [generation, setGeneration] = useState(0);
   /** When the last rebuild was, so they can be rationed. See the cooldown. */
   const rebuiltAt = useRef(0);
-  /** What the page last said anything at all, for the silence watchdog. */
-  const heardAt = useRef(Date.now());
 
   useKeepAwake(`watch:${channelId}`, watch.status === 'playing');
 
@@ -314,7 +302,6 @@ export function WatchPlayer({
   useEffect(() => {
     setReady(false);
     reading.current = null;
-    heardAt.current = Date.now();
   }, [videoId, generation]);
 
   // A refusal and a duration belong to the film rather than to the player
@@ -356,9 +343,6 @@ export function WatchPlayer({
       } catch {
         return;
       }
-      // Any message at all is the page saying it is alive, the reading
-      // included — which is what the silence watchdog below is watching for.
-      heardAt.current = Date.now();
       if (payload.t === 'ready') {
         recordEvent('watch player ready');
         setReady(true);
@@ -431,38 +415,6 @@ export function WatchPlayer({
       recover,
     };
   }, [ready, recover]);
-
-  /*
-    **A page that has stopped talking, met the same way a page that will not
-    listen is.**
-
-    `drive.ts` watches for a player that hears and does not act; this watches
-    for one that does not hear at all, and they are different failures with
-    one cure. The follower cannot catch this one: a stale reading is no
-    reading, and a follower with no reading says nothing — correctly — and so
-    never reaches the count that would rebuild anything.
-
-    Only while there is a film to show. A paused party with nobody watching is
-    not a fault, and neither is the quiet before the IFrame API has landed,
-    which `SILENT_FOR_MS` is long enough to cover.
-  */
-  useEffect(() => {
-    if (!videoId) return;
-    // Checked oftener than the threshold it is checking for: an interval of
-    // one `SILENT_FOR_MS` would notice a page that died the instant after a
-    // check only on the one after that, which is twice the wait for no gain.
-    const timer = setInterval(() => {
-      const quiet = Date.now() - heardAt.current;
-      if (quiet < SILENT_FOR_MS) return;
-      recordEvent(`watch player silent for ${Math.round(quiet / 1000)}s`);
-      // Before the rebuild, so the reason survives even when the rebuild is
-      // refused by the cooldown — a log that records only the cures is a log
-      // that cannot say how often the cure was wanted.
-      heardAt.current = Date.now();
-      recover();
-    }, SILENT_FOR_MS / 3);
-    return () => clearInterval(timer);
-  }, [videoId, generation, recover]);
 
   useFollow(watch, port, true);
 

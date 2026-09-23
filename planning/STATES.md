@@ -913,7 +913,7 @@ publishes nothing.
 **The mode and the option are unverified on a device**, both being chosen from
 a measurement made under a different category. What iOS actually granted is a
 thing to read off `route` in the shipped log rather than to believe from this
-table. See planning/WATCH-RESPONSIVENESS.md.
+table. See decisions/2026-09-23-the-screen-keeps-its-microphone.md.
 
 **The empty-channel row is the reversal, and it was made knowingly.**
 `core/micNeeded.ts` used to carry the principle *being in an empty channel

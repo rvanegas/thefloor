@@ -47,7 +47,6 @@ const TRIP_MS = 300;
 function laggyPlayer(lag: number) {
   /** Set by `stuck`: commands are heard and recorded, and nothing happens. */
   let deaf = false;
-  let rebuilds = 0;
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
@@ -125,10 +124,6 @@ function laggyPlayer(lag: number) {
       pending = null;
       deaf = true;
     },
-    /** How many times this player has been built again. */
-    get rebuilds() {
-      return rebuilds;
-    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       if (pending && now >= pending.at) {
@@ -185,23 +180,6 @@ function laggyPlayer(lag: number) {
           },
         };
       },
-      /*
-        **A fresh player, which is what a rebuild produces.** Not the old one
-        with its hearing restored: mounting a new `WebView` gives a page that
-        has never played anything, sitting at zero and cued — which is
-        exactly the state a screen arriving at a party already under way is
-        in, and is therefore driven back into step by the ordinary path
-        rather than by anything this test has to arrange.
-      */
-      recover: () => {
-        rebuilds += 1;
-        calls.push('recover');
-        deaf = false;
-        state = 'unstarted';
-        positionMs = 0;
-        want = null;
-        pending = null;
-      },
     } satisfies PlayerPort,
   };
 }
@@ -255,42 +233,6 @@ const seekTo = (positionMs: number) => (c: ChannelState, t: number) =>
   reduce(c, { type: 'WATCH_SEEK', userId: A, positionMs }, t);
 
 let tree: ReactTestRenderer | null = null;
-
-/**
- * A party that is playing, and a player that reports one state for ever.
- *
- * Deliberately simpler than `laggyPlayer`: what is being asserted is which
- * readings count as a refusal, so the reading has to be the only variable
- * and the player must not be able to recover its way out of the question.
- */
-function stubborn(state: PlayerState) {
-  let rebuilds = 0;
-  const port: PlayerPort = {
-    read: () => ({ state, positionMs: 0, durationMs: LENGTH }),
-    play: () => {},
-    pause: () => {},
-    seek: () => {},
-    recover: () => {
-      rebuilds += 1;
-    },
-  };
-  const watch = reduce(party(), { type: 'WATCH_PLAY', userId: A }, T0).watch;
-  function Follower(): React.ReactElement {
-    useFollow(watch, port, true);
-    return <Text>following</Text>;
-  }
-  act(() => {
-    tree = renderer.create(<Follower />);
-  });
-  return {
-    rebuilds: () => rebuilds,
-    advance(ms: number) {
-      act(() => {
-        jest.advanceTimersByTime(ms);
-      });
-    },
-  };
-}
 
 function run(
   opts: {
@@ -434,100 +376,6 @@ describe('a press', () => {
     // interval alone there is nothing here at all.
     sim.advance(TRIP_MS + 50);
     expect(sim.player.calls).toContain('play');
-  });
-});
-
-/**
- * **The player that hears and does not act, which is the whole of the
- * 2026-09-23 repair.**
- *
- * Reported as *play/pause is flaky, and rotating the phone unsticks it* —
- * and rotating is the one gesture that mounts a fresh player, which is what
- * made it a diagnosis rather than a complaint. Whatever the cause, and there
- * are several candidates in the iOS audio session and in `WKWebView`'s
- * appetite for being killed, the cure somebody found by accident is the one
- * worth automating: build the player again.
- */
-describe('a player that will not act on what it is told', () => {
-  it('is built again, and the party comes back in step', () => {
-    const sim = run();
-    sim.wire.press(play, Date.now());
-    sim.advance(3_000);
-    expect(inStep(sim.where())).toBe(true);
-
-    // Paused, obediently, and *then* it stops acting — which is the order the
-    // reports have: the film pauses, and the play that should resume it does
-    // nothing. Everything still reports; the state is steady and wrong.
-    sim.wire.press(pause, Date.now());
-    sim.advance(2_000);
-    sim.player.latch();
-    sim.wire.press(play, Date.now());
-
-    // Three ignored instructions is around six seconds, and then a new
-    // player, which is positioned and started by the ordinary path.
-    sim.advance(12_000);
-    expect(sim.player.rebuilds).toBe(1);
-    expect(inStep(sim.where())).toBe(true);
-  });
-
-  it('gives an obedient player no rebuilds at all', () => {
-    // The guard that matters: a rebuild is a black rectangle and a refetch,
-    // so a player that is merely slow — this one takes longer than a tick to
-    // do anything — must never provoke one.
-    const sim = run();
-    sim.wire.press(play, Date.now());
-    sim.advance(4_000);
-    sim.wire.press(pause, Date.now());
-    sim.advance(4_000);
-    sim.wire.press(seekTo(120_000), Date.now());
-    sim.advance(4_000);
-    sim.wire.press(play, Date.now());
-    sim.advance(6_000);
-
-    expect(sim.player.rebuilds).toBe(0);
-    expect(inStep(sim.where())).toBe(true);
-  });
-
-  /*
-    **What build 276 corrected, on the first log off a phone.**
-
-    `hasArrived` is false for a player that has not begun and for one that is
-    buffering, and neither of those is a refusal — so counting them as one
-    made two entirely ordinary things look like disobedience. A paused party
-    with a freshly built player sits at `unstarted` indefinitely, and the
-    real device reached two ignored instructions inside twenty seconds of a
-    healthy party. Three would have rebuilt a working picture in front of
-    somebody who had just pressed Play.
-  */
-  it.each(['unstarted', 'buffering'] as const)(
-    'never rebuilds a player that is only reporting %s',
-    (state) => {
-      const sim = stubborn(state);
-      sim.advance(60_000);
-      expect(sim.rebuilds()).toBe(0);
-    }
-  );
-
-  it('rebuilds one that reports a settled state it was told to leave', () => {
-    // The contrast, and the whole point of the distinction: `paused` against
-    // a channel that is playing is a frame that has heard and not acted.
-    const sim = stubborn('paused');
-    sim.advance(60_000);
-    expect(sim.rebuilds()).toBeGreaterThan(0);
-  });
-
-  it('leaves a stalling player to fill its buffer rather than rebuilding it', () => {
-    // A stall is not disobedience: the follower deliberately says nothing
-    // while a buffer fills, so there is nothing to ignore and nothing to
-    // count. Rebuilding here would throw away the buffer the silence exists
-    // to protect — the 2026-09-20 stutter, arrived at from a new direction.
-    const sim = run();
-    sim.wire.press(play, Date.now());
-    sim.advance(3_000);
-    sim.player.stall(4_000);
-    sim.advance(4_000);
-
-    expect(sim.player.rebuilds).toBe(0);
   });
 });
 

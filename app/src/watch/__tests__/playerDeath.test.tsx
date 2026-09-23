@@ -4,20 +4,23 @@ import type { WatchState } from '../../../../core/types';
 import type { PlayerPort } from '../drive';
 
 /**
- * **The two ways a picture stops answering, and the one cure.**
+ * **The one failure that is worth rebuilding a player for, and the reading
+ * that must not outlive the page that made it.**
  *
- * `transport.test.tsx` has the player that hears and does not act. This has
- * the one that does not hear: a page whose JavaScript has stopped — a content
- * process taken for memory, a document that went somewhere else, a context
- * suspended and never woken. The follower cannot catch that one, and the
- * reason is worth stating because it looks like an oversight. A stale reading
- * is no reading; a follower with no reading correctly says nothing; so
- * nothing is ever ignored and the count that rebuilds a player is never
- * reached. Silence needs its own watch.
+ * There were three of these for a day. A player that would not obey was
+ * rebuilt after three ignored instructions, and a page that had gone quiet was
+ * rebuilt after six seconds; both were guesses at a cure for *stuck, will not
+ * resume, rotating unsticks it*, made before anybody had found the fault.
  *
- * Both were reported as the same complaint — *play/pause is flaky, and
- * rotating the phone unsticks it* — because rotating is the cure for both,
- * mounting a fresh player being the only thing either responds to.
+ * The fault turned out to be in the follower's own patience, and the guesses
+ * turned out to have false positives — the quiet one fired on every return
+ * from the background, where a suspended `WKWebView` has simply stopped
+ * talking, and reloaded a film that was perfectly healthy. Both are gone.
+ *
+ * What is left is the failure iOS *announces*, which needs no heuristic and
+ * has no false positive: the content process being taken. And the reading
+ * stamp, which is not a watchdog at all — it stops the follower reasoning
+ * about a page that is no longer reporting, whatever the reason.
  */
 
 /** Every `WebView` that has been mounted, newest last. */
@@ -112,45 +115,6 @@ afterEach(() => {
   });
   tree = null;
   jest.useRealTimers();
-});
-
-describe('a page that has stopped talking', () => {
-  it('is built again', () => {
-    draw();
-    say({ t: 'ready' });
-    reporting(1_000);
-    expect(mounts).toHaveLength(1);
-
-    // Silence. Nothing in the application would ever speak to this page
-    // again, and nothing it is told would be heard if it did.
-    act(() => {
-      jest.advanceTimersByTime(14_000);
-    });
-    expect(mounts).toHaveLength(2);
-  });
-
-  it('is left alone while it is still reporting', () => {
-    // The guard: a rebuild is a black rectangle and a refetch, and a page
-    // that is talking is not the fault this is for — however little the film
-    // may be doing.
-    draw();
-    say({ t: 'ready' });
-    reporting(14_000);
-    expect(mounts).toHaveLength(1);
-  });
-
-  it('is not built again while the film is refused', () => {
-    // A refusal is the one thing a fresh player cannot help with: the owner
-    // will say the same to the next one, and the frame is carrying YouTube's
-    // own explanation and the way out it offers.
-    draw();
-    say({ t: 'ready' });
-    say({ t: 'error', code: 150 });
-    act(() => {
-      jest.advanceTimersByTime(30_000);
-    });
-    expect(mounts).toHaveLength(1);
-  });
 });
 
 describe('the content process being taken', () => {

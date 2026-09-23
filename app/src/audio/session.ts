@@ -93,7 +93,7 @@ export const LISTENING: AppleAudioConfiguration = {
  * which tears nothing down, changed category in 0.27 to 0.41 seconds every
  * time. So the second somebody waited for was the device being let go and
  * taken back, not `AVAudioSession` being slow — and the cure is to stop letting
- * it go. See planning/WATCH-RESPONSIVENESS.md.
+ * it go. See planning/decisions/2026-09-23-the-screen-keeps-its-microphone.md.
  *
  * **`playAndRecord`, so the device is never released**, and the film plays
  * through a session that is already the one the room will want back the moment

@@ -26,7 +26,7 @@ import { colors, radius, spacing } from '../ui/theme';
  * and it was being paid on the most ordinary gesture a person makes at a film.
  *
  * So full screen is a style like the other two, `FullScreen` is the scrim
- * alone, and the player never moves. See planning/WATCH-RESPONSIVENESS.md.
+ * alone, and the player never moves. See planning/decisions/2026-09-23-the-watch-transport-answers-the-press.md.
  */
 export type Place = 'docked' | 'floating' | 'full';
 

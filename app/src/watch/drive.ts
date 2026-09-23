@@ -36,36 +36,7 @@ export interface PlayerPort {
   play: () => void;
   pause: () => void;
   seek: (positionMs: number) => void;
-  /**
-   * Build this player again, for a frame that has stopped answering.
-   *
-   * **The gesture somebody had to discover for themselves, wired up.** The
-   * only reliable cure for a picture that will not resume has been to rotate
-   * the phone — which expands or collapses it, and mounts a fresh player on
-   * the way — and a cure that is a rotation is a cure nobody finds twice.
-   *
-   * Optional because *how* to rebuild is the platform's business and one of
-   * them may not be able to: the web player owns an element it did not make.
-   * When to is decided here, which is `DEAF_AFTER` below.
-   */
-  recover?: () => void;
 }
-
-/**
- * How many instructions may be ignored in a row before the player is rebuilt.
- *
- * **An instruction ignored once is ordinary and three times is a fault.** A
- * player that is merely slow answers inside one `WATCH_OBEDIENCE_MS`; a player
- * that is buffering is told nothing at all, so it cannot reach this at any
- * speed — `followInstructions` returns nothing while a stall is settling, and
- * the fuse is only spent on a player that is reporting a state it has been
- * told to leave. Three of those is a frame that is hearing and not acting.
- *
- * Three fuses is around six seconds, which is long enough that no ordinary
- * embed reaches it and short enough that somebody who has pressed Play is
- * still looking at the screen when the picture comes back.
- */
-const DEAF_AFTER = 3;
 
 /**
  * What this follower is waiting for, and it is only ever one thing.
@@ -92,6 +63,24 @@ const DEAF_AFTER = 3;
 type Doing =
   | { phase: 'watching' }
   | { phase: 'sending'; want: Desired; since: number };
+
+/*
+  **This file rebuilt a player that would not obey, between 2026-09-23 and the
+  same evening, and does not any more.**
+
+  It was written when *stuck, will not resume, rotating unsticks it* had no
+  explanation: rotating was the only known cure, rotating rebuilt the player,
+  so the follower was taught to rebuild one after three ignored instructions.
+  It was a guess at a cure for a fault nobody had found.
+
+  The fault was then found, and it was two of this file's own rules serving
+  patience to a person instead of to a player — see `urgent`. With those
+  fixed, nineteen presses across two routes produced no ignored instruction at
+  all, so the rebuild was machinery standing over a fault that no longer
+  happens, waiting to fire on a false positive. The one thing that still
+  rebuilds a player is `onContentProcessDidTerminate`, which is iOS announcing
+  a death rather than this file guessing at one.
+*/
 
 /**
  * Keeps a player in step with the channel.
@@ -120,14 +109,6 @@ export function useFollow(
    * avoids is written down.
    */
   const buffering = useRef<number | null>(null);
-  /**
-   * How many instructions this player has been given and not acted on.
-   *
-   * Reset by any arrival, so it counts a *run* of refusals rather than a
-   * tally: a player that obeys and later stumbles starts again from nothing.
-   * See `DEAF_AFTER`.
-   */
-  const ignored = useRef(0);
   /**
    * What the room wanted at the last tick, so that a change can be seen.
    *
@@ -191,7 +172,6 @@ export function useFollow(
         // what anybody wants, so its arrival would prove nothing and its
         // fuse is time spent on a question that has been withdrawn.
         doing.current = { phase: 'watching' };
-        ignored.current = 0;
       } else if (state.phase === 'sending') {
         if (hasArrived(reading, state.want)) {
           /*
@@ -207,7 +187,6 @@ export function useFollow(
             `watch ${state.want.status} after ${now - state.since}ms`
           );
           doing.current = { phase: 'watching' };
-          ignored.current = 0;
           return;
         }
         // The fuse, for a player that is never going to arrive — an embed
@@ -216,55 +195,29 @@ export function useFollow(
         if (now - state.since <= WATCH_OBEDIENCE_MS) return;
         doing.current = { phase: 'watching' };
         /*
-          **Only a steady state counts as a refusal, which the first log from
-          a phone corrected this on.**
+          **An instruction that was not acted on, written down and nothing
+          more.**
 
           `hasArrived` is false for `unstarted` and for `buffering`
-          unconditionally, and rightly: neither is where anything was asked
-          to be. But neither is a refusal either — a cued player has not
-          begun, and a buffering one is on its way — so counting them made
-          two ordinary things look like disobedience. A party paused with a
-          freshly built player sits at `unstarted` for as long as nobody
-          presses anything, and a resume that takes longer than the fuse
-          spends another. Build 276 reached two inside twenty seconds of an
-          entirely healthy party, which is one short of rebuilding a picture
-          that had nothing wrong with it, in front of somebody who had just
-          pressed Play.
+          unconditionally, and rightly: neither is where anything was asked to
+          be. But neither is a refusal either — a cued player has not begun,
+          and a buffering one is on its way — so saying *ignored* about them
+          would be calling two ordinary things a fault. What is left is a
+          player reporting a settled `playing` or `paused` that contradicts
+          what it was told, which is worth a line: it is how WebKit pausing
+          the media element under a moving audio session was first seen, on
+          build 277, rather than inferred.
 
-          What is left is the case this was written for: a player reporting a
-          settled `playing` or `paused` that contradicts what it was told,
-          which is the latched frame and nothing else.
+          It is a diagnostic and not a trigger. Nothing counts these any more
+          — see the note at the top of this file on what used to.
         */
-        const refusing =
-          reading.state !== 'unstarted' && reading.state !== 'buffering';
-        if (refusing) {
-          ignored.current += 1;
+        if (
+          reading.state !== 'unstarted' &&
+          reading.state !== 'buffering'
+        ) {
           recordEvent(
-            `watch ignored ${state.want.status} x${ignored.current} ` +
-              `(player ${reading.state})`
+            `watch ignored ${state.want.status} (player ${reading.state})`
           );
-        }
-        /*
-          **Rebuilt, rather than told the same thing a fourth time.**
-
-          Everything this follower can say to a player it has already said,
-          and the one thing that has ever brought such a player back is a new
-          one — see `PlayerPort.recover`. So the retry stops being a retry at
-          `DEAF_AFTER` and becomes a rebuild, and the counter is cleared so
-          the fresh player is judged on its own behaviour rather than on the
-          one it replaced.
-
-          The instruction is not issued in the same tick: there is nothing
-          left to issue it to, and the next tick will find a player that has
-          not begun and position it properly, which is the path a screen
-          arriving at a party already takes.
-        */
-        if (refusing && ignored.current >= DEAF_AFTER && player.recover) {
-          ignored.current = 0;
-          buffering.current = null;
-          recordEvent('watch rebuilding the player');
-          player.recover();
-          return;
         }
       }
 

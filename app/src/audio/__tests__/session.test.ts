@@ -53,7 +53,7 @@ describe('sessionFor', () => {
  * in 40 to 120ms and the film did not start for 1.2 to 3.0 seconds, with
  * `engine stop` at 0.92 to 1.11s and the category change immediately behind
  * it. Pause, which tears nothing down, moved category in 0.27 to 0.41s every
- * time. See planning/WATCH-RESPONSIVENESS.md.
+ * time. See planning/decisions/2026-09-23-the-screen-keeps-its-microphone.md.
  */
 describe('the screening configuration', () => {
   it('keeps the device, which is the whole of what it is for', () => {

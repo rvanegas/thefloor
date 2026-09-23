@@ -68,12 +68,41 @@ the measurement killed it: the player does not start until the teardown is
 finished either way, so ordering the two changes nothing about how long it
 takes.
 
+## Measured on the device, build 278
+
+**iOS granted the combination**, which was the one thing this entry could not
+predict:
+
+```
+route BluetoothA2DPOutput(wachowskis) sr=48000
+      AVAudioSessionCategoryPlayAndRecord/AVAudioSessionModeDefault
+```
+
+`playAndRecord` with `Default` and stereo A2DP at 48kHz, with the microphone
+held — so the film keeps the quality that closing the device used to buy.
+`moviePlayback` was not needed. The `BluetoothHFP sr=24000` lines in the same
+log are all `ModeVideoChat`, which is `CALL`: the paused state, where the
+conversation wants the voice profile. That is the split this was designed for,
+arriving intact.
+
+| | build 277 | build 278 |
+| --- | --- | --- |
+| resume | 1237–2212ms, median ~1400 | 538, 552, 582, 612, 750 — median 597 |
+| pause | median 282ms | median 217ms |
+| `engine stop` on a resume | every time, 0.92–1.11s | none |
+| `categoryChange` on a press | every time | none |
+
+Nineteen presses across the speaker and a Bluetooth headset. **The remaining
+597ms is at the measurement floor**: `FOLLOW_TICK_MS` is 500 and
+`watch playing after` is measured to the tick that observes arrival, so 538 and
+552 mean the player was already playing when the follower next looked. What it
+actually costs is below half a second and this instrument cannot see it.
+
 ## What is not yet known
 
-**The mode and the option are unverified on a device.** Both are chosen from a
-measurement taken under a different category, so what iOS actually granted is a
-thing to read off `route` in the shipped log rather than to believe from this
-entry. `moviePlayback` is the next thing to try if `default` still ducks.
+Whether the lit microphone indicator during a film — the device being held —
+is something anybody minds. It is already true of any self-muted member, and
+it is new for somebody watching a film.
 
 **The microphone indicator is now lit while a film plays**, the device being
 held. That is already true of any self-muted member, but it is new for
