@@ -22,6 +22,32 @@
  * no relationship and nothing to show for having been asked. So the browser is
  * the way to *accept*, and the app is the second step, offered underneath and
  * again from inside the app once they are in.
+ *
+ * **Both routes are named and costed on the page, since 2026-09-22.** The
+ * order above was already right and the page still read as one call to action
+ * with an afterthought under it: *accept in this browser*, then *then put it
+ * on your phone*, with no statement of what either one gets you. Somebody
+ * asked here by name is choosing between two different things — a browser
+ * they can be signed into and talking in a minute from now, and an install
+ * that costs a couple of steps and is the only one people can actually reach
+ * them through — and a page that does not say so has them choosing by
+ * whichever link looks more official. So each has a heading, and the phone's
+ * two advantages are the two the browser structurally cannot have:
+ *
+ * - **Notifications.** A browser cannot send one, *installed (web app)*
+ *   included — `installNotice.ts` in the app is the same fact said to
+ *   somebody who is already in, and its wording is the source for the
+ *   sentence here. What that costs is other people's ability to find you,
+ *   which is not a cost the person choosing pays.
+ * - **A sign-in that lasts.** The phone keeps the token in the keychain,
+ *   which outlives even deleting the app — see `INSTALL_KEYS` in
+ *   `app/src/state/storage.ts`. A browser keeps it in `localStorage`, so
+ *   clearing site data or accepting in a private window is signing out.
+ *
+ * **Neither claim may grow.** Anything about what a browser cannot do is
+ * checkable against the shipped web app, on landing.ts's own rule, and the
+ * two above are the whole list: everything else the browser gives up is a
+ * convenience the chooser pays for themselves.
  */
 
 import { escapeHtml, page, socialCard } from './html';
@@ -232,13 +258,50 @@ ${store}
   // The accept path is offered only where there is something to open, the way
   // `landing.ts` withholds its browser link: a box can quite normally be
   // serving no web app at all, and sending somebody mid-acceptance to a 503 is
-  // worse than telling them to use their phone.
+  // worse than telling them to use their phone. That branch is a guard rather
+  // than a route anybody is expected to take — a box serving neither train is
+  // a fresh one or a local checkout — so nothing in it should read as the
+  // ordinary way in.
+  //
+  // **The browser is the shorter path and the page now says so.** The pin is
+  // in the address, so `acceptScript` carries the invitation across the
+  // sign-in and it is spent without anybody typing anything: one tap and an
+  // emailed code. That was stated here only as a warning about the App Store
+  // detour, at the foot, which is the same fact told from the losing end.
   const accept = options.webAppReady
-    ? `<p><strong><a id="accept" href="/open">Accept and open The Floor in this
-browser</a></strong> — it needs a microphone and nothing else. ${name} will be
-in your contacts as soon as you sign in.</p>`
-    : `<p>Install the app below and sign in, and tell ${name} you are there —
-this server has no browser version to accept in.</p>`;
+    ? `<h2>Accept in this browser</h2>
+<p><strong><a id="accept" href="/open">Accept and open The Floor in this
+browser</a></strong> — nothing to install. You sign in with your email address
+and a code it sends you, which is also how the account gets made, and ${name}
+is in your contacts from that moment. It needs a microphone and nothing else,
+and you can be in a conversation almost immediately.</p>
+<p>It is the shorter way in as well as the quicker one: the invitation is in
+this link, so accepting it is that tap and signing in. There is nothing to
+type in, and nothing to come back and find.</p>`
+    : `<h2>Accepting</h2>
+<p>Install the app below and sign in, and tell ${name} you are there — this
+server has no browser version to accept in.</p>`;
+
+  // Second, and said as a choice rather than an afterthought: the two things
+  // below are what the extra steps buy, and they are the two a browser cannot
+  // have however good it gets. See the note at the top of this file before
+  // adding a third.
+  const phone = `<h2>${options.webAppReady ? 'Then put it on your phone' : 'Put it on your phone'}</h2>
+<p>A few minutes more — downloading it, installing it, then signing in with
+your email address and a code — and two things the browser cannot do:</p>
+<ul>
+<li><strong>People can reach you.</strong> A browser cannot notify you, so
+nobody can find you there unless you happen to be looking at the tab. The app
+gets a notification — the ordinary kind, that waits its turn.</li>
+<li><strong>It stays signed in.</strong> Your phone keeps the sign-in itself,
+so it is there whenever you come back. A browser keeps it in that browser:
+clearing your site data, or accepting in a private window, means signing in
+again.</li>
+</ul>
+${options.webAppReady ? `<p>Accept here first all the same. This link does not survive a trip through
+the App Store — install before accepting and you arrive with no invitation and
+nothing to show for having been asked — and the app offers the install again
+once you are in.</p>` : ''}`;
 
   return page({
     title: `${options.displayName} invited you to The Floor`,
@@ -259,10 +322,7 @@ no search for strangers.</p>
 
 ${accept}
 
-<h2>Then put it on your phone</h2>
-<p>The browser is a convenience. The app on a phone is the one that can reach
-you when you are not looking at it, which is the whole point of being somewhere
-people can find you.</p>
+${phone}
 ${store}
 
 <p><a href="/privacy">Privacy</a> — what is stored, why, and for how long.</p>
