@@ -3142,13 +3142,15 @@ everybody else, done by unsubscribing listeners rather than by muting anything
 does not register in sense 4 at all. See *silenced*.
 
 **This used to say that a watch party's tracks stay unmuted through a film,
-and Rule A was built on it.** It confused the two halves of a room watching
-something: a speaker the floor is withholding does keep an unmuted track, but
-the audience — everybody with nothing to say — closes its own microphone by
-sense 3, and a closed microphone is not a muted track but no track at all. So
-a room watching a film in silence published nothing and read as defunct. Fixed
-2026-09-23 by asking `watch.status` in Rule A; see *Watch party* and
-decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
+flatly, and Rule A was built on it.** True of anybody whose microphone is open
+— the film on a television, you in the room on your phone — and it says nothing
+about watching on the device you are in the room on, where the microphone is
+not muted but **closed**, for stereo. A closed microphone is not a muted track
+but no track at all, which is neither this sense nor sense 3 but the absence of
+anything for either to describe. So a room watching a film the way the app
+defaults to published nothing and read as defunct. Fixed 2026-09-23 by asking
+`watch.status` in Rule A; see *Watch party*, `isScreening` in core/micNeeded.ts
+and decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
 
 ## Participant
 

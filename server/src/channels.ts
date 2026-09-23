@@ -3824,15 +3824,28 @@ export class ChannelRegistry {
    *
    * **The watch party is safe by exception, having stopped being safe by
    * mechanism.** This said the opposite until 2026-09-23, on the argument that
-   * withholding is done by unsubscribing listeners rather than by muting
-   * speakers, so tracks stay unmuted for the length of a film and `publishing`
-   * is never empty. That was true of the room's *silenced* speakers and was
-   * never true of the audience: a phone with nothing to say during a film
-   * closes its own microphone — `core/micNeeded.ts` — and since 2026-09-05 a
-   * muted track does not count as publishing, which is the clause directly
-   * above. So a room watching a film in silence published nothing, read as
-   * quiet, and retired everybody in it fifteen minutes in. Measured twice on
-   * 2026-09-23 at 900.1s and 900.0s from the last microphone closing.
+   * a party's mute is `setSilenced` — each listener unsubscribed from each
+   * speaker — rather than a track mute, so tracks stay unmuted for the length
+   * of a film and `publishing` is never empty.
+   *
+   * **The mechanism is exactly as described and covers only half the room.**
+   * It holds for anybody whose microphone is open, which is the second-device
+   * configuration this design prefers: the film on a television, you in the
+   * room on your phone, your track published and unmuted, `publishing` never
+   * zero. It says nothing about somebody watching on the device they are in
+   * the room on, whose microphone is not muted but *closed* — `isScreening` in
+   * core/micNeeded.ts, for stereo, an open microphone forcing `playAndRecord`
+   * under a voice mode. A closed microphone is not an unmuted track and not a
+   * muted one; it is no track, so there is nothing for the mechanism above to
+   * be true of and `publishing` is zero.
+   *
+   * That configuration is the one the app defaults to — the film comes up on
+   * the device you are looking at — so the case the comment called safe was
+   * the ordinary one. A room watching a film that way published nothing, read
+   * as quiet, and retired everybody in it fifteen minutes in: measured twice
+   * on 2026-09-23 at 900.1s and 900.0s from the last microphone closing.
+   * core/micNeeded.ts had already recorded that the player moving into the app
+   * falsified its own watch-party sentence; nothing connected that to this.
    *
    * Hence `watch.status` is asked here beside `playback.status`, which puts
    * this in step with `subscribeable` in core/channel.ts — the pair this and

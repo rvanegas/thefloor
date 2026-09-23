@@ -14,16 +14,37 @@ No socket closed in either window, which is what ruled out the disconnect grace
 instant both times, which is what dated the first occurrence before anybody
 thought to look.
 
-**The comment on the rule said the case was safe, and said why, and the why was
-false.** It argued that withholding is done by unsubscribing listeners rather
-than by muting speakers, so tracks stay unmuted for the length of a film and
-`publishing` is never empty. That is true of a *silenced* speaker and was never
-true of the audience: somebody with nothing to say during a film closes their
-own microphone — `core/micNeeded.ts` — and a closed microphone is not a muted
-track but no track at all. The 2026-09-05 change that made `publishing` count
-transmitting microphones rather than existing ones is what turned a paragraph
-that was merely incomplete into one that was wrong, and nothing connected the
-two. GLOSSARY.md § *Mute* carried the same claim and has been corrected in
+**The comment on the rule said the case was safe, and said why, and the why
+covered half the room.** It argued that a party's mute is `setSilenced` — each
+listener unsubscribed from each speaker — rather than a track mute, so tracks
+stay unmuted for the length of a film and `publishing` is never empty. Every
+word of that is still true, and it is true only of somebody whose microphone is
+open: the second-device configuration this design prefers, film on a
+television, you in the room on your phone.
+
+It says nothing about watching on the device you are in the room on. That
+microphone is not muted but **closed** — `isScreening` in core/micNeeded.ts,
+for stereo, since an open microphone forces `playAndRecord` under a voice mode,
+which is mono over Bluetooth and ducked. A closed microphone is not an unmuted
+track and not a muted one; it is no track, so there is nothing for the
+mechanism to be true of. And that configuration is the one the app defaults to,
+the film coming up on the device you are looking at — so the case the comment
+called safe was the ordinary one.
+
+**What falsified it was the player moving into the app**, which created a
+configuration in which the audience has no microphone rather than a quiet one.
+core/micNeeded.ts records precisely that, in as many words — *the second has
+come back, inverted, and the sentence it left on is now false* — about its own
+watch-party clause. Nothing connected that note to this rule, written two days
+earlier and reasoning about the same film from the other end.
+
+The first draft of this entry blamed the 2026-09-05 change that made
+`publishing` count transmitting microphones rather than existing ones. That
+change is real and is the clause above this one in the code, but it is a red
+herring here: it governs tracks that exist and are muted, and the screening
+device has no track at all. Corrected on the day, on a reader's question.
+
+GLOSSARY.md § *Mute* carried the same too-broad claim and has been corrected in
 place.
 
 So the exemption is by exception now, and says so. `considerRetiring` asks
