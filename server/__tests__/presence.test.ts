@@ -850,3 +850,53 @@ describe('how many channels you may be nearby in', () => {
     expect(nearbyIn(bob.id).sort()).toEqual([...ids].slice(0, 5).sort());
   });
 });
+
+/**
+ * **What an inherited presence can still do, which is the whole channel.**
+ *
+ * The grace period above is the honest answer to a force quit: the account
+ * stays in the room for DISCONNECT_GRACE_MS, and the process that reopened the
+ * app holds a presence it never asserted — the case the header of this file
+ * describes, where *the roster said the person was there* and *their own
+ * screen, correctly, offered Step in*.
+ *
+ * What was never checked is what that minute *permits*. Every guard over the
+ * two shared features asks `isPresent`, which is the account's, while the
+ * screen's own rung is the account's **and** this device's — see `iAmPresent`
+ * in app/src/ui/ChannelView.tsx. So for the length of the grace a process
+ * showing *Out* may drive the film the room is watching, and the reducer
+ * agrees with it rather than with the screen.
+ *
+ * Reported from a phone: play and pause worked from a channel the person was
+ * not in. The film is only where it is noticeable, the party being the one
+ * thing still running while somebody looks at it.
+ */
+describe('a presence a reopened app inherited', () => {
+  it('may drive the watch party from a screen saying Out', async () => {
+    const { bob, channelId } = await roomOfTwo();
+    app.channels.dispatch(channelId, bob.id, {
+      type: 'START_WATCH',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    } as never);
+    app.channels.dispatch(channelId, bob.id, { type: 'WATCH_PLAY' });
+    expect(channel(channelId).watch.status).toBe('playing');
+
+    // The force quit, exactly as the first test in this file stages it: the
+    // room lets go, the grace starts, and nothing has retired anybody yet.
+    media.leaveRoom(channelId, bob.id);
+    pastTheJoinWindow();
+    await poll();
+    expect(graceOn(channelId, bob.id)).toBe(true);
+
+    // The reopened process. It asserts no ENTER — it has none to assert — so
+    // this is the minute in which the account is present and the device is
+    // not. Alice is still in the room, so the party is nobody else's to have
+    // paused.
+    expect(channel(channelId).present).toContain(bob.id);
+    app.channels.dispatch(channelId, bob.id, { type: 'WATCH_PAUSE' });
+
+    // The assertion the report is: somebody who is not in the channel stopped
+    // the film for everybody who is.
+    expect(channel(channelId).watch.status).toBe('playing');
+  });
+});
