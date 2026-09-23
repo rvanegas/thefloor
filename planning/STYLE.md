@@ -793,7 +793,7 @@ The small marks, and what a diameter means:
 | muted dot | 9, hollow, 1.5pt `textFaint` | you have closed your microphone |
 | speaking dot | 10, 1pt `border` → filled `floor` | this person is audible now |
 | recording dot | 8, solid `recording` (`textFaint` paused) | a recording is running |
-| dab | 18, solid `waiting`, `!` in `surface` | something is waiting behind this label |
+| dab | 18, solid `waiting`, `!` in `surface` | something is waiting behind this tab or control |
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
@@ -812,8 +812,8 @@ refused control owes, and the card opens a profile that offers *Add contact*.
 
 **The dab is the one mark that is not a dot, and the only one that carries a
 glyph.** Every other row above is 8 to 10 across and says what it means by
-where it sits; this one is an 18pt disc with an `!` in it, up and to the left of
-a tab's label and clear of the first glyph. A dot beside a word is a status
+where it sits; this one is an 18pt disc with an `!` in it, hung over the
+top-right corner of a tab's glyph or of the control it marks. A dot beside a word is a status
 light — a thing reporting, which you read and move on from. The `!` is a thing
 asking: **attend to this, but it can wait a beat.**
 
@@ -826,8 +826,17 @@ guessed at, and on Home it clipped *Contacts* and *Support* — the end of the
 word being the half that tells those two apart. Saying *asking* outright with
 the glyph buys the mark its way off the label.
 
-Positioned against the label's own box rather than the segment's, so it follows
-the word wherever the word starts and needs nothing measured — `styles.dab` in
+**A corner, since 2026-09-22, and it was the label's leading edge until
+then.** The label is the wrong box to hang it on: a word is as wide as it
+reads, so the mark moved from tab to tab, and on the short ones it came out in
+the whitespace between two tabs rather than on either; on a button, whose label
+is centred in a control as wide as its card, it floated in the middle of an
+empty fill with nothing to attach it to. So a tab hangs it on its *glyph* —
+a fixed 24pt box in the middle of the segment, in the same place on every tab —
+and a button hangs it on the button. `top: -6, right: -6` leaves two thirds of
+the disc outside the corner, which is what makes it read as *on* the thing
+rather than *in* it; the overhang is spent against the card's padding on a
+button and the track's gap on a tab, and neither control clips. `styles.dab` in
 `components.tsx`, drawn by one `Dab` there and by nothing else, and reached
 through `badge` on `Segmented` and on `Button`, which takes the words a screen
 reader is given rather than a boolean, an `!` being a shape rather than a

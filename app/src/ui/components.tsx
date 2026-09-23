@@ -34,10 +34,10 @@ import { colors, formatDuration, measure, radius, spacing, type } from './theme'
  * came out a different size on the second telling would read as a different
  * kind of thing.
  *
- * It positions itself, so a caller supplies only the box to hang it on:
- * `styles.dabAnchor` around the label, and nothing else. See `styles.dab` for
- * where the offsets come from and why the disc is larger than every other mark
- * in STYLE.md.
+ * It positions itself against whatever box it is dropped in, so a caller
+ * supplies only that box: a tab's glyph, or the button itself. See
+ * `styles.dab` for where the offsets come from and why the disc is larger than
+ * every other mark in STYLE.md.
  */
 function Dab() {
   return (
@@ -160,20 +160,6 @@ export function Button({
     >
       {icon ? (
         icon(fg)
-      ) : badge ? (
-        /*
-          The label wears its own box so the dab can be positioned against the
-          *word* rather than against the button, which is `Segmented`'s
-          reasoning and the same geometry: a button is as wide as the card it
-          is in and a label is as wide as it reads, so anchoring to the button
-          would leave the mark out in whitespace. The box exists only when
-          there is a mark to hang on it — every other button in the app draws
-          exactly the node it always drew.
-        */
-        <View style={styles.dabAnchor}>
-          <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
-          <Dab />
-        </View>
       ) : (
         <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
       )}
@@ -184,6 +170,15 @@ export function Button({
           {sublabel}
         </Text>
       ) : null}
+      {/*
+        **The corner of the control, not the side of the word.** It hung off
+        the leading edge of the label until 2026-09-22, on `Segmented`'s
+        geometry — but a button is as wide as the card it sits in and its label
+        is centred, so the mark landed in the middle of a wide empty fill with
+        nothing to attach it to. A corner is a place. The whole control is what
+        is waiting, and the whole control is what wears the mark.
+      */}
+      {badge ? <Dab /> : null}
     </Pressable>
   );
 }
@@ -948,17 +943,27 @@ export function Segmented<T extends string>({
                   pressed && !disabled && styles.segmentPressed,
                 ]}
               >
+                {/*
+                  **The glyph wears the mark**, since 2026-09-22: a tab's icon
+                  is a fixed 24pt box in the middle of the segment, so a disc on
+                  its top-right corner is in the same place on every tab
+                  whatever its label reads, and is nowhere near the neighbour.
+                  The word carried it until then and the word is the wrong
+                  thing to hang it on — a label is as wide as it reads, so the
+                  mark moved tab to tab, and on the short ones it sat out in
+                  whitespace between two tabs rather than on either.
+                */}
                 {option.icon ? (
-                  <View style={styles.segmentIcon}>{option.icon(color)}</View>
+                  <View style={styles.segmentIcon}>
+                    {option.icon(color)}
+                    {option.badge ? <Dab /> : null}
+                  </View>
                 ) : null}
                 {/*
-                  The label wears its own box so the dab can be positioned
-                  against the *word* rather than against the segment. A segment
-                  is a third of the track and a label is as wide as it reads, so
-                  anchoring to the segment would leave the mark floating in
-                  whitespace on the short labels and touching the neighbour on
-                  the long ones. This way it sits off the leading edge of the
-                  text and needs nothing measured.
+                  A tab with no glyph falls back to hanging it on the word's own
+                  box, in the same corner: the six channel tabs have no icons
+                  and no marks either, so this is the shape being kept honest
+                  rather than a case the app draws.
                 */}
                 <View style={styles.dabAnchor}>
                   <Text
@@ -972,7 +977,7 @@ export function Segmented<T extends string>({
                   >
                     {option.label}
                   </Text>
-                  {option.badge ? <Dab /> : null}
+                  {option.icon || !option.badge ? null : <Dab />}
                 </View>
               </Pressable>
             );
@@ -1001,6 +1006,10 @@ const styles = StyleSheet.create({
   bodyBeside: { flexDirection: 'row' },
   measure,
   button: {
+    // Written out because the dab a badged button draws is absolute against
+    // it; `relative` is RN's default and this is the line that makes it a
+    // decision rather than a default somebody could change.
+    position: 'relative',
     paddingVertical: spacing(1.5),
     paddingHorizontal: spacing(2),
     borderRadius: radius.md,
@@ -1103,6 +1112,9 @@ const styles = StyleSheet.create({
    * they are two rather than one because this file may not import that screen.
    */
   segmentIcon: {
+    // The box a tab's dab hangs on, which is why `relative` is written out:
+    // the mark is absolute against this and against nothing else.
+    position: 'relative',
     width: 24,
     height: 24,
     alignItems: 'center',
@@ -1110,14 +1122,15 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   /**
-   * The box a dab is positioned against: the label's own bounds, which is what
-   * makes the mark follow the word. `position: 'relative'` is the RN default
-   * and is written out because the absolute child below depends on it.
+   * The fallback box a dab is positioned against: a segment's label, for a tab
+   * that has no glyph to wear the mark instead. `position: 'relative'` is the
+   * RN default and is written out because the absolute child below depends on
+   * it.
    *
-   * A segment's label wears one, and so does a badged `Button`'s — which is
-   * why it is no longer called `segmentLabelBox`. The two are the same
-   * geometry because the two labels are: a word, centred, with whitespace on
-   * its leading side.
+   * Every tab and every button that draws a mark today hangs it on a glyph or
+   * on the control itself — see `Segmented` and `Button`. This is what a
+   * badged tab with neither would do, and it is kept because the alternative
+   * is a mark that does not draw at all.
    */
   dabAnchor: { position: 'relative' },
   /**
@@ -1138,20 +1151,27 @@ const styles = StyleSheet.create({
    * § *Dots, pills and rules* and deliberately so — those are all 8 to 10, and
    * all of them are dots rather than a glyph in a disc.
    *
-   * `left: -19` clears the 18pt disc of the first glyph with a point in hand;
-   * `top: -9` lifts it to sit above the cap height. On a 375pt screen a
-   * segment is ~110 and a 14pt semibold label ~62, so the ~24pt of whitespace
-   * on the leading side of the word takes the disc without reaching the 3pt
-   * gap or the track's edge. Nothing in this control sets `overflow: 'hidden'`,
-   * which is what lets it draw outside the label's box at all.
+   * **The top-right corner of the box it is given**, since 2026-09-22 — a
+   * tab's 24pt glyph, or the whole of a badged button. It sat up and to the
+   * left of the *label* until then, which put it in a different place on every
+   * tab, since a label is as wide as it reads; and on a button, whose label is
+   * centred in a control as wide as the card, it left the disc adrift in the
+   * fill. A corner is the one anchor both controls have and both share.
+   *
+   * `top: -6, right: -6` hangs the 18pt disc over that corner with two thirds
+   * of it outside, which is what makes it read as *on* the thing rather than
+   * *in* it. Nothing in either control sets `overflow: 'hidden'`, which is
+   * what lets it draw outside its box at all; on a button the overhang is
+   * spent against the card's own 16pt padding, and on a tab against the 3pt
+   * gap and the segment's padding, neither of which it reaches.
    *
    * The same on a selected segment as an unselected one: the dab is about what
    * the tab holds, not about where you are standing.
    */
   dab: {
     position: 'absolute',
-    top: -9,
-    left: -19,
+    top: -6,
+    right: -6,
     width: 18,
     height: 18,
     borderRadius: radius.pill,

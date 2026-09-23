@@ -1,5 +1,6 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import { View } from 'react-native';
 import { Segmented, segmentRows } from '../components';
 import { colors } from '../theme';
 
@@ -305,15 +306,14 @@ describe('the dab on a tab', () => {
   });
 
   /**
-   * **Up and to the left of the label, and clear of it.** The mark was laid
-   * over the trailing end of the word until 2026-09-15 and now carries an `!`
-   * instead, which says *asking* outright and so no longer has to say it by
-   * obscuring a letter — see the note on `styles.dab`. What is pinned here is
-   * that it is off the *leading* edge and far enough off to clear the first
-   * glyph: a `left` of more than the disc's own width is the whole of that, and
-   * shaving it back is how the mark creeps onto the word again.
+   * **The top-right corner of the box it hangs on.** The mark sat up and to
+   * the left of the *label* until 2026-09-22, which put it in a different
+   * place on every tab — a label is as wide as it reads — and on the short
+   * ones left it adrift between two tabs rather than on either. What is
+   * pinned here is the corner: a negative `top` and a negative `right`, and
+   * no `left` to pull it back across the box.
    */
-  it('sits clear of the leading edge of the label', () => {
+  it('hangs off the top-right corner', () => {
     const tree = render(
       <Segmented
         options={[{ value: 'contacts', label: 'Contacts', badge: 'waiting' }]}
@@ -324,12 +324,53 @@ describe('the dab on a tab', () => {
     const style = marks(tree)[0]!.props.style;
     expect(style.position).toBe('absolute');
     expect(style.top).toBeLessThan(0);
-    expect(style.right).toBeUndefined();
-    expect(-style.left).toBeGreaterThanOrEqual(style.width);
+    expect(style.right).toBeLessThan(0);
+    expect(style.left).toBeUndefined();
     // A disc rather than a lozenge, and larger than every mark in STYLE.md's
     // dots table, all of which are dots rather than a glyph in a disc.
     expect(style.width).toBe(style.height);
     expect(style.width).toBeGreaterThan(10);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **And the corner it hangs on is the glyph's**, which is what makes the
+   * mark land in the same place on every tab: the icon is a fixed box in the
+   * middle of the segment where the label is not. Read as the disc being a
+   * child of the icon's box rather than of the label's.
+   */
+  it('hangs on the tab\'s glyph when it has one', () => {
+    const tree = render(
+      <Segmented
+        options={[
+          {
+            value: 'contacts',
+            label: 'Contacts',
+            badge: 'waiting',
+            icon: () => <View testID="glyph" />,
+          },
+        ]}
+        value="contacts"
+        onChange={() => {}}
+      />
+    );
+    const boxes = tree.root.findAll(
+      (n) => typeof n.type === 'string' && n.props?.style?.width === 24
+    );
+    expect(boxes).toHaveLength(1);
+    const box = boxes[0]!;
+    expect(
+      box.findAll(
+        (n) => typeof n.type === 'string' && n.props?.testID === 'glyph'
+      )
+    ).toHaveLength(1);
+    expect(
+      box.findAll(
+        (n) =>
+          typeof n.type === 'string' &&
+          n.props?.style?.backgroundColor === colors.waiting
+      )
+    ).toHaveLength(1);
     act(() => tree.unmount());
   });
 
