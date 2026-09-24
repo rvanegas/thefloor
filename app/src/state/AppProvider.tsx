@@ -516,7 +516,13 @@ interface AppValue extends AppState {
   inviteLink: () => Promise<string | null>;
   /** Takes back a sent request, by the address it went to. */
   withdrawContact: (identifier: string) => Promise<void>;
-  acceptContact: (contactId: string) => Promise<void>;
+  /**
+   * Answers a contact request, and resolves with the pair channel the
+   * acceptance made — the place the two of you talk, which the server creates
+   * on this route. Null where the server is too old to name it, or where
+   * there is no token; a caller that navigates on this does nothing then.
+   */
+  acceptContact: (contactId: string) => Promise<string | null>;
   declineContact: (contactId: string) => Promise<void>;
   /**
    * Ends an accepted contact. Mutual, and it takes the channels that held only
@@ -2209,10 +2215,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       acceptContact: async (contactId) => {
-        if (!state.token) return;
-        await api.acceptContact(state.token, contactId);
+        if (!state.token) return null;
+        const { channelId } = await api.acceptContact(state.token, contactId);
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
+        // The snapshot is refreshed first, so a caller that navigates on this
+        // opens a channel the list already knows about.
+        return channelId ?? null;
       },
 
       declineContact: async (contactId) => {

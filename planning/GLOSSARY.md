@@ -555,6 +555,13 @@ Somebody you have both agreed to be in touch with. Contacts are mutual;
 becoming one comes with a channel for the pair. A *request* is a contact that
 has been asked for and not yet agreed — outgoing or incoming.
 
+**Accepting a request opens that channel**, since 2026-09-24: the acceptance
+is what creates the place the two of you talk — `ensurePairChannel`, on the
+accept route, which has made it from the first and named it in the reply only
+since that date — so whoever tapped *Accept* is taken there rather than left
+to notice a new row in *Your channels*. It navigates and does not *step in*;
+the microphone is a decision with its own control on the screen it opens.
+
 Being in the same channel as somebody is not being their contact. Channels hold
 people a mutual friend brought in, which is why *inviting* and *pinging* check
 contacts separately from presence.

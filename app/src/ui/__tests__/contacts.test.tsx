@@ -265,6 +265,54 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
+  it('lands you in the channel the acceptance made', async () => {
+    // Becoming contacts is what creates the place the two of you talk, and
+    // until 2026-09-24 nothing said so: the channel appeared in *Your
+    // channels* unannounced. The row goes there now.
+    withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }]);
+    mockApp.acceptContact = jest.fn(async () => 'chan_pair');
+    const onEnterChannel = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onEnterChannel={onEnterChannel}
+        />
+      );
+    });
+    await act(async () => {
+      findButton(tree, 'Accept')!.props.onPress();
+    });
+    expect(onEnterChannel).toHaveBeenCalledWith('chan_pair');
+    act(() => tree.unmount());
+  });
+
+  it('answers without going anywhere when the server names no channel', async () => {
+    // A server that predates the field sends no key, and absent means *do not
+    // move anybody* — the row does exactly what every build did before.
+    withContacts([{ id: 'b', displayName: 'Pat Ito', status: 'incoming' }]);
+    mockApp.acceptContact = jest.fn(async () => null);
+    const onEnterChannel = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onEnterChannel={onEnterChannel}
+        />
+      );
+    });
+    await act(async () => {
+      findButton(tree, 'Accept')!.props.onPress();
+    });
+    expect(mockApp.acceptContact).toHaveBeenCalledWith('b');
+    expect(onEnterChannel).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
   it('withdraws an outgoing request by the address, there being no id', async () => {
     withContacts([
       { id: '', displayName: 'someone@example.com', status: 'outgoing' },

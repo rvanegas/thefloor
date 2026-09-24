@@ -252,7 +252,11 @@ export const mockApp = {
   // this one answer it would be `Promise<null>` and every override a type
   // error.
   inviteLink: jest.fn(async (): Promise<string | null> => null),
-  acceptContact: jest.fn(),
+  // Resolves with the pair channel the acceptance made, the way the provider
+  // does — null here, so the default is a row that answers and goes nowhere.
+  // Typed rather than inferred for `inviteLink`'s reason: a test that hands
+  // back a channel id would otherwise be overriding a `Promise<null>`.
+  acceptContact: jest.fn(async (): Promise<string | null> => null),
   declineContact: jest.fn(),
   withdrawContact: jest.fn(async () => {}),
   startChannel: jest.fn(),

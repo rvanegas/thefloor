@@ -1539,7 +1539,19 @@ export function buildApp(options: BuildOptions = {}): App {
     // The requester asked and has been waiting; this is the answer. Where the
     // request went to an address with no account, the wait has been days.
     tellTheInviter(id, account, pair, 'request');
-    return { ok: true };
+    // **The channel comes back, since 2026-09-24**, so that the client can put
+    // whoever accepted into the place this acceptance just made. It has always
+    // been created here and never named in the reply, which left the app to
+    // find it in the next snapshot by matching participants — a search for
+    // something the server already had in hand.
+    //
+    // Additive, and the safe direction: a client that predates it reads `ok`
+    // and ignores the rest, exactly as every build has. No shim, because
+    // nothing was renamed and nothing removed. Null only where
+    // `ensurePairChannel` refused, which is a pair of one and cannot happen on
+    // this route — the client treats it as *nowhere to go* rather than as an
+    // error, so a server too old to send it simply does not move anybody.
+    return { ok: true, channelId: pair?.channelId ?? null };
   });
 
   fastify.post('/contacts/:id/decline', async (request, reply) => {

@@ -450,11 +450,20 @@ export const api = {
       token,
     }),
 
+  /**
+   * `channelId` is the pair channel this acceptance made or found — the place
+   * the two of you talk, which has always been created here and named in the
+   * reply only since 2026-09-24. Optional, because a server that predates it
+   * sends no such key, and absent means *do not move anybody*.
+   */
   acceptContact: (token: string, contactId: string) =>
-    request<{ ok: true }>(`/contacts/${contactId}/accept`, {
-      method: 'POST',
-      token,
-    }),
+    request<{ ok: true; channelId?: string | null }>(
+      `/contacts/${contactId}/accept`,
+      {
+        method: 'POST',
+        token,
+      }
+    ),
 
   declineContact: (token: string, contactId: string) =>
     request<{ ok: true }>(`/contacts/${contactId}/decline`, {

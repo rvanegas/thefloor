@@ -73,11 +73,12 @@ announcement of any kind: no mark, no bar, no line. The waiting bar does not
 cover it either, since that reads `home.invites` and a pair channel is
 `rejoinable`.
 
-Nothing was built for this. What it would take is either a line for a channel
-you have never opened, or landing somebody in the pair channel at the moment
-they accept — and which of those is right is a question about whether an
-acceptance should move somebody, not about plumbing. Left open deliberately
-rather than guessed at.
+What it would take is either a line for a channel you have never opened, or
+landing somebody in the pair channel at the moment they accept — a question
+about whether an acceptance should move somebody rather than about plumbing,
+so it was put back to the prompt rather than guessed at. **The answer was
+*land them*, and it is
+`2026-09-24-accepting-a-request-opens-the-channel-it-makes.md`.**
 
 ## What it cost elsewhere
 

@@ -180,6 +180,7 @@ export function ContactsView({
                 // and is unique: there cannot be two requests to one address.
                 key={entry.account.id || `sent:${entry.account.displayName}`}
                 entry={entry}
+                onEnterChannel={onEnterChannel}
               />
             ))}
           </View>
@@ -334,7 +335,19 @@ function ContactRow({
  * withholds the id and the name. So this is the one row here that does not
  * open anybody, and it carries its actions on itself instead.
  */
-function RequestRow({ entry }: { entry: Contact }) {
+function RequestRow({
+  entry,
+  onEnterChannel,
+}: {
+  entry: Contact;
+  /**
+   * Where accepting goes, since 2026-09-24: the pair channel the acceptance
+   * makes. Optional, so this row still answers a request where there is
+   * nowhere to be taken — a caller that did not pass one, or a server too old
+   * to name the channel.
+   */
+  onEnterChannel?: (channelId: string) => void;
+}) {
   const app = useApp();
   const t = useText().contacts;
   const { account, status } = entry;
@@ -348,10 +361,32 @@ function RequestRow({ entry }: { entry: Contact }) {
       </View>
       {status === 'incoming' ? (
         <View style={styles.rowActions}>
+          {/*
+            **Accepting lands you in the channel it just made**, since
+            2026-09-24. Becoming contacts is what creates the place the two of
+            you talk — the server does it on this route, and has since Home
+            became a list of channels — and until now nothing said so: the
+            channel appeared in *Your channels* with no mark, no bar and no
+            line, which for somebody's first contact is the whole of what the
+            application does next, announced nowhere. This is the second half
+            of the arrival the waiting bar fixed the first half of.
+
+            It navigates and nothing more. Stepping in claims the phone's
+            audio outright, and that is a decision with a control of its own
+            on the screen this opens — see `enterChannel` in `App.tsx`, which
+            is `setDetail` and no action at all.
+
+            Nowhere to go is not an error: no handler, or a server too old to
+            name the channel, leaves the row doing exactly what it did before.
+          */}
           <Button
             label={t.accept()}
             variant="primary"
-            onPress={() => app.acceptContact(account.id)}
+            onPress={() => {
+              void app.acceptContact(account.id).then((channelId) => {
+                if (channelId) onEnterChannel?.(channelId);
+              });
+            }}
           />
           <Button
             label={t.decline()}

@@ -299,4 +299,56 @@ describe('a contact request accepted', () => {
     // this notification is about the other half of that exchange.
     expect(acceptances('bob-phone')).toEqual([]);
   });
+
+  it('names the pair channel in the reply, so the app can go there', async () => {
+    // The channel has always been made here — becoming contacts is what
+    // creates the place the two of you talk — and was named nowhere, which
+    // left the app to find it in the next snapshot by matching participants.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await request(alice, 'bob@example.com');
+
+    const reply = await accept(bob, alice.account.id);
+    expect(reply.statusCode).toBe(200);
+    const { channelId } = reply.json() as { channelId: string | null };
+    expect(typeof channelId).toBe('string');
+
+    // And it is a channel Bob is actually in, rather than an id: the whole
+    // point is that accepting lands somebody somewhere they may speak.
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(bob.token),
+    });
+    const { rejoinable } = home.json() as {
+      rejoinable: Array<{ channelId: string }>;
+    };
+    expect(rejoinable.map((c) => c.channelId)).toContain(channelId);
+  });
+
+  it('names the same channel when the pair already have one', async () => {
+    // `ensurePairChannel` is idempotent, and a second acceptance must not
+    // mint a second room for the same two people.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await request(alice, 'bob@example.com');
+    const first = (await accept(bob, alice.account.id)).json() as {
+      channelId: string;
+    };
+
+    await request(alice, 'bob@example.com');
+    const again = await accept(bob, alice.account.id);
+    // Already contacts, so there is no pending request to answer — what
+    // matters is that nothing here invented a second channel.
+    const home = await app.fastify.inject({
+      method: 'GET',
+      url: '/home',
+      headers: auth(bob.token),
+    });
+    const { rejoinable } = home.json() as {
+      rejoinable: Array<{ channelId: string }>;
+    };
+    expect(rejoinable.map((c) => c.channelId)).toEqual([first.channelId]);
+    expect([200, 400]).toContain(again.statusCode);
+  });
 });
