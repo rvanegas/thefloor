@@ -3726,8 +3726,9 @@ are settled:
     Recordings            Grabaciones
     Watch                 Ver
     Podcasts              Podcasts
-    Support (the tab)     Ayuda y apoyo
+    Support (the tab)     Ayuda
     Help                  Ayuda
+    Leaderboard           Invitaciones
     Chip in               Contribuir
     Floor Settings        Ajustes de The Floor
     Language              Idioma — the two languages are named in themselves in
@@ -3757,7 +3758,7 @@ are settled:
     Display name          Nombre visible
     Getting started       Primeros pasos
 
-**Four of these are choices rather than translations**, and are the ones to
+**Five of these are choices rather than translations**, and are the ones to
 argue with rather than change quietly:
 
 - **The floor → *la palabra***, and *Claim* → *Pedir*. The literal *el suelo*
@@ -3771,6 +3772,22 @@ argue with rather than change quietly:
 - **Watch party → a phrase.** Spanish has no settled noun for it, and the
   invented ones read as marketing. Every place the English uses the noun, the
   Spanish says what happens: *ver algo juntos*.
-- **Support → *Ayuda y apoyo***. The tab is two things in English under one
-  word — questions answered, and money — and Spanish has no word that is both.
-  *Ayuda* alone would collide with the *Help* card inside it.
+- **Support → *Ayuda***. Settled 2026-09-24. The tab is two things in English
+  under one word — questions answered, and money — and Spanish has no word
+  that is both. It also holds four cards, each of which pushes a screen, so
+  whatever single word it takes repeats one of its own destinations: *Ayuda*
+  repeats the Help card, *Apoyo* repeats the heading on `SupportView` one tap
+  inside. It was *Ayuda y apoyo* until then, which repeated neither and cost
+  fourteen characters in a four-item bar. The collision is the cheaper price,
+  and *Ayuda* is the sense somebody opens the tab looking for; *Apoyo* leads
+  with the money, which is the one card there that nobody arrives needing.
+- **Leaderboard → *Invitaciones***. Settled the same day, and not the same
+  problem: *Clasificación* named the button correctly — it is standings — and
+  named nothing the user then saw, the screen it opens being headed
+  *Invitaciones*. The button now says where it goes. *Puntaje* was tried and is
+  the reading to avoid: it is a score, a number attached to you, and this
+  screen ranks other people. The cost is that *Invitaciones* is now two things,
+  this and the People tab's group of guest seats nobody has taken up —
+  tolerable only because the two never appear on one screen, that group being
+  inside a channel and this being Home. If either moves, this is the pair that
+  breaks.

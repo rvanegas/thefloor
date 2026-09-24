@@ -308,7 +308,7 @@ export const es: Strings = {
     chipIn: () => 'Contribuir',
     whatItCosts: () =>
       'La m\u00e1quina en la que funciona, el audio que lleva una conversaci\u00f3n y el almacenamiento de tus grabaciones cuestan dinero cada mes.',
-    leaderboard: () => 'Puntaje',
+    leaderboard: () => 'Invitaciones',
     leaderboardWhy: () =>
       'Qui\u00e9n ha tra\u00eddo a m\u00e1s gente a The Floor. Est\u00e1 aqu\u00ed porque se activ\u00f3 para tu cuenta.',
     audioLab: () => 'Laboratorio de audio',
@@ -327,7 +327,7 @@ export const es: Strings = {
     requestsWaiting: () => 'solicitudes pendientes',
     channels: () => 'Canales',
     podcasts: () => 'Podcasts',
-    support: () => 'Apoyo',
+    support: () => 'Ayuda',
     filmOnAnotherDevice: () => 'La pel\u00edcula est\u00e1 en otro dispositivo',
     tapToWatchHere: () => 'toca para verla aqu\u00ed',
     contactRequestWaiting: (name: string) => `${name} quiere ser tu contacto`,
@@ -655,7 +655,7 @@ export const es: Strings = {
     showEveryDab: () => 'Mostrar todas las marcas',
     stopShowingEveryDab: () => 'Dejar de mostrar todas las marcas',
     dabsNote: () =>
-      'Pone una marca en las dos pesta\u00f1as del inicio que pueden llevarla, y en la tarjeta de Ayuda detr\u00e1s de Ayuda y apoyo, haya o no algo esperando, para poder mirar la marca en s\u00ed. No cambia nada m\u00e1s, y se apaga la pr\u00f3xima vez que arranque la app.',
+      'Pone una marca en las dos pesta\u00f1as del inicio que pueden llevarla, y en la tarjeta de Ayuda dentro de la pesta\u00f1a del mismo nombre, haya o no algo esperando, para poder mirar la marca en s\u00ed. No cambia nada m\u00e1s, y se apaga la pr\u00f3xima vez que arranque la app.',
     language: () => 'Idioma',
     /** The names are in their own language; see the English catalogue. */
     english: () => 'English',
