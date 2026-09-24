@@ -35,7 +35,10 @@ const {
  * is written and not copied into the bundle — the failure that looks exactly
  * like the plugin not having run. Expo's `addResourceFileToGroup` is what puts
  * it there; the `xcode` package's own `addResourceFile` is not, having no
- * build phase to attach it to and throwing rather than saying so.
+ * build phase to attach it to and throwing rather than saying so. What it
+ * throws is `Cannot read properties of null (reading 'path')`, from
+ * `correctForResourcesPath`, which names neither this plugin nor the file —
+ * it was called here once and cost a prebuild in the middle of an upload.
  *
  * The English is the value in `app.json` and is not repeated here, for the
  * reason every other duplicated string in this project is not repeated: the
@@ -70,13 +73,15 @@ module.exports = function withLocalizations(config) {
   return withXcodeProject(config, (xcode) => {
     const root = xcode.modRequest.platformProjectRoot;
     const name = xcode.modRequest.projectName;
-    const project = xcode.modResults;
-    // The group the app's own resources are in, which is the one the build
-    // phase already copies.
-    const group = project.findPBXGroupKey({ name });
+    // Beside `Expo.plist` rather than beside `AppDelegate.swift`, because the
+    // `Supporting` group is the one with a `path` of its own: a file reference
+    // added under it resolves against `<project>/Supporting`, which is where
+    // the file actually is. The app's own group carries no path, so the same
+    // reference hung there points at `ios/` and the build copies nothing.
+    const supporting = path.join(root, name, 'Supporting');
 
     for (const [language, strings] of Object.entries(TRANSLATIONS)) {
-      const dir = path.join(root, name, `${language}.lproj`);
+      const dir = path.join(supporting, `${language}.lproj`);
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(
         path.join(dir, 'InfoPlist.strings'),
@@ -90,16 +95,31 @@ module.exports = function withLocalizations(config) {
             .join(''),
         'utf8'
       );
-      const at = `${language}.lproj/InfoPlist.strings`;
+      // One group per `.lproj`, which is how Xcode itself models a localised
+      // resource and what `addResourceFileToGroup` expects to be handed.
+      const groupName = `${name}/Supporting/${language}.lproj`;
+      const group = IOSConfig.XcodeUtils.ensureGroupRecursively(
+        xcode.modResults,
+        groupName
+      );
       // Idempotent: prebuild runs this against a tree that may already have
-      // it, and a second entry is a duplicate-resource build warning.
-      const already = project
-        .pbxFileReferenceSection();
-      const listed = Object.values(already).some(
-        (entry) => entry && entry.path && String(entry.path).includes(at)
+      // it, and a second entry is a duplicate-resource build warning. Every
+      // language's file is called `InfoPlist.strings`, so the test has to be
+      // per-group — a search of the whole project finds the first language's
+      // and silently skips the rest.
+      const listed = (group?.children ?? []).some(
+        (child) => child.comment === 'InfoPlist.strings'
       );
       if (!listed) {
-        project.addResourceFile(at, { target: project.getFirstTarget().uuid }, group);
+        xcode.modResults = IOSConfig.XcodeUtils.addResourceFileToGroup({
+          filepath: `${language}.lproj/InfoPlist.strings`,
+          groupName,
+          project: xcode.modResults,
+          // Without this the reference exists and no build phase copies it,
+          // which is the failure that looks exactly like the plugin not
+          // having run.
+          isBuildFile: true,
+        });
       }
     }
     return xcode;
