@@ -1319,4 +1319,22 @@ export const en = {
     microphoneMuted: () => 'Your microphone is muted',
     microphoneOpen: () => 'Your microphone is open',
   },
+  /**
+   * The three sentences the provider produces. They are errors rather than
+   * copy, but they reach a screen — `lastError` is drawn on the sign-in
+   * screen, and an `ApiError`'s message is what a catch block puts in front
+   * of somebody — so they are messages like any other.
+   */
+  provider: {
+    couldNotAcceptInvitation: () => 'Could not accept the invitation.',
+    signedOut: () =>
+      'You were signed out. Sign in again with a fresh code by email.',
+    /**
+     * The guard on every call that needs a token. It should be unreachable —
+     * no token means the sign-in screen rather than this screen — and it is
+     * worded for the person who reaches it anyway rather than for whoever
+     * wrote the call.
+     */
+    notSignedIn: () => 'Not signed in.',
+  },
 };

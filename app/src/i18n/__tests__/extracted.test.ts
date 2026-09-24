@@ -25,8 +25,16 @@ import { stringsFor } from '../index';
  * it is neither quoted nor a sentence, and both halves of that had to be
  * fixed rather than one.
  */
-const UI = join(__dirname, '..', '..', 'ui');
-const WATCH = join(__dirname, '..', '..', 'watch');
+const APP = join(__dirname, '..', '..', '..');
+const UI = join(APP, 'src', 'ui');
+const WATCH = join(APP, 'src', 'watch');
+/**
+ * **`state/` is in scope too, and it is not a view.** `AppProvider` produces
+ * three sentences that reach a screen — `lastError` is drawn on the sign-in
+ * screen — and `introduction.ts` holds the whole activation ladder. Where a
+ * module says words is not the same question as whether it renders them.
+ */
+const STATE = join(APP, 'src', 'state');
 
 /**
  * **The two developer screens, by name.** They are instruments, read by
@@ -36,7 +44,18 @@ const WATCH = join(__dirname, '..', '..', 'watch');
  * oversight — see the head of `en.ts`, which says the same thing from the
  * other side.
  */
-const NOT_TRANSLATED = ['AudioLabView.tsx', 'AudioDebugPanel.tsx'];
+const NOT_TRANSLATED = [
+  'AudioLabView.tsx',
+  'AudioDebugPanel.tsx',
+  /**
+   * **The Android notification channels, by name.** They are user-facing —
+   * they appear in Android's own settings — but `ensureChannels` runs at
+   * registration, outside any React tree, with no provider above it, and
+   * Android is not a platform this app is released on. The honest fix when it
+   * is one is `strings.xml` per locale; see the comment in the file.
+   */
+  'push.ts',
+];
 
 /**
  * Prose, as a machine can recognise it: quoted, opening with a capital and a
@@ -113,6 +132,8 @@ describe('the words stay in the catalogue', () => {
   const files = [
     ...sourcesIn(UI).map((f) => join(UI, f)),
     ...sourcesIn(WATCH).map((f) => join(WATCH, f)),
+    ...sourcesIn(STATE).map((f) => join(STATE, f)),
+    join(APP, 'App.tsx'),
   ];
 
   it('has screens to check', () => {

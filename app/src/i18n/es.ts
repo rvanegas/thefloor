@@ -1161,4 +1161,10 @@ export const es: Strings = {
     microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
     microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
   },
+  provider: {
+    couldNotAcceptInvitation: () => 'No se ha podido aceptar la invitaci\u00f3n.',
+    signedOut: () =>
+      'Se ha cerrado tu sesi\u00f3n. Vuelve a entrar con un c\u00f3digo nuevo por correo.',
+    notSignedIn: () => 'Sin sesi\u00f3n iniciada.',
+  },
 };

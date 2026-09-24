@@ -3096,23 +3096,20 @@ export function ChannelView({
             nor anybody in the room, is what broke that: the seam the name was
             papering over now has four sides to it.
 
-            **The Spanish is written down here because the words were chosen
-            for it.** *Members* beat *Roster* on 2026-09-14 partly because it
+            **These four were chosen against Spanish as well as against each
+            other.** *Members* beat *Roster* on 2026-09-14 partly because it
             translates and *roster* does not, and that reason reached none of
-            the three places the rename was written up. These four were picked
-            the same way, and one of them was picked *around* a collision:
+            the three places the rename was written up. One of the four was
+            picked *around* a collision: *invitado* is both *guest* and
+            *invited*, so the pending-seat group is named with the noun rather
+            than the participle — *Invitations* rather than *Invited as
+            guests*, which renders as *invitados como invitados*.
 
-              Members       Miembros
-              At the door   En la puerta
-              Guests        Invitados
-              Invitations   Invitaciones
-
-            *Invitado* is both *guest* and *invited*, so the pending-seat group
-            is named with the noun rather than the participle — *Invitations*
-            rather than *Invited as guests*, which renders as *invitados como
-            invitados*. See planning/tasks/internationalization.md; the
-            extraction into functions has not happened yet, so these are still
-            literals and this comment is where the second language lives.
+            **The Spanish itself is no longer written here**, as of
+            2026-09-23: these are catalogue messages now, and
+            planning/GLOSSARY.md § *Part Three* is where the vocabulary is
+            settled. What this comment keeps is why the English words are the
+            words, which is the half a reader of this file needs.
 
             **A label per group, drawn only when the group has somebody in
             it** — except *Members*, which always does and which now carries

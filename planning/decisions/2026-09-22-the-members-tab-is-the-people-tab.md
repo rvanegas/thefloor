@@ -34,7 +34,7 @@ app said in exactly one place a user could see.
 
 **The reason it was actually chosen for was translation.** *Members* has an
 easy equivalent in other languages and *roster* does not, and
-`planning/tasks/internationalization.md` — "First replace all text with
+`planning/tasks/internationalization.md`, done on 2026-09-23 — "First replace all text with
 functions. Then Spanish." — makes that a live constraint on naming rather than
 a someday concern. None of the three write-ups mentions it, so a session
 re-opening the question argues it from the two weaker reasons and reaches the
@@ -75,7 +75,9 @@ are three English distinctions and one Spanish word. This file settles the
 third. The second — `ChannelView.tsx`'s `Invited` status line — is
 pre-existing, is not made worse by any of this, and belongs to whoever does the
 extraction, when the whole vocabulary is read against one target language at
-once. An entry is in the internationalization task.
+once. An entry was in the internationalization task, which was done on 2026-09-23 —
+`2026-09-23-every-word-the-app-says-is-a-function.md` settles it as
+*Sin entrar*, naming the absence rather than the invitation.
 
 ## What was deliberately not done
 

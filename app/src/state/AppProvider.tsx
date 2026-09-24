@@ -58,6 +58,7 @@ import {
   type ColorSchemePreference,
 } from '../ui/appearance';
 import { takeInvite } from '../ui/handover';
+import { useText } from '../i18n';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
   type AccountSettings,
@@ -1003,6 +1004,7 @@ export function useApp(): AppValue {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const words = useText().provider;
   const [notificationTap, setNotificationTap] = useState<{
     channelId: string | null;
   } | null>(null);
@@ -1534,7 +1536,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastError:
             error instanceof ApiError
               ? error.message
-              : 'Could not accept the invitation.',
+              : words.couldNotAcceptInvitation(),
         }));
       });
     return () => {
@@ -1815,7 +1817,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         status: 'closed',
         offline: false,
         lastError:
-          'You were signed out. Sign in again with a fresh code by email.',
+          words.signedOut(),
       });
     });
     return () => onSignedOut(null);
@@ -2127,7 +2129,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       signOutOthers: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         // This device's own address is named so it survives — see the note on
         // `api.signOutOthers`. Nothing local changes: this session is exactly
         // the one being kept.
@@ -2149,7 +2151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
        * answered.
        */
       deleteAccount: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.deleteAccount(state.token);
         deviceToken.current = null;
         realtime.disconnect();
@@ -2182,7 +2184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       requestContact: async (identifier) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const result = await api.requestContact(state.token, identifier);
         const home = await api.home(state.token);
         setState((s) => ({ ...s, home }));
@@ -2194,7 +2196,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // opens it, and that arrives on the pushed snapshot like any other
       // contact.
       inviteLink: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const { url } = await api.inviteLink(state.token);
         return url;
       },
@@ -2228,17 +2230,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       setEmailShown: async (contactId, shown) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.setEmailShown(state.token, contactId, shown);
       },
 
       loadProfile: async (accountId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.profile(state.token, accountId);
       },
 
       ping: async (channelId, targetId, text) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         // Empty means no words rather than an empty sentence, and the server
         // reads it the same way — a ping with nothing in it still says
         // somebody is asking.
@@ -2256,40 +2258,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
        * stale the moment somebody gave.
        */
       loadSupport: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.support(state.token);
       },
 
       loadHelp: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.help(state.token);
       },
 
       askHelp: async (text) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const { question } = await api.askHelp(state.token, text);
         return question;
       },
 
       loadLeaderboard: async () => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const { entries } = await api.leaderboard(state.token);
         return entries;
       },
 
       inviteGuest: async (channelId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const link = await api.mintGuestLink(state.token, channelId);
         return link.url;
       },
 
       askInAsGuest: async (channelId, contactId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.inviteGuestContact(state.token, channelId, contactId);
       },
 
       enterSeat: async (channelId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         /*
           **A seat is a room, so it takes this device's standing.** Walking
           into one is walking into a conversation, and a phone holding two at
@@ -2321,18 +2323,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       withdrawGuestInvite: async (channelId, guestId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.revokeGuestInvite(state.token, channelId, guestId);
       },
 
       guestLinks: async (channelId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const { links } = await api.guestLinks(state.token, channelId);
         return links;
       },
 
       setNotificationLevel: async (channelId, level) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const result = await api.setNotificationLevel(
           state.token,
           channelId,
@@ -2342,12 +2344,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       revokeGuestLink: async (channelId, linkToken) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.revokeGuestLink(state.token, channelId, linkToken);
       },
 
       setChannelPublic: async (channelId, isPublic) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const result = await api.setChannelPublic(
           state.token,
           channelId,
@@ -2357,21 +2359,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       acknowledgeChannelPublic: async (channelId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.acknowledgeChannelPublic(state.token, channelId);
         // Nothing locally: the server announces the channel, and the snapshot
         // comes back with the card's flag cleared.
       },
 
       setChannelDeclarations: async (channelId, declarations) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.setChannelDeclarations(state.token, channelId, declarations);
         // Nothing locally: the server announces the channel, and the
         // snapshot carries these back.
       },
 
       setPublishConsent: async (recordingId, agreed) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         // Nothing is returned to the caller. The server announces the channel
         // on both paths, so the card's own state arrives on the next snapshot
         // — which is also what keeps every member's card in step rather than
@@ -2381,7 +2383,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       connectWith: async (accountId) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const result = await api.requestContactById(state.token, accountId);
         // Home is where the request shows up, on both sides.
         const home = await api.home(state.token);
@@ -2390,7 +2392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       saveProfile: async (changes) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const profile = await api.saveProfile(state.token, changes);
         // `me` is what every screen compares against to decide what is yours,
         // so a rename has to land here rather than waiting for a reconnect.
@@ -2398,7 +2400,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       requestEmailChange: async (identifier) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.requestEmailChange(state.token, identifier);
       },
 
@@ -2410,12 +2412,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
        * and changes nothing globally.
        */
       confirmEmailChange: async (identifier, code) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.confirmEmailChange(state.token, identifier, code);
       },
 
       startChannel: async (contactIds) => {
-        if (!state.token) throw new ApiError('Not signed in.', 401);
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const { channelId } = await api.startChannel(state.token, contactIds);
         realtime.watchChannel(channelId);
         // Creating a channel is entering it — the server puts the initiator in

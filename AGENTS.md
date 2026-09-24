@@ -102,12 +102,12 @@ are load-bearing. It carries the rule that the audio session is configured from
 whether **anybody** present is capturing rather than whether you are.
 
 **`planning/GLOSSARY.md`** is the fourth, and is **the source of truth for the
-vocabulary**: what every word this project uses means, in two parts — words a
-user meets, and words that exist only in the code. Where a name in the code and
-an entry there disagree, one of them is a bug. Most of these nouns are ordinary
-English used narrowly — *present*, *live*, *member*, *seat* — and reading one
-the way English suggests is how somebody builds the adjacent thing, twice so
-far.
+vocabulary**: what every word means, in three parts — words a user meets,
+words that exist only in the code, and the same words in Spanish. Where a name
+in the code and an entry there disagree, one of them is a bug. These nouns are
+mostly ordinary English used narrowly — *present*, *live*, *member*, *seat* —
+and reading one the way English suggests is how somebody builds the adjacent
+thing, twice so far.
 
 **This one is worth reading routinely, and since 2026-09-07 it is cheap to.**
 Its § *Every term, in one line each* is the whole vocabulary, ninety terms
