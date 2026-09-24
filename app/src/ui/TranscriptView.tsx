@@ -256,9 +256,7 @@ export function TranscriptView({
         question nobody had asked.
       */}
       {deletable && !naming && !manageable ? (
-        <Text style={type.muted}>
-          Step in to delete this. It leaves everybody's screen at once.
-        </Text>
+        <Text style={type.muted}>{t.stepInToDelete()}</Text>
       ) : null}
       </View>
     </View>

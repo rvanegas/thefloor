@@ -17,6 +17,13 @@ import { stringsFor } from '../index';
  * writes an action type, a style token and a URL; what it must not write any
  * more is a sentence, and the difference a machine can see is a capital
  * letter, a lower-case word and a space.
+ *
+ * **Two searches, because prose arrives in two shapes**, and the first pass of
+ * this test only had the first: a quoted literal, and a JSX text node, which
+ * carries no quotes at all. `<SectionLabel>Members</SectionLabel>` survived an
+ * entire extraction of `ChannelView.tsx` unnoticed for exactly that reason —
+ * it is neither quoted nor a sentence, and both halves of that had to be
+ * fixed rather than one.
  */
 const UI = join(__dirname, '..', '..', 'ui');
 const WATCH = join(__dirname, '..', '..', 'watch');
@@ -39,7 +46,44 @@ const NOT_TRANSLATED = ['AudioLabView.tsx', 'AudioDebugPanel.tsx'];
  * into a view, and every way of making it cleverer is a way of making it
  * quieter.
  */
-const PROSE = /(['"])([A-Z][a-z]+(?: +[^'"\\\n]+)+)\1/g;
+const QUOTED = /(['"])([A-Z][a-z]+(?: +[^'"\\\n]+)+)\1/g;
+
+/**
+ * Text between tags: what a view writes when it puts words on the screen
+ * without quoting them.
+ *
+ * **A single capitalised word counts here where it does not in a quoted
+ * literal**, and the asymmetry is the point: `'Members'` in code is as likely
+ * to be a key or an enum as a label, while `>Members<` in a tree is on
+ * somebody's screen.
+ *
+ * **It ends at a closing tag, `</`, and that is what tells it from a
+ * generic.** TypeScript is full of `>` followed by an identifier followed by
+ * `<` — `) => Promise<void>` above a line opening another type — and every
+ * one of those was a false positive until the closing slash was required.
+ * What it gives up is text with an element inside it, `Hello <b>you</b>`,
+ * which this app does not write: its emphasis is a nested `Text` with the
+ * words in the catalogue on both sides of it.
+ */
+const JSX_TEXT = />([^<>{}]*[A-Za-z][^<>{}]*)<\//g;
+
+/** Characters no rendered label contains and every fragment of code does. */
+const CODE = new Set('=;()[]|&');
+
+function proseIn(source: string): string[] {
+  const found = [...source.matchAll(QUOTED)].map((m) => m[2]);
+  for (const match of source.matchAll(JSX_TEXT)) {
+    const text = match[1].split(/\s+/).filter(Boolean).join(' ');
+    if (!text) continue;
+    if ([...text].some((c) => CODE.has(c))) continue;
+    if (!/^[A-Za-z]/.test(text)) continue;
+    // A bare lower-case word is a prop value or a type, never a label: the
+    // labels this app writes are sentences or they are capitalised.
+    if (/^[a-z]+$/.test(text)) continue;
+    found.push(text);
+  }
+  return found;
+}
 
 /** Everything that is not a comment, which is where most of this project's prose is. */
 function code(contents: string): string {
@@ -78,10 +122,7 @@ describe('the words stay in the catalogue', () => {
   it.each(files.map((f) => [f.slice(f.lastIndexOf('/') + 1), f]))(
     '%s writes no sentence of its own',
     (_name, path) => {
-      const found = [...code(readFileSync(path, 'utf8')).matchAll(PROSE)].map(
-        (m) => m[2]
-      );
-      expect(found).toEqual([]);
+      expect(proseIn(code(readFileSync(path, 'utf8')))).toEqual([]);
     }
   );
 });
@@ -116,10 +157,9 @@ describe('the two languages', () => {
       'panes.brand',
       'shared.labelWithBadge',
       'channel.knockLead',
+      'channel.audio',
       'channel.no',
       'home.podcasts',
-      'naming.pair',
-      'naming.andOthers',
       'transcript.data',
     ]);
     const differences: string[] = [];

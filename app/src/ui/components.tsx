@@ -1576,10 +1576,7 @@ function PublishControl({ recording }: { recording: RecordingView }) {
   // guest who was signed in is asked like anybody else. See `blockedByGuest`.
   if (publication.blockedByGuest) {
     return (
-      <Text style={type.muted}>
-        Somebody spoke here as a guest without an account, so this one cannot
-        be published — there is nobody to ask.
-      </Text>
+      <Text style={type.muted}>{t.guestWithNoAccount()}</Text>
     );
   }
 

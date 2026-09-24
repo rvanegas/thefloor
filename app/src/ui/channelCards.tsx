@@ -1028,9 +1028,7 @@ export function InviteList({
 
   if (invitable.length === 0) {
     return (
-      <Text style={type.muted}>
-        Every contact you could invite is already in this channel.
-      </Text>
+      <Text style={type.muted}>{t.everyContactAlreadyIn()}</Text>
     );
   }
   return (
@@ -1072,7 +1070,7 @@ export function InviteList({
                 {entry.account.displayName}
               </Text>
               {seated.has(entry.account.id) ? (
-                <Text style={type.muted}>In the room as a guest</Text>
+                <Text style={type.muted}>{t.inTheRoomAsAGuest()}</Text>
               ) : state === 'asked' ? (
                 // **The row goes quiet rather than offering the same mark
                 // again.** A second tap is refused by the server — they have
@@ -1081,9 +1079,9 @@ export function InviteList({
                 // outstanding is one question about one room, and asking the
                 // larger one on top of it is a thing to do from the roster
                 // once they are in.
-                <Text style={type.muted}>Asked in as a guest</Text>
+                <Text style={type.muted}>{t.askedInAsAGuest()}</Text>
               ) : state === 'asking' ? (
-                <Text style={type.muted}>Asking…</Text>
+                <Text style={type.muted}>{t.asking()}</Text>
               ) : null}
             </View>
             {!quiet && open === entry.account.id ? (

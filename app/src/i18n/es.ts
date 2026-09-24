@@ -275,6 +275,10 @@ export const es: Strings = {
       `${title}. ${line ? `${line}. ` : ''}${
         steppedIn ? 'Has entrado y salido. ' : ''
       }${asGuest ? 'Abrir como invitado.' : 'Abrir.'}`,
+    live: () => 'En marcha',
+    invitations: () => 'Invitaciones',
+    loading: () => 'Cargando\u2026',
+    yourChannels: () => 'Tus canales',
   },
   home: {
     settings: () => 'Ajustes',
@@ -324,6 +328,8 @@ export const es: Strings = {
     channels: () => 'Canales',
     podcasts: () => 'Podcasts',
     support: () => 'Ayuda y apoyo',
+    filmOnAnotherDevice: () => 'La pel\u00edcula est\u00e1 en otro dispositivo',
+    tapToWatchHere: () => 'toca para verla aqu\u00ed',
   },
   channelCards: {
     guestSuffix: () => ' · invitado',
@@ -413,6 +419,11 @@ export const es: Strings = {
     microphoneSilentLead: () => 'No llega nada de tu micr\u00f3fono.',
     microphoneSilentRest: () =>
       ' Si has estado hablando, nadie te oye: es lo que suele pasar en iOS con el navegador integrado de una app. Abre esto en Safari o Chrome; salir y volver a entrar repite la medici\u00f3n.',
+    everyContactAlreadyIn: () =>
+      'Todos los contactos que podr\u00edas invitar ya est\u00e1n en este canal.',
+    inTheRoomAsAGuest: () => 'En la sala como invitado',
+    askedInAsAGuest: () => 'Invitado como invitado',
+    asking: () => 'Pidiendo\u2026',
   },
   seat: {
     micListening: () => 'Est\u00e1s escuchando. Nadie puede o\u00edrte.',
@@ -420,7 +431,7 @@ export const es: Strings = {
     micRefused: () => 'Por ahora te han dicho que no al micr\u00f3fono.',
     micOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto y el canal puede o\u00edrte.',
     micMuted: () => 'Tu micr\u00f3fono est\u00e1 abierto, y te has silenciado.',
-    unmute: () => 'Quitar silencio',
+    unmute: () => 'No silenciar',
     mute: () => 'Silenciar',
     stepOut: () => 'Salir',
     beingRecorded: () => 'Esta conversaci\u00f3n se est\u00e1 grabando.',
@@ -448,6 +459,7 @@ export const es: Strings = {
       'C\u00f3mo te llama la sala mientras est\u00e1s en ella. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',
     yourName: () => 'Tu nombre',
     backToHome: () => 'Volver al inicio',
+    headerKind: () => 'Invitado',
   },
   transcript: {
     title: () => 'Transcripci\u00f3n',
@@ -500,6 +512,8 @@ export const es: Strings = {
     removeFromTranscript: () => 'Quitar de la transcripci\u00f3n',
     jumpTo: (at: string, name: string, text: string) =>
       `Saltar a ${at}, ${name}: ${text}`,
+    stepInToDelete: () =>
+      'Entra para borrar esto. Desaparece de la pantalla de todos a la vez.',
   },
   introduction: {
     somebodyLabel: () => 'Trae a alguien aqu\u00ed',
@@ -551,6 +565,7 @@ export const es: Strings = {
       note: string
     ) => `${done ? 'Hecho' : 'Sin hacer'}: ${label}. ${instruction} ${note}`,
     dismiss: (label: string) => `Descartar ${label}`,
+    title: () => 'Primeros pasos',
   },
   install: {
     fromHere: () =>
@@ -853,6 +868,7 @@ export const es: Strings = {
     addContact: () => 'A\u00f1adir a contactos',
     theyWillDecide: () =>
       'Ver\u00e1 una solicitud en su pantalla de inicio y decidir\u00e1.',
+    theirMicrophone: () => 'Su micr\u00f3fono',
   },
   channel: {
     uploading: () => 'Subiendo\u2026',
@@ -900,8 +916,8 @@ export const es: Strings = {
     rungOutHintPresent: () => 'Salir de la conversaci\u00f3n',
     rungOutHintNearby: () => 'Dejar de estar localizable aqu\u00ed',
     rungOutHint: () => 'No est\u00e1s en este canal',
-    unmute: () => 'Hablar',
-    mute: () => 'Silencio',
+    unmute: () => 'No silenciar',
+    mute: () => 'Silenciar',
     noMicrophone: () => 'Este dispositivo no tiene micr\u00f3fono',
     microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
     microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
@@ -995,7 +1011,7 @@ export const es: Strings = {
     stop: () => 'Parar',
     floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',
     stepInToPlayShort: () => 'entra para reproducir',
-    unmuteTheRoom: () => 'Quitar el silencio de la sala',
+    unmuteTheRoom: () => 'No silenciar la sala',
     muteTheRoom: () => 'Silenciar la sala',
     unmuteTheRoomSub: () =>
       'Todos pueden hablar otra vez; tu propio silencio no cambia',
@@ -1056,6 +1072,17 @@ export const es: Strings = {
     linkWouldNotCopy: () => 'El enlace no se ha podido copiar. Int\u00e9ntalo otra vez.',
     stepInToMakeALink: () =>
       'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
+    headerKindChannel: () => 'Canal',
+    headerKindWatching: () => 'Viendo',
+    members: () => 'Miembros',
+    partyMuted: () =>
+      'Sala en silencio: no se oye a nadie mientras va el v\u00eddeo.',
+    audio: () => 'Audio',
+    audioDiagnostics: () => 'Diagn\u00f3stico de audio',
+    sharedClipboard: () => 'Portapapeles compartido',
+    notepad: () => 'Notas',
+    recordings: () => 'Grabaciones',
+    nothingRecordedYet: () => 'Aqu\u00ed todav\u00eda no hay nada grabado.',
   },
   recordings: {
     rowLabel: (name: string, length: string, open: boolean) =>
@@ -1119,6 +1146,8 @@ export const es: Strings = {
     preparing: () => 'Preparando\u2026',
     share: () => 'Compartir',
     couldNotShare: () => 'No se ha podido compartir',
+    guestWithNoAccount: () =>
+      'Aqu\u00ed habl\u00f3 alguien como invitado sin cuenta, as\u00ed que esta no se puede publicar: no hay a qui\u00e9n pregunt\u00e1rselo.',
   },
   links: {
     couldNotOpenLink: () => 'No se ha podido abrir el enlace',
@@ -1127,7 +1156,7 @@ export const es: Strings = {
     frameTitle: () => 'Conversaciones publicadas',
   },
   lockScreen: {
-    unmute: () => 'Quitar el silencio',
+    unmute: () => 'No silenciar',
     mute: () => 'Silenciar',
     microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
     microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',

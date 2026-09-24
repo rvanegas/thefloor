@@ -1158,7 +1158,7 @@ export function ProfileView({
       */}
       {mic && onSetMute ? (
         <>
-          <SectionLabel>Their microphone</SectionLabel>
+          <SectionLabel>{t.theirMicrophone()}</SectionLabel>
           <Card style={styles.stack}>
             {/*
               One button and one direction. There is no Unmute here and there

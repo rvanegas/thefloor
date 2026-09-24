@@ -358,6 +358,10 @@ export const en = {
       `${title}. ${line ? `${line}. ` : ''}${
         steppedIn ? 'Stepped in and out. ' : ''
       }${asGuest ? 'Open as a guest.' : 'Open.'}`,
+    live: () => 'Live',
+    invitations: () => 'Invitations',
+    loading: () => 'Loading\u2026',
+    yourChannels: () => 'Your channels',
   },
   home: {
     settings: () => 'Settings',
@@ -419,6 +423,8 @@ export const en = {
     channels: () => 'Channels',
     podcasts: () => 'Podcasts',
     support: () => 'Support',
+    filmOnAnotherDevice: () => 'The film is on another device',
+    tapToWatchHere: () => 'tap to watch here',
   },
   channelCards: {
     guestSuffix: () => ' · guest',
@@ -519,6 +525,11 @@ export const en = {
     microphoneSilentLead: () => 'Nothing is coming from your microphone.',
     microphoneSilentRest: () =>
       ' If you have been talking, nobody is hearing it — which is what an app\u2019s built-in browser usually does on iOS. Open this in Safari or Chrome instead; stepping out and back in takes the reading again.',
+    everyContactAlreadyIn: () =>
+      'Every contact you could invite is already in this channel.',
+    inTheRoomAsAGuest: () => 'In the room as a guest',
+    askedInAsAGuest: () => 'Asked in as a guest',
+    asking: () => 'Asking\u2026',
   },
   seat: {
     /**
@@ -569,6 +580,7 @@ export const en = {
       'What the room calls you while you are in it. It is this conversation only, and nothing about your account.',
     yourName: () => 'Your name',
     backToHome: () => 'Back to Home',
+    headerKind: () => 'Guest',
   },
   transcript: {
     title: () => 'Transcript',
@@ -622,6 +634,8 @@ export const en = {
     /** `at` is already formatted — see `formatDuration`. */
     jumpTo: (at: string, name: string, text: string) =>
       `Jump to ${at}, ${name}: ${text}`,
+    stepInToDelete: () =>
+      "Step in to delete this. It leaves everybody's screen at once.",
   },
   /**
    * The checklist on Home: seven rungs, each a label, an instruction and a
@@ -679,6 +693,7 @@ export const en = {
       note: string
     ) => `${done ? 'Done' : 'Not done'}: ${label}. ${instruction} ${note}`,
     dismiss: (label: string) => `Dismiss ${label}`,
+    title: () => 'Getting started',
   },
   /** How to install, in each browser's own words — see `state/install.ts`. */
   install: {
@@ -1007,6 +1022,7 @@ export const en = {
     addContact: () => 'Add contact',
     theyWillDecide: () =>
       'They will see a request on their home screen and decide.',
+    theirMicrophone: () => 'Their microphone',
   },
   channel: {
     uploading: () => 'Uploading\u2026',
@@ -1209,6 +1225,16 @@ export const en = {
     linkWouldNotCopy: () => 'The link would not copy. Try again.',
     stepInToMakeALink: () =>
       'Step in to make a link. Who can get into a conversation is for the people having it.',
+    headerKindChannel: () => 'Channel',
+    headerKindWatching: () => 'Watching',
+    members: () => 'Members',
+    partyMuted: () => 'Party-muted — nobody is heard while the video plays.',
+    audio: () => 'Audio',
+    audioDiagnostics: () => 'Audio diagnostics',
+    sharedClipboard: () => 'Shared clipboard',
+    notepad: () => 'Notepad',
+    recordings: () => 'Recordings',
+    nothingRecordedYet: () => 'Nothing recorded here yet.',
   },
   recordings: {
     rowLabel: (name: string, length: string, open: boolean) =>
@@ -1273,6 +1299,8 @@ export const en = {
     preparing: () => 'Preparing\u2026',
     share: () => 'Share',
     couldNotShare: () => 'Could not share',
+    guestWithNoAccount: () =>
+      'Somebody spoke here as a guest without an account, so this one cannot be published — there is nobody to ask.',
   },
   links: {
     couldNotOpenLink: () => 'Could not open link',

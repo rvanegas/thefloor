@@ -132,7 +132,7 @@ export function Introduction({
 
   return (
     <Card style={styles.card}>
-      <Text style={type.body}>Getting started</Text>
+      <Text style={type.body}>{t.title()}</Text>
       {steps.map((step) => {
         // Three ways to draw a rung, and which one is about what the rung is
         // rather than where it sits: a done one says so in a line, the next

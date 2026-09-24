@@ -180,6 +180,7 @@ export function HomeView({
   onReturnToChannel?: (channelId: string, tab?: ChannelTab) => void;
 }) {
   const t = useText().home;
+  const brand = useText().panes;
   const app = useApp();
 
   /**
@@ -326,7 +327,7 @@ export function HomeView({
       */}
       <View style={styles.headerInner}>
         <View style={styles.headerTop}>
-          <Text style={type.title}>The Floor</Text>
+          <Text style={type.title}>{brand.brand()}</Text>
           {/*
             Settings, and nothing beside it. It is about the application rather
             than about either list, which is why it is up here — the same
@@ -455,9 +456,9 @@ export function HomeView({
           >
             <View style={styles.rowMain}>
               <Text style={styles.screenTitle} numberOfLines={1}>
-                The film is on another device
+                {t.filmOnAnotherDevice()}
               </Text>
-              <Text style={styles.liveSub}>tap to watch here</Text>
+              <Text style={styles.liveSub}>{t.tapToWatchHere()}</Text>
             </View>
           </Pressable>
         ) : null}

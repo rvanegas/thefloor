@@ -2290,7 +2290,7 @@ export function ChannelView({
             title having gone. Its counterpart there says *Contact*; see
             ProfileView, which carries the reasoning for both.
           */}
-          <Text style={styles.headerKind}>Channel</Text>
+          <Text style={styles.headerKind}>{t.headerKindChannel()}</Text>
           {/* One style, named or not. The italic that marked a derived title
               is gone; see the note on Home's channel rows for why. */}
           <Text style={styles.otherName} numberOfLines={1}>
@@ -2823,7 +2823,7 @@ export function ChannelView({
             <View style={styles.headerInner}>
               <View style={styles.headerTop}>
                 <View style={styles.headerMain}>
-                  <Text style={styles.headerKind}>Watching</Text>
+                  <Text style={styles.headerKind}>{t.headerKindWatching()}</Text>
                   <Text style={styles.otherName} numberOfLines={1}>
                     {channel.name ?? derivedTitle}
                   </Text>
@@ -3118,7 +3118,7 @@ export function ChannelView({
             it** — except *Members*, which always does and which now carries
             the vocabulary the tab's old name taught.
           */}
-          <SectionLabel>Members</SectionLabel>
+          <SectionLabel>{t.members()}</SectionLabel>
           {/*
             A card each, rather than the status lines this used to be. Who is
             in the room and who is talking is what the screen is *for*, and it
@@ -3190,7 +3190,7 @@ export function ChannelView({
           */}
           {partyMuted ? (
             <Text style={styles.partyMuted}>
-              Party-muted — nobody is heard while the video plays.
+              {t.partyMuted()}
             </Text>
           ) : null}
 
@@ -3460,7 +3460,7 @@ export function ChannelView({
         {iAmPresent &&
         (audioNote !== null || audio.playbackBlocked || audio.micSilent) ? (
           <>
-            <SectionLabel>Audio</SectionLabel>
+            <SectionLabel>{t.audio()}</SectionLabel>
             <Card style={styles.stack}>
               {audioNote !== null ? (
                 <Text style={audioTone(audio.status)}>{audioNote}</Text>
@@ -3505,7 +3505,7 @@ export function ChannelView({
         */}
         {iAmPresent && app.debug && Platform.OS !== 'web' ? (
           <>
-            <SectionLabel>Audio diagnostics</SectionLabel>
+            <SectionLabel>{t.audioDiagnostics()}</SectionLabel>
             <Card style={styles.stack}>
               <AudioDebugPanel
                 asked={audio.asked}
@@ -3554,7 +3554,7 @@ export function ChannelView({
 
           `mayWriteNotepad` is `canEditChannel`, the same gate the name keeps.
         */}
-        <SectionLabel>Shared clipboard</SectionLabel>
+        <SectionLabel>{t.sharedClipboard()}</SectionLabel>
         <Card style={styles.stack}>
           {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
 
@@ -3627,7 +3627,7 @@ export function ChannelView({
           pressed. The character cap is the one thing kept, that being the
           server's rule rather than a flourish.
         */}
-        <SectionLabel>Notepad</SectionLabel>
+        <SectionLabel>{t.notepad()}</SectionLabel>
         {/*
           In a card, which it was not when it sat above the tabs. There it was
           the first prose on the screen, under the header's rule, and a card
@@ -4079,7 +4079,7 @@ export function ChannelView({
           them. They were on Home, which put every conversation you had ever
           recorded into one list belonging to nothing.
         */}
-        <SectionLabel>Recordings</SectionLabel>
+        <SectionLabel>{t.recordings()}</SectionLabel>
         {/*
           Above the list, because the question it answers — which conversation
           was that in — is one the list itself cannot answer. Only shown once
@@ -4092,7 +4092,7 @@ export function ChannelView({
           />
         ) : null}
         {recordings.length === 0 ? (
-          <Empty>Nothing recorded here yet.</Empty>
+          <Empty>{t.nothingRecordedYet()}</Empty>
         ) : (
           <View style={styles.stack}>
             {recordings.map((r) => (

@@ -204,6 +204,13 @@ that gets read — a term missing from it is, for most sessions, a term that doe
 not exist. Keep the line to one clause that says the meaning; the contrast and
 the argument stay down in the entry, which is what the entry is for.
 
+**A user-facing term is renamed in both languages or in neither**, added
+2026-09-23 with Part Three. The Spanish is a decision about the vocabulary and
+not a translation of a string: it is settled here, once per term, and
+`app/src/i18n/es.ts` implements what this says. A word changed on one side
+only is the same lagging source of truth the paragraph above is about, one
+language further in.
+
 **It is not an index of the code.** Where the reasoning behind a term is long,
 the entry says the term's meaning in a sentence or two and points at the file
 that argues it — usually STATES.md, decisions/, or the type's own
@@ -292,7 +299,10 @@ the people or the object it holds, and it was a word this app used nowhere a
 user could see it — the vocabulary a screen teaches should be the vocabulary
 the rest of the app answers in. **And it does not translate**, which was the
 reason that reached none of the three places that rename was written up and is
-the one that decided it; see planning/tasks/internationalization.md.
+the one that decided it. Part Three below is where that reasoning ended up
+once the app actually had a second language;
+`decisions/2026-09-23-every-word-the-app-says-is-a-function.md` is the pass
+that settled it.
 
 *Members* was narrower than its contents deliberately, on the grounds that a
 guest is a visitor to a membership rather than a second kind of it, and that
@@ -3548,3 +3558,112 @@ the server states to the media plane.
   *deploy*, *upload*, *submit*, *release*), which are five different things and
   are not defined here because they are about shipping rather than about the
   product.
+
+---
+
+# Part Three — the same words in Spanish
+
+Added 2026-09-23, when the app learned a second language. **This is the
+vocabulary, not the copy.** Every sentence the app says is in
+`app/src/i18n/es.ts`; what is settled here is the handful of *nouns* that have
+to mean one thing throughout, because getting one of them wrong makes two
+different states read as the same state — which is what Part One exists to
+prevent in English and is easier to do, not harder, in a second language.
+
+Only user-facing terms are here. Part Two is vocabulary that exists in the
+code, which is written in English and stays so.
+
+## The two rules the whole catalogue is written under
+
+**Nothing agrees with a person's gender.** The app does not know anybody's, and
+Spanish adjectives about people do. So the copy is built from constructions
+that take none — a noun rather than a participle, a state rather than a
+description of the person in it — and falls back to the masculine generic only
+where nothing else reads naturally. This is why several of the choices below
+are nouns where the English is an adjective.
+
+**A word is chosen against the other words, not on its own.** The same rule
+Part One states for English, and the reason *Members* beat *Roster* on
+2026-09-14 — see *Channel tabs*. The three *invitado* senses below are the case
+that made it explicit.
+
+## The three *invitado* senses, which are one Spanish word
+
+English draws three distinctions here and Spanish has the one word. All three
+are settled:
+
+- **Guest** — *Invitado*. Somebody in the room through a link or an invitation.
+  This is the sense that keeps the word, being the one where it is a noun for a
+  person and not a description of a state.
+- **Invitations** (the People tab's group of guest seats nobody has taken up) —
+  *Invitaciones*. Settled 2026-09-22, ahead of the rest, in
+  `decisions/2026-09-22-the-members-tab-is-the-people-tab.md`: the noun rather
+  than the participle, because *Invited as guests* renders as *invitados como
+  invitados*.
+- **Invited** (the status line on a member who has never entered) —
+  ***Sin entrar***. Not *Invitado*, which would say that a member of the
+  channel is a guest of it — the one distinction the roster cannot afford to
+  blur. Naming the absence instead is true of exactly that state and collides
+  with neither of the two above.
+
+## The rest, one line each
+
+    Channel               Canal
+    Channels (the tab)    Canales
+    Contacts              Contactos
+    People (the tab)      Gente
+    Members               Miembros
+    At the door           En la puerta
+    Guests                Invitados
+    Invitations           Invitaciones
+    Notepad               Notas
+    Invite (the tab)      Invitar
+    Listen                Escuchar
+    Recordings            Grabaciones
+    Watch                 Ver
+    Podcasts              Podcasts
+    Support (the tab)     Ayuda y apoyo
+    Help                  Ayuda
+    Chip in               Contribuir
+    Floor Settings        Ajustes de The Floor
+    Channel Settings      Ajustes del canal
+    The floor             La palabra
+    Claim / Release       Pedir / Soltar
+    In / Nearby / Out     Dentro / Cerca / Fuera
+    Step in / Step out    Entrar / Salir
+    Present               Presente
+    Stepped out           Ha salido
+    Mute / Unmute         Silenciar / No silenciar — Apple's own pair, which
+                          is what people already know from FaceTime, and short
+                          enough for the footer's fifth of a phone
+    Ping                  Aviso — *avisar* as the verb
+    Nearby                Cerca
+    Clipboard             Portapapeles
+    Guest link            Enlace de invitado
+    Knock (at the door)   Llamar — *En la puerta* as the state
+    Seat                  Sitio
+    Recording             Grabación
+    Transcript            Transcripción
+    Watch party           Ver algo juntos — a phrase, there being no noun
+    Public page           Página pública
+    Username              Nombre de usuario
+    Display name          Nombre visible
+    Getting started       Primeros pasos
+
+**Four of these are choices rather than translations**, and are the ones to
+argue with rather than change quietly:
+
+- **The floor → *la palabra***, and *Claim* → *Pedir*. The literal *el suelo*
+  is a floor you stand on; *pedir la palabra* is the phrase Spanish already has
+  for exactly this act, and it is what the application is named after. The app
+  name itself is not translated — see *The Floor* in Part One, and `auth.brand`.
+- **Ping → *aviso***. *Ping* survives untranslated in Spanish technical speech
+  and means a network probe there as here; what this is, is one person asking
+  for another by name, and a noun that says so beats a loanword that says
+  *latency*.
+- **Watch party → a phrase.** Spanish has no settled noun for it, and the
+  invented ones read as marketing. Every place the English uses the noun, the
+  Spanish says what happens: *ver algo juntos*.
+- **Support → *Ayuda y apoyo***. The tab is two things in English under one
+  word — questions answered, and money — and Spanish has no word that is both.
+  *Ayuda* alone would collide with the *Help* card inside it.

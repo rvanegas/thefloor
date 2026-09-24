@@ -108,7 +108,7 @@ export function SeatView({
               screen does or refuses follows from that. See GLOSSARY.md
               § *Seat*.
             */}
-            <Text style={styles.headerKind}>Guest</Text>
+            <Text style={styles.headerKind}>{t.headerKind()}</Text>
             <Text style={styles.headerName} numberOfLines={1}>
               {view.channelName}
             </Text>

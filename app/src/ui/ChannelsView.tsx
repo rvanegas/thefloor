@@ -394,7 +394,7 @@ export function ChannelsView({
 
       {live.length > 0 ? (
         <>
-          <SectionLabel>Live</SectionLabel>
+          <SectionLabel>{t.live()}</SectionLabel>
           <View style={styles.list}>
             {live.map((card) => (
               <ChannelCard
@@ -429,7 +429,7 @@ export function ChannelsView({
 
       {invited.length > 0 ? (
         <>
-          <SectionLabel>Invitations</SectionLabel>
+          <SectionLabel>{t.invitations()}</SectionLabel>
           {seatTrouble ? (
             <Text style={styles.seatTrouble}>{seatTrouble}</Text>
           ) : null}
@@ -461,10 +461,10 @@ export function ChannelsView({
         an account with nothing in it — and this is a cold launch, so it is the
         first thing anybody sees.
       */}
-      {!home ? <Empty>Loading…</Empty> : null}
+      {!home ? <Empty>{t.loading()}</Empty> : null}
       {rest.length > 0 ? (
         <>
-          <SectionLabel>Your channels</SectionLabel>
+          <SectionLabel>{t.yourChannels()}</SectionLabel>
           <View style={styles.list}>
             {rest.map((card) => (
               <ChannelCard
