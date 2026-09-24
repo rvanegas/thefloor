@@ -1,0 +1,21 @@
+The Floor speaks Spanish. Floor Settings has a Language card - Automatic, English, Español - and the choice follows your account to every device you sign in on.
+
+A channel can have a public page. Public page is on the channel's Settings; the page carries the channel's name, its notepad and the conversations published on it, and a feed podcast apps can subscribe to. No member is named on it, ever. Cover art, a category and a language are there for podcast directories.
+
+A conversation goes onto that page only once everybody who was in it has agreed, one at a time, from "I agree this can be published" on the recording's card. Any one of them can take their agreement back, and that takes it down.
+
+Home has a Podcasts tab, listing every channel that has a public page. Everybody in a channel is told, once, that it has one.
+
+A contact can be asked into a channel as a guest rather than as a member: Guest and Member sit on each row of the Invite tab. A seat offered to somebody with an account opens in the app. A channel holds six members and forty guests, two of whom can hold the microphone.
+
+Home says in words what is waiting for you, above the lists, and one tap answers it. Accepting a contact request opens the channel it makes.
+
+A channel's first tab is called People.
+
+Notice that somebody has stepped into a channel stops being sent to an account that has gone a week without opening the app, and starts again the moment it does. An invitation, a ping and an accepted contact go on arriving.
+
+A channel remembers what it was watching, so the Watch tab can put the film back on without the link. A film that has run out can be started again, and a watch party survives the server restarting, coming back paused where it was.
+
+The film moves between your devices while it is playing, and Home says when it is on another one, where a tap brings it here.
+
+A member card reading Nearby offers Ping.

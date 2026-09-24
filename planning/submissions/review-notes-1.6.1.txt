@@ -1,0 +1,76 @@
+1. SCREEN RECORDING AND DEVICES
+None attached; section 3 walks it. No purchases, no tracking, no ATT prompt.
+iPhone is portrait and turns sideways only for a film; iPad takes all four.
+
+2. WHAT IT DOES
+Voice conversation between people who know each other. A channel holds six
+members and outlasts a conversation; anyone present may claim "the floor",
+withholding every other microphone for a minute.
+
+3. GETTING IN AND REACHING FEATURES
+No passwords; a code is emailed. This account has a fixed
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+
+It holds a contact, Sam Rivera, and three channels; "Weekly Convo" has
+recordings.
+
+Home switches between Channels, Contacts, Podcasts and Support. Open "Weekly
+Convo". The bottom bar is Mute, Claim and the rungs In, Nearby and Out;
+stepping in prompts for the microphone. Tapping a member opens their profile:
+"Mute them", Ping.
+
+The tabs across the top: People, Notepad, Invite (a contact as "Guest" or
+"Member", or "Share a guest link"), Listen, Recordings and Watch - copy a
+YouTube link, then "Watch something together". "Record automatically" and
+"Public page" are in the channel's Settings. Floor Settings, from Home,
+carries Language (Automatic, English, Espanol), Getting started, "Choose where
+sound comes out", Email and Labs, which reveals Transcribe on a recording's
+row.
+
+NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
+unavailable while alone; Ping is offered only to somebody in the channel or
+nearby it; a recording starts one run per sitting, so Stop is final until the
+room empties; the room is muted while a film plays on the device you stepped
+in on; "Public page" is refused until the channel is named.
+
+4. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted) for audio and recordings; S3 stores them and
+cover art; SES for sign-in codes; APNs; Ko-fi; YouTube's IFrame player, only
+once a member starts a watch party; AssemblyAI, sent only a recording somebody
+asked to transcribe, with Labs on.
+
+5. REGIONAL DIFFERENCES
+The Ko-fi link on Support shows only in the US storefront (3.1.1(a));
+voluntary, unlocks nothing, and the app is free.
+
+6. THIRD-PARTY MATERIAL, PUBLISHING AND WATCH PARTIES
+A member may play their own audio file in; any member may delete a recording.
+A watch party carries no video of ours: what travels through it is a position
+and a clock, and YouTube's own IFrame player plays the video in a web view,
+unmodified, unobscured and with its own controls.
+
+NEW: a channel may give itself a public web page and an RSS feed. A
+conversation reaches it only when every account heard in it has agreed,
+separately; any one of them withdrawing takes it down at once. No member is
+named on it, ever, and every member is told the channel has a page. Both carry
+a takedown address read by a person. The Podcasts tab frames that same list.
+
+GUIDELINE 1.2: what can be found is channels that opted in, never people. A
+username names an invite link, minted by its owner and seating one person. A
+field taking an email address sends a request there and returns nothing.
+Contacts need both sides to accept, only a contact may be added to a channel,
+an address shows only if that person chose to, and Ping is contacts-only. The
+one exception: signing up without an invitation and knowing nobody puts you,
+once, into "Getting Started Cohort" with up to three others who joined then
+and one of us - nobody searched, nobody becomes a contact, and leaving is a
+tap. This account is not in one.
+
+Guests: a visitor with a link knocks under a typed name and a member admits
+them, or a contact is offered a seat, which opens in the app. Six members and
+forty guests, two of whom may hold a microphone. Any member can withdraw a
+guest's microphone or remove them; every guest goes when the last member steps
+out. Recording happens only by a tap or the channel's setting, and its
+indicator shows to guests.
+
+PLEASE TEST ACCOUNT DELETION LAST - it is immediate and leaves a working,
+empty app.
