@@ -476,6 +476,32 @@ describe('across a restart', () => {
     expect(revived.watch.positionMs).toBe(0);
   });
 
+  it('can be resumed after the restart it was interrupted by', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'WATCH_READY',
+      durationMs: 600_000,
+      title: 'A Film',
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
+    clock += 30_000;
+
+    await restart();
+    expect(app.channels.get(channelId)!.watch.status).toBe('paused');
+
+    // Everybody was stepped out by the restart, so resuming means walking back
+    // in and pressing Play — which is the whole of what this asserts.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
+
+    const resumed = app.channels.get(channelId)!;
+    expect(resumed.watch.status).toBe('playing');
+  });
+
   // The history is the one part of this state that is not about the run the
   // restart interrupted, so it has to come back whether or not a party does —
   // which is a different path through `revivedWatch`. See `WatchState.history`.
