@@ -1,6 +1,6 @@
 import { en } from '../../i18n/en';
 import { NOT_OFFERED, type Install } from '../install';
-import { introduction, type Step } from '../introduction';
+import { introduction, learningToStepIn, type Step } from '../introduction';
 import { NOTHING_TRIED, type Tried } from '../tried';
 
 /**
@@ -366,5 +366,38 @@ describe('dismissal', () => {
       'guest',
       'player',
     ]);
+  });
+});
+
+/**
+ * The one thing the ladder says on a screen that is not Home — see
+ * `learningToStepIn`, and `ChannelView`'s third sentence under the roster.
+ */
+describe('whether the channel screen still owes an instruction', () => {
+  it('owes one while the rung is standing and unticked', () => {
+    expect(learningToStepIn(introduction(fresh))).toBe(true);
+  });
+
+  it('stops the moment the first conversation has happened', () => {
+    // `conversedAt` is what ticks the rung, and the rung is what this reads:
+    // help that outlived being taken up would be repetition of the footer.
+    expect(
+      learningToStepIn(introduction({ ...fresh, conversedAt: 1_000 }))
+    ).toBe(false);
+  });
+
+  it('stops when the rung has been put away by hand', () => {
+    // The ladder's second exit is the reader's, and it would be a poor one
+    // that left the same instruction standing two screens away.
+    expect(
+      learningToStepIn(introduction({ ...fresh, dismissed: ['stepIn'] }))
+    ).toBe(false);
+  });
+
+  it('says nothing while nothing is settled', () => {
+    // Silence is the default in every uncertain case, here as on Home.
+    expect(learningToStepIn(introduction({ ...fresh, loaded: false }))).toBe(
+      false
+    );
   });
 });

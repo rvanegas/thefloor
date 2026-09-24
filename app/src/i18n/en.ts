@@ -1174,6 +1174,14 @@ export const en = {
       'You are in this channel, but not on this device. Stepping in here brings the conversation to this one.',
     /** `who` is already a phrase — see `describeChannel`. */
     justSteppedIn: (who: string) => `${who} just stepped in.`,
+    /**
+     * Names the rung by the word on it — `rungIn`, which is "In" — and says
+     * where it is, since the footer is the one part of this screen somebody
+     * arriving has no reason to have read. Both halves have to move together
+     * if either word does.
+     */
+    howToBeHeard: () =>
+      'Tap In, at the foot of the screen, to step in to the conversation. Until you do, you cannot hear anybody here and nobody here can hear you.',
     atTheDoor: () => 'At the door',
     knockLead: (name: string) => name,
     knockRest: () => ' is at the door with a link to this channel.',

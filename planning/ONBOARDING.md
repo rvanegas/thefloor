@@ -42,6 +42,14 @@ done ones went behind *See more* too on 2026-09-24**, and the card stopped
 being drawn at all while something is waiting to be answered — see
 `decisions/2026-09-24-the-ladder-waits-its-turn.md`.
 
+**The ladder reaches off Home once, since 2026-09-24**, and this file's rule
+against a guided walkthrough survives it. The channel screen draws a sentence
+under the roster saying to tap *In* to be heard, for as long as the `stepIn`
+rung is standing and unticked — no coach mark and nothing pointing at a
+control, just the screen where the rung is climbed saying how. See
+`decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md` and
+`learningToStepIn` in `app/src/state/introduction.ts`.
+
 **A third rung exists in a browser since 2026-09-13** — *put The Floor on your
 home screen* — and it is the only one that is about the client rather than the
 account. It appears on the ladder between the other two and under the text on

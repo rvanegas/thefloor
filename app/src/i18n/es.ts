@@ -986,6 +986,8 @@ export const es: Strings = {
     elsewhere: () =>
       'Est\u00e1s en este canal, pero no en este dispositivo. Entrar aqu\u00ed trae la conversaci\u00f3n a este.',
     justSteppedIn: (who: string) => `${who} acaba de entrar.`,
+    howToBeHeard: () =>
+      'Toca Dentro, al pie de la pantalla, para entrar en la conversación. Hasta que lo hagas, no oyes a nadie de aquí ni nadie te oye a ti.',
     atTheDoor: () => 'En la puerta',
     knockLead: (name: string) => name,
     knockRest: () => ' est\u00e1 en la puerta con un enlace a este canal.',

@@ -1406,6 +1406,85 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /**
+   * How to be heard, which is the one instruction on this screen and is drawn
+   * for as long as the ladder is still asking for a first conversation.
+   *
+   * The three below are the whole of its policy: it is there for somebody who
+   * has not stepped in, it is gone the moment the `stepIn` rung is ticked, and
+   * it is never drawn to somebody already in the room. See
+   * `state/introduction.ts`'s `learningToStepIn`, and
+   * `decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
+   */
+  const learning = (done: boolean) => ({
+    show: 'ladder' as const,
+    steps: [
+      {
+        id: 'stepIn' as const,
+        label: 'Step in with somebody',
+        instruction: 'On Channels, start one and step in.',
+        note: 'why',
+        done,
+      },
+    ],
+  });
+
+  it('says how to be heard to somebody who has not stepped in yet', () => {
+    mockApp.introduction = learning(false);
+    // `channelOf` has the reader in the room, this screen's ordinary case;
+    // stepping out is what leaves somebody looking at a channel rather than
+    // standing in it, which is the only case this sentence is for.
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    const text = textOf(tree);
+    // The word on the rung, and where the rung is: *In* alone does not say
+    // that the room cannot hear you, and the rung's hint is an accessibility
+    // label that nothing draws.
+    expect(text).toContain('Tap In, at the foot of the screen');
+    expect(text).toContain('nobody here can hear you');
+    // A sentence and not a card: the act is the rung, which the footer has.
+    expect(findButton(tree, 'Step in')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('stops saying it once the ladder has been climbed', () => {
+    mockApp.introduction = learning(true);
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(textOf(tree)).not.toContain('Tap In, at the foot of the screen');
+    act(() => tree.unmount());
+  });
+
+  it('never says it to somebody who is already in the room', () => {
+    mockApp.introduction = learning(false);
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    expect(textOf(tree)).not.toContain('Tap In, at the foot of the screen');
+    act(() => tree.unmount());
+  });
+
   it('orders each tab by what somebody in a conversation reaches for', () => {
     /*
       Roughly by how often it is wanted, and pinned here because the order is

@@ -394,3 +394,29 @@ function installStep(
     done: false,
   };
 }
+
+/**
+ * Whether the channel screen should still be saying what the `In` rung is for.
+ *
+ * **The one place the ladder reaches off Home**, and it is deliberately not a
+ * rung of its own: the card is drawn above the two lists and nothing in it
+ * points at a control, which is what `planning/ONBOARDING.md` settled against
+ * a guided walkthrough. What this answers is narrower — somebody is standing
+ * in a channel they have not stepped into, while the ladder on the screen they
+ * came from is telling them to go and have a conversation. The screen they are
+ * actually looking at owes them the sentence that says how.
+ *
+ * **It is true of exactly the people the rung is true of.** `stepIn` is ticked
+ * by `conversedAt`, so this stops the first time somebody has been in a room
+ * with another member — not on the first tap, which would take the help away
+ * before it had been taken up. A rung put away by hand is not in `steps` at
+ * all, so a dismissal silences this too: the ladder's second exit is the
+ * reader's, and it would be a poor one that left the same instruction standing
+ * on another screen.
+ */
+export function learningToStepIn(introduction: Introduction): boolean {
+  return (
+    introduction.show === 'ladder' &&
+    introduction.steps.some((step) => step.id === 'stepIn' && !step.done)
+  );
+}

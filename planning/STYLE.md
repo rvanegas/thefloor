@@ -744,10 +744,24 @@ all — the cure is another browser, which no button here can perform. Both are
 constants on a phone and neither ever renders there; see
 `decisions/2026-09-17-the-web-app-grew-the-browser-s-two-obligations.md`.
 
-The surviving sentences are both under the roster rather than on a card,
-there being no card either could belong to: that the room is held on another
-phone, and — since later the same day — that somebody **just** stepped in
-while you are nearby.
+The surviving sentences are all under the roster rather than on a card,
+there being no card any of them could belong to: that the room is held on
+another phone, and — since later the same day — that somebody **just** stepped
+in while you are nearby.
+
+**A third joined them on 2026-09-24, and it is the only one that is an
+instruction**: *Tap In, at the foot of the screen, to step in to the
+conversation. Until you do, you cannot hear anybody here and nobody here can
+hear you.* It is the one sentence on this screen that says what the footer
+says, and the exception is narrow enough to state exactly — a `FooterAction`'s
+hint is its accessibility label and nothing draws it, so *In* is the whole of
+what a footer says to somebody looking at it, and *In* does not teach anybody
+that the room cannot hear them. **It is drawn only while the introduction's
+`stepIn` rung is standing and unticked**, which is what keeps it out of the
+rule above: a screen that explains its own footer to somebody who has used it
+for a month is what that rule prevents, and this is gone the moment its reader
+has been in a room with another member. See
+`decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
 
 **The second of those replaced a card, and the replacement is the rule
 applied twice.** The arrival had a heading, a sentence, *Step in*, *Stay

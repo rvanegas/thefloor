@@ -71,6 +71,7 @@ import { copyText, pasteText } from '../clipboard';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
+import { learningToStepIn } from '../state/introduction';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { TranscriptView } from './TranscriptView';
@@ -3300,6 +3301,41 @@ export function ChannelView({
             <Text style={type.muted}>
               {t.justSteppedIn(describeChannel(arrived.map(nameOf), namingWords))}
             </Text>
+          ) : null}
+
+          {/*
+            **How to be heard, for as long as somebody has not been.**
+
+            The third sentence under the roster, and the only one of the three
+            that is an instruction rather than a claim about the room. That
+            makes it the one thing on this screen the footer already says —
+            `rungIn`'s hint is *Step in to the conversation* — so § *The cards
+            a footer made redundant* has to be answered rather than assumed:
+            what it adds is that the hint is not read. A `FooterAction`'s hint
+            is its accessibility label and nothing else draws it, so the word
+            under the thumb is *In* alone, and *In* does not teach anybody that
+            the room they are looking at cannot hear them. That is the gap this
+            fills, and it is a sentence rather than a card for the same reason
+            the arrival is one: there is no control here that the footer does
+            not already carry.
+
+            **It retires, which is what keeps it from being repetition.**
+            `learningToStepIn` is true only while the ladder is still asking
+            for a first conversation, so this is drawn for an account in its
+            first days and for nobody else — the rule the section states is
+            about the screen every reader sees for ever, and an instruction
+            that goes away the moment it has been taken up is not that. See
+            `decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
+
+            **Not while the room is held on another device**, where the
+            sentence directly above already says what stepping in here does and
+            this one would contradict it: somebody in the channel on their
+            other phone can hear perfectly well.
+          */}
+          {!iAmPresent &&
+          !elsewhereOnAnotherDevice &&
+          learningToStepIn(app.introduction) ? (
+            <Text style={type.muted}>{t.howToBeHeard()}</Text>
           ) : null}
 
           {/*
