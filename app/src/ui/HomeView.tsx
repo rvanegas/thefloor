@@ -1083,42 +1083,40 @@ function useWaiting(): { people: number; rooms: number; any: boolean } {
 
 function WaitingBar({ onList }: { onList: (list: List) => void }) {
   const app = useApp();
+  const t = useText().home;
   const requests = answerableRequests(app.home);
   const invitations = waitingInvitations(app.home);
   const { people, rooms } = useWaiting();
 
   if (people === 0 && rooms === 0) return null;
 
-  /*
-    One name or a count, never a name and a count together. "Ana and 2 others"
-    reads as a group doing one thing, and these are separate people who each
-    asked separately; the list one tap away is where they are enumerated.
-  */
-  const asking = requests[0]?.account.displayName ?? "Somebody";
+  // One name or a count, never both — see `contactRequestWaiting`, where the
+  // sentences and the reason for that are.
+  const asking = requests[0]?.account.displayName ?? t.somebody();
   const invitation = invitations[0];
-  const room = invitation?.title ?? "a channel";
-  const asked = invitation?.from ?? "";
+  const asks =
+    people === 1 ? t.contactRequestWaiting(asking) : t.contactRequestsWaiting(people);
+  const invites = t.invitationWaiting(
+    rooms,
+    invitation?.from ?? "",
+    invitation?.title ?? "",
+    invitation?.guest ?? false
+  );
 
   return (
     <>
       {people > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={
-            people === 1
-              ? `${asking} wants to be a contact. Tap to answer.`
-              : `${people} people want to be contacts. Tap to answer.`
-          }
+          accessibilityLabel={t.waitingBarLabel(asks)}
           onPress={() => onList("contacts")}
           style={styles.waitingBar}
         >
           <View style={styles.rowMain}>
             <Text style={styles.waitingTitle} numberOfLines={1}>
-              {people === 1
-                ? `${asking} wants to be a contact`
-                : `${people} people want to be contacts`}
+              {asks}
             </Text>
-            <Text style={styles.liveSub}>tap to answer</Text>
+            <Text style={styles.liveSub}>{t.tapToAnswer()}</Text>
           </View>
         </Pressable>
       ) : null}
@@ -1126,61 +1124,20 @@ function WaitingBar({ onList }: { onList: (list: List) => void }) {
       {rooms > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${describeInvitation(
-            rooms,
-            asked,
-            room,
-            invitation?.guest ?? false
-          )}. Tap to answer.`}
+          accessibilityLabel={t.waitingBarLabel(invites)}
           onPress={() => onList("channels")}
           style={styles.waitingBar}
         >
           <View style={styles.rowMain}>
             <Text style={styles.waitingTitle} numberOfLines={1}>
-              {describeInvitation(
-                rooms,
-                asked,
-                room,
-                invitation?.guest ?? false
-              )}
+              {invites}
             </Text>
-            <Text style={styles.liveSub}>tap to answer</Text>
+            <Text style={styles.liveSub}>{t.tapToAnswer()}</Text>
           </View>
         </Pressable>
       ) : null}
     </>
   );
-}
-
-/**
- * The invitation bar's sentence, said once and read twice — on the screen and
- * to a screen reader, which must not be able to disagree.
- *
- * **A seat and a membership get different words**, which is `InviteView.guest`'s
- * standing rule: one is a place in the room while it lasts, the other is
- * belonging to the channel, and a line that said *asked you into* for both
- * would be wrong about one of them every time.
- *
- * **The room goes unnamed when its name is the asker's**, which is what
- * `inviteCard` leaves behind for a channel nobody has named and whose roster
- * the server withheld — a guest invitation being the ordinary way that
- * happens. *Dana Chu asked you into Dana Chu* is the same name twice and reads
- * as a bug; the channel is one tap away and can introduce itself there.
- */
-function describeInvitation(
-  count: number,
-  from: string,
-  room: string,
-  guest: boolean
-): string {
-  if (count > 1) return `${count} invitations waiting`;
-  if (!from) return guest ? `A seat is waiting for you` : `You have been asked into ${room}`;
-  if (room === from) {
-    return guest ? `${from} kept you a seat` : `${from} asked you into a channel`;
-  }
-  return guest
-    ? `${from} kept you a seat in ${room}`
-    : `${from} asked you into ${room}`;
 }
 
 /**

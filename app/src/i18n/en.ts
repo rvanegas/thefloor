@@ -425,6 +425,53 @@ export const en = {
     support: () => 'Support',
     filmOnAnotherDevice: () => 'The film is on another device',
     tapToWatchHere: () => 'tap to watch here',
+    /**
+     * The waiting bar's two sentences, and the line under either of them.
+     *
+     * **One name or a count, never both.** *Ana and 2 others* reads as a group
+     * doing one thing, and these are people who each asked separately; the
+     * list one tap away is where they are enumerated.
+     */
+    contactRequestWaiting: (name: string) => `${name} wants to be a contact`,
+    contactRequestsWaiting: (count: number) =>
+      `${count} people want to be contacts`,
+    /**
+     * **All four branches are here rather than in the view**, because which
+     * of them applies is a question about words. A seat and a membership are
+     * different offers and may not share a sentence — `InviteView.guest` —
+     * and the room goes unnamed where its name is the asker's, which is what
+     * `inviteCard` leaves behind for an unnamed channel whose roster the
+     * server withheld: *Dana Chu asked you into Dana Chu* reads as a bug.
+     */
+    invitationWaiting: (
+      count: number,
+      from: string,
+      room: string,
+      guest: boolean
+    ) => {
+      if (count > 1) return `${count} invitations waiting`;
+      if (!from) {
+        return guest
+          ? 'A seat is waiting for you'
+          : 'You have been asked into a channel';
+      }
+      if (!room || room === from) {
+        return guest
+          ? `${from} kept you a seat`
+          : `${from} asked you into a channel`;
+      }
+      return guest
+        ? `${from} kept you a seat in ${room}`
+        : `${from} asked you into ${room}`;
+    },
+    tapToAnswer: () => 'tap to answer',
+    /**
+     * Said to a screen reader, built from the same sentence the eye gets, so
+     * the two cannot come apart.
+     */
+    waitingBarLabel: (sentence: string) => `${sentence}. Tap to answer.`,
+    /** Nobody named: only reachable from the debug dab preview. */
+    somebody: () => 'Somebody',
   },
   channelCards: {
     guestSuffix: () => ' · guest',

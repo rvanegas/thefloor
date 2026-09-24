@@ -330,6 +330,38 @@ export const es: Strings = {
     support: () => 'Ayuda y apoyo',
     filmOnAnotherDevice: () => 'La pel\u00edcula est\u00e1 en otro dispositivo',
     tapToWatchHere: () => 'toca para verla aqu\u00ed',
+    contactRequestWaiting: (name: string) => `${name} quiere ser tu contacto`,
+    contactRequestsWaiting: (count: number) =>
+      `${count} personas quieren ser tus contactos`,
+    /**
+     * *Sitio* for a seat, as in `guestExplains` \u2014 *asiento* is furniture and
+     * this is a standing in a room. *Te ha invitado* is `askedYouIn`'s verb on
+     * the channel card this bar points at, so the two say one thing.
+     */
+    invitationWaiting: (
+      count: number,
+      from: string,
+      room: string,
+      guest: boolean
+    ) => {
+      if (count > 1) return `${count} invitaciones esperando`;
+      if (!from) {
+        return guest
+          ? 'Tienes un sitio esperando'
+          : 'Te han invitado a un canal';
+      }
+      if (!room || room === from) {
+        return guest
+          ? `${from} te ha guardado un sitio`
+          : `${from} te ha invitado a un canal`;
+      }
+      return guest
+        ? `${from} te ha guardado un sitio en ${room}`
+        : `${from} te ha invitado a ${room}`;
+    },
+    tapToAnswer: () => 'toca para responder',
+    waitingBarLabel: (sentence: string) => `${sentence}. Toca para responder.`,
+    somebody: () => 'Alguien',
   },
   channelCards: {
     guestSuffix: () => ' · invitado',
