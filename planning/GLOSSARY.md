@@ -147,7 +147,7 @@ caused; the list carries the meaning.
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
 - **Intent (a watch party's)** — *Retired 2026-09-18.* The video's own bar was a second way to press the transport, read off the player because the IFrame API never says what caused a state change. Telling a thumb from the echo of the app's own command took four phases and seven constants and failed five times; `controls: 0` removed the surface instead. The transport is the app's own row, and a button press *is* an action
-- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full, the done ones are a title each, the rest are behind *See more*
+- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full — the next one — and every other rung, done or still to do, is behind *See more*, which since 2026-09-24 is where the ticks live too. Held back entirely while a *waiting bar* is up, an account that has not answered the person who brought it here having a shorter job to do first
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
@@ -3073,6 +3073,24 @@ is done or dismissed. `state/introduction.ts` decides it and
 One shape, for everybody: a ladder — get somebody here, step in with somebody,
 and then four things to try inside a channel — each rung carrying an
 instruction naming where it is done and a button that goes there.
+
+**One rung is drawn, and it is the next one.** Everything else sits behind
+*See more*, since 2026-09-24 including the rungs already ticked. Those were
+exempt for eleven days, one line apiece, on the argument that they are the
+half of the card saying somebody is getting somewhere — but the exemption
+grows with progress, so an account four rungs into seven was reading four
+lines of congratulation above the single thing it was being asked to do, which
+is the wall the one-rung rule exists to prevent. The progress is still there,
+one tap away.
+
+**And the card is not drawn at all while a *waiting bar* is up**, since the
+same day. Its first rung is *get somebody here*, which is the wrong thing to
+put to an account that arrived because somebody got *them* here and has not
+answered them yet. Answering is the shorter job and ticks nothing on the
+ladder, so the ladder loses nothing by coming a moment later. Decided in
+`ui/HomeView.tsx` rather than in the policy module, which is the one thing
+about this card the policy does not decide — what is waiting is the tier's
+own question, computed there for the bar.
 
 **There were two until 2026-09-13**, the second being a single card for an
 account that arrived with a contact, on the ground that its first rungs were

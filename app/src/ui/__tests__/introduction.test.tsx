@@ -122,10 +122,10 @@ describe('the introduction on Home', () => {
     act(() => tree.unmount());
   });
 
-  it('says a finished rung in a line, and asks nothing more of it', () => {
-    // The instruction tells somebody how to do what they have just done and
-    // the note argues for doing it; neither is any use afterwards, and the
-    // label still is. See `Row`.
+  it('shows the next rung alone, and puts a finished one behind See more', () => {
+    // Since 2026-09-24 a done rung is hidden with the rest rather than kept
+    // as a line above the ask. One rung in full and nothing else unasked —
+    // the card's whole rule, applied to the half that used to be exempt.
     mockApp.home = empty;
     mockApp.introduction = {
       show: 'ladder',
@@ -133,12 +133,27 @@ describe('the introduction on Home', () => {
     };
     const tree = render(<HomeView {...homeNav} />);
     const text = textOf(tree);
+    expect(text).toContain('On Channels, start one and step in.');
+    expect(text).not.toContain('Get somebody here');
+    act(() => tree.unmount());
+  });
+
+  it('says a finished rung in a line, and asks nothing more of it', () => {
+    // The instruction tells somebody how to do what they have just done and
+    // the note argues for doing it; neither is any use afterwards, and the
+    // label still is. See `Row`. Behind *See more* since 2026-09-24, which is
+    // where the progress now lives rather than above the ask.
+    mockApp.home = empty;
+    mockApp.introduction = {
+      show: 'ladder',
+      steps: [{ ...ladder.steps[0], done: true }, ladder.steps[1]],
+    };
+    const tree = render(<HomeView {...homeNav} />);
+    act(() => findButton(tree, 'See more')!.props.onPress());
+    const text = textOf(tree);
     expect(text).toContain('Get somebody here');
     expect(text).not.toContain('On Contacts, send an invite link.');
     expect(findButton(tree, 'Open Contacts')).toBeUndefined();
-    // And the next one is now the one in full, with nothing left to disclose.
-    expect(text).toContain('On Channels, start one and step in.');
-    expect(findButton(tree, 'See more')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -345,9 +360,13 @@ describe('the install rung', () => {
       'In a channel, tap Claim in the bar along the bottom.'
     );
     expect(findButton(tree, 'Open Channels')).toBeDefined();
-    // The done one is a line and nothing else — its title, and no way in.
-    expect(text).toContain('Play something together');
-    expect(text).not.toContain("On a channel's Listen tab, add audio.");
+    // The done one is behind *See more* since 2026-09-24, and a line and
+    // nothing else once it is showing — its title, and no way in.
+    expect(text).not.toContain('Play something together');
+    act(() => findButton(tree, 'See more')!.props.onPress());
+    const opened = textOf(tree);
+    expect(opened).toContain('Play something together');
+    expect(opened).not.toContain("On a channel's Listen tab, add audio.");
     act(() => tree.unmount());
   });
 

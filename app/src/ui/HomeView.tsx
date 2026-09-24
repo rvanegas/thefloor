@@ -199,6 +199,13 @@ export function HomeView({
     !!liveChannel && app.screensElsewhere.includes(liveChannel.channelId);
 
   /**
+   * Whether anybody is waiting on an answer — what the waiting bar draws, and
+   * what holds the introduction checklist back until it is dealt with. One
+   * read for both; see `useWaiting`.
+   */
+  const { any: waiting } = useWaiting();
+
+  /**
    * The channels this reader is nearby in, which get the live bar's treatment
    * in a different hue — see `nearbyBar` in the styles and § *Nearby / Stepped
    * out* in planning/GLOSSARY.md.
@@ -621,11 +628,34 @@ export function HomeView({
             Null whenever they are not present anywhere, which is when a list
             is the only honest destination.
           */}
-          <Introduction
-            onList={onList}
-            live={liveChannel?.channelId ?? null}
-            onOpenChannel={onReturnToChannel}
-          />
+          {/*
+            **And not while somebody is waiting on an answer**, since
+            2026-09-24. The ladder's first rung is *get somebody here*, which
+            is the wrong thing to say to an account that arrived because
+            somebody got *them* here and has not been answered yet: the
+            application opens by asking a stranger to go recruiting while the
+            person who recruited them sits unanswered above it. Answering is
+            also the shorter job, and it ticks nothing on the ladder, so
+            nothing is lost by putting the ladder a moment later.
+
+            **Suppressed here rather than in `state/introduction.ts`**, which
+            is where the rest of the policy lives and is the departure worth
+            naming. What is waiting is the tier's own question — it is
+            computed a few lines up for the bar, out of two selectors that
+            belong to the two lists — and pushing it down into the policy
+            would mean either passing the answer in or teaching that module to
+            read a contact's status, which is a third reader of a fact two
+            already share. The card's *contents* are still decided entirely
+            there; this decides only whether the tier draws it, which is a
+            thing the tier already did.
+          */}
+          {waiting ? null : (
+            <Introduction
+              onList={onList}
+              live={liveChannel?.channelId ?? null}
+              onOpenChannel={onReturnToChannel}
+            />
+          )}
 
           {list === "channels" ? (
             <ChannelsView
@@ -1026,21 +1056,36 @@ function useAnswerWaiting(): boolean {
  * first, whether this arrival is still the thing somebody came for. A bar
  * says so and waits to be pressed.
  */
+/**
+ * How many things are waiting on an answer, of each kind.
+ *
+ * **One read, shared by the bar that draws it and the tier that suppresses
+ * the checklist behind it** — `useAnswerWaiting`'s reasoning exactly. Two
+ * readings of one fact are two things that can disagree, and the way that
+ * failure looks here is a bar saying somebody is waiting above a checklist
+ * that only hides when they are.
+ *
+ * The debug preview is inside it for the same reason it is inside that hook:
+ * *Show every dab* has to show the app as it is in that state, which includes
+ * the ladder being out of the way. Faked rather than forced, because unlike
+ * the two dabs there is nothing here to draw without a name to put in it. See
+ * `forcedDabs` in `state/AppProvider`.
+ */
+function useWaiting(): { people: number; rooms: number; any: boolean } {
+  const app = useApp();
+  const requests = answerableRequests(app.home);
+  const invitations = waitingInvitations(app.home);
+  const forced = app.forcedDabs;
+  const people = forced && requests.length === 0 ? 1 : requests.length;
+  const rooms = forced && invitations.length === 0 ? 1 : invitations.length;
+  return { people, rooms, any: people > 0 || rooms > 0 };
+}
+
 function WaitingBar({ onList }: { onList: (list: List) => void }) {
   const app = useApp();
   const requests = answerableRequests(app.home);
   const invitations = waitingInvitations(app.home);
-
-  /*
-    The debug preview lights this with the dabs it belongs with — it is the
-    same claim at a different size, and a preview that showed the marks and
-    not the line would be a preview of a state the app never has. Faked
-    rather than forced, because unlike the two dabs there is nothing here to
-    draw without a name to put in it. See `forcedDabs` in `state/AppProvider`.
-  */
-  const forced = app.forcedDabs;
-  const people = forced && requests.length === 0 ? 1 : requests.length;
-  const rooms = forced && invitations.length === 0 ? 1 : invitations.length;
+  const { people, rooms } = useWaiting();
 
   if (people === 0 && rooms === 0) return null;
 

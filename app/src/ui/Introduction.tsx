@@ -124,27 +124,41 @@ export function Introduction({
    */
   const next = steps.find((step) => !step.done) ?? null;
   /**
-   * The rungs that are neither done nor next, which are the ones worth hiding.
-   * A done rung is never hidden: it is one line, and it is the half of this
-   * card that says somebody is getting somewhere.
+   * Every rung but the next one, which is everything behind *See more*.
+   *
+   * **Done rungs are hidden with the rest, since 2026-09-24**, and that is a
+   * reversal. They used to be exempt — one line each, on the argument that
+   * they are the half of this card saying somebody is getting somewhere. The
+   * trouble is that the exemption grows: a ladder is seven rungs, so an
+   * account four rungs in was reading four lines of congratulation above the
+   * one thing it was being asked to do, and the card was back to being the
+   * wall the one-rung rule exists to prevent. The progress is still there —
+   * *See more* opens on to it, ticks and all. What the card shows unasked is
+   * the next thing, and nothing else.
+   *
+   * **Empty when there is no next rung**, so that a ladder with nothing left
+   * to do draws its rungs rather than a heading over a lone *See more*. The
+   * disclosure exists to protect one ask from the rows around it; with no ask
+   * there is nothing to protect, and hiding the lot behind a control would be
+   * the rule outliving its reason.
    */
-  const later = steps.filter((step) => !step.done && step !== next);
+  const later = next ? steps.filter((step) => step !== next) : [];
 
   return (
     <Card style={styles.card}>
       <Text style={type.body}>{t.title()}</Text>
       {steps.map((step) => {
-        // Three ways to draw a rung, and which one is about what the rung is
-        // rather than where it sits: a done one says so in a line, the next
-        // one says everything, and the ones after it wait behind the control
-        // below. They keep their own order throughout — a card that
-        // reshuffled itself as things were ticked would be a different card
-        // every time somebody read it.
+        // The next rung says everything; every other rung waits behind the
+        // control below, whether it is done or still to do. They keep their
+        // own order throughout — a card that reshuffled itself as things were
+        // ticked would be a different card every time somebody read it.
+        if (next && step !== next && !expanded) return null;
+        // A done rung is still a line rather than a block once it is showing:
+        // there is nothing left to instruct and nothing left to press.
         if (step.done)
           return (
             <Row key={step.id} step={step} brief onDismiss={dismissStep} />
           );
-        if (step !== next && !expanded) return null;
         return (
           <Row
             key={step.id}

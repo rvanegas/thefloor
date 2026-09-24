@@ -185,6 +185,37 @@ describe('The waiting bar', () => {
     act(() => tree.unmount());
   });
 
+  it('holds the introduction checklist back while somebody is waiting', () => {
+    // The ladder's first rung is *get somebody here*, which is the wrong
+    // thing to say to an account that arrived because somebody got them here
+    // and has not been answered yet. Answering is the shorter job and ticks
+    // nothing on the ladder, so nothing is lost by drawing it a moment later.
+    mockApp.introduction = {
+      show: 'ladder',
+      steps: [
+        {
+          id: 'somebody',
+          label: 'Get somebody here',
+          instruction: 'On Contacts, send an invite link.',
+          note: 'why',
+          done: false,
+        },
+      ],
+    };
+    withWaiting({ contacts: [incoming('Pat Ito')] });
+    const waiting = onChannels();
+    expect(textOf(waiting)).toContain('Pat Ito wants to be a contact');
+    expect(textOf(waiting)).not.toContain('Getting started');
+    act(() => waiting.unmount());
+
+    // And back the moment there is nothing outstanding, which is the same
+    // snapshot with the request answered.
+    withWaiting({});
+    const clear = onChannels();
+    expect(textOf(clear)).toContain('Getting started');
+    act(() => clear.unmount());
+  });
+
   it('says a seat with no room name without trailing off', () => {
     withWaiting({ invites: [invite({ guest: true })] });
     const tree = onContacts();

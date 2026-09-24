@@ -37,7 +37,10 @@ this file is not corrected for them beyond these pointers.
 for that and against it is
 `decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md` — which also
 carries the change that stops this card drawing all seven rungs at once: one
-rung in full, the done ones a title each, the rest behind *See more*.
+rung in full, the done ones a title each, the rest behind *See more*. **The
+done ones went behind *See more* too on 2026-09-24**, and the card stopped
+being drawn at all while something is waiting to be answered — see
+`decisions/2026-09-24-the-ladder-waits-its-turn.md`.
 
 **A third rung exists in a browser since 2026-09-13** — *put The Floor on your
 home screen* — and it is the only one that is about the client rather than the
