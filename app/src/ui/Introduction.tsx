@@ -179,11 +179,20 @@ export function Introduction({
         Nothing to disclose when there is nothing waiting, which is the state
         every account ends in — and one rung short of retirement this control
         would be offering to expand an empty list.
+
+        **`quiet` since 2026-09-24**, which is what that variant was added
+        for. This was a full-size filled pill sitting directly under the
+        rung's own button — two identical-looking controls stacked, of which
+        only the upper one does the thing the card is asking for. They are
+        not the same kind of act: the button above goes somewhere, this one
+        only says how much of the card to draw. Sitting under it at the same
+        weight, it read as a second instruction.
       */}
       {later.length > 0 ? (
         <View style={styles.actions}>
           <Button
             label={expanded ? t.seeLess() : t.seeMore()}
+            variant="quiet"
             onPress={() => setExpanded((open) => !open)}
           />
         </View>

@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
+| *Controls* | Button and its five variants, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
@@ -298,7 +298,7 @@ phone-shaped surface, live, while somebody watches.
 
 ### Button
 
-One component, four variants, no size axis.
+One component, five variants, and one of them is the size axis.
 
 | Variant | Fill | Label | For |
 | --- | --- | --- | --- |
@@ -306,10 +306,14 @@ One component, four variants, no size axis.
 | `primary` | `text` | `bg` | the one commitment on a screen |
 | `floor` | `floor` | white | claiming or releasing the floor |
 | `danger` | `danger` | white | delete, and nothing else |
+| `quiet` | none | `text` at 13 | disclosure — expanding the card you are reading |
 
-48pt minimum height, with no exceptions. `radius.md`. The label is 15/600; an
-optional `sublabel` is 12 with tabular figures. Disabled swaps the fill to
-`disabled` and the text to `textFaint`.
+48pt minimum height for the four filled ones, with no exceptions. `radius.md`.
+The label is 15/600; an optional `sublabel` is 12 with tabular figures.
+Disabled swaps the fill to `disabled` and the text to `textFaint` — except on
+`quiet`, which has no fill to swap and goes faint alone, a control with no
+body not being one that should grow a grey one at the moment it stops
+working.
 
 **`ghost` was the fifth and was retired on 2026-09-21**, transparent fill and
 all. It had been by far the most used — cancel, dismiss, every alternative and
@@ -330,11 +334,33 @@ the card is gone and the footer draws its own icon rather than a `Button`.
 was wrong — that screen draws no `floor` button and may never have — so a
 reader looking for the example was looking in the wrong file.
 
-**Quiet is a matter of size and place now, not of fill.** The two shapes that
-say *this is not the thing the screen is for* are the tightened in-row button
-below and `IconButton`, and neither is a `Button` variant — the first is a
-`Button` with its padding taken in, the second its own component with its own
-tone. Reaching for a new transparent fill is re-adding what was just removed.
+**Quiet is a matter of size and place, not of fill.** The shapes that say
+*this is not the thing the screen is for* are the tightened in-row button
+below, `IconButton`, and `quiet`. Reaching for a transparent fill *on a
+full-size pill* is re-adding what was removed: that was the whole of `ghost`,
+and it is why the sentence here read "neither is a `Button` variant" until
+2026-09-24.
+
+**`quiet` is the fifth, added that day, and it is the geometry with the fill
+dropped rather than the fill dropped alone.** It takes the tightened numbers
+below — `spacing(0.5)` and `spacing(1)`, `minHeight: 0` — and a 13pt label,
+`muted`'s size at the 600 every button's label carries, since a word on
+nothing has only size and weight left to say it can be pressed. What makes it
+quiet is that it is small. Dropping the fill is then not a second way of
+being quiet but the consequence of there being no pill left to fill, which is
+the distinction `ghost` never made: a transparent 48pt pill occupies exactly
+as much of a screen as a filled one and merely looks like it does not.
+
+**It is for disclosure, and so far for one control** — the introduction
+card's *See more*, which expands and collapses the card it is drawn in. That
+is the case the variant is scoped to: it commits nothing, navigates nowhere,
+and is read after the thing it is attached to rather than instead of it. It
+was a `default` pill until 2026-09-24, stacked directly beneath the rung's
+own *Open Channels*, where two controls of identical weight offered a journey
+and a redraw as though they were the same kind of thing. **A second caller
+wanting a quieter *action* is the moment to check whether this is becoming
+`ghost` again**, forty-seven callers being how that one ended; the answer for
+an action is still the tightened `default` below.
 
 **A button may carry a glyph instead of its word.** `icon` is a callback handed
 the variant's foreground colour, and it is drawn where the label would be; the
@@ -364,7 +390,11 @@ ProfileView's `reachAction` are the same numbers deliberately. **Anything that
 needs to be less than a button is those numbers, not a new fill** — which is
 the rule that outlived `ghost` rather than a replacement for it: it said "a
 `ghost` at those numbers" until 2026-09-21, and the numbers were always the
-half doing the work.
+half doing the work. `quiet` is those same numbers with the fill dropped too,
+named rather than spelt out, and it is the named one because a disclosure
+control is not at the end of a row of text: it is centred under a card with
+nothing beside it, where a fill has a whole width to sit in and nothing to
+belong to.
 
 **`primary` may mark the safer of two acts rather than a commitment**, and
 ChannelView's `InviteOffer` is the one place that does it. The pair is *Guest*

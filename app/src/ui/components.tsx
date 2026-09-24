@@ -82,6 +82,28 @@ function Dab({ style }: { style?: StyleProp<ViewStyle> }) {
  * accessibility label below: a glyph is named by `label` whether or not a
  * `sublabel` is drawn, so the word on screen can be the short one and the
  * word a screen reader hears the fuller phrase.
+ *
+ * **`quiet` is the fifth variant and the only one that is a shape rather
+ * than a colour**, added 2026-09-24 for the introduction card's *See more*.
+ * The other four differ in fill alone and are all the same 48pt pill; this
+ * one drops the fill *and* the pill, taking the padding down to the numbers
+ * § *Button* already names for a control that has to be less than a button.
+ *
+ * It is not the retired `ghost` coming back. `ghost` was a transparent fill
+ * on a full-size pill, which bought nothing — it left the control occupying
+ * exactly as much of the screen as a filled one while looking like less, and
+ * forty-seven callers reached for it because it was the way to say *not the
+ * thing this screen is for*. Size is what actually says that, and `ghost`
+ * never changed the size. So the rule that outlived it holds here: what
+ * makes this variant quiet is the geometry, and dropping the fill is what
+ * the geometry leaves nothing to hold.
+ *
+ * **For disclosure, and nothing else so far.** A control that expands and
+ * collapses the card it sits in is not an act — it commits nothing, reaches
+ * nowhere, and is read after whatever it is attached to rather than
+ * instead of it. That is the case this was made for, and a second use
+ * wanting a quieter *action* is the moment to ask whether this is turning
+ * back into `ghost`.
  */
 export function Button({
   label,
@@ -97,7 +119,7 @@ export function Button({
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  variant?: 'default' | 'primary' | 'floor' | 'danger';
+  variant?: 'default' | 'primary' | 'floor' | 'danger' | 'quiet';
   sublabel?: string;
   /**
    * That something is waiting behind this button, in the words a screen reader
@@ -129,9 +151,16 @@ export function Button({
     primary: { bg: colors.text, fg: colors.bg },
     floor: { bg: colors.floor, fg: '#FFFFFF' },
     danger: { bg: colors.danger, fg: '#FFFFFF' },
+    quiet: { bg: 'transparent', fg: colors.text },
   }[variant];
 
   const fg = disabled ? colors.textFaint : tone.fg;
+
+  // A `quiet` button is the one variant whose refusal is not a change of
+  // fill, because it has none to change: the grey pill that says *refused*
+  // everywhere else would be this control growing a body at the moment it
+  // stopped working. The word going faint is the whole of it.
+  const quiet = variant === 'quiet';
 
   return (
     <Pressable
@@ -156,7 +185,8 @@ export function Button({
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: disabled ? colors.disabled : tone.bg },
+        quiet && styles.buttonQuiet,
+        { backgroundColor: disabled && !quiet ? colors.disabled : tone.bg },
         pressed && !disabled && styles.pressed,
         style,
       ]}
@@ -164,7 +194,15 @@ export function Button({
       {icon ? (
         icon(fg)
       ) : (
-        <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
+        <Text
+          style={[
+            styles.buttonLabel,
+            quiet && styles.buttonLabelQuiet,
+            { color: fg },
+          ]}
+        >
+          {label}
+        </Text>
       )}
       {sublabel ? (
         <Text
@@ -1048,7 +1086,26 @@ const styles = StyleSheet.create({
   // Lifted by a point so the first line of the sentence sits level with the
   // square rather than with the top of its box.
   checkLabel: { flex: 1, lineHeight: 20, marginTop: 1 },
+  /**
+   * `quiet`: the pill taken away and the word tightened, not merely
+   * unfilled. These are `cardPing`'s and `reachAction`'s numbers — the ones
+   * § *Button* names as what anything less than a button is made of — with
+   * the fill dropped as well, which is the half those two keep. `minHeight`
+   * back to 0 is the point of it: a 48pt target is what made the retired
+   * `ghost` a default wearing a name.
+   */
+  buttonQuiet: {
+    paddingVertical: spacing(0.5),
+    paddingHorizontal: spacing(1),
+    minHeight: 0,
+  },
   buttonLabel: { fontSize: 15, fontWeight: '600' },
+  /**
+   * 13, which is `muted`'s size at `body`'s weight. A word on nothing has
+   * only its size and its weight left to say it is a control, so it keeps
+   * the 600 every other button's label carries and gives up the two points.
+   */
+  buttonLabelQuiet: { fontSize: 13 },
   buttonSublabel: {
     fontSize: 12,
     marginTop: 2,
