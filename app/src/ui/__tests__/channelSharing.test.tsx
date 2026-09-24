@@ -1604,6 +1604,71 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
+    it('offers this device when the film is on none of them, in the room', () => {
+      /*
+        **The state the card drew nothing for until 2026-09-24**: a party
+        loaded, the transport running, and no device of this account showing
+        it. Neither offer applied — one moves a film this device does not
+        have, the other fetches it from a device that does not have it either
+        — so the card drew an empty space under a transport that was playing,
+        and a party that could not be watched had to be stopped and started
+        again to be seen.
+
+        The default is what normally makes this unreachable, so every way in
+        is a bug elsewhere; the offer is drawn anyway, because *the card says
+        what you can do about where the film is* has to hold in all three
+        cases or it is not a rule.
+      */
+      mockApp.screenFor = null;
+      mockApp.screensElsewhere = [];
+      showChannel(watching());
+      const tree = open();
+      expect(sendOffer(tree)).toBeUndefined();
+      const fetch = fetchOffer(tree);
+      expect(fetch).toBeDefined();
+      act(() => fetch!.props.onPress());
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
+      act(() => tree.unmount());
+    });
+
+    it('takes the film when the device it deferred to stops being a screen', () => {
+      /*
+        **A deferral is not a decision.** `screensElsewhere` is a push, and a
+        push can be retracted — which is what a deploy does to it. Every
+        instance reconnects in the same second; the one that was the screen
+        restates `screens.showing` from `onopen` before it has processed the
+        step-out that ended its role; this device reads that declaration once,
+        stands aside, and the declaration is withdrawn a moment later.
+
+        The mark that makes the default happen once per film was spent on that
+        reading, so nothing asked again: no device was the screen, nothing in
+        the account said one was, and the film played on for nobody. What is
+        asserted here is the retraction reopening the question — and, in
+        `mirrors the choice on the device that handed the film away`, that an
+        ordinary handover is left alone.
+      */
+      mockApp.screenFor = null;
+      mockApp.screensElsewhere = ['sess_1'];
+      showChannel(watching());
+      const tree = open();
+      expect(mockApp.showScreenFor).not.toHaveBeenCalledWith('sess_1');
+
+      // The other device gives the role up, and the server says so.
+      mockApp.screensElsewhere = [];
+      act(() => {
+        tree.update(
+          <ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />
+        );
+      });
+      expect(mockApp.showScreenFor).toHaveBeenCalledWith('sess_1');
+      act(() => tree.unmount());
+    });
+
     it('does not ask when another of my devices already has it', () => {
       // **What stops two of somebody's own instances fighting.** The server
       // takes the film off every other instance the moment one declares, so

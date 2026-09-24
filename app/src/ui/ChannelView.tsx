@@ -1289,6 +1289,26 @@ export function ChannelView({
   const trackWidth = useRef(0);
 
   const defaulted = useRef<string | null>(null);
+  /**
+   * Whether the mark above was spent on *another device has it* rather than on
+   * this device taking the film.
+   *
+   * **Because a deferral is not a decision, which is the repair of
+   * 2026-09-24.** `screenElsewhere` is a push, and a push can be retracted a
+   * round trip later — so the default could read *the laptop has it*, spend
+   * its one chance on that reading, and then watch the reading go away. What
+   * it left behind is the state the watch card has no branch for: no device is
+   * the screen, nothing in the account says one is, and the transport runs
+   * above an empty space with no button under it.
+   *
+   * A deploy is how it was reached. Every instance reconnects inside the same
+   * second; one that was the screen restates `screens.showing` from `onopen`
+   * before it has processed the step-out that ended its role; the device
+   * walking back into the room reads that declaration once, defers to it, and
+   * is still deferring when the declaring device gives the role up a moment
+   * later. See `screens.showing` in server/src/ws.ts.
+   */
+  const deferred = useRef(false);
   // Read off `channel` rather than the `party` local below, every hook having
   // to stay above this screen's early returns.
   const filmOn = channel?.watch?.party?.videoId ?? null;
@@ -1300,10 +1320,29 @@ export function ChannelView({
     // second visit the one where nothing happens.
     if (filmOn === null || !inTheRoom) {
       defaulted.current = null;
+      deferred.current = false;
       return;
+    }
+    /*
+      **The third thing that clears it: the device deferred to has gone.**
+
+      Narrow on purpose, and each term is load-bearing. `deferred` restricts
+      this to a mark spent on somebody else's screen rather than on this
+      device's own — so handing the film to the laptop is untouched, which is
+      the race the paragraph below is about: that gap has `deferred` false and
+      falls straight through to the early return, exactly as it did before.
+
+      What is left is the case where this device stood aside for a screen that
+      then stopped being one, and nothing else in the interface will ever ask
+      the question again.
+    */
+    if (deferred.current && !screenElsewhere && app.screenFor !== channelId) {
+      defaulted.current = null;
+      deferred.current = false;
     }
     if (defaulted.current === filmOn || !steppedIn) return;
     defaulted.current = filmOn;
+    deferred.current = screenElsewhere && app.screenFor !== channelId;
     if (app.screenFor === channelId || screenElsewhere) return;
     app.showScreenFor(channelId);
   }, [app, channelId, filmOn, inTheRoom, screenElsewhere, steppedIn]);
@@ -4428,6 +4467,35 @@ export function ChannelView({
                       }}
                     />
                   </>
+                ) : inTheRoom ? (
+                  /*
+                    **The film is loaded and on no device at all**, which had
+                    no branch here until 2026-09-24 and so drew nothing: no
+                    picture, no offer, no sentence, with the transport running
+                    inches above it. The party was playing and there was
+                    nothing on this screen that could be pressed to see it.
+
+                    The default at `defaulted` is what normally makes this
+                    unreachable — a film arriving takes the device you are
+                    holding — so every way in is a bug somewhere else, and one
+                    of them is fixed in the same commit. It is drawn anyway,
+                    because *the card offers what you can do about where the
+                    film is* has to hold in all three cases or it is not a
+                    rule. A default that fails to fire is then something
+                    somebody can get out of rather than a party that has to be
+                    stopped and started again to be watched.
+
+                    No sentence beside it, unlike the branch above: that one
+                    says where the film is because the offer alone would not
+                    carry it, and here the offer is the whole of the fact.
+                  */
+                  <Button
+                    label={t.watchOnThisDevice()}
+                    onPress={() => {
+                      setChoosing(false);
+                      app.showScreenFor(channelId);
+                    }}
+                  />
                 ) : null}
                 {!inTheRoom ? (
                   // The same shape as the sentence below: beside the refused
