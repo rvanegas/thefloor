@@ -80,7 +80,8 @@ describe('Home', () => {
       ],
       // No contact of any status is drawn by this list. An accepted one is a
       // channel and appears above as that; a request is the contacts tab's,
-      // since 2026-09-05.
+      // since 2026-09-05 — and is named by the tier's waiting bar, which is
+      // not this list and is what the two assertions below now tell apart.
       contacts: [
         { account: { id: 'acct_p', displayName: 'Priya Raman' }, status: 'incoming' },
         { account: { id: 'acct_q', displayName: 'Quinn Ito' }, status: 'accepted' },
@@ -95,7 +96,10 @@ describe('Home', () => {
     expect(text).toContain('asked you in · waiting');
     expect(text).toContain('Miro Okafor');
     expect(text).toContain('1 present');
-    expect(text).not.toContain('Priya Raman');
+    // Named once, by the bar, and as a request rather than as a row: the list
+    // still draws no contact of any status. An accepted one is named nowhere
+    // on this screen at all, which is what `Quinn Ito` holds.
+    expect(text).toContain('Priya Raman wants to be a contact');
     expect(text).not.toContain('Quinn Ito');
     act(() => tree.unmount());
   });
@@ -247,7 +251,13 @@ describe('Home', () => {
     };
 
     const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
+    // From the first section label down, which is where the list starts.
+    // Above it is the tier, and the tier names this invitation's channel in
+    // the waiting bar — so measuring from the top of the screen would find
+    // *Asked In* before *Live* and read the sections as out of order when
+    // what had happened is that something above them mentioned one. The
+    // claim here is about the list's own sequence.
+    const text = textOf(tree).slice(textOf(tree).indexOf('Live'));
     const order = ['Live', 'Talking Now', 'Invitations', 'Asked In', 'Your channels', 'Long Quiet'];
     expect(order.map((t) => text.indexOf(t))).toEqual(
       [...order.map((t) => text.indexOf(t))].sort((a, b) => a - b)

@@ -740,6 +740,61 @@ export function nearbyChannels(
 }
 
 /**
+ * One invitation still waiting for an answer, as the tier's waiting bar needs
+ * it.
+ *
+ * The same shape `NearbyChannel` is and for the same reason: a bar is a
+ * sentence, and a sentence needs a name, who said it, and which of the two
+ * offers it is. Everything else a `Card` carries is this list's business.
+ */
+export type WaitingInvitation = {
+  channelId: string;
+  title: string;
+  /** Who asked, which is the half of the sentence the bar leads with. */
+  from: string;
+  /**
+   * A *seat* rather than a membership. Carried because the two are different
+   * offers and the bar has to say which — `InviteView.guest` argues it at
+   * length.
+   */
+  guest: boolean;
+};
+
+/**
+ * Every invitation outstanding, in the order this list would have put them in.
+ *
+ * **Exported for the tier, on `nearbyChannels`' reasoning exactly**: what a
+ * channel is called is a decided question, and a bar that answered it a second
+ * time is how a bar and the row it points at come to name one channel two
+ * ways. Built out of `inviteCard` for that reason rather than beside it.
+ *
+ * **Every invitation, and not the ones this list files under *Invitations*.**
+ * That section holds the ones nobody is standing in, a live one being hoisted
+ * to the top of the list instead — which is the right answer for a list with
+ * two sections and the wrong one for a bar whose whole job is to say *you have
+ * been asked in*. Where the row is drawn is this file's question; whether
+ * there is one to go and find is the tier's.
+ */
+export function waitingInvitations(
+  home: HomeViewData | null
+): WaitingInvitation[] {
+  if (!home) return [];
+  return (home.invites ?? [])
+    .map(inviteCard)
+    .sort(byIdleness)
+    .map((card) => ({
+      channelId: card.channelId,
+      title: card.title,
+      // Absent only from a server too old to say who asked — `inviteCard`
+      // falls back to the sender's name for the title in that case, so the
+      // bar still names somebody. Defaulted rather than asserted: the empty
+      // string draws the shorter sentence below rather than "undefined".
+      from: card.from ?? '',
+      guest: card.guest ?? false,
+    }));
+}
+
+/**
  * Whether a channel goes in the top section: somebody is in it, **or somebody
  * is standing beside it**.
  *

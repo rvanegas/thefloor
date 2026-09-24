@@ -18,7 +18,11 @@ import {
   SupportIcon,
 } from "./icons";
 import { useText } from '../i18n';
-import { ChannelsView, nearbyChannels } from "./ChannelsView";
+import {
+  ChannelsView,
+  nearbyChannels,
+  waitingInvitations,
+} from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
 import { ContactsView, answerableRequests } from "./ContactsView";
 import { Introduction } from "./Introduction";
@@ -533,6 +537,18 @@ export function HomeView({
           </Pressable>
         ))}
 
+        {/*
+          What somebody has asked of you, said in the one place both lists can
+          be seen from.
+
+          **Under the presence bars and above the two notices**, which is the
+          order of who the line is about. An open microphone outranks
+          everything and keeps the top; the notices below are the application
+          asking for something — install this, allow that — and a person
+          waiting for an answer outranks the application asking for a favour.
+        */}
+        <WaitingBar onList={onList} />
+
         <InstallNotice />
 
         <NotificationNotice onExplain={onOpenNotifications} />
@@ -966,6 +982,163 @@ function useAnswerWaiting(): boolean {
 }
 
 /**
+ * What somebody has asked of you: at most one bar for the contact requests, at
+ * most one for the channel invitations, and nothing at all the rest of the
+ * time.
+ *
+ * **It exists because the first hour here is a scavenger hunt.** Somebody
+ * invited by email arrives with a contact request already pending — the row is
+ * written at signup, `Accounts.resolvePendingInvites` — and Home opens on
+ * *Channels*, which for that account is empty. The request is one tab over
+ * behind a *dab*, which is deliberately a mark and never a sentence. They
+ * accept, the person who asked them then asks them into a channel, and that
+ * card lands on the tab they have just left, with the same silence. Two things
+ * waiting, each one behind a tab the reader is not standing on: the app knows
+ * both and says neither in words.
+ *
+ * **A bar rather than the card itself**, which is the decision worth arguing.
+ * Hoisting the rows would put *Accept* under a thumb a tap sooner, and it
+ * would also draw a contact request and an invitation twice each — once here
+ * and once in the list they belong to — which is the failure `liveChannelId`
+ * and `nearbyChannelIds` exist to prevent for the channel rows, and the
+ * failure STYLE.md rule 7 is about. So this says the sentence and the list
+ * keeps the controls, exactly as the live bar says where you are standing and
+ * the channel screen keeps the microphone. What was missing was never the
+ * button; it was knowing there was one.
+ *
+ * **Two bars rather than one**, when both are outstanding. A single line
+ * counting unlike things — *2 things waiting* — names neither and points at
+ * one tab while meaning two. Each of these names what it is and goes where it
+ * lives, and both at once is the rarer state anyway: the ordinary arrival
+ * meets them one after the other.
+ *
+ * **Rose, on the border, over `surface`.** `waiting` is the token whose
+ * meaning this is, spent on the dab and on the edge of an invitation row —
+ * see `ChannelsView`'s `invite` style, which argues the fill away at length
+ * and is the shape copied here. No eighteenth token and no tinted block: the
+ * live bar stays the only one of those, violet being the floor and nothing
+ * else.
+ *
+ * **It does not switch anybody's tab by itself**, which was the other way to
+ * fix this and is worse. The first snapshot arrives a moment after the app
+ * opens, so a rule that moved the list on it would move it under a thumb
+ * already travelling — and it would have to decide, every launch after the
+ * first, whether this arrival is still the thing somebody came for. A bar
+ * says so and waits to be pressed.
+ */
+function WaitingBar({ onList }: { onList: (list: List) => void }) {
+  const app = useApp();
+  const requests = answerableRequests(app.home);
+  const invitations = waitingInvitations(app.home);
+
+  /*
+    The debug preview lights this with the dabs it belongs with — it is the
+    same claim at a different size, and a preview that showed the marks and
+    not the line would be a preview of a state the app never has. Faked
+    rather than forced, because unlike the two dabs there is nothing here to
+    draw without a name to put in it. See `forcedDabs` in `state/AppProvider`.
+  */
+  const forced = app.forcedDabs;
+  const people = forced && requests.length === 0 ? 1 : requests.length;
+  const rooms = forced && invitations.length === 0 ? 1 : invitations.length;
+
+  if (people === 0 && rooms === 0) return null;
+
+  /*
+    One name or a count, never a name and a count together. "Ana and 2 others"
+    reads as a group doing one thing, and these are separate people who each
+    asked separately; the list one tap away is where they are enumerated.
+  */
+  const asking = requests[0]?.account.displayName ?? "Somebody";
+  const invitation = invitations[0];
+  const room = invitation?.title ?? "a channel";
+  const asked = invitation?.from ?? "";
+
+  return (
+    <>
+      {people > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            people === 1
+              ? `${asking} wants to be a contact. Tap to answer.`
+              : `${people} people want to be contacts. Tap to answer.`
+          }
+          onPress={() => onList("contacts")}
+          style={styles.waitingBar}
+        >
+          <View style={styles.rowMain}>
+            <Text style={styles.waitingTitle} numberOfLines={1}>
+              {people === 1
+                ? `${asking} wants to be a contact`
+                : `${people} people want to be contacts`}
+            </Text>
+            <Text style={styles.liveSub}>tap to answer</Text>
+          </View>
+        </Pressable>
+      ) : null}
+
+      {rooms > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${describeInvitation(
+            rooms,
+            asked,
+            room,
+            invitation?.guest ?? false
+          )}. Tap to answer.`}
+          onPress={() => onList("channels")}
+          style={styles.waitingBar}
+        >
+          <View style={styles.rowMain}>
+            <Text style={styles.waitingTitle} numberOfLines={1}>
+              {describeInvitation(
+                rooms,
+                asked,
+                room,
+                invitation?.guest ?? false
+              )}
+            </Text>
+            <Text style={styles.liveSub}>tap to answer</Text>
+          </View>
+        </Pressable>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The invitation bar's sentence, said once and read twice — on the screen and
+ * to a screen reader, which must not be able to disagree.
+ *
+ * **A seat and a membership get different words**, which is `InviteView.guest`'s
+ * standing rule: one is a place in the room while it lasts, the other is
+ * belonging to the channel, and a line that said *asked you into* for both
+ * would be wrong about one of them every time.
+ *
+ * **The room goes unnamed when its name is the asker's**, which is what
+ * `inviteCard` leaves behind for a channel nobody has named and whose roster
+ * the server withheld — a guest invitation being the ordinary way that
+ * happens. *Dana Chu asked you into Dana Chu* is the same name twice and reads
+ * as a bug; the channel is one tap away and can introduce itself there.
+ */
+function describeInvitation(
+  count: number,
+  from: string,
+  room: string,
+  guest: boolean
+): string {
+  if (count > 1) return `${count} invitations waiting`;
+  if (!from) return guest ? `A seat is waiting for you` : `You have been asked into ${room}`;
+  if (room === from) {
+    return guest ? `${from} kept you a seat` : `${from} asked you into a channel`;
+  }
+  return guest
+    ? `${from} kept you a seat in ${room}`
+    : `${from} asked you into ${room}`;
+}
+
+/**
  * The switch, and the two marks it can wear.
  *
  * **Both dabs are read here rather than inside the bodies they are about**, for
@@ -1174,6 +1347,39 @@ const styles = StyleSheet.create({
     padding: spacing(1.75),
   },
   screenTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  /**
+   * Something somebody has asked of you.
+   *
+   * **`screenBar`'s shape in the waiting hue**, stated in full rather than
+   * shared with it — this file's standing rule for bars that coincide, the
+   * same one `nearbyBar` is written out under. It is a fourth thing rather
+   * than a fourth strength: two of these say where you are, one says where
+   * the film is, and this one is about somebody else's question.
+   *
+   * **Border only, over `surface`.** The fill is what makes the live bar the
+   * loudest thing in this header, and it should stay the only one: the room
+   * you are standing in is happening now, and a request can be answered in a
+   * minute or tomorrow. `ChannelsView`'s `invite` made this exact trade on
+   * 2026-09-15 for the row this bar points at, so the two now carry the same
+   * rose edge at two sizes, which is what they are.
+   */
+  waitingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    backgroundColor: colors.surface,
+    borderColor: colors.waiting,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing(1.75),
+  },
+  /** `nearbyTitle`'s weight: a hoisted row, not presence. */
+  waitingTitle: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
   nearbyBar: {
     flexDirection: "row",
     alignItems: "center",

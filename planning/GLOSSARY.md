@@ -99,6 +99,7 @@ caused; the list carries the meaning.
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
+- **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed and no recording begun. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and neither when no device of yours has it; a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
 - **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home* — the way to stop being the second device is *Other device*, under *Full screen* — no corner to float into, and no channel list beside it however wide the window; a film sent here subscribes this device to the channel and opens it on *Watch*, taking the device over whatever it was showing — another channel, the channel list, a settings screen, a transcript, a profile — and only the server's ask counting as an arrival
@@ -628,6 +629,13 @@ search. Both clear together the moment the help screen is opened.
 is the only place a control rather than a tab wears this mark: a dab on a
 button means *the tab you came through was marked about this*, never a second
 thing of its own.
+
+**The *Contacts* one is now said in words above the tabs as well**, by the
+*waiting bar*, since 2026-09-23 — and the two are not a duplicate for the
+reason the *Support* pair are not: the mark says *go and look*, the sentence
+says what is there. The dab still earns its place on the tab a reader is not
+standing on; what it could not do is name the person, and that is what an
+account arriving to a request it has to go and find was missing.
 
 **Never a count**, deliberately. An outgoing contact request is not in the
 Contacts count at all — only the other person can answer one, and a mark for it
@@ -2104,6 +2112,50 @@ One speaker within a transcript. Usually one voice per person, since each
 person's audio was captured separately — see *stem* in Part Two — so a voice
 label is only ever drawn where the provider heard more than one voice in audio
 this system assumed was one.
+
+## Waiting bar
+
+**A pinned line on Home saying somebody has asked something of you**, since
+2026-09-23: one for the *contact requests* you can answer, one for the
+*invitations*, and nothing at all when there is neither. `WaitingBar` in
+`ui/HomeView.tsx`, drawn in the tier under the presence bars and above the two
+notices — which is the order of who each line is about, an open microphone
+first and the application's own requests last.
+
+**It exists for the first hour of an invited account**, which was a scavenger
+hunt. Somebody invited by email arrives with a contact request already written
+— the server does it at signup, resolving `pending_invites` — and Home opens on
+*Channels*, which for that account is empty. The request is one tab over behind
+a *dab*, which is deliberately a mark and never a sentence. They answer it, the
+person who asked then asks them into a channel, and *that* card lands on the tab
+they have just left, announced the same way. Two things waiting, each behind a
+tab the reader is not standing on.
+
+**The sentence, not the controls.** A tap goes to the list holding the row; the
+*Accept* stays where it was. Hoisting the rows themselves would draw each
+request and each invitation twice, which is the thing `liveChannelId` and
+`nearbyChannelIds` exist to prevent for the channel rows. It is the *live bar*'s
+bargain exactly — that line says which room you are standing in and the room
+keeps the microphone.
+
+**Two bars rather than one.** A single line counting unlike things — *2 things
+waiting* — names neither and points at one tab while meaning two. Both at once
+is the rarer state in any case: the ordinary arrival meets them one after the
+other.
+
+**One name or a count, never both.** *Ana and 2 others* reads as a group doing
+one thing, and these are people who each asked separately; the list one tap
+away is where they are enumerated.
+
+**It does not move anybody's tab by itself**, which was the other way to fix
+this. The first snapshot lands a moment after the app opens, so a rule that
+switched lists on it would switch one under a thumb already travelling — and
+would have to decide, every launch after the first, whether the arrival is
+still what somebody came for. A bar says so and waits to be pressed.
+
+Rose on the edge over `surface`, no fill: `waiting` is the token whose meaning
+this already is, and the live bar stays the only tinted block on the screen.
+See STYLE.md § *The pinned header*.
 
 ## Watch party
 

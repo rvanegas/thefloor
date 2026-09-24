@@ -589,6 +589,12 @@ card.** A border in the hue that already carries the meaning says which kind of
 thing a row is without competing for the one tint on the screen that is
 allowed to shout.
 
+**Home's *waiting bar* is the second wearer of that trade**, added 2026-09-23:
+`colors.waiting` on the edge, `surface` behind it, `screenBar`'s four lines
+otherwise. It is the same claim as the invitation row it points at, said one
+tier up, so the two carry one hue at two sizes. The tally stands — three
+tinted cards, and the live bar is still the only fill in Home's header.
+
 **A roster card's suffixes are ordered by what a reader may have to act on.**
 There are three — `· muted`, `· has the floor`, `· watching` — appended to the
 status in that order, and the order is the ranking: the first two are states

@@ -468,7 +468,11 @@ describe('tapping a row', () => {
 
     expect(textOf(tree)).toContain('Dana Chu asked you in · waiting');
     expect(textOf(tree)).not.toContain('tap to join');
-    expect(pressableFor(tree, 'Dana Chu').props.accessibilityLabel).toContain(
+    // `'Dana Chu.'` and not `'Dana Chu'`: the row's label opens with the
+    // channel's name and a full stop, and the tier's waiting bar — which
+    // names the same invitation in a sentence — would otherwise be the first
+    // pressable this finds. The claim is about the row.
+    expect(pressableFor(tree, 'Dana Chu.').props.accessibilityLabel).toContain(
       'Open.'
     );
     act(() => tree.unmount());
