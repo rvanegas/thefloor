@@ -23,6 +23,7 @@ import {
   nearbyChannels,
   waitingInvitations,
 } from "./ChannelsView";
+import type { CardWords } from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
 import { ContactsView, answerableRequests } from "./ContactsView";
 import { Introduction } from "./Introduction";
@@ -239,10 +240,7 @@ export function HomeView({
    * the exclusion passed to `ChannelsView` being one decision made in one
    * place.
    */
-  const nearby = nearbyChannels(app.home, {
-    channels: useText().channels,
-    naming: useText().naming,
-  }).filter(
+  const nearby = nearbyChannels(app.home, useCardWords()).filter(
     (channel) => channel.channelId !== liveChannel?.channelId,
   );
 
@@ -1071,10 +1069,24 @@ function useAnswerWaiting(): boolean {
  * the two dabs there is nothing here to draw without a name to put in it. See
  * `forcedDabs` in `state/AppProvider`.
  */
+/**
+ * The words the card builders in `ChannelsView` need, as a component can ask
+ * for them.
+ *
+ * **They take words as an argument rather than reading a hook** — that is
+ * `CardWords`' whole argument, since they are builders and not components.
+ * This is the other half of it: every caller in here *is* a component, and
+ * three copies of the same literal are three things that can drift apart.
+ */
+function useCardWords(): CardWords {
+  const text = useText();
+  return { channels: text.channels, naming: text.naming };
+}
+
 function useWaiting(): { people: number; rooms: number; any: boolean } {
   const app = useApp();
   const requests = answerableRequests(app.home);
-  const invitations = waitingInvitations(app.home);
+  const invitations = waitingInvitations(app.home, useCardWords());
   const forced = app.forcedDabs;
   const people = forced && requests.length === 0 ? 1 : requests.length;
   const rooms = forced && invitations.length === 0 ? 1 : invitations.length;
@@ -1085,7 +1097,7 @@ function WaitingBar({ onList }: { onList: (list: List) => void }) {
   const app = useApp();
   const t = useText().home;
   const requests = answerableRequests(app.home);
-  const invitations = waitingInvitations(app.home);
+  const invitations = waitingInvitations(app.home, useCardWords());
   const { people, rooms } = useWaiting();
 
   if (people === 0 && rooms === 0) return null;

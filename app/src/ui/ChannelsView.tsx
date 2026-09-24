@@ -776,11 +776,12 @@ export type WaitingInvitation = {
  * there is one to go and find is the tier's.
  */
 export function waitingInvitations(
-  home: HomeViewData | null
+  home: HomeViewData | null,
+  words: CardWords
 ): WaitingInvitation[] {
   if (!home) return [];
   return (home.invites ?? [])
-    .map(inviteCard)
+    .map((invite) => inviteCard(invite, words))
     .sort(byIdleness)
     .map((card) => ({
       channelId: card.channelId,
