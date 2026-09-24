@@ -308,7 +308,7 @@ export const es: Strings = {
     chipIn: () => 'Contribuir',
     whatItCosts: () =>
       'La m\u00e1quina en la que funciona, el audio que lleva una conversaci\u00f3n y el almacenamiento de tus grabaciones cuestan dinero cada mes.',
-    leaderboard: () => 'Clasificaci\u00f3n',
+    leaderboard: () => 'Puntaje',
     leaderboardWhy: () =>
       'Qui\u00e9n ha tra\u00eddo a m\u00e1s gente a The Floor. Est\u00e1 aqu\u00ed porque se activ\u00f3 para tu cuenta.',
     audioLab: () => 'Laboratorio de audio',
@@ -327,7 +327,7 @@ export const es: Strings = {
     requestsWaiting: () => 'solicitudes pendientes',
     channels: () => 'Canales',
     podcasts: () => 'Podcasts',
-    support: () => 'Ayuda y apoyo',
+    support: () => 'Apoyo',
     filmOnAnotherDevice: () => 'La pel\u00edcula est\u00e1 en otro dispositivo',
     tapToWatchHere: () => 'toca para verla aqu\u00ed',
     contactRequestWaiting: (name: string) => `${name} quiere ser tu contacto`,
