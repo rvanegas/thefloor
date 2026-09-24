@@ -73,6 +73,18 @@ export interface RecordingStore {
    * was never written answers `false` and is not a failure: the mix and the
    * published episode are asked for unconditionally, and most recordings have
    * neither.
+   *
+   * **This requires `s3:ListBucket`, and measurably does not work without
+   * it.** A bucket will not confirm or deny an object's existence to a caller
+   * who cannot list it, so a missing key comes back `403 AccessDenied` rather
+   * than `404` — verified against production on 2026-09-23, where the same
+   * credential returned 200 for a key that was there and 403 for three that
+   * were not. `mixes.ts` § `dropHollowStems` documents the same behaviour and
+   * chooses to read every failure as absence, which is safe there and is not
+   * safe here: absence drops a row, and a row is the only record of which keys
+   * belong to a recording. So this reports *unknown* by throwing, the sweep
+   * holds the row, and the arrangement waits on the grant rather than
+   * guessing.
    */
   exists(key: string): Promise<boolean>;
 }
@@ -197,6 +209,13 @@ export class S3RecordingStore implements RecordingStore {
       // 404 is the answer, not a failure. Anything else — a refused head, a
       // network fault — is not evidence of absence, and the sweep must not
       // read it as one: saying `false` here would drop a row on a timeout.
+      //
+      // **403 is the case that matters, and today it is every case.** Without
+      // `s3:ListBucket` the bucket refuses to say whether a key exists rather
+      // than answering 404, so a missing object is indistinguishable from one
+      // it will not discuss. Falling through to the throw is right — unknown
+      // is not absent — but it does mean the sweep can never confirm anything
+      // has gone until that permission is granted. See the interface note.
       const status = (error as { $metadata?: { httpStatusCode?: number } })
         .$metadata?.httpStatusCode;
       if (status === 404) return false;

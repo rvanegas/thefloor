@@ -35,6 +35,21 @@ timeout — rethrows and the row is held. No answer is not an answer of no, and
 reading it as one would drop a row on a network fault, which is the failure
 this whole ordering exists to prevent.
 
+**And today that is every answer, so the arrangement is not yet working.**
+`thefloor-server` holds no `s3:ListBucket`, and a bucket will not confirm or
+deny an object's existence to a caller who cannot list it: a missing key comes
+back `403 AccessDenied`, not `404`. Measured the same day — the same credential
+answered 200 for a key that was there and 403 for three that were not, one of
+them deleted an hour earlier. `mixes.ts` § `dropHollowStems` had documented
+this behaviour all along and it was read too late.
+
+So the sweep currently holds every row and confirms nothing, which is the safe
+failure and not the intended one. **It needs `s3:ListBucket` on the recordings
+bucket** — a read permission, in keeping with reading being this credential's
+privilege, and not the delete that was declined above. Until then this entry
+describes an arrangement that is built and inert. The entry in backlog/ is what
+closes it.
+
 Refusals are still reported, once per recording rather than per key, even when
 everything was already absent. They are routine under this arrangement, but
 silence about them is exactly what let the original bug run unnoticed, so they
