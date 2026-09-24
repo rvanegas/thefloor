@@ -14,6 +14,7 @@ import {
 import { CloseIcon } from './icons';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
+import type { LanguagePreference } from '../../../core/settings';
 import { useText } from '../i18n';
 
 /**
@@ -468,6 +469,58 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </Card>
         </>
       ) : null}
+
+      {/*
+        Beside Appearance and above it, because they are the same kind of thing
+        — how the app presents itself to you rather than what it does — and
+        because this is the one of the two that decides whether the rest of the
+        screen can be read at all. Somebody who has the app in the wrong
+        language is looking for exactly this control, and looking for it in
+        words they do not read; putting it under the scheme would mean scrolling
+        past a card about colours to find it.
+
+        **The names are each in their own language**, English and Español, in
+        both catalogues. A Spanish reader looking for English does not want to
+        find *Inglés*: the label has to be legible to whoever is about to choose
+        it, which is the one person on the screen who cannot read the language
+        it is written in.
+
+        **The third option is *Automatic* rather than *System*, which is what
+        Appearance calls the same idea one card below.** Two buttons reading
+        *System* on one screen are announced identically by a screen reader and
+        cannot be told apart in a sentence about either. *Phone's language* was
+        the other candidate and is the clearer phrase; it is also two words in a
+        third of a card, which is the arithmetic STYLE.md § *A choice of more
+        than three goes down the page rather than across it* does — a third is
+        about 93pt, and a label that wraps leaves one button in a row of three
+        taller than its neighbours. What the word leaves out, the note says.
+
+        **It follows the account, like everything else on this screen bar the
+        output picker**: a language is chosen by a person, not by a handset, and
+        the note says so. Changing it redraws — nothing restarts — because the
+        catalogue is state above `AppProvider`; see `LanguageProvider`.
+      */}
+      <SectionLabel>{t.language()}</SectionLabel>
+      <Card style={styles.stack}>
+        <View style={styles.choices}>
+          {(
+            [
+              ['system', t.automaticLanguage()],
+              ['en', t.english()],
+              ['es', t.spanish()],
+            ] as Array<[LanguagePreference, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              label={label}
+              style={styles.choice}
+              variant={app.language === value ? 'primary' : 'default'}
+              onPress={() => app.setLanguage(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.languageNote()}</Text>
+      </Card>
 
       <SectionLabel>{t.appearance()}</SectionLabel>
       <Card style={styles.stack}>

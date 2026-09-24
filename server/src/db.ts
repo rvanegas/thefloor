@@ -182,6 +182,14 @@ export interface AccountRow {
    */
   appearance: string | null;
   /**
+   * Which language this person is read to in — `en`, `es`, or `system` for
+   * the phone's own. Null until they choose, and read as the default, which
+   * is `system`: null and a stored `'system'` mean the same thing today for
+   * the reason `appearance` states above, and are kept distinguishable for
+   * the same one.
+   */
+  language: string | null;
+  /**
    * Whether the channel screen has stopped repeating its footer's three
    * controls as cards further down: 1 for yes, 0 for no, null for never
    * having said. The default is off, so null and 0 mean the same thing today
@@ -659,13 +667,17 @@ CREATE TABLE IF NOT EXISTS accounts (
   im_telegram  TEXT,
   im_signal    TEXT,
   -- What this person chose on the Home settings screen, null until they chose
-  -- anything. Five of the six settings there; the sixth is about the headset
-  -- in somebody's ears rather than about them, and lives on the phone. It was
-  -- five of six between 2026-09-12 and 2026-09-13, when the channel tabs had
-  -- a column here.
+  -- anything. Every setting there that is stored at all: the one exception is
+  -- the audio output, which raises a system sheet and keeps nothing. No count
+  -- here on purpose — the several this comment has carried were each wrong
+  -- within a fortnight, the settings having come and gone. See
+  -- core/settings.ts for the list that is kept in step.
   -- See core/settings.ts and the row type above for why the untouched case is
   -- null rather than the default written down.
   appearance         TEXT,
+  -- Which language the app speaks to this person: 'en', 'es' or 'system'.
+  -- Null until they choose, like the scheme above and for its reasons.
+  language           TEXT,
   hide_control_cards INTEGER,
   -- Whether the experimental features are visible to this account, null until
   -- somebody says. Off is the default here, as it is for all three: each of
@@ -2054,6 +2066,14 @@ function migrate(db: Db): void {
   // arrived on 2026-09-06, days after both of them.
   if (!accountColumns.some((c) => c.name === 'labs')) {
     db.exec('ALTER TABLE accounts ADD COLUMN labs INTEGER');
+  }
+  // The same again, for 2026-09-24: the language crossed the wire on the day
+  // the settings screen grew a control for it. Null for every account that
+  // predates it, which reads as `system` — so nobody's app changes language
+  // because this column appeared, and everybody who had been reading it in
+  // Spanish because their phone is in Spanish goes on doing so.
+  if (!accountColumns.some((c) => c.name === 'language')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN language TEXT');
   }
   /*
     How loud the chimes were, added on 2026-09-15 and dropped the same day

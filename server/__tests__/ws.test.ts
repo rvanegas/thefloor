@@ -350,6 +350,7 @@ describe('websocket', () => {
     await client.open();
     expect((await client.next('hello')).settings).toEqual({
       appearance: 'system',
+      language: 'system',
       hideControlCards: false,
       labs: false,
       marketingEmail: false,
@@ -372,6 +373,7 @@ describe('websocket', () => {
       headers: auth(token),
       payload: {
         appearance: 'dark',
+        language: 'es',
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
@@ -381,6 +383,7 @@ describe('websocket', () => {
     await later.open();
     expect((await later.next('hello')).settings).toEqual({
       appearance: 'dark',
+      language: 'es',
       hideControlCards: true,
       labs: true,
       marketingEmail: false,
@@ -426,6 +429,7 @@ describe('websocket', () => {
     for (const client of [phone, tablet]) {
       expect((await client.next('settings')).settings).toEqual({
         appearance: 'dark',
+        language: 'system',
         hideControlCards: false,
         labs: false,
         marketingEmail: false,

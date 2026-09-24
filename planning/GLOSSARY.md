@@ -67,6 +67,7 @@ caused; the list carries the meaning.
 - **Invite pin** — The six digits at the end of an invite link, good once
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
+- **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone button 17 and later
@@ -698,9 +699,9 @@ header — *Channel Settings* — and two screens with one name leave which of t
 you are on to be inferred from what is on it.
 
 What is on it belongs to the account rather than to the phone, so it follows
-somebody to a second device: the colour scheme, whether a tap on a channel
-looks or steps in, whether the channel screen repeats its footer's controls as
-cards, and *Labs*. Below those sit the things
+somebody to a second device: the *language*, the colour scheme, whether the
+channel screen repeats its footer's controls as cards, and *Labs*. A tap on a
+channel was one of them until 2026-09-21. Below those sit the things
 about this install and this account — notifications, the policies, chipping in,
 signing out, and deleting the account. See core/settings.ts, which is where the
 ones that travel are defined.
@@ -992,6 +993,32 @@ It is a gate, not a preference: with it off the section is not on the screen at
 all — no greyed buttons, no empty cards. And it is only about you: a member of
 your channel who has turned it on can transcribe a recording you cannot read.
 See `labs` in core/settings.ts.
+
+## Language
+
+**Which of the two catalogues the app speaks to you in**, chosen on *Floor
+Settings*: *Automatic*, which is the phone's own language and is what every
+account has until somebody says otherwise, or *English* or *Español* named
+outright. The two languages are named in themselves in both catalogues — the one
+person on that screen who cannot read the language it is drawn in is the person
+about to change it — and the third button is *Automatic* rather than *System*,
+though it is the same idea Appearance calls that one card below, because two
+buttons of that name on one screen are announced identically and cannot be told
+apart in a sentence.
+
+**Per account rather than per phone**, on the colour scheme's reasoning and more
+strongly: a scheme you dislike is still readable. So it crosses the wire, is
+stored on `accounts.language`, and is pushed to every device the account holds
+the moment one of them changes it — as `language` in core/settings.ts, where
+`system` is a stored value rather than an absence.
+
+Changing it **redraws rather than restarting**, which is what the app's own
+choice adds over the phone's: iOS relaunches an app whose system language
+changes, and nothing restarts when somebody taps *Español* here. See
+`LanguageProvider` in app/src/i18n/language.tsx, which sits above everything
+including `AppProvider` because that provider reads words of its own.
+
+The vocabulary itself is Part Three.
 
 ## Leaderboard
 
@@ -3703,6 +3730,9 @@ are settled:
     Help                  Ayuda
     Chip in               Contribuir
     Floor Settings        Ajustes de The Floor
+    Language              Idioma — the two languages are named in themselves in
+                          both catalogues, *English* and *Español*; *Automatic*
+                          is *Automático*
     Channel Settings      Ajustes del canal
     The floor             La palabra
     Claim / Release       Pedir / Soltar

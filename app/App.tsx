@@ -12,9 +12,8 @@ import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
-import { TextProvider, stringsFor, useText } from './src/i18n';
-import { deviceRegion } from './src/api/region';
-import { setRelativeTimeLocale } from './src/ui/relativeTime';
+import { useText } from './src/i18n';
+import { LanguageProvider } from './src/i18n/language';
 import { recordEvent } from './src/audio/diagnostics';
 import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
@@ -1297,31 +1296,25 @@ function Glass({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The language the app speaks, decided once at launch.
+ * The language the app speaks, which is the account's and then the phone's.
  *
- * **Read from the same place the region is**, `Intl` via `deviceRegion`, so
- * there is one answer to "what does this device say about itself" and no new
- * dependency for a second one. Once at launch rather than on every render:
- * changing the phone's language relaunches the app on iOS, so nothing can
- * change underneath this that does not also restart it.
+ * **Decided by `LanguageProvider` rather than here, since 2026-09-24**, when
+ * Floor Settings grew a control for it. This function used to read the device
+ * once at launch and hand the answer to `TextProvider`, on the sound grounds
+ * that changing a phone's language relaunches the app on iOS — so nothing
+ * could change underneath it that did not also restart it. A language chosen
+ * in the app restarts nothing, so the choice has to be state.
  *
- * The provider is here rather than the catalogue being a module singleton so
- * that a language chosen in Settings, if there is ever one, is a value change
- * that redraws rather than a restart — and so a test can render one screen in
- * Spanish without touching the others.
+ * It stays outermost, and above `AppProvider` rather than inside it, because
+ * `AppProvider` reads words of its own: the provider that chooses the
+ * catalogue cannot be below the first thing that asks for one. The account's
+ * answer reaches it downwards instead — `applySettings` calls `adopt`. And it
+ * is still a provider rather than a module singleton, so a test can render one
+ * screen in Spanish without touching the others.
  */
 export default function App() {
-  const strings = useMemo(() => {
-    const { locale } = deviceRegion();
-    // Beside the catalogue rather than anywhere else: an app saying *hace 5
-    // minutos* in Spanish and *5 minutes ago* in the same sentence is the
-    // half-translated build the whole shape of `Strings` exists to prevent,
-    // and dayjs's locale is global so it has to be set once, here.
-    setRelativeTimeLocale(locale);
-    return stringsFor(locale);
-  }, []);
   return (
-    <TextProvider strings={strings}>
+    <LanguageProvider>
       <SafeAreaProvider>
         <WholeWindow>
           <Glass>
@@ -1334,7 +1327,7 @@ export default function App() {
           </Glass>
         </WholeWindow>
       </SafeAreaProvider>
-    </TextProvider>
+    </LanguageProvider>
   );
 }
 

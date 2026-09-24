@@ -355,6 +355,14 @@ export const mockApp = {
   setAppearance: jest.fn((preference: 'light' | 'dark' | 'system') => {
     mockApp.appearance = preference;
   }),
+  // The phone's language, which is what every account has until somebody
+  // chooses — and which resolves to English here, since that is what the
+  // catalogue answers for a device jest says nothing about. Every assertion in
+  // these files naming English prose depends on it.
+  language: 'system' as 'en' | 'es' | 'system',
+  setLanguage: jest.fn((preference: 'en' | 'es' | 'system') => {
+    mockApp.language = preference;
+  }),
   // Off, for the same reason and with the same consequence: the channel screen
   // draws a card for each of its footer's three controls unless a test says
   // otherwise, so every assertion written before the setting existed is still
@@ -890,6 +898,7 @@ export function resetHarness(): void {
   mockApp.dismissStep.mockClear();
   mockApp.status = 'open';
   mockApp.appearance = 'system';
+  mockApp.language = 'system';
   mockApp.hideControlCards = false;
   mockApp.labs = false;
   mockApp.debug = false;

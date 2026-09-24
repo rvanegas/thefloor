@@ -182,6 +182,12 @@ describe('the two languages', () => {
       'channel.no',
       'home.podcasts',
       'transcript.data',
+      // The two language names, which are each written in their own language
+      // in both catalogues: the person who cannot read the language the screen
+      // is drawn in is the one about to change it, and *Inglés* is no use to
+      // them. See `homeSettings.english` in en.ts.
+      'homeSettings.english',
+      'homeSettings.spanish',
     ]);
     const differences: string[] = [];
     const walk = (a: unknown, b: unknown, path: string) => {

@@ -7,9 +7,10 @@ import {
 /**
  * The settings that belong to a person rather than to a phone.
  *
- * All four on the Floor Settings screen: the colour scheme, whether a tap on a
- * channel steps into it, whether the channel screen repeats its footer's
- * controls as cards, and whether the experimental features are visible at all.
+ * Everything stored on the Floor Settings screen: the colour scheme, the
+ * language, whether the channel screen repeats its footer's controls as cards,
+ * whether the experimental features are visible at all, and whether we may
+ * write to this person. A tap on a channel was one of them until 2026-09-21.
  * Two more were here and are not — where the channel tabs are drawn, and how
  * loud the channel chimes are — and each has a test below saying that a body
  * still carrying it is ignored rather than refused. There was one more still —
@@ -79,6 +80,7 @@ describe('the settings that follow the account', () => {
     // answer would make each of them merge.
     expect(response.json()).toEqual({
       appearance: 'dark',
+      language: 'system',
       hideControlCards: false,
       labs: false,
       marketingEmail: false,
@@ -106,6 +108,7 @@ describe('the settings that follow the account', () => {
     await save(alice.token, { appearance: 'light' });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
+      language: 'system',
       hideControlCards: false,
       labs: true,
       marketingEmail: false,
@@ -114,6 +117,7 @@ describe('the settings that follow the account', () => {
     await save(alice.token, { labs: false, hideControlCards: true });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'light',
+      language: 'system',
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
@@ -122,10 +126,24 @@ describe('the settings that follow the account', () => {
     await save(alice.token, { appearance: 'dark' });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'dark',
+      language: 'system',
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
     });
+
+    // And the language, which is the newest of them and the one most likely to
+    // be clobbered by a screen saving something else.
+    await save(alice.token, { language: 'es' });
+    expect(app.accounts.settings(alice.account.id)).toEqual({
+      appearance: 'dark',
+      language: 'es',
+      hideControlCards: true,
+      labs: false,
+      marketingEmail: false,
+    });
+    await save(alice.token, { appearance: 'light' });
+    expect(app.accounts.settings(alice.account.id).language).toBe('es');
   });
 
   /**
@@ -150,6 +168,42 @@ describe('the settings that follow the account', () => {
     const row = app.accounts.byId(alice.account.id)!;
     expect(row.appearance).toBe('system');
     expect(row.hide_control_cards).toBe(0);
+  });
+
+  /**
+   * The language's own half of the two tests above, which is worth stating
+   * rather than folded into them: it is the one setting here whose being wrong
+   * makes the rest of the screen unreadable, so a null read as the wrong thing
+   * would be the most expensive default on the object.
+   */
+  it('leaves the language to the phone until somebody says otherwise', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    expect(app.accounts.settings(alice.account.id).language).toBe('system');
+    expect(app.accounts.byId(alice.account.id)!.language).toBeNull();
+
+    await save(alice.token, { language: 'es' });
+    expect(app.accounts.settings(alice.account.id).language).toBe('es');
+    expect(app.accounts.byId(alice.account.id)!.language).toBe('es');
+
+    // Chosen back, and stored as the choice it is rather than reverted to
+    // null, for the reason the scheme's test gives.
+    await save(alice.token, { language: 'system' });
+    expect(app.accounts.settings(alice.account.id).language).toBe('system');
+    expect(app.accounts.byId(alice.account.id)!.language).toBe('system');
+  });
+
+  /**
+   * Refused rather than coerced, like the scheme. The app's own `stringsFor`
+   * answers English for a tag it does not know, which is right for a device's
+   * report of itself and wrong for a stored choice: a preference silently read
+   * as something else is one nobody can change back.
+   */
+  it('refuses a language it has no catalogue for, and changes nothing', async () => {
+    const alice = await signIn('user1@example.com', 'Alice');
+    await save(alice.token, { language: 'es' });
+    const response = await save(alice.token, { language: 'fr' });
+    expect(response.statusCode).toBe(400);
+    expect(app.accounts.settings(alice.account.id).language).toBe('es');
   });
 
   it('refuses a scheme it could not render, and changes nothing', async () => {
@@ -301,6 +355,7 @@ describe('the settings that follow the account', () => {
       'controlCards',
       'hideControlCards',
       'labs',
+      'language',
       'marketingEmail',
       'tapToLook',
       'tapToStepIn',
@@ -321,6 +376,7 @@ describe('the settings that follow the account', () => {
     await save(alice.token, { controlCards: false });
     expect(app.accounts.settings(alice.account.id)).toEqual({
       appearance: 'system',
+      language: 'system',
       hideControlCards: true,
       labs: false,
       marketingEmail: false,

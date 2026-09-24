@@ -27,17 +27,20 @@ dayjs.extend(relativeTime);
 /**
  * Which language these intervals are in.
  *
- * **Global, like `extend` above, and set once at launch for the same
- * reason.** dayjs holds one active locale per module instance; there is no
- * per-call form that does not mean threading a tag through every caller of
- * `ago`, and these are called from inside pure helpers that have no hook.
- * `App.tsx` calls this beside `stringsFor`, off the same reading of the
- * device — so the ladder of thresholds is dayjs's in whichever language the
- * catalogue is in, rather than English boundaries with Spanish words or the
- * reverse.
+ * **Global, like `extend` above, for the same reason.** dayjs holds one active
+ * locale per module instance; there is no per-call form that does not mean
+ * threading a tag through every caller of `ago`, and these are called from
+ * inside pure helpers that have no hook. `LanguageProvider` calls this beside
+ * `stringsFor`, off the same tag — so the ladder of thresholds is dayjs's in
+ * whichever language the catalogue is in, rather than English boundaries with
+ * Spanish words or the reverse.
  *
- * Anything it does not know stays English, which is dayjs's own default and
- * is also what `stringsFor` does with the same tag.
+ * **It goes both ways, since 2026-09-24**, which it did not have to while this
+ * was called once at launch off the device's own report: a language chosen in
+ * Floor Settings can be chosen again, and a call that only ever *set* Spanish
+ * left an app switched back to English counting *hace 5 minutos*. Anything it
+ * does not know is English, which is dayjs's default and is also what
+ * `stringsFor` does with the same tag.
  *
  * **The tests do not call it**, deliberately: they pin the English wording,
  * which is what the thresholds were chosen against, and a suite that set a
@@ -45,7 +48,7 @@ dayjs.extend(relativeTime);
  */
 export function setRelativeTimeLocale(locale: string | undefined): void {
   const language = (locale ?? '').replace(/_/g, '-').split('-')[0].toLowerCase();
-  if (language === 'es') dayjs.locale('es');
+  dayjs.locale(language === 'es' ? 'es' : 'en');
 }
 
 /**

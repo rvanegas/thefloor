@@ -377,7 +377,8 @@ property to keep if a second caller ever wants this.
 
 **A choice of more than three goes down the page rather than across it.** Two
 or three `Button`s at `flex: 1` in a `choices` row is what every yes-or-no and
-the three schemes on Floor Settings use, and it stops working at four: a
+the two triples on Floor Settings use — the schemes, and the languages since
+2026-09-24 — and it stops working at four: a
 phone's card is about 280pt inside its padding, so a fifth of it is 45pt and
 any word longer than *Loud* truncates — a ladder whose rungs are half-spelt is
 a puzzle. Beyond three, stack full-width buttons, one per rung, the `primary`
@@ -386,6 +387,16 @@ is the pattern, and the only one left (four, with a `sublabel` each): the chime
 loudness on Floor Settings was the second — five, bare — for the day that
 setting existed, and the arithmetic above is what decided its shape. It is the
 same arithmetic § *The pinned footer* makes about five slots in 620.
+
+**At three the arithmetic is about wrapping rather than truncating**, which is
+what named the language buttons: a third of that card is about 93pt, `Button`
+sets no `numberOfLines`, and a two-word label there wraps and leaves one button
+in the row taller than its neighbours. So the follow-the-phone option is
+*Automatic* rather than *Phone's language*, which is the better phrase and does
+not fit, with the sentence it gives up carried by the note under the row. It is
+also why it is not called *System* like the scheme's option one card below: two
+buttons of one name on one screen are announced identically by a screen reader.
+See GLOSSARY.md § *Language*.
 
 ### IconButton
 

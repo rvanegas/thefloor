@@ -3,11 +3,12 @@ import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
+import { LanguageProvider } from '../../i18n/language';
 
 /**
  * Which settings belong to the person and which belong to the phone.
  *
- * The scheme, the tap and the control cards follow the account: the server
+ * The scheme, the language, the tap and the control cards follow the account: the server
  * states them, every device this account holds is told, and this one applies
  * what it is told. **All of them do, since 2026-09-05.** There used to be one
  * that did not — `steadyHeadset`, about the headset in somebody's ears rather
@@ -52,6 +53,7 @@ jest.mock('../../api/http', () => ({
       mockSaved.push(changes);
       return {
         appearance: 'system',
+        language: 'system',
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -80,7 +82,8 @@ function Settings() {
   latest = app;
   return (
     <Text>
-      {app.appearance}/{app.hideControlCards ? 'bare' : 'cards'}/
+      {app.appearance}/{app.language}/
+      {app.hideControlCards ? 'bare' : 'cards'}/
       {app.labs ? 'labs' : 'plain'}
     </Text>
   );
@@ -102,6 +105,7 @@ function textOf(tree: ReactTestRenderer): string {
 /** What the socket does on connecting, with whatever the server holds. */
 function hello(settings: {
   appearance: 'light' | 'dark' | 'system';
+  language: 'en' | 'es' | 'system';
   hideControlCards: boolean;
   labs: boolean;
   marketingEmail: boolean;
@@ -127,9 +131,18 @@ let mounted: ReactTestRenderer | null = null;
 async function mount(): Promise<ReactTestRenderer> {
   await act(async () => {
     mounted = renderer.create(
-      <AppProvider>
-        <Settings />
-      </AppProvider>
+      /*
+        The language lives above `AppProvider`, because the catalogue does and
+        the provider reads words of its own — so a tree without this one has a
+        language that cannot change. Every other test in the app renders bare
+        and is in English by the context's default; this file is the one that
+        has to be able to change it. See `LanguageProvider`.
+      */
+      <LanguageProvider>
+        <AppProvider>
+          <Settings />
+        </AppProvider>
+      </LanguageProvider>
     );
   });
   return mounted!;
@@ -159,21 +172,27 @@ describe('the settings that follow the account', () => {
     // All of them read as "only 'true' turns it on", every one defaulting
     // off since 2026-09-07.
     mockStored['thefloor.labs'] = 'true';
+    // Cached for the same reason the scheme is: the frames before `hello` are
+    // frames somebody reads, and reading them in the wrong language is worse
+    // than seeing the wrong palette.
+    mockStored['thefloor.language'] = 'es';
     const tree = await mount();
     // The cache first, which is the whole of what a cold start has.
-    expect(textOf(tree)).toContain('light/bare/labs');
+    expect(textOf(tree)).toContain('light/es/bare/labs');
 
     await act(async () =>
       hello({
         appearance: 'dark',
+        language: 'system',
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
       })
     );
-    expect(textOf(tree)).toContain('dark/cards/plain');
+    expect(textOf(tree)).toContain('dark/system/cards/plain');
     // And written through, so the next cold start starts from the right one.
     expect(mockStored['thefloor.appearance']).toBe('dark');
+    expect(mockStored['thefloor.language']).toBe('system');
     expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBe('false');
     expect(mockStored['thefloor.labs']).toBe('false');
@@ -193,13 +212,14 @@ describe('the settings that follow the account', () => {
     mockStored['thefloor.tapToStepIn'] = 'false';
     mockStored['thefloor.controlCards'] = 'false';
     const tree = await mount();
-    expect(textOf(tree)).toContain('system/bare/plain');
+    expect(textOf(tree)).toContain('system/system/bare/plain');
 
     // And the old keys go the moment the server states anything, rather than
     // being kept in step with the new ones.
     await act(async () =>
       hello({
         appearance: 'system',
+        language: 'system',
         hideControlCards: true,
         labs: false,
         marketingEmail: false,
@@ -226,6 +246,7 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
+        language: 'system',
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -234,12 +255,13 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       handlers.onSettings?.({
         appearance: 'light',
+        language: 'es',
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
       })
     );
-    expect(textOf(tree)).toContain('light/bare/labs');
+    expect(textOf(tree)).toContain('light/es/bare/labs');
   });
 
   /**
@@ -251,6 +273,7 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'system',
+        language: 'system',
         hideControlCards: false,
         labs: false,
         marketingEmail: false,
@@ -258,20 +281,30 @@ describe('the settings that follow the account', () => {
     );
 
     await act(async () => latest!.setAppearance('dark'));
-    expect(textOf(tree)).toContain('dark/cards');
+    expect(textOf(tree)).toContain('dark/system/cards');
     expect(mockSaved).toEqual([{ appearance: 'dark' }]);
 
+    // Applied under the thumb that asked, cached for the next cold start, and
+    // sent on its own — a screen changing language must not reset the scheme
+    // on the way past.
+    await act(async () => latest!.setLanguage('es'));
+    expect(textOf(tree)).toContain('dark/es/cards');
+    expect(mockStored['thefloor.language']).toBe('es');
+    expect(mockSaved).toEqual([{ appearance: 'dark' }, { language: 'es' }]);
+
     await act(async () => latest!.setHideControlCards(true));
-    expect(textOf(tree)).toContain('dark/bare');
+    expect(textOf(tree)).toContain('dark/es/bare');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
+      { language: 'es' },
       { hideControlCards: true },
     ]);
 
     await act(async () => latest!.setLabs(true));
-    expect(textOf(tree)).toContain('dark/bare/labs');
+    expect(textOf(tree)).toContain('dark/es/bare/labs');
     expect(mockSaved).toEqual([
       { appearance: 'dark' },
+      { language: 'es' },
       { hideControlCards: true },
       { labs: true },
     ]);
@@ -291,6 +324,7 @@ describe('the settings that follow the account', () => {
     await act(async () =>
       hello({
         appearance: 'dark',
+        language: 'es',
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
@@ -299,8 +333,11 @@ describe('the settings that follow the account', () => {
     await act(async () => {
       await latest!.signOut();
     });
-    expect(textOf(tree)).toContain('system/cards/plain');
+    expect(textOf(tree)).toContain('system/system/cards/plain');
     expect(mockStored['thefloor.appearance']).toBeUndefined();
+    // Back to the phone's language, not the last person's: whoever reads the
+    // sign-in screen next is not the person who chose Spanish.
+    expect(mockStored['thefloor.language']).toBeUndefined();
     expect(mockStored['thefloor.tapToLook']).toBeUndefined();
     expect(mockStored['thefloor.hideControlCards']).toBeUndefined();
     expect(mockStored['thefloor.labs']).toBeUndefined();

@@ -44,6 +44,7 @@ import { Platform } from 'react-native';
 export const INSTALL_KEYS: readonly string[] = [
   'thefloor.token',
   'thefloor.appearance',
+  'thefloor.language',
   'thefloor.tapToLook',
   'thefloor.tapToStepIn',
   'thefloor.hideControlCards',

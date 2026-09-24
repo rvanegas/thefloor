@@ -809,6 +809,27 @@ export const en = {
     stopShowingEveryDab: () => 'Stop showing every dab',
     dabsNote: () =>
       'Puts a mark on both Home tabs that can wear one, and on the Help card behind Support, whether or not anything is waiting, so the mark itself can be looked at. It changes nothing else, and it is off again the next time the app starts.',
+    language: () => 'Language',
+    /**
+     * **Each language named in itself, in both catalogues.** The one person on
+     * this screen who cannot read the language it is drawn in is the person
+     * about to change it, and *Spanish* is no use to them; *Español* is legible
+     * whichever way round the app currently is. `System` is translated instead,
+     * because it names the phone rather than a language and is read by somebody
+     * already settled.
+     */
+    english: () => 'English',
+    spanish: () => 'Espa\u00f1ol',
+    /**
+     * Not *System*, which is what the appearance card calls the same idea: two
+     * buttons of that name on one screen are announced identically by a screen
+     * reader and cannot be told apart in a sentence. Not *Phone's language*
+     * either, which says it better and wraps in a third of a card — see the
+     * card's own comment. What the word leaves out, the note says.
+     */
+    automaticLanguage: () => 'Automatic',
+    languageNote: () =>
+      'Automatic is the language your phone is set to, and changes when the phone does. Whichever you choose follows your account rather than this phone, so everywhere you sign in reads the same way.',
     appearance: () => 'Appearance',
     light: () => 'Light',
     dark: () => 'Dark',

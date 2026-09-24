@@ -652,6 +652,58 @@ describe("the stepping-in setting, which is gone", () => {
 });
 
 /**
+ * Choosing a language.
+ *
+ * What the choice *does* is tested where the catalogue is chosen — see
+ * `state/__tests__/settings.test.tsx` and `i18n/__tests__`. What is asserted
+ * here is the same three things the scheme's tests assert: that the screen
+ * offers the choices, marks the one in force, and reports a change upward
+ * rather than keeping it.
+ */
+describe("the language setting", () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  it("offers both languages and following the phone", async () => {
+    const tree = await openSettings();
+    expect(findButton(tree, "English")).toBeDefined();
+    // In its own language in both catalogues: the person who cannot read the
+    // screen is the one about to change it.
+    expect(findButton(tree, "Espa\u00f1ol")).toBeDefined();
+    // *Automatic* rather than a second button called *System*, which is what
+    // Appearance calls the same idea one card below — and that one is still
+    // there, so the screen has one of each rather than two of one.
+    expect(findButton(tree, "Automatic")).toBeDefined();
+    expect(findButton(tree, "System")).toBeDefined();
+    act(() => tree.unmount());
+  });
+
+  it("reports a choice rather than keeping it", async () => {
+    const tree = await openSettings();
+    act(() => findButton(tree, "Espa\u00f1ol")!.props.onPress());
+    expect(mockApp.setLanguage).toHaveBeenCalledWith("es");
+    act(() => tree.unmount());
+  });
+
+  it("marks which one is in force", async () => {
+    mockApp.language = "es";
+    const tree = await openSettings();
+    expect(styleOf(tree, "Espa\u00f1ol").backgroundColor).not.toBe(
+      styleOf(tree, "English").backgroundColor,
+    );
+    expect(styleOf(tree, "English").backgroundColor).toBe(
+      styleOf(tree, "Automatic").backgroundColor,
+    );
+    act(() => tree.unmount());
+  });
+});
+
+/**
  * Choosing a colour scheme.
  *
  * What the choice *looks* like cannot be asserted here — the colours resolve

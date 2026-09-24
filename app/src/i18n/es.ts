@@ -656,6 +656,13 @@ export const es: Strings = {
     stopShowingEveryDab: () => 'Dejar de mostrar todas las marcas',
     dabsNote: () =>
       'Pone una marca en las dos pesta\u00f1as del inicio que pueden llevarla, y en la tarjeta de Ayuda detr\u00e1s de Ayuda y apoyo, haya o no algo esperando, para poder mirar la marca en s\u00ed. No cambia nada m\u00e1s, y se apaga la pr\u00f3xima vez que arranque la app.',
+    language: () => 'Idioma',
+    /** The names are in their own language; see the English catalogue. */
+    english: () => 'English',
+    spanish: () => 'Espa\u00f1ol',
+    automaticLanguage: () => 'Autom\u00e1tico',
+    languageNote: () =>
+      'Autom\u00e1tico es el idioma en el que tienes el tel\u00e9fono, y cambia cuando cambia el tel\u00e9fono. Lo que elijas va con tu cuenta y no con este tel\u00e9fono, as\u00ed que se lee igual donde inicies sesi\u00f3n.',
     appearance: () => 'Apariencia',
     light: () => 'Claro',
     dark: () => 'Oscuro',

@@ -27,6 +27,7 @@ import { isTriedId, TRIED_IDS } from '../../core/tried';
 import { usernameProblem } from '../../core/username';
 import {
   isColorSchemePreference,
+  isLanguagePreference,
   type AccountSettings,
 } from '../../core/settings';
 import {
@@ -2749,6 +2750,20 @@ export function buildApp(options: BuildOptions = {}): App {
           .send({ error: 'appearance must be light, dark or system.' });
       }
       changes.appearance = body.appearance;
+    }
+    // Refused rather than coerced, like the scheme: a tag this server does not
+    // know is a client bug, and storing it would hand every other device of
+    // this account a language none of them has a catalogue for. The app's own
+    // `stringsFor` falls back to English for an unknown tag, which is right
+    // for a device's own report and wrong for a stored choice — a preference
+    // silently read as something else is one somebody cannot change back.
+    if (body?.language !== undefined) {
+      if (!isLanguagePreference(body.language)) {
+        return reply
+          .code(400)
+          .send({ error: 'language must be en, es or system.' });
+      }
+      changes.language = body.language;
     }
     // **`tapToLook` and `tapToStepIn` are read and dropped**, rather than
     // refused. The setting went on 2026-09-21 and its behaviour became

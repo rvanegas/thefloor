@@ -59,9 +59,11 @@ import {
 } from '../ui/appearance';
 import { takeInvite } from '../ui/handover';
 import { useText } from '../i18n';
+import { useLanguagePreference } from '../i18n/language';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
   type AccountSettings,
+  type LanguagePreference,
 } from '../../../core/settings';
 
 const TOKEN_KEY = 'thefloor.token';
@@ -821,6 +823,21 @@ interface AppValue extends AppState {
   appearance: ColorSchemePreference;
   setAppearance: (preference: ColorSchemePreference) => void;
   /**
+   * English, Spanish, or follow the phone. Takes effect on the tap.
+   *
+   * **An account setting**, on `appearance`'s reasoning and rather more
+   * strongly: a scheme somebody dislikes is still readable, and a language is
+   * not. It is applied here and sent to the server, which tells every other
+   * device this account holds.
+   *
+   * The state lives above this provider rather than in it, because the
+   * catalogue does and this provider reads words of its own — see
+   * `LanguageProvider`. What is here is the wire half: the value the server
+   * last stated, and the tap that states a new one.
+   */
+  language: LanguagePreference;
+  setLanguage: (preference: LanguagePreference) => void;
+  /**
    * Whether the channel screen has dropped the card it keeps for each of the
    * three controls in its pinned footer, letting the footer be the whole of
    * them.
@@ -1034,6 +1051,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       applyPreference(stored);
     })();
   }, []);
+  /**
+   * The language, which is held above this provider and reached rather than
+   * declared.
+   *
+   * Null only where nothing provides it, which is a test rendering a screen
+   * bare; the default then stands and the app is in English, which is what
+   * those tests assert. See `useLanguagePreference`.
+   */
+  const languagePreference = useLanguagePreference();
+  const language = languagePreference?.preference ?? DEFAULT_ACCOUNT_SETTINGS.language;
   /*
    * `tapToLook` was read here, cached against the gap between a cold start and
    * `hello`. It is not a setting any more — a tap only ever looks — so there
@@ -1108,10 +1135,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * whether or not the scheme is the one already showing, since
    * `applyPreference` is idempotent and cheaper than deciding.
    */
+  const adoptLanguage = languagePreference?.adopt;
+  const forgetLanguage = languagePreference?.forget;
   const applySettings = useCallback((settings: AccountSettings) => {
     setAppearanceState(settings.appearance);
     applyPreference(settings.appearance);
     void storage.set(APPEARANCE_KEY, settings.appearance);
+    // Through the provider above, which owns both the state and the cache for
+    // the same reason it owns the catalogue: a language is chosen before this
+    // provider exists in the tree.
+    adoptLanguage?.(settings.language);
     // Dropped rather than written: there is no tap setting to cache any more.
     void storage.remove(TAP_TO_LOOK_KEY);
     void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
@@ -1124,7 +1157,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLabsState(settings.labs);
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
     setMarketingEmailState(settings.marketingEmail);
-  }, []);
+  }, [adoptLanguage]);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
    * empties the cache.
@@ -1138,6 +1171,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAppearanceState(DEFAULT_ACCOUNT_SETTINGS.appearance);
     applyPreference(DEFAULT_ACCOUNT_SETTINGS.appearance);
     void storage.remove(APPEARANCE_KEY);
+    // Back to the phone's language, not the last person's: the sign-in screen
+    // after a sign-out is read by whoever is about to sign in.
+    forgetLanguage?.();
     void storage.remove(TAP_TO_LOOK_KEY);
     void storage.remove(LEGACY_TAP_TO_STEP_IN_KEY);
     setHideControlCardsState(DEFAULT_ACCOUNT_SETTINGS.hideControlCards);
@@ -1148,7 +1184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(LABS_KEY);
     void storage.remove(DEAD_CHIME_AMPLITUDE_KEY);
     setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
-  }, []);
+  }, [forgetLanguage]);
   /**
    * The address this install is registered at, kept so sign-out can hand it
    * back. Without it the row survives, and a phone that has been signed out of
@@ -2047,6 +2083,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      language,
+      /*
+        The same order and the same trade as the scheme above: adopted here so
+        the screen is in the new language under the thumb that asked, then
+        written to the account so every other device is told. A failed write is
+        not reverted and not announced — what is on screen is what this person
+        asked for — and is corrected at the next `hello`.
+      */
+      setLanguage: (preference) => {
+        adoptLanguage?.(preference);
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { language: preference })
+            .catch(() => {});
+        }
+      },
+
       hideControlCards,
       setHideControlCards: (value) => {
         setHideControlCardsState(value);
@@ -2660,6 +2713,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       forgetIntroduction,
       promptInstall,
       appearance,
+      language,
+      adoptLanguage,
       hideControlCards,
       labs,
       marketingEmail,

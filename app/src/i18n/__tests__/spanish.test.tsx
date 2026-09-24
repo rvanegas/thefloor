@@ -1,11 +1,21 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
+import { HomeSettingsView } from '../../ui/HomeSettingsView';
 import { OfflineView } from '../../ui/OfflineView';
 import { UpdateRequiredView } from '../../ui/UpdateRequiredView';
 import { mockApp, render, resetHarness, textOf } from '../../ui/testing/harness';
 import { es } from '../es';
-import { TextProvider } from '../index';
+import { TextProvider, useText } from '../index';
+import { LanguageProvider, useLanguagePreference } from '../language';
 
 jest.mock('../../state/AppProvider', () => require('../../ui/testing/harness').appProviderMock());
+
+/** The keychain, which `LanguageProvider` caches the choice in. */
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => {}),
+  deleteItemAsync: jest.fn(async () => {}),
+}));
 
 /**
  * That a screen rendered under the Spanish catalogue is actually in Spanish.
@@ -44,6 +54,49 @@ describe('a screen in Spanish', () => {
     expect(text).toContain('Sin conexión');
     expect(text).toContain('Reintentando');
     expect(text).not.toContain('Not connected');
+  });
+
+  /**
+   * The screen the language is chosen on, in the language it can be chosen
+   * into: the labels for the two languages are the same either way round,
+   * deliberately, and everything around them is not.
+   */
+  it('draws the language card in Spanish, with both languages in their own', () => {
+    const text = inSpanish(<HomeSettingsView onBack={() => {}} />);
+    expect(text).toContain('Idioma');
+    expect(text).toContain('Autom\u00e1tico');
+    expect(text).toContain('English');
+    expect(text).toContain('Espa\u00f1ol');
+    expect(text).not.toContain('Language');
+  });
+
+  /**
+   * The wiring the setting actually needs: a choice changes what every screen
+   * below says, without anything restarting. Nothing else in the suite covers
+   * it — the tests above hand a catalogue straight to `TextProvider`, which is
+   * the state this provider is what moves.
+   */
+  it('changes the catalogue under a screen when the choice changes', async () => {
+    let adopt: ((next: 'en' | 'es' | 'system') => void) | undefined;
+    function Card() {
+      adopt = useLanguagePreference()?.adopt;
+      return <>{useText().homeSettings.language()}</>;
+    }
+    const tree = render(
+      <LanguageProvider>
+        <Card />
+      </LanguageProvider>
+    );
+    // English, this device saying nothing about itself in jest.
+    expect(textOf(tree)).toContain('Language');
+
+    await act(async () => adopt!('es'));
+    expect(textOf(tree)).toContain('Idioma');
+
+    // And back, which is the direction a one-way call would have got away
+    // with — see `setRelativeTimeLocale`, which had exactly that shape.
+    await act(async () => adopt!('en'));
+    expect(textOf(tree)).toContain('Language');
   });
 
   it('is English again without the provider', () => {

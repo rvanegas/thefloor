@@ -9,9 +9,10 @@
  * can disagree with what the account actually holds.
  *
  * **Every setting on the Home settings screen is here, since 2026-09-05.**
- * Appearance, the tap and the control cards are about the person: somebody who
- * has chosen dark has chosen it, and signing in on a second phone to find it
- * light is the app forgetting something it was told.
+ * Appearance, the language, the tap and the control cards are about the person:
+ * somebody who has chosen dark has chosen it, and signing in on a second phone
+ * to find it light — or in the other language — is the app forgetting something
+ * it was told.
  *
  * There was a fourth that deliberately was not — `steadyHeadset`, about the
  * hardware in somebody's ears rather than about the person, kept in the app's
@@ -40,6 +41,30 @@ export function isColorSchemePreference(
 }
 
 /**
+ * Which language the app speaks: English, Spanish, or whatever the phone is
+ * set to.
+ *
+ * **Shaped like `ColorSchemePreference` and for the same reason** — `system`
+ * is a value rather than an absence, because it is a choice somebody can make
+ * back again and because the alternative is a null that means two things. What
+ * resolves it is `app/src/i18n/language.tsx`, which reads the device's tag
+ * through `deviceRegion` and hands it to `stringsFor`.
+ *
+ * **The two languages, not every tag the catalogue could be asked for.** There
+ * are two catalogues — `en.ts` and `es.ts` — and `stringsFor` answers English
+ * for anything it does not recognise; a preference that could hold `fr` would
+ * be a stored choice the app silently ignores. A third catalogue adds a member
+ * here in the same commit, which is the check a typed union buys.
+ */
+export type LanguagePreference = 'en' | 'es' | 'system';
+
+export function isLanguagePreference(
+  value: unknown
+): value is LanguagePreference {
+  return value === 'en' || value === 'es' || value === 'system';
+}
+
+/**
  * Everything about this account that is a preference rather than a fact.
  *
  * Complete rather than partial on the way out — every field always present,
@@ -50,6 +75,19 @@ export function isColorSchemePreference(
  */
 export interface AccountSettings {
   appearance: ColorSchemePreference;
+  /**
+   * Which language this person is read to in.
+   *
+   * **The account's rather than the phone's**, on `appearance`'s reasoning
+   * exactly: somebody who has chosen Spanish has chosen it, and signing in on
+   * a second handset to be addressed in English is the app forgetting
+   * something it was told. It is also the setting where getting that wrong
+   * costs the most — a scheme you dislike is still readable.
+   *
+   * `system` is the default, so an app that has been told nothing speaks
+   * whatever the rest of the phone does. See `LanguagePreference` above.
+   */
+  language: LanguagePreference;
   /*
    * `tapToLook` was here until 2026-09-21, and is now how the app always
    * behaves: a tap opens a channel's screen and never puts you in the room.
@@ -176,6 +214,12 @@ export interface AccountSettings {
  */
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   appearance: 'system',
+  /**
+   * The phone's language, for the reason the scheme follows the phone's
+   * palette: an app that has not been told anything should be the rest of the
+   * handset.
+   */
+  language: 'system',
   hideControlCards: false,
   labs: false,
   /**

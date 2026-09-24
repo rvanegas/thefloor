@@ -9,6 +9,7 @@ import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
   isColorSchemePreference,
+  isLanguagePreference,
   type AccountSettings,
 } from '../../core/settings';
 import {
@@ -556,6 +557,13 @@ export class Accounts {
       appearance: isColorSchemePreference(row.appearance)
         ? row.appearance
         : DEFAULT_ACCOUNT_SETTINGS.appearance,
+      // The same reading as the scheme above, and for the same reason: the
+      // column is text, this is the one place it is interpreted, and a tag
+      // there is no catalogue for must not reach a client as a language it
+      // cannot speak.
+      language: isLanguagePreference(row.language)
+        ? row.language
+        : DEFAULT_ACCOUNT_SETTINGS.language,
       hideControlCards:
         row.hide_control_cards === null
           ? DEFAULT_ACCOUNT_SETTINGS.hideControlCards
@@ -600,6 +608,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET appearance = ? WHERE id = ?')
         .run(changes.appearance, accountId);
+    }
+    if (changes.language !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET language = ? WHERE id = ?')
+        .run(changes.language, accountId);
     }
     if (changes.hideControlCards !== undefined) {
       this.db
