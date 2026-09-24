@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -63,6 +64,17 @@ export interface RecordingStore {
    * sweep must know, so the awaiting happens there rather than here.
    */
   delete(key: string): Promise<void>;
+  /**
+   * Whether the object is there, which this server may ask even where it may
+   * not delete — reading is the privilege it holds.
+   *
+   * The sweep needs the distinction between *could not delete* and *is not
+   * there*, because the second is the outcome it actually wants. A key that
+   * was never written answers `false` and is not a failure: the mix and the
+   * published episode are asked for unconditionally, and most recordings have
+   * neither.
+   */
+  exists(key: string): Promise<boolean>;
 }
 
 /** The PutObject-only key, when this server has been given one. */
@@ -174,6 +186,23 @@ export class S3RecordingStore implements RecordingStore {
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
     );
   }
+
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key })
+      );
+      return true;
+    } catch (error) {
+      // 404 is the answer, not a failure. Anything else — a refused head, a
+      // network fault — is not evidence of absence, and the sweep must not
+      // read it as one: saying `false` here would drop a row on a timeout.
+      const status = (error as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
+      if (status === 404) return false;
+      throw error;
+    }
+  }
 }
 
 /** Serves objects from memory. For tests. */
@@ -190,6 +219,16 @@ export class MemoryRecordingStore implements RecordingStore {
   /** Makes `delete` reject for these keys, as a denied policy does. */
   refuseDeleting(...keys: string[]): void {
     for (const key of keys) this.undeletable.add(key);
+  }
+
+  /**
+   * Removes objects without going through `delete`, which is what happens to
+   * this bucket in production: `bin/orphans` clears it on somebody's own
+   * credential, out of band, and the server finds them already gone. Distinct
+   * from `delete` precisely because it ignores `refuseDeleting`.
+   */
+  async forget(...keys: string[]): Promise<void> {
+    for (const key of keys) this.objects.delete(key);
   }
 
   async put(key: string, data: Buffer): Promise<void> {
@@ -219,6 +258,10 @@ export class MemoryRecordingStore implements RecordingStore {
       throw new Error(`AccessDenied: ${key}`);
     }
     this.objects.delete(key);
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return this.objects.has(key);
   }
 
   /** What the sweep left behind, for tests to assert on. */

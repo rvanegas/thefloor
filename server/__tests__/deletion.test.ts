@@ -582,6 +582,45 @@ describe('the sweep', () => {
     expect(store.keys()).toContain(keys[0]);
   });
 
+  /**
+   * The arrangement chosen on 2026-09-23: `thefloor-server` keeps
+   * `s3:GetObject` and nothing else, the objects are cleared from a person's
+   * credential by `bin/orphans`, and the sweep drops the row once it can see
+   * they have gone. Without this the option does not close — every refused
+   * delete would hold its row for ever, and a recording somebody asked to
+   * delete would be merely unreachable rather than deleted.
+   */
+  it('drops the row when the refused object is already gone', async () => {
+    const { channelId, keys } = await deleted();
+    expect(keys.length).toBeGreaterThan(0);
+    // Refused, exactly as production refuses — but cleared out of band first,
+    // which is what bin/orphans does.
+    store.refuseDeleting(...keys);
+    await store.forget(...keys);
+
+    clock += DELETED_RETENTION_MS;
+    const swept = await app.channels.sweepDeleted(clock);
+
+    expect(swept.recordings).toBe(1);
+    expect(rowsOf(channelId)).toEqual([]);
+  });
+
+  it('holds the row when one refused object is still there', async () => {
+    const { channelId, keys } = await deleted();
+    expect(keys.length).toBeGreaterThan(1);
+    // Every key refused and all but one cleared away: the survivor is what
+    // the row is waiting on, and one is enough.
+    store.refuseDeleting(...keys);
+    await store.forget(...keys.slice(1));
+
+    clock += DELETED_RETENTION_MS;
+    const swept = await app.channels.sweepDeleted(clock);
+
+    expect(swept.recordings).toBe(0);
+    expect(rowsOf(channelId)).toHaveLength(1);
+    expect(store.keys()).toContain(keys[0]);
+  });
+
   it('reports the refusal rather than absorbing it', async () => {
     const { keys } = await deleted();
     store.refuseDeleting(keys[0]);

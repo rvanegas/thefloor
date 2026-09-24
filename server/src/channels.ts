@@ -3307,6 +3307,15 @@ export class ChannelRegistry {
    *
    * `allSettled` rather than `all`: one refused key must not abandon the rest,
    * since the keys that *can* go should, and the row is held back regardless.
+   *
+   * **A refusal is then checked rather than believed.** What the row owes its
+   * objects is that they are gone, not that this process removed them — and
+   * `thefloor-server` holds no `s3:DeleteObject`, by a decision recorded in
+   * planning/CREDENTIALS.md and kept deliberately, so every delete it issues
+   * is refused and the objects are cleared from a person's credential by
+   * `bin/orphans` instead. The server may read where it may not delete, so a
+   * refused key is followed by asking whether it is there at all; absent
+   * counts as emptied, and only a key still present holds the row.
    */
   async sweepDeleted(
     now: number
@@ -3356,13 +3365,44 @@ export class ChannelRegistry {
       const outcomes = await Promise.allSettled(
         keys.map((key) => store.delete(key))
       );
+      // What the row needs is not that this server deleted the object — it is
+      // that the object is *gone*, by whatever hand. `thefloor-server` holds
+      // no `s3:DeleteObject` and deliberately keeps it that way, so the
+      // deleting is done from a person's credential by `bin/orphans`; a
+      // refusal here is therefore the expected case, and the question it
+      // raises is whether the key is still there.
+      //
+      // It may read even where it may not delete, so it can answer that. An
+      // absent key counts as emptied — including one that was never written,
+      // which the mix and the published episode usually are not.
       let emptied = true;
-      outcomes.forEach((outcome, i) => {
-        if (outcome.status === 'rejected') {
+      let refusals = 0;
+      await Promise.all(
+        outcomes.map(async (outcome, i) => {
+          if (outcome.status !== 'rejected') return;
+          refusals += 1;
+          let present: boolean;
+          try {
+            present = await store.exists(keys[i]);
+          } catch {
+            // No answer is not an answer of no. Hold the row.
+            present = true;
+          }
+          if (!present) return;
           emptied = false;
           this.onMediaError(outcome.reason, `sweep ${keys[i]}`);
-        }
-      });
+        })
+      );
+      // Once per recording rather than per key, and only when nothing was
+      // actually left behind: the refusals are routine under the arrangement
+      // above, but silence about them is what let the original bug run for
+      // weeks, so they are never entirely quiet.
+      if (refusals > 0 && emptied) {
+        this.onMediaError(
+          new Error(`${refusals} deletes refused; every key already absent`),
+          `sweep ${row.id}`
+        );
+      }
       if (!emptied) continue;
       // Before the row, because `recording_consents` has a real foreign key
       // to it — the same constraint that makes this whole sweep an ordering
