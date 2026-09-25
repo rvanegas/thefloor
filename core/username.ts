@@ -9,11 +9,20 @@
  * They answer different questions and this application asks both.
  *
  * **One thing reads it, as of 2026-09-06: the invite link.** A username is
- * drawn on a profile and is the first half of `/i/<username>/<pin>`, which is
- * how somebody hands out an invitation to become a contact. Still no search,
- * no mention and no sign-in — and the one reader is a name arriving in a URL
- * that was handed over, never a name being looked up, which is the line this
- * file's strictness exists to keep drawable.
+ * drawn on a profile and *is* the invite link — `/i/<username>`, which is how
+ * somebody hands out an invitation to become a contact. Still no search, no
+ * mention and no sign-in — and the one reader is a name arriving in a URL that
+ * was handed over, never a name being looked up, which is the line this file's
+ * strictness exists to keep drawable.
+ *
+ * **That line held when the pin went**, 2026-09-25, and was the hardest part
+ * of the change. A link with no pin could not prove who its owner was, so the
+ * page had a choice: resolve the username to a display name for anybody who
+ * asked — which is precisely the lookup this paragraph forbids — or say
+ * nothing. It does neither. The name rides in the address as `?name=`, so the
+ * page greets a reader by name while this server still answers nobody's
+ * question about who a username belongs to. See
+ * `decisions/2026-09-25-an-invite-link-is-a-standing-door.md`.
  *
  * That strictness is why the link is legible at all: a name that is typed by
  * somebody who *heard* it has to survive being heard, and every character that

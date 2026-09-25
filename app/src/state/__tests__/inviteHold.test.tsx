@@ -39,7 +39,7 @@ jest.mock('react-native', () => ({
 }));
 
 
-type Seen = { username: string; pin: string } | null;
+type Seen = { username: string; pin?: string } | null;
 
 let seen: Seen = null;
 let clear: () => void = () => {};

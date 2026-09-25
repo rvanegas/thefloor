@@ -144,7 +144,7 @@ describe('one-time codes', () => {
     ]);
   });
 
-  it('turns an invite into a real request when that address signs up', async () => {
+  it('turns an invite into a contact when that address signs up', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     await app.fastify.inject({
       method: 'POST',
@@ -153,28 +153,29 @@ describe('one-time codes', () => {
       payload: { identifier: 'later@example.com' },
     });
 
-    // They sign up, and find Alice already waiting.
+    // **They sign up and find Alice already a contact**, since 2026-09-25.
+    // It used to be a request waiting to be answered, which made an
+    // invitation by address mean something different from the identical
+    // invitation by link — and the email carries the link, so one invitation
+    // resolved two ways depending on which half of it was acted on. Signing up
+    // with the address somebody wrote to is the acceptance. See
+    // decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
     const later = await signIn('later@example.com', 'Later');
     const theirs = app.accounts.contactsFor(later.account.id);
     expect(theirs).toEqual([
       {
         account: { id: alice.account.id, displayName: 'Alice' },
-        status: 'incoming',
+        status: 'accepted',
         // Null because being in the app is holding a socket, and Alice has
         // only ever signed in over HTTP here.
         lastSeenAt: null,
       },
     ]);
 
-    // And Alice's side is now a real pending request rather than an invite.
+    // And both sides agree, there being nothing left to answer.
     const hers = app.accounts.contactsFor(alice.account.id);
     expect(hers).toHaveLength(1);
-    expect(hers[0].status).toBe('outgoing');
-
-    // Which they can accept, exactly as if it had always been one.
-    expect(
-      app.accounts.acceptContact(later.account.id, alice.account.id, Date.now())
-    ).toBe(true);
+    expect(hers[0].status).toBe('accepted');
     expect(app.accounts.areContacts(alice.account.id, later.account.id)).toBe(true);
   });
 

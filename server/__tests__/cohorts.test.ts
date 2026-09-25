@@ -485,15 +485,33 @@ describe('what Home says about it', () => {
 });
 
 describe('reach', () => {
-  it('counts a pending invitation, which is the whole reason it is not an island', async () => {
+  /**
+   * **This was about a pending invitation until 2026-09-25**, when an
+   * invitation sent to an address began accepting on signup. The reach rule it
+   * exists for is unchanged and is still not `bin/growth`'s island: pending
+   * rows are edges here. What changed is that this particular arrival is no
+   * longer one of them, so the pending case is made directly below.
+   */
+  it('counts somebody invited by address, who arrives already a contact', async () => {
     await signIn(HOST, 'Rochelle');
     const asker = await signIn('asker@example.com');
     await request(asker, 'asked@example.com');
     const asked = await signIn('asked@example.com');
 
-    // Nothing has been accepted — `resolveInvitesFor` writes a signup's
-    // invitation as pending and there it sits until they tap it. An
-    // accepted-edges walk would call this an island of one.
+    expect(app.accounts.areContacts(asker.account.id, asked.account.id)).toBe(
+      true
+    );
+    expect(app.accounts.reachableFrom(asked.account.id, 99)).toBe(2);
+  });
+
+  it('counts a pending request, which is the whole reason it is not an island', async () => {
+    await signIn(HOST, 'Rochelle');
+    const asker = await signIn('asker@example.com');
+    // Both already exist, so this is a request rather than an invitation to an
+    // address with nobody behind it — and a request waits to be answered.
+    const asked = await signIn('asked@example.com');
+    await request(asker, 'asked@example.com');
+
     expect(app.accounts.areContacts(asker.account.id, asked.account.id)).toBe(
       false
     );

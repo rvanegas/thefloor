@@ -135,22 +135,6 @@ export const WATCH_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
  */
 export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-/**
- * How many unspent invite links one account may have outstanding.
- *
- * A cap rather than a rule about how people should invite: every live pin is
- * another six-digit number that opens the same door, so an account that has
- * minted a thousand of them has handed a guesser a thousand chances at one
- * account instead of one. Ten is comfortably more than anybody hands out at
- * once and leaves the search space at roughly one in a hundred thousand per
- * guess, under a throttle that stops long before that.
- *
- * The oldest goes rather than the mint being refused. A refusal would be a
- * screen telling somebody to go and tidy up a list of links they have never
- * been shown; the oldest unspent link is also the one most likely to have been
- * sent into a conversation nobody went back to.
- */
-export const INVITE_PINS_PER_ACCOUNT = 10;
 
 /**
  * How `accounts.invited_by` was arrived at. See the column in db.ts.
@@ -250,13 +234,50 @@ export const INVITE_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
  * the one refusal that is about the request rather than the invitation, and it
  * comes back even for a pin that was correct — see `redeemInvitePin`.
  */
-export type InviteRefusal = 'unknown' | 'used' | 'expired' | 'self' | 'locked';
+/**
+ * Why an invite link could not be taken up.
+ *
+ * **`used` and `expired` are the pin's, and the pin is gone**, 2026-09-25 —
+ * a link is `/i/<username>` now and is a standing door, so there is no seat to
+ * spend and no thirty days to outlive. They are kept because links minted
+ * before that day still carry a pin, are still in the threads they were pasted
+ * into, and are still redeemed by the route; see planning/SHIMS.md.
+ *
+ * `too_many` is the only new one and belongs to the door rather than the pin:
+ * see `spendLinkAccept`.
+ */
+export type InviteRefusal =
+  | 'unknown'
+  | 'used'
+  | 'expired'
+  | 'self'
+  | 'locked'
+  | 'too_many';
 
 /**
  * How often expired rows are swept. Every deadline here is far longer than the
  * interval, so this figure decides only how long dead rows linger — never
  * whether something expires on time, which is enforced on read regardless.
  */
+/**
+ * How many invite links one account may take up in a day, and over what.
+ *
+ * **Twenty is deliberately far above any honest use and far below a harvest.**
+ * Following a link is a thing a person does when somebody hands them one, so a
+ * real account takes up one, or a handful across a week. What this stops is
+ * the account that walks usernames: the accept route names an owner and
+ * nothing else now, so without this it adds contacts as fast as it can guess,
+ * and since credit follows the first contact it farms the standings while it
+ * does it.
+ *
+ * The window is not extended by a refusal, exactly as `INVITE_SEND_WINDOW_MS`
+ * is not: it opens on the first acceptance and lapses that long after, so
+ * somebody who reaches the cap waits out what is left rather than restarting
+ * the clock every time they try.
+ */
+export const LINK_MAX_ACCEPTS = 20;
+export const LINK_ACCEPT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 export class Accounts {
@@ -1427,7 +1448,13 @@ export class Accounts {
     displayName: string | undefined,
     now: number,
     marketingEmail?: boolean
-  ): { account: AccountRow; token: string; created: boolean } | null {
+  ): {
+    account: AccountRow;
+    token: string;
+    created: boolean;
+    /** Who became a contact on the way in; see `resolveInvitesFor`. */
+    resolved: string[];
+  } | null {
     const id = normalize(identifier);
     if (!this.consumeCode(id, code, now)) return null;
     return this.establish(id, displayName, now, marketingEmail);
@@ -1491,9 +1518,11 @@ export class Accounts {
    *
    * **Only on the account's first sight, and that is deliberate.** Renaming
    * yourself later does not re-derive a username, because by then somebody may
-   * have the old one written down — an invite link is `/i/<username>/<pin>` —
+   * have the old one written down — an invite link is `/i/<username>` —
    * and a handle that moves under its owner is worse than one that no longer
-   * matches the name above it.
+   * matches the name above it. **That got sharper on 2026-09-25**: a link is
+   * now a standing address rather than one minted per press, so an old one is
+   * not merely written down somewhere, it is somebody's permanent door.
    *
    * **`marketingEmail` is a grant and never a withdrawal.** True stamps the
    * consent if none is recorded; false and undefined are the same thing here,
@@ -1509,7 +1538,13 @@ export class Accounts {
     displayName: string | undefined,
     now: number,
     marketingEmail?: boolean
-  ): { account: AccountRow; token: string; created: boolean } {
+  ): {
+    account: AccountRow;
+    token: string;
+    created: boolean;
+    /** Who became a contact on the way in; see `resolveInvitesFor`. */
+    resolved: string[];
+  } {
     const id = normalize(identifier);
     const name = displayName?.trim();
     let account = this.byIdentifier(id);
@@ -1530,6 +1565,16 @@ export class Accounts {
      */
     const created = !account;
 
+    /**
+     * Everybody who became this account's contact on the way in, because an
+     * invitation had been sent to this address before it had an account.
+     *
+     * Reported for the reason `created` is: the caller owes each of these
+     * pairs a channel, and `channels` is not this class's to reach. Empty
+     * except on a signup that resolved something — see `resolveInvitesFor`.
+     */
+    let resolved: string[] = [];
+
     if (!account) {
       const chosen = name || displayNameFromIdentifier(id);
       // A second signup on one address collides on `identifier`, not on the
@@ -1546,7 +1591,7 @@ export class Accounts {
       );
       this.deriveUsername(accountId, chosen, id);
       account = this.byId(accountId)!;
-      this.resolveInvitesFor(account);
+      resolved = this.resolveInvitesFor(account);
     } else if (name && name !== account.display_name) {
       this.db
         .prepare('UPDATE accounts SET display_name = ? WHERE id = ?')
@@ -1561,7 +1606,12 @@ export class Accounts {
       account = this.byId(account.id)!;
     }
 
-    return { account, token: this.issueToken(account.id, now), created };
+    return {
+      account,
+      token: this.issueToken(account.id, now),
+      created,
+      resolved,
+    };
   }
 
   /**
@@ -1654,7 +1704,7 @@ export class Accounts {
     // their contact request now — the rows would otherwise wait for a first
     // sign-in that can never happen, this account having already had one.
     // Without the credit and dated now: see `resolveInvitesFor`.
-    this.resolveInvitesFor(moved, { credit: false, at: now });
+    this.resolveInvitesFor(moved, { credit: false, at: now, accept: false });
     return { ok: true, account: moved };
   }
 
@@ -1749,11 +1799,33 @@ export class Accounts {
   // --- Contacts -----------------------------------------------------------
 
   /**
-   * Turns requests sent to this address before it had an account into real
-   * pending contact requests, now that it does.
+   * Turns invitations sent to this address before it had an account into real
+   * contact rows, now that it does, and says whose became contacts outright.
    *
-   * Someone who signs up therefore finds whoever invited them already waiting,
-   * which is the point of storing the request in the first place.
+   * **Accepted rather than pending on a signup, since 2026-09-25**, which is
+   * what makes the two halves of *Add a contact* agree. An invitation by
+   * address and an invitation by link are the same act — somebody naming a
+   * person they want to talk to — and they produced opposite relationships:
+   * a link made a contact and a channel, an address made a request to be
+   * answered. Worse, an emailed invitation carries the link, so the same
+   * invitation resolved one way if the recipient clicked it and the other way
+   * if they ignored it and signed up. The sender asked once; there is now one
+   * answer.
+   *
+   * **What justifies it is that the recipient proved the address.** They were
+   * written to at it, and they signed up with it — which is the same shape of
+   * consent as following a published link: the sender addressed them, and they
+   * turned up.
+   *
+   * **An address change does not accept**, which is `accept: false`. Attaching
+   * a mailbox to an account that already exists is not an arrival, and a
+   * mailbox can have been written to before this person owned it, so those
+   * stay pending and are answered the ordinary way. The credit does not move
+   * either, for the reason below.
+   *
+   * Returns the ids of everybody who became an accepted contact, because the
+   * pair owes each of them the channel that is the point of being contacts and
+   * `channels` is not this class's to reach — the caller makes them.
    */
   private resolveInvitesFor(
     account: AccountRow,
@@ -1771,11 +1843,12 @@ export class Accounts {
      * reason. The rows are dated now, because that is when the pair became
      * reachable to each other.
      */
-    options: { credit: boolean; at: number } = {
+    options: { credit: boolean; at: number; accept: boolean } = {
       credit: true,
       at: account.created_at,
+      accept: true,
     }
-  ): void {
+  ): string[] {
     const invites = this.db
       .prepare(
         `SELECT requester_id FROM pending_invites WHERE identifier = ? COLLATE NOCASE
@@ -1783,15 +1856,21 @@ export class Accounts {
       )
       .all(account.identifier) as Array<{ requester_id: string }>;
 
+    const accepted: string[] = [];
     for (const { requester_id } of invites) {
       if (requester_id === account.id) continue;
       const [a, b] = pairKey(requester_id, account.id);
-      this.db
+      // `OR IGNORE` rather than an upsert, deliberately: a row that is already
+      // there was written by some other path, and this must not quietly
+      // promote a pending request somebody is deciding about into an accepted
+      // one. What is being resolved is an invitation with no row yet.
+      const written = this.db
         .prepare(
           `INSERT OR IGNORE INTO contacts (a_id, b_id, state, requester_id, created_at)
-           VALUES (?, ?, 'pending', ?, ?)`
+           VALUES (?, ?, ?, ?, ?)`
         )
-        .run(a, b, requester_id, options.at);
+        .run(a, b, options.accept ? 'accepted' : 'pending', requester_id, options.at);
+      if (options.accept && written.changes > 0) accepted.push(requester_id);
     }
 
     // **The earliest invitation gets the credit, and only that one.** Several
@@ -1818,6 +1897,8 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM pending_invites WHERE identifier = ? COLLATE NOCASE')
       .run(account.identifier);
+
+    return accepted;
   }
 
   /**
@@ -2358,80 +2439,15 @@ export class Accounts {
 
   // --- Invite links -------------------------------------------------------
 
-  /**
-   * Mints a pin for an account's invite link, or null if it has no username.
-   *
-   * **The username is the check, and there is only one of it.** A link is
-   * `/i/<username>/<pin>` and cannot be written without both halves, so an
-   * account with no username has no link — and asking here rather than at the
-   * route is what keeps that from becoming two rules that can drift apart. The
-   * screen offering to choose a username is reading this null.
-   *
-   * Six digits, `issueCode`'s own line, and viable for the same reasons they
-   * are there: a pin is only ever checked against the account named beside it,
-   * the wrong guesses against that account are counted, and there are never
-   * more than `INVITE_PINS_PER_ACCOUNT` live at once. See db.ts.
-   *
-   * A collision retries rather than surfacing. Nobody typed a pin — any six
-   * digits will do, so a clash is an implementation detail, where a taken
-   * username is an answer somebody needs. `insertWithUniqueKey` is exactly
-   * that loop; its own comment reasons about a 72-bit key, which this is not,
-   * so what makes five attempts enough here is the cap above rather than the
-   * entropy.
-   */
-  mintInvitePin(ownerId: string, now: number): string | null {
-    const owner = this.byId(ownerId);
-    if (!owner?.username) return null;
 
-    // Before the insert, so the cap is a ceiling rather than something the
-    // next mint tidies up after. Unspent only: a used pin is history, and
-    // keeping it is what lets a second visit be told what happened.
-    const surplus = this.db
-      .prepare(
-        `SELECT pin FROM invite_pins
-          WHERE owner_id = ? AND used_at IS NULL
-          ORDER BY created_at DESC, pin DESC
-          LIMIT -1 OFFSET ?`
-      )
-      .all(ownerId, INVITE_PINS_PER_ACCOUNT - 1) as Array<{ pin: string }>;
-    for (const { pin } of surplus) {
-      this.db
-        .prepare('DELETE FROM invite_pins WHERE owner_id = ? AND pin = ?')
-        .run(ownerId, pin);
-    }
-
-    return insertWithUniqueKey(
-      () => String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, '0'),
-      (pin) => {
-        this.db
-          .prepare(
-            `INSERT INTO invite_pins (owner_id, pin, created_at, used_at, used_by)
-             VALUES (?, ?, ?, NULL, NULL)`
-          )
-          .run(ownerId, pin, now);
-      }
-    );
-  }
-
-  /**
-   * Takes back a pin that was minted for a message which never went.
-   *
-   * The mint and the sending of an invitation are two steps and the second can
-   * fail; `withdrawRequest` already undoes the row for that case, and this is
-   * the same undo for the link that would have been in it. Unspent only, which
-   * cannot matter here — nobody has been given it — and is the right guard for
-   * a method that is one call away from being used somewhere it could.
-   */
-  forgetInvitePin(ownerId: string, pin: string): void {
-    this.db
-      .prepare(
-        'DELETE FROM invite_pins WHERE owner_id = ? AND pin = ? AND used_at IS NULL'
-      )
-      .run(ownerId, pin);
-  }
 
   /**
    * Counts one wrong guess against an account.
+   *
+   * **Nothing mints a pin any more**, 2026-09-25: `mintInvitePin` and
+   * `forgetInvitePin` went with it. Everything left that reads `invite_pins`
+   * serves links minted before that day and still sitting in the threads they
+   * were pasted into, and goes when planning/SHIMS.md says it may.
    *
    * Per owner rather than per pin, for the reason db.ts gives: a wrong guess
    * matches no row, so there is nothing on a row to count. The window is fixed
@@ -2568,6 +2584,107 @@ export class Accounts {
    * one wasted link rather than a wrong answer. **Spending first is
    * deliberate** — the other order can hand out two contacts for one pin.
    */
+  /**
+   * How many invite links this account has taken up lately, and whether it may
+   * take another.
+   *
+   * **The cost of a link having stopped carrying a pin.** A pin made an
+   * invitation a thing with one seat: to accept, you had to hold six digits
+   * somebody had handed you. `/i/<username>` is a standing door, which is the
+   * point — publishing one is the owner's consent and following it is the
+   * taker's — but it means the accept route names an owner and nothing else,
+   * and an account that never saw a link can walk usernames and accept against
+   * each one. A username is quotable by design, so there is plenty to walk.
+   *
+   * **Counted against the taker, unlike `invite_guesses`**, which counts
+   * against the owner being guessed at. There is nothing to guess now. What is
+   * worth limiting is how many first contacts one account may make out of
+   * nothing in a day — and since credit follows the first contact, unlimited
+   * accepting is also unlimited standings.
+   *
+   * The window is not extended by a refusal, exactly as `spendInviteSend`'s is
+   * not: it opens on the first acceptance and lapses that long after it.
+   */
+  private spendLinkAccept(takerId: string, now: number): boolean {
+    const row = this.db
+      .prepare('SELECT * FROM link_accepts WHERE taker_id = ?')
+      .get(takerId) as { taken: number; window_start: number } | undefined;
+    if (!row || now - row.window_start >= LINK_ACCEPT_WINDOW_MS) {
+      this.db
+        .prepare(
+          `INSERT INTO link_accepts (taker_id, taken, window_start)
+           VALUES (?, 1, ?)
+           ON CONFLICT(taker_id) DO UPDATE
+             SET taken = 1, window_start = excluded.window_start`
+        )
+        .run(takerId, now);
+      return true;
+    }
+    if (row.taken >= LINK_MAX_ACCEPTS) return false;
+    this.db
+      .prepare('UPDATE link_accepts SET taken = taken + 1 WHERE taker_id = ?')
+      .run(takerId);
+    return true;
+  }
+
+  /**
+   * Takes up an invite link, which makes its owner a contact.
+   *
+   * **The pin-less path, and the one every link minted since 2026-09-25
+   * uses.** `redeemInvitePin` below is the same act for a link that still
+   * carries six digits, and exists only for the ones already pasted into other
+   * people's threads; see planning/SHIMS.md.
+   *
+   * **It accepts outright rather than asking**, which is the rule both halves
+   * of *Add a contact* now follow: publishing a link is the owner's half of
+   * the ask, following it is the other half, and a pending row would be this
+   * application asking somebody to confirm what they have just done. The same
+   * reasoning makes an invitation sent to an address accept when that address
+   * signs up — see `resolveInvitesFor`.
+   *
+   * Nothing is spent and nothing expires. Taking up the same link twice is the
+   * second call finding the pair already contacts and changing nothing, which
+   * is why there is no `used` refusal here: a standing door has no seat to
+   * spend, and telling somebody their own acceptance had already happened
+   * would be a refusal of something that succeeded.
+   */
+  acceptInviteLink(
+    ownerId: string,
+    takerId: string,
+    now: number
+  ): { ok: true; owner: AccountRow } | { ok: false; reason: InviteRefusal } {
+    // Before anything else, as in `redeemInvitePin`: somebody holding their own
+    // link has done nothing wrong and must not spend a day's budget on it.
+    if (ownerId === takerId) return { ok: false, reason: 'self' };
+
+    const owner = this.byId(ownerId);
+    if (!owner) return { ok: false, reason: 'unknown' };
+
+    // Already contacts, so there is nothing to spend and nothing to count. A
+    // second tap on the same link is the commonest way here and is not abuse.
+    if (this.areContacts(ownerId, takerId)) return { ok: true, owner };
+
+    if (!this.spendLinkAccept(takerId, now)) {
+      return { ok: false, reason: 'too_many' };
+    }
+
+    const [a, b] = pairKey(ownerId, takerId);
+    this.db
+      .prepare(
+        `INSERT INTO contacts (a_id, b_id, state, requester_id, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)
+         ON CONFLICT(a_id, b_id) DO UPDATE SET state = 'accepted'`
+      )
+      // `requester_id` on insert and never on conflict, as in
+      // `redeemInvitePin`: who asked first is a fact about what happened, and
+      // the taker may already have requested this owner by address.
+      .run(a, b, ownerId, now);
+
+    this.creditInviter(takerId, ownerId, 'link');
+
+    return { ok: true, owner };
+  }
+
   redeemInvitePin(
     ownerId: string,
     pin: string,

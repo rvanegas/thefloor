@@ -197,10 +197,12 @@ An uninvited install has nobody, and **there is nothing to do here alone**, so
 for this cohort the checklist's real job is recruitment rather than setup. Two
 routes exist, and they are different promises:
 
-- **Invite link** (`ContactsView.tsx:450`) — `/i/<username>/<pin>`, good once,
-  shared however you already talk to somebody. Asynchronous: it works while you
-  sleep, and they become a contact when they sign up. **Gated on choosing a
-  username** (`InviteLink`, same file).
+- **Invite link** (`ContactsView.tsx:450`) — `/i/<username>`, a standing
+  address, shared however you already talk to somebody. Asynchronous: it works
+  while you sleep, and they become a contact when they sign up. Since
+  2026-09-25 it is the same link every time and is not spent by being used, so
+  it can be pinned somewhere rather than re-minted per person. **Gated on
+  choosing a username** (`InviteLink`, same file).
 - **Guest link** (`ChannelView.tsx`, the guest section) — they open the channel
   in a browser, no account, no install. Synchronous: the glossary is explicit
   that it *stops working once the channel is empty of members*, so you have to

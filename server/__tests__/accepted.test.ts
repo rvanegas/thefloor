@@ -87,16 +87,16 @@ async function named(identifier: string, displayName: string, username: string) 
   return user;
 }
 
-async function inviteLink(user: User): Promise<{ username: string; pin: string }> {
+async function inviteLink(user: User): Promise<{ username: string }> {
   const response = await app.fastify.inject({
     method: 'POST',
     url: '/contacts/invite-link',
     headers: auth(user.token),
   });
   const { url } = response.json() as { url: string | null };
-  const match = /\/i\/([^/]+)\/(\d{6})$/.exec(url!);
+  const match = /\/i\/([^/?]+)/.exec(url!);
   expect(match).not.toBeNull();
-  return { username: match![1], pin: match![2] };
+  return { username: match![1] };
 }
 
 /**
@@ -129,14 +129,14 @@ describe('an invite link taken up', () => {
   it('tells whoever minted it, and says the link was followed', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice');
     await registerDevice(alice, 'alice-phone');
-    const { username, pin } = await inviteLink(alice);
+    const { username } = await inviteLink(alice);
 
     const bob = await signIn('bob@example.com', 'Bob');
     const redeemed = await app.fastify.inject({
       method: 'POST',
       url: '/contacts/invite/accept',
       headers: auth(bob.token),
-      payload: { username, pin },
+      payload: { username },
     });
     expect(redeemed.statusCode).toBe(200);
 
@@ -151,14 +151,14 @@ describe('an invite link taken up', () => {
   it('names the pair channel, which is where meeting them happens', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice');
     await registerDevice(alice, 'alice-phone');
-    const { username, pin } = await inviteLink(alice);
+    const { username } = await inviteLink(alice);
 
     const bob = await signIn('bob@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/invite/accept',
       headers: auth(bob.token),
-      payload: { username, pin },
+      payload: { username },
     });
 
     const [message] = acceptances('alice-phone');
@@ -175,14 +175,14 @@ describe('an invite link taken up', () => {
   it('is a membership statement: the long life, the asking stack, its own key', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice');
     await registerDevice(alice, 'alice-phone');
-    const { username, pin } = await inviteLink(alice);
+    const { username } = await inviteLink(alice);
 
     const bob = await signIn('bob@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/invite/accept',
       headers: auth(bob.token),
-      payload: { username, pin },
+      payload: { username },
     });
 
     const [message] = acceptances('alice-phone');
@@ -199,7 +199,7 @@ describe('an invite link taken up', () => {
 
   it('tells nobody but the inviter', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice');
-    const { username, pin } = await inviteLink(alice);
+    const { username } = await inviteLink(alice);
     const bob = await signIn('bob@example.com', 'Bob');
     await registerDevice(bob, 'bob-phone');
 
@@ -207,7 +207,7 @@ describe('an invite link taken up', () => {
       method: 'POST',
       url: '/contacts/invite/accept',
       headers: auth(bob.token),
-      payload: { username, pin },
+      payload: { username },
     });
 
     // Bob did the accepting. Telling him it happened would be the application
@@ -218,22 +218,22 @@ describe('an invite link taken up', () => {
   it('sends nothing when the link is refused', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice');
     await registerDevice(alice, 'alice-phone');
-    const { username, pin } = await inviteLink(alice);
+    const { username } = await inviteLink(alice);
 
     const bob = await signIn('bob@example.com', 'Bob');
     await app.fastify.inject({
       method: 'POST',
       url: '/contacts/invite/accept',
       headers: auth(bob.token),
-      payload: { username, pin },
+      payload: { username },
     });
-    // Good once. A second redemption is refused, and a refusal is not news.
-    const carol = await signIn('carol@example.com', 'Carol');
+    // A link cannot be spent any more, so the refusal to test is one that
+    // still exists: Alice following her own. A refusal is not news.
     const again = await app.fastify.inject({
       method: 'POST',
       url: '/contacts/invite/accept',
-      headers: auth(carol.token),
-      payload: { username, pin },
+      headers: auth(alice.token),
+      payload: { username },
     });
     expect(again.statusCode).toBe(400);
 

@@ -54,10 +54,19 @@ const SEAT_CHANNEL_KEY = 'thefloor.seat.channel';
  */
 const INVITE_KEY = 'thefloor.invite';
 
-/** Whose link was followed, and the pin that makes it worth something. */
+/**
+ * Whose link was followed.
+ *
+ * **The pin is optional since 2026-09-25**, links having stopped carrying one:
+ * `/i/<username>` is a standing door rather than a seat, so the username is
+ * the whole of it. What still arrives with a pin is a link minted before that
+ * day, sitting in the thread it was pasted into, or a page older than this
+ * build — both are passed on unchanged and the server honours them. See
+ * planning/SHIMS.md.
+ */
 export interface Invite {
   username: string;
-  pin: string;
+  pin?: string;
 }
 
 export interface Handover {
@@ -177,7 +186,7 @@ export function leaveHandover(handover: Handover): void {
  *
  * Null on native, where `sessionStorage` does not exist — this is the browser's
  * road and a phone has its own. **Since 2026-09-25 that other road exists**:
- * `useInviteLink.ts` reads `thefloor://i/<username>/<pin>` from a tap on the
+ * `useInviteLink.ts` reads `thefloor://i/<username>` from a tap on the
  * invite page's *Open in the app*, and calls this on mount so that one holder
  * answers for both. Which is why nothing was added here — a native hold in this
  * module could not tell React it had arrived; the argument is in that file.
@@ -196,8 +205,10 @@ export function takeInvite(): Invite | null {
     // Both halves or nothing, on the same reasoning as `takeHandover`: this
     // crossed a document boundary, so a version skew is ordinary.
     if (typeof parsed?.username !== 'string' || !parsed.username) return null;
-    if (typeof parsed?.pin !== 'string' || !parsed.pin) return null;
-    return { username: parsed.username, pin: parsed.pin };
+    // The pin is taken when it is there and not required: an older invite page
+    // writes one, this one does not, and both are a usable invitation.
+    const pin = typeof parsed?.pin === 'string' && parsed.pin ? parsed.pin : undefined;
+    return { username: parsed.username, ...(pin ? { pin } : {}) };
   } catch {
     return null;
   }

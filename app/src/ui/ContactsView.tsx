@@ -564,7 +564,7 @@ function AddContact({
  * talk to them, which is the case the address form cannot serve at all.
  *
  * **It is conditional on a username, and says why when there is none.** A link
- * is `/i/<username>/<pin>` and there is no link without the first half, so the
+ * is `/i/<username>` and there is no link without a username, so the
  * absence is explained and made actionable rather than hidden — hiding it
  * would leave somebody who had heard of invite links looking for a control
  * that is not drawn.
@@ -632,12 +632,18 @@ function InviteLink({
   }
 
   /**
-   * Mints on the press rather than handing over what was fetched on mount.
+   * Re-asks on the press rather than handing over what was fetched on mount.
    *
-   * A link is good for one person, so sharing twice has to produce two links
-   * — otherwise somebody who sends one to two people has sent the second
-   * person an invitation that is already spent. The mount fetch is what
-   * decides whether this section exists at all; this is what is handed over.
+   * **It used to mint, and the reason is gone.** A link carried a pin and was
+   * good for one person, so sharing twice had to produce two links or the
+   * second person got one already spent. Since 2026-09-25 a link is
+   * `/i/<username>` and is the same address every time, so this asks again
+   * only to pick up a display name or username changed since the card opened
+   * — the answer is otherwise the one already in hand.
+   *
+   * It stays a round trip rather than becoming a local string: the URL is the
+   * server's to compose, `origin` being something only it knows, and a client
+   * that built its own would be a second place the address is written down.
    *
    * The share sheet rather than the clipboard, for the reason the channel's
    * guest link uses it: the destination is a person, and this is how you

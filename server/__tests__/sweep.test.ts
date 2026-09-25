@@ -142,8 +142,13 @@ describe('expired invitations', () => {
 
     const stranger = signIn('stranger@example.com', 'Stranger', T0 + 2 * DAY);
 
+    // **Accepted rather than pending since 2026-09-25.** An invitation sent to
+    // an address is taken up when that address signs up, which is the same rule
+    // the link path follows — see
+    // decisions/2026-09-25-the-invitation-asks-for-one-thing.md. What this test
+    // is about is the sweep, and the sweep still leaves a live invitation alone.
     expect(accounts.contactState(sender.id, stranger.id)).toEqual({
-      state: 'pending',
+      state: 'accepted',
       requester: sender.id,
     });
   });

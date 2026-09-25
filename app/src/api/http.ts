@@ -412,14 +412,17 @@ export const api = {
     }),
 
   /**
-   * A fresh invite link, or null for an account with no username.
+   * This account's invite link, or null for an account with no username.
    *
-   * Null is an answer rather than a failure — a link is `/i/<username>/<pin>`
-   * and cannot be written without a username — so the screen reads it as the
-   * state it is and offers to go and choose one.
+   * Null is an answer rather than a failure — a link is `/i/<username>` and
+   * cannot be written without a username — so the screen reads it as the state
+   * it is and offers to go and choose one.
    *
-   * **A mint per call.** Each link is good for one person, so this is asked at
-   * the moment somebody means to hand one over rather than held and reused.
+   * **The same address every time, since 2026-09-25.** It used to mint a pin
+   * per call, each link being good for one person; a link is a standing door
+   * now, so this is a read that happens to be a POST. It is still asked at the
+   * moment somebody means to hand one over, which picks up a display name or
+   * username changed since the screen opened.
    */
   inviteLink: (token: string) =>
     request<{ url: string | null }>('/contacts/invite-link', {
@@ -441,14 +444,17 @@ export const api = {
    * must degrade rather than throw, so absent has to be readable as *nowhere
    * to go*.
    */
-  acceptInvite: (token: string, username: string, pin: string) =>
+  acceptInvite: (token: string, username: string, pin?: string) =>
     request<{
       ok: true;
       contact: PublicAccount | null;
       channelId?: string | null;
     }>(
       '/contacts/invite/accept',
-      { method: 'POST', body: { username, pin }, token }
+      // The pin is omitted rather than sent as undefined when there is none:
+      // the route reads its presence to decide which path to take, and a key
+      // with no value is not the same as no key once it has been through JSON.
+      { method: 'POST', body: { username, ...(pin ? { pin } : {}) }, token }
     ),
 
   /**

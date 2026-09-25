@@ -67,15 +67,15 @@ describe('the invite card, which is the one with something to protect', () => {
   const NAME = 'Beth Frankish';
   const live = invitePage({
     username: 'beth',
-    pin: 'abc123',
     displayName: NAME,
     webAppReady: true,
     origin: ORIGIN,
   });
+  // The same page with no name in the address, which is what a link written
+  // before the name was carried looks like — and what a reader who edits the
+  // query off gets. The card must not differ.
   const refused = invitePage({
     username: 'beth',
-    pin: 'abc123',
-    refusal: 'used',
     webAppReady: true,
     origin: ORIGIN,
   });
@@ -89,7 +89,7 @@ describe('the invite card, which is the one with something to protect', () => {
     expect(live).toContain(NAME);
   });
 
-  it('is the same card whether the pin was live or spent', () => {
+  it('is the same card whether or not the address names anybody', () => {
     // A crawler's fetch and a person's click are different moments, and a
     // preview announcing a refusal the reader will not meet is worse than one
     // that simply says what the address is for.

@@ -209,7 +209,9 @@ describe('inviting an address with no account', () => {
       payload: { username: 'alice_k' },
     });
     await request(alice.token, 'other@example.com');
-    expect(mailer.invited[1].link).toMatch(/\/i\/alice_k\/\d{6}$/);
+    // A username and the name to greet the reader with; no pin since
+    // 2026-09-25. See decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
+    expect(mailer.invited[1].link).toMatch(/\/i\/alice_k\?name=Alice$/);
     expect(mailer.invited[1].body).toContain(mailer.invited[1].link);
   });
 

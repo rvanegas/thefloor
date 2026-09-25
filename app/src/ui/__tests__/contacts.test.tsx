@@ -433,7 +433,7 @@ describe('Contacts', () => {
   /**
    * The second way of adding somebody, which is a link you hand over yourself
    * — and which exists only for an account with a username, a link being
-   * `/i/<username>/<pin>`.
+   * `/i/<username>`.
    */
   it('offers a username when there is no link to be had', async () => {
     withContacts([]);

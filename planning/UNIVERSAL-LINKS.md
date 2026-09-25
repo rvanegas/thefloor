@@ -20,7 +20,7 @@ corrections are the reason to read this section rather than skip it.**
 build does register `CFBundleURLTypes` and the *Open in the app* button has
 something to open. And `app/src` now calls `Linking.getInitialURL` and listens
 for `url` in two places: `useChannelLink.ts` for `thefloor://channel/<id>` from
-a Live Activity, and `useInviteLink.ts` for `thefloor://i/<username>/<pin>` from
+a Live Activity, and `useInviteLink.ts` for `thefloor://i/<username>` from
 the invite page. Item 5 of § *What it would cost here* is therefore already
 done, twice, and is a pattern to copy rather than work to schedule.
 
@@ -86,7 +86,7 @@ rule written. Matching on `?` query and `#` fragment is available, as is
 `"exclude": true` to carve a hole in a broader pattern; neither is needed for
 a list this short.
 
-**`/i/<username>/<pin>` is now the *first* thing to claim, which reverses what
+**`/i/<username>` is now the *first* thing to claim, which reverses what
 this section said until 2026-09-25.** It used to argue that `/i/*` must stay
 out, on the grounds that `server/src/invite.ts` made the browser the way to
 accept and that claiming the path would hand the page to the app for everybody

@@ -96,11 +96,14 @@ Most apps in this category have to buy their way past a cold start. This one
 has the primitives in the product already, and two of them are unusual enough
 to be worth naming as marketing assets rather than as features.
 
-- **The invite link, `/i/<username>/<pin>`, shipped in 1.4.0.** This is the
+- **The invite link, `/i/<username>`, shipped in 1.4.0.** This is the
   durable, person-owned link PROPOSITION.md § *Growth* called for as
   *direction* — and the direction is now shipped, which changes the plan from
-  the one that document imagined. It seats exactly one person, lasts thirty
-  days, and **implicitly makes the pair contacts**, so the new account is not
+  the one that document imagined. **Since 2026-09-25 it is durable in the full
+  sense**: one address per person, never spent and never expired, so it can go
+  in a bio or a signature rather than being minted per recipient — which is
+  what that section actually asked for. It **implicitly makes the pair
+  contacts**, so the new account is not
   alone the moment it exists. `server/src/invite.ts` is the page it opens, and
   it **inverts the landing page's call to action deliberately** — the browser
   first, the App Store second, because a trip through the App Store loses the

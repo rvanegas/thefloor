@@ -1591,7 +1591,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    *
    * **Two roads in and one effect, since 2026-09-25.** `useInviteLink` holds
    * whichever arrived — the browser's `sessionStorage`, or
-   * `thefloor://i/<username>/<pin>` from a tap on the invite page's *Open in
+   * `thefloor://i/<username>` from a tap on the invite page's *Open in
    * the app* after an install. They mean the same thing, so they are answered
    * once. That hook owns why it is state rather than a variable, and it is not
    * an incidental choice: a module-level hold cannot wake this effect, and the

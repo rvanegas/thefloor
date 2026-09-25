@@ -21,7 +21,8 @@ import { takeInvite, type Invite } from '../ui/handover';
  * page now leads with the install and asks them to come back to the link and
  * press *Open in the app*. This is the other end of that.
  *
- * **`thefloor://i/<username>/<pin>` and no `https://` form.** A universal link
+ * **`thefloor://i/<username>`, with an optional trailing pin, and no `https://`
+ * form.** A universal link
  * would let the return tap land here without the second press, and is deferred
  * — planning/UNIVERSAL-LINKS.md, where a domain change is now the reason it
  * stays deferred. Until one exists, nothing can deliver an `https://` address
@@ -46,13 +47,17 @@ import { takeInvite, type Invite } from '../ui/handover';
  */
 export function inviteOfUrl(url: string | null): Invite | null {
   if (!url) return null;
-  const match = /^thefloor:\/\/i\/([^/?#]+)\/([^/?#]+)/.exec(url);
+  const match = /^thefloor:\/\/i\/([^/?#]+)(?:\/([^/?#]+))?/.exec(url);
   if (!match) return null;
   try {
     const username = decodeURIComponent(match[1]);
-    const pin = decodeURIComponent(match[2]);
-    if (!username || !pin) return null;
-    return { username, pin };
+    if (!username) return null;
+    // **The pin is optional, and a second segment is the only thing that can
+    // be one.** A link is `/i/<username>` now; one that still carries six
+    // digits was minted before 2026-09-25 and is passed on unchanged, the
+    // server honouring both. See planning/SHIMS.md.
+    const pin = match[2] ? decodeURIComponent(match[2]) : '';
+    return pin ? { username, pin } : { username };
   } catch {
     // A malformed escape is a URL this app did not write.
     return null;

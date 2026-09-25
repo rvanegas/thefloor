@@ -10,15 +10,23 @@ import { inviteOfUrl } from '../useInviteLink';
  * or a pin sent somewhere it should not go.
  */
 describe('inviteOfUrl', () => {
-  it('reads both halves out of the link the invite page writes', () => {
+  it('reads the username out of the link the invite page writes', () => {
+    expect(inviteOfUrl('thefloor://i/annak')).toEqual({ username: 'annak' });
+  });
+
+  /**
+   * A link minted before 2026-09-25, still in the thread it was pasted into.
+   * The pin is carried through untouched and the server honours it; see
+   * planning/SHIMS.md.
+   */
+  it('still reads a pin off an older link, and passes it on', () => {
     expect(inviteOfUrl('thefloor://i/annak/042317')).toEqual({
       username: 'annak',
       pin: '042317',
     });
   });
 
-  it('keeps a leading zero, the pin being a string and not a number', () => {
-    // `042317` and `42317` are different pins — see `invite_pins` in db.ts.
+  it('keeps a leading zero, an old pin being a string and not a number', () => {
     expect(inviteOfUrl('thefloor://i/annak/000123')?.pin).toBe('000123');
   });
 
@@ -27,6 +35,9 @@ describe('inviteOfUrl', () => {
   });
 
   it('ignores a query and a fragment', () => {
+    expect(inviteOfUrl('thefloor://i/annak?name=Anna')).toEqual({
+      username: 'annak',
+    });
     expect(inviteOfUrl('thefloor://i/annak/042317?from=mail')).toEqual({
       username: 'annak',
       pin: '042317',
@@ -34,9 +45,9 @@ describe('inviteOfUrl', () => {
     expect(inviteOfUrl('thefloor://i/annak/042317#x')?.pin).toBe('042317');
   });
 
-  it('wants both halves and refuses a partial link', () => {
-    expect(inviteOfUrl('thefloor://i/annak')).toBeNull();
-    expect(inviteOfUrl('thefloor://i/annak/')).toBeNull();
+  it('wants a username and refuses a link with none', () => {
+    // A trailing slash is not a pin, and must not become an empty one.
+    expect(inviteOfUrl('thefloor://i/annak/')).toEqual({ username: 'annak' });
     expect(inviteOfUrl('thefloor://i//042317')).toBeNull();
     expect(inviteOfUrl('thefloor://i/')).toBeNull();
     expect(inviteOfUrl(null)).toBeNull();
@@ -57,6 +68,7 @@ describe('inviteOfUrl', () => {
    * why, and the commit that claims the domain is where this changes.
    */
   it('does not answer the https form of the same address', () => {
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak')).toBeNull();
     expect(
       inviteOfUrl('https://thefloor.rvanegas.co/i/annak/042317')
     ).toBeNull();
@@ -64,6 +76,6 @@ describe('inviteOfUrl', () => {
 
   it('refuses a malformed escape rather than throwing', () => {
     expect(inviteOfUrl('thefloor://i/annak/%ZZ')).toBeNull();
-    expect(inviteOfUrl('thefloor://i/%E0%A4%A/042317')).toBeNull();
+    expect(inviteOfUrl('thefloor://i/%E0%A4%A')).toBeNull();
   });
 });

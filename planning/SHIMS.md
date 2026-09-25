@@ -55,6 +55,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 272 | `ChannelState.guestInvites` optionality | `core/types.ts`, `core/guests.ts`, `core/channel.ts` |
 | 274 | `WatchState.history` optionality | `app/src/ui/ChannelView.tsx` |
 | — | `WatchState.history` revived as empty | `server/src/channels.ts` |
+| 290 | The invite pin, in every layer that still reads one | `server/src/accounts.ts`, `server/src/app.ts`, `server/src/db.ts`, `app/src/ui/handover.ts`, `app/src/state/useInviteLink.ts`, `app/src/api/http.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -115,6 +116,55 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 290 — the invite pin, in every layer that still reads one
+
+An invite link was `/i/<username>/<pin>` until 2026-09-25 and is
+`/i/<username>` now — `decisions/2026-09-25-...`. Nothing mints a pin any
+more; what is left reads the ones already minted.
+
+**Two populations, and only one of them is a build.** A client below 290 sends
+`pin` on `POST /contacts/invite/accept`, because that is what its copy of the
+page handed it. And a link minted before the change is sitting in whatever
+thread it was pasted into, holding six digits, with nobody to tell.
+
+**The second one expires on its own, and that is the real gate.** A pin lasts
+thirty days — `INVITE_TTL_MS` — so **every pin ever minted is dead after
+2026-10-25**, and from that date the pin-reading code can only ever refuse.
+The build number is the *later* of the two conditions in form and the weaker
+one in fact: a client that keeps sending a pin after the branch goes falls
+through to the pin-less path and succeeds, which is better than the refusal it
+would have got. So if the floor is still under 290 when the date passes, this
+may go anyway, and the gate is a formality.
+
+What goes, on that date:
+
+- `Accounts.redeemInvitePin`, `invitePinState`, `countInviteGuess`,
+  `inviteLocked`, and the constants `INVITE_TTL_MS`, `INVITE_MAX_GUESSES`,
+  `INVITE_GUESS_WINDOW_MS` (`INVITE_PINS_PER_ACCOUNT` went with the mint on
+  the day, nothing being able to accumulate pins any more)
+- the `invite_pins` and `invite_guesses` tables, and their sweeps
+- the `body.pin` branch in `POST /contacts/invite/accept`
+- `used` and `expired` from `InviteRefusal` and from `refusalText`
+- `Invite.pin` on the client, the second segment in `inviteOfUrl`, the pin
+  read in `takeInvite`, and the optional argument on `api.acceptInvite`
+
+**What must not be deleted alongside it**, and this is the part that is not
+reconstructable:
+
+- **`GET /i/:username/:pin` stays, and has no gate at all.** It is not a shim.
+  Invite links live in other people's threads for as long as those threads do,
+  and an address that stopped resolving would be an invitation that silently
+  stopped working years later. The route already ignores the pin and renders
+  the same page as `/i/:username`; that is its permanent form.
+- **`link_accepts` and `spendLinkAccept` stay.** They look like part of the
+  same abuse machinery as `invite_guesses` and are its replacement rather than
+  its sibling: one counts guesses at a pin, the other counts doors walked
+  through, and only the first has anything to do with pins.
+- **`invite_sends` stays.** Nothing to do with pins; it is the daily budget on
+  sending invitation emails.
 
 ---
 

@@ -896,6 +896,27 @@ CREATE TABLE IF NOT EXISTS invite_sends (
   window_start INTEGER NOT NULL
 );
 
+-- How many invite links one account has taken up lately.
+--
+-- **The cost of an invite link having stopped carrying a pin**, 2026-09-25.
+-- A link is now /i/<username> and is a standing door: publishing one is the
+-- owner's consent and following it is the follower's, which is the whole
+-- design. What neither of them consents to is somebody who never saw a link
+-- walking usernames and accepting against each one — the accept route takes a
+-- username, so without a budget it is a bulk contact-adder for every account
+-- that has a username at all.
+--
+-- It is counted against the **taker**, unlike invite_guesses, which counts
+-- against the owner being guessed at. There is nothing to guess any more; what
+-- is worth limiting is how many first contacts one account may make out of
+-- nothing in a day. That also caps the standings: credit follows the first
+-- contact, so unlimited accepting is unlimited leaderboard.
+CREATE TABLE IF NOT EXISTS link_accepts (
+  taker_id     TEXT PRIMARY KEY REFERENCES accounts(id),
+  taken        INTEGER NOT NULL DEFAULT 0,
+  window_start INTEGER NOT NULL
+);
+
 -- Money somebody gave, voluntarily, toward keeping this running. Nothing is
 -- unlocked by it: an account that has never given a penny behaves identically
 -- to one that has, which is what keeps this table off every read path in the

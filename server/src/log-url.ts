@@ -76,8 +76,14 @@ const isCredentialPath = (segments: string[]): boolean => {
   if (segments.length === 2 && segments[0] === 'g' && segments[1] !== 'seat') {
     return true;
   }
-  // `/i/<username>/<pin>`. The username is public and stays; the pin is the
-  // whole of what the link proves.
+  // `/i/<username>/<pin>`, a link minted before 2026-09-25. The username is
+  // public and stays; the pin was the whole of what the link proved.
+  //
+  // **`/i/<username>` needs nothing here**, having no secret in its path — and
+  // its `?name=` is kept out of logs by the allowlist below rather than by a
+  // rule of its own, which is the direction that fails safe: a parameter has to
+  // be named to be logged, so one added later is redacted until somebody says
+  // otherwise.
   if (segments.length === 3 && segments[0] === 'i') return true;
   // `/devices/<token>` — a push address rather than a sign-in, but still an
   // addressable secret, and nothing reads it in a log.

@@ -61,10 +61,10 @@ caused; the list carries the meaning.
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, the *Podcasts* tab and the *Support* tab, not one thing
-- **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
+- **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
-- **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in; the page it opens asks them to install the app
-- **Invite pin** — The six digits at the end of an invite link, good once
+- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time, and the page it opens asks them to install the app
+- **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
@@ -934,19 +934,41 @@ decisions/ § *The tier above both lists*.
 
 ## Invitation
 
-An ask to join a channel, from whoever actually asked rather than from whoever
-created the channel. It outlives the moment it was sent, so a card says how
-many people are in the channel now rather than claiming somebody is still
-waiting.
+**An ask to join something**, and the word is one sense over two distinct
+objects rather than two meanings. What follows it says which:
+
+- **to a channel** — from whoever actually asked rather than from whoever
+  created the channel. It outlives the moment it was sent, so a card says how
+  many people are in the channel now rather than claiming somebody is still
+  waiting. This is what *invitation* means unqualified, and what the *Invite*
+  tab and the *Invitations* group on the People tab are about.
+- **to the app, as somebody's contact** — by an *invite link* or an
+  *invitation email*. It reaches a person who may have no account at all.
+
+A *guest invitation* is a third and is always qualified: an offer of a *seat*
+rather than of membership.
+
+**Read the object, not the verb.** Somebody is invited *to* a thing, and the
+things are not alike: one adds a person to a conversation that exists, another
+gives you somebody to talk to at all. Two entries in this file were written as
+though the second were a misuse of the first; it is not, and the confusion cost
+a session in September 2026.
 
 ## Invitation email
 
 **The message that goes out when a *contact request* names an address with no
 account**, carrying the sender's *invite link* when they have a username and
-the door into the web app when they do not. Not an *invitation* in the sense
-above: that one asks somebody into a channel and reaches a person who is
-already here, where this one reaches somebody who is not, and is the only thing
-in the application that spends money on a stranger.
+the door into the web app when they do not. An *invitation* in the second of
+that entry's two senses — an ask to the app rather than to a channel — and the
+only ask in the application that reaches somebody who is not here, and the only
+one that spends money on a stranger.
+
+**It is taken up by signing up**, since 2026-09-25, rather than leaving a
+request to be answered: the address was written to, and the person turned up at
+it. Which is the same consent an *invite link* takes, by the other road — and
+since this email carries that link, the two had to agree or one invitation
+meant two things. See
+`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`.
 
 Which is why it is the only ask with a price on it. **Twenty per sender per
 twenty-four hours** — `INVITE_MAX_SENDS` — counted at the attempt and never
@@ -956,20 +978,35 @@ message, costs nothing, and is not counted.
 
 ## Invite link
 
-**A link that makes whoever opens it a *contact* of whoever sent it**, once
-they are signed in. `/i/<username>/<pin>`: the *username* says whose it is and
-is not secret, and the *invite pin* is what makes it worth anything.
+**A link that makes whoever follows it a *contact* of whoever sent it**, once
+they are signed in. `/i/<username>`, optionally carrying `?name=` for the page
+to greet its reader by — the username says whose it is and is not secret, and
+the name is drawn from the address rather than looked up, so this server never
+answers who a username belongs to.
+
+**It is a standing door, since 2026-09-25**: the same address every time, never
+spent, never expired. It used to carry an *invite pin* and be good for one
+person; what that bought was a limit rather than a consent, which is the
+argument in
+`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`. Following one
+twice, or after somebody else has, is not a refusal — it is the second call
+finding the pair already contacts.
 
 Not a *guest link*, and the two are worth keeping apart. A guest link opens one
 *channel* to anybody holding it, without an account, until the room empties; an
-invite link opens a *relationship*, needs an account at the far end, and is
-spent by the first person to use it. One is a door to a room and the other is
-an introduction.
+invite link opens a *relationship* and needs an account at the far end. One is a
+door to a room and the other is an introduction.
 
 It is sent two ways: copied from the Contacts tab and handed over however you
-like, or carried in the invitation email that goes to an address with no
+like, or carried in the *invitation email* that goes to an address with no
 account. An account with no username has neither, since there is no link to
 write.
+
+**Both ways end in the same relationship**, which they did not until
+2026-09-25: an invitation sent to an address is taken up when that address
+signs up, exactly as a link is taken up by being followed. Before that the
+email's two halves disagreed — clicking the link made a contact, ignoring it
+and signing up left a request to answer.
 
 **The page it opens asks for one thing, and since 2026-09-25 that thing is the
 install.** It used to lead with accepting in the browser, which cost anybody who
@@ -977,21 +1014,27 @@ later installed a second sign-in — the same address and the same mailed code,
 twice. So the page is now a sentence and one button, and the link is spent by
 whichever road the person took: from a browser it rides `sessionStorage` to the
 tab the page hands over to, and from a phone it comes back over
-`thefloor://i/<username>/<pin>` when they press *Open in the app* after
+`thefloor://i/<username>` when they press *Open in the app* after
 installing. Either way the pin is redeemed once there is a session, and the
 inviter is a *contact* with a *channel* before the first screen is drawn. See
 planning/decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
 
 ## Invite pin
 
-**The six digits at the end of an invite link**, good once. Checked only
-alongside the username beside it, so guessing means guessing at one named
-account rather than at every outstanding invitation; wrong guesses are counted
-against that account and stop being answered. It expires with the invitation
-that carries it, thirty days.
+**Six digits that used to end an invite link**, and made it good for one
+person. Gone since 2026-09-25 —
+`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`. Nothing mints one;
+what still reads them serves links minted before that day, and
+`planning/SHIMS.md` § *Gate 290* says when that goes.
 
-Spent rather than deleted when used, which is what lets a second visit be told
-the invitation has already been used rather than that it never existed.
+It was checked only alongside the username beside it, so guessing meant
+guessing at one named account rather than at every outstanding invitation, and
+it expired after thirty days — which is why every pin that was ever minted is
+dead after 2026-10-25.
+
+**What it bought was a limit, not a consent**, which is the sentence the
+decision turns on: publishing a link is the owner's half of the ask whether or
+not the link has a seat in it.
 
 ## Knock
 
