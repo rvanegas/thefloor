@@ -63,7 +63,7 @@ caused; the list carries the meaning.
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, the *Podcasts* tab and the *Support* tab, not one thing
 - **Invitation** — An ask to join a channel, from whoever actually asked rather than whoever created it
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
-- **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in
+- **Invite link** — A link that makes whoever opens it a *contact* of whoever sent it, once they are signed in; the page it opens asks them to install the app
 - **Invite pin** — The six digits at the end of an invite link, good once
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
@@ -970,6 +970,17 @@ It is sent two ways: copied from the Contacts tab and handed over however you
 like, or carried in the invitation email that goes to an address with no
 account. An account with no username has neither, since there is no link to
 write.
+
+**The page it opens asks for one thing, and since 2026-09-25 that thing is the
+install.** It used to lead with accepting in the browser, which cost anybody who
+later installed a second sign-in — the same address and the same mailed code,
+twice. So the page is now a sentence and one button, and the link is spent by
+whichever road the person took: from a browser it rides `sessionStorage` to the
+tab the page hands over to, and from a phone it comes back over
+`thefloor://i/<username>/<pin>` when they press *Open in the app* after
+installing. Either way the pin is redeemed once there is a session, and the
+inviter is a *contact* with a *channel* before the first screen is drawn. See
+planning/decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
 
 ## Invite pin
 

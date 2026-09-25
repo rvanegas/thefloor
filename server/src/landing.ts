@@ -103,7 +103,7 @@
  * before builds 145–159.
  */
 
-import { escapeHtml, page, socialCard } from './html';
+import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
 
 /**
  * The page's own CSS, layered on top of `page()`'s document chrome.
@@ -118,19 +118,17 @@ import { escapeHtml, page, socialCard } from './html';
  * reasoning is on `colorScheme` in html.ts. So the colours here may assume a
  * light ground, which is the one liberty this stylesheet has that a document's
  * would not.
+ *
+ * **The mark, the lede, the button and the quiet line moved to `CTA_STYLE` in
+ * html.ts on 2026-09-25**, when the invitation page grew a call to action and
+ * wanted the same five rules. What is left here is what only a marketing page
+ * has: a claim heading, a footer line and the two figures. **That liberty above
+ * does not extend to the shared block** — the invitation page is `light dark`,
+ * so a rule that moves there stops being allowed to assume this page's ground.
  */
-const STYLE = `
-  .mark { width: 2.5rem; height: 2.5rem; display: block; border-radius: 0.5rem; }
-  .lede { font-size: 1.25rem; line-height: 1.5; margin: 1.5rem 0; }
+const STYLE = `${CTA_STYLE}
   .claim { font-size: 1.1rem; margin-top: 2.25rem; margin-bottom: 0.4rem; }
-  .cta { margin: 2.5rem 0 2rem; }
-  .cta a {
-    display: inline-block; padding: 0.7rem 1.4rem; border-radius: 0.6rem;
-    background: #5B6478; color: #fff; text-decoration: none; font-weight: 600;
-  }
-  .cta .aside { display: block; margin-top: 0.6rem; font-size: 0.9rem; opacity: 0.75; }
   .more { margin-top: 3rem; font-size: 0.95rem; opacity: 0.85; }
-  .browser { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
   figure { margin: 1.25rem 0 0; }
   figure img {
     display: block; width: 100%; max-width: 20rem; height: auto;
@@ -138,20 +136,6 @@ const STYLE = `
   }
   figcaption { margin-top: 0.5rem; font-size: 0.9rem; opacity: 0.75; max-width: 20rem; }
 `;
-
-/**
- * The brand mark, inline rather than served.
- *
- * It is two paths and 182 bytes on disk — `the-floor-icon.svg` at the
- * repository root, which is the source of truth for it. Inlining avoids adding
- * a static route to a server that deliberately has none, and avoids a second
- * request for a decoration. **If the icon changes, change it there and here**;
- * there is no build step linking the two and a comment is the only thread.
- */
-const MARK = `<svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Floor">
-<path d="M0,0 L1024,0 L0,1024 Z" fill="#F2A93B"/>
-<path d="M1024,0 L1024,1024 L0,1024 Z" fill="#5B6478"/>
-</svg>`;
 
 export function landingPage(options: {
   /** From APP_STORE_URL. Absent on a box that has not been told. */

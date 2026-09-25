@@ -14,43 +14,66 @@
  * the answer in its own URL, so there is nothing to fetch before it can speak.
  * A reader with no JavaScript gets the whole page and every fact on it.
  *
- * **It inverts the landing page's call to action, deliberately.** There the
- * App Store comes first, because the phone is the referential install and a
- * stranger should be sent to it. Here the browser comes first, because this
- * link is the invitation: a trip through the App Store loses it — the address
- * does not survive an install — and somebody who takes that route arrives with
- * no relationship and nothing to show for having been asked. So the browser is
- * the way to *accept*, and the app is the second step, offered underneath and
- * again from inside the app once they are in.
+ * **One call to action, and it is the install. Reversed on 2026-09-25.** This
+ * page led with the browser from 2026-09-06, and from 2026-09-22 it named and
+ * costed both routes under two headings — some three hundred and fifty words
+ * asking somebody who had been invited *by name* to first choose between a
+ * browser and an install. Both of those are gone and the reasoning with them.
+ * The page a person opens after being asked for should ask them for one thing.
  *
- * **Both routes are named and costed on the page, since 2026-09-22.** The
- * order above was already right and the page still read as one call to action
- * with an afterthought under it: *accept in this browser*, then *then put it
- * on your phone*, with no statement of what either one gets you. Somebody
- * asked here by name is choosing between two different things — a browser
- * they can be signed into and talking in a minute from now, and an install
- * that costs a couple of steps and is the only one people can actually reach
- * them through — and a page that does not say so has them choosing by
- * whichever link looks more official. So each has a heading, and the phone's
- * two advantages are the two the browser structurally cannot have:
+ * **What the old arrangement actually cost was a second sign-in, which is why
+ * it went.** Its advice was to accept here and install afterwards; anybody who
+ * took it and then ended up where this application wants them — on a phone,
+ * where they can be reached — typed their email address and a mailed code
+ * twice. That is the defect. The five headings were what dressed it up as a
+ * choice, and the choice was never even: a browser cannot be notified, so
+ * somebody who stops at one is barely in the application at all.
  *
- * - **Notifications.** A browser cannot send one, *installed (web app)*
- *   included — `installNotice.ts` in the app is the same fact said to
- *   somebody who is already in, and its wording is the source for the
- *   sentence here. What that costs is other people's ability to find you,
- *   which is not a cost the person choosing pays.
- * - **A sign-in that lasts.** The phone keeps the token in the keychain,
- *   which outlives even deleting the app — see `INSTALL_KEYS` in
- *   `app/src/state/storage.ts`. A browser keeps it in `localStorage`, so
- *   clearing site data or accepting in a private window is signing out.
+ * **The install keeps the invitation now, by way of the return tap.** A trip
+ * through the App Store does not carry the address, so this used to be the
+ * route that arrived with no relationship — the warning at the foot of the old
+ * page. The answer is to come back to this link and press *Open in the app*:
+ * the pin travels over `thefloor://i/<username>/<pin>`, the app holds it across
+ * the one sign-in and spends it after, and the inviter is a contact with a
+ * channel before the first screen is drawn. See `useInviteLink.ts`.
  *
- * **Neither claim may grow.** Anything about what a browser cannot do is
- * checkable against the shipped web app, on landing.ts's own rule, and the
- * two above are the whole list: everything else the browser gives up is a
- * convenience the chooser pays for themselves.
+ * **It is two taps and the copy says so rather than hiding it.** A universal
+ * link would make the return land in the app on its own; that is deferred, and
+ * planning/UNIVERSAL-LINKS.md now carries the domain move as the reason it
+ * stays deferred. So the second tap is the mechanism rather than a fallback,
+ * and is written as the second step of the one call to action.
+ *
+ * **Nothing here may detect an install, and the copy is what stands in for
+ * it.** `thefloor://` fails ugly on a phone without the app — Safari answers
+ * that the address is invalid — and no script on this page can find out in
+ * advance whether it would. So *Open in the app* is never offered as an
+ * alternative to installing: somebody reading these blocks in order has either
+ * just installed or already had it. A `localStorage` marker set by a click on
+ * the store button was the alternative, and it buys emphasis rather than
+ * correctness — it is absent in a private window and on a return through
+ * another browser, so the copy has to stand alone regardless. The guest page's
+ * button carries the same custom-scheme argument at greater length; see
+ * `server/web/guest.ts`, and do not restate it here.
+ *
+ * **The browser is demoted and not removed, and the route still works.** One
+ * quiet line, and it is load-bearing for four populations this page cannot tell
+ * apart: a desktop visitor, an Android phone (never built — see
+ * `backlog/android-has-never-been-built-or-run.md`), a box with no
+ * `APP_STORE_URL`, and anybody who has told iOS to keep this domain in Safari,
+ * which it remembers. Accepting that way is unchanged: `acceptScript` hands the
+ * pin to the tab and the app spends it after the sign-in, the same walk by the
+ * other road.
+ *
+ * **The prose budget is one sentence on each body, and it is a rule rather than
+ * a result.** This page has accreted twice. The sentence is the promotional
+ * text, whose source of truth is planning/LISTING.md — change it there first,
+ * or this page and the store listing drift and the listing's copy is the one
+ * under review. There is now no claim here at all about what a browser cannot
+ * do, which is the cheapest possible way to keep landing.ts's rule that any
+ * such claim must be checkable against the shipped web app.
  */
 
-import { escapeHtml, page, socialCard } from './html';
+import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
 import type { InviteRefusal } from './accounts';
 
 /**
@@ -120,6 +143,17 @@ const CARD = {
   imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
 };
 
+/**
+ * The two rules `CTA_STYLE` does not carry, because only this page wants them.
+ *
+ * `.lede` and the button furniture are shared — see `CTA_STYLE` in html.ts,
+ * and the warning there that nothing in it may assume a light ground, which is
+ * why this page can use it at all.
+ */
+const STYLE = `${CTA_STYLE}
+  .ends { font-size: 0.9rem; opacity: 0.7; margin: 2rem 0 0; }
+`;
+
 export interface InvitePageOptions {
   /** The username in the link, as it was typed into the address. */
   username: string;
@@ -150,34 +184,46 @@ export interface InvitePageOptions {
  * apart would hand a guesser the one thing worth knowing: whether to keep
  * going. Somebody with a genuine link reads "check the link" either way and is
  * not misled, since a locked window passes.
+ *
+ * **`aside` is the next step, and is separate from `body` because it is not
+ * the same sentence for everybody.** It sits under the button, where the named
+ * page puts what to do after installing. `self` is why it cannot be one shared
+ * line: three of these are answered by asking the sender again, and the fourth
+ * *is* the sender. Keeping them together also stopped `body` repeating it —
+ * *used* said "ask whoever sent it for another one" and the button would have
+ * said so again underneath.
  */
-function refusalText(refusal: InviteRefusal): { heading: string; body: string } {
+function refusalText(refusal: InviteRefusal): {
+  heading: string;
+  body: string;
+  aside: string;
+} {
   switch (refusal) {
     case 'used':
       return {
         heading: 'This invitation has already been used',
-        body: `An invite link works once. Ask whoever sent it for another one —
-they can make a new link in a moment.`,
+        body: 'An invite link works once.',
+        aside: 'Ask whoever sent it for a fresh link — it takes them a moment.',
       };
     case 'expired':
       return {
         heading: 'This invitation has expired',
-        body: `Invite links last thirty days. Ask whoever sent it for a fresh
-one.`,
+        body: 'Invite links last thirty days.',
+        aside: 'Ask whoever sent it for a fresh link — it takes them a moment.',
       };
     case 'self':
       // Reachable only from the app, which is where a signed-in owner's own
       // link resolves; the page itself has no idea who is reading it.
       return {
         heading: 'This is your own invitation',
-        body: `Send it to somebody else, and they will be added to your
-contacts when they open it.`,
+        body: 'Send it to somebody else, and they are in your contacts as soon as they open it.',
+        aside: 'You can make another at any time, under Contacts.',
       };
     default:
       return {
         heading: 'This invitation cannot be opened',
-        body: `Check that the whole link was copied — the last part of it is
-what matters. If it keeps failing, ask whoever sent it for another.`,
+        body: 'Check that the whole link was copied — the last part of it is what matters.',
+        aside: 'If it keeps failing, ask whoever sent it for another.',
       };
   }
 }
@@ -196,7 +242,7 @@ export function inviteRefusalText(refusal: InviteRefusal): string {
 }
 
 /**
- * Accepting, which is a link that upgrades itself.
+ * Accepting in the browser, which is a link that upgrades itself.
  *
  * The anchor points at `/open` on its own, so a reader with no JavaScript still
  * gets into the app — they simply arrive without the invitation, which is the
@@ -225,83 +271,89 @@ function acceptScript(username: string, pin: string): string {
 </script>`;
 }
 
-export function invitePage(options: InvitePageOptions): string {
-  const store = options.appStoreUrl
-    ? `<p><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a></p>`
-    : '';
+/**
+ * The store button, or the browser standing in for it.
+ *
+ * **Never rendered dead**, which is the rule `landing.ts` and `supportPage`
+ * already follow for the same setting: a box with no `APP_STORE_URL` is a
+ * local checkout or a fresh one, and an `href=""` is worse than an absence.
+ * So the single call to action is the install where there is one to offer and
+ * the browser where there is not — one button either way, which is the whole
+ * point of the page and has to survive a box that cannot make the first
+ * choice.
+ *
+ * Returns the empty string only where there is neither, which is a guard
+ * rather than a route anybody takes; the caller says what to do instead.
+ */
+function callToAction(options: InvitePageOptions, aside: string): string {
+  if (options.appStoreUrl) {
+    return `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
+<span class="aside">${aside}</span></p>`;
+  }
+  if (options.webAppReady) {
+    return `<p class="cta"><a id="accept" href="/open">Accept in this browser</a>
+<span class="aside">Free. It needs a microphone and nothing else.</span></p>`;
+  }
+  return '';
+}
 
-  // No name, so no invitation to accept: the page is an explanation and two
-  // ways out. Nothing here says whose link it was, including in the title.
+export function invitePage(options: InvitePageOptions): string {
+  // Whether anything on this page writes the invitation into the tab. True
+  // exactly when an anchor with this id was drawn — the promoted button above
+  // or the demoted line below — so that the script and its target cannot fall
+  // out of step. See acceptScript.
+  const accepting = options.webAppReady;
+
+  // No name, so no invitation to accept: the page is an explanation and a way
+  // out. Nothing here says whose link it was, including in the title.
   if (!options.displayName || options.refusal) {
     const said = refusalText(options.refusal ?? 'unknown');
+    // The promotional sentence is deliberately absent. A refusal and a pitch
+    // are two openings, and the refusal is what this reader came for.
     return page({
       title: 'The Floor',
       heading: 'The Floor',
       standfirst: said.heading,
       social: socialCard(options.origin, CARD),
       head: REFERRER,
-      body: `<p>${said.body}</p>
+      style: STYLE,
+      body: `${MARK}
 
-<h2>In the meantime</h2>
-<p>The Floor is for talking with people you already know. A conversation
-lives in a channel that stays there between calls, and nothing about it rings:
-when somebody wants you, you get an ordinary notification that waits its
-turn.</p>
-${store}
-<p><a href="/">More about The Floor</a></p>
+<p>${said.body}</p>
+
+${callToAction(options, said.aside)}
+<p class="ends"><a href="/">More about The Floor</a> · <a href="/privacy">Privacy</a></p>
 `,
     });
   }
 
   const name = escapeHtml(options.displayName);
 
-  // The accept path is offered only where there is something to open, the way
-  // `landing.ts` withholds its browser link: a box can quite normally be
-  // serving no web app at all, and sending somebody mid-acceptance to a 503 is
-  // worse than telling them to use their phone. That branch is a guard rather
-  // than a route anybody is expected to take — a box serving neither train is
-  // a fresh one or a local checkout — so nothing in it should read as the
-  // ordinary way in.
-  //
-  // **The browser is the shorter path and the page now says so.** The pin is
-  // in the address, so `acceptScript` carries the invitation across the
-  // sign-in and it is spent without anybody typing anything: one tap and an
-  // emailed code. That was stated here only as a warning about the App Store
-  // detour, at the foot, which is the same fact told from the losing end.
-  const accept = options.webAppReady
-    ? `<h2>Accept in this browser</h2>
-<p><strong><a id="accept" href="/open">Accept and open The Floor in this
-browser</a></strong> — nothing to install. You sign in with your email address
-and a code it sends you, which is also how the account gets made, and ${name}
-is in your contacts from that moment. It needs a microphone and nothing else,
-and you can be in a conversation almost immediately.</p>
-<p>It is the shorter way in as well as the quicker one: the invitation is in
-this link, so accepting it is that tap and signing in. There is nothing to
-type in, and nothing to come back and find.</p>`
-    : `<h2>Accepting</h2>
-<p>Install the app below and sign in, and tell ${name} you are there — this
-server has no browser version to accept in.</p>`;
+  // The aside is the second step of the one call to action, and on this page it
+  // is what the install buys: the invitation is spent by the app the moment
+  // there is a session, so the person arrives with a contact and a channel
+  // rather than an empty Home. A box with no store link says the same thing
+  // about the browser instead — see callToAction.
+  const aside = `Free. ${name} is in your contacts as soon as you sign in.`;
 
-  // Second, and said as a choice rather than an afterthought: the two things
-  // below are what the extra steps buy, and they are the two a browser cannot
-  // have however good it gets. See the note at the top of this file before
-  // adding a third.
-  const phone = `<h2>${options.webAppReady ? 'Then put it on your phone' : 'Put it on your phone'}</h2>
-<p>A few minutes more — downloading it, installing it, then signing in with
-your email address and a code — and two things the browser cannot do:</p>
-<ul>
-<li><strong>People can reach you.</strong> A browser cannot notify you, so
-nobody can find you there unless you happen to be looking at the tab. The app
-gets a notification — the ordinary kind, that waits its turn.</li>
-<li><strong>It stays signed in.</strong> Your phone keeps the sign-in itself,
-so it is there whenever you come back. A browser keeps it in that browser:
-clearing your site data, or accepting in a private window, means signing in
-again.</li>
-</ul>
-${options.webAppReady ? `<p>Accept here first all the same. This link does not survive a trip through
-the App Store — install before accepting and you arrive with no invitation and
-nothing to show for having been asked — and the app offers the install again
-once you are in.</p>` : ''}`;
+  // Offered only where there is something to open, the way `landing.ts`
+  // withholds its browser link: a box can quite normally be serving no web app
+  // at all, and sending somebody mid-acceptance to a 503 is worse than telling
+  // them to use their phone. Withheld too where it has already been promoted
+  // into the button above, or the page would offer it twice.
+  const browser =
+    options.webAppReady && options.appStoreUrl
+      ? `<p class="browser"><a id="accept" href="/open">Or accept in this browser</a> — no
+install; it needs a microphone and nothing else.</p>`
+      : '';
+
+  // A box serving neither train nor store. Nothing in this branch should read
+  // as the ordinary way in, because there is not one.
+  const neither =
+    !options.appStoreUrl && !options.webAppReady
+      ? `<p class="browser">This server is not handing out the app yet. Tell ${name}
+you are here.</p>`
+      : '';
 
   return page({
     title: `${options.displayName} invited you to The Floor`,
@@ -310,23 +362,21 @@ once you are in.</p>` : ''}`;
     // Names nobody, unlike the title above it — see CARD.
     social: socialCard(options.origin, CARD),
     head: REFERRER,
-    body: `<p>The Floor is for talking with people you already know. A
-conversation lives in a channel that stays there between calls — somewhere you
-go back to rather than a call you place — and nothing about it rings: when
-somebody wants you, you get an ordinary notification that waits its turn.
-Everyone in a channel can speak; taking the floor is what one person does when
-they need to finish a thought.</p>
+    style: STYLE,
+    // One sentence, and it is planning/LISTING.md's promotional text. Change it
+    // there first: it is the field the store reviews, and two copies of the
+    // same claim drift towards the one nobody is checking.
+    body: `${MARK}
 
-<p>Nobody can reach you unless you have both agreed. There is no directory and
-no search for strangers.</p>
+<p class="lede">It’s a group chat, but voice. A channel is a place you drop
+into: you arrive when it suits you, and whoever is there is there.</p>
 
-${accept}
-
-${phone}
-${store}
-
-<p><a href="/privacy">Privacy</a> — what is stored, why, and for how long.</p>
-${options.webAppReady ? acceptScript(options.username, options.pin) : ''}
+${callToAction(options, aside)}
+${browser}
+${neither}
+<p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
+how long.</p>
+${accepting ? acceptScript(options.username, options.pin) : ''}
 `,
   });
 }

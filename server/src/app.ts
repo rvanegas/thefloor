@@ -1450,7 +1450,29 @@ export function buildApp(options: BuildOptions = {}): App {
     // minted this link is not looking at the app — they handed it over hours
     // or days ago and have had nothing to check since. See `tellTheInviter`.
     tellTheInviter(result.owner.id, account, pair, 'link');
-    return { ok: true, contact: accounts.public(result.owner.id) };
+    // **And the channel comes back, since 2026-09-25**, on the reasoning
+    // `POST /contacts/:id/accept` set out the day before: becoming contacts is
+    // what creates the place the two of you talk, and a channel nobody is told
+    // about is the single most important thing this application has done for
+    // somebody happening silently in a list they were not looking at.
+    //
+    // **It matters more on this route than on that one.** There the accepter
+    // was already a user with a Home; here they may have signed up seconds ago
+    // because of this link, so this is their *first* contact and their first
+    // channel, and the whole point of arriving by invitation rather than
+    // finding a request waiting.
+    //
+    // Additive, so no shim: a client that predates it reads `ok` and ignores
+    // the rest. `null` is in fact unreachable here — `redeemInvitePin` has
+    // already refused `self`, so the pair is never a pair of one — and is sent
+    // anyway, because what makes an *older server* harmless is the client
+    // reading an absent id as *nowhere to go*, and that is only tested if the
+    // shape agrees with the sibling route.
+    return {
+      ok: true,
+      contact: accounts.public(result.owner.id),
+      channelId: pair?.channelId ?? null,
+    };
   });
 
   // Withdrawal goes by address, not row id — see Accounts.withdrawRequest for

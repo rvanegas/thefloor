@@ -142,6 +142,59 @@ export function socialTags(social: {
 }
 
 /**
+ * The brand mark, inline rather than served.
+ *
+ * It is two paths and 182 bytes on disk — `the-floor-icon.svg` at the
+ * repository root, which is the source of truth for it. Inlining avoids adding
+ * a static route to a server that deliberately has none, and avoids a second
+ * request for a decoration. **If the icon changes, change it there and here**;
+ * there is no build step linking the two and a comment is the only thread.
+ *
+ * **Shared from 2026-09-25, having lived in `landing.ts` until then.** The
+ * invitation page wanted the same forty pixels, and a second copy of a value
+ * whose source of truth is a file no build step reads is exactly the case
+ * `escapeHtml` above is shared on: two copies is how one comes to be missing
+ * what the other has. One copy, two pages, one comment to keep true.
+ */
+export const MARK = `<svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Floor">
+<path d="M0,0 L1024,0 L0,1024 Z" fill="#F2A93B"/>
+<path d="M1024,0 L1024,1024 L0,1024 Z" fill="#5B6478"/>
+</svg>`;
+
+/**
+ * The furniture a page with a call to action needs, for the `style` hook below.
+ *
+ * Two pages have one now — the landing page and the invitation — and this is
+ * the set they agree on: the mark, a lede, the button and its aside, and the
+ * quiet line a demoted alternative goes on. Everything either page does not
+ * share stays in its own block, which is what `style` is for.
+ *
+ * **Not folded into `page()`**, deliberately. `/privacy` and `/support` are
+ * documents with no button, and putting a `.cta` rule in the chrome would hand
+ * it to them; the rule on `style` is that it is per-page and additive, and an
+ * exported constant a page opts into keeps both halves of that true.
+ *
+ * **No rule here may assume a light ground, which is the trap.** `landing.ts`
+ * is pinned to `colorScheme: 'light'` because its screenshots have no dark
+ * counterpart, and the invitation page is `light dark` like the documents. So
+ * the two do not share a background, and a colour that reads on white is not
+ * thereby a colour that reads. `#5B6478` under white text reads on both, which
+ * is why this particular set could move and why the next addition may not be
+ * able to.
+ */
+export const CTA_STYLE = `
+  .mark { width: 2.5rem; height: 2.5rem; display: block; border-radius: 0.5rem; }
+  .lede { font-size: 1.25rem; line-height: 1.5; margin: 1.5rem 0; }
+  .cta { margin: 2.5rem 0 2rem; }
+  .cta a {
+    display: inline-block; padding: 0.7rem 1.4rem; border-radius: 0.6rem;
+    background: #5B6478; color: #fff; text-decoration: none; font-weight: 600;
+  }
+  .cta .aside { display: block; margin-top: 0.6rem; font-size: 0.9rem; opacity: 0.75; }
+  .browser { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
+`;
+
+/**
  * Wraps a document body in the page both pages are.
  *
  * `color-scheme` is the whole of the dark-mode support: it tells the browser to

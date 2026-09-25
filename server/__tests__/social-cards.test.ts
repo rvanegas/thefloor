@@ -97,6 +97,21 @@ describe('the invite card, which is the one with something to protect', () => {
     expect(meta(refused, 'og:description')).toBe(meta(live, 'og:description'));
   });
 
+  /**
+   * The card survived the page being cut to one call to action, which is the
+   * kind of thing a copy rewrite takes with it. It is built from a constant
+   * precisely so that it cannot follow the page around.
+   */
+  it('says nothing about how to get in', () => {
+    // No store link and no scheme in the preview: what a crawler caches is
+    // read by everybody in the thread, and it is about the invitation rather
+    // than about this reader's phone.
+    const description = meta(live, 'og:description')!;
+    expect(description).not.toContain('apps.apple.com');
+    expect(description).not.toContain('thefloor://');
+    expect(description).not.toContain('install');
+  });
+
   it('carries no og:url, because the address holds a live pin', () => {
     // Echoing it would put the pin into the preview caches of every service
     // the link is pasted through — the leak REFERRER already guards against.
