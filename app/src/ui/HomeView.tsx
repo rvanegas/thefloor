@@ -766,9 +766,15 @@ export function HomeView({
               // separate questions, while the bar was suppressed in a split and
               // the row was not — see `App.tsx`, which no longer suppresses it.
               liveChannelId={liveChannel?.channelId ?? null}
-              // And the same for the bars above: exactly the channels a bar was
-              // drawn for, so a suppressed bar leaves its row where it was.
-              nearbyChannelIds={nearby.map((channel) => channel.channelId)}
+              // And the same for every other bar above: exactly the channels
+              // one was drawn for, so a suppressed bar leaves its row where it
+              // was. **Both tiers, which is the bug this list keeps having** —
+              // it read `nearby` alone, and the room another device was
+              // standing in was pinned at the top and listed under *Live* as
+              // well. A bar added above belongs in here in the same commit.
+              hoistedChannelIds={[...standingElsewhere, ...nearby].map(
+                (channel) => channel.channelId,
+              )}
             />
           ) : (
             <ContactsView
@@ -1131,7 +1137,7 @@ function useAnswerWaiting(): boolean {
  * Hoisting the rows would put *Accept* under a thumb a tap sooner, and it
  * would also draw a contact request and an invitation twice each — once here
  * and once in the list they belong to — which is the failure `liveChannelId`
- * and `nearbyChannelIds` exist to prevent for the channel rows, and the
+ * and `hoistedChannelIds` exist to prevent for the channel rows, and the
  * failure STYLE.md rule 7 is about. So this says the sentence and the list
  * keeps the controls, exactly as the live bar says where you are standing and
  * the channel screen keeps the microphone. What was missing was never the

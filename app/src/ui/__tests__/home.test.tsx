@@ -748,6 +748,21 @@ describe('Home while still in a channel', () => {
       act(() => tree.unmount());
     });
 
+    it('draws the room once, pinned, and not as a row as well', () => {
+      // **The bar and the row are two renderings of one channel**, so exactly
+      // one appears — the rule the live bar and the nearby bars are already
+      // held to, and the one this bar shipped without. `ChannelsView` is told
+      // which channels a bar above has taken; it was told about the nearby
+      // ones only, so the room came out pinned at the top *and* listed under
+      // *Live*, which is how somebody saw one channel twice on one screen.
+      withRoom(2);
+      mockApp.standingElsewhere = ['sess_1'];
+      const tree = render(<HomeView {...homeNav} />);
+      const text = textOf(tree);
+      expect(text.match(/Book club/g)).toHaveLength(1);
+      act(() => tree.unmount());
+    });
+
     it('says nobody else is there rather than counting you', () => {
       // One present is you, standing there on the other device. "1 present"
       // would be the bar reporting somebody to wait for.

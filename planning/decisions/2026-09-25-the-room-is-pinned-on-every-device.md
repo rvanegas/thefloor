@@ -87,3 +87,25 @@ None. An older client ignores an unknown server message — `socket.ts` has no
 `default` in its switch — so this reaches one and changes nothing. An older
 server sends no such message and a new client reads absence as an empty list,
 which is exactly the behaviour every build before this one had.
+
+## Corrected the same day: the room was drawn twice
+
+The bar shipped without being subtracted from the list underneath it, so on the
+device that was not holding the room the channel appeared twice on one screen —
+pinned at the top, and again as a row under *Live*. `HomeView` filtered its own
+`nearby` tier against the new bar, which is the half of the rule that is decided
+in that file; what it did not do is tell `ChannelsView`, which drops the rows a
+bar above has already taken and was passed the nearby ids alone.
+
+**The prop is `hoistedChannelIds` now, not `nearbyChannelIds`.** The old name
+was accurate when the nearby tier was the only one there was, and it is the
+reason this was missed: a list named after one bar does not read as a list every
+bar has to join. What the filter asks is *has something above already drawn
+this*, so that is what it is called, and the next bar added to the tier has a
+name telling it where to register. `liveChannelId` stays as it is — one channel,
+not a list, and it was never the one forgotten.
+
+The guard is a count rather than a presence check, in `home.test.tsx`: every
+assertion this shipped with asked whether the name appeared, and the name did
+appear, twice. The nearby tier has had exactly that counting test since it was
+built, which is the test this one should have been a copy of.

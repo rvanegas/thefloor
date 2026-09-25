@@ -66,7 +66,7 @@ import { colors, radius, spacing, type } from './theme';
 export function ChannelsView({
   onEnterChannel,
   liveChannelId = null,
-  nearbyChannelIds = [],
+  hoistedChannelIds = [],
 }: {
   onEnterChannel: (channelId: string) => void;
   /**
@@ -77,9 +77,18 @@ export function ChannelsView({
    */
   liveChannelId?: string | null;
   /**
-   * The channels the tier's *nearby* bars are already showing, left out on
+   * The channels the tier's *other* bars are already showing — nearby, and
+   * the room another of this account's devices is standing in — left out on
    * exactly the live channel's reasoning: a bar and a row are two renderings
    * of one channel, so one of them appears.
+   *
+   * **One list rather than one per kind of bar**, since 2026-09-25. It was
+   * `nearbyChannelIds` and named the only tier that then existed; the
+   * standing-elsewhere bar arrived without being added to it, and drew its
+   * channel twice — once pinned and once under *Live*. What this list means
+   * is *a bar above has this row already*, which is the question the filter
+   * asks, and a name that says which bar invites the next one to be
+   * forgotten.
    *
    * Ids rather than a flag on the card, though every card knows whether it is
    * a nearby one — because whether a bar was drawn for it is the tier's
@@ -87,7 +96,7 @@ export function ChannelsView({
    * live channel, and a card dropped from here on its own judgement would then
    * be a channel showing nowhere at all.
    */
-  nearbyChannelIds?: readonly string[];
+  hoistedChannelIds?: readonly string[];
 }) {
   const app = useApp();
 
@@ -159,7 +168,7 @@ export function ChannelsView({
   ].filter(
     (card) =>
       card.channelId !== liveChannelId &&
-      !nearbyChannelIds.includes(card.channelId)
+      !hoistedChannelIds.includes(card.channelId)
   );
 
   /**
