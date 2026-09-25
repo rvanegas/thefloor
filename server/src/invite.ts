@@ -200,10 +200,19 @@ function refusalText(refusal: InviteRefusal): {
 } {
   switch (refusal) {
     case 'used':
+      // **The one refusal that still asks for the install.** A spent pin means
+      // the relationship cannot be made from this link, and it says nothing at
+      // all about whether this person should be here — anybody may sign up, and
+      // a page that reads as a closed door turns a spent link into a rejection.
+      // So this keeps the page's single call to action rather than reducing to
+      // an explanation, and the aside is what the link would have done for
+      // them, since installing without it means arriving with an empty Home.
       return {
         heading: 'This invitation has already been used',
-        body: 'An invite link works once.',
-        aside: 'Ask whoever sent it for a fresh link — it takes them a moment.',
+        body: 'An invite link works once — but go ahead and install anyway. The Floor isn’t invitation-only.',
+        aside:
+          'Free. Ask whoever sent it for a fresh link too, and you will arrive ' +
+          'with them in your contacts.',
       };
     case 'expired':
       return {

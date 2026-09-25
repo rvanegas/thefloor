@@ -557,6 +557,31 @@ describe('the call to action, on a box that cannot make the usual one', () => {
   });
 
   /**
+   * A spent link is not a closed door.
+   *
+   * Nothing about a used pin says whether this person should be here — anybody
+   * may sign up — so the page keeps asking for the install rather than becoming
+   * an explanation. The aside is what the invitation would have done for them,
+   * which installing without it does not.
+   */
+  it('asks a spent invitation to install anyway', () => {
+    const body = invitePage({
+      username: 'alice_k',
+      pin: '042317',
+      refusal: 'used',
+      appStoreUrl: STORE,
+      webAppReady: true,
+    });
+    expect(body).toContain('install anyway');
+    expect(body).toContain('isn’t invitation-only');
+    // The button is still there to install with, and still the only one.
+    expect(body).toContain(STORE);
+    expect(body.match(/class="cta"/g)).toHaveLength(1);
+    // And it still says how to end up with a contact, which the link was for.
+    expect(body).toContain('fresh link');
+  });
+
+  /**
    * `unknown` and `locked` must stay indistinguishable — telling them apart
    * hands a guesser the one thing worth knowing, which is whether to keep
    * going. The route has this test; the page did not.
