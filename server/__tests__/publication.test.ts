@@ -875,6 +875,66 @@ describe('the enclosure', () => {
     expect(suffix.rawPayload.length).toBe(50);
   }, 120_000);
 
+  it('counts a start once, and the reads around it not at all', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await consent(alice.token, recordingId);
+    await consent(bob.token, recordingId);
+    await transcoded(recordingId);
+
+    const started = () =>
+      (
+        app.db
+          .prepare(
+            'SELECT count FROM episode_listens WHERE recording_id = ?'
+          )
+          .get(recordingId) as { count: number } | undefined
+      )?.count ?? 0;
+
+    // Nothing is counted by publishing, or by anybody reading the page: the
+    // tally is of the audio being fetched and of nothing else.
+    expect(started()).toBe(0);
+    await pageFor(channelId);
+    await feedFor(channelId);
+    expect(started()).toBe(0);
+
+    const get = (headers?: Record<string, string>) =>
+      app.fastify.inject({
+        method: 'GET',
+        url: `/c/${channelId}/e/${recordingId}.m4a`,
+        ...(headers ? { headers } : {}),
+      });
+
+    // A download: no range at all, and the least ambiguous start there is.
+    // Its length is kept rather than asked for again, because asking again
+    // would itself be a start — which is the whole point of the rule.
+    const downloaded = await get();
+    expect(downloaded.statusCode).toBe(200);
+    expect(started()).toBe(1);
+    const whole = downloaded.rawPayload.length;
+
+    // The three reads a player makes around one play, none of which is a
+    // second play. The probe that asks whether ranges work at all, the moov
+    // atom at the end, and a chunk from the middle of a stream already
+    // running — see startsAnEpisode, which is where the rule is argued.
+    expect((await get({ range: 'bytes=0-1' })).statusCode).toBe(206);
+    expect((await get({ range: 'bytes=-50' })).statusCode).toBe(206);
+    expect(
+      (await get({ range: `bytes=${Math.floor(whole / 2)}-` })).statusCode
+    ).toBe(206);
+    expect(started()).toBe(1);
+
+    // And a second play does count, on the same row rather than a new one:
+    // the table holds one row per episode per day whatever the traffic.
+    expect((await get({ range: 'bytes=0-' })).statusCode).toBe(206);
+    expect(started()).toBe(2);
+    expect(
+      app.db
+        .prepare('SELECT COUNT(*) AS rows FROM episode_listens')
+        .get() as { rows: number }
+    ).toEqual({ rows: 1 });
+  }, 120_000);
+
   it('is the floor-gated mix rather than anything re-rendered', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();
     await goPublic(alice.token, channelId);

@@ -53,6 +53,7 @@ import { podcastDirectoryPage } from './directory-page';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
+import { startsAnEpisode } from './usage';
 import { escapeHtml, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
 import { invitePage, inviteRefusalText } from './invite';
@@ -4579,6 +4580,13 @@ export function buildApp(options: BuildOptions = {}): App {
 
     const key = publishedKeyFor(params.id, recordingId);
     const range = parseRange(request.headers.range, episode.byteLength);
+    // **Decided here and counted below, once the bytes have actually gone
+    // out.** A read the store then fails to serve is not somebody starting an
+    // episode, and counting before the fetch would make an outage look like a
+    // popular week. Both branches count, because both serve audio — see
+    // `startsAnEpisode` for why only some reads are starts at all, and
+    // `episode_listens` for what the number may honestly be read as.
+    const start = startsAnEpisode(range, episode.byteLength);
     try {
       if (!range) {
         const data = await options.store.get(key);
@@ -4587,6 +4595,9 @@ export function buildApp(options: BuildOptions = {}): App {
           bytes: data.length,
           recordingId,
         });
+        if (start) {
+          channels.usage.recordListen({ channelId: params.id, recordingId });
+        }
         return reply
           .header('content-type', PUBLISHED_CONTENT_TYPE)
           .header('accept-ranges', 'bytes')
@@ -4603,6 +4614,9 @@ export function buildApp(options: BuildOptions = {}): App {
         bytes: data.length,
         recordingId,
       });
+      if (start) {
+        channels.usage.recordListen({ channelId: params.id, recordingId });
+      }
       return reply
         .code(206)
         .header('content-type', PUBLISHED_CONTENT_TYPE)

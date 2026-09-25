@@ -69,6 +69,25 @@ describe('The privacy policy', () => {
     // and the one the column was deliberately built without: a ping says
     // whether there were words with it and never what they were.
     expect(page).toContain('never the words themselves');
+    // The public podcast's episode tally, added 2026-09-25 — the first thing
+    // measured here about somebody who has no account, which is why the claim
+    // that earns a test is the *scope* rather than the existence of it. A
+    // reader has to be able to see where this counter stops, and a later edit
+    // that quietly widened it to listening inside the app would falsify the
+    // second of these rather than merely outgrow it.
+    expect(page).toContain('the public podcast pages, and nothing else');
+    expect(page).toContain(
+      'This applies only to the published pages and feeds.'
+    );
+    // And what the number honestly is. `episode_listens` cannot tell a second
+    // play from a second person and says so in the schema; the page has to say
+    // so too, or a tally of starts gets read as an audience.
+    expect(page).toContain('a number of starts rather than a number of people');
+    // The sentence the nav paragraph had to give up when this arrived. It
+    // claimed to be the only measurement attached to nobody, and that stopped
+    // being true the moment there were two — the assertion exists so the next
+    // such counter has to come back and fix the prose again.
+    expect(page).not.toContain('the only measurement here that is attached');
     // Deleting is a mark swept later, and saying so is the point.
     expect(page).toContain('7 days later');
     // And the meter's horizon is a published promise, so it has to be the one

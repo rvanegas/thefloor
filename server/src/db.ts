@@ -584,6 +584,24 @@ export interface NavCountRow {
   count: number;
 }
 
+/**
+ * One day's starts of one published episode.
+ *
+ * The meter's fifth table and the second with nobody in it. **There is no
+ * column here for who, and adding one would falsify /privacy** — see the
+ * schema, and `startsAnEpisode` for why a count of starts is not a count of
+ * listeners.
+ */
+export interface EpisodeListenRow {
+  /** The published channel the episode belongs to. */
+  channelId: string;
+  /** The recording behind the episode. */
+  recordingId: string;
+  /** `'YYYY-MM-DD'`, UTC. */
+  day: string;
+  count: number;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   id           TEXT PRIMARY KEY,
@@ -1474,6 +1492,58 @@ CREATE TABLE IF NOT EXISTS nav_counts (
   day    TEXT NOT NULL,
   count  INTEGER NOT NULL,
   PRIMARY KEY (kind, build, client, day)
+);
+
+-- How often an episode of a published conversation was started.
+--
+-- **The fifth table here, and it keeps nav_counts' rules rather than the
+-- meter's three.** Not swept, not touched by forget, and not a row per
+-- anything. Those three rules exist because the rest of this file is about
+-- people who have accounts; there is nobody in these rows to have a
+-- thirty-day history or a right to be forgotten.
+--
+-- **It counts the public podcast and nothing else, which is the whole of its
+-- scope and is a sentence on /privacy.** The episode route is the one place
+-- in this application that serves somebody who has no account, was never in
+-- the channel, and agreed to nothing — and somebody like that cannot be
+-- asked. So the only thing kept about them is that an episode was started:
+-- no address, no user agent, no session, no hour of the day, nothing that
+-- could be taken apart afterwards into one person's listening.
+--
+-- **Playing a recording inside the app is not in here and must not be put
+-- here.** That is already measured, as minutes against the account that
+-- played it, in usage_spans — a cost question about a member. This is a
+-- different question about different people, and folding the two together
+-- would put an identity beside a stranger's listening in the same table.
+--
+-- **Starts, not listens, and never an audience.** The route serves ranged
+-- reads: a player asks for the first bytes, then for the last — the moov
+-- atom — then works forward, so one person hearing one episode is a dozen
+-- requests. Only a read that begins at the first byte and asks for more than
+-- a probe's worth is counted, which collapses those to one; see
+-- startsAnEpisode, which is where that rule is written and tested. What
+-- survives the collapse is still a count of starts: the same person playing
+-- an episode twice counts twice, a podcast app that downloads without ever
+-- playing counts once, and nothing here can tell either from a listener.
+-- Read it as a comparison between episodes, never as a number of people.
+CREATE TABLE IF NOT EXISTS episode_listens (
+  -- The published channel, so a page's own total needs no join.
+  channel_id   TEXT NOT NULL,
+  -- The recording behind the episode. **No REFERENCES and no cascade**,
+  -- which is the deliberate departure from transcripts above: those cascade
+  -- because they hold what was said and must die with the recording, and
+  -- there is nothing of the sort in here. Deleting a recording must not erase
+  -- the fact that it was played while it was published — a count that
+  -- vanished with its episode would leave every earlier total quietly wrong,
+  -- and there is nobody in the row for that deletion to protect.
+  recording_id TEXT NOT NULL,
+  -- 'YYYY-MM-DD', UTC, from this server's clock rather than the caller's.
+  -- nav_counts' reasoning exactly: coarse enough to watch an episode being
+  -- found over a fortnight, not fine enough to put anybody's evening in
+  -- order.
+  day          TEXT NOT NULL,
+  count        INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, recording_id, day)
 );
 
 -- What a recording says, once somebody has paid to find out.

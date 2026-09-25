@@ -90,6 +90,7 @@ caused; the list carries the meaning.
 - **Feed** — The *public page*'s machine-readable half, at the same address plus `/feed.xml`: what a podcast app subscribes to, listing the same *episodes* the page does
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
+- **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started and stopped by anybody present
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
@@ -1831,6 +1832,32 @@ place remarks somebody was silenced for get broadcast to the world.
 M4A rather than the Ogg/Opus everything else here uses: Opus-in-Ogg is on
 neither Apple's list nor most clients', and a feed that works for some
 subscribers and not others is worse than one that fails outright.
+
+## Episode start
+
+The unit the public podcast is counted in, since 2026-09-25: one read of an
+*episode*'s audio that begins at the first byte and asks for more than a
+probe's worth. `startsAnEpisode` is the whole of the definition and
+`episode_listens` is the tally.
+
+**It is a word for a request and not for a person, and the distinction is the
+reason the term exists rather than being called a listen.** A media player asks
+for one file a dozen times — a probe to learn whether ranges are honoured, the
+moov atom at the end, then chunks forward — and only the first of those is a
+start. What that collapsing cannot do is tell a second start from a second
+person, because the tally holds no address and no session on purpose: a replay
+counts twice, a podcast app that downloads an episode nobody ever hears counts
+once, and two listeners counting one each look exactly like one listener
+counting twice.
+
+**So it compares episodes and never sizes an audience**, and anything written
+from it says which episodes people reached for. A word that meant *listener*
+here would be a word that licensed the other claim.
+
+**Scoped to the public pages and feeds, and nothing in the app.** Listening as
+a member is *listen* minutes against an account, which is a cost question; this
+is the one thing this project measures about somebody who has no account at
+all, which is why /privacy names the scope rather than only the measurement.
 
 ## Speech consent
 

@@ -12,8 +12,9 @@
 # Read-only, always: there is no --write, because nothing here is a thing you
 # would ever want to edit by hand and the sweep owns the deleting.
 #
-# These queries are the entire read interface to `usage_spans`, `usage_bytes`
-# and `nav_counts`. **The meter's other table, `pings`, is not read here** — it
+# These queries are the entire read interface to `usage_spans`, `usage_bytes`,
+# `nav_counts` and `episode_listens`. **The meter's other table, `pings`, is not
+# read here** — it
 # measures whether asking somebody to come worked, which is a funnel question
 # and not a cost one, and `bin/growth pings` is the report for it.
 #
@@ -476,7 +477,65 @@ ORDER BY day DESC;
 SQL
 }
 
-report_names=(minutes pairs peak bytes transcripts nav defects)
+usage_listens() {
+  cat <<'SQL'
+.print ''
+.print '── What the public podcast served: starts per episode ──────────'
+.print ''
+-- How often each published episode was started, by somebody who need not have
+-- an account and usually does not. `episode_listens` is the table; the route
+-- that writes it is the only thing this server offers to a stranger.
+--
+-- **Starts, not listeners, and the difference is not small.** There is no
+-- address and no session in that table, deliberately, so the only thing
+-- separating a second request from a second person is what the request asked
+-- for: a read from the first byte that is bigger than a probe. One person
+-- playing an episode twice is two; a podcast app that downloads an episode
+-- nobody ever hears is one; two people playing it once each are also two, and
+-- nothing here can tell that case from the first. **Read it as a comparison
+-- between episodes** — which of them people reached for — and never as an
+-- audience figure, which this project has no way to produce and has chosen
+-- not to acquire. See startsAnEpisode for the rule and /privacy for the
+-- promise it protects.
+--
+-- **Nothing about listening inside the app is in this report.** That is
+-- minutes against an account, in `minutes` above, and is a cost question.
+--
+-- Not swept, unlike the spans, so this is the whole life of each episode
+-- rather than thirty days.
+SELECT COALESCE(c.name, '(unnamed)')          AS channel,
+       l.recording_id                          AS episode,
+       date(r.started_at / 1000, 'unixepoch')  AS recorded,
+       SUM(l.count)                            AS starts,
+       SUM(CASE WHEN l.day >= date('now', '-7 days')  THEN l.count END)
+                                               AS last_7d,
+       SUM(CASE WHEN l.day >= date('now', '-30 days') THEN l.count END)
+                                               AS last_30d,
+       MIN(l.day)                              AS first_day,
+       MAX(l.day)                              AS last_day
+  FROM episode_listens l
+  LEFT JOIN channels   c ON c.id = l.channel_id
+  LEFT JOIN recordings r ON r.id = l.recording_id
+ GROUP BY l.channel_id, l.recording_id
+ ORDER BY starts DESC;
+
+.print ''
+.print '── The same, per day, so a release can be seen landing ─────────'
+.print ''
+-- Every episode together, by day. What this answers that the table above
+-- cannot is whether anybody is arriving at all this week, which is the figure
+-- worth looking at before concluding anything from a ranking of six episodes.
+SELECT day,
+       COUNT(DISTINCT recording_id) AS episodes,
+       SUM(count)                   AS starts
+  FROM episode_listens
+ GROUP BY day
+ ORDER BY day DESC
+ LIMIT 60;
+SQL
+}
+
+report_names=(minutes pairs peak bytes transcripts nav listens defects)
 
 list_reports() {
   cat <<'TXT'
@@ -487,6 +546,8 @@ bytes        recording bytes this server served, by kind
 transcripts  what transcription cost, who spent it, and where the free uses went
 nav          which of the four ways in and out of a channel people take —
              a share of taps and swipes, never of people; read the header
+listens      starts of each published episode, by strangers on the public
+             page — a count of starts and never an audience; read the header
 defects      fallback mic spans, leaked open spans, and what restarts erased
              from every other report above — read this before quoting those
 TXT

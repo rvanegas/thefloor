@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '18 September 2026';
+export const PRIVACY_UPDATED = '25 September 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -332,8 +332,8 @@ not what was said, not what was played, not the words written with a ping, not
 what any recording contains. There is no record of which screens you opened or
 how long you spent looking at anything.</p>
 
-<p>There is one more thing counted, and it is the only measurement here that
-is attached to nobody at all. There are two ways to leave a conversation — the
+<p>Two more things are counted, and they are the only measurements here that
+are attached to nobody at all. The first: there are two ways to leave a conversation — the
 house at the top of the screen, and swiping it away to the right — and two ways
 back into the one you are in: the line pinned at the top of your home screen,
 and swiping in from the left. This server keeps a running tally of how many
@@ -343,6 +343,30 @@ into what any one person did. It is kept so that we can tell which of two ways
 of doing the same thing people actually use, and stop building the one nobody
 reaches for. It is never shown to another user, it goes nowhere, and nothing in
 the application behaves differently because of it.</p>
+
+<p>The second is about <strong>the public podcast pages, and nothing
+else</strong>. When a conversation has been published, its page on this site
+and its feed can be listened to by anybody, including people with no account
+here — and when an episode is started, this server adds one to a tally of how
+many times that episode was started that day. <strong>That tally is the whole
+of it.</strong> No address, no device, no podcast app’s name, no account, no
+time of day beyond the date, and no way to tell one listener from another or
+one day’s listener from the next. There is nothing in it that could be taken
+apart afterwards into a person.</p>
+
+<p><strong>This applies only to the published pages and feeds.</strong>
+Listening inside the application is not counted this way and never has been:
+what is kept about that is the minutes described above, against your own
+account, for paying for the server. Nothing about a published episode is
+joined to an account, and nothing about your listening in the app is added to
+a published episode’s tally. It is a count of how often each published episode
+was started, kept so that somebody who published a conversation can be told
+whether anybody is listening to it, and so that the cost of serving these
+files is not guessed at. It is a number of starts rather than a number of
+people — one person playing an episode twice counts twice, and a podcast app
+that downloads an episode nobody ever hears counts once — and it is never
+shown to another user, goes nowhere, and changes nothing about what anybody
+sees.</p>
 
 <h2>Deleting things</h2>
 <p>Deleting a recording or a channel marks it immediately: it disappears for
