@@ -616,6 +616,54 @@ export function registerWebsocket(deps: {
   };
 
   /**
+   * Tells each of this account's instances which rooms its *others* are
+   * standing in.
+   *
+   * **`pushScreening`'s shape, about the other half of `Connection`.** That
+   * one carries where the film is; this carries where the person is. Both are
+   * facts about somebody's own hardware that no snapshot can hold: a channel's
+   * `present` names accounts, so every device of an account present in a room
+   * is told the same thing by the same snapshot, and none of them can tell
+   * from it whether *it* is the one holding the room.
+   *
+   * **That gap is what Home's hoisted tier fell into.** The live bar is drawn
+   * from what `App.tsx` knows this process is connected to, so the room
+   * somebody is standing in was hoisted on the device holding it and appeared
+   * nowhere at all on their other ones — the same account, at the same moment,
+   * with two different lists of pinned rooms. Presence really does belong to
+   * one device, and the answer is to say which rather than to draw nothing;
+   * see `HomeView`, where the bar this feeds says *on another device*.
+   *
+   * Each connection is told about the others and never about itself, which is
+   * what makes the answer mean *another device of mine* on every device at
+   * once. Keyed by `deviceKey` for the same reason that one is: a device
+   * reconnecting holds two sockets for a moment, and the one on its way out
+   * must not answer for it — without that a device would report itself as
+   * standing elsewhere across its own reconnection.
+   *
+   * A list, though presence is exclusive and at most one channel can be in
+   * it. Two devices of one account are displaced to one by `ENTER`, but the
+   * displacement and this push are separate messages on separate sockets, and
+   * a shape that cannot express the moment between them is a shape that has
+   * to drop one of the two facts. `screening` is a list for the weaker
+   * version of the same reason.
+   */
+  const pushStanding = (userId: string): void => {
+    const sessions = [...connections].filter(
+      (c) => c.scope.kind === 'session' && c.userId === userId
+    );
+    for (const connection of sessions) {
+      const self = deviceKey(connection);
+      const channelIds = new Set<string>();
+      for (const other of sessions) {
+        if (deviceKey(other) === self) continue;
+        if (other.standing !== null) channelIds.add(other.standing);
+      }
+      send(connection, { type: 'standingElsewhere', channelIds: [...channelIds] });
+    }
+  };
+
+  /**
    * Who has any instance showing this channel's film.
    *
    * **The account, never the device**, which is the whole difference between
@@ -719,11 +767,6 @@ export function registerWebsocket(deps: {
       if (other.scope.kind !== 'session') continue;
       if (other.userId !== connection.userId) continue;
       if (deviceKey(other) === key) continue;
-      // **The fact as well as the message**, since 2026-09-20. `standing` is
-      // what a television hands the film back to, so a device that has just
-      // been told it is no longer standing anywhere must stop answering that
-      // question — otherwise the picture goes to the phone somebody left in
-      // another room rather than to the one in their hand.
       // **The fact as well as the message**, since 2026-09-20. `standing` is
       // what a television hands the film back to, so a device that has just
       // been told it is no longer standing anywhere must stop answering that
@@ -1447,6 +1490,12 @@ export function registerWebsocket(deps: {
       // halves are settled here, which is also what makes a reconnection
       // recover the switch's selection without anybody asking.
       pushScreening(account.id);
+      // The same for where the person is, and it matters more here than the
+      // film does: a phone picked up while the laptop holds a room has no
+      // action of its own coming to tell it so, and would draw a Home with
+      // nothing pinned until somebody moved. The reconnecting device is also
+      // told, which is what recovers the bar after a tunnel.
+      pushStanding(account.id);
     }
     // A follower page is neither of those things. It says nothing about
     // whether its owner has the app open — they may be watching from a laptop
@@ -1913,6 +1962,22 @@ export function registerWebsocket(deps: {
           ) {
             displaceOtherSessions(connection);
           }
+          // **Every one of those actions moved this device's `standing`**, so
+          // the account's other instances are now holding a stale answer to
+          // *where am I*. Said unconditionally rather than only when it
+          // changed: `displaceOtherSessions` above is about what the others
+          // must stop believing, and this is the same correction aimed at
+          // their Home. Cheap — one small message per device of one account,
+          // and only on an action that moves somebody.
+          if (
+            message.action.type === 'ENTER' ||
+            message.action.type === 'STEP_OUT' ||
+            message.action.type === 'ATTENTION_EXPIRED' ||
+            message.action.type === 'DECLARE_NEARBY' ||
+            message.action.type === 'LEAVE_CHANNEL'
+          ) {
+            pushStanding(connection.userId);
+          }
           connection.watchingChannels.add(message.channelId);
           pushChannel(connection, message.channelId);
           return;
@@ -1932,6 +1997,15 @@ export function registerWebsocket(deps: {
       // not count the socket that is leaving — otherwise a laptop that was
       // closed goes on being the answer to *is it on somewhere else* until
       // something unrelated happens to push the fact again.
+      // **A device that has gone is not standing anywhere**, which is the
+      // lifetime `Connection.standing` was given for the same reason
+      // `screening` was. Without this a phone whose Home says *on the laptop*
+      // goes on saying it after the laptop is shut, which is the one sentence
+      // this bar must never be wrong about — it names hardware the reader can
+      // go and look at. After the delete, on the note below.
+      if (connection.scope.kind === 'session' && connection.standing !== null) {
+        pushStanding(connection.userId);
+      }
       if (connection.scope.kind === 'session' && connection.screening !== null) {
         pushScreening(connection.userId);
         // And the room, which is watching a different fact: a screen that has

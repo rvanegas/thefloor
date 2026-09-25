@@ -740,6 +740,49 @@ export function nearbyChannels(
 }
 
 /**
+ * The same three facts, for the channels another of this account's devices is
+ * standing in — `AppProvider.standingElsewhere`.
+ *
+ * **Exported on `nearbyChannels`' reasoning, and named by the same machinery
+ * for the same reason**: what a channel is called is a decided question, and a
+ * tier that answered it a second time is how a bar and the row it points at
+ * come to call one channel two things. The ids come from the socket rather
+ * than from the snapshot — see `standingElsewhere` in core/protocol.ts, which is the
+ * one fact about somebody's own hardware no snapshot can hold — and
+ * everything else about the channel is read out of the snapshot here.
+ *
+ * **Unknown ids are dropped rather than drawn.** The pushes are independent:
+ * a laptop can enter a channel this device's Home snapshot has not heard of
+ * yet, and a bar with no name and no count is worse than the half-second
+ * before the snapshot catches up.
+ *
+ * `byIdleness`, like the rest, though at most one channel can be in here —
+ * presence is exclusive. The order costs nothing and stops the tier depending
+ * on that staying true.
+ */
+export function standingChannels(
+  home: HomeViewData | null,
+  words: CardWords,
+  channelIds: string[]
+): NearbyChannel[] {
+  if (!home || channelIds.length === 0) return [];
+  const wanted = new Set(channelIds);
+  return [
+    ...(home.invites ?? []).map((invite) => inviteCard(invite, words)),
+    ...(home.rejoinable ?? []).map((channel) => memberCard(channel, words)),
+  ]
+    .filter((card) => wanted.has(card.channelId))
+    .sort(byIdleness)
+    .map((card) => ({
+      channelId: card.channelId,
+      title: card.title,
+      // Nought only from a server too old to count, read as `nearbyChannels`
+      // reads it and for that reason: a sentence, not a filing decision.
+      presentCount: card.presentCount ?? 0,
+    }));
+}
+
+/**
  * One invitation still waiting for an answer, as the tier's waiting bar needs
  * it.
  *

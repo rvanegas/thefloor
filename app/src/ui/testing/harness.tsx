@@ -154,6 +154,12 @@ export const mockApp = {
    * to show *other device* as chosen.
    */
   screensElsewhere: [] as string[],
+  /**
+   * The channels another of this account's devices is standing in. Empty by
+   * default like its neighbour, and what Home's third presence bar reads —
+   * the one that pins the room on the device that is not holding it.
+   */
+  standingElsewhere: [] as string[],
   /** The channel this device has been asked to show a film for. */
   screenFor: null as string | null,
   /** A channel this device has just been asked to show, not yet opened. */
@@ -883,6 +889,10 @@ export function resetHarness(): void {
   // this account's devices was showing a film, which is exactly the state
   // that stops a party taking the screen it is looking at.
   mockApp.screensElsewhere = [];
+  // Reset beside it, on that note's reasoning exactly: a test that left this
+  // set would give every later test in the file a Home pinning a room this
+  // device is not in.
+  mockApp.standingElsewhere = [];
   mockApp.expired = false;
   mockApp.updateUrl = null;
   mockApp.notifications.ask = 'none';

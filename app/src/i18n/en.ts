@@ -375,6 +375,29 @@ export const en = {
     tapToGoBack: () => ' · tap to go back',
     filmElsewhere: (title: string) =>
       `${title}: the film is on another of your devices. Tap to watch it here instead.`,
+    /**
+     * The same room, pinned on a device that is not the one holding it.
+     *
+     * **"On" rather than "you are here"**, which is what the live bar's label
+     * says and what this bar must not: the account is present and this device
+     * is not the one standing there, and a screen reader announcing the second
+     * as the first would put somebody's voice in a room from a phone that has
+     * no microphone open.
+     */
+    standingElsewhereLabel: (title: string, present: number) =>
+      `${title}, you are in this room on another of your devices. ${
+        present === 1 ? 'Nobody else is there.' : `${present} present.`
+      } Tap to open.`,
+    /**
+     * The sub-line. *On another device* first, on `nearbySub`'s reasoning
+     * exactly: the state is the point of the bar and the count is what to do
+     * about it. No "tap to go back", which is the live bar's — there is
+     * nothing here to go back *to*, the room being held somewhere else.
+     */
+    standingElsewhereSub: (present: number) =>
+      present === 1
+        ? 'On another device · nobody else there'
+        : `On another device · ${present} present`,
     nearbyBarLabel: (title: string, present: number) =>
       `${title}, you are nearby. ${
         present === 0 ? 'Nobody is there.' : `${present} present.`

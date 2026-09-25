@@ -704,6 +704,116 @@ describe('Home while still in a channel', () => {
     });
   });
 
+  /**
+   * **The room, on the device that is not holding it.**
+   *
+   * Presence is the account's and standing is the device's, and Home's live
+   * bar can only speak for the second — so a phone whose owner's laptop was
+   * sitting in a conversation pinned nothing at all, while the laptop pinned
+   * the room. One account, one moment, two different lists of pinned rooms,
+   * which is what these are about. See `standingElsewhere` in
+   * `state/AppProvider`.
+   */
+  describe('a room another of your devices is standing in', () => {
+    /** The channel in the snapshot, which is where its name and count come from. */
+    const withRoom = (presentCount = 1) => {
+      mockApp.home = {
+        invites: [],
+        rejoinable: [
+          {
+            channelId: 'sess_1',
+            name: 'Book club',
+            others: [{ id: 'acct_x', displayName: 'Miro Okafor' }],
+            presentCount,
+            createdAt: NOW,
+            lastActiveAt: NOW,
+          },
+        ],
+        contacts: [],
+      };
+    };
+
+    it('pins the room, with the sentence that says which device holds it', () => {
+      withRoom(2);
+      mockApp.standingElsewhere = ['sess_1'];
+      const tree = render(<HomeView {...homeNav} />);
+      const text = textOf(tree).replace(/\s+/g, ' ');
+      // Named, the way the bar on the other device names it — one channel,
+      // one name, whichever screen is asking.
+      expect(text).toContain('Book club');
+      expect(text).toContain('On another device · 2 present');
+      // And never the live bar's line, which offers a way back into a room
+      // this device is not in.
+      expect(text).not.toContain('tap to go back');
+      act(() => tree.unmount());
+    });
+
+    it('says nobody else is there rather than counting you', () => {
+      // One present is you, standing there on the other device. "1 present"
+      // would be the bar reporting somebody to wait for.
+      withRoom(1);
+      mockApp.standingElsewhere = ['sess_1'];
+      const tree = render(<HomeView {...homeNav} />);
+      expect(textOf(tree).replace(/\s+/g, ' ')).toContain(
+        'On another device · nobody else there'
+      );
+      act(() => tree.unmount());
+    });
+
+    it('opens the channel on the tap, and does not step in', () => {
+      // Stepping in here would take the room off the device somebody is
+      // talking into. That is a thing to do on purpose, on the channel's own
+      // screen, and never on the way past — the nearby bar's rule, with a
+      // sharper edge.
+      withRoom(2);
+      mockApp.standingElsewhere = ['sess_1'];
+      const onEnter = jest.fn();
+      const tree = render(
+        <HomeView {...homeNav} onEnterChannel={onEnter} />
+      );
+      const bar = findButton(tree, 'Book club');
+      expect(bar).toBeDefined();
+      act(() => bar!.props.onPress());
+      expect(onEnter).toHaveBeenCalledWith('sess_1');
+      expect(mockApp.act).not.toHaveBeenCalled();
+      act(() => tree.unmount());
+    });
+
+    it('draws one bar, not two, when this device is the one standing there', () => {
+      // The server never reports a connection to itself, so this should not
+      // arrive — but the two pushes are independent, and the moment between
+      // them must not pin one room twice.
+      withRoom(2);
+      mockApp.standingElsewhere = ['sess_1'];
+      const tree = render(
+        <HomeView
+          {...homeNav}
+          liveChannel={{
+            channelId: 'sess_1',
+            title: 'Book club',
+            present: 2,
+            muted: false,
+          }}
+        />
+      );
+      const text = textOf(tree).replace(/\s+/g, ' ');
+      expect(text).toContain('tap to go back');
+      expect(text).not.toContain('On another device');
+      act(() => tree.unmount());
+    });
+
+    it('draws nothing for a channel the snapshot has not heard of', () => {
+      // The pushes are independent: a laptop can enter a channel before this
+      // device's Home knows it exists. A bar with no name and no count is
+      // worse than the half-second before the snapshot catches up.
+      home();
+      mockApp.standingElsewhere = ['sess_unknown'];
+      const tree = render(<HomeView {...homeNav} />);
+      expect(textOf(tree)).not.toContain('On another device');
+      act(() => tree.unmount());
+    });
+  });
+
   /*
     And it is pinned, which is the half of "says so" a text search cannot see:
     a bar that scrolls out of the viewport on the first flick gives no sign of

@@ -27,7 +27,7 @@ import { SupportView } from './src/ui/SupportView';
 import { LeaderboardView } from './src/ui/LeaderboardView';
 import { ChannelView, type ChannelTab } from './src/ui/ChannelView';
 import { SeatView } from './src/ui/SeatView';
-import { nearbyChannels } from './src/ui/ChannelsView';
+import { nearbyChannels, standingChannels } from './src/ui/ChannelsView';
 import { UpdateRequiredView } from './src/ui/UpdateRequiredView';
 import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
@@ -1066,12 +1066,27 @@ function Root() {
    * bar by another route, and that opens a channel the way every other tap
    * does.
    */
-  const nearest = live
+  const cardWords = { channels: text.channels, naming: text.naming };
+  /**
+   * The room another of this account's devices is standing in, which sits
+   * directly under the live bar in the tier and above every nearby one — so
+   * it is the topmost bar whenever there is no live one. Read here for the
+   * reason the two below are: the gesture goes to the topmost *bar*, and the
+   * only way to keep that true is to compute it from what the bars are
+   * computed from.
+   */
+  const elsewhere = live
     ? undefined
-    : nearbyChannels(app.home, { channels: text.channels, naming: text.naming })[0];
+    : standingChannels(app.home, cardWords, app.standingElsewhere)[0];
+  const nearest =
+    live || elsewhere
+      ? undefined
+      : nearbyChannels(app.home, cardWords)[0];
   const hoisted: { channelId: string; tab?: ChannelTab } | undefined = live
     ? { channelId: live.id, tab: lastTab.current.get(live.id) }
-    : nearest && { channelId: nearest.channelId };
+    : elsewhere
+      ? { channelId: elsewhere.channelId }
+      : nearest && { channelId: nearest.channelId };
 
   /**
    * Where a swipe goes from here, which is a question about this screen rather
@@ -1102,13 +1117,21 @@ function Root() {
    * used to go only into `live`, which was the same answer while the live bar
    * was the only thing pinned up there; since the nearby tier joined it, a
    * reader with no room to stand in has bars on the screen and a gesture that
-   * did nothing. What it opens is `live` when there is one and the first
-   * `nearbyChannels` otherwise, which is `HomeView`'s order of drawing read
-   * off the same two values rather than off the drawing — that tier can be
-   * covered by a profile, scrolled past or not yet laid out, and none of that
-   * is a fact about where a thumb should go. The nearby list needs no
-   * filtering here for the reason it needs it there: the one channel that can
-   * appear in both is `live`, and `live` has already won when it exists.
+   * did nothing. What it opens is `live` when there is one, then the room
+   * another of this account's devices is standing in, then the first
+   * `nearbyChannels` — which is `HomeView`'s order of drawing read off the
+   * same three values rather than off the drawing. That tier can be covered
+   * by a profile, scrolled past or not yet laid out, and none of that is a
+   * fact about where a thumb should go.
+   *
+   * **The middle one is why this list is three and not two**, since the
+   * standing-elsewhere bar was added: on the device that is *not* holding the
+   * room, that bar is the topmost thing pinned, and a swipe that skipped it
+   * for a nearby room below would send a thumb somewhere the eye is not.
+   *
+   * Neither of the lower two needs filtering here, for the reason they need
+   * it in `HomeView`: the channels that could appear twice are exactly the
+   * ones an earlier branch has already won.
    *
    * **Right goes back because every other phone does.** The first version had
    * these the other way round, reasoning from the layout — Home is the column

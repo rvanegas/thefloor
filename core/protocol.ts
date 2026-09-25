@@ -1927,5 +1927,39 @@ export type ServerMessage =
    * has just come up is not the only one that does not know.
    */
   | { type: 'screening'; channelIds: string[] }
+  /**
+   * Which channels this account's *other* instances are **standing in** —
+   * the rooms its other devices are holding.
+   *
+   * **`screening`'s shape, about the person rather than the film**, and it
+   * exists because no snapshot can answer this. A channel's `present` names
+   * accounts: every device of an account that is present in a room is told
+   * the same thing by the same snapshot, and not one of them can tell from it
+   * whether *it* is the device holding the room. Presence is the account's and
+   * standing is the device's, and only the server sees both.
+   *
+   * **What it is for is Home's hoisted tier.** The live bar is drawn from what
+   * the app knows this process is connected to, so until this existed the room
+   * somebody was standing in was pinned on the device holding it and drawn
+   * nowhere at all on their other ones — one account, one moment, two
+   * different lists of pinned rooms, with no way for the second to say what it
+   * was missing. The bar it feeds is the same bar in a third state: *on
+   * another device*. See `ui/HomeView`.
+   *
+   * Channel ids rather than devices, and never this connection's own — what is
+   * being asked is whether a *separate* device is standing there, and which
+   * one it is is the screen picker's business. This account only.
+   *
+   * At most one, presence being exclusive, and a list even so: the
+   * displacement and this push are separate messages on separate sockets, and
+   * a shape that cannot hold the moment between them has to drop one of two
+   * true facts.
+   *
+   * Sent whenever any of the account's instances starts or stops standing
+   * somewhere, and once to each new session connection — so a device that has
+   * just come up, or come back from a tunnel, is not the only one that does
+   * not know where its owner is.
+   */
+  | { type: 'standingElsewhere'; channelIds: string[] }
   | { type: 'error'; message: string; code?: string }
   | { type: 'pong'; serverNow: number };

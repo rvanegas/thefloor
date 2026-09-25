@@ -1436,6 +1436,142 @@ describe('websocket', () => {
     const sawDisplaced = (client: Client) =>
       client.received.some((m) => m.type === 'displaced');
 
+    /**
+     * **Which of this account's devices is standing in a room**, which is the
+     * one fact about somebody's own hardware that no snapshot can carry: a
+     * channel's `present` names accounts, so both of Alice's devices are told
+     * the same thing by the same snapshot and neither can tell from it which
+     * of them is holding the room.
+     *
+     * Home's pinned tier fell into that gap — the room was pinned on the
+     * device holding it and drawn nowhere at all on the other one. See
+     * `pushStanding`.
+     */
+    describe('which device is standing in a room', () => {
+      /** Alice on two devices, neither of them in the channel yet. */
+      async function twoDevices() {
+        const { alice, bob, channelId } = await pairInSession();
+        const phone = new Client(alice.token, baseUrl, 80, 'dev-phone', 'iPhone');
+        const laptop = new Client(
+          secondSession(alice.account.id),
+          baseUrl,
+          80,
+          'dev-laptop',
+          'Chrome on macOS'
+        );
+        await Promise.all([phone.open(), laptop.open()]);
+        await Promise.all([phone.next('hello'), laptop.next('hello')]);
+        return { alice, bob, channelId, phone, laptop };
+      }
+
+      it('tells the other device where the account is standing', async () => {
+        const { channelId, phone, laptop, alice } = await twoDevices();
+        await enter(laptop, channelId, alice.account.id);
+
+        const { channelIds } = await phone.next(
+          'standingElsewhere',
+          (m) => m.channelIds.includes(channelId)
+        );
+        expect(channelIds).toEqual([channelId]);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('never reports a device to itself', async () => {
+        // What makes the answer mean *another device of mine* on every device
+        // at once. Without it the laptop would pin the room twice — once from
+        // its own live bar and once from this.
+        const { channelId, phone, laptop, alice } = await twoDevices();
+        await enter(laptop, channelId, alice.account.id);
+        await phone.next('standingElsewhere', (m) =>
+          m.channelIds.includes(channelId)
+        );
+
+        const mine = await laptop.next(
+          'standingElsewhere',
+          (m) => m.channelIds.length === 0
+        );
+        expect(mine.channelIds).toEqual([]);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('takes it back when the device holding the room goes away', async () => {
+        // The one sentence this bar must never be wrong about: it names
+        // hardware the reader can go and look at, and a phone still saying
+        // *on the laptop* after the laptop is shut is pointing at nothing.
+        const { channelId, phone, laptop, alice } = await twoDevices();
+        await enter(laptop, channelId, alice.account.id);
+        await phone.next('standingElsewhere', (m) =>
+          m.channelIds.includes(channelId)
+        );
+
+        laptop.close();
+        const { channelIds } = await phone.next(
+          'standingElsewhere',
+          (m) => m.channelIds.length === 0
+        );
+        expect(channelIds).toEqual([]);
+
+        phone.close();
+      });
+
+      it('empties it when the room is stepped out of', async () => {
+        const { channelId, phone, laptop, alice } = await twoDevices();
+        await enter(laptop, channelId, alice.account.id);
+        await phone.next('standingElsewhere', (m) =>
+          m.channelIds.includes(channelId)
+        );
+
+        laptop.send({
+          type: 'channel.action',
+          channelId,
+          action: { type: 'STEP_OUT' },
+        });
+        const { channelIds } = await phone.next(
+          'standingElsewhere',
+          (m) => m.channelIds.length === 0
+        );
+        expect(channelIds).toEqual([]);
+
+        phone.close();
+        laptop.close();
+      });
+
+      it('moves to the device that takes the room', async () => {
+        // An `ENTER` from the second device displaces the first, which is how
+        // somebody moves a conversation from the laptop to the phone. Both
+        // halves are told: the laptop is displaced, and the laptop's own
+        // answer to *where am I standing elsewhere* becomes the phone.
+        const { channelId, phone, laptop, alice } = await twoDevices();
+        await enter(laptop, channelId, alice.account.id);
+        await phone.next('standingElsewhere', (m) =>
+          m.channelIds.includes(channelId)
+        );
+
+        await enter(phone, channelId, alice.account.id);
+        const { channelIds } = await laptop.next(
+          'standingElsewhere',
+          (m) => m.channelIds.includes(channelId)
+        );
+        expect(channelIds).toEqual([channelId]);
+        expect(sawDisplaced(laptop)).toBe(true);
+
+        // And the phone, which is now the one holding it, is told about
+        // nobody.
+        const mine = await phone.next(
+          'standingElsewhere',
+          (m) => m.channelIds.length === 0
+        );
+        expect(mine.channelIds).toEqual([]);
+
+        phone.close();
+        laptop.close();
+      });
+    });
+
     describe('choosing which device shows a film', () => {
       /** Alice on two named devices, the phone in the channel. */
       async function withScreens() {

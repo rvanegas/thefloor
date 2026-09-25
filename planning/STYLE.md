@@ -69,7 +69,11 @@ the file. A style that two screens need moves into `components.tsx`; a style
 that two screens *coincidentally* share is stated twice, deliberately — see
 Home's `nearbyBar`, which is a copy of `liveBar` rather than a variant of it,
 on the grounds that they are two states rather than one state at two
-strengths.
+strengths. `standingBar` is a third copy of the same four lines, and the one
+case where sharing would have been defensible — it is the same state — written
+out anyway, because what it shares is paint and what it means is *the other
+device*, and the next difference between them should land in a block that says
+so rather than as a fourth override.
 
 ---
 
@@ -615,8 +619,9 @@ It is the default container for everything that is a thing rather than a line.
 
 **A tinted card is a state.** The pattern is a `*Dim` fill with the matching
 full-strength border: `floorDim` + `floor` for the room you are in, `nearbyDim`
-+ `nearby` for one within reach. Home's live bar, Home's nearby bar and a
-profile's live channel all wear it, and they are the same four lines each time.
++ `nearby` for one within reach. Home's live bar, Home's *standing* bar, Home's
+nearby bar and a profile's live channel all wear it, and they are the same four
+lines each time.
 
 **Three wearers, not four, since 2026-09-15** — and what left is the worked
 example of the pattern's one failure mode. Home's live invitation wore
@@ -633,8 +638,22 @@ allowed to shout.
 **Home's *waiting bar* is the second wearer of that trade**, added 2026-09-23:
 `colors.waiting` on the edge, `surface` behind it, `screenBar`'s four lines
 otherwise. It is the same claim as the invitation row it points at, said one
-tier up, so the two carry one hue at two sizes. The tally stands — three
-tinted cards, and the live bar is still the only fill in Home's header.
+tier up, so the two carry one hue at two sizes.
+
+**Home's *standing* bar is the one addition to the tally, and it is the rule's
+other edge**, added 2026-09-25: `floorDim` + `floor`, the live bar's own paint,
+on a bar the live bar is not drawn beside. The rule is that a tint is spent on
+a state and two states may not share one — and this *is* that state. It is the
+room you are present in, seen from a device that is not the one holding it, and
+the whole complaint it answers is that one account's two screens pinned
+different things. Making it quieter would have re-drawn the disagreement in
+paint. What carries *which device* is the dot and the sentence: hollow rather
+than filled, and *On another device* rather than *tap to go back*. See
+GLOSSARY.md § *Standing elsewhere*.
+
+So: four tinted cards, and Home's header now has two fills — which are one
+state on two devices and never on one, the two bars being mutually exclusive by
+construction.
 
 **A roster card's suffixes are ordered by what a reader may have to act on.**
 There are three — `· muted`, `· has the floor`, `· watching` — appended to the

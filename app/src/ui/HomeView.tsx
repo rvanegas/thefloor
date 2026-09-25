@@ -21,6 +21,7 @@ import { useText } from '../i18n';
 import {
   ChannelsView,
   nearbyChannels,
+  standingChannels,
   waitingInvitations,
 } from "./ChannelsView";
 import type { CardWords } from "./ChannelsView";
@@ -240,8 +241,42 @@ export function HomeView({
    * the exclusion passed to `ChannelsView` being one decision made in one
    * place.
    */
-  const nearby = nearbyChannels(app.home, useCardWords()).filter(
-    (channel) => channel.channelId !== liveChannel?.channelId,
+  const words = useCardWords();
+
+  /**
+   * The room this account is standing in **on one of its other devices**.
+   *
+   * **Why this tier needs a third state at all.** `liveChannel` is what
+   * `App.tsx` knows *this* process is connected to, which is the only honest
+   * answer to "is my microphone open here" and the wrong one for "where am
+   * I". Presence belongs to the account and is held by one device, so the
+   * phone in somebody's pocket, whose laptop is sitting in a conversation, had
+   * no bar to draw and drew none: two screens of one account, at one moment,
+   * pinning two different sets of rooms. The room is hoisted on both now, and
+   * which device is holding it is said in the bar rather than by the bar's
+   * absence. See `standingElsewhere` in `state/AppProvider`.
+   *
+   * **The live channel is subtracted, and it should never be there.** The
+   * server never reports a connection to itself, so a channel in both would
+   * mean this device and another both standing in one room, which `ENTER`
+   * makes false the moment it lands. The filter is for the moment before the
+   * two pushes have both arrived, not for a state that can hold: one bar per
+   * channel, decided here, the way `nearby` is.
+   */
+  const standingElsewhere = standingChannels(
+    app.home,
+    words,
+    app.standingElsewhere,
+  ).filter((channel) => channel.channelId !== liveChannel?.channelId);
+
+  const nearby = nearbyChannels(app.home, words).filter(
+    (channel) =>
+      channel.channelId !== liveChannel?.channelId &&
+      // And never below its own bar in the tier above. Presence clears a
+      // wait, so a channel claiming both has a snapshot that has not caught
+      // up — the same narrow rule the live channel is filtered on, applied to
+      // the state that stands in for presence on this device.
+      !standingElsewhere.some((s) => s.channelId === channel.channelId),
   );
 
   /**
@@ -423,6 +458,74 @@ export function HomeView({
             </View>
           </Pressable>
         ) : null}
+
+        {/*
+          **The same room, on the device that is not holding it.**
+
+          Drawn where the live bar is drawn and in the live bar's hue, which
+          is the whole point of it: somebody with a phone and a laptop signed
+          in to one account should see one tier, and until this existed they
+          saw the conversation pinned on one screen and nothing at all on the
+          other. The room is the loudest thing in this header wherever it is
+          held; *which device* is a second fact, and it goes in the mark and
+          in the sentence rather than in whether anything is drawn.
+
+          **It does not step in**, on the nearby bar's reasoning and with a
+          sharper edge: stepping in here would take the room off the device
+          somebody is actually talking into, which is a thing to do on
+          purpose and never on the way past. The tap opens the channel, and
+          *In* under a thumb on the channel's own screen is where the room
+          moves — one `ENTER`, which displaces the other device exactly as it
+          always has.
+        */}
+        {standingElsewhere.map((channel) => (
+          <Pressable
+            key={channel.channelId}
+            accessibilityRole="button"
+            /*
+              Never the live bar's label, which says "you are here". The
+              account is here and this device is not, and a screen reader that
+              collapsed the two would tell somebody their microphone is open
+              on a phone that has none.
+            */
+            accessibilityLabel={t.standingElsewhereLabel(
+              channel.title,
+              channel.presentCount
+            )}
+            // Navigates and nothing more, like the nearby bar's — see above.
+            onPress={() => onEnterChannel(channel.channelId)}
+            style={styles.standingBar}
+          >
+            <View style={styles.rowMain}>
+              <View style={styles.liveTitleRow}>
+                {/*
+                  The floor hue, hollow. Filled is this device holding the
+                  room; hollow is the room held somewhere else of yours —
+                  the same distinction `nearbyDot` draws in its own hue,
+                  between being in a room and being beside one.
+
+                  **Not `liveDotMuted`, which is hollow and grey.** That mark
+                  is spent on a state this bar cannot know: mute belongs to
+                  the device with the microphone, and this is the other one.
+                */}
+                <View style={styles.standingDot} />
+                {/*
+                  `liveTitle` rather than a weight of its own, where
+                  `nearbyTitle` steps down from it. Nearby is a lesser rung
+                  and reads as one; this is the same rung on a different
+                  screen, and a room you are standing in should not get
+                  quieter because you picked up your phone.
+                */}
+                <Text style={styles.liveTitle} numberOfLines={1}>
+                  {channel.title}
+                </Text>
+              </View>
+              <Text style={styles.liveSub}>
+                {t.standingElsewhereSub(channel.presentCount)}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
 
         {/*
           **The film, and the offer to bring it here.**
@@ -1431,6 +1534,45 @@ const styles = StyleSheet.create({
     height: 9,
     borderRadius: 5,
     backgroundColor: colors.floor,
+  },
+  /**
+   * The room, pinned on a device that is not holding it.
+   *
+   * **`liveBar`'s four lines, written out rather than shared**, which is this
+   * file's standing rule for bars that coincide in shape — the same trade
+   * `nearbyBar` and `screenBar` are written under, and STYLE.md § *Per-screen
+   * styles*. It is the same hue on purpose and not by accident of copying:
+   * the whole complaint this answers is that one account's two screens pinned
+   * different things, so the bar has to look like the bar it is standing in
+   * for. What differs is the dot and the sentence.
+   */
+  standingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    backgroundColor: colors.floorDim,
+    borderColor: colors.floor,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing(1.75),
+  },
+  /**
+   * Hollow, in the floor hue: the room is yours and another of your devices
+   * is standing in it. `nearbyDot` draws the same shape in the nearby hue for
+   * the analogous rung — an outline is the thing you are not inside of — and
+   * the hue is what says which question is being answered.
+   *
+   * **Deliberately not grey.** Hollow and grey is `liveDotMuted`, which means
+   * you muted yourself, and mute is a fact about the device holding the
+   * microphone. This is the device that is not.
+   */
+  standingDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: colors.floor,
   },
   /**
    * Hollow and grey rather than a second bright colour. Muting yourself is not

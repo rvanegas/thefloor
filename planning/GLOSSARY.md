@@ -97,6 +97,7 @@ caused; the list carries the meaning.
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
+- **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
@@ -1220,6 +1221,51 @@ read more loosely than this entry defines it: that tab draws guests and knocks
 beside the members. The word is doing signage there rather than picking out a
 set, and a guard that must distinguish the two still asks `isParticipant`. See
 *channel tabs*.
+
+## Standing elsewhere
+
+**The room you are present in, drawn on a device that is not the one holding
+it.** Added 2026-09-25, and it exists because presence and standing are two
+different things that had only one bar between them.
+
+**Presence is the account's; standing is the device's.** A channel's `present`
+names accounts, so every device somebody is signed in on is told the same thing
+by the same snapshot — and not one of them can tell from it which of them is
+holding the room. Only the server sees all of somebody's devices at once, and
+`Connection.standing` is where it keeps the answer.
+
+**What that cost was a tier that disagreed with itself.** Home's live bar is
+drawn from what the app knows *this* process is connected to, which is the only
+honest answer to *is my microphone open here* and the wrong one for *where am
+I*. So a laptop sitting in a conversation pinned the room, and the phone in the
+same person's pocket pinned nothing whatsoever: one account, one moment, two
+different lists of hoisted rooms, with no way for the second to say what it was
+missing. Which device is holding a room is a real fact and a small one; drawing
+nothing was not a way of saying it.
+
+**The bar is the live bar's shape and hue, and that is the point of it.** The
+complaint is that two screens of one account did not match, so the thing that
+stands in for the live bar has to look like the live bar. What differs is a
+hollow dot rather than a filled one — the floor hue either way, the outline
+meaning *not the device inside it*, exactly as `nearbyDot` means it in its own
+hue — and the sentence, *On another device · 2 present*, where the live bar
+says *tap to go back*. There is nothing here to go back to.
+
+**Deliberately not hollow and grey**, which is `liveDotMuted` and means you
+muted yourself. Mute belongs to the device holding the microphone, and this is
+the other one.
+
+**It does not step in**, on the *nearby* bar's rule with a sharper edge: an
+`ENTER` here would take the room off the device somebody is actually talking
+into. The tap opens the channel, and *In* under a thumb on the channel's own
+screen is where the room moves — one action, which displaces the other device
+exactly as it always has.
+
+**On the wire it is `standingElsewhere`**, a push shaped exactly like
+`screening` and for the same reason: each connection is told about the others
+and never about itself, which makes the answer mean *another device of mine* on
+every device at once. See
+`decisions/2026-09-25-the-room-is-pinned-on-every-device.md`.
 
 ## Nearby / Stepped out
 

@@ -44,6 +44,12 @@ const mockApp = {
    */
   screens: [] as unknown[],
   screensElsewhere: [] as string[],
+  /**
+   * And where this account's *other* devices are standing, empty for the same
+   * reason and read on every render of Home — see `AppProvider.standingElsewhere`.
+   * Nothing in this file is about a second device of one account.
+   */
+  standingElsewhere: [] as string[],
   screenFor: null as string | null,
   /**
    * And the arrival beside the role, which App.tsx turns into the channel

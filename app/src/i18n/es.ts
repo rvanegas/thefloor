@@ -291,6 +291,18 @@ export const es: Strings = {
     tapToGoBack: () => ' · toca para volver',
     filmElsewhere: (title: string) =>
       `${title}: la pel\u00edcula est\u00e1 en otro de tus dispositivos. Toca para verla aqu\u00ed.`,
+    standingElsewhereLabel: (title: string, present: number) =>
+      `${title}, est\u00e1s en esta sala en otro de tus dispositivos. ${
+        present === 1
+          ? 'No hay nadie m\u00e1s.'
+          : `${present} ${present === 1 ? 'presente' : 'presentes'}.`
+      } Toca para abrir.`,
+    standingElsewhereSub: (present: number) =>
+      present === 1
+        ? 'En otro dispositivo \u00b7 no hay nadie m\u00e1s'
+        : `En otro dispositivo \u00b7 ${present} ${
+            present === 1 ? 'presente' : 'presentes'
+          }`,
     nearbyBarLabel: (title: string, present: number) =>
       `${title}, est\u00e1s cerca. ${
         present === 0

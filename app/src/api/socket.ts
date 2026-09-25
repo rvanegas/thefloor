@@ -91,6 +91,16 @@ export interface RealtimeHandlers {
    */
   onScreening?: (channelIds: string[]) => void;
   /**
+   * Which channels this account's *other* instances are **standing in**,
+   * pushed whenever any of them moves.
+   *
+   * `onScreening`'s shape about the person rather than the film — see
+   * `standingElsewhere` in core/protocol.ts for why no snapshot can answer it. What
+   * reads it is Home's hoisted tier, which without it drew a different set of
+   * pinned rooms on each of somebody's devices.
+   */
+  onStandingElsewhere?: (channelIds: string[]) => void;
+  /**
    * Another of this account's devices has stepped into a channel, so this one
    * is no longer the device standing anywhere.
    *
@@ -486,6 +496,12 @@ export class Realtime {
           break;
         case 'screening':
           this.handlers.onScreening?.(message.channelIds);
+          break;
+        case 'standingElsewhere':
+          // Where this account's *other* devices are. Recorded and nothing
+          // else: it is a fact about hardware somebody else is holding, and
+          // this device neither takes the room nor gives one up on hearing it.
+          this.handlers.onStandingElsewhere?.(message.channelIds);
           break;
         case 'screen':
           // Another of this account's instances has asked this one to show a

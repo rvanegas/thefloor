@@ -325,6 +325,25 @@ interface AppState {
    */
   screensElsewhere: string[];
   /**
+   * The channels this account's *other* instances are **standing in** — the
+   * rooms another of your devices is holding.
+   *
+   * **`screensElsewhere`'s shape, about where the person is.** It exists
+   * because presence is the account's and standing is the device's, and a Home
+   * snapshot only carries the first: every device of an account present in a
+   * room is told the same thing, and none of them can tell from it which one
+   * is holding the room. So Home's live bar — drawn from what `App.tsx` knows
+   * *this* process is connected to — was pinned on the device holding the room
+   * and drawn nowhere at all on the others, and the reader's own two screens
+   * disagreed about where they were.
+   *
+   * Read alongside `live` rather than instead of it: the three answers are
+   * *here*, *on another device* and *nowhere*, and the tier draws a bar for
+   * the first two. Never includes this device, so the two can never both
+   * claim one channel.
+   */
+  standingElsewhere: string[];
+  /**
    * The channel this device has been asked to show a film for, or null.
    *
    * Set by another of this account's own instances, and by nothing else. It is
@@ -1255,6 +1274,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     displaced: false,
     screens: [],
     screensElsewhere: [],
+    standingElsewhere: [],
     screenFor: null,
     screenAsked: null,
     landedChannel: null,
@@ -1438,6 +1458,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // film to the laptop show *other device* as the chosen answer.
         onScreening: (channelIds) =>
           setState((s) => ({ ...s, screensElsewhere: channelIds })),
+        // The same push about where the person is rather than where the film
+        // is — see `standingElsewhere`. Replaced wholesale rather than merged:
+        // the server sends the whole answer every time, and a client that kept
+        // an id the server had stopped sending would pin a room nobody holds.
+        onStandingElsewhere: (channelIds) =>
+          setState((s) => ({ ...s, standingElsewhere: channelIds })),
         /*
           Being asked to show a film reaches the app wherever it is: the
           channel opens on this device and starts playing, and nothing about
@@ -1907,6 +1933,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         leaderboard: false,
         screens: [],
         screensElsewhere: [],
+        standingElsewhere: [],
         screenFor: null,
         screenAsked: null,
         landedChannel: null,
@@ -2236,6 +2263,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           displaced: false,
           screens: [],
           screensElsewhere: [],
+          standingElsewhere: [],
           screenFor: null,
           screenAsked: null,
           landedChannel: null,
@@ -2296,6 +2324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           displaced: false,
           screens: [],
           screensElsewhere: [],
+          standingElsewhere: [],
           screenFor: null,
           screenAsked: null,
           landedChannel: null,
