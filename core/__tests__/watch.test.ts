@@ -292,17 +292,22 @@ describe('who may drive it', () => {
     expect(canControlWatch(s, B)).toBe(true);
   });
 
-  it('cannot be narrowed by a claim, because no claim can be made', () => {
+  it('cannot be narrowed by a claim, even one that lands', () => {
     /*
       **The floor left the transport on 2026-09-18.** It used to be that a
       claim made the video everybody could see answer only one person's
       finger — the bar is inside the embed and cannot be taken off the
       picture, so what the floor actually did was make a visible, pressable
-      control do nothing. A film is now a mode that refuses claims outright
-      (`canClaimFloor`), so this attempt changes nothing at all.
+      control do nothing.
+
+      Until 2026-09-24 this was argued from the claim being unmakeable: a film
+      refused one outright, so there was nothing for the transport to narrow.
+      A claim over a *paused* film lands now, and the conclusion is unchanged
+      for the reason it was reached — whoever is in the room may drive,
+      whatever the floor says.
     */
     const s = reduce(watching(), { type: 'CLAIM_FLOOR', userId: A }, T0);
-    expect(s.floor.holder).toBeNull();
+    expect(s.floor.holder).toBe(A);
     expect(canControlWatch(s, A)).toBe(true);
     expect(canControlWatch(s, B)).toBe(true);
   });
@@ -780,20 +785,25 @@ describe('muting the room', () => {
     expect(isPartyMuted(s)).toBe(true);
   });
 
-  it('returns everybody to audible once cleared', () => {
-    // **This used to return to the claim's own answer**, a claim being the
-    // other thing that could withhold a microphone. No claim can be made
-    // while a film is on, so the room's mute is the only rule left in here
-    // and clearing it clears everything — which is the simplification the
-    // exclusivity bought. See `watchPartyIsOn`.
+  it('returns everybody to the claim underneath once cleared', () => {
+    // **Back to the claim's own answer, as of 2026-09-24.** This asserted the
+    // opposite for six days: while `canClaimFloor` asked `watchPartyIsOn`, no
+    // claim could be made over a film at all, so the room's mute was the only
+    // rule left in here and clearing it cleared everything.
+    //
+    // The floor now asks `watchIsPlaying`, and `watching()` is a party that
+    // has not been played — so the claim lands, and what a cleared party mute
+    // uncovers is the floor that was under it the whole time. `isWithheld`
+    // has always said this would happen: the party mute wins while it holds,
+    // the claim answers when it lifts.
     const s = apply(watching(), [
       [{ type: 'CLAIM_FLOOR', userId: A }, T0],
       [mute(true), T0 + 1_000],
       [mute(false), T0 + 2_000],
     ]);
-    expect(s.floor.holder).toBeNull();
+    expect(s.floor.holder).toBe(A);
     expect(isWithheld(s, A)).toBe(false);
-    expect(isWithheld(s, B)).toBe(false);
+    expect(isWithheld(s, B)).toBe(true);
   });
 });
 

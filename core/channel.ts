@@ -557,13 +557,26 @@ export function canClaimFloor(
   now: number
 ): boolean {
   if (state.status !== 'active') return false;
-  // **Not while a film is on.** A claim is a demand that the room be quiet,
-  // and a party already has one of those in the control that belongs to the
-  // film — see `watchPartyIsOn`, and `partyWithholds` for the mute that
-  // follows the transport. Two ways to silence a room, one of which also
-  // decides who may press play, is the arrangement that put the floor inside
-  // the video's transport.
-  if (watchPartyIsOn(state)) return false;
+  // **Not while a film is running**, and running rather than merely loaded
+  // since 2026-09-24. A claim is a demand that the room be quiet, and a party
+  // already has one of those in the control that belongs to the film — see
+  // `partyWithholds` for the mute that follows the transport. Two ways to
+  // silence a room, one of which also decides who may press play, is the
+  // arrangement that put the floor inside the video's transport, and that is
+  // what this refusal is still for.
+  //
+  // **But a paused film is not silencing anybody.** `partyWithholds` lifts the
+  // moment the transport stops, precisely so that pausing to talk about what
+  // you are watching needs no second tap — and asking `watchPartyIsOn` here
+  // took the floor away from exactly that conversation. A film that has run to
+  // its end comes to rest paused and loaded, by `TICK`, so the channel that
+  // watched something on Tuesday could never claim again: the party nobody
+  // stopped went on refusing every claim for ever. That is what this was
+  // changed for.
+  //
+  // So the guard follows the sound rather than the mode, which is
+  // `watchIsPlaying` — the same question the two transports ask of each other.
+  if (watchIsPlaying(state)) return false;
   // **Members only, and this reversed on 2026-08-30.** It read `inRoom`
   // against `roomOccupants`, deliberately, on the argument that the floor is
   // about who is talking and a guest with the microphone is talking. What that
@@ -813,7 +826,12 @@ export function canStartRecording(
     // The mirror of `canStartWatch`'s clause. A recording made while a watch
     // party is loaded would be missing the thing everybody was reacting to,
     // and nothing in the file would say so.
-    state.watch.party === null &&
+    //
+    // **Loaded, not running**, and this is the last rule that reads the party
+    // that way — said through `watchPartyIsOn` rather than inlined, so the one
+    // rule left on that predicate is visibly the one it documents. The floor
+    // stopped asking it on 2026-09-24; see `watchIsPlaying`.
+    !watchPartyIsOn(state) &&
     isPresent(state, userId) &&
     capturable(state)
   );
@@ -994,20 +1012,27 @@ export function canStopRecording(state: ChannelState, userId: UserId): boolean {
  * Whether a film is on.
  *
  * **A watch party is a mode the channel is in, not a thing it is carrying**,
- * and since 2026-09-18 it is exclusive: no floor may be claimed, no recording
- * begun, and no track put on while one is loaded. Each of those was refused
- * separately or not at all before, and the one that was not — the floor —
- * was reaching into the transport through `holdsSharedControl` and deciding
- * who could press a video's own controls.
+ * and since 2026-09-18 it is exclusive. It governed three rules on that
+ * reading — no floor claimed, no recording begun, no track put on while one
+ * is loaded — and it governs **one** of them now: the recording.
  *
- * The reasons differ and the rule does not. A recording made alongside a
- * party would be a recording of people reacting to something it does not
- * contain. A track would be a second thing to attend to, playing over the
- * first. And a claim is a demand that the room be quiet, which is what
- * *muting the room* already does for a film, said by a control that belongs
- * to the film — see `partyWithholds`, and the mute that follows the transport.
+ * The three came apart because they were never the same rule, only the same
+ * predicate. A recording made alongside a party would be missing the thing
+ * everybody is reacting to, whether or not the film is between scenes — that
+ * is about the film being *loaded*, so it asks this. The track went first, on
+ * 2026-09-20: two things loaded is somebody lining the next one up, and only
+ * two things *playing* is the failure. See `watchIsPlaying`.
  *
- * Stopping the party lifts all three at once, which is what makes this
+ * **The floor followed on 2026-09-24, and for a plainer reason than either.**
+ * A claim is a demand that the room be quiet, and the argument was that the
+ * party's own mute already makes that demand. But that mute is
+ * `partyWithholds`, which holds only while the transport runs and lifts on a
+ * pause — so over a paused film the party was silencing nobody and the floor
+ * was refused anyway. A film that reaches its end comes to rest paused and
+ * loaded, so a channel that finished something and never pressed Stop could
+ * not claim the floor again at all. `canClaimFloor` asks `watchIsPlaying`.
+ *
+ * Stopping the party lifts what is left, which is what makes this
  * self-correcting: there is no state to unwind, only a party to end.
  */
 export function watchPartyIsOn(state: ChannelState): boolean {
@@ -1036,12 +1061,19 @@ export function watchPartyIsOn(state: ChannelState): boolean {
  * other is on, so both playing is unreachable rather than merely discouraged,
  * and either one is escaped by pausing the thing that is playing.
  *
- * `watchPartyIsOn` remains the question for the rules that are about the film
- * being *a mode the channel is in* rather than about sound: no floor may be
- * claimed and no recording begun while one is loaded, paused or not. A claim
- * is a demand that the room be quiet and the party's own mute already governs
- * that; a recording alongside a party would be missing the thing everybody is
- * reacting to whether or not the film is between scenes.
+ * **The floor asks this too, since 2026-09-24**, having asked
+ * `watchPartyIsOn` until then. A claim is a demand that the room be quiet, and
+ * what already makes that demand for a film is `partyWithholds` — which is
+ * keyed on the run, not on the party. Over a paused film the party withheld
+ * nothing and the claim was refused anyway, which is the one arrangement the
+ * exclusivity was never meant to produce: a room that may neither be quieted
+ * by the film nor by anybody in it. See `canClaimFloor`.
+ *
+ * `watchPartyIsOn` remains the question for the one rule that is about the
+ * film being *a mode the channel is in* rather than about sound: no recording
+ * may be begun while one is loaded, paused or not, because a recording
+ * alongside a party would be missing the thing everybody is reacting to
+ * whether or not the film is between scenes.
  */
 export function watchIsPlaying(state: ChannelState): boolean {
   return state.watch.status === 'playing';
@@ -1223,10 +1255,19 @@ export function canControlWatch(
     else's screen, and making this device's own reading of that bar
     conditional on a claim somebody might make mid-scene.
 
-    No claim can be made while a film is on now (`canClaimFloor`), so there
+    No claim can be made while a film is *running* (`canClaimFloor`), so there
     is nothing left for `floorPermits` to say here. Whoever is in the room
     may drive, and the thing that keeps a room quiet during a film is the
     room's mute rather than a claim.
+
+    **A claim over a paused film is reachable, since 2026-09-24**, and this
+    still does not ask about it. Pressing Play under someone else's claim is
+    allowed, and what happens then is already written down: `isWithheld` puts
+    the party mute ahead of the floor, holder included, that being the point
+    of muting a room rather than taking the floor in it. So the claim goes
+    quiet for as long as the film runs and is audible again on the pause —
+    which is the same bargain everybody else in the room is on, and needs no
+    second rule here to state it.
 
     `isPresent` rather than `inRoom`: a guest is refused by `isParticipant`
     above in any case, and saying presence directly is what the rule means.

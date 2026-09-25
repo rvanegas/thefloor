@@ -1096,6 +1096,10 @@ export const es: Strings = {
       'Entra para empezar a ver algo juntos. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
     stopTheRecordingFirst: () =>
       'Para antes la grabaci\u00f3n: ver algo juntos no se graba.',
+    theyDecideWhichFilm: (holder: string) =>
+      `${holder} tiene la palabra, as\u00ed que cambiar la pel\u00edcula es cosa suya. Cualquiera que est\u00e9 aqu\u00ed puede manejarla.`,
+    youDecideWhichFilm: () =>
+      'Tienes la palabra: solo t\u00fa puedes cambiar la pel\u00edcula. Cualquiera que est\u00e9 aqu\u00ed puede manejarla.',
     notAvailableJustNow: () => 'Ahora mismo no se puede poner nada.',
     everyoneWatchesInStep: () =>
       'Cada uno lo ve en su propia pantalla, a la vez. No se graba nada de ello.',

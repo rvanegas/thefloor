@@ -101,7 +101,7 @@ caused; the list carries the meaning.
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
-- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no *floor* may be claimed and no recording begun. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
+- **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no recording may be begun, and while one is *playing* no *floor* may be claimed — the floor asked about the load too until 2026-09-24, which left a film paused at its own end refusing every claim in that channel for ever. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and *Watch on this device* bare where no device of yours has it at all (since 2026-09-24; nothing at all only when you have stepped out); a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
 - **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home* — the way to stop being the second device is *Other device*, under *Full screen* — no corner to float into, and no channel list beside it however wide the window; a film sent here subscribes this device to the channel and opens it on *Watch*, taking the device over whatever it was showing — another channel, the channel list, a settings screen, a transcript, a profile — and only the server's ask counting as an arrival
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch* — or under the header alone on a *second device*, which has no tabs — or a column beside its transport where the pane is wide enough (see *watch shape*), a small draggable rectangle resting in one of the four corners of the application everywhere else — and that corner only while the film is *playing*, a paused one being hidden rather than parked over another tab — or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
@@ -683,8 +683,16 @@ be held continuously by whoever taps fastest.
 
 Enforced on the audio itself, not in the interface — a silenced person's audio
 does not reach anybody, whatever their app is doing. It also confers control of
-what the channel is attending to: shared playback and the *watch party*
-transport belong to the floor-holder while a claim is live.
+what the channel is attending to: shared playback belongs to the floor-holder
+while a claim is live.
+
+**The *watch party* transport does not, and has not since 2026-09-18** — this
+entry went on saying so for six days. A film's controls are inside the picture
+and cannot be taken off it, so a claim did not grey them, it made a visible
+control do nothing on somebody else's screen; driving is anybody in the room's.
+What a claim does take is *which* film is on. The two are distinguishable
+because a claim over a film is reachable at all only since 2026-09-24, when the
+floor stopped refusing one over a *paused* party.
 
 **Not the same as a mute.** A claim is about who may be heard *in this moment*
 and is temporary by construction; a *self-mute* is a decision about your own
@@ -2205,11 +2213,20 @@ device plays it.
 
 **It is a mode the channel is in rather than a thing it is carrying**, and
 since 2026-09-18 an exclusive one. While a film is loaded — playing or paused
-— no *floor* may be claimed and no recording begun. The reasons differ and the
-answer does not: a recording beside a party would be missing the thing
-everybody was reacting to, and a claim is a demand that the room be quiet,
-which *mute the room* already does for a film with a control that belongs to
-the film. Stopping the party lifts both at once.
+— no recording may be begun: a recording beside a party would be missing the
+thing everybody was reacting to, which is true between scenes as much as
+during one. Stopping the party lifts it.
+
+**The *floor* asked the same question until 2026-09-24 and now asks a narrower
+one**: no claim while a film is *playing*. The argument for the wider rule was
+that a claim is a demand that the room be quiet, and *mute the room* already
+makes that demand for a film with a control that belongs to the film. But that
+mute holds only while the transport runs — pause, and everybody has their
+voice back — so over a paused film the party was quieting nobody and the claim
+was refused anyway. A film that reaches its end comes to rest paused and
+loaded, so a channel that watched something through and never pressed *Stop*
+could not claim the floor again at all. See
+planning/decisions/2026-09-24-the-floor-waits-on-the-film-not-the-party.md.
 
 **Against the shared track the exclusivity is between the two transports
 rather than the two loads, since 2026-09-20.** Both may be loaded at once;

@@ -1284,6 +1284,15 @@ export const en = {
       'Step in to start a watch party. What everybody is watching is for whoever is here.',
     stopTheRecordingFirst: () =>
       'Stop the recording first — a watch party is not recorded.',
+    // The floor's two sentences on *this* card, which are narrower than the
+    // Listen card's pair and must stay that way: a claim decides which film is
+    // on, and `canControlWatch` deliberately lets anybody in the room drive
+    // the one that is. Saying "they decide what plays" here would be describing
+    // the Stop button sitting live next to it.
+    theyDecideWhichFilm: (holder: string) =>
+      `${holder} has the floor, so changing the film is theirs. Anyone here can still drive it.`,
+    youDecideWhichFilm: () =>
+      'You have the floor — only you can change the film. Anyone here can still drive it.',
     notAvailableJustNow: () => 'Putting something on is not available just now.',
     everyoneWatchesInStep: () =>
       'Everyone watches on their own screen, in step. Nothing about it is recorded.',

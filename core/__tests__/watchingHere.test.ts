@@ -637,11 +637,14 @@ describe('what the channel wants a player to be', () => {
 
 /**
  * A watch party is a mode the channel is in, and since 2026-09-18 an
- * exclusive one — **of the floor and the recording for as long as it is
- * loaded, and of the audio player only while it is running.**
+ * exclusive one — **of the recording for as long as it is loaded, and of the
+ * floor and the audio player only while it is running.**
  *
- * The split is of 2026-09-20: the transports are exclusive of each other, the
- * mode is exclusive of the rest. See `watchIsPlaying`.
+ * Two splits, both away from the mode and towards the run. The transports
+ * parted on 2026-09-20; the floor followed on 2026-09-24, once a film that had
+ * played to its end and been left loaded turned out to refuse every claim in
+ * that channel for ever. See `watchIsPlaying`, and `canClaimFloor` for why a
+ * paused film silences nobody.
  */
 describe('a channel with a film on', () => {
   const withFilm = () => watching();
@@ -652,12 +655,27 @@ describe('a channel with a film on', () => {
       T0
     );
 
-  it('refuses a floor claim', () => {
+  const playingFilm = () => reduce(withFilm(), { type: 'WATCH_PLAY', userId: A }, T0);
+
+  it('allows a floor claim while it sits paused, and refuses one while it runs', () => {
     expect(canClaimFloor(withoutFilm(), A, T0)).toBe(true);
-    expect(canClaimFloor(withFilm(), A, T0)).toBe(false);
+    expect(canClaimFloor(withFilm(), A, T0)).toBe(true);
+    expect(canClaimFloor(playingFilm(), A, T0)).toBe(false);
   });
 
-  const playingFilm = () => reduce(withFilm(), { type: 'WATCH_PLAY', userId: A }, T0);
+  it('gives the floor back when the film is paused rather than stopped', () => {
+    // The regression this rule was changed for. `TICK` brings a film that has
+    // reached its end to rest *paused and loaded* — see the end-of-film clause
+    // in `reduce` — so a channel that watched something through and never
+    // pressed Stop sat on a party nothing would ever clear. Asking
+    // `watchPartyIsOn` there meant the Claim control in that channel was
+    // greyed from the closing credits onwards, with no sentence anywhere
+    // saying why.
+    const ended = reduce(playingFilm(), { type: 'TICK' }, T0 + LENGTH + 1_000);
+    expect(ended.watch.party).not.toBeNull();
+    expect(ended.watch.status).toBe('paused');
+    expect(canClaimFloor(ended, A, T0 + LENGTH + 1_000)).toBe(true);
+  });
 
   it('takes a track while it sits paused, and refuses one while it runs', () => {
     expect(canLoadTrack(withoutFilm(), A)).toBe(true);

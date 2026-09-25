@@ -350,17 +350,24 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('is not touched by a claim, because no claim can be made', () => {
-    // **A film refuses the floor outright** — see `watchPartyIsOn`. It used
-    // to be that a claim greyed a video's controls for everybody else, which
-    // on a bar that is inside the picture meant a visible control that did
-    // nothing.
+  it('leaves the transport alone under a claim, and says what the claim does take', () => {
+    // **A claim lands over a paused film, since 2026-09-24** — the floor asks
+    // `watchIsPlaying` now, not `watchPartyIsOn`. It used to be that a claim
+    // greyed a video's controls for everybody else, which on a bar that is
+    // inside the picture meant a visible control that did nothing; the
+    // transport stayed open when the floor left it on 2026-09-18, and still is.
+    //
+    // What the claim does take is *Change video*, by `mayStartWatch`, so the
+    // card says that and only that. The Listen card's "they decide what plays"
+    // would be a sentence contradicted by the live Stop button beside it —
+    // which is exactly what this assertion caught when the guard changed.
     showChannel(
       watching((s) => reduce(s, { type: 'CLAIM_FLOOR', userId: THEM }, NOW))
     );
     const tree = open();
     expect(findButton(tree, 'Stop')!.props.disabled).toBe(false);
-    expect(textOf(tree)).not.toContain('Dana Chu has the floor');
+    expect(textOf(tree)).not.toContain('Dana Chu has the floor, so they decide what plays');
+    expect(textOf(tree)).toContain('changing the film is theirs');
     act(() => tree.unmount());
   });
 

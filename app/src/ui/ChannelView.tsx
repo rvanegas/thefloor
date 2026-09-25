@@ -4737,9 +4737,20 @@ export function ChannelView({
                       // everybody was reacting to.
                       t.stopTheRecordingFirst()
                     : theyHoldFloor
-                      ? t.theyDecideWhatPlays(holderName)
+                      ? // **Reachable since 2026-09-24**, and narrowed in the
+                        // same breath. A claim could not be made over a film
+                        // at all while `canClaimFloor` asked `watchPartyIsOn`,
+                        // so these two branches were dead; it asks
+                        // `watchIsPlaying` now, and a paused film takes a
+                        // claim. What they said while dead was the Listen
+                        // card's sentence — *they decide what plays* — which
+                        // is false here: the floor governs `mayStartWatch`,
+                        // which is *Change video*, and `canControlWatch`
+                        // leaves the transport to whoever is in the room. The
+                        // Stop button live beside that sentence was the tell.
+                        t.theyDecideWhichFilm(holderName)
                       : iHoldFloor
-                        ? t.youDecideWhatPlays()
+                        ? t.youDecideWhichFilm()
                         : !mayStartWatch
                           ? // Whatever is left, which after the branches above is
                             // little: presence is asked first now, so this is no
