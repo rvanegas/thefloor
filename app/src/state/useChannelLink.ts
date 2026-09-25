@@ -19,8 +19,15 @@ import { Linking } from 'react-native';
  * The scheme is `thefloor`, registered in `app.json`. Anything else, and any
  * `thefloor://` URL that is not a channel, is ignored rather than guessed at:
  * the only other thing this app's scheme carries is an invite link, which has
- * its own handling and must not be answered by opening a channel named after
- * its pin.
+ * its own handling in `useInviteLink.ts` and must not be answered by opening a
+ * channel named after its pin.
+ *
+ * **That sentence was a promise rather than a description until 2026-09-25.**
+ * It said the invite link had its own handling when nothing in the app read one
+ * out of a URL at all — the pin reached the app only through `sessionStorage`,
+ * from a browser. So an invitation arriving on the scheme opened the app and
+ * was dropped, silently, which is the gap `useInviteLink.ts` closes. The rule
+ * the sentence was stating was always right; only its tense was wrong.
  */
 export function channelOfUrl(url: string | null): string | null {
   if (!url) return null;

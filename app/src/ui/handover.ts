@@ -175,8 +175,12 @@ export function leaveHandover(handover: Handover): void {
  * link they can be sent again; spending it twice tells them their own
  * acceptance had already been used.
  *
- * Null on native, where `sessionStorage` does not exist — an invite link opens
- * a browser, and what the app does with one is nothing.
+ * Null on native, where `sessionStorage` does not exist — this is the browser's
+ * road and a phone has its own. **Since 2026-09-25 that other road exists**:
+ * `useInviteLink.ts` reads `thefloor://i/<username>/<pin>` from a tap on the
+ * invite page's *Open in the app*, and calls this on mount so that one holder
+ * answers for both. Which is why nothing was added here — a native hold in this
+ * module could not tell React it had arrived; the argument is in that file.
  */
 export function takeInvite(): Invite | null {
   let raw: string | null = null;

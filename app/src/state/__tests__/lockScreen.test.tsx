@@ -383,6 +383,10 @@ describe('channelOfUrl', () => {
     // An invite link has its own handling, and answering it by opening a
     // channel named after its pin is the failure this guards.
     expect(channelOfUrl('thefloor://invite/123456')).toBeNull();
+    // And the address the invite page actually emits, which is the one that
+    // matters: `useInviteLink` answers it, and a channel called `annak` is what
+    // this would otherwise open. See `inviteLink.test.ts`.
+    expect(channelOfUrl('thefloor://i/annak/042317')).toBeNull();
     expect(channelOfUrl('thefloor://channel/')).toBeNull();
   });
 });

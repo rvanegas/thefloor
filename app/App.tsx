@@ -569,6 +569,43 @@ function Root() {
   }, [linked, ready, token, clearLink]);
 
   /**
+   * Opens the channel an invitation just made, which is the last step of an
+   * invited arrival.
+   *
+   * **The one thing a person invited by name is owed.** Becoming contacts is
+   * what creates the place the two of you talk, and somebody arriving on an
+   * invite link gets that channel from the same request that makes the contact
+   * — their first of each, often seconds after signing up. It used to appear in
+   * *Your channels* with no mark and no line, on a list they had no reason to be
+   * looking at. `AppProvider` redeems the invitation and publishes the id; this
+   * spends it. See `decisions/2026-09-24-accepting-a-request-opens-the-channel-it-makes.md`,
+   * which built the same thing for a contact request.
+   *
+   * **It opens and does not step in**, which is the load-bearing half and is
+   * sharper here than on the row that inspired it. `ENTER` is a claim on the
+   * phone's audio system; this is a person's first second in the application,
+   * before they have tapped anything *inside* it, and an arrival that silently
+   * opened a stranger's microphone would be the worst possible version of this.
+   * Landing somebody in a room is showing them the door.
+   *
+   * **`setDetail` rather than `enterChannel`, and that is not an oversight.**
+   * `enterChannel` is `setDetail` and nothing else and would read better here,
+   * but it is defined below the early returns and a hook has to be called above
+   * them. Reaching for it is how this becomes a conditional hook.
+   *
+   * No `watchChannel`: `ChannelView` subscribes for itself, and the contact-row
+   * path in `ContactsView` makes no such call either. The guest handover below
+   * does, because arriving that way skips every path that would have.
+   */
+  const { landedChannel, takeLandedChannel } = app;
+  useEffect(() => {
+    if (!landedChannel || !ready || !token) return;
+    setDetail({ kind: 'channel', channelId: landedChannel });
+    setList('channels');
+    takeLandedChannel();
+  }, [landedChannel, ready, token, takeLandedChannel]);
+
+  /**
    * Signing out closes every screen stacked over Home.
    *
    * **This component does not unmount when the session ends.** A null `token`

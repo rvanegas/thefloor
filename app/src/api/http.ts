@@ -433,9 +433,20 @@ export const api = {
    * Called by `AppProvider` as soon as there is both a session and an
    * invitation, which is the moment somebody who arrived through a link
    * finishes signing in — not by any screen. Nobody taps this.
+   *
+   * **`channelId` is the pair channel the acceptance made**, and is optional
+   * rather than asserted for the reason
+   * `2026-09-24-accepting-a-request-opens-the-channel-it-makes.md` gives about
+   * its sibling: a build that reaches a phone before the server is deployed
+   * must degrade rather than throw, so absent has to be readable as *nowhere
+   * to go*.
    */
   acceptInvite: (token: string, username: string, pin: string) =>
-    request<{ ok: true; contact: PublicAccount | null }>(
+    request<{
+      ok: true;
+      contact: PublicAccount | null;
+      channelId?: string | null;
+    }>(
       '/contacts/invite/accept',
       { method: 'POST', body: { username, pin }, token }
     ),

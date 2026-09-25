@@ -57,7 +57,7 @@ import {
   isPreference,
   type ColorSchemePreference,
 } from '../ui/appearance';
-import { takeInvite } from '../ui/handover';
+import { useInviteLink } from './useInviteLink';
 import { useText } from '../i18n';
 import { useLanguagePreference } from '../i18n/language';
 import {
@@ -356,6 +356,25 @@ interface AppState {
    * back into the channel they had just left.
    */
   screenAsked: string | null;
+  /**
+   * The channel to open because an invitation was just spent, waiting to be
+   * opened. Null the rest of the time.
+   *
+   * **`screenAsked`'s shape and for the same structural reason.** An invitation
+   * is redeemed by the effect below, which is fired by a token arriving rather
+   * than by anybody tapping something — and the thing that can navigate is
+   * `Root`, which is a *child* of this provider. So the id is published as
+   * state and spent by whoever acts on it; see `takeLandedChannel`.
+   *
+   * **What it is for is somebody's first second in the application.** Becoming
+   * contacts is what creates the place the two of you talk, and for an arrival
+   * by invite link that channel is their first — created by the same request
+   * that made the contact. Until 2026-09-25 nobody was told: it appeared in
+   * *Your channels* with no mark and no line, on a list they were not looking
+   * at. See `2026-09-24-accepting-a-request-opens-the-channel-it-makes.md`,
+   * which built this for a contact request and left the link alone.
+   */
+  landedChannel: string | null;
   /**
    * The channel *this device* is standing in, or null.
    *
@@ -727,6 +746,14 @@ interface AppValue extends AppState {
    * away from, gets no such message.
    */
   takeScreenAsked: () => void;
+  /**
+   * Spends {@link AppState.landedChannel}, the caller having opened it.
+   *
+   * One-shot for the reason `takeScreenAsked` is: an arrival is spent the
+   * moment something has acted on it, or coming back to the list would throw
+   * somebody into the same channel again.
+   */
+  takeLandedChannel: () => void;
   leaveChannelView: (channelId: string) => void;
   /**
    * Dispatches a channel action, returning whether it reached the socket.
@@ -1230,6 +1257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     screensElsewhere: [],
     screenFor: null,
     screenAsked: null,
+    landedChannel: null,
     standingIn: null,
     nearbyIn: [],
     nearbyArrival: {},
@@ -1543,34 +1571,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [connect]);
 
   /**
+   * The invitation this launch arrived on, by whichever of its two roads. Held
+   * here rather than in a screen because the effect below is what spends it,
+   * and nothing on screen is involved in any of it.
+   */
+  const { invite, clearInvite } = useInviteLink();
+
+  /**
    * Spends the invitation somebody arrived on, once there is a session to
    * spend it with.
    *
    * **The walk this completes has a sign-in in the middle of it.** Somebody
-   * follows a link, the invite page hands the pin to this tab, and the app
-   * boots to a sign-in screen — so the invitation has to wait for a token
-   * rather than be acted on at boot, which is what separates it from the
-   * channel handover in `App.tsx`. Waiting on `state.token` covers both
-   * arrivals with one effect: a signup that happened because of the link, and
-   * somebody who was already signed in when they opened it.
+   * follows a link, the invitation reaches this app, and the app boots to a
+   * sign-in screen — so it has to wait for a token rather than be acted on at
+   * boot, which is what separates it from the channel handover in `App.tsx`.
+   * Waiting on the token covers both arrivals with one effect: a signup that
+   * happened because of the link, and somebody who was already signed in when
+   * they opened it.
    *
-   * **Nothing is announced on success.** The contact and the channel arrive on
-   * the Home snapshot the server pushes, which is the screen this person is
-   * looking at; a notice would be telling them about something already in
-   * front of them. A refusal is worth saying, because the alternative is a
-   * link that visibly did nothing.
+   * **Two roads in and one effect, since 2026-09-25.** `useInviteLink` holds
+   * whichever arrived — the browser's `sessionStorage`, or
+   * `thefloor://i/<username>/<pin>` from a tap on the invite page's *Open in
+   * the app* after an install. They mean the same thing, so they are answered
+   * once. That hook owns why it is state rather than a variable, and it is not
+   * an incidental choice: a module-level hold cannot wake this effect, and the
+   * arrival it would fail for is the designed one.
    *
-   * `takeInvite` is one-shot, so the re-runs this effect gets as `state.token`
-   * settles find nothing left to do.
+   * **The channel is published, not announced.** Until now nothing was said on
+   * success, on the grounds that the contact and the channel arrive on the Home
+   * snapshot this person is looking at. That was true and was not enough: for
+   * an arrival by invitation this is their *first* contact and their first
+   * channel, and it appeared on a list they had no reason to be reading. So the
+   * id goes into `landedChannel` and `Root` opens it. **Opens, and does not
+   * step in** — see the effect in `App.tsx`.
+   *
+   * **The snapshot is fetched before the id is published**, so the channel
+   * `Root` opens is one the list already knows about rather than a screen
+   * racing its own data. `acceptContact` does the same in the same order.
+   *
+   * A refusal is still worth saying, because the alternative is a link that
+   * visibly did nothing.
    */
   useEffect(() => {
-    if (!state.token) return;
-    const invite = takeInvite();
-    if (!invite) return;
+    if (!state.token || !invite) return;
     const token = state.token;
+    // Cleared before the request goes out, not after: the pin is single use,
+    // and the second attempt would tell this person their own acceptance had
+    // already been used. `clearInvite` owns that reasoning.
+    clearInvite();
     let cancelled = false;
     void api
       .acceptInvite(token, invite.username, invite.pin)
+      .then(async ({ channelId }) => {
+        if (cancelled) return;
+        // Absent rather than an error: a server too old to name the channel
+        // leaves this person on Home, which is exactly where they used to land.
+        const home = await api.home(token).catch(() => null);
+        if (cancelled) return;
+        setState((s) => ({
+          ...s,
+          ...(home ? { home } : {}),
+          landedChannel: channelId ?? null,
+        }));
+      })
       .catch((error: unknown) => {
         if (cancelled) return;
         setState((s) => ({
@@ -1584,7 +1647,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [state.token]);
+  }, [state.token, invite]);
 
   /**
    * Registered on every sign-in and every restored launch, not once ever: iOS
@@ -1846,6 +1909,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         screensElsewhere: [],
         screenFor: null,
         screenAsked: null,
+        landedChannel: null,
         home: null,
         channelViews: {},
         seatViews: {},
@@ -2174,6 +2238,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screensElsewhere: [],
           screenFor: null,
           screenAsked: null,
+          landedChannel: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -2233,6 +2298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screensElsewhere: [],
           screenFor: null,
           screenAsked: null,
+          landedChannel: null,
         standingIn: null,
           nearbyIn: [],
           nearbyArrival: {},
@@ -2524,6 +2590,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       takeScreenAsked: () =>
         setState((s) => (s.screenAsked === null ? s : { ...s, screenAsked: null })),
+
+      takeLandedChannel: () =>
+        setState((s) =>
+          s.landedChannel === null ? s : { ...s, landedChannel: null }
+        ),
 
       // Only this channel's snapshot goes: leaving one is not leaving the
       // others, and dropping the lot would hang up on a conversation being
