@@ -1918,6 +1918,18 @@ export function useSessionAudio(
     // so it has to wake this effect. It is also the only dependency here that
     // changes without anything about the channel changing.
     foreground,
+    // **The film, which is an input to both halves of this effect** — the
+    // intent through `intentFor` and the configuration through `wantFor` — and
+    // which was missing from here between 2026-09-23 and 2026-09-26. A run
+    // begins and the effect is woken by something else: the server withholds
+    // the room, every remote subscription goes, and `othersAudible` moves. A
+    // run *ends* and nothing else moves at all — the pause lifts the mute
+    // server-side, the subscriptions come back muted, and with no dependency
+    // naming the film, the device this effect had left holding its microphone
+    // shut went on holding it shut. Two people paused to talk about what they
+    // were watching and neither could hear the other until somebody stepped
+    // out and back in, which is the one thing that rebuilds this from nothing.
+    screening,
     state.status,
     state.othersAudible,
   ]);
