@@ -95,6 +95,30 @@ const TRIED_COLUMNS = {
   player: 'tried_player',
 } as const satisfies Record<TriedId, keyof AccountRow>;
 
+/**
+ * What a reader is told about when somebody was last about.
+ *
+ * **Attention, with the socket as a fallback, and the fallback is a shim.** An
+ * install below `ACCOUNT_ATTENTION_BUILD` reports nothing this can be composed
+ * from: below 175 no attention at all, and from 175 to 293 only what it can
+ * attribute to a room — so somebody who has only ever read Home from one has a
+ * null column, and a screen reading that as "never seen" would say so about
+ * somebody connected at this moment. Those accounts go on being described by
+ * the heartbeat, exactly as everybody was until 2026-09-25. Once the floor
+ * passes that build this is `attended_at` alone and the two columns stop being
+ * confusable. See SHIMS.md.
+ *
+ * A free function rather than a method because both callers already hold the
+ * row: `lastAttendedAt` reads one, `contactsFor` walks a list of them. What
+ * must not be written twice is the rule, not the lookup.
+ */
+function attendedOrSeen(row: {
+  attended_at: number | null;
+  last_seen_at: number | null;
+}): number | null {
+  return row.attended_at ?? row.last_seen_at ?? null;
+}
+
 export const OTP_TTL_MS = 10 * 60 * 1000;
 /**
  * Minimum gap between codes for one identifier. Issuing now sends real email,
@@ -1075,6 +1099,29 @@ export class Accounts {
     return this.byId(id)?.last_seen_at ?? null;
   }
 
+  /**
+   * When somebody was last attending, or null if nothing has ever said.
+   *
+   * The raw column, for the predicate that decides whether they are about.
+   * What a *reader* is shown is `lastAttendedAt` below, which is this with the
+   * fallback the installed population still needs.
+   */
+  attendedAt(id: string): number | null {
+    return this.byId(id)?.attended_at ?? null;
+  }
+
+  /**
+   * The moment a contact row's sentence counts from — "Last seen 3 hours ago".
+   *
+   * Attention where there is any and the heartbeat where there is none, which
+   * is `attendedOrSeen` and is where that fallback's reasoning lives. Kept out
+   * of `profile()` for `lastSeenAt`'s reason: only a contact may see it.
+   */
+  lastAttendedAt(id: string): number | null {
+    const row = this.byId(id);
+    return row ? attendedOrSeen(row) : null;
+  }
+
   public(id: string): PublicAccount | null {
     const row = this.byId(id);
     return row ? { id: row.id, displayName: row.display_name } : null;
@@ -1153,6 +1200,37 @@ export class Accounts {
           WHERE id = ?`
       )
       .run(now, build, id);
+  }
+
+  /**
+   * Records that somebody is *at* this account, rather than merely connected
+   * from it.
+   *
+   * Called on every `attentive` report, which a client rate-limits to
+   * `ATTENTION_REPORT_MS` — so this is one small UPDATE per attending client
+   * per half minute, against `markSeen`'s one per heartbeat.
+   *
+   * **A MAX for the reason `markSeen` is one**, and here the second device is
+   * the case rather than the dying socket: a laptop and a phone report
+   * independently, the column is the account's, and the answer wanted is the
+   * most recent evidence from any of them. A report that arrives late must not
+   * be able to rewind what a livelier device has already written.
+   *
+   * **It does not clear `unanswered_since`, deliberately.** That pause ends on
+   * *being seen*, which `markSeen` already writes on every heartbeat — see the
+   * note there. Ending it here as well would be a second definition of the
+   * same event, and a narrower one: somebody who opens the app and reads a
+   * notification without touching the screen has come back, whatever this
+   * clock says about it.
+   */
+  markAttended(id: string, now: number): void {
+    this.db
+      .prepare(
+        `UPDATE accounts
+            SET attended_at = MAX(COALESCE(attended_at, 0), ?)
+          WHERE id = ?`
+      )
+      .run(now, id);
   }
 
   /**
@@ -1973,6 +2051,14 @@ export class Accounts {
     account: { id: string; displayName: string };
     status: string;
     lastSeenAt: number | null;
+    /**
+     * The raw attention stamp, for the predicate that decides whether this
+     * person is about. Handed out beside the sentence's timestamp rather than
+     * asked for again, the row being here already — and the two are not the
+     * same number: this one is null for an install that does not report,
+     * where `lastSeenAt` falls back. See `lastAttendedAt`.
+     */
+    attendedAt: number | null;
   }> {
     const rows = this.db
       .prepare('SELECT * FROM contacts WHERE a_id = ? OR b_id = ?')
@@ -2006,9 +2092,15 @@ export class Accounts {
       // Withheld from an outgoing request for the same reason the name is:
       // that row is an address, not yet a person, and whether somebody is
       // behind it is precisely what it must not reveal.
-      const lastSeenAt =
-        status === 'outgoing' ? null : (account.last_seen_at ?? null);
-      return [{ account: view, status, lastSeenAt }];
+      //
+      // Attention rather than the socket's heartbeat, since 2026-09-25.
+      // Composed from the row already in hand rather than through
+      // `lastAttendedAt`, which would re-read it — the rule itself is shared,
+      // which is the part that must not be written twice.
+      const lastSeenAt = status === 'outgoing' ? null : attendedOrSeen(account);
+      const attendedAt =
+        status === 'outgoing' ? null : (account.attended_at ?? null);
+      return [{ account: view, status, lastSeenAt, attendedAt }];
     });
 
     // Requests to addresses that have no account yet, shown exactly as above.
@@ -2022,6 +2114,7 @@ export class Accounts {
         account: { id: '', displayName: invite.identifier },
         status: 'outgoing',
         lastSeenAt: null,
+        attendedAt: null,
       });
     }
 

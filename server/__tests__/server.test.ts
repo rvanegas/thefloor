@@ -166,9 +166,11 @@ describe('one-time codes', () => {
       {
         account: { id: alice.account.id, displayName: 'Alice' },
         status: 'accepted',
-        // Null because being in the app is holding a socket, and Alice has
-        // only ever signed in over HTTP here.
+        // Both null because Alice has only ever signed in over HTTP here: the
+        // first is attention, which is reported over a socket, and the second
+        // falls back to the heartbeat, which is the same socket.
         lastSeenAt: null,
+        attendedAt: null,
       },
     ]);
 

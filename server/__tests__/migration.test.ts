@@ -332,6 +332,42 @@ it('adds the debug column to a database that predates it', () => {
 });
 
 /**
+ * The `attended_at` column, added 2026-09-25 when *In the app now* stopped
+ * meaning "holds a socket".
+ *
+ * **What is being asserted is the null**, more than the column. The tempting
+ * back-fill is `last_seen_at`, which every row has and which looks like the
+ * same fact — and it is precisely the fact this column exists to stop being
+ * read as attention. Copying it across would hand every abandoned client a
+ * fresh stamp and assert the thing that was wrong, on every account at once,
+ * in the one pass nobody watches.
+ */
+it('adds the attention column without inheriting the heartbeat', () => {
+  const path = join(dir, 'attended.db');
+  const old = new DatabaseSync(path);
+  old.exec(BEFORE_RENAME);
+  seedAccounts(old);
+  old.close();
+
+  const db = openDb(path);
+  const columns = (
+    db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>
+  ).map((c) => c.name);
+  expect(columns).toContain('attended_at');
+
+  db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(
+    1_700_000_000_000,
+    'acct_a'
+  );
+  const row = db
+    .prepare('SELECT attended_at, last_seen_at FROM accounts WHERE id = ?')
+    .get('acct_a') as { attended_at: number | null; last_seen_at: number | null };
+  expect(row.attended_at).toBeNull();
+  expect(row.last_seen_at).toBe(1_700_000_000_000);
+  db.close();
+});
+
+/**
  * The `control_cards` column, added 2026-08-31 with the setting that decides
  * whether the channel screen repeats its footer as cards.
  *

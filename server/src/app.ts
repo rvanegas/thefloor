@@ -3139,10 +3139,16 @@ export function buildApp(options: BuildOptions = {}): App {
     // reader's own button, which lives on this screen because the choice is per
     // person and there is nowhere else it would be true of.
     const email = accounts.emailShownTo(id, account.id);
+    // Both halves of availability from the one clock, since 2026-09-25: the
+    // boolean is attention inside the window and the timestamp is the same
+    // stamp, so this screen cannot say *In the app now* above a sentence
+    // dating the last sighting to the morning. `lastAttendedAt` carries the
+    // fallback for an install that reports no attention.
+    const attendedAt = accounts.attendedAt(id);
     return {
       ...profile,
-      inApp: reachability.inApp(id),
-      lastSeenAt: accounts.lastSeenAt(id),
+      inApp: reachability.inApp(id, attendedAt),
+      lastSeenAt: accounts.lastAttendedAt(id),
       ...(email ? { email } : {}),
       myEmailShown: accounts.showsEmail(account.id, id),
     };
@@ -5263,7 +5269,9 @@ export function buildApp(options: BuildOptions = {}): App {
         // Asked here rather than inside `contactsFor`, which is a database
         // query and has no business knowing about sockets. Whether somebody
         // holds one is a fact about this process, so it is composed in at the
-        // point the two are put on the wire together.
+        // point the two are put on the wire together — and the stamp the
+        // window is measured against rides out of the query beside it, that
+        // half being a column.
         //
         // Withheld from an outgoing request for the same reason the name and
         // the time are: that row is an address, and `undefined` is what the
@@ -5271,7 +5279,7 @@ export function buildApp(options: BuildOptions = {}): App {
         inApp:
           entry.status === 'outgoing'
             ? undefined
-            : reachability.inApp(entry.account.id),
+            : reachability.inApp(entry.account.id, entry.attendedAt),
       })),
     };
   }

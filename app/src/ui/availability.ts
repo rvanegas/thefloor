@@ -21,9 +21,19 @@ type Words = Strings['availability'];
  * because nothing needed to be. Subtracting it would report them as an hour
  * idle, which is the whole of what the old contact row got wrong.
  *
+ * **Both fields come off one clock, and since 2026-09-25 it is attention.**
+ * `inApp` was a socket, and said *In the app now* about a desktop client left
+ * open on a machine nobody was sitting at; `lastSeenAt` was a heartbeat, which
+ * is the same lie told as a number. The two could not be corrected separately:
+ * the floor below returns *In the app now* for any gap under a minute, and a
+ * heartbeat keeps the gap under a minute for as long as the machine is awake —
+ * so narrowing the boolean alone would have changed nothing on this screen. See
+ * `ContactView.inApp`.
+ *
  * A gap under `agoOrNull`'s floor reads as here rather than as "a few seconds
- * ago". That floor is also what keeps a flapping connection steady: a tunnel
- * closes the socket, `inApp` goes false with a departure a moment old, and
+ * ago", and it is now the *only* thing that can produce that sentence from the
+ * second branch. That floor is also what keeps a flapping connection steady: a
+ * tunnel closes the socket, `inApp` goes false with a stamp a moment old, and
  * without it every lift would show as somebody leaving.
  *
  * Null covers the four ways of not knowing, and none of them is worth a word:

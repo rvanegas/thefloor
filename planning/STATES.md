@@ -299,21 +299,55 @@ different state from the one being claimed.
 ## In-App
 
 **Name in source.** `ContactView.inApp` and `ProfileView.inApp`
-(`core/protocol.ts:91` and `:49`), both optional. Composed by
-`reachability.inApp` (`server/src/ws.ts:207`, interface at `:73`).
+(`core/protocol.ts`), both optional. Composed by `reachability.inApp`, which is
+`isAbout` in `server/src/ws.ts` — the interface is in the same file.
 
-**Conditions.** True iff the account has a live websocket at the moment the
-snapshot is composed. Not persisted and never stored; recomputed per snapshot.
+**Conditions.** True iff the account holds a live **session** websocket *and*
+somebody has been attending it within `ATTENTION_WINDOW_MS`. Not persisted and
+never stored as a boolean; recomputed per snapshot from the connections this
+process holds and `accounts.attended_at`.
 
-**Where the sources disagree.** With `accounts.last_seen_at`, which is a
-different fact with a different failure mode — a timestamp minus an advancing
-clock is an inference that ages badly, where this is an observation. Read
-`inApp` first. It is also **optional twice over**: absent for a non-contact
-(availability is withheld from anyone who is not one) and absent from a server
-that predates the field. A client cannot tell those apart and does not need to.
+**It was the socket alone until 2026-09-25**, which is the one thing to know
+about this state: a desktop client left open on a machine nobody was sitting at
+satisfied it for as long as the machine was awake. The socket is still half the
+answer, and the half that makes the claim revocable at once — closing the app
+stops it immediately, where a window has to run out. See
+`decisions/2026-09-25-in-the-app-now-counts-attention.md`.
 
-The open question about what a restart does to `last_seen_at` is not settled
-here; it has its own TASKS.md entry, "What a Restart Does to Last-Seen".
+**A shim rides on the build.** A connected device below
+`ACCOUNT_ATTENTION_BUILD` vouches for its owner by existing, because it cannot
+report attention at all. So the old rule is still the live rule for every
+install that predates this. SHIMS.md, gate 294.
+
+**Where the sources disagree.** With `accounts.last_seen_at`, and the
+disagreement is now settled by not rendering it: that column is proof of a
+*connection*, moves on every heartbeat, and is read by the notification pause
+and by `bin/people`. What a screen is told — `ContactView.lastSeenAt`, the
+sentence under the boolean — is `attended_at`, so the two halves of
+availability cannot contradict each other. They could and did: `agoOrNull`'s
+sixty-second floor renders any gap under a minute as *In the app now*, and a
+heartbeat keeps the gap under a minute for ever, so narrowing the boolean alone
+would have changed nothing on the screen.
+
+`inApp` is also **optional twice over**: absent for a non-contact (availability
+is withheld from anyone who is not one) and absent from a server that predates
+the field. A client cannot tell those apart and does not need to.
+
+**The third source is the roster**, and it is a different scope of the same
+clock. `ChannelView.attentiveAt` is attention per person *per channel*, held in
+`channels.attentiveAt` and volatile; this is per person, held in a column.
+Neither is derived from the other, and both are fed by the same
+`ClientMessage.attentive` — the list in it is the room half, the message itself
+is the account half. They expire on one window on purpose, so a roster and a
+contact row cannot end up describing the same silence differently.
+
+**What a restart does** is the question this used to defer to a task that no
+longer exists, and the shape of the answer changed with the column. `inApp`
+needs no seeding — a restart drops every socket, so the fact is false by
+construction and becomes true again on the first report. `attended_at` is
+persisted for the other half: the sentence *Last seen 3 days ago* has to
+survive a reboot, which is the whole reason this is a column rather than a map
+beside `channels.attentiveAt`.
 
 ---
 

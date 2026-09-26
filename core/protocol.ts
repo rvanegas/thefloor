@@ -251,9 +251,17 @@ export interface ContactView {
   account: PublicAccount;
   status: ContactStatus;
   /**
-   * When they last had the app open, or null when that is not known — an
+   * When they were last *at* the app, or null when that is not known — an
    * outgoing request, which is an address rather than a person, or somebody
    * who has not connected since the server began recording it.
+   *
+   * **Attention rather than a heartbeat, since 2026-09-25**, which is the same
+   * correction `inApp` below took and had to take with it: the server is
+   * holding both, and a boolean saying nobody is there above a sentence dating
+   * the last sighting to four seconds ago would be two answers to one
+   * question. The name is unchanged because the wire is — see
+   * `Accounts.lastAttendedAt`, which also carries the fallback for an install
+   * that reports no attention at all.
    *
    * Optional rather than merely nullable, and that is the wire talking: a
    * server that predates the field sends no such key, which is exactly what an
@@ -263,17 +271,29 @@ export interface ContactView {
    */
   lastSeenAt?: number | null;
   /**
-   * Whether they hold a socket right now — the fact `lastSeenAt` was being
-   * asked to imply, and could not.
+   * Whether they are *about* right now — the fact `lastSeenAt` was being asked
+   * to imply, and could not.
    *
    * The two are not redundant, and the difference is the whole reason this
    * exists. `lastSeenAt` is a number fixed when the server composed the
    * snapshot, so a client subtracting it from its own advancing clock reports
-   * the age of the snapshot on top of the real gap. This is a fact, and a
-   * fact does not decay: a snapshot saying somebody is in the app is wrong
-   * only once they leave, which is an event the server pushes, and one saying
-   * they left at T stays true for ever. That is what lets Home refresh on two
-   * socket transitions rather than on a timer.
+   * the age of the snapshot on top of the real gap. This is a fact, and a fact
+   * does not decay: a snapshot saying somebody is in the app is wrong only once
+   * they stop being there, which is an event the server pushes, and one saying
+   * they are gone stays true for ever.
+   *
+   * **A socket is no longer the whole of it.** It was until 2026-09-25, when a
+   * desktop client left open on a machine nobody was sitting at went on saying
+   * *In the app now* about somebody unresponsive for hours: the socket is the
+   * right kind of evidence and the wrong question. The server now answers *a
+   * session socket, and attention inside the window* — `isAbout` in
+   * `server/src/ws.ts`, which is the only thing that decides it.
+   *
+   * That costs one transition rather than a timer. Home used to refresh on the
+   * first socket opening and the last one closing; a window running out is a
+   * third, and the server's sweep is what notices it. Nothing here has to be
+   * recomputed by a client, which is what keeps this a fact rather than a
+   * countdown.
    *
    * Optional for the same wire reason as `lastSeenAt`: a server that predates
    * it sends no such key, which is what an installed build meets between its
@@ -1670,7 +1690,7 @@ export type ClientMessage =
    */
   | { type: 'ping' }
   /**
-   * Somebody is attending these channels right now.
+   * Somebody is attending the application, and these channels in it.
    *
    * Sent on its own rather than inferred from the traffic already arriving,
    * because none of that traffic means this. A `ping` says the process is
@@ -1679,13 +1699,24 @@ export type ClientMessage =
    * a person is *there* — the app frontmost, or a hand on it — which is the
    * only evidence the fifteen-minute window is about.
    *
+   * **It feeds two clocks of different scope, and since 2026-09-25 both.** One
+   * is per person per channel and is what a roster's *nearby* line counts. The
+   * other is per person, and is what a contact row's *In the app now* means —
+   * `accounts.attended_at`. The list below is the first; the message itself is
+   * the second, so **an empty list is not an empty message**. It used to be:
+   * the client dropped a report it could attribute to no room, which silenced
+   * precisely the population the account-level claim is about — somebody on
+   * Home, standing nowhere, whose desktop client said they were here for hours
+   * after they had gone.
+   *
    * **Named channels rather than a bare "I am here", and the difference
    * matters more than it looks.** One stamp per person would make every roster
    * say the same thing about them: somebody who stepped out of one channel
    * three hours ago and another five minutes ago would read as equally away in
    * both, because the only fact being reported would be that they are holding
    * their phone. Being stepped out of different rooms at different times is
-   * most of what a roster is for.
+   * most of what a roster is for — which is why the account's own clock is a
+   * second stamp rather than a replacement for these.
    *
    * **Two kinds of channel go in it**, and both are attention to *that* room:
    * the one on screen, and the one this device is standing in. The second is

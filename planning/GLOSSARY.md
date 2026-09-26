@@ -61,6 +61,7 @@ caused; the list carries the meaning.
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
 - **Help** — The screen for asking The Floor a question, reached from Home's *Support* tab; a person answers it in place, under the question
 - **Home** — The screen the app opens on and the frame the rest sits in; holds two lists, the *Podcasts* tab and the *Support* tab, not one thing
+- **In the app now** — What a *contact*'s row says about somebody who is there: holding a socket, and attended within fifteen minutes. The line under a name, and *Last seen 3 hours ago* is the same line when they are not — one clock, so the two can never disagree. A socket alone until 2026-09-25, which said it for hours about a desktop client nobody was sitting at
 - **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time, and the page it opens asks them to install the app
@@ -122,7 +123,7 @@ caused; the list carries the meaning.
 
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
 - **Starting line** — The contact count an account's *introduction* began from, latched at its first Home snapshot and again on *Show the checklist again*; *get somebody here* ticks when the count has gone above it. Replaced *arrival (invited / alone)* on 2026-09-13
-- **Attention** — Whether somebody is at a channel: frontmost on a phone, a hand on it in a browser, and never the audio. One server-held clock per person per channel, and the one the roster's *nearby* line counts — *stepped out* counts presence instead
+- **Attention** — Whether somebody is at their app, and at a channel in it: frontmost on a phone, a hand on it in a browser, and never the audio. Two server-held clocks of different scope from one report — per person per channel, which the roster's *nearby* line counts, and per person, which is what *in the app now* means; *stepped out* counts presence instead. One window governs both, so a roster and a contact row cannot describe the same silence differently
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Capturable** — Whether a *recording* started now would capture anything: anybody's open microphone, or a track playing. `subscribeable`'s companion, and it counts you where that one discounts you — which is why one person alone may record and, since 2026-09-14, is the whole of what the recording guard asks about the room
 - **Capture watch** — The meter a browser runs over its own published microphone, because a granted microphone that carries silence is reported by nothing; `core/capture.ts` counts, each caller reads its own samples
@@ -933,6 +934,41 @@ before that. Above the width breakpoint Home is the *list* pane and never goes
 away, which is what lets *Close* mean one thing in both layouts. See
 decisions/ § *The tier above both lists*.
 
+## In the app now
+
+**What a contact's row says about somebody who is there**, and the only thing
+on Home that speaks about a person rather than about a room. The line sits under
+a name; when it is not true the same line reads *Last seen 3 hours ago*, and
+when neither is knowable there is no line at all — a non-*contact* is told
+nothing, and an outgoing *contact request* is an address rather than a person.
+
+**It means two things at once, and both are necessary.** They hold a live
+session socket, and somebody has been attending it inside the fifteen minutes
+*attention* runs for. The socket is what makes the words revocable the moment
+the app closes; attention is what makes them a claim about a person rather than
+about a machine that happens to be powered on.
+
+**A socket alone until 2026-09-25**, which is the mistake worth remembering
+because it is the one this phrase invites. A desktop client left open on a
+machine nobody was sitting at satisfied the old rule for as long as the machine
+was awake, and the row said *In the app now* about somebody who had been
+unresponsive for hours. The socket was the right *kind* of evidence and the
+wrong question — the fix was not a shorter timeout on it but a different
+question, which *attention* was already asking about rooms and now asks about
+people. See `decisions/2026-09-25-in-the-app-now-counts-attention.md`.
+
+**One clock for the words and the number**, which is the other half of that
+correction and the reason it was not a one-line change. The timestamp underneath
+used to be the last heartbeat, and a heartbeat under a minute old is rendered as
+*In the app now* by the floor in `agoOrNull` — so the sentence would have gone on
+saying what the boolean had stopped saying. Both now count from `attended_at`.
+
+**Not the same claim as anything on a roster.** *Nearby* and *stepped out* are
+about one room; this is about the application, and would be read as "in this
+channel" if it were ever put on a channel card — which is why a third sentence
+exists there instead. `ContactView.inApp`, `ProfileView.inApp`,
+`describeAvailability`; STATES.md § *In-App* for where the fact is composed.
+
 ## Invitation
 
 **An ask to join something**, and the word is one sense over two distinct
@@ -1334,6 +1370,17 @@ channel it is standing in — so reading Home holds the conversation you are in,
 and a declaration in a room you are not looking at ages as it always did. So
 the roster says *nearby 20s* — whether a notification will find them — and
 *stepped out 4 minutes ago*, which is when they last left this room.
+
+**And per person as well, since 2026-09-25**, which is a second clock of a
+different scope rather than a retreat from the paragraph above. What it answers
+is *in the app now* — whether anybody is at this account at all — and the rooms
+cannot answer it: somebody on Home, standing nowhere, is attending the
+application and no channel in it, and the report used to be dropped on exactly
+that reasoning. It is now sent with an empty list, and the list is the room half
+while the message itself is the account half. `accounts.attended_at`, one
+column, against `channels.attentiveAt`, one volatile map keyed per pair.
+**One window governs both**, so a roster and a contact row can never describe
+the same silence differently.
 
 **Three clocks preceded it inside a single day**, which is worth knowing only
 because the words still exist in the code: `lastPresentAt`, the last sign of
@@ -3895,6 +3942,11 @@ are settled:
     Step in / Step out    Entrar / Salir
     Present               Presente
     Stepped out           Ha salido
+    In the app now        En la app ahora
+    Last seen 3 hours ago Visto por última vez hace 3 horas — the one line in
+                          the catalogue that breaks the gender rule above, since
+                          *visto* agrees with the person; see
+                          backlog/last-seen-agrees-with-a-gender-the-app-does-not-know.md
     Mute / Unmute         Silenciar / No silenciar — Apple's own pair, which
                           is what people already know from FaceTime, and short
                           enough for the footer's fifth of a phone

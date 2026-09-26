@@ -1347,13 +1347,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // phone in a hand is what says somebody is still there to maintain it.
       // Reading Home therefore holds the conversation you are in and nothing
       // else — which is the whole of why the clock is per channel.
+      //
+      // Often neither, and that is a report worth sending: somebody on Home
+      // standing nowhere is attending the *application*, which is the account's
+      // own clock and the one their contacts read.
       const rooms = new Set<string>();
       if (lookingAt.current) rooms.add(lookingAt.current);
       if (standing.current) rooms.add(standing.current);
       // Only advance the gate on a message that actually went. A report
-      // dropped for want of a socket — or for having no room to be about — is
-      // not evidence anybody received, and recording it would hold the next
-      // one back for half a minute at exactly the moment it mattered.
+      // dropped for want of a socket is not evidence anybody received, and
+      // recording it would hold the next one back for half a minute at exactly
+      // the moment it mattered. Having no room to be about is no longer a
+      // reason to drop one: the report is about a person first — see
+      // `SocketClient.attentive`.
       if (!realtime.attentive([...rooms])) return;
       attentiveReportedAt.current = at;
     },

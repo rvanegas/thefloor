@@ -20,6 +20,16 @@ export interface AccountRow {
    */
   last_seen_at: number | null;
   /**
+   * When somebody was last demonstrably attending this account — frontmost on
+   * a phone, a hand on it in a browser — rather than merely connected from it.
+   * Null until an install that reports attention has connected.
+   *
+   * The clock the contact row and the profile read, both the boolean and the
+   * sentence under it. See `Accounts.lastAttendedAt` for what a null is
+   * allowed to mean and `Accounts.markAttended` for what writes it.
+   */
+  attended_at: number | null;
+  /**
    * The iOS build they last connected from, or null when they last connected
    * from one that does not report it. Absent is not "unknown" in the useless
    * sense — it is a bound, meaning at or below the first build that sends the
@@ -610,7 +620,24 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at   INTEGER NOT NULL,
   -- When they last had the app open, to the nearest heartbeat. Null until
   -- they first connect.
+  --
+  -- **Proof of a connection, not of a person**, which is the whole of what
+  -- distinguishes it from attended_at below: a client left running heartbeats
+  -- from an empty room all night and this column follows it. Nothing renders
+  -- it any more. What still reads it is the notification pause — being
+  -- connected at all is enough to end that — and bin/people.
   last_seen_at INTEGER,
+  -- When somebody was last demonstrably *attending* this account: frontmost on
+  -- a phone, a hand on it in a browser. Null until an install that reports it
+  -- has connected, which is what makes it distinct from last_seen_at rather
+  -- than a copy of it -- see ClientMessage.attentive and, for what a null
+  -- means to a reader, Accounts.lastAttendedAt.
+  --
+  -- **This is the column the contact row is drawn from**, both the sentence
+  -- and the boolean above it: "In the app now" was a socket until 2026-09-25
+  -- and said so about a desktop client nobody was sitting at. One clock
+  -- answers both halves, so they cannot disagree.
+  attended_at INTEGER,
   -- Which iOS build they last connected from. Null means they have not
   -- connected since the app began saying — which, indefinitely, has to be read
   -- as "something at or below the first build that sends it". See release.ts.
@@ -2278,6 +2305,15 @@ function migrate(db: Db): void {
   // be writing down a permission nobody granted.
   if (!accountColumns.some((c) => c.name === 'marketing_email_at')) {
     db.exec('ALTER TABLE accounts ADD COLUMN marketing_email_at INTEGER');
+  }
+  // Null for every existing account, and emphatically not back-filled from
+  // `last_seen_at`. That column is the fact this one exists to stop being read
+  // as attention — copying it across would hand every abandoned client a fresh
+  // stamp and assert the exact thing that was wrong. Null means "nobody has
+  // said", which is true, and `lastAttendedAt` decides what a reader does
+  // with it.
+  if (!accountColumns.some((c) => c.name === 'attended_at')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN attended_at INTEGER');
   }
 
   // The index is created *here* rather than in SCHEMA, and that is not tidiness.

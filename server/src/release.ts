@@ -95,6 +95,28 @@ export const MIN_SUPPORTED_BUILD = 80;
 export const ATTENTION_BUILD = 175;
 
 /**
+ * The first build that reports attention it cannot attribute to a room, and so
+ * the first whose owner's contact row may be drawn from attention at all.
+ *
+ * **A second gate rather than a wider reading of the one above**, because two
+ * populations are being told apart and `ATTENTION_BUILD` only separates the
+ * first. Builds below 175 send no `attentive` ever. Builds from 175 to 293
+ * send it, but `SocketClient.attentive` dropped the message whenever the room
+ * list was empty — so somebody on Home, standing nowhere, reported nothing,
+ * which is exactly the population *In the app now* is a claim about.
+ *
+ * A gate on `ATTENTION_BUILD`'s model: nothing is refused below it, and what
+ * happens below it is what happened before this existed. A connected device
+ * that cannot report vouches for its owner by being connected, which is the
+ * rule this change replaced — see `hasConnection` in `ws.ts` and
+ * `attendedOrSeen` in `accounts.ts`, which are the two halves of that
+ * fallback. Without it every install now in the field would read as away.
+ *
+ * Retired when `MIN_SUPPORTED_BUILD` passes it. See SHIMS.md.
+ */
+export const ACCOUNT_ATTENTION_BUILD = 294;
+
+/**
  * The header an iOS build uses to say which build it is, mirrored as a
  * `?build=` query parameter on the websocket because React Native's WebSocket
  * carries no custom headers portably.

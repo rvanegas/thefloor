@@ -1,12 +1,14 @@
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
 import {
+  ATTENTION_WINDOW_MS,
   DISCONNECT_GRACE_MS,
   FAST_HEARTBEAT_BUILD,
   HEARTBEAT_TIMEOUT_LEGACY_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
 import { OTP_RESEND_INTERVAL_MS } from '../src/accounts';
+import { ACCOUNT_ATTENTION_BUILD } from '../src/release';
 import { REENTRY_MS } from '../src/ws';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 import { MemoryMailer } from '../src/mail';
@@ -2475,6 +2477,16 @@ describe('websocket', () => {
     beforeAll(pauseSweep);
     afterAll(resumeSweep);
 
+    /**
+     * **Most of these clients name no build, and that is load-bearing here.**
+     * A socket claiming nothing is an install too old to report attention, so
+     * it vouches for its owner by existing — which is what every device did
+     * before 2026-09-25 and is the fallback `ACCOUNT_ATTENTION_BUILD` gates.
+     * So the transition tests below go on describing the old rule, correctly,
+     * about the population that still lives under it. The ones that claim a
+     * build are the new rule.
+     */
+
     /** Alice's row in the most recent Home snapshot Bob's socket received. */
     const aliceOnBobsHome = (bob: Client, aliceId: string) => {
       const homes = bob.received.filter((m) => m.type === 'home');
@@ -2684,6 +2696,122 @@ describe('websocket', () => {
       c.close();
     });
 
+    it('counts attention rather than the socket, for a build that reports', async () => {
+      // The defect this whole mechanism is for. Alice's client stays connected
+      // and stops being attended; before 2026-09-25 her row said *In the app
+      // now* for as long as the machine was awake, which is what it said about
+      // a desktop client nobody was sitting at for hours.
+      const { alice, bob } = await pairInSession();
+      const a = new Client(alice.token, baseUrl, ACCOUNT_ATTENTION_BUILD);
+      await a.open();
+
+      const attended = clock;
+      a.send({ type: 'attentive', channelIds: [] });
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
+
+      // Past the window, with the socket alive and heartbeating. Read over
+      // HTTP rather than waited for, so that what is being asserted is the
+      // predicate rather than the sweep — that is the test below.
+      clock += ATTENTION_WINDOW_MS;
+      a.send({ type: 'ping' });
+      await a.next('pong');
+      const home = await app.fastify.inject({
+        method: 'GET',
+        url: '/home',
+        headers: auth(bob.token),
+      });
+      const { contacts } = home.json() as {
+        contacts: Array<{
+          account: { id: string };
+          inApp?: boolean;
+          lastSeenAt?: number | null;
+        }>;
+      };
+      const row = contacts.find((c) => c.account.id === alice.account.id);
+      expect(row?.inApp).toBe(false);
+      // And the sentence under it counts from the same clock. The heartbeat a
+      // moment ago must not be what it dates from: `agoOrNull`'s floor would
+      // read that as being here and put the words back on the screen.
+      expect(row?.lastSeenAt).toBe(attended);
+
+      a.close();
+      b.close();
+    });
+
+    it('is vouched for by a device too old to report', async () => {
+      // The shim, and the population it is for: every install in the field
+      // when this shipped either never sends attention or sends none while its
+      // owner is on Home. Those go on being described by the socket.
+      const { alice, bob } = await pairInSession();
+      const a = new Client(alice.token, baseUrl, ACCOUNT_ATTENTION_BUILD - 1);
+      await a.open();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await aliceBecomes(b, alice.account.id, (row) => row.inApp === true);
+
+      clock += ATTENTION_WINDOW_MS;
+      a.send({ type: 'ping' });
+      await a.next('pong');
+      const home = await app.fastify.inject({
+        method: 'GET',
+        url: '/home',
+        headers: auth(bob.token),
+      });
+      const { contacts } = home.json() as {
+        contacts: Array<{ account: { id: string }; inApp?: boolean }>;
+      };
+      expect(
+        contacts.find((c) => c.account.id === alice.account.id)?.inApp
+      ).toBe(true);
+
+      a.close();
+      b.close();
+    });
+
+    it('is not asserted by a socket that has reported nothing', async () => {
+      // A reporting build that has not reported: a phone in a pocket whose
+      // socket came back after a deploy. Connecting is no longer an arrival,
+      // so nothing is pushed and the row stays where it was.
+      const { alice, bob } = await pairInSession();
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home');
+
+      const a = new Client(alice.token, baseUrl, ACCOUNT_ATTENTION_BUILD);
+      await a.open();
+      await a.next('hello');
+      await sweeps();
+      // Every snapshot, rather than a count of them: a connection seeds the
+      // *channel* attention of the rooms it is standing in, which emits and
+      // regenerates the Home of everybody in them. So Bob may well be sent
+      // one; what he must never be sent is one saying Alice is here.
+      const said = b.received.flatMap((m) =>
+        m.type === 'home'
+          ? m.home.contacts.filter((c) => c.account.id === alice.account.id)
+          : []
+      );
+      expect(said.length).toBeGreaterThan(0);
+      expect(said.some((row) => row.inApp === true)).toBe(false);
+
+      // And the report is what makes her news — naming no room at all, which
+      // is the message the client used to drop.
+      a.send({ type: 'attentive', channelIds: [] });
+      const arrived = await aliceBecomes(
+        b,
+        alice.account.id,
+        (row) => row.inApp === true
+      );
+      expect(arrived?.inApp).toBe(true);
+
+      a.close();
+      b.close();
+    });
+
     it('is withheld from a request sent to an address', async () => {
       // Same reason the name and the time are: that row is an address, and
       // whether anybody is behind it is what it must not answer. A boolean
@@ -2705,6 +2833,144 @@ describe('websocket', () => {
       };
       expect(contacts[0].status).toBe('outgoing');
       expect(contacts[0].inApp).toBeUndefined();
+    });
+  });
+
+  /**
+   * The window running out, which is the one change to this fact that nothing
+   * announces on its own.
+   *
+   * **Its own block, because it needs the sweep** — the block above pauses it,
+   * and this is the only thing in the file that waits on one doing work rather
+   * than on it staying out of the way.
+   */
+  describe('attention running out under a live socket', () => {
+    /** How many pongs this client has been sent. */
+    const pongs = (c: Client) =>
+      c.received.filter((m) => m.type === 'pong').length;
+
+    /** Sends a ping and waits for the answer, so `lastSeen` has moved. */
+    const beat = async (clients: Client[]) => {
+      const before = clients.map(pongs);
+      for (const c of clients) c.send({ type: 'ping' });
+      for (const [i, c] of clients.entries()) {
+        while (pongs(c) <= before[i]) {
+          await new Promise((r) => setImmediate(r));
+        }
+      }
+    };
+
+    /**
+     * Carries these clients through `ms` of fake time, alive and never
+     * attending.
+     *
+     * **In steps inside the silence budget, which is the whole of why this is a
+     * loop.** One jump of fifteen minutes is a socket that has stopped
+     * heartbeating, and the sweep terminates it — so the test would pass
+     * through the close handler and prove nothing about the window. Stepping by
+     * less than the *shortest* budget on the list means no socket is ever once
+     * overdue, and there is no race to lose: `lastSeen` is at most one step
+     * behind `clock` at every point a sweep can fire.
+     *
+     * **Every client on the list, the watcher included.** The first version of
+     * this beat only the person being described, and the sweep duly terminated
+     * the contact who was watching her — so the snapshot this is waiting for
+     * was composed and sent to a socket that had gone.
+     *
+     * A ping is deliberately not attention. It is the heartbeat of a machine,
+     * which is exactly the evidence that stopped being enough.
+     */
+    const aliveButAway = async (clients: Client[], ms: number) => {
+      const step = HEARTBEAT_TIMEOUT_MS - 1_000;
+      for (let spent = 0; spent < ms; spent += step) {
+        clock += step;
+        await beat(clients);
+      }
+    };
+
+    it('tells her contacts, with nobody having asked', async () => {
+      const { alice, bob } = await pairInSession();
+      const a = new Client(alice.token, baseUrl, ACCOUNT_ATTENTION_BUILD);
+      await a.open();
+      a.send({ type: 'attentive', channelIds: [] });
+
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === alice.account.id);
+        return row?.inApp === true;
+      });
+
+      // Bob does nothing at all from here, and neither does Alice's client
+      // beyond staying alive. Before this the two of them could sit like that
+      // for hours with Bob's screen saying she was here.
+      await aliveButAway([a, b], ATTENTION_WINDOW_MS + HEARTBEAT_TIMEOUT_MS);
+      const gone = await b.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === alice.account.id);
+        return row !== undefined && row.inApp === false;
+      });
+      expect(
+        gone.home.contacts.find((c) => c.account.id === alice.account.id)?.inApp
+      ).toBe(false);
+
+      // And her socket is still there, which is what makes this the window
+      // rather than the sweep's other job.
+      await beat([a]);
+
+      // Said once, not once per sweep. The ledger is what makes the fact cost
+      // one snapshot however long somebody stays away.
+      const falses = b.received.filter(
+        (m) =>
+          m.type === 'home' &&
+          m.home.contacts.find((c) => c.account.id === alice.account.id)
+            ?.inApp === false
+      ).length;
+      expect(falses).toBe(1);
+
+      a.close();
+      b.close();
+    });
+
+    it('starts again from the next report', async () => {
+      const { alice, bob } = await pairInSession();
+      const a = new Client(alice.token, baseUrl, ACCOUNT_ATTENTION_BUILD);
+      await a.open();
+      a.send({ type: 'attentive', channelIds: [] });
+      const b = new Client(bob.token, baseUrl);
+      await b.open();
+      b.send({ type: 'watch.home' });
+      await b.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === alice.account.id);
+        return row?.inApp === true;
+      });
+
+      await aliveButAway([a, b], ATTENTION_WINDOW_MS + HEARTBEAT_TIMEOUT_MS);
+      await b.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === alice.account.id);
+        return row?.inApp === false;
+      });
+
+      // Somebody picking their phone back up. The stamp moves, and the second
+      // edge costs a snapshot exactly as the first did.
+      const falses = b.received.filter(
+        (m) =>
+          m.type === 'home' &&
+          m.home.contacts.find((c) => c.account.id === alice.account.id)
+            ?.inApp === false
+      ).length;
+      a.send({ type: 'attentive', channelIds: [] });
+      const back = await b.next('home', (m) => {
+        const row = m.home.contacts.find((c) => c.account.id === alice.account.id);
+        return row?.inApp === true;
+      });
+      expect(
+        back.home.contacts.find((c) => c.account.id === alice.account.id)?.inApp
+      ).toBe(true);
+      expect(falses).toBe(1);
+
+      a.close();
+      b.close();
     });
   });
 });

@@ -407,7 +407,35 @@ describe('reading somebody else’s profile', () => {
     // False rather than absent: nobody is holding a socket here, and that is
     // an answer where a non-contact gets no answer at all.
     expect(profile.inApp).toBe(false);
+    // The heartbeat, because nothing has reported attention for this account
+    // and `lastAttendedAt` falls back to it — which is the shim every install
+    // in the field at the time lived under. See `attendedOrSeen`.
     expect(profile.lastSeenAt).toBe(clock);
+  });
+
+  it('counts the sentence from attention once there is any', async () => {
+    // The two halves of availability read one clock, and this is the second
+    // surface they are composed on. A profile saying *In the app now* above a
+    // line dating the last sighting to this morning would be two answers to
+    // one question — which is what a heartbeat-driven timestamp beside an
+    // attention-driven boolean amounts to.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+
+    const attended = clock;
+    app.accounts.markAttended(bob.account.id, attended);
+    // An hour of heartbeats on top, which is what a machine left running
+    // produces and what this must not be moved by.
+    clock += 3_600_000;
+    app.accounts.markSeen(bob.account.id, clock);
+
+    const profile = (await read(alice, bob.account.id)).json() as {
+      inApp?: boolean;
+      lastSeenAt?: number | null;
+    };
+    expect(profile.lastSeenAt).toBe(attended);
+    expect(profile.inApp).toBe(false);
   });
 
   it('says nothing about it to somebody who merely shares a channel', async () => {

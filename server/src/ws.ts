@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
 import {
+  ATTENTION_WINDOW_MS,
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_MS,
 } from '../../core/constants';
@@ -19,6 +20,7 @@ import type { Accounts } from './accounts';
 import type { NotificationPreferences } from './preferences';
 import type { ChannelRegistry } from './channels';
 import {
+  ACCOUNT_ATTENTION_BUILD,
   ATTENTION_BUILD,
   claimedClient,
   claimedBuild,
@@ -395,17 +397,27 @@ export function createSettingsNotifier(): SettingsNotifier {
 }
 
 /**
- * Whether this person is reachable inside the app right now.
+ * Whether somebody is *about*: in the app, and there.
  *
- * The one thing push delivery needs from the socket layer: somebody holding a
- * live connection is already being told everything as it happens, so sending
- * them a notification as well is a second copy of what is on their screen.
+ * The one thing the two availability surfaces need from the socket layer —
+ * Home's contact rows and the profile screen, and nothing else. **Push
+ * delivery used to be the caller** and stopped being one on 2026-09-09, when
+ * stepping in became an open microphone and a socket stopped meaning anybody
+ * was looking; see the note at the assignment below. Nothing about
+ * notifications reads this.
+ *
  * Shaped like `HomeNotifier` and for the same reason — the code that asks
  * exists before the socket plugin does, so it starts answering "no", which is
- * the safe default: it means a push is sent rather than swallowed.
+ * the conservative answer for a caption: a row that says nothing is better
+ * than one asserting somebody is there.
+ *
+ * **The attention stamp is passed in rather than looked up**, because every
+ * caller is already holding the row it comes off. That also keeps the
+ * arithmetic in one place: the window is applied here and nowhere else, so
+ * there is exactly one thing in this server that answers *are they about*.
  */
 export interface Reachability {
-  inApp: (userId: string) => boolean;
+  inApp: (userId: string, attendedAt: number | null) => boolean;
 }
 
 export function createReachability(): Reachability {
@@ -485,6 +497,52 @@ export function registerWebsocket(deps: {
     [...connections].some(
       (c) => c.userId === userId && c.scope.kind === 'session'
     );
+
+  /**
+   * Whether this person is *about*: a live session socket, and attention
+   * inside the window.
+   *
+   * **An AND, and each half is doing different work.** The socket is what
+   * makes the claim revocable at once — closing the app is immediately
+   * truthful, and nothing has to wait fifteen minutes to stop saying somebody
+   * is here. Attention is what makes it a claim about a person rather than
+   * about a machine: until 2026-09-25 this was `hasConnection` alone, and a
+   * desktop client left open on a machine nobody was sitting at said *In the
+   * app now* about somebody who had been unresponsive for hours. The socket
+   * was the right *kind* of evidence and the wrong question.
+   *
+   * **One window, `ATTENTION_WINDOW_MS`, shared with the wait it governs.** It
+   * is not a second number waiting to drift: a pocketed phone standing in a
+   * channel stops reporting and is retired from the room on this same clock,
+   * so a contact row and a roster cannot end up disagreeing about the same
+   * silence. `core/constants.ts` says where the split goes if one is ever
+   * needed.
+   *
+   * **The build gate is the shim**, and it is why this reads the connections
+   * rather than the stamp alone. An install below `ACCOUNT_ATTENTION_BUILD`
+   * cannot be decided about — below 175 it reports no attention whatsoever, and
+   * from 175 to 293 it reports none while its owner is on Home, which is most
+   * of the time this claim is read. So a device that cannot report vouches for
+   * its owner by being connected, exactly as every device did before; without
+   * it the whole installed population would read as away. A null build is a
+   * pre-37 phone or a development web bundle, a served one inlining its number.
+   * See `ACCOUNT_ATTENTION_BUILD` and SHIMS.md.
+   */
+  const isAbout = (userId: string, attendedAt: number | null): boolean => {
+    const sessions = [...connections].filter(
+      (c) => c.userId === userId && c.scope.kind === 'session'
+    );
+    if (sessions.length === 0) return false;
+    if (
+      sessions.some(
+        (c) => c.build === null || c.build < ACCOUNT_ATTENTION_BUILD
+      )
+    ) {
+      return true;
+    }
+    if (attendedAt === null) return false;
+    return now() - attendedAt < ATTENTION_WINDOW_MS;
+  };
 
   /**
    * Writes down that this session was heard from, in both places that care.
@@ -778,13 +836,27 @@ export function registerWebsocket(deps: {
   };
 
   /**
-   * Tells this user's contacts that they have arrived in the app or left it.
+   * Whose contacts were last told that they *are* about.
    *
-   * Called on the two transitions only — the first socket opening and the last
-   * one closing — which is the whole delivery cost of the Home indicator.
-   * `ContactView.inApp` is a fact rather than a timestamp, so a snapshot
-   * carrying it stays true until the fact changes; there is nothing to refresh
-   * in between, and no heartbeat and no timer push anything.
+   * **A delivery record and emphatically not a second clock.** `isAbout` is the
+   * only thing that decides the fact; this remembers what has already been
+   * said, so that every path capable of moving it can say "tell them if this is
+   * news" without knowing what the others have done.
+   *
+   * It exists because `inApp` stopped being a fact that only moves when a
+   * socket does. Until 2026-09-25 the two transitions were the whole delivery
+   * cost of the Home indicator — first socket in, last socket out — and a
+   * window running out is a third, with nothing to fire it but the sweep.
+   *
+   * **Membership is the whole state**, absence meaning "the last thing said was
+   * no". That is what bounds it: being about requires a socket, and every way
+   * of losing one ends in `announceIfChanged`, so nothing is left behind by an
+   * account that has gone.
+   */
+  const announcedAbout = new Set<string>();
+
+  /**
+   * Tells this user's contacts that they have arrived in the app or left it.
    *
    * Accepted contacts only. An incoming request is somebody who can already
    * see the row, and an outgoing one is an address whose `inApp` is withheld
@@ -798,6 +870,33 @@ export function registerWebsocket(deps: {
         .filter((contact) => contact.status === 'accepted')
         .map((contact) => contact.account.id)
     );
+  };
+
+  /**
+   * Announces, if what is true now is not what was last said.
+   *
+   * Every path that can move the fact calls this rather than deciding for
+   * itself: a socket opening, the last one closing, a report arriving, and the
+   * sweep noticing a window has run out. The edge test is what keeps the cost
+   * where it was — a person attending for an hour reports a hundred and twenty
+   * times and their contacts hear once.
+   *
+   * **Read the stamp here rather than taking it from a caller.** Only one of
+   * the four has just written it; the other three have no business knowing
+   * about it at all, and a snapshot composed from an argument one of them
+   * guessed would announce the opposite of what the next one renders.
+   *
+   * A connection that opens without any attention to its name announces
+   * nothing, and that is the point of reading the record rather than the
+   * transition: a pocketed phone whose socket came back after a deploy has not
+   * become news to anybody.
+   */
+  const announceIfChanged = (userId: string): void => {
+    const about = isAbout(userId, accounts.attendedAt(userId));
+    if (about === announcedAbout.has(userId)) return;
+    if (about) announcedAbout.add(userId);
+    else announcedAbout.delete(userId);
+    announcePresence(userId);
   };
 
   /**
@@ -917,6 +1016,32 @@ export function registerWebsocket(deps: {
         connection.socket.close(UNAUTHORIZED_CLOSE, 'Unauthorized');
       }
     }
+    /*
+      **Attention running out, which is the one change to `inApp` that nothing
+      says.** A socket opening or closing announces itself and so does a
+      report; a person who simply stops touching their phone produces no event
+      at all, and without this their contacts would go on being told they are
+      about until something unrelated pushed a Home.
+
+      **Here rather than in a timer of its own**, on the same reasoning as the
+      re-entry window above: this loop already walks every connection on a
+      clock, and the question is the same kind. A `setTimeout` per account
+      would be a second schedule to cancel, armed and re-armed twice a minute
+      by the reports themselves.
+
+      Per account rather than per socket, because the fact is.
+      `heartbeatIntervalMs` resolution against a fifteen-minute window is a
+      rounding error, and `announceIfChanged` is an edge test — so the ordinary
+      sweep, in which nobody's answer has moved, costs a point read of the
+      account row per person connected and sends nothing. The contact walk is
+      on the other side of that test.
+    */
+    const about = new Set<string>();
+    for (const connection of connections) {
+      if (connection.scope.kind !== 'session') continue;
+      about.add(connection.userId);
+    }
+    for (const userId of about) announceIfChanged(userId);
   }, heartbeatIntervalMs);
   sweep.unref?.();
   fastify.addHook('onClose', async () => clearInterval(sweep));
@@ -1089,16 +1214,18 @@ export function registerWebsocket(deps: {
     send(connection, { type: 'home', home: homeFor(connection.userId) });
   }
 
-  // Contact changes arrive over HTTP and touch two people's Home lists: the
-  // requester's and the recipient's. Without this the recipient learns nothing
-  // until they happen to reload — a request simply never appears.
-  reachability.inApp = hasConnection;
+  // **This was `hasConnection` until 2026-09-25**, and the two availability
+  // surfaces were the only readers even then. A socket is now the half of the
+  // answer that says a claim can be withdrawn; `isAbout` holds the other, and
+  // the reasoning for both is there.
+  reachability.inApp = isAbout;
   // **`liveSessions` was here and went on 2026-09-09**, with the rule that
   // read it: which of somebody's devices held a socket was being used to
   // decide which of them to withhold a notification from, and a socket stopped
   // meaning anybody was looking at the screen when stepping in became an open
   // microphone. `inApp` stays — it answers a different question, whether a
-  // person is about, which is what a contact list renders.
+  // person is about, which is what a contact list renders. Nothing about
+  // notification delivery has read it since.
 
   // Session-scoped only. A follower page is a second screen rather than one of
   // this person's devices, holds a watch token rather than a session, and has
@@ -1114,6 +1241,9 @@ export function registerWebsocket(deps: {
     }
   };
 
+  // Contact changes arrive over HTTP and touch two people's Home lists: the
+  // requester's and the recipient's. Without this the recipient learns nothing
+  // until they happen to reload — a request simply never appears.
   homeNotifier.notify = (userIds) => {
     for (const connection of connections) {
       if (connection.watchingHome && userIds.includes(connection.userId)) {
@@ -1484,7 +1614,13 @@ export function registerWebsocket(deps: {
       // it their Home learns nothing until something unrelated happens to push
       // one, which is how "in the app now" used to mean "as of whenever your
       // last snapshot was".
-      if (arriving) announcePresence(account.id);
+      //
+      // **A socket opening is no longer the same thing as somebody arriving**,
+      // so this asks rather than asserts: a connection whose owner has produced
+      // no attention is not news, and one carrying an install too old to report
+      // is. `arriving` still gates it, since a second device of an account that
+      // was already about cannot change the answer.
+      if (arriving) announceIfChanged(account.id);
       // A device that has just come up knows nothing about what the account's
       // other instances are showing, and they know nothing about it. Both
       // halves are settled here, which is also what makes a reconnection
@@ -1635,10 +1771,20 @@ export function registerWebsocket(deps: {
           const named = Array.isArray(message.channelIds)
             ? message.channelIds.filter((id) => typeof id === 'string')
             : [];
-          // A phone attends what is on its screen and what it is standing in,
-          // which is two. The cap is not a policy about that, only a bound on
-          // what one message can cost to process.
+          // **The account first, and it is not conditional on the rooms.**
+          // Somebody on Home standing nowhere names no channel and is
+          // nevertheless the person this stamp is about — which is the whole of
+          // what changed on 2026-09-25, the client having dropped such a report
+          // as having nothing to attach itself to. See `ACCOUNT_ATTENTION_BUILD`.
+          accounts.markAttended(connection.userId, now());
+          // Then the rooms. A phone attends what is on its screen and what it
+          // is standing in, which is two. The cap is not a policy about that,
+          // only a bound on what one message can cost to process.
           channels.attentive(connection.userId, named.slice(0, 8));
+          // The first report after a silence is what makes somebody about
+          // again, and their contacts are owed it. Every one after that is an
+          // edge that is not there, and costs the map lookup inside.
+          announceIfChanged(connection.userId);
           return;
         }
 
@@ -2118,13 +2264,16 @@ export function registerWebsocket(deps: {
       // produces carries the moment they went rather than the one before it.
       //
       // No grace period here, deliberately, though a channel gives one. A
-      // flap pushes `inApp: false` with `lastSeenAt` a moment ago, and the
+      // flap pushes `inApp: false` with a stamp a moment old, and the
       // sixty-second floor in `agoOrNull` still reads that as being in the
       // app — so the display is already steady across a tunnel or a lift
       // without a timer existing to make it so.
-      if (!hasConnection(connection.userId)) {
-        announcePresence(connection.userId);
-      }
+      //
+      // Unconditional now, `announceIfChanged` holding the test the `if` used
+      // to: a second device of this account that is still being attended keeps
+      // the answer where it was, and one sitting untouched in a drawer does
+      // not — which the socket count cannot tell apart.
+      announceIfChanged(connection.userId);
     });
   });
 }

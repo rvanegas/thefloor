@@ -55,6 +55,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 272 | `ChannelState.guestInvites` optionality | `core/types.ts`, `core/guests.ts`, `core/channel.ts` |
 | 274 | `WatchState.history` optionality | `app/src/ui/ChannelView.tsx` |
 | — | `WatchState.history` revived as empty | `server/src/channels.ts` |
+| 294 | The pre-account-attention fallback | `server/src/ws.ts`, `server/src/accounts.ts`, `server/src/release.ts` |
 | 290 | The invite pin, in every layer that still reads one | `server/src/accounts.ts`, `server/src/app.ts`, `server/src/db.ts`, `app/src/ui/handover.ts`, `app/src/state/useInviteLink.ts`, `app/src/api/http.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
@@ -85,6 +86,27 @@ meet a server which does not, and `'accepted'` is a value an older app renders
 as an unlabelled ask. 215 is the build in `app.json` at the moment this landed,
 which is the next one to be uploaded and therefore the first that speaks these
 fields.
+
+**The pre-account-attention fallback is two halves of one answer, and both go
+together.** *In the app now* stopped meaning "holds a socket" on 2026-09-25 and
+started meaning "holds a socket and has been attended inside the window". Every
+install in the field at that moment fails the second half through no fault of
+its own: below 175 it never reports attention at all, and from 175 to 293 it
+reports only rooms — `SocketClient.attentive` dropped a report it could
+attribute to none, which is exactly what somebody sitting on Home sends. So a
+connected device below `ACCOUNT_ATTENTION_BUILD` vouches for its owner by
+existing (`isAbout` in `ws.ts`), and a null `attended_at` falls back to
+`last_seen_at` for the sentence underneath (`attendedOrSeen` in `accounts.ts`).
+
+**What must not be deleted with it**: `ATTENTION_BUILD` and the channel-scoped
+fallback it gates, which is a different shim with a lower gate and its own
+entry above; `last_seen_at` itself, which is still written on every heartbeat
+and still ends a notification pause; and the `build` on `Connection`, which the
+heartbeat budget also reads. What *does* go is the whole `sessions.some(...)`
+branch, the `?? row.last_seen_at` in `attendedOrSeen`, and
+`ACCOUNT_ATTENTION_BUILD`. 294 is the build in `app.json` at the moment this
+landed plus one — 293 was already tagged — and therefore the first that reports
+attention with no room to attach it to.
 
 `mediaRoom` has no gate because the client half that would fix one has not
 shipped. It is here rather than omitted because it is a wire field whose
