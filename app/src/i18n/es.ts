@@ -10,11 +10,22 @@ import type { Strings } from './index';
  * Two rules the whole file is written under, both settled in
  * `planning/GLOSSARY.md` rather than here:
  *
- * **Nothing agrees with a person's gender.** The app does not know anybody's,
- * and Spanish adjectives about people do. So the copy is built from
- * constructions that take none — *Sin entrar* rather than *Invitado*, a noun
- * rather than a participle — and falls back to the masculine generic only
- * where nothing else reads naturally.
+ * **Where Spanish agrees with a person, it takes the masculine.** *Visto por
+ * última vez*, *· silenciado*, *Aquí eres invitado*, about everybody. The app
+ * does not know anybody's gender and does not ask, and the generic masculine
+ * is what Spanish does with a referent it has not been told about. Nothing in
+ * here is to be contorted to avoid an agreement, and nothing takes a gender
+ * argument: a message that would need one is a message that has the rule
+ * wrong.
+ *
+ * **This replaced its opposite on 2026-09-26** — *nothing agrees with a
+ * person's gender*, under which the copy was built from constructions that
+ * take none. It was not being kept: `availability.lastSeen` below reads
+ * *Visto*, which agrees, and is drawn under a name on every contact row. A
+ * setting to feed it was built the day before and backed out. See
+ * `decisions/2026-09-26-the-copy-uses-the-generic-masculine.md` before
+ * changing any of this, and note that the words the old rule chose — *Sin
+ * entrar*, *Invitaciones* — are kept on their own merits.
  *
  * **The vocabulary was settled against the glossary before any of this was
  * written**, term by term, not string by string. The one collision that

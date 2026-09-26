@@ -3880,12 +3880,36 @@ code, which is written in English and stays so.
 
 ## The two rules the whole catalogue is written under
 
-**Nothing agrees with a person's gender.** The app does not know anybody's, and
-Spanish adjectives about people do. So the copy is built from constructions
-that take none — a noun rather than a participle, a state rather than a
-description of the person in it — and falls back to the masculine generic only
-where nothing else reads naturally. This is why several of the choices below
-are nouns where the English is an adjective.
+**Where Spanish agrees with a person, it takes the masculine.** *Visto por
+última vez*, *· silenciado*, *Aquí eres invitado* — about everybody, whoever
+they are. The app does not know anybody's gender, does not ask, and has no
+field for one; the generic masculine is what Spanish does with a referent it
+has not been told about, and that is the whole of the rule.
+
+**It asks nothing of the copy**, which is what distinguishes it from the rule
+it replaced on 2026-09-26. That one said *nothing agrees with a person's
+gender*: the copy was to be built from constructions that take no agreement — a
+noun rather than a participle, a state rather than a description of the person
+in it — with the masculine generic allowed only where nothing else read
+naturally. Two things were wrong with it. It held the copy hostage to a fact
+the app had never asked for; and it was not being kept — *Visto por última vez*
+agrees, and sits under a name on every contact row and every profile, which is
+the most-drawn sentence in this catalogue that is about a person at all. A rule
+broken in the commonest case it governs is not a rule.
+
+**So `Visto` is correct, and is not a bug report waiting to be filed.** It has
+been raised once and will be raised again by anybody who reads the old rule, or
+who knows Spanish and not this decision. A gender setting was built on
+2026-09-25 to feed it and was backed out the next day — see
+`decisions/2026-09-26-the-copy-uses-the-generic-masculine.md`, which is the
+place to argue with any of this.
+
+**The vocabulary the old rule produced is kept**, and this is the one thing not
+to undo now that the dodging is over. Several terms below were chosen partly to
+sidestep an inflection — *Invitaciones* for the group of pending seats, *Sin
+entrar* for a member who has never come in — and every one of them also won on
+the second rule below, against the other candidate words. They are better, and
+they stay: nothing about being allowed to inflect makes a worse word better.
 
 **A word is chosen against the other words, not on its own.** The same rule
 Part One states for English, and the reason *Members* beat *Roster* on

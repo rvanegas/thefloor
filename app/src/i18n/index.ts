@@ -11,14 +11,20 @@ import { es } from './es';
  * Every word the app says, as functions.
  *
  * **Functions rather than a key/value catalogue, and the reason is Spanish.**
- * A message with a number in it agrees with that number, and a message about a
- * person agrees with that person; English hides how much of that there is
- * because it only ever has the one plural rule and no gender. A catalogue of
- * format strings has to grow a message syntax to express the branching — ICU
- * plurals, selectors, and a runtime that parses them — and then every call
- * site passes a bag of untyped arguments into it. A function already is that
- * branching, in the language the rest of the app is written in, and the
- * arguments are typed.
+ * A message with a number in it agrees with that number, and Spanish builds
+ * the sentence in its own order besides; English hides how much of that there
+ * is because it only ever has the one plural rule. A catalogue of format
+ * strings has to grow a message syntax to express the branching — ICU plurals,
+ * selectors, and a runtime that parses them — and then every call site passes
+ * a bag of untyped arguments into it. A function already is that branching, in
+ * the language the rest of the app is written in, and the arguments are typed.
+ *
+ * **Agreement with a *person* is not among the branches, deliberately**, and
+ * this paragraph used to offer it as the second example. Where Spanish agrees
+ * with somebody it takes the masculine, about everybody — so no message takes
+ * a gender, and one that wants to has the rule wrong rather than a case this
+ * shape does not cover. See
+ * `decisions/2026-09-26-the-copy-uses-the-generic-masculine.md`.
  *
  * **`Strings` is derived from the English catalogue rather than declared.**
  * `en.ts` is the source of truth for what messages exist and what each one
