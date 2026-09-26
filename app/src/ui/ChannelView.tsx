@@ -1372,9 +1372,12 @@ export function ChannelView({
    * has no such clock: being frontmost already speaks for somebody who is only
    * watching.
    *
-   * It does **not** cover the other half of `tasks/keep-alive-during-watch-party.md`
-   * — a browser in the room while the film plays on another device has no
-   * hand on it either, and nothing here is evidence about that tab.
+   * A browser in the room with no screen of its own is **deliberately** not
+   * covered, and should stay that way: it has no hand on it either, but it is
+   * demonstrably doing nothing, which is the case the window exists for.
+   * Making a party evidence for every member would hold somebody present
+   * through a film they walked away from. See
+   * decisions/2026-09-17-the-screen-is-the-app.md.
    */
   useEffect(() => {
     if (!screenIsHere || channel?.watch?.status !== 'playing') return;
