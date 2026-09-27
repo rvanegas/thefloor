@@ -284,7 +284,13 @@ export function vibrate(): boolean {
  * silence. So an install below the build that adds this keeps exactly today's
  * notice rather than acquiring a wrong sound.
  */
-export type ChimeKind = 'in' | 'out' | 'nearby' | 'recording';
+export type ChimeKind =
+  | 'in'
+  | 'out'
+  | 'nearby'
+  | 'recording'
+  | 'play'
+  | 'pause';
 
 /**
  * The shapes `nearby` is being chosen from, which only the audio lab passes.
@@ -377,6 +383,8 @@ export const CHIME_NOTES: Record<ChimeKind, number> = {
   out: 2,
   nearby: 2,
   recording: 3,
+  play: 2,
+  pause: 2,
 };
 
 /**

@@ -99,14 +99,21 @@ const PEAKS = ['0.18', '0.35', '0.5', '0.7', '1'];
 const LEADS = ['0', '0.18', '0.35', '0.6', '1'];
 
 /**
- * The four the app actually plays, as opposed to the candidates below.
+ * The six the app actually plays, as opposed to the candidates below.
  *
  * A combination is made of these and never of a candidate: what the
  * combinations section is auditioning is the spacing between two sounds, and
  * putting an unchosen note into one would be asking two questions with one
  * tap.
  */
-const REAL_KINDS: ChimeKind[] = ['in', 'out', 'nearby', 'recording'];
+const REAL_KINDS: ChimeKind[] = [
+  'in',
+  'out',
+  'nearby',
+  'recording',
+  'play',
+  'pause',
+];
 
 /** Every kind the buttons below can ask for, so all of them can be warmed. */
 const CHIME_KINDS: (ChimeKind | ChimeCandidate)[] = [
@@ -1013,6 +1020,25 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
           <Button
             label="Chime — recording started (C#5 E5 A5)"
             onPress={() => ring('recording')}
+          />
+        </Card>
+        {/*
+          The film's pair, and the one thing to listen for is whether the
+          octave holds them apart from `in` and `out` through this speaker.
+          That is the whole reason A4 is in the table: every other kind lives
+          between C#5 and A5, and a fifth sound in that band is heard as a
+          variation on the four already there.
+        */}
+        <Card>
+          <Button
+            label="Chime — film playing (A5 A4)"
+            onPress={() => ring('play')}
+          />
+        </Card>
+        <Card>
+          <Button
+            label="Chime — film paused (A4 A5)"
+            onPress={() => ring('pause')}
           />
         </Card>
       </View>

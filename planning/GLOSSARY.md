@@ -39,7 +39,8 @@ caused; the list carries the meaning.
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: People, Notepad, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
-- **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it
+- **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
+- **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say
 - **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, the media path then playing it at full gain
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
@@ -391,8 +392,8 @@ you talk to them in.
 
 ## Chime
 
-**The sound a device makes when the room changes shape, or when a recording
-begins.** Two notes rising when
+**The sound a device makes when the room changes shape, when a recording
+begins, or when the party's film starts or stops.** Two notes rising when
 somebody steps in, the same two falling when somebody steps out — the second is
 audibly the first one backwards, which is what lets the difference be carried by
 a sound nobody was taught.
@@ -456,12 +457,51 @@ at a screen and nobody else. It does not answer that question and must not be
 read as answering it. See
 `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
 
+**A fifth and a sixth since 2026-09-26, and they are the *film*'s.** A falling
+octave — A5 then A4 — when a **watch party**'s film starts playing, and a
+rising one when it stops.
+
+**What they say is what happened to the room's voice, not what happened to a
+video player**, and that is what decides which way each goes. A running film
+shuts every microphone in the channel — the run is *enforced*-muted for its
+length, see *watching here* — and a pause gives them all back. So the room's
+voice leaves on *play* and arrives on *pause*, which is the direction *out* and
+*in* already mean, an octave down. Somebody who would "correct" this to
+rising-for-play is correcting the film's transport, which is not what is being
+announced.
+
+**A4 is the whole of why they are distinguishable.** Every other kind lives
+between C#5 and A5, so a fifth sound in that band is heard as a variation on the
+four already there — which is exactly how *nearby* came to sound like arriving.
+A note an octave under the lot of them is not a variation, and A5-against-A4 is
+also the widest interval the table draws, against the fourth that *in* and *out*
+span.
+
+**What they are for is the ear that cannot see the transport**, which during a
+party is most of the room: the conversation simply stops, and until these
+existed nothing said why. The pocket case is ordinary rather than an edge — a
+stepped-in phone goes on running while backgrounded because the call keeps it
+alive, so the room genuinely falls silent in somebody's hand. **Everybody
+present hears both, whoever pressed the button included**, on the recording
+chime's reasoning rather than the presence chimes'.
+
+**Two sounds over three states.** A film is *idle*, *paused* or *playing*, and
+only the third takes anything from anybody, so every edge into *playing* rings
+the first and every edge out of it rings the second. A link merely pasted is
+silent — a party is loaded *paused* — and so is a paused party being stopped.
+**A stop and a film reaching its end both sound like a pause**, deliberately:
+what the sound says is *the room has its voices back*, which is equally true of
+all three ways out, and a listener who cannot see the screen has no use for a
+third cue to tell them apart. See
+`decisions/2026-09-26-the-film-says-when-it-starts-and-stops.md`.
+
 **It is not in the media room**, and that is the distinction the word has to
 hold. Nothing is published into LiveKit; each device makes its own sound about
 other people, so it is absent from recordings, absent from transcripts, and —
 the rule that decided the whole design — for the three presence kinds, **never heard by the person it is
-about**. You know you walked in; the recording chime is the exception and says
-why above. See
+about**. You know you walked in; the recording chime and the two film chimes
+are the exceptions, and both say why above — in each case the sound is the
+moment the room was told rather than feedback for whoever caused it. See
 `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
 
 **How loud is one number, and was the listener's for one day.** It is the

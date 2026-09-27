@@ -10,11 +10,18 @@ import {
 
 export type { ChimeKind };
 
-/** The four the app can actually play, which is what there is to warm. */
-const KINDS: ChimeKind[] = ['in', 'out', 'nearby', 'recording'];
+/** The six the app can actually play, which is what there is to warm. */
+const KINDS: ChimeKind[] = [
+  'in',
+  'out',
+  'nearby',
+  'recording',
+  'play',
+  'pause',
+];
 
 /**
- * Renders all four and hands them to the system sound server, ahead of time.
+ * Renders all six and hands them to the system sound server, ahead of time.
  *
  * **A chime that renders at the moment it is needed is a chime that arrives
  * late or half-formed.** The first play of a given sound writes a WAV, creates
@@ -110,6 +117,32 @@ export function chimeRecording(amplitude?: number): void {
   playChime('recording', amplitude);
 }
 
+/**
+ * The party's film has started playing.
+ *
+ * **It says what happened to the room's voice, not what happened to a video
+ * player**, and the direction of the pair is chosen on that basis: a run closes
+ * every microphone in the room, so this is the room going quiet and it falls,
+ * where `chimePause` rises. An octave, where `in` and `out` are a fourth — see
+ * `chimeNotes` in `AudioRouteModule.swift`.
+ *
+ * **Heard by everybody in the room, the presser included**, on
+ * `chimeRecording`'s reasoning rather than the presence chimes': it is not
+ * feedback for whoever pressed Play but the moment at which the room was told,
+ * and a notice one party is exempt from is a weaker thing to have given. The
+ * person it is most for cannot see the transport at all — a phone in a pocket
+ * during a watch party hears the room fall silent and, until this, was told
+ * nothing about why.
+ */
+export function chimePlay(amplitude?: number): void {
+  playChime('play', amplitude);
+}
+
+/** The party's film has stopped, and the room has its microphones back. */
+export function chimePause(amplitude?: number): void {
+  playChime('pause', amplitude);
+}
+
 /** How long a kind occupies the speaker, in milliseconds. */
 function spanMs(kind: ChimeKind): number {
   return CHIME_NOTES[kind] * CHIME_NOTE_SECONDS * 1000;
@@ -149,9 +182,11 @@ export type ChimeOutcome = 'played' | 'refused' | 'queued' | 'dropped';
  * **Derived rather than chosen, because it is a statement about the queue and
  * not about a duration.** The rule it enforces is the one the comment in
  * `chime` states: a wait longer than everything one tick could possibly
- * declare is not a busy room, it is a backlog. That bound is the four kinds
+ * declare is not a busy room, it is a backlog. That bound is every kind
  * end to end with a beat after each — so a tick that rings every chime the app
- * has still sounds all four, and a fifth is a genuine pile-up.
+ * has still sounds the lot of them, and one more is a genuine pile-up. It is
+ * derived from `KINDS`, so a kind added there widens it with nobody
+ * remembering to.
  *
  * **It was a flat second until 2026-09-17, and that is what made it fragile.**
  * A second comfortably held four chimes at the old 90ms beat and silently

@@ -623,6 +623,22 @@ public class AudioRouteModule: Module {
   private static let noteE5 = 659.25
   private static let noteA5 = 880.0
   private static let noteCS5 = 554.37
+  /**
+   The low anchor, and the only note below the presence chimes' register.
+
+   **It is what makes the watch pair unmistakable rather than merely
+   different.** Every other kind lives between C#5 and A5, so an ear that has
+   learnt four sounds in that band hears a fifth one there as a variation on
+   them — which is how `nearby` came to sound like arriving. A note an octave
+   under the lot of them is not a variation; the pair that touches it is
+   audibly about something else before its second note has sounded.
+
+   A5 against A4 also makes the widest interval the table can draw, which is
+   the other half of the same choice: `in` and `out` are a fourth apart and
+   `play` and `pause` an octave, so the two pairs stay distinguishable through
+   a phone's speaker at the far end of a room.
+   */
+  private static let noteA4 = 440.0
 
   /**
    What each kind is made of, which is the whole difference between them.
@@ -660,6 +676,16 @@ public class AudioRouteModule: Module {
     // mistakable for `in` at the far end of a corridor. See
     // planning/decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
     "recording": [noteCS5, noteE5, noteA5],
+    // **The film's pair, and it is the room's voice rather than the film's
+    // transport that decides which way each one goes.** A run closes every
+    // microphone in the room — see `isScreening` in core/micNeeded.ts — and a
+    // pause gives them all back, so *play* is the room's voice leaving and
+    // *pause* is it arriving. That is the direction `out` and `in` already
+    // mean, an octave down, and it is the half somebody would otherwise
+    // "correct" to rising-for-play. See
+    // planning/decisions/2026-09-26-the-film-says-when-it-starts-and-stops.md.
+    "play": [noteA5, noteA4],
+    "pause": [noteA4, noteA5],
     "nearby-a": [noteE5],
     "nearby-b": [noteA5, noteA5],
     "nearby-c": [noteCS5, noteCS5],

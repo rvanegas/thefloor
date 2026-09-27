@@ -41,9 +41,16 @@ export type ChimeOutcome = 'played' | 'refused' | 'queued' | 'dropped';
 const NOTE_E5 = 659.25;
 const NOTE_A5 = 880.0;
 const NOTE_CS5 = 554.37;
+/**
+ * The low anchor the watch pair is built on, and the only note under the
+ * presence chimes' register. `noteA4` in `AudioRouteModule.swift`, kept equal
+ * for the reason the other three are: the same event must not sound like a
+ * different one depending on which screen somebody is at.
+ */
+const NOTE_A4 = 440.0;
 
 /**
- * The four kinds, as note sequences.
+ * The six kinds, as note sequences.
  *
  * `nearby` is the same note twice where the others move — the rung between
  * being in a room and being out of it, sounding like neither direction. E5
@@ -51,12 +58,20 @@ const NOTE_CS5 = 554.37;
  * at A5 and C#5. The lab's `nearby-*` candidates have no counterpart here on
  * purpose: the choice between them is made through a phone's speaker, and a
  * browser is not that.
+ *
+ * `play` and `pause` are a falling and a rising octave, which is the widest
+ * interval the table draws and the one pair that touches A4. What decides the
+ * direction is the room's voice rather than the film's transport — a run
+ * closes every microphone in the room and a pause gives them back, so *play*
+ * falls the way `out` does. See `chimePlay` in `chime.ts`.
  */
 const KINDS: Record<ChimeKind, number[]> = {
   in: [NOTE_E5, NOTE_A5],
   out: [NOTE_A5, NOTE_E5],
   nearby: [NOTE_E5, NOTE_E5],
   recording: [NOTE_CS5, NOTE_E5, NOTE_A5],
+  play: [NOTE_A5, NOTE_A4],
+  pause: [NOTE_A4, NOTE_A5],
 };
 const NOTE_SECONDS = 0.09;
 /**
@@ -199,4 +214,12 @@ export function chimeNearby(amplitude?: number): void {
 
 export function chimeRecording(amplitude?: number): void {
   chime('recording', amplitude);
+}
+
+export function chimePlay(amplitude?: number): void {
+  chime('play', amplitude);
+}
+
+export function chimePause(amplitude?: number): void {
+  chime('pause', amplitude);
 }

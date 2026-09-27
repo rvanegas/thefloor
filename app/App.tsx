@@ -9,6 +9,7 @@ import { useChannelLink } from './src/state/useChannelLink';
 import { useLockScreen } from './src/state/useLockScreen';
 import { usePresenceChime } from './src/audio/usePresenceChime';
 import { useRecordingChime } from './src/audio/useRecordingChime';
+import { useWatchChime } from './src/audio/useWatchChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
@@ -366,6 +367,18 @@ function Root() {
    * and why it is deliberate.
    */
   useRecordingChime(live);
+
+  /**
+   * Told, out loud, when the party's film starts and stops.
+   *
+   * Here for the reason the three above it are, and more sharply: a film
+   * playing shuts every microphone in the room, so somebody not looking at a
+   * screen hears the conversation stop and is told nothing about why. The
+   * pocket case is not an edge — the call keeps the app running while it is
+   * backgrounded, so the room genuinely does fall silent in somebody's hand.
+   * See `useWatchChime`.
+   */
+  useWatchChime(live);
 
   /**
    * Says this device is being attended, which is all a client does about
