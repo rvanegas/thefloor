@@ -495,10 +495,19 @@ export function ChannelView({
    *
    * It runs on the value changing, so a tab chosen on the bar afterwards
    * stands until something asks for a different one.
+   *
+   * **And on the channel changing, which is the half that was missing.** This
+   * screen is not keyed on the channel, so opening another one from a row or
+   * from the floating picture reconciles the same component rather than
+   * mounting a new one — and `asked` is then frequently the same word it
+   * already was, `App.tsx` holding the tab of the channel that was open
+   * before. Keyed on the value alone, the request was equal to itself and
+   * nothing moved: a film tapped in the corner while a different channel was
+   * open arrived at that channel's last tab instead of at the film.
    */
   useEffect(() => {
     if (asked) setTab(asked);
-  }, [asked]);
+  }, [asked, channelId]);
 
   /**
    * A tab chosen on the bar, which is the only thing anybody above is told
@@ -512,6 +521,9 @@ export function ChannelView({
     setTab(next);
     onTab?.(next);
   };
+  /** The same choice, reachable from a callback that outlives its render. */
+  const choose = useRef(chooseTab);
+  choose.current = chooseTab;
 
   /**
    * **The notepad is written when the field goes away, not only when it is
@@ -1020,6 +1032,39 @@ export function ChannelView({
   const leaveTheFilm = useRef(tellPicture);
   leaveTheFilm.current = tellPicture;
   useEffect(() => () => leaveTheFilm.current?.(false), []);
+
+  /*
+    **And the way back to the film is published, for the tap in the corner.**
+
+    The floating picture's tap means *take me to the film*, and from Home that
+    is an open — `App.tsx` builds this screen with the *Watch* tab asked for.
+    From inside the channel it is not: everything that has to move is state
+    here, and an open cannot reach it. Asking for the tab already asked for was
+    a request equal to itself, so the tab bar did not move; and the settings, a
+    profile and a transcript are early returns *above* the watch tab, so a tap
+    from any of the three set a tab that stayed underneath them. All of it read
+    as a corner that sometimes did nothing.
+
+    The three are cleared exactly as the television's arrival clears them a few
+    hundred lines above, and for the same reason — they are covers over the
+    film, and the tap was a request to see it.
+
+    Registered through a ref in the picture, so this costs no render there;
+    keyed on the channel, so a screen being replaced cannot clear its
+    successor's registration, and so that a film belonging to another channel
+    is opened rather than sent to this screen's watch tab.
+  */
+  const publishWayIn = picture?.setWayIn;
+  useEffect(() => {
+    if (!publishWayIn) return;
+    publishWayIn(channelId, () => {
+      setViewing(null);
+      setSettingsOpen(false);
+      setTranscriptFor(null);
+      choose.current('watch');
+    });
+    return () => publishWayIn(channelId, null);
+  }, [publishWayIn, channelId]);
 
   /*
     And collapsed when this screen goes, which is the one exit the effect above

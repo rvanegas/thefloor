@@ -116,6 +116,30 @@ type PictureApi = {
    * re-render anything.
    */
   setExit: (exit: () => void) => void;
+  /**
+   * **The way *in* to the film, registered by the screen already showing its
+   * channel** — and the reason the tap on the floating picture cannot simply
+   * ask `App.tsx` to open the channel again.
+   *
+   * That tap means *take me to the film*, and from Home it is exactly an open:
+   * the channel screen is not mounted, so it is built with the *Watch* tab
+   * asked for and lands there. From inside the channel it is not, because
+   * everything the tap has to move is `ChannelView`'s own component state and
+   * an open cannot reach it. Which tab is showing is state there, so asking
+   * for the same tab twice was a no-op — and the settings, a profile and a
+   * transcript are early returns *above* the watch tab, so a picture tapped
+   * from any of the three set a tab nobody could see. Both read, from the
+   * corner, as a tap that did nothing.
+   *
+   * So the screen that can do it says how, and this is called with null on the
+   * way out. Keyed on the channel because the film's channel and the open
+   * screen's are not always the same one: a picture tapped while another
+   * channel is open is an open, and the mounted screen's way in is the wrong
+   * one to take.
+   *
+   * A ref like `setExit`, so registering re-renders nothing.
+   */
+  setWayIn: (channelId: string, go: (() => void) | null) => void;
 };
 
 /** What the scrim is allowed to offer, which only the channel screen knows. */
@@ -259,6 +283,8 @@ export function Picture({
   const [controls, setControlsState] = useState<Controls | null>(null);
   /** The screen's own way out, which does not belong in state. See `setExit`. */
   const exit = useRef<(() => void) | null>(null);
+  /** The open channel screen's way to its own film, if one is open. See `setWayIn`. */
+  const wayIn = useRef<{ channelId: string; go: () => void } | null>(null);
   /*
     Which way up the phone may be, which is decided here because this is the
     only place that knows the answer for the whole application. The rule is
@@ -314,6 +340,22 @@ export function Picture({
   const setExit = useCallback((fn: () => void) => {
     exit.current = fn;
   }, []);
+  /*
+    Cleared only by the channel that left it, the same guard `undock` carries
+    and for the same reason: two screens overlap for a moment when one replaces
+    another, and an unconditional clear on unmount lets the outgoing one undo
+    the incoming one's registration.
+  */
+  const setWayIn = useCallback(
+    (forChannel: string, go: (() => void) | null) => {
+      if (go) {
+        wayIn.current = { channelId: forChannel, go };
+        return;
+      }
+      if (wayIn.current?.channelId === forChannel) wayIn.current = null;
+    },
+    []
+  );
 
   const api = useMemo<PictureApi>(
     () => ({
@@ -326,8 +368,9 @@ export function Picture({
       refused,
       setControls,
       setExit,
+      setWayIn,
     }),
-    [dock, undock, fullScreen, atTheFilm, refused, setControls, setExit]
+    [dock, undock, fullScreen, atTheFilm, refused, setControls, setExit, setWayIn]
   );
 
   /**
@@ -421,7 +464,18 @@ export function Picture({
             : null
         }
         box={box}
-        onOpen={() => onOpen(channelId)}
+        /*
+          **The tap is *take me to the film*, and there are two ways to do
+          that.** The screen showing this channel has one — it owns the tab and
+          the three covers over it — and registers it; anywhere else, opening
+          the channel on its *Watch* tab is the whole of it. See `setWayIn`,
+          which is where the account of what an open cannot reach is.
+        */
+        onOpen={() => {
+          const way = wayIn.current;
+          if (way?.channelId === channelId) way.go();
+          else onOpen(channelId);
+        }}
       >
         <WatchPlayer
           watch={watch}

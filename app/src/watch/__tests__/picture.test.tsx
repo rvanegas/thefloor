@@ -396,4 +396,103 @@ describe('The picture outlives the screen it was started from', () => {
     expect(tree.root.findAll((node) => node.type === DockSlot)).toHaveLength(1);
     act(() => tree.unmount());
   });
+
+  /*
+    **The tap in the corner, which has to arrive somewhere every single time.**
+
+    From Home it is an open, and that was always all of it. From inside the
+    channel an open reaches nothing: which tab is showing is the channel
+    screen's own state, so asking for the *Watch* tab while `App.tsx` already
+    held that word was a request equal to itself and the bar did not move —
+    and the settings, a profile and a transcript sit above the tab in that
+    screen, so a tap from any of the three set a tab nobody could see. Both
+    read from the corner as a tap that did nothing, which is the defect these
+    three cover.
+
+    What is asserted is the routing rather than the tab: the screen says how to
+    reach its own film and the picture takes that way when it is the right
+    channel's. `ChannelView` is not reachable from any test here, so the way in
+    is registered by a stand-in doing exactly what that screen does.
+  */
+  describe('The tap on the floating picture', () => {
+    /** A child that registers a way in, the way the channel screen does. */
+    const Screen = ({
+      channelId,
+      go,
+    }: {
+      channelId: string;
+      go: () => void;
+    }) => {
+      const picture = usePicture();
+      const publish = picture?.setWayIn;
+      React.useEffect(() => {
+        if (!publish) return;
+        publish(channelId, go);
+        return () => publish(channelId, null);
+      }, [publish, channelId, go]);
+      return <Text>the channel</Text>;
+    };
+
+    const tapped = (tree: ReactTestRenderer) => {
+      const dock = tree.root.findAll((node) => node.type === WatchDock)[0];
+      expect(dock.props.place).toBe('floating');
+      act(() => dock.props.onOpen());
+    };
+
+    it('takes the open screen’s way to its own film', () => {
+      mockApp.screenFor = 'sess_1';
+      showChannel(playing());
+      const opened: string[] = [];
+      const went: number[] = [];
+
+      const tree = render(
+        <Picture onOpen={(id) => opened.push(id)}>
+          <Screen channelId="sess_1" go={() => went.push(1)} />
+        </Picture>
+      );
+      tapped(tree);
+      expect(went).toHaveLength(1);
+      // Not both: an open on top of it would be `App.tsx` naming a tab this
+      // screen has just moved to, which is the no-op the way in exists for.
+      expect(opened).toEqual([]);
+      act(() => tree.unmount());
+    });
+
+    it('opens the channel when no screen is showing it', () => {
+      mockApp.screenFor = 'sess_1';
+      showChannel(playing());
+      const opened: string[] = [];
+
+      const tree = render(
+        <Picture onOpen={(id) => opened.push(id)}>
+          <Text>home</Text>
+        </Picture>
+      );
+      tapped(tree);
+      expect(opened).toEqual(['sess_1']);
+      act(() => tree.unmount());
+    });
+
+    /*
+      A film belonging to one channel, tapped while another is open: the way in
+      on offer is the wrong one, and taking it would move a tab on a screen the
+      film is not in while leaving the film exactly where it was.
+    */
+    it('opens the film’s own channel rather than the open one', () => {
+      mockApp.screenFor = 'sess_1';
+      showChannel(playing());
+      const opened: string[] = [];
+      const went: number[] = [];
+
+      const tree = render(
+        <Picture onOpen={(id) => opened.push(id)}>
+          <Screen channelId="sess_2" go={() => went.push(1)} />
+        </Picture>
+      );
+      tapped(tree);
+      expect(went).toEqual([]);
+      expect(opened).toEqual(['sess_1']);
+      act(() => tree.unmount());
+    });
+  });
 });
