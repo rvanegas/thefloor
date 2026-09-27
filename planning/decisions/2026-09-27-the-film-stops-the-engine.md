@@ -66,13 +66,25 @@ restarted **after** the film has taken the session, since the film will take it
 whatever the configuration says. The only mechanism ever observed doing that is a
 category release and retake.
 
-So the obstacle was never the configuration and is not the mode or the option.
-**It is that the film stops the engine and only a release can start it again**,
-which is a different problem from the one three builds were spent on, and it is
-the one to design against. What is not yet known is whether a release and retake
-performed *while the film is playing* brings the engine back at all — the film
-holding the session may refuse it — and that is one tap of the probe switch to
-find out.
+**And releasing late works, which was measured an hour later with the same
+switch.** Hold the microphone across the press, release it while the film plays,
+and the pause's retake brings the engine up in 713ms — the subscription returning
+onto a live engine with no freeze behind it. The control in the same session, the
+shipped path releasing at the press, retakes in 735ms. So the pause already pays
+that beat today and deferring the release adds nothing to it.
+
+**`SCREENING` is not needed for any of that.** `LISTENING` is `playback` under
+`spokenAudio` — already a non-voice mode, already 48kHz — so the stereo this was
+all about comes from there and always did. The whole available change is *when*
+the microphone is released: after the picture rather than before it, which adds
+no session state and no configuration.
+
+**What gates it is now a measurement rather than a decision**, and it may take
+the work away entirely. This task was written on build 277, where the film
+started 1.2 to 3.0 seconds after the press. Build 303 logged `watch playing` at
+853, 1443, 1605 and 1793ms — and the slowest of those is the run where the
+microphone was never released at all. If the release is no longer in the
+picture's way there is nothing here to build. See the task.
 
 ## Two things that generalise
 
