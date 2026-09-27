@@ -50,20 +50,20 @@
  */
 
 /**
- * **It detects a dead receiver, not a silent one, and that was measured on
- * 2026-09-27.** A deliberate twenty-second mute of the only subscribed track
- * produced no `playout frozen` line, and nothing else did in ninety minutes.
- * Either `totalSamplesDuration` is unreadable on this build — in which case
- * every quiet reading this has ever given is the absence of measurement the
- * header above forbids mistaking for a measurement of absence — or a muted
- * track goes on advancing the counter because the receiver renders silence.
+ * **It detects a dead receiver and not a muted one, and both halves of that
+ * were measured on 2026-09-27.** A deliberate twenty-second mute of the only
+ * subscribed track produced no line at all: a muted track goes on advancing
+ * `totalSamplesDuration`, because the receiver renders silence and silence is
+ * samples. Forty minutes later, on a genuinely dead engine, it reported
+ * `playout frozen 6s — subscribed, rendering nothing` within six seconds of the
+ * resubscription. So the statistic is readable, this works, and it is the
+ * witness for the fault it was built for.
  *
- * Both are consistent with what this was built for, which is a receiver that
- * has stopped rendering altogether. **Neither makes it usable for any question
- * of the form *did the audio stop*.** Calibrate it against a fault you caused
- * before believing its silence about one you did not; on 2026-09-27 it was
- * reached for as a witness, trusted because it was there, and cost a run. See
- * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ * **What it cannot answer is *can somebody hear this*.** A muted speaker and a
+ * silent room read the same as a conversation here. That is the question it was
+ * mistaken for on 2026-09-27, when its quiet was read as evidence that audio
+ * was fine — it was evidence of nothing, and the ear was what settled that run.
+ * See planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
  */
 
 /** How often the receiver is asked, in ms. Cheap, but not free. */

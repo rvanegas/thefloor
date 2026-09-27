@@ -102,21 +102,27 @@ so that the engine is up when the film's audio arrives — the configuration
 being the thing today's reading removes from suspicion. It is in the panel
 behind the `debug` column, off by default, and the reading needs a build.
 
-## The freeze detector cannot see silence
+## The freeze detector works, and answers a different question
 
-Worth its own heading because it was reached for as the witness and is not one.
-`playout.ts` polls each receiver's `totalSamplesDuration` and reports
-`playout frozen` after five still seconds. A deliberate twenty-second mute of
-the only subscribed track produced **no line at all** — nor did anything else
-in ninety minutes.
+It was reached for as the witness for *did the audio stop*, produced nothing,
+and was written up here as possibly blind. **It is not blind.** Forty minutes
+later, on the dead engine described below, it reported
 
-So either the statistic is unreadable on this build, in which case the detector
-has been blind and every quiet reading it has given is an absence of
-measurement rather than a measurement of absence — the failure its own header
-warns about — or a muted track goes on advancing the counter because the
-receiver renders silence. **Either way it detects a dead receiver and not a
-silent one**, and it cannot answer any question of the form *did the audio
-stop*. The ear can, and did.
+    playout frozen 6s — acct_… subscribed, rendering nothing
+
+within six seconds of the resubscription. So `totalSamplesDuration` is readable
+and this instrument does the job it was built for.
+
+**What it cannot see is a muted track**, which is why the calibration produced
+nothing: a muted publisher's receiver goes on rendering silence, and silence is
+samples. So it answers *is this receiver dead* and never *can somebody hear
+this* — a muted speaker, a quiet room and a conversation all read alike. That
+distinction is the whole of the mistake: its quiet was read as evidence that
+audio was fine, when it was evidence of nothing, and the ear is what settled
+that run.
+
+Corrected the same day, which is the only reason this paragraph is not still
+wrong.
 
 ## Three things that generalise
 
@@ -125,10 +131,12 @@ the claim.** The first run's answer was correct and worthless, and the sentence
 that made it worthless — *nobody else was in the channel* — was in the report
 of it from the beginning.
 
-**An instrument that has never reported anything has not been shown to work.**
-The freeze detector was trusted because it was there. Twenty seconds of a
-deliberate fault is what a witness costs, and it should be spent before the
-witness is believed, not after it says something convenient.
+**Calibrate against the fault you mean, not any fault.** The freeze detector was
+trusted because it was there, then written off because a mute did not move it,
+and both were wrong: it works, and a mute is not the thing it sees. Twenty
+seconds of a deliberate fault is what a witness costs — and the fault has to be
+the one the question is about, or the calibration says as little as the silence
+it was meant to explain.
 
 **The ear is a real instrument and memory is not.** Run three's finding is an
 ear finding, taken while holding the phone, and run two's ear evidence was lost
