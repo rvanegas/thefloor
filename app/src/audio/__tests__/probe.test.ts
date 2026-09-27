@@ -1,6 +1,17 @@
 import { AudioSession } from '@livekit/react-native';
+import { createChannel, reduce } from '../../../../core/channel';
+import { isScreening, microphoneNeeded } from '../../../../core/micNeeded';
+import type { ChannelAction, ChannelState } from '../../../../core/types';
 import { CALL } from '../session';
-import { PROBES, PROBE_GROUPS, WRITE_PROBES, runProbe } from '../probe';
+import {
+  PROBES,
+  PROBE_GROUPS,
+  WRITE_PROBES,
+  filmProbeEngaged,
+  filmProbeKeepsMicrophone,
+  runProbe,
+  setFilmProbe,
+} from '../probe';
 
 /**
  * The write probes, pinned for the two properties that make them usable as an
@@ -81,5 +92,96 @@ describe('the write probes', () => {
     for (const group of PROBE_GROUPS) {
       for (const probe of group.probes) expect(names.has(probe.name)).toBe(true);
     }
+  });
+});
+
+/**
+ * The film probe, whose one hazard is the one it is tested for.
+ *
+ * It exists to keep a microphone through a film so that the engine is up when
+ * the film's audio arrives — see the header in `probe.ts`. What it must never do
+ * is open a microphone for somebody who has no business holding one, because it
+ * is reached by a switch on a screen rather than by a rule anybody reads.
+ */
+const A = 'user-a';
+const B = 'user-b';
+const T0 = 1_700_000_000_000;
+
+function apply(
+  state: ChannelState,
+  steps: Array<[ChannelAction, number]>
+): ChannelState {
+  return steps.reduce((s, [action, at]) => reduce(s, action, at), state);
+}
+
+/** A and B in a room, A showing the film on this device, playing. */
+function screening(): ChannelState {
+  return apply(
+    reduce(
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }),
+      { type: 'ENTER', userId: B },
+      T0
+    ),
+    [
+      [
+        {
+          type: 'START_WATCH',
+          userId: A,
+          videoId: 'dQw4w9WgXcQ',
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        },
+        T0,
+      ],
+      [{ type: 'WATCH_READY', userId: A, durationMs: 600_000 }, T0],
+      [{ type: 'WATCH_HERE', userId: A, watching: true }, T0],
+      [{ type: 'WATCH_PLAY', userId: A }, T0],
+    ]
+  );
+}
+
+describe('the film probe', () => {
+  afterEach(() => setFilmProbe(false, () => {}));
+
+  it('is off until something turns it on, and says so when it moves', () => {
+    const log: string[] = [];
+    expect(filmProbeEngaged()).toBe(false);
+    setFilmProbe(true, (t) => log.push(t));
+    expect(filmProbeEngaged()).toBe(true);
+    // Idempotent, so a second press writes no second line — a log that said a
+    // thing twice would read as two experiments.
+    setFilmProbe(true, (t) => log.push(t));
+    setFilmProbe(false, (t) => log.push(t));
+    expect(log).toEqual([
+      'film probe on — keeping the microphone through the film',
+      'film probe off — the film releases the microphone again',
+    ]);
+  });
+
+  /**
+   * The point of it: the one clause it adds back is the film's.
+   */
+  it('restores the microphone the film took, and only while on', () => {
+    const state = screening();
+    // The fixture is the state this exists for, or the test below proves nothing.
+    expect(isScreening(state, A)).toBe(true);
+    expect(microphoneNeeded(state, A)).toBe(false);
+
+    expect(filmProbeKeepsMicrophone(state, A)).toBe(false);
+    setFilmProbe(true, () => {});
+    expect(filmProbeKeepsMicrophone(state, A)).toBe(true);
+  });
+
+  /**
+   * **The hazard.** `hasMicrophone` is the guard, so the probe can add nothing
+   * for somebody the room is not holding — and this is what would be broken by
+   * somebody "simplifying" the guard to the bare flag.
+   */
+  it('adds nothing for somebody who is not in the room', () => {
+    setFilmProbe(true, () => {});
+    const out = reduce(screening(), { type: 'STEP_OUT', userId: B }, T0 + 1);
+    expect(filmProbeKeepsMicrophone(out, B)).toBe(false);
+    // And it is not a claim about this device either: a member who never
+    // stepped in is the same answer.
+    expect(filmProbeKeepsMicrophone(out, 'user-c')).toBe(false);
   });
 });

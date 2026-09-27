@@ -16,8 +16,11 @@ import {
   PROBES,
   PROBE_GROUPS,
   WRITE_PROBES,
+  filmProbeEngaged,
   restartAudioSession,
   runProbe,
+  setFilmProbe,
+  subscribeFilmProbe,
 } from '../audio/probe';
 import type { AudioIntent } from '../audio/useSessionAudio';
 import { colors, radius, spacing, type } from './theme';
@@ -124,6 +127,13 @@ export function AudioDebugPanel({
    * somebody away believing they have a reading they do not have.
    */
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
+  // Subscribed rather than read once: `App.tsx` holds the same subscription, and
+  // a label that disagreed with what the flag is doing is worse than no label.
+  const [filmProbe, setFilmProbeLabel] = useState(filmProbeEngaged());
+  useEffect(
+    () => subscribeFilmProbe(() => setFilmProbeLabel(filmProbeEngaged())),
+    []
+  );
 
   useEffect(() => {
     if (copied === 'idle') return;
@@ -265,6 +275,28 @@ export function AudioDebugPanel({
                 onPress={() => void runProbe(probe, recordEvent)}
               />
             ))}
+          </View>
+
+          {/*
+            **The film probe, which is a switch rather than a press**, because
+            what it changes has to be in force across a press of Play on another
+            screen. See `audio/probe.ts` § *The film probe* for why it keeps the
+            microphone and deliberately leaves the configuration alone.
+          */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Film — keep the microphone through the film
+            </Text>
+            <Text style={styles.note}>
+              Turn on, then press Play on a watch party on this device. Watch for
+              engine stop play=T rec=T — the signature from build 296, which this
+              app has never been seen to produce. Turn off when done; it holds a
+              microphone open through a film.
+            </Text>
+            <Tap
+              label={filmProbe ? '■ on — release the microphone again' : '▶ off — keep the microphone'}
+              onPress={() => setFilmProbe(!filmProbe, recordEvent)}
+            />
           </View>
 
           <View style={styles.section}>

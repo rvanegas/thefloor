@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import { AudioDeviceModule, AudioSession } from '@livekit/react-native';
 import { configureSession, routeSnapshot } from '../../modules/audio-route';
+import { hasMicrophone } from '../../../core/micNeeded';
+import type { ChannelState, UserId } from '../../../core/types';
 import { CALL } from './session';
 
 /**
@@ -250,3 +252,95 @@ export const WRITE_PROBES: Probe[] = [
       ),
   },
 ];
+
+/**
+ * **The film probe: keep the microphone through the film, and watch the
+ * engine.**
+ *
+ * Added 2026-09-27, once the writes above had cleared the configuration. What
+ * stopped build 296's engine is unknown, and the remaining suspect is the film
+ * itself — a `WKWebView` acquiring the audio session for video playback, 316ms
+ * before `watch playing` and 1,254ms after the write that was blamed for it.
+ *
+ * **This deliberately does not restore `SCREENING`.** The obvious probe would
+ * reinstate the configuration and press Play, and it would confound the two
+ * variables again — which is the mistake that cost 2026-09-23 and 2026-09-26
+ * both. The configuration has been measured and is innocent, so the probe
+ * removes it from the experiment: the session stays `CALL`, `videoChat` and all,
+ * and the only new thing is that **the engine is still up and capturing when
+ * the film's audio arrives.**
+ *
+ * It works by suppressing one clause. `microphoneNeeded` subtracts
+ * `isScreening`; this ORs `hasMicrophone` back in, so a screening device keeps
+ * the device it would otherwise release. Everything else that predicate decides
+ * is untouched — not in the room, or a guest with no grant, and there is still
+ * no microphone, because those are `hasMicrophone` rather than the film.
+ *
+ * **What to watch for is `engine stop play=T rec=T`.** That is the signature
+ * from 296 and it is one this app has never been seen to produce: all
+ * twenty-two stops measured on 2026-09-27 read `rec=F` or both false, the flags
+ * walking down before the engine goes. A stop with both directions still wanted
+ * is one imposed from outside, and if it lands within a couple of seconds of a
+ * press of Play then the film is the answer and `SCREENING` was innocent.
+ *
+ * **The room is still muted for the run and that is not incidental** — it is
+ * what makes this safe to press. A run with a screen in the room is
+ * enforced-muted by `watchPlay`, so the missing echo canceller has nothing to
+ * transmit and nobody hears the film through somebody's microphone. The
+ * loudspeaker feedback measured on 2026-09-27 was two unmuted devices in one
+ * room, which is the test rig rather than the feature.
+ *
+ * Off on every launch, and there is no persistence on purpose: this holds a
+ * microphone open through a film, which is a thing to be doing for one reading
+ * and not a state to wake up in.
+ */
+let filmProbe = false;
+
+/** Who to tell, `App.tsx` being the one that recomputes `micNeeded`. */
+const filmProbeWatchers = new Set<() => void>();
+
+/** Whether the microphone is being kept through the film. */
+export function filmProbeEngaged(): boolean {
+  return filmProbe;
+}
+
+/**
+ * Turns it on or off, and says so in the log.
+ *
+ * The line matters as much as the flag: a reading taken while this was on and
+ * a reading taken while it was off are different experiments, and the log is
+ * the only place that distinction survives to be read tomorrow.
+ */
+export function setFilmProbe(on: boolean, record: (text: string) => void): void {
+  if (filmProbe === on) return;
+  filmProbe = on;
+  record(
+    on
+      ? 'film probe on — keeping the microphone through the film'
+      : 'film probe off — the film releases the microphone again'
+  );
+  for (const watcher of filmProbeWatchers) watcher();
+}
+
+/**
+ * Whether the probe is adding a microphone back for this person in this room.
+ *
+ * **A function rather than the flag, because the guard is the load-bearing
+ * half.** `hasMicrophone` is everything `microphoneNeeded` decides *except* the
+ * film — in the room, and a guest with a grant — so ORing this can only ever
+ * restore what `isScreening` subtracted. Written here rather than spelled out
+ * at the call site so that the one thing this must never do is stated once and
+ * tested once: open a microphone for somebody who has no business holding one.
+ */
+export function filmProbeKeepsMicrophone(
+  channel: ChannelState,
+  me: UserId
+): boolean {
+  return filmProbe && hasMicrophone(channel, me);
+}
+
+/** Subscribes to changes, in the idiom `diagnostics.ts` already uses. */
+export function subscribeFilmProbe(watcher: () => void): () => void {
+  filmProbeWatchers.add(watcher);
+  return () => filmProbeWatchers.delete(watcher);
+}

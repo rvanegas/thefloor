@@ -16,6 +16,7 @@ import { AppProvider, useApp } from './src/state/AppProvider';
 import { useText } from './src/i18n';
 import { LanguageProvider } from './src/i18n/language';
 import { recordEvent } from './src/audio/diagnostics';
+import { filmProbeKeepsMicrophone, subscribeFilmProbe } from './src/audio/probe';
 import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
 import { useNearby } from './src/state/useNearby';
@@ -161,6 +162,21 @@ function Root() {
   const live = here?.channel ?? null;
 
   /**
+   * Re-render when the film probe is toggled, the flag itself being read below
+   * through `filmProbeKeepsMicrophone`.
+   *
+   * **A version rather than a copy of the flag**, so that there is one answer
+   * to *is the probe on* rather than two that can disagree. What this
+   * subscription buys is only the render: the switch is in the audio panel,
+   * several screens below, and a module-level flag that nothing re-renders on
+   * would appear to do nothing until the next unrelated state change. Off for
+   * anybody who has not pressed it this launch; see `audio/probe.ts` § *The
+   * film probe*.
+   */
+  const [, bumpFilmProbe] = useState(0);
+  useEffect(() => subscribeFilmProbe(() => bumpFilmProbe((n) => n + 1)), []);
+
+  /**
    * The seat this device is sitting in, which is the other way to be in a
    * room — and there is at most one.
    *
@@ -185,7 +201,12 @@ function Root() {
   // it is stepped in — and, for a guest, whether they have been granted the
   // microphone.
   const micNeeded = live
-    ? microphoneNeeded(live, me)
+    ? // `filmProbe` is the one thing that may add to this, and it may only add
+      // back what the film subtracted — `hasMicrophone`, never a room somebody
+      // is not in and never a guest without a grant. See `audio/probe.ts` §
+      // *The film probe*; it is off unless somebody with `debug` turned it on
+      // in the audio panel this launch.
+      microphoneNeeded(live, me) || filmProbeKeepsMicrophone(live, me)
     : // A guest's microphone is the grant a member said yes to, and holding
       // it muted is still holding it — the same reading `microphoneNeeded`
       // makes of a member who has muted themselves. See `GuestView.you.mic`.
