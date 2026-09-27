@@ -1,7 +1,9 @@
 import React from 'react';
 import { AppState } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import { AudioSession } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
+import { CALL, SCREENING } from '../session';
 import { drainEvents, resetDiagnostics } from '../diagnostics';
 
 /**
@@ -10,14 +12,27 @@ import { drainEvents, resetDiagnostics } from '../diagnostics';
  *
  * `screening` is an input to the one effect that decides what the microphone
  * is doing — `SCREENING` rather than `CALL`, and `muted` rather than
- * `capturing`, for the length of a run. Every route out of a run therefore has
- * to wake that effect, and a pause is the ordinary one: `watchPause` clears
- * `enforced`, `isScreening` goes false, and the two people who have just
- * paused to talk about what they are watching expect to be heard.
+ * `capturing`, for the length of a run. Every route into and out of a run
+ * therefore has to reach both halves: the device, and the session.
  *
  * Reported 2026-09-26 as *one pauses and then neither can hear each other*,
- * with stepping out and back in as the cure — which is what a fresh connection
- * buys and what nothing short of one was buying.
+ * with stepping out and back in as the cure.
+ *
+ * **Every case here enters a run rather than starting inside one**, and that is
+ * the point rather than tidiness. The first version of this file mounted with
+ * `screening` already true, so the *connect* path applied `SCREENING` — and the
+ * gap it was written to cover is entirely in the transition, where the
+ * `muted` branch was the only writer and wrote nothing. A fixture that begins
+ * mid-film cannot see it. `enters()` is that rule, and no case below mounts
+ * any other way.
+ *
+ * **The pause is modelled with the resubscribe beside it, for the same
+ * reason.** A party mute is a server-side *unsubscription* — `setSilenced` in
+ * `server/src/media.ts` acts on the receiving end — so a run beginning drops
+ * every remote track and a pause brings them back. Toggling `screening` alone
+ * is not a state this app ever reaches, and a fixture that did so reported a
+ * dependency as the whole fault when the resubscribe was already waking that
+ * effect by itself.
  */
 
 const mockEngine = { inputAvailable: true };
@@ -55,6 +70,7 @@ function captureAppState() {
 
 interface FakeRoom {
   localParticipant: { setMicrophoneEnabled: jest.Mock };
+  fire: (event: string, ...args: unknown[]) => void;
 }
 
 const mockRooms: FakeRoom[] = [];
@@ -144,38 +160,102 @@ const settle = async () => {
 
 const logged = () => drainEvents().map((e) => e.text);
 
-describe('a screening device, when the film stops', () => {
+/** What this app wrote to the session itself, as opposed to told the observer. */
+const applied = AudioSession.setAppleAudioConfiguration as jest.Mock;
+const lastApplied = () => applied.mock.calls[applied.mock.calls.length - 1][0];
+
+const other = { identity: 'acct_them' };
+const remote = { kind: 'audio', sid: 'TR_them' };
+
+/**
+ * Mounts in a room with somebody else in it and subscribed, which is where a
+ * watch party is started from and the only state these cases may begin in.
+ * See the header: a fixture that mounts mid-film applies `SCREENING` on the
+ * connect path and cannot see what the transition does or fails to do.
+ */
+async function enters(): Promise<ReactTestRenderer> {
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = renderer.create(<Probe screening={false} />);
+  });
+  await settle();
+  await act(async () => {
+    mockRooms[0].fire('trackSubscribed', remote, {}, other);
+  });
+  await settle();
+  return tree;
+}
+
+/** The film starts: `screening`, and the server withholds the room. */
+async function plays(tree: ReactTestRenderer): Promise<void> {
+  await act(async () => {
+    tree.update(<Probe screening />);
+    mockRooms[0].fire('trackUnsubscribed', remote, {}, other);
+  });
+  await settle();
+}
+
+/** The film pauses: the mute lifts, so the subscription comes back. */
+async function pauses(tree: ReactTestRenderer): Promise<void> {
+  await act(async () => {
+    tree.update(<Probe screening={false} />);
+    mockRooms[0].fire('trackSubscribed', remote, {}, other);
+  });
+  await settle();
+}
+
+describe('a screening device', () => {
   beforeEach(() => {
     mockRooms.length = 0;
     mockEngine.inputAvailable = true;
     captureAppState();
     resetDiagnostics();
+    applied.mockClear();
     jest.useFakeTimers();
   });
   afterEach(() => jest.useRealTimers());
 
-  it('takes the microphone back when the party pauses', async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<Probe screening />);
-    });
-    await settle();
+  /**
+   * **The one that was missing, and the whole of the 2026-09-26 fault.**
+   *
+   * A run is entered through the `muted` branch, which wrote nothing to the
+   * session for as long as `muted` meant only a self-mute. So `SCREENING` was
+   * decided, recorded in `appliedRef`, handed to the native observer — and
+   * never applied. Build 295's log has the consequence: the observer's
+   * `categoryChange` a second later, `engine stop play=T rec=T`, and no
+   * `engine start` for the rest of the session.
+   */
+  it('writes the session it decided on when the film starts', async () => {
+    const tree = await enters();
+    expect(lastApplied()).toBe(CALL);
 
-    // The run: the device is held open and nothing is published from it.
+    await plays(tree);
+
     expect(logged().some((l) => l.includes('muted SCREENING'))).toBe(true);
+    // Not merely *decided*. The observer is told through `pushPolicy` either
+    // way; this is the other writer, and it is the one whose absence left the
+    // pause below with nothing to change back.
+    expect(lastApplied()).toBe(SCREENING);
 
-    // The pause, with nothing else about the channel moving — which is the
-    // whole point. No arrival, no departure, no self-mute, no foreground
-    // transition: `screening` alone, exactly as `WATCH_PAUSE` delivers it.
     await act(async () => {
-      tree.update(<Probe screening={false} />);
+      tree.unmount();
     });
-    await settle();
+  });
+
+  it('takes the microphone and the call session back when the film pauses', async () => {
+    const tree = await enters();
+    await plays(tree);
+    mockRooms[0].localParticipant.setMicrophoneEnabled.mockClear();
+
+    await pauses(tree);
 
     expect(logged().some((l) => l.includes('capturing CALL'))).toBe(true);
     expect(
       mockRooms[0].localParticipant.setMicrophoneEnabled
     ).toHaveBeenCalledWith(true);
+    // The half that was reaching the device and not the session. A microphone
+    // unmuted under `SCREENING` is a microphone on a stopped engine.
+    expect(lastApplied()).toBe(CALL);
 
     await act(async () => {
       tree.unmount();
@@ -183,26 +263,23 @@ describe('a screening device, when the film stops', () => {
   });
 
   /**
-   * The same edge in the other direction, which worked and worked by
-   * accident: a run begins by withholding the room, so every remote
-   * subscription goes and `othersAudible` wakes the effect a beat later. It is
-   * asserted here so the two directions stand on the same dependency rather
-   * than one of them standing on the media plane's timing.
+   * Twice through, because the first run is the only one the old code got a
+   * category change out of — the observer's, which stopped the engine — and
+   * every run after it moved nothing at all. A fixture that plays once cannot
+   * tell a session that recovers from one that is merely quiet.
    */
-  it('gives the film the session when the party starts', async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(<Probe screening={false} />);
-    });
-    await settle();
+  it('survives a second run', async () => {
+    const tree = await enters();
+    await plays(tree);
+    await pauses(tree);
+    drainEvents();
+    applied.mockClear();
+
+    await plays(tree);
+    expect(lastApplied()).toBe(SCREENING);
+    await pauses(tree);
+    expect(lastApplied()).toBe(CALL);
     expect(logged().some((l) => l.includes('capturing CALL'))).toBe(true);
-
-    await act(async () => {
-      tree.update(<Probe screening />);
-    });
-    await settle();
-
-    expect(logged().some((l) => l.includes('muted SCREENING'))).toBe(true);
 
     await act(async () => {
       tree.unmount();

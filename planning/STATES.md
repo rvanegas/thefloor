@@ -950,6 +950,19 @@ a measurement made under a different category. What iOS actually granted is a
 thing to read off `route` in the shipped log rather than to believe from this
 table. See decisions/2026-09-23-the-screen-keeps-its-microphone.md.
 
+**There has now been one reading, and it does not clear this row.** Build 295,
+2026-09-26: `muted SCREENING`, then a `categoryChange` 1.2 seconds later, then
+`engine stop play=T rec=T` and no `engine start` for the rest of the session —
+so the device was *not* held through the run, and `watch playing after 1737ms`
+says the first press of Play still cost the second the row above was written to
+save. **Read it as provisional**, because the write was missing: the `muted`
+branch applied no configuration at all until
+decisions/2026-09-26-a-hold-can-move-the-session.md, so what moved the category
+was the observer at a transition, which is the disagreement § *Where the sources
+disagree* is about. Whether `SCREENING` stops the engine when it is applied
+*before* the transition is untested. If it does, this row becomes `CALL` and the
+film gives up stereo.
+
 **The empty-channel row is the reversal, and it was made knowingly.**
 `core/micNeeded.ts` used to carry the principle *being in an empty channel
 should cost the speakers nothing*, and that principle is now inverted: the

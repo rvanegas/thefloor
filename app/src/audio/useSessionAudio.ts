@@ -1825,6 +1825,16 @@ export function useSessionAudio(
       );
       return;
     }
+    /**
+     * **Whether the session itself has to be written, which a hold can now
+     * need.** See the `muted` branch below.
+     *
+     * Read before `appliedRef` is overwritten, since it is the previous
+     * configuration this asks about. `undefined` on the first pass through a
+     * connection counts as a move: a device that has applied nothing has a
+     * session that says whatever the last channel left it saying.
+     */
+    const configMoved = applied?.config !== config;
     appliedRef.current = { intent, config };
     // Written before the awaits below rather than after them, deliberately.
     // This is the record of what was *asked*, and the ask happens here; a
@@ -1863,17 +1873,41 @@ export function useSessionAudio(
     // has stopped. Configuring a `playback` session that is still recording is
     // exactly what silences the echo canceller.
     //
-    // `muted` is the case that has neither ordering problem, because it moves
-    // nothing: the device stays as it was, and `hasAudio` cannot change on a
-    // self-mute — being muted requires somebody else in the room, which is
-    // itself audio. That is why this branch does not re-state the
-    // configuration at all.
+    // **A hold has neither ordering problem, and since 2026-09-23 it can still
+    // move the session.** The device stays as it was either way, so there is
+    // nothing for the configuration to be sequenced against — but `muted` now
+    // means two different things. A self-mute leaves the configuration exactly
+    // where it was, which is the 2026-08-20 fix and the reason this branch
+    // wrote nothing for a year; a screening run holds the same device under
+    // `SCREENING` instead of `CALL`, and that is a real move.
+    //
+    // **It went unwritten for three days and cost a room.** This branch is the
+    // whole of what a run *entering* does, so with `applyFor` missing from it
+    // the only writer told about `SCREENING` was `pushPolicy` above — the
+    // native observer, which applies at the next engine transition rather than
+    // now. Measured 2026-09-26 on build 295: `muted SCREENING`, then the
+    // observer's `categoryChange` 1.2 seconds later, then `engine stop play=T
+    // rec=T` and no `engine start` ever again. The pause that followed asked
+    // for `CALL` correctly and produced no `categoryChange` at all, because
+    // nothing had ever told the session it was anything else. Both
+    // microphones unmuted, both subscriptions came back, and all of it landed
+    // on a stopped engine — stepping out and back in was the only cure,
+    // that being the one path that releases the session and starts the engine
+    // from nothing. See `planning/POSTMORTEM-echo.md`: three writers, and this
+    // is them disagreeing from a new direction.
+    //
+    // Guarded on the move rather than stated unconditionally, so a plain
+    // self-mute still writes nothing. Re-stating `CALL` across a self-mute is
+    // the Bluetooth profile handover that `intentFor` exists to avoid, and
+    // `policy.test.tsx` § *leaves the session a call* pins its absence.
     (intent === 'capturing'
       ? applyFor(want).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
         )
       : intent === 'muted'
-        ? holdMicrophone(room)
+        ? (configMoved ? applyFor(want) : Promise.resolve()).then(() =>
+            holdMicrophone(room)
+          )
         : releaseMicrophone(room)
             // Re-stated rather than assumed, and note this no longer implies
             // `playback`: letting *our* device go hands the session back only

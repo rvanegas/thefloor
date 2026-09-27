@@ -1,5 +1,15 @@
 # The film is a dependency of the session effect
 
+> **Corrected the same day by
+> 2026-09-26-a-hold-can-move-the-session.md, which has the cause.** The
+> dependency added here was a real latent bug and stays. It was **not** what
+> was reported: the premise below — that a run ending "moves nothing else at
+> all" — is wrong, because a party mute is a server-side *unsubscription*, so
+> the pause brings every remote track back and moves `othersAudible`, which was
+> already a dependency of that effect. Both directions were masked, not one.
+> The reasoning about the two directions failing differently is wrong for the
+> same reason. Read the correction first.
+
 Reported 2026-09-26: two people watching a party in the app, one pauses, and
 neither can hear the other afterwards. Stepping out and back in restores it.
 
