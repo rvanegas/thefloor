@@ -936,12 +936,21 @@ recording, so the capture fed nothing, and a run with a screen in the room is
 enforced-muted, so it fed no subscription either. See
 decisions/2026-09-17-the-screen-is-the-app.md.
 
-**What it costs is about a second on every press of Play**, and that is
-measured. Build 277: a press of Play left the application in 40 to 120ms, and
-`engine stop play=F rec=F` landed at 0.92 to 1.11 seconds with the category
-change immediately behind it — the film could not start until the microphone had
-been torn down. A press of Pause, which takes a device rather than releasing
-one, moved category in 0.27 to 0.41 seconds every time.
+**What it costs is nothing, and the sentence that stood here for three weeks
+said a second.** Build 277 measured a press of Play leaving the application in
+40 to 120ms with `engine stop` at 0.92 to 1.11 seconds behind it, and concluded
+that *the film could not start until the microphone had been torn down*. The
+teardown is real and the inference was not: build 303, nineteen presses, gives a
+median of 1463ms with the microphone released and 1662ms with it held — held
+minus released is +85ms at t = 1.08, and the sign is the wrong way round. The
+audio session runs alongside the player rather than in front of it, and what
+spends the second and a half is the round trip plus the `WKWebView` starting
+playback. See
+decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
+
+A press of Pause, which takes a device rather than releasing one, moved category
+in 0.27 to 0.41 seconds on build 277, and the retake brings the engine up in
+about 730ms on build 303 whichever way the film was played.
 
 **So 2026-09-23 held the device and changed the configuration instead**, which
 is what `SCREENING` was: `playAndRecord` so nothing is released, `default`
@@ -956,20 +965,27 @@ the 1.2 seconds it took when only the observer knew:
     engine stop play=T rec=T
     capturing CALL            (no route change, no engine start)
 
-`setAppleAudioConfiguration` writes the shared state the observer applies *at* a
-transition, so with the engine stopped nothing applied the `CALL` the pause asked
-for. Both microphones unmuted onto a dead engine and the room could not talk
-until somebody left the channel and returned. `watch playing after 1689ms` says
-it did not buy the second back either.
+Both microphones unmuted onto a dead engine and the room could not talk until
+somebody left the channel and returned. `watch playing after 1689ms` says it did
+not buy the second back either.
 
-**The release is not the cost; it is the repair.** That is the sentence this
-whole episode produced, and it belongs with disagreement § *Where the sources
-disagree*: a **category** change tears the device down and brings the engine
-back up, and a **configuration** change tears it down and leaves it down. Which
-is why the expensive arrangement is the one that works, and why the second on
-Play is paid rather than engineered away. `planning/tasks/a-film-in-stereo-needs-no-teardown.md`
-carries what avoiding it would need and why the obvious repair is forbidden;
-decisions/2026-09-26-the-film-keeps-its-stereo.md has the whole account.
+**What stopped the engine was the film, and this was settled on 2026-09-27 after
+being got wrong three times.** A `WKWebView` starting video playback takes the
+audio session, and the engine stops with `play=T rec=T` — both directions still
+enabled, which is how an interruption from outside reads and is not how any stop
+this application causes reads. Five reproductions, 1,101 to 1,432ms after the
+press and always just before `watch playing`. The configuration write was
+measured separately and stops nothing at all.
+
+**So the rule is: a held microphone leaves the pause with no retake to
+perform.** The film will take the session whatever the configuration says, and
+the only thing ever observed bringing the engine back is a **category** release
+and retake — which releasing the microphone for the film forces and holding it
+removes. That is why the shipped arrangement works, and it costs nothing, which
+is the part every earlier version of this section had wrong.
+decisions/2026-09-27-the-film-stops-the-engine.md is the account;
+decisions/2026-09-26-the-film-keeps-its-stereo.md is the entry it corrects, and
+carries a banner saying so.
 
 **The empty-channel row is the reversal, and it was made knowingly.**
 `core/micNeeded.ts` used to carry the principle *being in an empty channel

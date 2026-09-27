@@ -21,7 +21,7 @@ import {
  * under jest has one. What can be checked at a desk is that each press is one
  * write, and that a destructive press cannot be reached by sweeping a list of
  * readers. The reading itself is taken on a phone — see
- * `planning/tasks/a-film-in-stereo-needs-no-teardown.md`.
+ * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
  */
 const applied = AudioSession.setAppleAudioConfiguration as jest.Mock;
 

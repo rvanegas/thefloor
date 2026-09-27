@@ -156,8 +156,10 @@ export async function restartAudioSession(
 /**
  * **The writes, which are a different experiment in the same rig.**
  *
- * Added 2026-09-27 for `planning/tasks/a-film-in-stereo-needs-no-teardown.md`
- * § *whether the engine stop is caused by the mode change specifically*. The
+ * Added 2026-09-27 for the question *whether the engine stop is caused by the
+ * mode change specifically* — the task that asked it is closed and its premise
+ * gone; decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md is
+ * where that went. The
  * ten probes above ask which *reader* is destructive; these ask what a
  * **write** does to a running engine, which is the question three builds were
  * spent guessing at between 2026-09-23 and 2026-09-26.
@@ -285,12 +287,18 @@ export const WRITE_PROBES: Probe[] = [
  * iOS taking the session from a backgrounded app. See
  * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
  *
- * **It is kept because the next question is asked with it.** Whether a category
- * release and retake performed *while the film is playing* brings the engine
- * back is unknown, and toggling this off mid-film is that experiment: it drops
- * `micNeeded`, which releases the category, and whether an `engine start`
- * follows is the whole answer. Any design that keeps the microphone through a
- * film needs it to be yes.
+ * **It is kept because it is the only way to press Play without releasing the
+ * microphone**, which is the control for anything measured about that press. It
+ * answered two more questions the same afternoon. Releasing mid-film works: the
+ * pause's retake brings the engine up in 713ms against 735ms on the shipped
+ * path, so the pause already pays that beat. And then the whole premise fell —
+ * nineteen presses, a median of 1463ms released against 1662ms held, so the
+ * teardown was never in the picture's way at all. See
+ * planning/decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
+ *
+ * So there is no longer a design waiting on this. Keep it for the next reading
+ * that needs a press with the microphone held — a headset run is the obvious
+ * one, being the measurement nobody has taken.
  *
  * **The room is still muted for the run and that is not incidental** — it is
  * what makes this safe to press. A run with a screen in the room is
