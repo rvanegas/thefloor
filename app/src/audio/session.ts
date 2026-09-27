@@ -117,16 +117,24 @@ export const LISTENING: AppleAudioConfiguration = {
  * that releases the session and reaches `engine start play=T rec=T` from
  * nothing.
  *
- * **What is not known is what stopped it.** Two things in that log point away
- * from the write and were read past at the time. The stop is 1,254ms after it,
- * where every write measured since lands in under 280ms. And it reads
- * `play=T rec=T` — both directions still enabled — where all twenty-two stops
- * this app was seen to cause on 2026-09-27 read `rec=F` or both false: the
- * flags walk down first, then the engine goes. A stop with both still wanted is
- * one imposed from outside. It arrives 316ms before `watch playing`, so the
- * film's own `WKWebView` taking the session is the suspect, and the probe for it
- * is the debug switch in the audio panel that keeps the microphone through the
- * film.
+ * **What stopped it was the film, measured the same day on build 303.** The
+ * `WKWebView` starting video playback takes the audio session and the engine
+ * stops — reproduced three times, 1,208 to 1,432ms after the press and 217 to
+ * 316ms before `watch playing`, with nothing subscribed in the run that settles
+ * it. Two things in this log said so and were read past three times: the stop is
+ * 1,254ms after the write where every write lands in under 280ms, and it reads
+ * `play=T rec=T`, both directions still enabled, where all twenty-two stops this
+ * app was seen to cause read `rec=F` or both false. The flags walk down first,
+ * then the engine goes; a stop with both still wanted is one imposed from
+ * outside. See
+ * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+ *
+ * **So nothing restarted it because nothing released the category.** Holding the
+ * microphone is exactly what removes the release and retake, and a pause
+ * re-asserting the same category is not one — an engine does not come back for
+ * that. Releasing the microphone for the film makes that impossible, which is
+ * why the shipped arrangement works and why the second on Play is the repair
+ * rather than the fault.
  *
  * `microphoneNeeded` in core/micNeeded.ts subtracts the film either way, and
  * that has not changed: a screening device releases its microphone, the session

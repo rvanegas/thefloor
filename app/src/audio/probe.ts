@@ -276,12 +276,21 @@ export const WRITE_PROBES: Probe[] = [
  * is untouched — not in the room, or a guest with no grant, and there is still
  * no microphone, because those are `hasMicrophone` rather than the film.
  *
- * **What to watch for is `engine stop play=T rec=T`.** That is the signature
- * from 296 and it is one this app has never been seen to produce: all
- * twenty-two stops measured on 2026-09-27 read `rec=F` or both false, the flags
- * walking down before the engine goes. A stop with both directions still wanted
- * is one imposed from outside, and if it lands within a couple of seconds of a
- * press of Play then the film is the answer and `SCREENING` was innocent.
+ * **It answered, the same day it was written: the film stops the engine.**
+ * `engine stop play=T rec=T` lands 1,208 to 1,432ms after the press and 217 to
+ * 316ms before `watch playing`, three times, including once with nothing
+ * subscribed — so neither the configuration nor the party mute's unsubscription
+ * is the cause. Both directions still enabled is the signature of an
+ * interruption from outside, and the only other instance anybody has logged is
+ * iOS taking the session from a backgrounded app. See
+ * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+ *
+ * **It is kept because the next question is asked with it.** Whether a category
+ * release and retake performed *while the film is playing* brings the engine
+ * back is unknown, and toggling this off mid-film is that experiment: it drops
+ * `micNeeded`, which releases the category, and whether an `engine start`
+ * follows is the whole answer. Any design that keeps the microphone through a
+ * film needs it to be yes.
  *
  * **The room is still muted for the run and that is not incidental** — it is
  * what makes this safe to press. A run with a screen in the room is

@@ -59,13 +59,14 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
     heard until they left the channel and returned. It did not even buy the
     second back: `watch playing after 1689ms`.
 
-    **Corrected 2026-09-27: the configuration write was not what stopped it.**
-    Measured directly on build 302 — the mode alone, and this exact
-    configuration, held forty seconds with the engine capturing and a remote
-    track rendering, and nothing stopped. So this exception stands on the
-    second on Play rather than on the configuration route being impossible,
-    and what stopped build 296's engine is open. See
-    planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+    **Corrected 2026-09-27: the film stopped it, not the write.** The
+    configuration was measured directly on build 302 and stops nothing. The
+    `WKWebView` taking the audio session as the film begins is what stops the
+    engine, and holding the microphone is what leaves it stopped — there being
+    no release and retake to bring it back. So this exception is the repair
+    rather than a concession, and it is why the second on Play is a second and
+    not a silence. See
+    planning/decisions/2026-09-27-the-film-stops-the-engine.md.
 
     So the second is paid and the film keeps its stereo. See
     `planning/decisions/2026-09-26-the-film-keeps-its-stereo.md`, and
@@ -134,12 +135,14 @@ export function hasMicrophone(
  * the configuration, and on build 296 the room could not talk when the film
  * paused, the engine having stopped with nothing to restart it.
  *
- * **What is corrected as of 2026-09-27 is why.** The write was not the cause:
- * this exact configuration was applied to a capturing, rendering engine on
- * build 302 and held forty seconds without stopping it. The cheap version may
- * therefore be available after all — what is not yet known is what *did* stop
- * that engine, and the film's own `WKWebView` is the suspect. See
- * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ * **What is corrected as of 2026-09-27 is why, and the answer is the film.** The
+ * write was not the cause: this exact configuration was applied to a capturing,
+ * rendering engine on build 302 and held forty seconds without stopping it. What
+ * stops the engine is the `WKWebView` taking the audio session as the film
+ * begins — three reproductions on build 303, including one with nothing
+ * subscribed. And nothing restarts it because holding the microphone is what
+ * removes the release and retake. See
+ * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
  *
  * **So this exception stands on the second on Play**, which is build 277's
  * measurement and is untouched by any of that: releasing and retaking the
