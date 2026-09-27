@@ -74,7 +74,7 @@ function captureAppState() {
 }
 
 interface FakeRoom {
-  localParticipant: { setMicrophoneEnabled: jest.Mock };
+  localParticipant: { setMicrophoneEnabled: jest.Mock; unpublishTrack: jest.Mock };
   fire: (event: string, ...args: unknown[]) => void;
 }
 
