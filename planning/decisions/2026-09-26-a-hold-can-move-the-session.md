@@ -88,10 +88,12 @@ the first version broke, and both are in its header:
 A third case plays twice, because the first run is the only one the old code
 got any category change out of and every run after it moved nothing at all.
 
-That file was rewritten once more the same day, when `SCREENING` was deleted: the
-two fixture rules above are why it is shaped as it is and they still hold, but
-what it now asserts is the *absence* of a session change. See
-2026-09-26-the-film-keeps-its-stereo.md.
+That file was rewritten once more the same day, when `SCREENING` was deleted and
+the device went back to being released. The two fixture rules above are why it is
+shaped as it is and both still hold; what changed is the subject. It pins the
+release and the retake — `LISTENING` while the film runs, `CALL` at the pause —
+where this version pinned a device held under a configuration that no longer
+exists. See 2026-09-26-the-film-keeps-its-stereo.md.
 
 ## What was open, and what still is
 
