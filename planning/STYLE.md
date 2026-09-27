@@ -736,7 +736,10 @@ do at the top, facts you read above them.
 **The exception is *Removing them from this channel*, which is last**, added
 2026-09-26. It is the one section that is about them rather than with them, and
 weight is what puts it at the bottom: a screen that led with it would be a
-screen for getting rid of people that also happens to offer a ping. The mute
+screen for getting rid of people that also happens to offer a ping. **Last
+means below *Contact* too**, corrected 2026-09-27 — it shipped above it, which
+left the negative action in the middle of the screen with a card after it, and
+being the last thing seen is the whole point of where it sits. The mute
 control's own argument is the neighbouring half of this — it is on the profile
 rather than on the roster row precisely so that a tap from a list of faces
 cannot reach it, and a control that takes somebody's place away needs that same
