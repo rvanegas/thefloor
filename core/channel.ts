@@ -7,6 +7,9 @@ import {
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
   MAX_SPEAKING_GUESTS,
+  MIN_PARTICIPANTS_TO_REMOVE,
+  REMOVAL_MOTION_WINDOW_MS,
+  REMOVAL_MOVES_REQUIRED,
   SELF_UNMUTE_GRACE_MS,
   WAITING_WINDOW_MS,
 } from './constants';
@@ -69,6 +72,7 @@ import type {
   ChannelState,
   Guest,
   GuestId,
+  RemovalMotion,
   UserId,
 } from './types';
 
@@ -140,6 +144,11 @@ export function createChannel(params: {
     watchingHere: [],
     guests: {},
     knocks: [],
+    // Nothing is proposed about anybody in a channel that has just opened.
+    // Stated rather than left absent, though the field is optional on the wire
+    // for an old server's sake: a channel this reducer built has an answer, and
+    // `{}` is it.
+    removals: {},
     floor: initialFloorState(),
     selfMuted: Object.fromEntries(participants.map((p) => [p, false])),
     selfUnmutedAt: {},
@@ -887,6 +896,127 @@ export function canLeaveChannel(state: ChannelState, userId: UserId): boolean {
     // so in the same place rather than hiding the difference behind one word.
     state.participants.length > 1
   );
+}
+
+/**
+ * The live motion to remove `targetId`, or null when there is none.
+ *
+ * **The only honest way to read `state.removals`.** A motion lapses on a clock
+ * rather than being swept — core has no clock of its own, so nothing runs a
+ * day later to delete it — which means the raw map can hold an entry that
+ * stopped meaning anything twenty-three hours ago. Every guard, every screen
+ * and every reducer case goes through here, so a lapsed motion is invisible
+ * everywhere at once instead of in most places.
+ *
+ * The stale entry itself is left where it is until somebody touches that
+ * target again, at which point the reducer replaces it. Deleting it on read
+ * would make this a mutation, and `reduce` is the only thing here that returns
+ * new state.
+ */
+export function removalMotion(
+  state: ChannelState,
+  targetId: UserId,
+  now: number
+): RemovalMotion | null {
+  const motion = state.removals?.[targetId];
+  if (!motion || motion.movedBy.length === 0) return null;
+  if (now - motion.at > REMOVAL_MOTION_WINDOW_MS) return null;
+  // A motion against somebody who has since left, or who was removed by a
+  // different motion, is not a motion about anybody. It survives in the map
+  // only if nothing has touched it since; `dropParticipant` clears the entry it
+  // knows about, and this is the backstop for a state restored from disk.
+  if (!isParticipant(state, targetId)) return null;
+  return motion;
+}
+
+/**
+ * How many more members have to agree before `targetId` is removed. Null where
+ * a removal is not possible in this channel at all.
+ *
+ * What the screen says out loud, and the reason it is here rather than counted
+ * at the call site: *one more person has to agree* is the sentence the control
+ * is for, and the arithmetic that produces it — the threshold, the movers
+ * already on it, the lapse — is the rule rather than a display detail.
+ */
+export function removalMovesWanted(
+  state: ChannelState,
+  targetId: UserId,
+  now: number
+): number | null {
+  if (state.status !== 'active') return null;
+  if (!isParticipant(state, targetId)) return null;
+  if (state.participants.length < MIN_PARTICIPANTS_TO_REMOVE) return null;
+  const moved = removalMotion(state, targetId, now)?.movedBy.length ?? 0;
+  return Math.max(0, REMOVAL_MOVES_REQUIRED - moved);
+}
+
+/**
+ * Whether `userId` may move that `targetId` be removed — which is the same
+ * question as whether they may *confirm* a motion somebody else has opened, the
+ * two being one action. See `MOVE_TO_REMOVE`.
+ *
+ * Any member may, of any other member, present or not. The three things it
+ * refuses are the three that are not removals at all: yourself, which is
+ * `LEAVE_CHANNEL`; a second move by somebody already on the motion, which would
+ * let one person be the two agreements; and any move at all in a channel too
+ * small to hold a disinterested second — see `MIN_PARTICIPANTS_TO_REMOVE`,
+ * where the two-member case is argued.
+ */
+export function canMoveToRemove(
+  state: ChannelState,
+  userId: UserId,
+  targetId: UserId,
+  now: number
+): boolean {
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    isParticipant(state, targetId) &&
+    userId !== targetId &&
+    state.participants.length >= MIN_PARTICIPANTS_TO_REMOVE &&
+    !(removalMotion(state, targetId, now)?.movedBy.includes(userId) ?? false)
+  );
+}
+
+/**
+ * Whether `userId` may take their own agreement back off the motion against
+ * `targetId`.
+ *
+ * Exactly whoever is on it, and nobody else: a member who has not moved has
+ * nothing to withdraw, and a member who has cannot clear somebody else's — see
+ * `WITHDRAW_REMOVAL`, where that is the difference between a withdrawal and a
+ * veto.
+ */
+export function canWithdrawRemoval(
+  state: ChannelState,
+  userId: UserId,
+  targetId: UserId,
+  now: number
+): boolean {
+  if (state.status !== 'active') return false;
+  return removalMotion(state, targetId, now)?.movedBy.includes(userId) ?? false;
+}
+
+/**
+ * The same state with every motion **about** `userId` hidden — what the server
+ * sends that person, and nobody else.
+ *
+ * A snapshot is the whole of `ChannelState`, so withholding has to happen on
+ * the way out; see `ChannelState.removals` for why there is nothing worth
+ * drawing to somebody who is being moved against. Motions they have *made*
+ * stay: those are their own acts, and a member who could not see what they had
+ * moved could not withdraw it.
+ *
+ * Returns the state itself where there is nothing to hide, which is nearly
+ * always — the identity makes this free to call on every push, and keeps the
+ * object comparisons downstream meaningful.
+ */
+export function withoutRemovalsAgainst(
+  state: ChannelState,
+  userId: UserId
+): ChannelState {
+  if (!state.removals?.[userId]) return state;
+  return { ...state, removals: without(state.removals, userId) };
 }
 
 /**
@@ -2373,49 +2503,72 @@ function reduceAction(
 
     case 'LEAVE_CHANNEL': {
       if (!canLeaveChannel(state, action.userId)) return state;
+      return dropParticipant(state, action.userId, now);
+    }
 
-      // Stepping out first, through the same path a tap takes, so a departing
-      // floor-holder releases the floor and an emptied channel stops its
-      // recording — one route rather than two that have to agree. It also
-      // settles the ordering hazard: the last member leaving mid-recording
-      // ends the *run* before the channel ends.
-      const gone = stepOut(state, action.userId, now);
+    case 'MOVE_TO_REMOVE': {
+      if (!canMoveToRemove(state, action.userId, action.targetId, now)) {
+        return state;
+      }
 
-      const participants = gone.participants.filter(
-        (id) => id !== action.userId
-      );
-      const { [action.userId]: _muted, ...selfMuted } = gone.selfMuted;
-      const { [action.userId]: _invited, ...invitedBy } = gone.invitedBy;
-      const { [action.userId]: _claimed, ...lastClaimedAt } =
-        gone.floor.lastClaimedAt;
+      // The motion this move joins, or nothing — in which case this move opens
+      // one. `removalMotion` rather than the raw map, so a lapsed motion is
+      // replaced rather than added to: see `REMOVAL_MOTION_WINDOW_MS`, where
+      // dating a fresh motion from a stale one is the hazard being avoided.
+      const open = removalMotion(state, action.targetId, now);
+      const movedBy = [...(open?.movedBy ?? []), action.userId];
 
-      const next: ChannelState = {
-        ...gone,
-        participants,
-        selfMuted,
-        // Removed outright rather than merely cleared, as `selfMuted` is:
-        // membership is gone, so there is no visit for the window to be
-        // scoped to. `stepOut` above has already run, so in practice this is
-        // removing a key that is not there — stated anyway, so that the two
-        // maps keyed by the same people go the same way.
-        selfUnmutedAt: without(gone.selfUnmutedAt, action.userId),
-        // The same, and equally already done: `stepOut` above clears a
-        // declaration on the way past. Stated for the same reason as the line
-        // over it — every map keyed by these people goes the same way, so none
-        // of them is the one somebody forgets.
-        declaredNearbyAt: without(gone.declaredNearbyAt, action.userId),
-        invitedBy,
-        everPresent: gone.everPresent.filter((id) => id !== action.userId),
-        // Dropped for tidiness rather than necessity: claimDelayMs ranks only
-        // people who are present, so a stale entry could never strand the
-        // floor. Removing it keeps the record honest.
-        floor: { ...gone.floor, lastClaimedAt },
+      // Not yet. The motion stands with one more name on it, and the target's
+      // membership is untouched — which is the ordinary outcome of this action,
+      // the second half happening only once somebody else agrees.
+      if (movedBy.length < REMOVAL_MOVES_REQUIRED) {
+        return {
+          ...state,
+          removals: {
+            ...state.removals,
+            // Dated from the first move and no later, which is what the window
+            // is measured against. `open?.at` keeps an existing motion's own
+            // moment; `now` is only reached when this move is what opened it.
+            [action.targetId]: { movedBy, at: open?.at ?? now },
+          },
+        };
+      }
+
+      // Agreed. The departure goes through exactly the path a member's own
+      // leaving takes — `dropParticipant` clears the motion along with every
+      // other map keyed by them, so nothing here has to remember to.
+      //
+      // The channel cannot end this way: `MIN_PARTICIPANTS_TO_REMOVE` means
+      // there were at least three, so at least two remain. That is why there is
+      // no `endChannel` branch here and why there must never need to be — a
+      // rule that let a majority dissolve a channel and its recordings would be
+      // `DELETE_CHANNEL` by another name, and that one is the last member's
+      // alone.
+      return dropParticipant(state, action.targetId, now);
+    }
+
+    case 'WITHDRAW_REMOVAL': {
+      if (!canWithdrawRemoval(state, action.userId, action.targetId, now)) {
+        return state;
+      }
+      const open = removalMotion(state, action.targetId, now);
+      // `canWithdrawRemoval` has already established both, so this is a
+      // narrowing rather than a check.
+      if (!open) return state;
+      const movedBy = open.movedBy.filter((id) => id !== action.userId);
+      // The last mover standing down deletes the motion rather than leaving an
+      // entry with an empty list, which is what makes the presence of a key an
+      // open motion by construction — see `RemovalMotion.movedBy`.
+      return {
+        ...state,
+        removals:
+          movedBy.length === 0
+            ? without(state.removals ?? {}, action.targetId)
+            : {
+                ...state.removals,
+                [action.targetId]: { ...open, movedBy },
+              },
       };
-
-      // Never zero: the last member cannot reach this action at all. Kept as an
-      // assertion rather than a branch — if the guard above ever stops holding,
-      // a channel with no members must still not survive.
-      return participants.length === 0 ? endChannel(next, now) : next;
     }
 
     case 'DELETE_CHANNEL': {
@@ -3214,6 +3367,102 @@ function endRun(state: ChannelState, now: number): ChannelState {
  * real foreign key — so "the channel is destroyed" means it stops being
  * anyone's, not that it stops existing.
  */
+/**
+ * Takes one member off the roster and unwinds everything keyed by them.
+ *
+ * **The one path out of a channel's membership**, shared by `LEAVE_CHANNEL` and
+ * by the removal a second member agrees to. It was inline in the first of those
+ * until the second existed; two copies of this would be two chances to forget
+ * one of the maps, and the consequence of forgetting is a mute, a claim window
+ * or a motion belonging to somebody the channel no longer has.
+ *
+ * It does **not** ask whether the departure is allowed. Both callers have their
+ * own guard and the two are not the same question — one asks whether you may
+ * leave, the other whether two other people have agreed you must — so the
+ * decision stays with them and this stays the mechanism.
+ */
+function dropParticipant(
+  state: ChannelState,
+  userId: UserId,
+  now: number
+): ChannelState {
+  // Stepping out first, through the same path a tap takes, so a departing
+  // floor-holder releases the floor and an emptied channel stops its
+  // recording — one route rather than two that have to agree. It also
+  // settles the ordering hazard: the last member leaving mid-recording
+  // ends the *run* before the channel ends.
+  const gone = stepOut(state, userId, now);
+
+  const participants = gone.participants.filter((id) => id !== userId);
+  const { [userId]: _muted, ...selfMuted } = gone.selfMuted;
+  const { [userId]: _invited, ...invitedBy } = gone.invitedBy;
+  const { [userId]: _claimed, ...lastClaimedAt } = gone.floor.lastClaimedAt;
+
+  const next: ChannelState = {
+    ...gone,
+    participants,
+    selfMuted,
+    // Removed outright rather than merely cleared, as `selfMuted` is:
+    // membership is gone, so there is no visit for the window to be
+    // scoped to. `stepOut` above has already run, so in practice this is
+    // removing a key that is not there — stated anyway, so that the two
+    // maps keyed by the same people go the same way.
+    selfUnmutedAt: without(gone.selfUnmutedAt, userId),
+    // The same, and equally already done: `stepOut` above clears a
+    // declaration on the way past. Stated for the same reason as the line
+    // over it — every map keyed by these people goes the same way, so none
+    // of them is the one somebody forgets.
+    declaredNearbyAt: without(gone.declaredNearbyAt, userId),
+    invitedBy,
+    everPresent: gone.everPresent.filter((id) => id !== userId),
+    // Dropped for tidiness rather than necessity: claimDelayMs ranks only
+    // people who are present, so a stale entry could never strand the
+    // floor. Removing it keeps the record honest.
+    floor: { ...gone.floor, lastClaimedAt },
+    // Both directions, and both are the same fact: a motion is about people who
+    // belong to this channel, and this person no longer does.
+    //
+    // As a **target**, which covers the removal that brought us here — the
+    // motion has been carried out, and an entry left behind would be a standing
+    // proposal about a non-member that a re-invitation would silently walk back
+    // into. As a **mover**, because an agreement is a member's, and a motion
+    // carried by somebody who has since gone would be two people agreeing when
+    // one of them is no longer in the room to disagree. A motion left with
+    // nobody on it goes entirely, on `WITHDRAW_REMOVAL`'s rule.
+    removals: withoutMoverEverywhere(without(gone.removals ?? {}, userId), userId),
+  };
+
+  // Zero only when the departure was a member's own and they were the last:
+  // `canLeaveChannel` refuses that, and a removal cannot reach it at all. Kept
+  // as a branch rather than an assertion because it is cheaper than being wrong
+  // — if a guard above ever stops holding, a channel with no members must still
+  // not survive.
+  return participants.length === 0 ? endChannel(next, now) : next;
+}
+
+/**
+ * Every motion with `userId` struck off its movers, and the ones left with
+ * nobody on them dropped.
+ *
+ * Only ever called from `dropParticipant`, and split out because the shape is
+ * worth naming: this is the one place a motion can lose a mover without that
+ * mover having withdrawn it.
+ */
+function withoutMoverEverywhere(
+  removals: Record<UserId, RemovalMotion>,
+  userId: UserId
+): Record<UserId, RemovalMotion> {
+  return Object.fromEntries(
+    Object.entries(removals).flatMap(([targetId, motion]) => {
+      if (!motion.movedBy.includes(userId)) return [[targetId, motion] as const];
+      const movedBy = motion.movedBy.filter((id) => id !== userId);
+      return movedBy.length === 0
+        ? []
+        : [[targetId, { ...motion, movedBy }] as const];
+    })
+  );
+}
+
 function endChannel(state: ChannelState, now: number): ChannelState {
   return {
     ...state,

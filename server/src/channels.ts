@@ -15,6 +15,7 @@ import {
   MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
+  MIN_PARTICIPANTS_TO_REMOVE,
   WAITING_WINDOW_MS,
 } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
@@ -66,6 +67,7 @@ import type {
   InviteView,
   PublicAccount,
   RejoinableView,
+  RemovalNoticeView,
   SharedChannelView,
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
@@ -274,6 +276,12 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'DECLARE_NEARBY',
   'LEAVE_CHANNEL',
   'DELETE_CHANNEL',
+  // Both carry a target from the wire, so both are validated in `dispatch`
+  // before the reducer sees one — and the actor is supplied there as it is for
+  // every action here, which is what stops a client moving in somebody else's
+  // name. The guards are `canMoveToRemove` and `canWithdrawRemoval`.
+  'MOVE_TO_REMOVE',
+  'WITHDRAW_REMOVAL',
   'INVITE',
   'SET_NAME',
   'SET_DESCRIPTION',
@@ -1995,6 +2003,53 @@ export class ChannelRegistry {
           `removeParticipant ${channelId}/${guestId}`
         );
       }
+      return applied;
+    }
+
+    // Both carry a member id from the wire, so both check it is a string before
+    // the reducer sees it. And one of them has a consequence outside the
+    // reducer, which is why they are here rather than falling through: a removal
+    // owes the person a card, and a card is a row.
+    if (action.type === 'MOVE_TO_REMOVE' || action.type === 'WITHDRAW_REMOVAL') {
+      const targetId = (action as { targetId?: unknown }).targetId;
+      if (typeof targetId !== 'string' || !targetId) {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      // Refused out loud rather than left to the reducer's silence, which is
+      // what the two departures above do and for the same reason: the control
+      // that sends this is a confirmation the person has just answered, and a
+      // move that did nothing and said nothing reads as a dead button. The
+      // sentence names the rule, because the rule is the answer — there is
+      // nobody in a channel of two to be the second agreement.
+      if (
+        action.type === 'MOVE_TO_REMOVE' &&
+        channel.participants.length < MIN_PARTICIPANTS_TO_REMOVE &&
+        isParticipant(channel, userId)
+      ) {
+        return {
+          ok: false,
+          error:
+            'Removing somebody takes two members agreeing, so it needs a third person in the channel. Leave it instead, or start another.',
+          code: 'conflict',
+        };
+      }
+      // The name before the removal, because after it there is no roster to
+      // describe an unnamed channel with and `channelName` would answer from a
+      // shorter one. Read for both actions and used by neither unless somebody
+      // is actually removed, which is the cheap half of getting the order right.
+      const named = isNamed(channel) ? channel.name : null;
+      const applied = this.apply(channelId, userId, action);
+      // Whether the reducer agreed, rather than whether the call returned —
+      // `apply` reports success for a refused action, that being how every guard
+      // in core/ says no. The membership is the evidence: a motion that carried
+      // is one where the target is no longer a participant, which no other
+      // outcome of this action produces.
+      const carried =
+        applied.ok &&
+        action.type === 'MOVE_TO_REMOVE' &&
+        isParticipant(channel, targetId) &&
+        !isParticipant(this.channels.get(channelId) ?? channel, targetId);
+      if (carried) this.noteRemoval(channelId, targetId, named);
       return applied;
     }
 
@@ -4064,6 +4119,78 @@ export class ChannelRegistry {
     if (next === state) return;
     this.commit(state, next);
     this.emit([state.id]);
+  }
+
+  /**
+   * Records that this account was removed from a channel, so that Home can say
+   * so. See `RemovalNoticeView` — this is the whole of what they are told, and
+   * it is the only thing written anywhere about a removal.
+   *
+   * `OR REPLACE` rather than `OR IGNORE`, and the difference is worth a line:
+   * the pair can recur, somebody removed being invitable back by anybody, and
+   * the newer removal is the one the card should be about. The alternative
+   * would leave a card dated to a channel they have since been in again.
+   *
+   * No push. A removal is somebody else's decision about them, and waking a
+   * phone to deliver it would make the app the messenger for an act it has
+   * deliberately kept anonymous — see `RemovalNoticeView`, which argues the
+   * same thing about naming the movers. The card is there when they next read
+   * their channels, which is where the news belongs.
+   */
+  private noteRemoval(
+    channelId: string,
+    accountId: string,
+    channelName: string | null
+  ): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO removal_notices
+           (channel_id, account_id, channel_name, at) VALUES (?, ?, ?, ?)`
+      )
+      .run(channelId, accountId, channelName, this.now());
+  }
+
+  /**
+   * The removals this account has not yet acknowledged, newest first.
+   *
+   * Composed on every home push, which is one indexed read over a table that is
+   * empty for almost every account — the same bargain `helpAnsweredAt` makes.
+   */
+  removalNoticesFor(accountId: string): RemovalNoticeView[] {
+    return this.db
+      .prepare(
+        `SELECT channel_id, channel_name, at FROM removal_notices
+           WHERE account_id = ? ORDER BY at DESC`
+      )
+      .all(accountId)
+      .map((row) => {
+        const r = row as {
+          channel_id: string;
+          channel_name: string | null;
+          at: number;
+        };
+        return { channelId: r.channel_id, name: r.channel_name, at: r.at };
+      });
+  }
+
+  /**
+   * Records that they have read the card, which is to say deletes it.
+   *
+   * Idempotent, because the button is pressable twice on a slow connection —
+   * and unlike `acknowledgePublic` there is no timestamp to keep honest, the row
+   * being the notice rather than a record of an answer. See db.ts §
+   * removal_notices for why this deletes where the other one writes.
+   *
+   * Scoped to the account, which is the whole of the check: the row is about
+   * them, so there is nothing else to be entitled to. A pair that names no row
+   * is not an error — it is a second press.
+   */
+  acknowledgeRemoval(channelId: string, accountId: string): void {
+    this.db
+      .prepare(
+        'DELETE FROM removal_notices WHERE channel_id = ? AND account_id = ?'
+      )
+      .run(channelId, accountId);
   }
 
   private announceKey(channelId: string, userId: string): string {
@@ -6561,6 +6688,19 @@ export class ChannelRegistry {
       // about the channel, and a deploy is not a thing that should quietly
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
+      // Durable, unlike the knocks and guests it sits beside in the state, and
+      // that is the reason a motion lives on `ChannelState` at all rather than
+      // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
+      // — so that the two members who have to agree need not be in the room at
+      // the same time, and a day is far longer than this process lives. A deploy
+      // that dropped every open motion would be a rule that only worked between
+      // restarts, and nobody in the room would know why their agreement had
+      // stopped counting.
+      //
+      // It costs almost nothing in this string, which is rebuilt on every commit
+      // for the comparison below: it is empty for every channel nearly always,
+      // and it changes only when somebody moves or withdraws.
+      removals: channel.removals ?? {},
       initiator: channel.initiator,
       participants: channel.participants,
       invitedBy: channel.invitedBy,
@@ -6930,6 +7070,7 @@ export class ChannelRegistry {
         volume: number;
       };
       trackFile?: { file: string; dir: string } | null;
+      removals?: ChannelState['removals'];
     };
     const stored =
       durable.participants ??
@@ -7023,6 +7164,17 @@ export class ChannelRegistry {
       // somebody was standing by when nothing has heard from them since the
       // restart.
       declaredNearbyAt: {},
+      // Restored, where almost everything around it is not — see `durableOf`.
+      // A motion is not a claim a live process made; it is two people's
+      // agreement, or one person waiting for a second, and a restart is nothing
+      // either of them did. Absent on a row written before the field existed,
+      // which is a channel with no motions — the same thing those channels had.
+      //
+      // Nothing prunes a lapsed one here. `removalMotion` refuses to read an
+      // entry past its window, so one restored from a row written two days ago
+      // is invisible to every guard and screen, and is replaced the next time
+      // anybody moves against that person.
+      removals: durable.removals ?? {},
     };
   }
 

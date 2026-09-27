@@ -4845,6 +4845,33 @@ export function buildApp(options: BuildOptions = {}): App {
     return { ok: true };
   });
 
+  /**
+   * That this account has read the card saying a channel's members removed them.
+   *
+   * A record rather than a decision, like the public notice above — except that
+   * here the record *is* the row, so this deletes rather than writes: see db.ts
+   * § removal_notices. Nothing is gated on it and nothing is restored by it;
+   * what changes is whether the card is drawn again on their next snapshot.
+   *
+   * **No membership check, and there cannot be one.** The whole subject of this
+   * route is somebody who is not in the channel any more; the row's own
+   * `account_id` is the entitlement, and a pair that names no row is answered
+   * the same way as one that did — a second press on a slow connection is not
+   * an error.
+   *
+   * Pushed rather than left to the next change: Home is not otherwise about to
+   * move for this account, and a card that stayed on screen until something
+   * unrelated happened is a button that looks broken.
+   */
+  fastify.post('/removals/:id/read', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    channels.acknowledgeRemoval(id, account.id);
+    homeNotifier.notify([account.id]);
+    return { ok: true };
+  });
+
   /** The two things a feed requires and nothing can derive. */
   fastify.post('/channels/:id/declarations', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5258,6 +5285,12 @@ export function buildApp(options: BuildOptions = {}): App {
       // a bounded reach walk, both of which Home already pays for in other
       // forms, and false outright while the feature is off.
       cohortEligible: channels.wouldPlaceInCohort(userId),
+      // The channels this account has been removed from and not yet said it has
+      // seen — see `RemovalNoticeView`, which is the only thing a removed member
+      // is ever told. On the snapshot rather than fetched by the list that draws
+      // it, because a removal happens while somebody is looking at something
+      // else and the card has to be there when they next read their channels.
+      removals: channels.removalNoticesFor(userId),
       // contactsFor already returns the public shape, deliberately: an
       // outgoing request carries the address rather than a name, so a request
       // to a real account and one to an address without an account look the

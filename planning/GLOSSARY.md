@@ -75,6 +75,8 @@ caused; the list carries the meaning.
 - **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone button 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
+- **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
+- **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
@@ -1297,6 +1299,101 @@ read more loosely than this entry defines it: that tab draws guests and knocks
 beside the members. The word is doing signage there rather than picking out a
 set, and a guard that must distinguish the two still asks `isParticipant`. See
 *channel tabs*.
+
+## Motion to remove
+
+**One member's open proposal that another member be removed from the channel,
+and it is carried the moment a second member agrees.** *One moves, a second
+confirms.* Until then nothing has happened: the person is still a member, and
+they have not been told.
+
+**Two, because nobody owns a channel.** The roster is flat — every member may
+name it, invite into it, record in it and give it a public page — so there was no
+position to hang the power on, and *two of you* is the only majority a flat
+roster can express. It is not a majority of the roster and deliberately does not
+rise with it: two out of six is not most of anybody, and a threshold that grew
+would make the fifth member harder to remove than the third for no reason
+anybody in the room could state. What the second agreement buys is that the act
+was considered twice, and a third buys nothing more.
+
+**Which makes it impossible in a channel of two**, since the only two people in
+it are the one moving and the one being moved against. The way out of a channel
+of two is to *leave* it, which is exactly as effective and is nobody else's
+decision. The server refuses the move out loud and says so, rather than leaving
+a control that does nothing.
+
+**It lapses after a day**, measured from the *first* move and never rewritten —
+so a roster cannot walk the window forward by taking turns. A day is long
+because the two who agree are not required to be in the room together and usually
+will not be, a channel being asynchronous; it is not longer because agreeing a
+week later to something the mover has forgotten proposing is not the question a
+second member is being asked. A lapsed motion is simply not there, and the next
+move opens a fresh one.
+
+**It is withheld from the person it is about.** Their snapshot has the entry
+stripped on the way out — `withoutRemovalsAgainst` — and there is no version of
+that screen worth drawing: a motion the target can watch is one they can lobby
+against, which is the opposite of what asking two people independently was for.
+Motions they have *made* stay on their own screen, since a mover who could not
+see theirs could not withdraw it.
+
+**Withdrawable, and only by whoever moved.** *Stand down* takes one member's
+agreement off; the last one to go takes the motion with it. One member cannot
+clear another's, that being a veto rather than a withdrawal. It exists because a
+motion stands for a day and the case is ordinary — something is said, the reason
+evaporates, and the proposal is still sitting there for somebody else to happen
+upon.
+
+**Nothing outlives the act.** There is no record of who was removed from a
+channel and no list of people who may not come back: somebody removed may be
+invited in again by anybody, which is the same tap it always was. What the
+removed person gets is a *removal notice*.
+
+The control is on the person's profile card, reached from the *People* tab, and
+never on the roster row — the same rule that keeps *mute them* off a list of
+faces, and for a stronger reason. `REMOVAL_MOVES_REQUIRED`,
+`MIN_PARTICIPANTS_TO_REMOVE` and `REMOVAL_MOTION_WINDOW_MS` in
+core/constants.ts; `canMoveToRemove`, `canWithdrawRemoval`, `removalMotion` and
+`removalMovesWanted` in core/channel.ts; and
+`decisions/2026-09-26-removing-a-member-takes-two.md`.
+
+## Removal notice
+
+**The card on the *Channels* list telling somebody that a channel's members
+removed them.** It is drawn above everything else in that list and goes when
+they press *Close*.
+
+**It is the whole of what a removed member is told, and it is told after the
+fact.** The *motion to remove* was withheld from them while it was open, so
+without this the channel would simply cease to be in their list — which is
+indistinguishable from a channel somebody deleted and from a bug. A conversation
+you belonged to disappearing with no account of it is the failure this exists to
+prevent, and nothing else in the app would reveal it.
+
+**It names nobody, and that is the decision rather than an omission.** Two
+members agreed; naming one makes the other's agreement invisible and points a
+grievance at whoever happened to move first, and naming both hands somebody a
+list of people to take it up with. What it can truthfully say is which channel
+and that it was the members' decision, so that is what it says.
+
+**It carries the channel's name as it was**, frozen at the moment of removal
+rather than joined to the live one: the reader cannot ask what that channel is
+called any more, and by the time they read this it may have been renamed by
+people they can no longer see. An unnamed channel is *a channel you were part
+of* — **deliberately not described by its roster**, which is how every other row
+in that list describes an unnamed channel, because who was in that room is not
+something a removed member gets to keep reading.
+
+**No push.** A removal is somebody else's decision about them, and waking a
+phone to deliver it would make the app the messenger for an act it has kept
+anonymous. The card is there when they next read their channels.
+
+**Stored on the account, and the row *is* the notice** — where a *public notice*
+is a record of an answer to a question that recurs, this answers once, so
+*Close* deletes it rather than marking it read. It follows them across devices
+and survives the channel itself being deleted afterwards: a card that vanished
+because the room did would leave the removal unexplained. `removal_notices` in
+db.ts, `RemovalNoticeView` in core/protocol.ts.
 
 ## Standing elsewhere
 
@@ -4054,12 +4151,16 @@ are settled:
     not watching          names the absence rather than negating the verb, on
                           *Sin entrar*'s reasoning above: *no está viendo* wants
                           a subject and a suffix has no room for one
+    Motion to remove      Proponer expulsar — *expulsar* as the verb throughout;
+                          *Retirar la propuesta* is standing down
+    Removal notice        The card has no noun of its own in either catalogue:
+                          it is a sentence, *Ya no estás en …*
     Public page           Página pública
     Username              Nombre de usuario
     Display name          Nombre visible
     Getting started       Primeros pasos
 
-**Five of these are choices rather than translations**, and are the ones to
+**Six of these are choices rather than translations**, and are the ones to
 argue with rather than change quietly:
 
 - **The floor → *la palabra***, and *Claim* → *Pedir*. The literal *el suelo*
@@ -4082,6 +4183,16 @@ argue with rather than change quietly:
   fourteen characters in a four-item bar. The collision is the cheaper price,
   and *Ayuda* is the sense somebody opens the tab looking for; *Apoyo* leads
   with the money, which is the one card there that nobody arrives needing.
+- **Remove (a member) → *expulsar***. Settled 2026-09-26, against two words
+  that are already spent. *Eliminar* is what this app says for deleting a thing
+  — a recording, an account — and using it about a person would put removing
+  somebody in the same family as deleting a file. *Quitar* is too light for an
+  act two members have to agree to and a day is allowed for. *Expulsar* is what
+  a group does to one of its members, which is exactly what this is, and it
+  carries the weight the English *remove* carries here and nowhere else in the
+  app. The proposal is *proponer expulsar* rather than a noun: Spanish has no
+  short noun for a motion that is not parliamentary, and *moción* reads as a
+  committee.
 - **Leaderboard → *Invitaciones***. Settled the same day, and not the same
   problem: *Clasificación* named the button correctly — it is standings — and
   named nothing the user then saw, the screen it opens being headed

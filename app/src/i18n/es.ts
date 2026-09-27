@@ -260,6 +260,11 @@ export const es: Strings = {
       }.`,
     cancel: () => 'Cancelar',
     decline: () => 'Rechazar',
+    removedFromNamed: (name: string) => `Ya no est\u00e1s en ${name}.`,
+    removedFromUnnamed: () => 'Ya no est\u00e1s en un canal del que formabas parte.',
+    removedExplanation: () =>
+      'Dos de sus miembros han acordado expulsarte. Cualquiera de ellos puede volver a invitarte.',
+    removedAcknowledge: () => 'Cerrar',
     couldNotStartChannel: () => 'No se ha podido crear el canal',
     thatDidNotWork: () => 'Eso no ha funcionado.',
     reconnecting: () => 'Reconectando\u2026',
@@ -936,6 +941,31 @@ export const es: Strings = {
     theyWillDecide: () =>
       'Ver\u00e1 una solicitud en su pantalla de inicio y decidir\u00e1.',
     theirMicrophone: () => 'Su micr\u00f3fono',
+    /**
+     * *Expulsar* rather than *eliminar* or *quitar*. `eliminar` is what this
+     * app says for deleting a thing — a recording, an account — and using it
+     * about a person would put removing somebody in the same family as deleting
+     * a file. `quitar` is too light for an act two people have to agree to.
+     * *Expulsar* is what a group does to a member, which is what this is.
+     */
+    removingThem: () => 'Expulsarle del canal',
+    removalTakesTwo: () =>
+      'Hacen falta dos miembros. No pasa nada hasta que otro miembro est\u00e9 de acuerdo, y tiene un d\u00eda para hacerlo.',
+    moveToRemove: () => 'Proponer expulsarle',
+    moveToRemoveTitle: (name: string) => `\u00bfProponer expulsar a ${name}?`,
+    moveToRemoveBody: () =>
+      'No se le avisa, y a\u00fan no pasa nada. Se le pedir\u00e1 a otro miembro que est\u00e9 de acuerdo, y puedes retirar tu propuesta hasta entonces.',
+    youHaveMoved: () => 'Has propuesto expulsarle.',
+    waitingOnAnother: () =>
+      'Otro miembro tiene que estar de acuerdo antes de que pase nada. No se ha avisado a nadie.',
+    withdrawRemoval: () => 'Retirar la propuesta',
+    anotherHasMoved: () => 'Otro miembro ha propuesto expulsarle.',
+    confirmingRemoves: () =>
+      'Si est\u00e1s de acuerdo, se le expulsa del canal. Se le dir\u00e1 que ha pasado, pero no qui\u00e9n lo decidi\u00f3.',
+    confirmRemoval: () => 'Estoy de acuerdo, expulsarle',
+    confirmRemovalTitle: (name: string) => `\u00bfExpulsar a ${name}?`,
+    confirmRemovalBody: () =>
+      'Pierde este canal y sus grabaciones. Cualquiera puede volver a invitarle despu\u00e9s.',
   },
   channel: {
     uploading: () => 'Subiendo\u2026',

@@ -6,15 +6,42 @@ published promises that cannot be changed quietly. Written 2026-08-27 from a
 sweep of the constants; the code is the authority and the line numbers here
 will drift, so grep the constant name rather than trusting the reference.
 
-There are six: one week-long and five thirty-day. **The point of this file is
-that they are six separate numbers rather than one number used six times.**
-Five of them landing on thirty days is a coincidence of six separate
-judgements, not a derivation from each other, and one pair has already been
-pulled apart — `USAGE_RETENTION_MS` was seven days until 2026-08-19, and the
+There are seven: one day-long, one week-long and five thirty-day. **The point of
+this file is that they are seven separate numbers rather than one number used
+seven times.** Five of them landing on thirty days is a coincidence of five
+separate judgements, not a derivation from each other, and one pair has already
+been pulled apart — `USAGE_RETENTION_MS` was seven days until 2026-08-19, and the
 day it moved is the day a single constant stopped being able to serve two
 promises. So each entry below says what its own argument was, and tidying them
 into one shared `RETENTION_MS` would be collapsing arguments that have already
 been shown to diverge.
+
+## The one one-day window
+
+**`REMOVAL_MOTION_WINDOW_MS`**, `core/constants.ts`. How long an open *motion to
+remove* a member stands before it lapses — see GLOSSARY.md § *Motion to remove*,
+and `decisions/2026-09-26-removing-a-member-takes-two.md`.
+
+**It is the one entry here that expires a decision rather than data.** Nothing is
+deleted when it runs out: the entry stays in the channel's state and simply stops
+being readable, `removalMotion` refusing anything past the window, so a lapsed
+motion is invisible everywhere at once and the next move opens a fresh one. There
+is no sweep and there is nothing for one to do.
+
+Both ends of a day were argued and neither is a default. Long, because the two
+members who have to agree are not required to be in the room together and usually
+will not be — an hour would be a rule nobody could use in a channel that is empty
+most of the time. Not longer, because agreeing a week later to something the
+mover has forgotten proposing is not the question a second member is being asked.
+
+**Measured from the first move and never rewritten**, so a roster cannot walk it
+forward by taking turns. **Not a reuse of anything**: it is neither a recovery
+window nor a privacy horizon, and it is the only number here whose expiry is a
+kindness to the person it is about rather than a promise to them.
+
+It is not published anywhere and is stated in the app instead — *they have a day
+to* — so changing it is a copy change in `en.ts` and `es.ts` in the same commit,
+and not a `PRIVACY_UPDATED` move.
 
 ## The one seven-day window
 
@@ -82,7 +109,9 @@ measurement window rather than a deletion.
 `TOKEN_TTL_MS` is ninety days — a session token, not a retention rule.
 `WATCH_TOKEN_TTL_MS` and `GUEST_SESSION_TTL_MS` are six hours each.
 `WAITING_WINDOW_MS` is fifteen minutes. None of these is a promise about
-deleting anything.
+deleting anything — and `REMOVAL_MOTION_WINDOW_MS` above is in this file on the
+strength of its scale rather than its kind, being the one entry that is not
+about deleting anything either.
 
 ## Three of them are published promises, and only two are guarded
 

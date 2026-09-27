@@ -323,6 +323,20 @@ export const en = {
       }.`,
     cancel: () => 'Cancel',
     decline: () => 'Decline',
+    /**
+     * The card telling somebody a channel's members removed them — the whole of
+     * what they are told, and it names nobody. See `RemovalNoticeView`.
+     */
+    removedFromNamed: (name: string) => `You are no longer in ${name}.`,
+    /**
+     * The unnamed case. *A channel* rather than a description of it: an unnamed
+     * channel is described by its roster everywhere else in this list, and who
+     * was in that room is not something a removed member gets to keep reading.
+     */
+    removedFromUnnamed: () => 'You are no longer in a channel you were part of.',
+    removedExplanation: () =>
+      'Two of its members agreed to remove you. Anybody there can invite you back.',
+    removedAcknowledge: () => 'Close',
     couldNotStartChannel: () => 'Could not start channel',
     thatDidNotWork: () => 'That did not work.',
     reconnecting: () => 'Reconnecting\u2026',
@@ -1129,6 +1143,39 @@ export const en = {
     theyWillDecide: () =>
       'They will see a request on their home screen and decide.',
     theirMicrophone: () => 'Their microphone',
+    /**
+     * The removal section. *Removing* rather than *remove*: the label names
+     * what the card is about, and what a press does depends on whether anybody
+     * has moved yet.
+     */
+    removingThem: () => 'Removing them from this channel',
+    /**
+     * Said before anybody has moved, and the sentence has one job — that this
+     * press does not remove anybody. A button offered under the word *remove*
+     * that quietly did nothing would read as broken.
+     */
+    removalTakesTwo: () =>
+      'It takes two members. Nothing happens until another member agrees, and they have a day to.',
+    moveToRemove: () => 'Move to remove them',
+    moveToRemoveTitle: (name: string) => `Move to remove ${name}?`,
+    moveToRemoveBody: () =>
+      'They are not told, and nothing happens yet. Another member will be asked to agree, and you can stand down until they do.',
+    /** Their own move, from their own screen. */
+    youHaveMoved: () => 'You have moved to remove them.',
+    waitingOnAnother: () =>
+      'Another member has to agree before anything happens. Nobody has been told.',
+    withdrawRemoval: () => 'Stand down',
+    /**
+     * Somebody else has moved and this reader is the second. **Names nobody**,
+     * which is the same rule the card on the channels list follows.
+     */
+    anotherHasMoved: () => 'Another member has moved to remove them.',
+    confirmingRemoves: () =>
+      'Agreeing removes them from this channel. They will be told it happened, and not who decided.',
+    confirmRemoval: () => 'Agree and remove',
+    confirmRemovalTitle: (name: string) => `Remove ${name}?`,
+    confirmRemovalBody: () =>
+      'They lose this channel and its recordings. Anybody can invite them back afterwards.',
   },
   channel: {
     uploading: () => 'Uploading\u2026',

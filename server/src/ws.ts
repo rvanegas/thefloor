@@ -29,7 +29,7 @@ import {
   heartbeatTimeoutFor,
   type ClientKind,
 } from './release';
-import { isPresent } from '../../core/channel';
+import { isPresent, withoutRemovalsAgainst } from '../../core/channel';
 import { sha256 } from './db';
 import { settingsForWire } from './settings-wire';
 
@@ -1149,7 +1149,14 @@ export function registerWebsocket(deps: {
     send(connection, {
       type: 'channel',
       view: {
-        channel,
+        // **The one thing withheld from the state itself**, everything else on
+        // this view being composed per connection rather than stripped from
+        // something shared. An open motion to remove somebody is not shown to
+        // the person it is about — see `ChannelState.removals` — and the state
+        // is shipped whole, so the withholding has to happen on the way out.
+        // `withoutRemovalsAgainst` returns the state unchanged when there is
+        // nothing to hide, which is nearly every push.
+        channel: withoutRemovalsAgainst(channel, connection.userId),
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),

@@ -48,6 +48,56 @@ export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 export const MAX_CHANNEL_PARTICIPANTS = 6;
 
 /**
+ * How many members have to agree before one of them is removed.
+ *
+ * Two, and it is the whole of the rule: removing somebody is the one act here
+ * that takes a place away from a person who has not asked for it, and the
+ * cheapest protection against it being done in temper is that somebody else
+ * has to mean it too. Nobody is an owner of a channel — the roster is flat,
+ * every member may name it, invite into it and record in it — so there was no
+ * position to hang the power on, and *two of you* is the only majority a flat
+ * roster can express.
+ *
+ * Not a majority of the roster, deliberately. Two out of six is not most of
+ * anybody, and a threshold that rose with the roster would make the fifth
+ * member harder to remove than the third for no reason anyone in the room
+ * could state. What the second agreement buys is that the act was considered
+ * twice; a third and a fourth buy nothing more.
+ */
+export const REMOVAL_MOVES_REQUIRED = 2;
+
+/**
+ * The smallest roster a removal is possible in.
+ *
+ * `REMOVAL_MOVES_REQUIRED` plus the person being removed, and stated rather
+ * than derived so the reason is somewhere: **a two-member channel cannot
+ * remove anybody**, because the only two people in it are the one moving and
+ * the one being moved against, and there is nobody left to be the second
+ * agreement. The way out of a channel of two is `LEAVE_CHANNEL`, which is
+ * exactly as effective and is nobody else's decision to make.
+ */
+export const MIN_PARTICIPANTS_TO_REMOVE = REMOVAL_MOVES_REQUIRED + 1;
+
+/**
+ * How long an open motion to remove somebody stands before it lapses.
+ *
+ * A day, and the two ends of that are a genuine trade. It is long because the
+ * two people who have to agree are not required to be in the room together and
+ * usually will not be — a channel is asynchronous, most of them are empty most
+ * of the time, and a motion that needed both of them online within the hour
+ * would be a rule nobody could use. It is not longer because a motion is a
+ * loaded thing to leave lying about: the honest question a second member is
+ * answering is *do you agree*, and agreeing a week later to something the
+ * mover has forgotten proposing is not that question.
+ *
+ * Measured from the **first** move rather than the most recent, so the window
+ * cannot be walked forward by members taking turns. See `removalMotion`, which
+ * is the only thing that reads it — a lapsed motion is simply not there, and
+ * the next move opens a fresh one.
+ */
+export const REMOVAL_MOTION_WINDOW_MS = 24 * 60 * 60 * 1_000;
+
+/**
  * The most guests a channel may hold at once, counting every seat in the room
  * whether or not it has an account behind it.
  *

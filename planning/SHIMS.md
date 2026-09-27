@@ -57,6 +57,9 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `WatchState.history` revived as empty | `server/src/channels.ts` |
 | 294 | The pre-account-attention fallback | `server/src/ws.ts`, `server/src/accounts.ts`, `server/src/release.ts` |
 | 290 | The invite pin, in every layer that still reads one | `server/src/accounts.ts`, `server/src/app.ts`, `server/src/db.ts`, `app/src/ui/handover.ts`, `app/src/state/useInviteLink.ts`, `app/src/api/http.ts` |
+| 298 | `ChannelState.removals` optionality | `core/types.ts`, `core/channel.ts`, `app/src/ui/ChannelView.tsx` |
+| 298 | `HomeView.removals` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
+| — | `ChannelState.removals` revived as empty | `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -810,3 +813,64 @@ opened since is one this reads for ever. `MIN_SUPPORTED_BUILD` says nothing
 about what is on disk, so the floor moving does not free it; this is the same
 kind of entry as `WatchParty.title` revived as null, and dies only with a
 migration that rewrites every row, which nothing here does.
+
+---
+
+## Gate 298 — `ChannelState.removals` optionality
+
+Removing a member shipped on 2026-09-26 —
+`decisions/2026-09-26-removing-a-member-takes-two.md`. The open motions are a
+new field on the channel state, which rides whole inside the channel snapshot,
+so the wire change is additive in the direction that matters: a build that has
+never heard of it ignores it, and such a build simply has no removal control.
+
+**The other direction is the shim.** A build that draws the control meets a
+server that predates the field between its own release and the deploy that
+follows, and `removals` is then undefined — so `removalMotion` in
+`core/channel.ts` reads `state.removals?.[targetId]`, which answers *no motion*
+and leaves `removalMovesWanted` saying two members are still wanted. That is the
+honest answer against such a server: nobody has moved, because it cannot record
+a move. The moves themselves are refused by that server as unknown actions,
+which is the ordinary two-step and is why there is nothing to soften — a refusal
+is an answer, where a silently ignored action is not.
+
+**What must not be deleted with it**: not `removalMotion`'s window check, which
+is the lapse and is the rule rather than a compatibility case; not its
+`isParticipant` backstop, which answers for a state restored from a row written
+before the target left and has no gate; and not `withoutMoverEverywhere`'s
+`removals ?? {}` in `dropParticipant`, which is the same optionality one layer
+in and goes with this. What *does* go is the `?` and the `?? {}` wherever they
+guard this field, and the `?` in the type.
+
+Gate 298 because `build/297` is already tagged: the client that draws the
+control ships in the next upload.
+
+---
+
+## Gate 298 — `HomeView.removals` optionality
+
+The card a removed member is left with, on the same day and from the same
+decision. `(home?.removals ?? [])` in `app/src/ui/ChannelsView.tsx` draws none
+of them against a server that predates the field, which is what every build
+before this one did.
+
+**What must not be deleted with it**: not the `home?.` in front of it, which is
+about the snapshot having arrived at all and is true for ever. And not the
+emptiness of the list, which is the ordinary state of almost every account for
+ever and is not a compatibility case.
+
+Gate 298 on the same reasoning as its neighbour above.
+
+---
+
+## No gate — `ChannelState.removals` revived as empty
+
+`revive` in `server/src/channels.ts` reads the motions out of the durable blob
+as `durable.removals ?? {}`.
+
+**Not a client shim and it never retires.** Every channel row written before
+2026-09-26 has a state blob with no motions in it, and those rows are not
+rewritten until something in the channel changes — a channel nobody has opened
+since is one this reads for ever. `MIN_SUPPORTED_BUILD` says nothing about what
+is on disk, so the floor moving does not free it; this is the same kind of entry
+as `WatchState.history` revived as empty above.

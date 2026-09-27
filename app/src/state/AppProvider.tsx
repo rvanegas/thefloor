@@ -693,6 +693,17 @@ interface AppValue extends AppState {
    */
   acknowledgeChannelPublic: (channelId: string) => Promise<void>;
   /**
+   * Says this account has read the card saying a channel's members removed
+   * them, which is what takes the card away.
+   *
+   * A row on the server rather than a dismissal on this install, for
+   * `acknowledgeChannelPublic`'s reason and more strongly: the card is the only
+   * account this person is ever given of a channel disappearing, so it has to
+   * be there on whichever device they next open, and gone on all of them once
+   * they have read it.
+   */
+  acknowledgeRemoval: (channelId: string) => Promise<void>;
+  /**
    * Agrees that one recording may be published, or takes that agreement back.
    *
    * One call rather than two because the card offers one control: the
@@ -2553,6 +2564,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await api.acknowledgeChannelPublic(state.token, channelId);
         // Nothing locally: the server announces the channel, and the snapshot
         // comes back with the card's flag cleared.
+      },
+
+      acknowledgeRemoval: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.acknowledgeRemoval(state.token, channelId);
+        // Nothing locally, for the reason above: the server pushes Home to this
+        // account and the snapshot comes back without the card.
       },
 
       setChannelDeclarations: async (channelId, declarations) => {

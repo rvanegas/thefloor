@@ -329,6 +329,7 @@ export const mockApp = {
   setNotificationLevel: jest.fn(async (_channelId: string, level: string) => level),
   revokeGuestLink: jest.fn(async () => {}),
   acknowledgeChannelPublic: jest.fn(async () => {}),
+  acknowledgeRemoval: jest.fn(async () => {}),
   // Answers as the server does, the address being derived from the id: the
   // settings screen shows it, so a mock returning nothing would be a screen
   // that says a page was made and cannot say where.

@@ -19,7 +19,7 @@ import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { leaveSeat, leaveSeatChannel } from './handover';
-import { Card, Empty, SectionLabel } from './components';
+import { Button, Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -399,6 +399,63 @@ export function ChannelsView({
         card with the accented mark is the shape that keeps it available
         without shouting.
       */}
+      {/*
+        The channels this account has been removed from, each with the one
+        control it needs — see `RemovalNoticeView`, which is the whole of what a
+        removed member is ever told.
+
+        **Above the way to make another channel, and above every section
+        label.** It is news rather than a thing to do, and it is the only news
+        this list carries: a conversation somebody belonged to is not in their
+        list any more, and without this the absence is indistinguishable from a
+        channel somebody deleted or from a bug. Under the offline notice for
+        that one's own reason — it is about the connection and goes away by
+        itself — and above everything else, because a card explaining a
+        disappearance that is drawn beneath the list it disappeared from is a
+        card read second.
+
+        **A card and not a section**, though it sits where a label would. A
+        section label announces a class of row, and these are not rows: nothing
+        opens, there is nowhere to go, and this account has no standing in that
+        channel any more. The card says what happened and takes itself away.
+
+        `?? []` for a server that predates the field, which draws none of this —
+        the same reading every optional list on a snapshot gets.
+      */}
+      {(home?.removals ?? []).map((notice) => (
+        <Card key={notice.channelId} style={styles.notice}>
+          <Text style={type.body}>
+            {/*
+              Named where it was named, and *a channel* where it was not.
+              `describeChannel` is deliberately not the fallback here, unlike
+              everywhere else in this list: what it describes an unnamed channel
+              by is its roster, and who was in that room is not something a
+              removed member is still entitled to read. The server does not send
+              it either, so there is nothing here to be tempted by.
+            */}
+            {notice.name
+              ? t.removedFromNamed(notice.name)
+              : t.removedFromUnnamed()}
+          </Text>
+          {/*
+            Why, as far as it can be said, and it names nobody: two members
+            agreed, and the card would have to pick one of them or hand over
+            both. See `RemovalNoticeView`.
+          */}
+          <Text style={type.muted}>{t.removedExplanation()}</Text>
+          <Button
+            label={t.removedAcknowledge()}
+            onPress={() => {
+              // Nothing optimistic and nothing local: the server deletes the
+              // row and pushes Home, and the card goes when that arrives. A
+              // dismissal held on this install would come back on the next
+              // device — which is the whole reason it is a row.
+              void app.acknowledgeRemoval(notice.channelId).catch(() => {});
+            }}
+          />
+        </Card>
+      ))}
+
       <StartChannelRow onPress={startAlone} />
 
       {live.length > 0 ? (
@@ -1176,6 +1233,13 @@ function StartChannelRow({ onPress }: { onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  /**
+   * The removal notice's own stack. `gap` rather than margins, as every other
+   * card in the app does it, and the same value `stack` carries on the channel
+   * screen and the profile — this is a card with a sentence, a sentence and a
+   * button, which is that shape exactly.
+   */
+  notice: { gap: spacing(1) },
   offline: {
     backgroundColor: colors.surface,
     borderColor: colors.silenced,

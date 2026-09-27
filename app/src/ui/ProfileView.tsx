@@ -147,6 +147,9 @@ export function ProfileView({
   pingedWith = null,
   mic = null,
   onSetMute,
+  removal = null,
+  onMoveToRemove,
+  onWithdrawRemoval,
   onRemoved,
   beginEditing = false,
 }: {
@@ -260,6 +263,41 @@ export function ProfileView({
    * spinner here would be showing a wait that is already over.
    */
   onSetMute?: (muted: boolean) => void;
+  /**
+   * Where a removal of this person stands in the channel this card was opened
+   * from — see `removalMovesWanted` in core, which `wanted` is.
+   *
+   * Null, and the section is absent, wherever the question does not arise: from
+   * Contacts, about yourself, and in a channel of two, where two members
+   * agreeing is arithmetically impossible. The same rule the ping and the
+   * microphone follow, and the reason is stronger here — a control offered
+   * about somebody who cannot be removed would have to explain itself, and the
+   * explanation is a sentence about a channel's size that nobody reading a
+   * profile came for.
+   */
+  removal?: {
+    /**
+     * How many more members have to agree. Two where nobody has moved, one
+     * where somebody has.
+     */
+    wanted: number;
+    /**
+     * Whether the **viewer** is one of the members already on it, which is what
+     * the card needs to tell *move* from *confirm* — the two are one action, and
+     * this is the only thing that distinguishes what a press means.
+     */
+    iHaveMoved: boolean;
+  } | null;
+  /**
+   * Moves that this person be removed, or agrees to a motion already open. One
+   * callback for both, as it is one action; see `ChannelAction.MOVE_TO_REMOVE`.
+   *
+   * Supplied alongside `removal`. Nothing is awaited: it is a channel action,
+   * so the answer arrives as the next snapshot.
+   */
+  onMoveToRemove?: () => void;
+  /** Takes the viewer's own agreement back off the motion. */
+  onWithdrawRemoval?: () => void;
   /**
    * What to do when this person stops being a contact, which takes with it
    * every channel that held only the two of you — possibly the one this screen
@@ -1189,6 +1227,113 @@ export function ProfileView({
                     ? t.theyHaveTheFloor()
                     : t.mutingIsSilent()}
             </Text>
+          </Card>
+        </>
+      ) : null}
+
+      {/*
+        Removing them from the channel, which takes two members agreeing —
+        `REMOVAL_MOVES_REQUIRED`, and the guards are `canMoveToRemove` and
+        `canWithdrawRemoval`.
+
+        **Here for the reason the microphone above is here, and more so.** A
+        control that takes somebody's place away must not be reachable from a
+        list of faces: it is a screen you went to about a person, and the extra
+        tap is the ceremony. Unlike the mute it also asks before it sends, both
+        directions of it — moving is the thing a second person can act on
+        without asking you again, and confirming is the press that actually
+        removes somebody.
+
+        **Last, where the microphone is first**, and that is the one place this
+        screen orders by weight rather than by what it is about. Everything
+        above is a thing to do *with* this person — mute them for a minute, ask
+        them to come, add them as a contact. This is the thing to do *about*
+        them, and putting it under all of that is the difference between a
+        screen that offers it and a screen that leads with it.
+      */}
+      {removal && onMoveToRemove && onWithdrawRemoval ? (
+        <>
+          <SectionLabel>{t.removingThem()}</SectionLabel>
+          <Card style={styles.stack}>
+            {removal.iHaveMoved ? (
+              <>
+                {/*
+                  Your own move, and the one control is standing down. There is
+                  no second press for you to make — `canMoveToRemove` refuses a
+                  member who is already on the motion, so one person cannot be
+                  both agreements — and a button that said *confirm* here would
+                  be offering exactly that.
+                */}
+                <Text style={type.body}>{t.youHaveMoved()}</Text>
+                <Text style={type.muted}>{t.waitingOnAnother()}</Text>
+                <Button
+                  label={t.withdrawRemoval()}
+                  onPress={onWithdrawRemoval}
+                />
+              </>
+            ) : removal.wanted <= 1 ? (
+              <>
+                {/*
+                  Somebody else has moved and you are the second. Named as a
+                  confirmation rather than as a move, because pressing it is
+                  what removes them — and **whoever moved is not named**, on
+                  `RemovalNoticeView`'s reasoning applied one screen earlier:
+                  the decision is the members', and a card that said who
+                  started it would turn an agreement into somebody's grievance.
+                */}
+                <Text style={type.body}>{t.anotherHasMoved()}</Text>
+                <Text style={type.muted}>{t.confirmingRemoves()}</Text>
+                <Button
+                  label={t.confirmRemoval()}
+                  onPress={() =>
+                    Alert.alert(
+                      t.confirmRemovalTitle(
+                        profile?.account.displayName ?? fallbackName
+                      ),
+                      t.confirmRemovalBody(),
+                      [
+                        { text: t.cancel(), style: 'cancel' },
+                        {
+                          text: t.confirmRemoval(),
+                          style: 'destructive',
+                          onPress: onMoveToRemove,
+                        },
+                      ]
+                    )
+                  }
+                />
+              </>
+            ) : (
+              <>
+                {/*
+                  Nothing is open. What the sentence has to carry is that this
+                  press does not remove anybody — the whole rule is that a
+                  second member decides that — since a button called *remove*
+                  that quietly did nothing would read as broken rather than as
+                  restrained.
+                */}
+                <Text style={type.muted}>{t.removalTakesTwo()}</Text>
+                <Button
+                  label={t.moveToRemove()}
+                  onPress={() =>
+                    Alert.alert(
+                      t.moveToRemoveTitle(
+                        profile?.account.displayName ?? fallbackName
+                      ),
+                      t.moveToRemoveBody(),
+                      [
+                        { text: t.cancel(), style: 'cancel' },
+                        {
+                          text: t.moveToRemove(),
+                          style: 'destructive',
+                          onPress: onMoveToRemove,
+                        },
+                      ]
+                    )
+                  }
+                />
+              </>
+            )}
           </Card>
         </>
       ) : null}

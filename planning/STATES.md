@@ -29,8 +29,12 @@ either of the other two.
 
 ## Contents
 
-Added 2026-09-07. Read the section you need, not the file: this is sixty-two
-kilobytes and almost no question needs all of it.
+Added 2026-09-07. Read the section you need, not the file: this is eighty-eight
+kilobytes and almost no question needs all of it. **The figure had said
+sixty-two since it was written and was twenty-four kilobytes stale by
+2026-09-26** — correct it in the same commit as anything added here, on
+AGENTS.md's own rule about the line count it keeps: a number nobody has checked
+argues for reading a file that costs half again as much as it claims.
 
 - Self-Mute
 - Muted-by-Claim
@@ -47,6 +51,7 @@ kilobytes and almost no question needs all of it.
 - Audio Output Selection
 - Audio Session Configuration
 - Guest Invitation
+- Motion to Remove
 - Disagreements, numbered
 
 ---
@@ -1259,6 +1264,67 @@ room, so an offer that makes nobody a member has no business there, and
 right about `participants` and wrong about the state as a whole — a separate
 field keeps everything it was protecting. `decisions/2026-09-22-an-invitation-holds-a-seat.md`
 is the reversal in full.
+
+## Motion to Remove
+
+Added 2026-09-26 with the feature —
+`decisions/2026-09-26-removing-a-member-takes-two.md`, and GLOSSARY.md §
+*Motion to remove* for what the word means.
+
+**Name in source.** `ChannelState.removals[targetId]`, a `RemovalMotion`
+(`core/types.ts`), keyed by the person being moved against and raised by
+`MOVE_TO_REMOVE`. Cleared by `WITHDRAW_REMOVAL`'s last withdrawal, by the
+removal carrying, and by `dropParticipant` for either party leaving. Durably,
+inside `channels.state` — `durableOf` keeps it and `revive` restores it.
+Nothing of it is on the wire under its own name: it rides inside the channel
+snapshot, and the app reads it through `removalMovesWanted` and
+`removalMotion`.
+
+**Conditions.** A motion is *open* when there is an entry, its `movedBy` is
+non-empty, `now - at` is inside `REMOVAL_MOTION_WINDOW_MS`, and the target is
+still a participant. It *carries* the instant `movedBy` reaches
+`REMOVAL_MOVES_REQUIRED`, at which point it ceases to exist along with the
+membership — so there is no such thing as a carried motion to look at. A
+channel below `MIN_PARTICIPANTS_TO_REMOVE` can hold none.
+
+**The count is read, not swept**, exactly as a *guest invitation*'s expiry is,
+and for the same reason: `core/` has no clock. A lapsed motion stays in the map
+until something touches that target, which is why `removalMotion`,
+`removalMovesWanted`, `canMoveToRemove` and `canWithdrawRemoval` all take `now`
+where their neighbours do not.
+
+**Where the sources can disagree.** Three places, and the first is the one that
+will bite.
+
+- **The raw map and what any reader should see are different answers**, and the
+  map is the one that is wrong. `state.removals?.[id]` can hold an entry that
+  lapsed twenty-three hours ago, or one against somebody who has since left a
+  state restored from disk. `removalMotion` is the only honest read and every
+  guard, every screen and every reducer case goes through it. **A new reader
+  that indexes the map directly is the bug this section exists to prevent** —
+  it would be correct almost always, and wrong a day after somebody moved.
+- **The target's copy of the state is deliberately not the server's.**
+  `withoutRemovalsAgainst` strips the entry keyed by the reader in
+  `pushChannel`, so one channel is described two ways at the same instant: the
+  authoritative state has the motion, and the snapshot held by the person it is
+  about does not. It is the only withholding done to `ChannelState` itself
+  rather than composed per connection — everything else viewer-relative on that
+  snapshot is a sibling field — so a future field added *inside* the state
+  expecting to reach everybody will reach everybody, and this one will not.
+  Motions the target has *made* are not stripped, which is what lets them
+  withdraw.
+- **A client that predates `ChannelState.removals` sees no motions at all**,
+  which is correct for it: it has no control to draw and the server it is
+  talking to may be the one that cannot record a move either. The moves
+  themselves are refused as unknown actions rather than ignored. See SHIMS.md,
+  gate 298.
+
+**What is deliberately *not* two states.** There is no *removed* state and no
+record of one. A removal is an ordinary departure by the time anything reads
+the roster — `dropParticipant` is the shared path — and the only trace is a
+`removal_notices` row, which is a fact about a person rather than about the
+channel and is why it has no foreign key onto one. Nothing in `ChannelState`
+remembers that somebody was removed rather than having left.
 
 ## Disagreements, numbered
 

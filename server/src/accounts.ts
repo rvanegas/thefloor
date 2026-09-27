@@ -2966,6 +2966,13 @@ export class Accounts {
     this.db
       .prepare('DELETE FROM public_notices WHERE account_id = ?')
       .run(accountId);
+    // The same, and for the same reason: the card is about a channel this
+    // account is no longer in, so there is nothing left to hold up and the row
+    // is removed because it names a person. There is no re-telling to consider —
+    // a new account was never in that channel.
+    this.db
+      .prepare('DELETE FROM removal_notices WHERE account_id = ?')
+      .run(accountId);
     this.db.prepare('DELETE FROM tokens WHERE account_id = ?').run(accountId);
     this.db
       .prepare(

@@ -860,6 +860,49 @@ export interface HelpView {
   askBlocked: string | null;
 }
 
+/**
+ * That a channel's members removed this account from it — the card the Channels
+ * list draws until they say they have seen it.
+ *
+ * **It is the whole of what a removed member is told, and it is told after the
+ * fact.** The motion that produced it was withheld from them while it was open
+ * — see `ChannelState.removals` — so without this the channel would simply
+ * cease to be in their list, which is the same thing a deleted channel and a
+ * server bug both look like. A conversation you belonged to disappearing with
+ * no account of it is the failure mode worth spending a card on.
+ *
+ * **It names nobody.** Two members agreed, and there is no fair way to put that
+ * on a card: naming one of them makes the other's agreement invisible and
+ * invites a reprisal against whoever happened to move first, and naming both
+ * hands somebody a list of people to take it up with. What the card can
+ * truthfully say is which channel and that it was the members' decision, so
+ * that is what it says.
+ *
+ * Carries the channel's name as it was at the moment of removal, rather than a
+ * live one: the reader has no way to ask what that channel is called any more,
+ * and by the time they read this it may have been renamed by people they can no
+ * longer see. See `RejoinableView.name`, which is the live answer for a channel
+ * you are still in.
+ */
+export interface RemovalNoticeView {
+  /**
+   * Which channel. Sent so that the card and the dismissal can name the same
+   * thing, and for nothing else — it opens nothing, this account having no
+   * standing there any more.
+   */
+  channelId: string;
+  /**
+   * What it was called, or null for a channel nobody had named — in which case
+   * the card says *a channel* rather than describing it by a roster the reader
+   * is no longer entitled to. `describeChannel` is not reachable here for
+   * exactly that reason: the roster is what an unnamed channel is called, and
+   * who was in it is not a fact a removed member gets to keep reading.
+   */
+  name: string | null;
+  /** When it happened. */
+  at: number;
+}
+
 /** Everything Home renders, pushed as one snapshot. */
 export interface HomeView {
   invites: InviteView[];
@@ -928,6 +971,24 @@ export interface HomeView {
    * behaviour of every build before this one. See planning/SHIMS.md.
    */
   cohortEligible?: boolean;
+  /**
+   * The channels this account has been removed from and not yet acknowledged,
+   * newest first — see `RemovalNoticeView`.
+   *
+   * On Home rather than fetched by the screen that draws it, unlike
+   * `SupportView` and `HelpView`: a removal happens while somebody is looking
+   * at something else, and the whole point of the card is that it is there when
+   * they next read their channels. A screen that had to ask would only ever
+   * find out by being opened afresh.
+   *
+   * Usually empty, and empty for almost every account for ever. It costs a key
+   * on a snapshot that already carries two lists.
+   *
+   * Optional for `tried`'s reason exactly: a server that predates the field
+   * sends no such key, and a client meeting that draws no cards — which is the
+   * behaviour of every build before this one. See planning/SHIMS.md.
+   */
+  removals?: RemovalNoticeView[];
 }
 
 /**
@@ -1480,6 +1541,22 @@ export type ClientAction =
   | { type: 'DELETE_CHANNEL' }
   /** Give up membership; ends the channel if you were the last member. */
   | { type: 'LEAVE_CHANNEL' }
+  /**
+   * Moves that a member be removed, or agrees to a motion already open — one
+   * message for both, the server supplying the actor as it does everywhere
+   * else. See `ChannelAction.MOVE_TO_REMOVE` for why confirming is not a
+   * message of its own.
+   *
+   * **A server that predates it refuses it as an unknown action**, which is the
+   * ordinary two-step read the usual way round: the server learns this first
+   * and the build that sends it ships after. See AGENTS.md § *Never ship a wire
+   * change to a server before the client can speak it* — there is no shim to
+   * write, because an app that sends this to an old server is told no rather
+   * than being silently ignored.
+   */
+  | { type: 'MOVE_TO_REMOVE'; targetId: string }
+  /** Takes your own agreement back off an open motion. */
+  | { type: 'WITHDRAW_REMOVAL'; targetId: string }
   /**
    * Brings a contact of the sender into the channel. Carries a contact id
    * rather than the reducer's inviteeId because whether the two are contacts

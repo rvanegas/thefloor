@@ -1359,6 +1359,44 @@ CREATE TABLE IF NOT EXISTS public_notices (
 CREATE INDEX IF NOT EXISTS public_notices_account
   ON public_notices(account_id);
 
+-- The channels each account has been removed from and has not yet said it has
+-- seen. One row per removal; the row is deleted when they acknowledge it, so
+-- this table holds nothing about people who have read their card and is empty
+-- for almost every account for ever.
+--
+-- **Deleted rather than marked read**, which is the opposite of public_notices
+-- above, and the difference is what the row is for. That one has to outlive its
+-- acknowledgement because the question comes back — a member is owed the card
+-- again if the channel goes private and public once more — so a row is the
+-- record of an answer to a recurring question. A removal happens once. There is
+-- no second time to be silent about, so once the card has been seen the row has
+-- no reader left, and keeping it would be a standing list of who has been
+-- removed from what.
+--
+-- **The name is frozen here rather than joined to channels.** The reader is not
+-- a member any more, so nothing else on this box will tell them what that
+-- channel was called, and the live name may since have been changed by people
+-- they can no longer see. An unnamed channel stores NULL and the card says
+-- *a channel* — see RemovalNoticeView.name for why the roster is deliberately
+-- not used as a fallback here, where it is everywhere else.
+--
+-- No foreign key to channels, and it is the one interesting choice. Every other
+-- table here cascades from the channel, which is right for a fact *about* the
+-- channel; this is a fact about a person, and it has to survive the channel
+-- being deleted by its last member afterwards. A card that vanished because the
+-- room did would leave the removal unexplained, which is the whole thing this
+-- exists to prevent. Cleared with the account by deleteAccount, as
+-- public_notices is, and for the same reason: it names a person.
+CREATE TABLE IF NOT EXISTS removal_notices (
+  channel_id   TEXT NOT NULL,
+  account_id   TEXT NOT NULL REFERENCES accounts(id),
+  channel_name TEXT,
+  at           INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS removal_notices_account
+  ON removal_notices(account_id);
+
 -- What this box actually carried, for the last thirty days and no longer.
 --
 -- Written so that claims about load stop being reasoned and start being

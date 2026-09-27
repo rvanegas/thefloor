@@ -181,6 +181,37 @@ export interface Knock {
   at: number;
 }
 
+/**
+ * An open proposal that one member be removed from the channel, and who has
+ * agreed to it so far.
+ *
+ * It is a *motion* rather than a vote or a ban: it names one person, it stands
+ * for a day, any of its movers may withdraw, and the moment
+ * `REMOVAL_MOVES_REQUIRED` members are on it the removal happens and the motion
+ * is gone with the membership. Nothing here outlives the act — there is no
+ * record of who was removed from a channel, and no list of people who may not
+ * come back. Somebody removed may be invited in again by anybody, which is the
+ * same tap it always was.
+ */
+export interface RemovalMotion {
+  /**
+   * The members who have moved, in the order they moved, the first being
+   * whoever opened it. Never empty: a motion with nobody on it is deleted
+   * rather than kept, so an entry in the map is an open motion by
+   * construction.
+   *
+   * Never holds the target either — `canMoveToRemove` refuses somebody moving
+   * against themselves, that being `LEAVE_CHANNEL` said the long way round.
+   */
+  movedBy: UserId[];
+  /**
+   * When the **first** move was made, which is what the lapse is measured
+   * from. See `REMOVAL_MOTION_WINDOW_MS`: dating it from the most recent move
+   * instead would let a roster keep one alive indefinitely by taking turns.
+   */
+  at: number;
+}
+
 export interface FloorState {
   /** Who holds the floor right now, or null if nobody does. */
   holder: UserId | null;
@@ -662,6 +693,36 @@ export interface ChannelState {
    * Who is at the door, oldest first. Volatile, and empty almost always.
    */
   knocks: Knock[];
+  /**
+   * The open motions to remove a member, keyed by **the member being moved
+   * against** — see `RemovalMotion`, and `removalMotion` in channel.ts, which
+   * is the only honest way to read this map.
+   *
+   * Keyed by the target rather than by the mover because there is at most one
+   * motion per person, however many members have moved in it: two people
+   * moving to remove the same third are agreeing, which is the whole
+   * mechanism, and a map keyed the other way would record that as two separate
+   * proposals.
+   *
+   * **Durable**, unlike `knocks` and `guests` beside it, and that is the point
+   * of it being here rather than in the server's memory: a motion stands for a
+   * day so that the two members who have to agree need not be in the room at
+   * the same time, and a day is far longer than this process lives. A deploy
+   * that quietly dropped every open motion would be a rule that worked only
+   * between restarts.
+   *
+   * **Withheld from the person it is about.** The state is shipped whole to
+   * every member, so the server strips the entry keyed by the reader before it
+   * goes out — `withoutRemovalsAgainst`. There is no version of this screen
+   * worth drawing to somebody who is being voted on, and a motion the target
+   * can watch is one they can lobby against, which is the opposite of what
+   * asking two people independently was for.
+   *
+   * Optional, so a server that predates it sends no such key and a client
+   * meeting one reads no motions — which is what that server has. See
+   * planning/SHIMS.md.
+   */
+  removals?: Record<UserId, RemovalMotion>;
   floor: FloorState;
   /**
    * Keyed by anybody in the room, guests included. A guest's own mute is
@@ -920,6 +981,51 @@ export type ChannelAction =
    * channel ends; nobody can destroy one that other people still belong to.
    */
   | { type: 'LEAVE_CHANNEL'; userId: UserId }
+  /**
+   * Moves that `targetId` be removed from the channel — and carries it out when
+   * this is the `REMOVAL_MOVES_REQUIRED`th member to say so.
+   *
+   * **One action for both halves, and that is the design rather than a
+   * shortcut.** *One moves, a second confirms* is one statement made twice by
+   * two people, so it is one action counted twice: the reducer knows which it
+   * is from who has already moved, and nothing upstream has to. A separate
+   * `CONFIRM` would have to be sent against a motion the sender believes is
+   * open, and a client cannot know that — it holds a snapshot, the motion may
+   * have been withdrawn in the meantime, and the refusal would be silent. What
+   * happens here instead is that the confirmation becomes a fresh motion in
+   * that member's own name, which is the truthful outcome: they did mean it,
+   * and now they are the one waiting for a second.
+   *
+   * Removal is the ordinary departure once it carries — the same path
+   * `LEAVE_CHANNEL` takes, through `dropParticipant`, so a removed floor-holder
+   * releases the floor and every map keyed by them is cleaned the same way.
+   * What it is *not* is `DELETE_CHANNEL`: the roster cannot fall below
+   * `MIN_PARTICIPANTS_TO_REMOVE - 1` by this route, so there is no case where a
+   * removal ends a channel.
+   *
+   * **No presence, unlike almost everything else a member does to the room.**
+   * Muting somebody or answering the door asks `hasTheRoom`, because those are
+   * acts inside a conversation. This is administration, and demanding presence
+   * would mean the two who agree had to be in the channel — with the person
+   * they are removing listening — which is the one arrangement the whole
+   * mechanism exists to avoid.
+   */
+  | { type: 'MOVE_TO_REMOVE'; userId: UserId; targetId: UserId }
+  /**
+   * Takes one member's agreement back off an open motion, and takes the motion
+   * with it when they were the only one on it.
+   *
+   * Offered because a motion stands for a day and the case it is for is
+   * ordinary: something is said in the room, the reason evaporates, and the
+   * proposal is still sitting there for somebody else to happen upon and
+   * agree to. A mover who cannot stand down is a mover whose only way out is
+   * to hope nobody else looks.
+   *
+   * It withdraws the sender's own agreement and never anybody else's, which is
+   * why it carries no mover: one member cannot overrule another's, and a motion
+   * a second member could clear would be a veto rather than a withdrawal.
+   */
+  | { type: 'WITHDRAW_REMOVAL'; userId: UserId; targetId: UserId }
   /**
    * Names or renames the channel. Any participant may, at any time — a name
    * is shared furniture, like the track, and carries no floor restriction.

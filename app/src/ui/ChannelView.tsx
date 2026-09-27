@@ -55,6 +55,8 @@ import {
   canInviteGuest,
   canAskGuestJoin,
   canManageGuest,
+  removalMotion,
+  removalMovesWanted,
   canWithdrawGuestInvite,
   canEditChannel,
   hasTheRoom,
@@ -1665,6 +1667,39 @@ export function ChannelView({
         // is always a mute.
         onSetMute={(muted) =>
           act({ type: 'SET_SELF_MUTE', muted, target: viewing.id })
+        }
+        // Where a removal of this person stands, and null wherever one cannot
+        // happen: about yourself, and in a channel too small for two members to
+        // agree — `removalMovesWanted` answers null for both, which is what
+        // withholds the section rather than drawing it dead.
+        //
+        // **Read from the snapshot rather than from a guard**, unlike `mic`
+        // above. The count *is* the rule — the threshold, whoever has already
+        // moved, and whether the motion has lapsed — so a screen that composed
+        // it from parts would be a second place the arithmetic lives.
+        removal={
+          viewing.id === me
+            ? null
+            : (() => {
+                const wanted = removalMovesWanted(channel, viewing.id, now);
+                if (wanted === null) return null;
+                return {
+                  wanted,
+                  // Whether *you* are on it. Absent from your own snapshot
+                  // only when the motion is about you, which this branch has
+                  // already excluded.
+                  iHaveMoved:
+                    removalMotion(channel, viewing.id, now)?.movedBy.includes(
+                      me
+                    ) ?? false,
+                };
+              })()
+        }
+        onMoveToRemove={() =>
+          act({ type: 'MOVE_TO_REMOVE', targetId: viewing.id })
+        }
+        onWithdrawRemoval={() =>
+          act({ type: 'WITHDRAW_REMOVAL', targetId: viewing.id })
         }
         // Removing a contact leaves every channel that held only the two of
         // you, and this screen is reached from inside one — which, for a

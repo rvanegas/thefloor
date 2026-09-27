@@ -682,6 +682,21 @@ export const api = {
     }),
 
   /**
+   * Says this account has read the card telling them a channel's members
+   * removed them, which deletes it.
+   *
+   * Not under `/channels/` like the notice above, and the address is the point:
+   * every route under there is answered by asking whether this account belongs
+   * to that channel, and the whole subject here is somebody who does not. See
+   * the route in server/src/app.ts.
+   */
+  acknowledgeRemoval: (token: string, channelId: string) =>
+    request<{ ok: true }>(`/removals/${channelId}/read`, {
+      method: 'POST',
+      token,
+    }),
+
+  /**
    * Sets what this channel declares about itself for a podcast directory.
    *
    * Each field is optional and absent means unchanged, so a screen that

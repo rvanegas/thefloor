@@ -30,7 +30,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
 | *Controls* | Button and its five variants, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
-| *Cards and rows* | the card, its tinted states, packed rows against spread ones, when a card that repeats the footer stops earning its place |
+| *Cards and rows* | the card, its tinted states, the notice card, a profile's section order, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
@@ -655,6 +655,21 @@ So: four tinted cards, and Home's header now has two fills — which are one
 state on two devices and never on one, the two bars being mutually exclusive by
 construction.
 
+**A notice card is news rather than a row, and it sits above the list it is
+about.** One wearer so far — the *removal notice*, added 2026-09-26, at the top
+of Home's Channels list above every section label and above *Start a channel*.
+Plain `Card`, no tint and no border hue: it is not a state anybody is in, and
+spending one of the seven hues on a sentence that goes when it is read would be
+the first rule's failure mode.
+
+**What makes it a card rather than a section is that nothing in it opens.** A
+`SectionLabel` announces a class of row and invites a tap on one; this has
+nowhere to go — the channel it names is one the reader has no standing in — so
+it is a sentence, a sentence in `type.muted`, and one `Button` that takes it
+away. Anything else of this shape goes in the same place and reads the same way.
+The offline notice stays above it, on its own reasoning in § *The shape of a
+screen*: it is about the connection and removes itself.
+
 **A roster card's suffixes are ordered by what a reader may have to act on.**
 There are three — `· muted`, `· has the floor`, `· watching` — appended to the
 status in that order, and the order is the ranking: the first two are states
@@ -710,6 +725,22 @@ a film. On a card with a party loaded the list is open behind *Change video*
 instead and has no disclosure of its own: that press is already the deliberate
 one, and a second would make the known thing harder to reach than the
 clipboard.
+
+### A profile's sections are ordered by subject, except once
+
+Everything on a person's card is a thing to do *with* them — close their
+microphone, ask them to come, add them as a contact — and the order is the one
+described in § *The cards a footer made redundant*'s sibling reasoning: things to
+do at the top, facts you read above them.
+
+**The exception is *Removing them from this channel*, which is last**, added
+2026-09-26. It is the one section that is about them rather than with them, and
+weight is what puts it at the bottom: a screen that led with it would be a
+screen for getting rid of people that also happens to offer a ping. The mute
+control's own argument is the neighbouring half of this — it is on the profile
+rather than on the roster row precisely so that a tap from a list of faces
+cannot reach it, and a control that takes somebody's place away needs that same
+ceremony and more. GLOSSARY.md § *Motion to remove*.
 
 ### Rows pack or spread, and it means something
 
@@ -1452,9 +1483,20 @@ rules.
   sentence.
 - **Destructive and irreversible acts confirm through `Alert.alert`**, with
   `style: 'cancel'` first and `style: 'destructive'` second, and the body says
-  what is actually lost and for how long. There are 33 of these; there are no
+  what is actually lost and for how long. There are 35 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
+- **And a control that only *proposes* something confirms anyway, saying that
+  nothing has happened yet.** Added 2026-09-26 with the *motion to remove*.
+  *Move to remove them* takes nobody's place away — a second member has to
+  agree — so by the rule above it needs no dialog at all. It gets one because
+  the thing it starts is something another person can finish without asking the
+  mover again, which is the same irreversibility one step removed. The body
+  carries the two facts the tap does not: that the person is not told, and that
+  standing down is possible until somebody agrees. The confirmation on the
+  *second* press is the ordinary kind, and says what is lost.
+  **Withdrawing confirms nothing**, which is the other half of the rule: a
+  control that only ever puts things back does not get a dialog.
 - **A pair whose two directions are both consequential confirms in both**,
   which is the public page's On/Off on *Channel Settings* and nothing else so
   far. The usual shape guards one direction and lets the other go on a tap,
