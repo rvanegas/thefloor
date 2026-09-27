@@ -635,8 +635,68 @@ describe('Channel, watching together', () => {
     expect(text).toContain('Dana Chu Present  · watching');
     // Not said about somebody the server does not count, which is the whole
     // of what makes the line worth reading.
-    expect(text).toContain('Me (you) Present ');
     expect(text).not.toContain('Me (you) Present  · watching');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **And says the other half out loud, which it did not until 2026-09-26.**
+   *
+   * A blank suffix was doing two jobs. *Watching* appeared beside the people
+   * with the film up and nothing at all appeared beside everybody else — but
+   * nothing at all is also what this roster draws when it has no idea about
+   * screens, so the answer to *did the room come with me* was legible for the
+   * people who said yes and silent for the people who said no. Somebody
+   * checking on a member had a blank and no way to read it.
+   */
+  it('says of somebody in the room that they are not watching', () => {
+    showChannel(playing(), [], { watching: [THEM] });
+    const tree = openOnPeople();
+    expect(textOf(tree)).toContain('Me (you) Present  · not watching');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **The denial is only about somebody in the room**, whose card would
+   * otherwise carry the least urgent suffix on the roster saying the least
+   * about them: a member who is *nearby* or *stepped out* is not watching in
+   * any sense the room is asking about, and their card already says where they
+   * are instead.
+   *
+   * *Watching* itself is not gated this way and must not become so — a
+   * *second device* is a screen without a voice, so a member holding the
+   * picture while stepped out is reported, which the test above this one is
+   * about.
+   */
+  it('says nothing of a member who is not in the room to be watching in', () => {
+    showChannel(
+      playing((s) => reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW)),
+      [],
+      { watching: [ME] }
+    );
+    const tree = openOnPeople();
+    const text = textOf(tree);
+    expect(text).toContain('Me (you) Present  · watching');
+    expect(text).not.toContain('· not watching');
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **A server that cannot answer must not be made to deny**, which is the one
+   * thing the third value buys over a boolean. An empty list and an absent
+   * field drew the same blank while the blank meant nothing; they are opposite
+   * statements now — *nobody has the film up* against *this server has never
+   * heard of screens* — and a build meeting the older one would otherwise tell
+   * a whole room it was not watching a film it was sitting in front of. See
+   * SHIMS.md.
+   */
+  it('denies nothing when the server does not report screens at all', () => {
+    showChannel(playing());
+    const tree = openOnPeople();
+    const text = textOf(tree);
+    expect(text).toContain('Me (you) Present ');
+    expect(text).not.toContain('· not watching');
+    expect(text).not.toContain('· watching');
     act(() => tree.unmount());
   });
 

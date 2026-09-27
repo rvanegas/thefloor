@@ -403,7 +403,7 @@ export function ParticipantCard({
   onPing,
   pingableAt = null,
   attentiveAt = null,
-  watching = false,
+  watching = null,
 }: {
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   participant: { id: string; displayName: string };
@@ -463,15 +463,24 @@ export function ParticipantCard({
    */
   cooldown?: number | null;
   /**
-   * Whether this person has the party's film up on one of their devices.
+   * Whether this person has the party's film up on one of their devices —
+   * `true`, `false`, or `null` for nothing to say.
    *
    * **A fact about the person and not about their hardware**, which is what
    * makes it a suffix rather than a second line: the room is being told that
    * somebody is watching, and *which* screen they are watching on is their
-   * own business. See `ChannelView.watching`, and `watchingNow` for the guard
-   * that keeps it off a roster with no film in the room.
+   * own business. See `ChannelView.watching`, and `watchSaysFor` for which of
+   * the three answers a given card gets — the card draws what it is handed
+   * and decides none of it.
+   *
+   * **`false` is drawn, and that is the change of 2026-09-26.** It used to be
+   * a boolean whose false half drew nothing, which made *no film here* and
+   * *this person does not have the film up* the same blank. The caller is the
+   * only thing that can tell those apart, so the third value is how it says
+   * so; a `null` default keeps every other caller silent, which is what they
+   * all mean.
    */
-  watching?: boolean;
+  watching?: boolean | null;
 }) {
   const t = useText().channelCards;
   const here = isPresent(channel, participant.id);
@@ -839,8 +848,16 @@ export function ParticipantCard({
             somebody who is not in the room at all — a second device is a
             screen without a voice — so putting it first would open every such
             line with the fact that matters least about them.
+
+            **And the only one of the three with a negative worth drawing.** A
+            microphone that is not muted and a person who does not hold the
+            floor are the ordinary case and saying so of everybody would be
+            noise; *not watching* is said because the room is in the middle of
+            a film, which makes every member's screen a thing somebody is
+            asking about. `null` is how the caller says the question is not
+            live — see `watching` above.
           */}
-          {watching ? t.watching() : ''}
+          {watching === null ? '' : watching ? t.watching() : t.notWatching()}
         </Text>
       </View>
       {/*

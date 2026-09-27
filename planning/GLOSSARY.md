@@ -116,7 +116,7 @@ caused; the list carries the meaning.
 - **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say *while it is showing the film*, the way its length is, and never asked of YouTube
 - **Showing the film** — Whether what is in a player's frame is the party's video or a pre-roll in front of it, which decides whether the follower speaks to it and whether anything is learnt from it; by the video id the player names since 2026-09-23, by comparing lengths where there is no id. `showingTheFilm`
 - **Watched before** — The films a channel has watched, newest first, offered back on the watch card as rows to press since 2026-09-22; a property of the channel rather than of any person, deduplicated by video and ten deep, holding whatever each party managed to learn about its name and its length before it ended. A row is pressed the way a link is pasted — it carries the stored URL back through the same parse — and the list stands behind a press on an idle card and open behind *Change video* on a loaded one. `WatchState.history`
-- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that
+- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that. Since 2026-09-26 the other answer is said too: a member *in the room* without the film up reads *not watching*, the blank having meant both that and *this roster does not report screens*; withheld from a guest and from a server that does not send the field, neither of which can be denied honestly
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -2949,7 +2949,28 @@ survives somebody putting the phone down — so *watching* across a pause is a
 claim about attention with nothing behind it. The question the line answers,
 *did the room come with me*, is live only while something is actually playing.
 
-See decisions/2026-09-20-the-roster-says-who-is-watching.md.
+**And *not watching* is the other answer, said since 2026-09-26.** The suffix
+was a word or a blank, and the blank was doing two jobs: *this person does not
+have the film up* and *this roster is not reporting screens at all* drew
+identically, so the question was answered for the people who said yes and left
+silent for the people who said no. Three answers are now said as three —
+*watching*, *not watching*, and nothing.
+
+**Nothing is what the two cases that cannot be denied honestly get.** A *guest*
+is never on the list because their socket carries no declaration, so a guest
+absent from it may well be watching; and a server older than the field sends no
+list at all, where a denial would tell a whole room it was not watching a film
+it was sitting in front of. An **empty** list is not that case — it is a server
+that looked and found nobody, and every card may say so.
+
+**The denial is also only about somebody *in the room*.** A member who is
+*nearby* or *stepped out* is not watching in any sense the room is asking
+about, and their card already says where they are. *Watching* itself is not
+gated that way and must not become so: a *second device* is a screen without a
+voice, so a stepped-out member may hold the picture and is reported.
+
+See decisions/2026-09-20-the-roster-says-who-is-watching.md and
+decisions/2026-09-26-a-blank-suffix-was-two-answers.md.
 
 ## Watching here
 
@@ -3989,6 +4010,10 @@ are settled:
     Recording             Grabación
     Transcript            Transcripción
     Watch party           Ver algo juntos — a phrase, there being no noun
+    Watching /            Viendo / Sin ver — the roster suffixes. The negative
+    not watching          names the absence rather than negating the verb, on
+                          *Sin entrar*'s reasoning above: *no está viendo* wants
+                          a subject and a suffix has no room for one
     Public page           Página pública
     Username              Nombre de usuario
     Display name          Nombre visible

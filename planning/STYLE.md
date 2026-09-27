@@ -664,6 +664,18 @@ right size for all three, each being a clause about somebody rather than a
 thing to press; the moment one of them needs a second line it has stopped being
 a suffix and wants a card.
 
+**The third has a negative and the other two do not**, since 2026-09-26:
+`· not watching`, drawn for a member in the room while a film is playing.
+The asymmetry is the rule rather than an exception to it. An unmuted
+microphone and a person without the floor are the ordinary case, and saying so
+of everybody would be six cards of noise; a film playing makes every member's
+screen something a reader is actively asking about, and there a blank is not
+the ordinary case but an unanswered question — the same blank this roster
+draws when it has no information about screens at all. So the negative is
+spent where the absence of the positive was being read as an answer, and
+nowhere else. GLOSSARY.md § *Watching (on the roster)* has which cards are
+withheld from and why.
+
 **Fill and border are two different questions on a roster card.** The border
 means *speaking*, driven by the room; the fill means *holds the floor*, driven
 by the reducer. They routinely disagree — a holder sitting silent, a

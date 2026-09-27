@@ -542,6 +542,21 @@ export const en = {
     muted: () => ' · muted',
     hasTheFloorSuffix: () => ' · has the floor',
     watching: () => ' · watching',
+    /**
+     * Said of a member in the room while a film is playing and no device of
+     * theirs is showing it.
+     *
+     * **Two words rather than a phrase, because it is a suffix in a list of
+     * them** — *muted*, *has the floor*, *watching* — and the sentence a card
+     * reads has to survive two of them landing at once. *Not watching* is the
+     * negation of the word already there, which is what keeps the pair
+     * readable as one question answered two ways.
+     *
+     * It is not *away* or *not here*: those are claims about the person, and
+     * the roster already makes them further left. This one is only ever about
+     * the film.
+     */
+    notWatching: () => ' · not watching',
     /** `seconds` is already formatted — see `formatSeconds`. */
     waitFor: (seconds: string) => `wait ${seconds}`,
     pinging: () => 'Pinging\u2026',
@@ -558,15 +573,15 @@ export const en = {
       self: boolean,
       status: string,
       holdsFloor: boolean,
-      watching: boolean,
+      watching: boolean | null,
       speaking: boolean,
       openable: boolean
     ) =>
       `${name}${self ? ', you' : ''}. ${status}.${
         holdsFloor ? ' Has the floor.' : ''
-      }${watching ? ' Watching.' : ''}${speaking ? ' Speaking.' : ''}${
-        openable ? ' View profile.' : ''
-      }`,
+      }${
+        watching === null ? '' : watching ? ' Watching.' : ' Not watching.'
+      }${speaking ? ' Speaking.' : ''}${openable ? ' View profile.' : ''}`,
     stepInToAskAnybodyIn: () =>
       'Step in to ask anybody in. An invitation lands in whatever is being said, so it belongs to whoever is saying it.',
     memberOrGuestFull: (cap: number) =>

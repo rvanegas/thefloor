@@ -1753,10 +1753,55 @@ export function ChannelView({
    * line exists to answer *did the room come with me*, and that question is
    * only live while something is actually playing.
    *
-   * Empty from a server older than the field, which draws the roster the way
-   * it drew before there was one. See SHIMS.md.
+   * **Null rather than empty, and the distinction is what lets the roster say
+   * *not watching*.** An empty list and an absent field used to draw the same
+   * blank suffix, so collapsing them cost nothing; they are now opposite
+   * answers. `[]` is a server that has looked and found nobody — every card
+   * may say the film is not up. `undefined` is a server older than the field,
+   * which knows nothing about screens and must not be made to deny one. See
+   * SHIMS.md, and `watchSaysFor` below.
    */
-  const watchingNow = channel.watch?.status === 'playing' ? (view.watching ?? []) : [];
+  const watchingNow =
+    channel.watch?.status === 'playing' ? (view.watching ?? null) : null;
+  /**
+   * What the roster says about one person and the film — and *not watching* is
+   * a third answer rather than the absence of the first.
+   *
+   * **A blank suffix and a denial are different statements, and the blank was
+   * being read as the denial.** *Watching* appeared beside the people who had
+   * the film up and nothing at all appeared beside everybody else, so the one
+   * question the line exists to answer — *did the room come with me* — was
+   * answered for half the room and left silent for the other half, in a place
+   * where silence also means *this roster does not report screens*. Somebody
+   * checking whether a member had the film could not tell the two apart.
+   *
+   * So the three answers are said as three:
+   *
+   * - `true` — the server holds a screen of theirs for this channel.
+   * - `false` — it holds none, and they are in the room to not be watching in.
+   * - `null` — there is nothing to say: no film is playing, or this server
+   *   does not report screens at all.
+   *
+   * **The absence is only asserted about somebody in the room.** A member who
+   * is *nearby* or *stepped out* is not watching in any sense the room cares
+   * about, and their card already says where they are; adding a denial would
+   * be spending the least urgent suffix on the person it says least about.
+   * *Watching* itself is not gated that way and must not become so — a
+   * *second device* is a screen without a voice, so a stepped-out member may
+   * hold the picture and has been able to say so since 2026-09-20.
+   *
+   * **Guests are not asked, because the field cannot answer for them.** Their
+   * socket is a scope of its own and never carries the declaration — see
+   * `ChannelView.watching` — so a guest absent from the list may be watching
+   * and a denial would be a false one. It costs nothing to leave out here:
+   * `view.participants` is the member directory, and a guest in the room is
+   * drawn by `GuestCard`, which has never carried this suffix.
+   */
+  const watchSaysFor = (id: string): boolean | null => {
+    if (watchingNow === null) return null;
+    if (watchingNow.includes(id)) return true;
+    return inRoom(channel, id) ? false : null;
+  };
   /**
    * Standing here, but not on this device.
    *
@@ -3254,8 +3299,9 @@ export function ChannelView({
                 // Whether they have the film up, from the snapshot rather
                 // than from `watchingHere` — which is the microphone's list
                 // and says nothing about a second device. See
-                // `ChannelView.watching`.
-                watching={watchingNow.includes(participant.id)}
+                // `ChannelView.watching`. Three-valued: `watchSaysFor` is
+                // where *not watching* and *nothing to say* part.
+                watching={watchSaysFor(participant.id)}
               />
             ))}
           </View>

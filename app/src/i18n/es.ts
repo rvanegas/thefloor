@@ -428,6 +428,11 @@ export const es: Strings = {
     muted: () => ' · silenciado',
     hasTheFloorSuffix: () => ' · tiene la palabra',
     watching: () => ' · viendo',
+    // *Sin ver* rather than *no está viendo*, on `invited`'s reasoning a few
+    // lines up: naming the absence is what keeps a suffix a suffix in Spanish,
+    // where the negated verb wants a subject and a card has no room for one.
+    // It pairs with *viendo* the way *sin entrar* pairs with the room.
+    notWatching: () => ' · sin ver',
     waitFor: (seconds: string) => `espera ${seconds}`,
     pinging: () => 'Avisando\u2026',
     pinged: () => 'Avisado',
@@ -437,15 +442,15 @@ export const es: Strings = {
       self: boolean,
       status: string,
       holdsFloor: boolean,
-      watching: boolean,
+      watching: boolean | null,
       speaking: boolean,
       openable: boolean
     ) =>
       `${name}${self ? ', t\u00fa' : ''}. ${status}.${
         holdsFloor ? ' Tiene la palabra.' : ''
-      }${watching ? ' Viendo.' : ''}${speaking ? ' Hablando.' : ''}${
-        openable ? ' Ver perfil.' : ''
-      }`,
+      }${
+        watching === null ? '' : watching ? ' Viendo.' : ' Sin ver.'
+      }${speaking ? ' Hablando.' : ''}${openable ? ' Ver perfil.' : ''}`,
     stepInToAskAnybodyIn: () =>
       'Entra para invitar a alguien. Una invitaci\u00f3n cae en medio de lo que se est\u00e9 diciendo, as\u00ed que es de quien lo est\u00e9 diciendo.',
     memberOrGuestFull: (cap: number) =>

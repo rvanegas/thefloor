@@ -2110,10 +2110,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * cleared by the `screen` message that displaced it, so the return re-states
    * a belief this device still holds rather than stealing a film back from
    * wherever it went.
+   *
+   * **Reconciled at the moment the role is taken as well as on every
+   * transition, and it was not until 2026-09-26.** A listener only ever hears
+   * a *change*, so a device that became the screen while the app was already
+   * away had nothing to retract its declaration: the claim went out from
+   * `showScreenFor` or `onScreenAsked`, no transition followed, and the room
+   * read *watching* at a phone in a pocket for the length of the film — the
+   * exact failure the paragraph above says this exists to prevent. It is the
+   * ordinary way for it to happen rather than a corner: somebody else pastes a
+   * link, the default-screen effect in `ChannelView` takes the role off the
+   * arriving snapshot without asking where the app is, and a stepped-in phone
+   * goes on running in the background because the call keeps it alive.
+   *
+   * So the role is checked against where the app is when it is taken, not only
+   * when that changes. **Only the retraction is asserted, and the asymmetry is
+   * deliberate**: a role taken while the app is in front has already been
+   * declared by whichever path took it, and restating it here would put a
+   * second identical message on the wire for every handover. A role taken
+   * while the app is away leaves a claim standing that nothing else will ever
+   * withdraw, which is the whole of the bug.
+   *
+   * The pair that case sends — the declaration, then this null behind it — is
+   * two messages to say one thing, and it is worth the symmetry of having one
+   * reconciler rather than an `AppState` read at each of the two call sites
+   * that declare. The server's own early return absorbs a null against a
+   * device it holds nothing for.
    */
   useEffect(() => {
     const screenFor = state.screenFor;
     if (screenFor === null || Platform.OS === 'web') return;
+    if (NativeAppState.currentState !== 'active') realtime.showingScreen(null);
     const subscription = NativeAppState.addEventListener('change', (next) => {
       realtime.showingScreen(next === 'active' ? screenFor : null);
     });

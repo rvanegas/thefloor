@@ -193,6 +193,35 @@ describe('being handed a film', () => {
   });
 
   /**
+   * **The same claim, taken while the app is already away**, which the
+   * retraction above used to miss entirely: a listener hears a *change*, and
+   * there is no change to hear when the role arrives after the backgrounding.
+   *
+   * It is the ordinary way for it to happen rather than a corner. Somebody
+   * else pastes a link, the arriving snapshot makes the default-screen effect
+   * in `ChannelView` take the role without asking where the app is, and a
+   * stepped-in phone is still running because the call keeps it alive — so the
+   * room read *watching* at a pocket for the length of the film.
+   */
+  it('stops telling the room when the role arrives while it is already away', async () => {
+    const shown = await open();
+    await goes('background');
+    reported.length = 0;
+
+    act(() => handlers.onScreenAsked?.('sess_1'));
+
+    // Two messages to say one thing: the declaration the handover makes, and
+    // the reconciler withdrawing it behind. What matters is where it lands.
+    expect(reported[reported.length - 1]).toBeNull();
+    // And the role is kept, as it is for a device that was away when it
+    // arrived — the picture is mounted and the film resumes on return.
+    expect(textOf(shown)).toContain('screen:sess_1');
+
+    await goes('active');
+    expect(reported[reported.length - 1]).toBe('sess_1');
+  });
+
+  /**
    * A device displaced while it was away comes back with nothing to say. The
    * `screen` message that displaced it cleared the role, and the report is
    * made off the role rather than off a memory of one — otherwise a phone
