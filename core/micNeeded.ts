@@ -53,12 +53,19 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
     it, which is the part that turned out to be wrong.
 
     **Holding the device and changing the configuration instead cost the room
-    its conversation.** `SCREENING` was `playAndRecord` under `default`, and
-    changing the configuration mid-run stops the audio engine — after which
-    nothing restarts it, so a pause put every microphone back onto a dead
-    engine and nobody could be heard until they left the channel and returned.
-    Measured on build 296, three fixes into one report. It did not even buy the
+    its conversation.** `SCREENING` was `playAndRecord` under `default`, and on
+    build 296 the audio engine stopped mid-run and nothing restarted it, so a
+    pause put every microphone back onto a dead engine and nobody could be
+    heard until they left the channel and returned. It did not even buy the
     second back: `watch playing after 1689ms`.
+
+    **Corrected 2026-09-27: the configuration write was not what stopped it.**
+    Measured directly on build 302 — the mode alone, and this exact
+    configuration, held forty seconds with the engine capturing and a remote
+    track rendering, and nothing stopped. So this exception stands on the
+    second on Play rather than on the configuration route being impossible,
+    and what stopped build 296's engine is open. See
+    planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
 
     So the second is paid and the film keeps its stereo. See
     `planning/decisions/2026-09-26-the-film-keeps-its-stereo.md`, and
@@ -104,9 +111,10 @@ export function hasMicrophone(
  *
  * **What this answers moved on 2026-09-23 and moved back on 2026-09-26.** For
  * three days it decided which session configuration a device held while it went
- * on capturing — `SCREENING` rather than `CALL` — and changing the
- * configuration mid-run stopped the audio engine, which nothing restarted. So
- * it decides again what it originally did: whether this device captures at all.
+ * on capturing — `SCREENING` rather than `CALL` — and on build 296 the audio
+ * engine stopped mid-run with nothing to restart it. So it decides again what
+ * it originally did: whether this device captures at all. The write turned out
+ * not to be the cause of that stop; see below and the 2026-09-27 entry.
  * `microphoneNeeded` says why, and what it costs.
  *
  * **The exception to the one rule above, and it is written down as one so that
@@ -122,16 +130,23 @@ export function hasMicrophone(
  * and the film is what everybody came for.
  *
  * The category was never the problem; the *mode* is, and `allowBluetooth` is,
- * and both are choices. **So the cheap version held the device and changed only
- * the configuration — and changing the configuration is what stops the audio
- * engine.** Nothing restarts it, so the room could not talk when the film
- * paused. The category change this exception causes is not a cheaper version of
- * that: it releases and retakes the device, which is what brings the engine
- * back up, and it is the reason the second it costs is a second rather than a
- * silence.
+ * and both are choices. So the cheap version held the device and changed only
+ * the configuration, and on build 296 the room could not talk when the film
+ * paused, the engine having stopped with nothing to restart it.
  *
- * **The price is paid by whoever pressed Play, once**, and not by the
- * conversation. That is the ordering the 2026-09-23 attempt had backwards.
+ * **What is corrected as of 2026-09-27 is why.** The write was not the cause:
+ * this exact configuration was applied to a capturing, rendering engine on
+ * build 302 and held forty seconds without stopping it. The cheap version may
+ * therefore be available after all — what is not yet known is what *did* stop
+ * that engine, and the film's own `WKWebView` is the suspect. See
+ * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ *
+ * **So this exception stands on the second on Play**, which is build 277's
+ * measurement and is untouched by any of that: releasing and retaking the
+ * device is what tears the engine down and brings it back up, and it costs
+ * about a second. **The price is paid by whoever pressed Play, once**, and not
+ * by the conversation. That is the ordering the 2026-09-23 attempt had
+ * backwards, and it is the reason this is still here.
  *
  * **Two properties of a watch party make it safe, and neither generalises.**
  * A loaded party already refuses a recording — `canStartRecording` requires

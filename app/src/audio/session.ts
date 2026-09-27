@@ -92,8 +92,17 @@ export const LISTENING: AppleAudioConfiguration = {
  * second on every press of Play — build 277, `engine stop` at 0.92 to 1.11
  * seconds with the category change immediately behind it.
  *
- * **Changing the configuration stops the audio engine too, and nothing restarts
- * it.** Build 296, both phones, with the write landing promptly from JavaScript
+ * **The engine stopped, and nothing restarted it — but not because of the
+ * write.** Corrected 2026-09-27: the configuration was measured directly on
+ * build 302, three runs, and `setAppleAudioConfiguration` while the engine runs
+ * stops nothing. Neither the mode alone nor this exact configuration, held
+ * forty seconds with a remote track rendering. What the write does is remove
+ * the voice processing, audibly, which is what it was for. So the log below is
+ * a true record of build 296 and the sentence that used to introduce it was an
+ * attribution rather than a reading. See
+ * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ *
+ * Build 296, both phones, with the write landing promptly from JavaScript
  * rather than a second later from the native observer:
  *
  *     834800  muted SCREENING
@@ -102,19 +111,28 @@ export const LISTENING: AppleAudioConfiguration = {
  *     844663  capturing CALL
  *             (no route change, no engine start)
  *
- * `setAppleAudioConfiguration` writes shared state that the observer applies
- * *at* an engine transition, so with the engine stopped there are no more
- * transitions and the `CALL` the pause asked for never landed. Both microphones
- * unmuted onto a dead engine and the room could not talk until somebody left
- * the channel and came back — which is the one path that releases the session
- * and reaches `engine start play=T rec=T` from nothing.
+ * The consequence in that log is real: the `CALL` the pause asked for never
+ * landed, both microphones unmuted onto a dead engine, and the room could not
+ * talk until somebody left the channel and came back — which is the one path
+ * that releases the session and reaches `engine start play=T rec=T` from
+ * nothing.
  *
- * **That last clause is the whole lesson: the release is not the cost, it is
- * the repair.** A category change tears the device down *and brings the engine
- * back up*; a configuration change tears it down and leaves it down. So the
- * expensive arrangement is the one that works, and `microphoneNeeded` in
- * core/micNeeded.ts subtracts the film again. A screening device releases its
- * microphone, the session falls to `LISTENING`, and the film is stereo.
+ * **What is not known is what stopped it.** Two things in that log point away
+ * from the write and were read past at the time. The stop is 1,254ms after it,
+ * where every write measured since lands in under 280ms. And it reads
+ * `play=T rec=T` — both directions still enabled — where all twenty-two stops
+ * this app was seen to cause on 2026-09-27 read `rec=F` or both false: the
+ * flags walk down first, then the engine goes. A stop with both still wanted is
+ * one imposed from outside. It arrives 316ms before `watch playing`, so the
+ * film's own `WKWebView` taking the session is the suspect, and the probe for it
+ * is the debug switch in the audio panel that keeps the microphone through the
+ * film.
+ *
+ * `microphoneNeeded` in core/micNeeded.ts subtracts the film either way, and
+ * that has not changed: a screening device releases its microphone, the session
+ * falls to `LISTENING`, and the film is stereo. What changed is that the reason
+ * is the second on Play — build 277's measurement, untouched — rather than a
+ * configuration route that was believed to be impossible.
  *
  * **What it costs is a second on every press of Play**, paid once by whoever
  * pressed it rather than by the conversation. `planning/tasks/` carries what a

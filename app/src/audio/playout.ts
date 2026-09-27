@@ -49,6 +49,23 @@
  * first, and the decision to act on it is made against the count.
  */
 
+/**
+ * **It detects a dead receiver, not a silent one, and that was measured on
+ * 2026-09-27.** A deliberate twenty-second mute of the only subscribed track
+ * produced no `playout frozen` line, and nothing else did in ninety minutes.
+ * Either `totalSamplesDuration` is unreadable on this build — in which case
+ * every quiet reading this has ever given is the absence of measurement the
+ * header above forbids mistaking for a measurement of absence — or a muted
+ * track goes on advancing the counter because the receiver renders silence.
+ *
+ * Both are consistent with what this was built for, which is a receiver that
+ * has stopped rendering altogether. **Neither makes it usable for any question
+ * of the form *did the audio stop*.** Calibrate it against a fault you caused
+ * before believing its silence about one you did not; on 2026-09-27 it was
+ * reached for as a witness, trusted because it was there, and cost a run. See
+ * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ */
+
 /** How often the receiver is asked, in ms. Cheap, but not free. */
 export const PLAYOUT_POLL_MS = 2_000;
 

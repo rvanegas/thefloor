@@ -1,5 +1,20 @@
 # The film keeps its stereo, and the second on Play is paid
 
+> **Corrected 2026-09-27: the mechanism below is wrong.** A configuration write
+> does not stop the audio engine — not the mode, not the options, not the
+> `SCREENING` configuration this entry retired, measured three times on build
+> 302 with the engine capturing and rendering. So the asymmetry table in
+> *Why A was left in the first place* is wrong in its second row, and the
+> paragraph that calls the write the cause of the engine stop is wrong with it.
+> What stopped build 296's engine is an open question, and the film's own
+> `WKWebView` is the suspect. See
+> 2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+>
+> **What is not corrected is the outcome.** The room did lose its conversation,
+> the revert did fix it, and the second on Play is still what the release and
+> retake cost — build 277 measured that and nothing since has touched it. This
+> entry got the right answer for a reason that turns out not to hold.
+
 Closed 2026-09-26, on the third fix for one report and the first that was
 argued from a device. **`SCREENING` is deleted and `microphoneNeeded` subtracts
 `isScreening` again.** A device showing the film releases its microphone, the
