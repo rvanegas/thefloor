@@ -34,7 +34,7 @@ import {
   resetHarness,
   showChannel,
   showInvites,
-  showNotepad,
+  showClipboard,
   showListen,
   textOf,
 } from '../testing/harness';
@@ -2156,8 +2156,8 @@ describe('a channel screen that does not repeat its footer', () => {
     // footer's own controls were said twice, and nothing on these is a second
     // way of doing anything in the bar.
     expect(textOf(tree)).toContain('Dana Chu');
-    showNotepad(tree);
-    expect(textOf(tree)).toContain('Shared clipboard');
+    showClipboard(tree);
+    expect(textOf(tree)).toContain('Paste my clipboard');
     showListen(tree);
     expect(textOf(tree)).toContain('Recording');
     // And the tabs themselves are all still offered. A preference about

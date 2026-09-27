@@ -39,7 +39,7 @@ import {
   resetHarness,
   showChannel,
   showInvites,
-  showNotepad,
+  showClipboard,
   showListen,
   showRecordings,
   showPeople,
@@ -387,7 +387,7 @@ describe('Channel', () => {
     // explaining it is different on each, which is the thing worth checking:
     // a disabled cluster with nothing saying why is the shape this codebase
     // does not allow.
-    showNotepad(tree);
+    showClipboard(tree);
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
     expect(textOf(tree)).toContain(
       'Step in to put something on the channel clipboard'
@@ -471,7 +471,7 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
-    showNotepad(tree);
+    showClipboard(tree);
     expect(on('Paste my clipboard')).toEqual({ disabled: false });
 
     showInvites(tree);
@@ -517,9 +517,11 @@ describe('Channel', () => {
   /**
    * The same rule one screen in. A channel's name is what the people in it
    * call the place they are in, so it is not for somebody who is somewhere
-   * else to change under them — and `canEditChannel` governs the notepad with
-   * it, the two being one question, asked on two screens since the field
-   * moved to the Notepad tab.
+   * else to change under them — and `canEditChannel` governs the description
+   * with it, the two being one question asked about two fields on the same
+   * screen. It was asked on two screens while the description was the
+   * *notepad*, on a tab of this one; channelSettings.test.tsx has the other
+   * half.
    */
   it('will not let somebody outside the conversation rename the channel', () => {
     showChannel(
@@ -1544,7 +1546,7 @@ describe('Channel', () => {
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
       'People',
-      'Notepad',
+      'Clipboard',
       'Invite',
       'Listen',
       'Recordings',
@@ -1582,14 +1584,12 @@ describe('Channel', () => {
     */
     expect(sections()).toEqual(['Members', 'Audio']);
 
-    // What the channel has written down, at two speeds — and in that order
-    // since 2026-09-13: the clipboard, which is minutes old and is what
-    // somebody opened this tab to find, above the notepad, which is a standing
-    // sheet that changes about as often as the channel's name. The tab is
-    // named after the slower half even so; what it is called is not an
-    // argument about which half is looked at first.
-    showNotepad(tree);
-    expect(sections()).toEqual(['Shared clipboard', 'Notepad']);
+    // Nothing here either, and for the same reason, since 2026-09-27: the tab
+    // held the clipboard and the *notepad* under a label each, the description
+    // left for Channel Settings, and what remains is one card on a tab called
+    // *Clipboard* whose own sentence says one channel has one clipboard.
+    showClipboard(tree);
+    expect(sections()).toEqual([]);
 
     // Nothing at all, since 2026-09-13: the recording transport moved to
     // *Recordings* on 2026-09-12, and what was left was one card under a
@@ -1825,7 +1825,7 @@ describe('Channel', () => {
     expect(holes()).toHaveLength(1);
 
     // Back out again, and the room is given back.
-    showNotepad(tree);
+    showClipboard(tree);
     expect(holes()).toHaveLength(0);
     act(() => tree.unmount());
   });
@@ -2040,14 +2040,13 @@ describe('Channel', () => {
     expect(findButton(header, 'Home')).toBeDefined();
     expect(findButton(header, 'Settings')).toBeDefined();
 
-    // And the description stayed behind, in the scroll — on *Notepad* since the
-    // six tabs, and out of the header either way. It is prose of any length,
-    // and a pinned header is the one place on this screen that cannot afford
-    // something that grows. Asserted against a description the channel
-    // actually has, so that the absence means something.
+    // And the description is not in it — nor anywhere else on this screen since
+    // 2026-09-27, which the test above pins. It is prose of any length, and a
+    // pinned header is the one place here that cannot afford something that
+    // grows; it sat under the name until the six tabs even so. Asserted
+    // against a description the channel actually has, so that the absence
+    // means something.
     expect(textOf(header)).not.toContain('Reading Dune on Thursdays.');
-    showNotepad(tree);
-    expect(textOf(tree)).toContain('Reading Dune on Thursdays.');
     act(() => header.unmount());
     act(() => tree.unmount());
   });
@@ -3264,299 +3263,42 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('renders the notepad for somebody who cannot write on it', () => {
-    // Stepped out, so `canEditChannel` is false and the notepad is a sheet to
-    // read rather than one to write on — no field, and no *Edit* beside it.
+  it('keeps the description off the channel screen entirely', () => {
+    /*
+      It was on this screen from the six tabs' arrival until 2026-09-27, as
+      the *notepad*: a sheet on the clipboard tab, read there by everybody and
+      written there by anybody with the room. What moved it to Channel Settings
+      is who the words are for — nobody in the channel needs telling what the
+      channel is, and the public page is where a stranger reads it. So no tab
+      draws it and no tab offers a field for it.
+    */
     showChannel(
-      channelOf((c) => {
-        const out = reduce(c, { type: 'STEP_OUT', userId: ME }, NOW);
-        return reduce(
-          out,
+      channelOf((c) =>
+        reduce(
+          c,
           {
             type: 'SET_DESCRIPTION',
-            userId: THEM,
+            userId: ME,
             description: 'Reading Dune, notes at https://example.com.',
           },
           NOW
-        );
-      })
-    );
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    // Not on the roster, which is where it was until the six tabs: it is what
-    // the channel is *for*, which is a slower fact than anything the roster
-    // carries, and a line of it was being paid for by every screenful of every
-    // other section. Asserted from both sides, a tab being worth nothing if
-    // the thing it holds is drawn on the one beside it too.
-    expect(textOf(tree)).not.toContain('Dune');
-
-    showNotepad(tree);
-    const text = textOf(tree);
-    // Verbatim, since 2026-09-13: what is on the sheet is the characters
-    // somebody typed, with nothing parsed out of them and nothing rendered
-    // from them.
-    expect(text).toContain('Reading Dune, notes at https://example.com.');
-
-    // No field and no way to open one, and a sentence saying why rather than
-    // a disabled box: the rule on this tab is the one the name keeps on the
-    // settings screen.
-    expect(tree.root.findAll((n) => n.type === TextInput)).toEqual([]);
-    expect(findExactButton(tree, 'Edit')).toBeUndefined();
-    expect(text).toContain('Step in to write on this');
-    act(() => tree.unmount());
-  });
-
-  it('says the notepad is empty, to somebody who cannot write on it', () => {
-    showChannel(
-      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
-    );
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    showNotepad(tree);
-    // A heading with nothing under it reads as something that failed to load,
-    // which the tab made possible: nothing was drawn where the description
-    // went when it sat above the switch, and nothing was the right answer
-    // there. Whoever has the room gets the field's placeholder instead, which
-    // is the same sentence said by the box itself.
-    expect(textOf(tree)).toContain('Nothing on the notepad');
-    act(() => tree.unmount());
-  });
-
-  it('opens the notepad for writing behind Edit, and closes on Done', () => {
-    showChannel(channelOf());
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    // On the tab, not behind Settings: it moved on 2026-09-12, a notepad
-    // somebody has to leave the page to write on not being one.
-    showNotepad(tree);
-
-    const field = () =>
-      tree.root.findAll(
-        (n) =>
-          n.props?.placeholder === 'Links, a reading list, what this is for…'
-      )[0];
-
-    // A sheet first, since 2026-09-13. Arriving at the notepad is arriving to
-    // read it, so the box is behind *Edit* rather than being the notepad.
-    expect(field()).toBeUndefined();
-    act(() => findExactButton(tree, 'Edit')!.props.onPress());
-    expect(field()).toBeDefined();
-
-    act(() => field().props.onChangeText('Dune, Thursdays'));
-
-    // Nothing is written while the field has focus, this tab being a place
-    // somebody stays rather than a screen they close.
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', {
-      type: 'SET_DESCRIPTION',
-      description: 'Dune, Thursdays',
-    });
-
-    // Leaving the field is the save, which is what the settings screen did
-    // when you tapped the way back straight out of it.
-    act(() => field().props.onBlur());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-      type: 'SET_DESCRIPTION',
-      description: 'Dune, Thursdays',
-    });
-
-    // And *Done* puts the sheet back, a multiline field having no return key
-    // that means finished.
-    act(() => findExactButton(tree, 'Done')!.props.onPress());
-    expect(field()).toBeUndefined();
-    expect(textOf(tree)).toContain('Dune, Thursdays');
-    act(() => tree.unmount());
-  });
-
-  it('asks to be revealed when the box opens over the keyboard', () => {
-    /*
-      The box sits far enough down this tab that `Screen`'s avoider, which
-      shortens the viewport without scrolling it, can leave the field and
-      *Done* underneath the keyboard. `Reveal` is the answer, and the half
-      that is worth a test is not the arithmetic — that is `reveal.test.ts` —
-      but *where the request is made from*.
-
-      `RevealContext`'s provider lives inside `Screen`'s own tree, so a
-      reveal asked for by the component that renders `<Screen>`, which this
-      one is, reads the default and moves nothing. It shipped that way on
-      2026-09-13 and looked exactly like a feature that had been written and
-      did not work. A subscription and no complaint is the pair that says the
-      card is asking from inside.
-    */
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    let listeners = 0;
-    jest
-      .spyOn(Keyboard, 'addListener')
-      .mockImplementation(((event: string) => {
-        if (event === 'keyboardDidShow') listeners += 1;
-        return { remove: jest.fn() };
-      }) as unknown as typeof Keyboard.addListener);
-
-    showChannel(channelOf());
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    showNotepad(tree);
-
-    // Nothing while the sheet is a sheet: no field is open, so no keyboard
-    // here is the notepad's.
-    expect(listeners).toBe(0);
-
-    act(() => findExactButton(tree, 'Edit')!.props.onPress());
-    expect(listeners).toBe(1);
-    expect(warn).not.toHaveBeenCalled();
-
-    // And it lets go again when the box does, rather than holding a listener
-    // for a keyboard that now belongs to some other tab.
-    act(() => findExactButton(tree, 'Done')!.props.onPress());
-    act(() => tree.unmount());
-  });
-
-  it('keeps the notepad as typed, markup and all', () => {
-    // The five marks the field used to accept are five characters now. What
-    // killed the parser is the word: a notepad is a sheet somebody writes a
-    // reading list on, not a document format.
-    showChannel(channelOf());
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    showNotepad(tree);
-    act(() => findExactButton(tree, 'Edit')!.props.onPress());
-    const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Links, a reading list, what this is for…'
-    )[0];
-    act(() => field.props.onChangeText('See [notes](https://notes.example)'));
-    act(() => findExactButton(tree, 'Done')!.props.onPress());
-
-    // No preview, and no rendering: the asterisks and brackets are on the
-    // sheet because that is what was written on it.
-    expect(textOf(tree)).not.toContain('Preview');
-    expect(textOf(tree)).toContain('See [notes](https://notes.example)');
-    act(() => tree.unmount());
-  });
-
-  it('writes a pending edit when the field goes away without a blur', () => {
-    /*
-      The settings screen got this for free: *Close* persisted on the way out.
-      A tab has no Close, so leaving the notepad with something typed in it —
-      by changing tab, or by shutting the screen — has to write too. Only the
-      second could actually lose it, the draft living on ChannelView rather
-      than in the TextInput, but a notepad nobody else can see until its
-      author taps the box again reads as one that did not save.
-    */
-    showChannel(channelOf());
-    const tree = render(<ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />);
-    showNotepad(tree);
-    const field = () =>
-      tree.root.findAll(
-        (n) =>
-          n.props?.placeholder === 'Links, a reading list, what this is for…'
-      )[0]!;
-    /** Opens the box, the notepad being a sheet until somebody says to write. */
-    const edit = () => act(() => findExactButton(tree, 'Edit')!.props.onPress());
-
-    edit();
-    act(() => field().props.onChangeText('typed, then away'));
-    showPeople(tree);
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-      type: 'SET_DESCRIPTION',
-      description: 'typed, then away',
-    });
-
-    // And once written, leaving again says nothing: `saved` has moved, so
-    // there is no change to report.
-    mockApp.act.mockClear();
-    showNotepad(tree);
-    edit();
-    showPeople(tree);
-    expect(mockApp.act).not.toHaveBeenCalledWith(
-      'sess_1',
-      expect.objectContaining({ type: 'SET_DESCRIPTION' })
-    );
-
-    // The screen going is the one that would otherwise drop it.
-    showNotepad(tree);
-    edit();
-    act(() => field().props.onChangeText('typed, then gone'));
-    act(() => tree.unmount());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-      type: 'SET_DESCRIPTION',
-      description: 'typed, then gone',
-    });
-  });
-
-  it('leaves the field alone while it holds an unsaved edit', () => {
-    /*
-      The tab, unlike the settings screen this moved off, is somewhere a
-      snapshot lands every few seconds — the floor's clock alone redraws it.
-      A field bound straight to `channel.description` would lose a keystroke
-      to each, so the draft is local and the snapshot is adopted only when
-      there is nothing unsaved to lose.
-    */
-    const screen = () => (
-      <ChannelView
-        channelId="sess_1"
-        audio={AUDIO}
-        onClose={() => {}}
-        onExit={() => {}}
-      />
-    );
-    /** A snapshot in which somebody else has written on the notepad. */
-    const theyWrote = (text: string) =>
-      showChannel(
-        channelOf((c) =>
-          reduce(
-            c,
-            { type: 'SET_DESCRIPTION', userId: THEM, description: text },
-            NOW
-          )
         )
-      );
-    showChannel(channelOf());
-    const tree = render(screen());
-    showNotepad(tree);
-    act(() => findExactButton(tree, 'Edit')!.props.onPress());
-    const field = () =>
-      tree.root.findAll(
-        (n) =>
-          n.props?.placeholder === 'Links, a reading list, what this is for…'
-      )[0]!;
-    act(() => field().props.onChangeText('half a thought'));
-
-    // Somebody else writes on it while this one is mid-sentence. The words on
-    // screen are the ones being typed, not the ones that just arrived.
-    theyWrote('theirs');
-    act(() => tree.update(screen()));
-    expect(field().props.value).toBe('half a thought');
-
-    // And with nothing unsaved, the channel is the authority: what it holds
-    // is what the field shows.
-    act(() => field().props.onBlur());
-    theyWrote('theirs, later');
-    act(() => tree.update(screen()));
-    expect(field().props.value).toBe('theirs, later');
+      )
+    );
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    for (const show of [showPeople, showClipboard, showInvites]) {
+      show(tree);
+      expect(textOf(tree)).not.toContain('Dune');
+    }
+    // And the clipboard's own field is not one either: this tab has no
+    // TextInput at all now.
+    showClipboard(tree);
+    expect(tree.root.findAll((n) => n.type === TextInput)).toEqual([]);
     act(() => tree.unmount());
   });
 

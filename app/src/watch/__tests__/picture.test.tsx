@@ -322,7 +322,7 @@ describe('The picture outlives the screen it was started from', () => {
   /*
     **A paused film has no corner.** The floating rectangle is for a film that
     goes on running while somebody is somewhere else in the application; paused,
-    it is a still frame parked over the notepad, with its transport a tab away.
+    it is a still frame parked over another tab, with its transport a tab away.
     So it stops being painted — and stays mounted, because a `WebView` that
     goes away reloads and pausing is the most ordinary thing anybody does to a
     film.

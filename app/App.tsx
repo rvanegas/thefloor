@@ -126,7 +126,7 @@ function Root() {
    * somebody is about to stand in, which is the argument `ChannelView` makes
    * for keeping its tab local and unremembered, and it is untouched. A swipe
    * out and straight back in is the one journey where that argument does not
-   * hold — nobody swiped away from the notepad in order to arrive at the
+   * hold — nobody swiped away from the clipboard in order to arrive at the
    * roster — and it is short enough that the tab you left is still the one you
    * meant.
    *
@@ -1056,7 +1056,7 @@ function Root() {
    * when the tier has no bars.
    *
    * **The tab is the live channel's alone.** `lastTab` exists so that swiping
-   * out of the notepad and back in lands on the notepad, which is a claim
+   * out of the clipboard and back in lands on the clipboard, which is a claim
    * about a room you just left; arriving in a nearby room is the tap on its
    * bar by another route, and that opens a channel the way every other tap
    * does.
@@ -1136,7 +1136,7 @@ function Root() {
    * pull rightwards, and a back gesture that runs the other way reads as
    * broken before it reads as different.
    *
-   * **The way back in lands where you left.** Swiping out of the notepad and
+   * **The way back in lands where you left.** Swiping out of the clipboard and
    * back in put you on the roster, which is a gesture undoing less than it
    * appears to; `lastTab` is the whole of the fix, and it is deliberately not
    * how tapping into a channel behaves.

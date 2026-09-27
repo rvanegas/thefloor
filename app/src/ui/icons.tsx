@@ -344,15 +344,18 @@ export function PeopleIcon({
 }
 
 /**
- * What the channel has written down. `lucide/clipboard-list`.
+ * The last thing anybody in the channel handed everybody else.
+ * `lucide/clipboard-list`.
  *
- * A clipboard because the tab's larger half *is* the shared clipboard, and the
- * notepad above it is the same kind of thing — text this channel keeps.
- * A pencil would have said "write", which is an act and only part of what the
- * tab is for; most visits to it are reading, even now that the notepad is
- * written on in place rather than in Settings.
+ * A clipboard because that is what the tab is: one paste, replaced in place by
+ * whoever is present. It was `NotepadIcon` and drawn the same until
+ * 2026-09-27, when the sheet the tab was named after left for Channel
+ * Settings as the channel's *description* — the glyph was already the
+ * clipboard's, the name was the one thing that had to change. A pencil would
+ * have said "write", which is an act and only part of what the tab is for;
+ * most visits to it are reading what somebody else pasted.
  */
-export function NotepadIcon({
+export function ClipboardIcon({
   color,
   size = 22,
 }: {

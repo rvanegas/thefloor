@@ -957,6 +957,18 @@ export const en = {
       'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel has a public page — the page is found by its name, and an unnamed channel is listed by who is in it.',
     renamePrivate: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
+    /**
+     * The channel's description, which is offered only while the channel has
+     * a public page — see the section on `ChannelSettingsView`. Its own words
+     * rather than the *notepad*'s, which is what it was called while it lived
+     * on a tab of the channel screen between 2026-09-12 and 2026-09-27.
+     */
+    description: () => 'Description',
+    descriptionPlaceholder: () => 'What this channel is, in a line or two…',
+    descriptionNote: () =>
+      'Shown under the name on this channel’s public page, and in the feed a podcast app reads. Anyone in the room can change it.',
+    descriptionStepIn: () =>
+      'Step in to change this. It is what the channel tells people who have never been in it.',
     recording: () => 'Recording',
     recordAutomatically: () => 'Record automatically',
     on: () => 'On',
@@ -1196,7 +1208,7 @@ export const en = {
       'That is not a YouTube link. Copy one from YouTube, then press this again.',
     aFilmNobodyNamed: () => 'A film nobody named',
     tabPeople: () => 'People',
-    tabNotepad: () => 'Notepad',
+    tabClipboard: () => 'Clipboard',
     tabInvite: () => 'Invite',
     tabListen: () => 'Listen',
     tabRecordings: () => 'Recordings',
@@ -1250,7 +1262,7 @@ export const en = {
       'Nobody here is one of your contacts, and nobody can see your email address. Step in and say something, or leave whenever you like — Channel Settings, at the top, has Leave this channel.',
     publicNoticeTitle: () => 'This channel has a public page',
     publicNoticeWhat: () =>
-      'Somebody in this channel has given it a page on the web, showing its name and its notepad to anybody, and it is listed publicly where it can be found by people you have never met. No member is named on it, ever.',
+      'Somebody in this channel has given it a page on the web, showing its name and its description to anybody, and it is listed publicly where it can be found by people you have never met. No member is named on it, ever.',
     publicNoticeRecordings: () =>
       'No recording of yours goes on it unless you agree to that recording yourself, on its own card under Recordings, and everybody else in it agrees too. Any one of you can take that back afterwards.',
     elsewhereTaken: () =>
@@ -1290,13 +1302,6 @@ export const en = {
     oneClipboard: () =>
       'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.',
     stepInToPaste: () => 'Step in to put something on the channel clipboard.',
-    notepadPlaceholder: () => 'Links, a reading list, what this is for…',
-    done: () => 'Done',
-    notepadEmptyWritable: () => 'Nothing on the notepad. Write on it.',
-    notepadEmpty: () => 'Nothing on the notepad. Step in to write on it.',
-    edit: () => 'Edit',
-    stepInToWrite: () =>
-      'Step in to write on this. It is what the channel is for, and that is for whoever is in it to say.',
     back15: () => '\u221215s',
     pause: () => 'Pause',
     play: () => 'Play',
@@ -1401,8 +1406,6 @@ export const en = {
     partyMuted: () => 'Party-muted — nobody is heard while the video plays.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Audio diagnostics',
-    sharedClipboard: () => 'Shared clipboard',
-    notepad: () => 'Notepad',
     recordings: () => 'Recordings',
     nothingRecordedYet: () => 'Nothing recorded here yet.',
   },

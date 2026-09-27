@@ -37,7 +37,7 @@ caused; the list carries the meaning.
 
 - **Channel** — The place a conversation happens
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: People, Notepad, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
+- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say
@@ -51,6 +51,7 @@ caused; the list carries the meaning.
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
+- **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel*, whose *public page* and *feed* are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -78,12 +79,11 @@ caused; the list carries the meaning.
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
-- **Notepad** — One sheet of plain text a channel keeps, saying what it is for; read on the tab of the same name, and written there behind a small *Edit* by anybody with the room. `description` in the code
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
-- **Public page** — A channel's page on the web, at an address carrying its id: its name, its *notepad* and its *published* recordings, readable by anybody and naming no *member*
+- **Public page** — A channel's page on the web, at an address carrying its id: its name, its *description* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
 - **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree. Drawn in Home's body on a phone and in the pane beside it on a wide screen, a document being the wrong shape for a 360pt column
 - **Public notice** — The card telling a member their channel has a *public page*, drawn above the *channel tabs* until they say they have read it: owed to everybody except whoever turned the switch on, owed again after a channel goes private and comes back, and a notice rather than a veto — nobody is asked to agree, and the page is up either way
@@ -282,14 +282,16 @@ planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *People*, *Notepad*, *Invite*, *Listen*, *Recordings*, *Watch*.
+draws: *People*, *Clipboard*, *Invite*, *Listen*, *Recordings*, *Watch*.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
 
-**Who, then what.** The first three are the people — who is here, what they
-have written down (the *notepad* and the *clipboard*, both written in place),
-and how somebody who is not here gets in. The last three are what the channel
+**Who, then what.** The first three are the people — who is here, what
+somebody in the channel has just handed everybody else (the *clipboard*), and
+how somebody who is not here gets in. The second was *Notepad* until
+2026-09-27 and held the *description* above the clipboard; the description is a
+setting again, and the tab is named after the one card left on it. The last three are what the channel
 is carrying, which outlives the moment: what is playing, what is being
 recorded and what was recorded before, what is being watched. The
 recording transport is on *Recordings* since 2026-09-12; it was a second card
@@ -699,6 +701,54 @@ owes is *go and look*, which is what the `!` says and a number would not.
 Rose rather than red: it is good news arriving slightly inconveniently, not a
 fault. `waiting` in `theme.ts`, which is the palette's seventh hue and the only
 one added since the interface was designed.
+
+## Description (a channel's)
+
+**One line or two saying what a channel is**: a reading list, a few links, the
+standing question everybody in it is circling. Plain text, capped at
+`MAX_CHANNEL_DESCRIPTION_LENGTH`, shown exactly as it was typed.
+
+**Only a *public channel* is offered a field for it**, on *Channel Settings*,
+under the switch that gives the channel its *public page* — which since
+2026-09-27 is the whole point of it. Nobody in the channel needs telling what
+the channel is; they are in it. The one reader who does is the stranger on the
+page or in the *feed*, so the words belong beside the thing that makes those
+exist, and a channel with no page is not asked to write a blurb nobody can
+read.
+
+**A channel that goes private keeps what it wrote.** The field disappears, the
+row is not cleared, and turning the page back on brings the same words with it
+— the same bargain taking a page down strikes with the recordings' agreements.
+
+**Anybody with the room may write it**, which is `canEditChannel`: either you
+are present in the channel or nobody is. The same gate the channel's *name*
+keeps, and for the same reason — what a conversation says it is for is not for
+somebody who is somewhere else to rewrite under the people having it. Somebody
+without the room sees the field greyed with a line saying to step in, which is
+what the name field beside it does.
+
+**It was the *notepad* from 2026-09-12 to 2026-09-27**, and that fortnight is
+worth knowing because the vocabulary moved twice. It had been *Description*, a
+section on Channel Settings with what it said drawn above the *channel tabs*;
+then the rendering moved onto a tab beside the *clipboard*, the two being text
+the channel holds at two speeds, the tab was named *Notepad* — a notepad being
+a single sheet that gets written over — and the field followed, since a notepad
+you must leave the page to write on is not one. What that reasoning left out is
+*who the words are for*, which is what brought it back. Gone with it: the
+markdown parser and its live preview, dropped on 2026-09-13 and not restored;
+the *Edit* the sheet hid behind, a settings field needing none; and the tab's
+name, now *Clipboard*.
+
+**It is `description` in the code and on the wire throughout**, and always was.
+Renaming it would have been a wire change for a word — see AGENTS.md on never
+shipping one to a server before the client can speak it — and for the fortnight
+the user's word differed, this section was the record of the mismatch.
+
+**Not a list, and not a message.** *Notes* was considered and rejected for
+saying the opposite: one entry per thing somebody wanted to say, kept in order,
+each surviving the next. This is one surface, overwritten, with no history and
+nobody's name on it. If what you want is to say something to the people in a
+channel and have it stay said, that is not this and does not exist yet.
 
 ## Display name
 
@@ -1657,50 +1707,6 @@ above, so a person retired **for** inattention arriving there would restart the
 claim that expiring was meant to end. Nobody is told to ping somebody the room
 has just given up on.
 
-## Notepad
-
-**One sheet of text a channel keeps**, saying what the channel is for: a
-reading list, a few links, the standing question everybody in it is circling.
-**Plain text since 2026-09-13**, capped at `MAX_CHANNEL_DESCRIPTION_LENGTH`
-and shown exactly as it was typed. It accepted five marks of Markdown until
-then — bold, italic, code, strikethrough and links, parsed by an
-`InlineMarkdown` that no longer exists — with a live preview under the field
-saying what they would become. A sheet of paper does none of that, and the
-parser, the preview and the two lines explaining which marks worked were
-more apparatus than the thing they served.
-
-**Anybody with the room may write on it**, which is `canEditChannel`: either
-you are present in the channel or nobody is. The same gate the channel's
-*name* keeps, and for the same reason — what a conversation says it is for is
-not for somebody who is somewhere else to rewrite under the people having it.
-Somebody without the room reads the same words, with a line saying to step in
-and no *Edit* beside them.
-
-**It is read before it is written on**, which is what the *Edit* is for. The
-card shows the words; pressing *Edit* puts a field where they were, and *Done*
-— or leaving the field, the tab or the screen — writes and puts the sheet
-back. The field was the notepad until 2026-09-13: whoever had the room saw a
-box of text where everybody else saw the sheet, which is the wrong way round
-for a thing read far more often than it is changed.
-
-**It is `description` in the code and on the wire**, and this is one of the
-places the two vocabularies differ on purpose. It was *Description* to the user
-too until 2026-09-12: a section on the channel settings screen, with what it
-said drawn above the channel tabs. Three changes in a day made the word wrong.
-The rendering moved onto a tab of its own beside the *clipboard*, the two being
-text the channel holds at two speeds; the tab was named *Notepad*, a notepad
-being a single sheet that gets written over, which is both halves; and then the
-field followed the rendering, since a notepad you must leave the page to write
-on is not one. Renaming the field would be a wire change for a word — see
-AGENTS.md on never shipping one to a server before the client can speak it —
-and there is nothing to gain by it, `description` being exactly what it holds.
-
-**Not a list, and not a message.** *Notes* was considered and rejected for
-saying the opposite: one entry per thing somebody wanted to say, kept in order,
-each surviving the next. This is one surface, overwritten, with no history and
-nobody's name on it. If what you want is to say something to the people in a
-channel and have it stay said, that is not this and does not exist yet.
-
 ## Notification kinds — invited / arrived / accepted / pinged
 
 **The four things this server sends to a phone**, named in
@@ -1912,7 +1918,7 @@ whose participants have each *agreed to publish* it, which is a different
 decision taken a different way. A public channel with nothing on its page is
 the ordinary state on the day somebody turns it on, and is not a bug.
 
-**No member is named on it, ever.** The name, the *notepad* and the
+**No member is named on it, ever.** The name, the *description* and the
 recordings, and nothing else — the task entry this was built from is explicit
 that members stay private though they may be described in the description, so
 the only words about who these people are are words they wrote. The episode
@@ -1987,7 +1993,7 @@ doing the real work. `public_notices` in db.ts,
 ## Directory page
 
 `/podcasts`: every *public channel* on this server, in one list, with each
-one's name, *notepad*, *cover art* and a count of what is listenable on it.
+one's name, *description*, *cover art* and a count of what is listenable on it.
 
 **It is what makes a *public channel* public in the ordinary sense of the
 word**, and it arrived after the channels did. A page whose address nobody
@@ -2209,7 +2215,7 @@ to idle, and a rule written as "record when you can" would start another at
 once.
 
 It belongs to the channel rather than to the person, like the name and the
-*notepad*, and any *member* with the room may change it. The latch that
+*description*, and any *member* with the room may change it. The latch that
 spends the room's turn belongs to the server and to this process: a restart
 empties every room, so the setting survives one and the turn comes back with
 it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
@@ -2891,7 +2897,7 @@ distance would send it back and read as a failed drag.
 **And it floats only while the film is playing**, as of 2026-09-20. The corner
 is for a film that goes on running while somebody is somewhere else in the
 application, which is the whole of why it followed them off the *Watch* tab;
-paused, it is a still frame over the notepad, and the transport that would
+paused, it is a still frame over whatever tab is showing, and the transport that would
 start it again is one tap away on the tab it came from. Hidden rather than
 unmounted — a `WebView` that goes away reloads, and pausing is the most
 ordinary thing anybody does to a film — and it is a reading of the channel
@@ -4109,7 +4115,8 @@ are settled:
     At the door           En la puerta
     Guests                Invitados
     Invitations           Invitaciones
-    Notepad               Notas
+    Clipboard (the tab)   Portapapeles
+    Description           Descripción
     Invite (the tab)      Invitar
     Listen                Escuchar
     Recordings            Grabaciones

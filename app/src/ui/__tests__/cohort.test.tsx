@@ -10,7 +10,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showNotepad,
+  showClipboard,
   textOf,
 } from '../testing/harness';
 
@@ -94,9 +94,9 @@ describe('the getting-started card', () => {
     expect(drawn(tree)).toBe(true);
 
     // It sits above the tab content rather than on one tab, so somebody who
-    // lands on the notepad and finds four strangers gets the same answer as
+    // lands on the clipboard and finds four strangers gets the same answer as
     // somebody who lands on the roster.
-    await act(async () => showNotepad(tree));
+    await act(async () => showClipboard(tree));
     expect(drawn(tree)).toBe(true);
   });
 

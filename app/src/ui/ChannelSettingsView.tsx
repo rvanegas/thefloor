@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
+  MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
 import { canEditChannel, hasTheRoom } from '../../../core/channel';
@@ -22,6 +23,7 @@ import {
   Checkbox,
   Field,
   IconButton,
+  Reveal,
   Screen,
   SectionLabel,
 } from './components';
@@ -34,13 +36,23 @@ import { colors, spacing, type } from './theme';
  * roster-derived header ("3 people"), how it records itself, and the ways a
  * membership ends.
  *
- * **The notepad is not here, since 2026-09-12.** It was the section under the
- * name, on the reasoning that writing what a channel is for is a settings act;
- * the tab it is rendered on is called Notepad, and a notepad somebody has to
- * leave the page to write on is not one. It is on that tab now — plain text
- * behind a small *Edit* since 2026-09-13, the field and preview this screen
- * had having been more apparatus than a sheet of paper needs — and there is
- * deliberately no second copy here; see ChannelView's Notepad tab.
+ * **The description is here, and only for a public channel** — restored
+ * 2026-09-27, under *Public page* rather than under the name.
+ *
+ * It was the section under the name until 2026-09-12, when it left for the
+ * channel screen's clipboard tab as the *notepad*: a sheet you may read but
+ * must open another screen to write on is not a notepad. What that argument
+ * left out is who the words are for. Nobody in the channel needs telling what
+ * it is — they are in it — and the one place a description is actually read by
+ * somebody who does not know is the *public page*, which is why it is offered
+ * beside the switch that makes that page exist and is not offered at all to a
+ * channel with no page. A private channel writing a blurb nobody will ever
+ * see was the whole of what the tab amounted to.
+ *
+ * **A channel that goes private keeps what it wrote.** The field disappears;
+ * `SET_DESCRIPTION` is unchanged and the row is not cleared, so turning the
+ * page back on brings the same words back with it — the same bargain
+ * `unpublishBody` strikes with the recordings' agreements.
  */
 export function ChannelSettingsView({
   channel,
@@ -124,12 +136,24 @@ export function ChannelSettingsView({
    */
   const autoRecord = channel.autoRecord ?? false;
   const [name, setName] = useState(channel.name ?? '');
+  const [description, setDescription] = useState(channel.description ?? '');
+  /**
+   * Whether the description's box has the keyboard up, which is the only thing
+   * `Reveal` needs to know. Focus rather than a mode: this is a field on a
+   * settings screen and not a sheet behind an *Edit*, so there is nothing to
+   * open — what there is, is a card near the foot of a long screen that the
+   * keyboard covers. See `useRevealOnKeyboard`, which listens only while this
+   * is true, and so leaves the name field at the top of the screen alone.
+   */
+  const [writing, setWriting] = useState(false);
 
   /**
-   * What the channel already has, so leaving the field alone dispatches
-   * nothing.
+   * What the channel already has, so leaving a field alone dispatches nothing.
    */
-  const saved = useRef({ name: channel.name ?? '' });
+  const saved = useRef({
+    name: channel.name ?? '',
+    description: channel.description ?? '',
+  });
 
   /**
    * Writes the name, if it has actually changed.
@@ -173,6 +197,16 @@ export function ChannelSettingsView({
     if (name !== saved.current.name) {
       if (app.act(channel.id, { type: 'SET_NAME', name })) {
         saved.current.name = name;
+      }
+    }
+    /**
+     * On the same terms, `saved` moving only when the action left: a
+     * description typed while the socket was down is retried by the next blur
+     * or by *Close*, which is what the name's note above is about.
+     */
+    if (description !== saved.current.description) {
+      if (app.act(channel.id, { type: 'SET_DESCRIPTION', description })) {
+        saved.current.description = description;
       }
     }
   };
@@ -415,6 +449,60 @@ export function ChannelSettingsView({
         />
       </Card>
 
+      {/*
+        The channel's description, which only a channel with a public page is
+        offered — see the head of this file for why, and `isPublic` for why the
+        answer is held locally as well as on the snapshot: the card appears on
+        the press that turns the page on rather than a round trip later.
+
+        Under the Public page card rather than above it, and outside it rather
+        than inside `Publishing`: what to write depends on there being a page,
+        so the page comes first, and the field is this screen's to persist on
+        the same terms as the name — `Publishing` owns a pair of buttons and an
+        HTTP call and has no business owning a third piece of channel state.
+
+        Plain text and no preview. The markdown parser this field carried until
+        2026-09-13 went with the words; the cap is kept, that being the
+        server's rule rather than a flourish.
+      */}
+      {isPublic ? (
+        <>
+          {/*
+            Brought into view when the keyboard opens over it, label and all:
+            the unit is what has to be visible, and a reveal that stopped at
+            the field would leave the character count under the keyboard. It
+            is the fifth card down a screen that scrolls, which is why this one
+            has it and the name at the top does not.
+          */}
+          <Reveal when={writing}>
+            <SectionLabel>{t.description()}</SectionLabel>
+            <Card style={styles.stack}>
+              <Field
+                value={description}
+                onChangeText={(v) =>
+                  setDescription(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
+                }
+                placeholder={t.descriptionPlaceholder()}
+                autoCapitalize="sentences"
+                multiline
+                editable={mayEdit}
+                onFocus={() => setWriting(true)}
+                onBlur={() => {
+                  setWriting(false);
+                  persist();
+                }}
+              />
+              <Text style={type.muted}>
+                {mayEdit ? t.descriptionNote() : t.descriptionStepIn()}
+              </Text>
+              <Text style={styles.count}>
+                {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
+              </Text>
+            </Card>
+          </Reveal>
+        </>
+      ) : null}
+
       <SectionLabel>{t.guestLinks()}</SectionLabel>
       <Card style={styles.stack}>
         {/*
@@ -478,6 +566,14 @@ const styles = StyleSheet.create({
     gap: spacing(1),
   },
   linkText: { flex: 1, gap: spacing(0.25) },
+  /** The description's character count, under the field. */
+  count: {
+    ...type.muted,
+    color: colors.textFaint,
+    fontSize: 12,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
 });
 
 /** "a recording" / "3 recordings" — the count read as a phrase. */

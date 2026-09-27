@@ -378,7 +378,8 @@ const styles = StyleSheet.create({
    *
    * It starts bottom-right, that being the corner a thumb covers least of on
    * the way to the footer, and the one that puts it furthest from the text in
-   * the two tabs that have a field in them — the notepad and the invite box.
+   * the tabs that have a field in them — the invite box, and the search over
+   * the recordings' transcripts.
    * Being wrong about that costs a drag rather than a tab: the other three are
    * reachable, they are over the pinned header and footer as readily as over
    * the body, and where it is left is where it stays for the life of the

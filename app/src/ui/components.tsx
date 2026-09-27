@@ -351,6 +351,7 @@ export function Field({
   autoFocus,
   autoCapitalize = 'none',
   onSubmit,
+  onFocus,
   onBlur,
   submitLabel = 'done',
   multiline,
@@ -364,6 +365,14 @@ export function Field({
   autoCapitalize?: 'none' | 'words' | 'sentences';
   /** Return key submits the form this field belongs to. */
   onSubmit?: () => void;
+  /**
+   * Focus arrived. What a caller does with this is tell `Reveal` that the
+   * keyboard about to open belongs to *this* field — see Channel Settings'
+   * description, which is a card far enough down a scrolling screen to be
+   * covered by it, on a screen whose other field is not. The keyboard's own
+   * arrival is what moves anything; this only says which card.
+   */
+  onFocus?: () => void;
   /**
    * Focus left the field. Where a screen saves as you go rather than behind a
    * button, this is the moment an edit is finished enough to keep.
@@ -406,6 +415,7 @@ export function Field({
           : undefined
       }
       onSubmitEditing={multiline ? undefined : onSubmit}
+      onFocus={onFocus}
       onBlur={onBlur}
       editable={editable}
       submitBehavior={multiline ? 'newline' : 'blurAndSubmit'}

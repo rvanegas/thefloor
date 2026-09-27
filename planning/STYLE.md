@@ -60,7 +60,7 @@ provider, and no component library.
   pane a subtree is in.
 
 `links.ts` is not a style file and is named here only because it was
-`markdown.tsx` until 2026-09-13: the notepad is plain text now, so the inline
+`markdown.tsx` until 2026-09-13: a channel's description is plain text now, so the inline
 parser and its rendered bold, italic, code and links went with it. Nothing in
 this app renders markup any more.
 
@@ -1059,8 +1059,9 @@ free is the second half, because avoiding shortens the viewport without
 scrolling it: a field far enough down a long tab is under the keyboard even
 though the avoider is doing its job. So any card whose field can sit below the
 fold is wrapped in a `Reveal`, open on *whether the box is showing* rather
-than on focus. `ProfileView`'s ping card and `ChannelView`'s notepad are the
-two.
+than on focus. `ProfileView`'s ping card and `ChannelSettingsView`'s
+description are the two — the second on that screen's own focus, since its
+other field is at the top and wants nothing moved.
 
 **A second `KeyboardAvoidingView` is the wrong fix and is the one reached for
 first.** Nested inside `Screen`'s, it counts the keyboard's height twice on
@@ -1090,8 +1091,8 @@ anything from up there, the hole is what does.
   **rests in one of the four corners of the application** — over the pinned
   header and footer as readily as over a body, which is what makes it reachable
   on a screen that has neither — starting bottom-right, the corner a thumb
-  covers least on the way to the footer and the one furthest from the notepad's
-  field. Dragged, it snaps to whichever corner's quadrant it was let go in. A
+  covers least on the way to the footer and the one furthest from the invite
+  box, that being the field the tabs put lowest. Dragged, it snaps to whichever corner's quadrant it was let go in. A
   tap opens the *Watch* tab, the rectangle being far too small to carry a
   transport. **Only while the film is playing**, as of 2026-09-20: the corner
   exists so that a film goes on running where somebody can see it while they

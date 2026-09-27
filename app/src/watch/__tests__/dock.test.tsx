@@ -152,7 +152,7 @@ describe('Moving the picture does not rebuild it', () => {
     goes to a corner of the application. Both are absolute now — the hole is
     what takes the height out of the body — so what tells them apart is where
     they are put rather than whether they are positioned at all. An inversion
-    here draws a full-width picture across the notepad.
+    here draws a full-width picture across the tab underneath.
   */
   it('fills the measured hole docked and sits in a corner floating', () => {
     let tree!: ReactTestRenderer;
@@ -225,7 +225,7 @@ describe('Moving the picture does not rebuild it', () => {
     **A paused film is floating and not shown, by the same handling.** The
     corner exists so that a film goes on running where somebody can see it
     while they are somewhere else in the application; a still frame parked over
-    the notepad is not that. Unmounting it would be the reload again — and
+    the tab they went to is not that. Unmounting it would be the reload again — and
     pausing is the most ordinary thing anybody does to a film, so this is the
     one place that could not afford it.
 

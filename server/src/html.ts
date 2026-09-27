@@ -21,8 +21,8 @@
  * contact address from this server's own configuration — and this function
  * was shared on the general principle that two copies of an escaping function
  * is how one of them comes to be missing a case the other has. The public
- * page interpolates a channel's name and its notepad, which are text somebody
- * typed, so it is now the only thing standing between what a member writes
+ * page interpolates a channel's name and its description, which are text
+ * somebody typed, so it is now the only thing standing between what a member writes
  * and what a stranger's browser parses. Every value on that page goes through
  * it, and any new one must.
  *

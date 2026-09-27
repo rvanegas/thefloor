@@ -30,7 +30,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showNotepad,
+  showClipboard,
   showRecordings,
   showWatch,
   textOf,
@@ -2211,10 +2211,11 @@ describe('the channel clipboard', () => {
   }
 
   /**
-   * The screen, on *Notepad* — where the clipboard lives with the notepad
-   * itself, the two of them being text the channel holds rather than a
-   * control on the room. One tap from the roster, taken here rather than in
-   * every test because it is not what any of them is about.
+   * The screen, on *Clipboard* — the tab the clipboard has had to itself
+   * since 2026-09-27, the *notepad* it shared it with having gone back to
+   * Channel Settings as the channel's description. One tap from the roster,
+   * taken here rather than in every test because it is not what any of them
+   * is about.
    */
   function open() {
     const tree = render(<ChannelView
@@ -2223,7 +2224,7 @@ describe('the channel clipboard', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showNotepad(tree);
+    showClipboard(tree);
     return tree;
   }
 
@@ -2239,10 +2240,10 @@ describe('the channel clipboard', () => {
    * channel title higher up the screen also sets — selecting on the property
    * under test found that one instead and passed for the wrong reason.
    *
-   * And the content has to be the clip's own: the notepad above it on this
-   * tab illustrates links with `example.com`, so a bare host now matches the
-   * help text first. Whatever is passed here must be a string only the clip
-   * can carry.
+   * And the content has to be the clip's own: the *notepad* that sat under it
+   * on this tab illustrated links with `example.com`, so a bare host matched
+   * the help text first. Whatever is passed here must be a string only the
+   * clip can carry.
    */
   function textNodeWith(
     tree: ReactTestRenderer,

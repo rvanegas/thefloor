@@ -22,7 +22,6 @@ import {
 import { isRecordingActive, recordedMs } from '../../../core/recording';
 import {
   ATTENTION_REPORT_MS,
-  MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
 } from '../../../core/constants';
@@ -58,7 +57,6 @@ import {
   removalMotion,
   removalMovesWanted,
   canWithdrawGuestInvite,
-  canEditChannel,
   hasTheRoom,
   isPresent,
   canPing,
@@ -86,7 +84,7 @@ import {
   InviteIcon,
   PeopleIcon,
   MicIcon,
-  NotepadIcon,
+  ClipboardIcon,
   PauseIcon,
   ListenIcon,
   RecordingsIcon,
@@ -117,7 +115,6 @@ import {
   IconButton,
   RecordingRow,
   TranscriptSearch,
-  Reveal,
   Screen,
   SectionLabel,
   Segmented,
@@ -145,8 +142,8 @@ const SKIP_MS = 15_000;
  * The tabs of the channel screen, in the order they are drawn.
  *
  * **Who, then what, since 2026-09-12.** The first three are the people —
- * who is here, what they have written down, and how somebody who is not here
- * gets in — and the last three are what the channel is carrying: the track,
+ * who is here, what one of them has just handed the rest, and how somebody who
+ * is not here gets in — and the last three are what the channel is carrying: the track,
  * the recordings, the video. The order before this one ran the four carried
  * things together and put the ways in at the end, on the grounds that
  * inviting somebody is the rarest thing done here; rarity is a reason to keep
@@ -159,7 +156,7 @@ const SKIP_MS = 15_000;
  */
 export type ChannelTab =
   | 'people'
-  | 'notepad'
+  | 'clipboard'
   | 'invites'
   | 'listen'
   | 'recordings'
@@ -358,49 +355,6 @@ export function ChannelView({
   const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
 
   /**
-   * **The notepad's draft**, which is the one editable thing on this screen
-   * that is not a control on the room.
-   *
-   * It is local state rather than `channel.description` read straight, because
-   * a `Field` bound to the snapshot loses a keystroke every time one arrives —
-   * and on a tab, unlike on the settings screen this moved off, snapshots
-   * arrive continuously while somebody is typing.
-   *
-   * `saved` is what the channel is known to hold, so leaving the field alone
-   * dispatches nothing and a remote edit can be told from an unsaved local
-   * one. Declared with the other state and above every early return, for the
-   * reason `act` gives below.
-   */
-  const [notepad, setNotepad] = useState(channel?.description ?? '');
-  const notepadSaved = useRef(channel?.description ?? '');
-  const notepadHeld = channel?.description ?? '';
-  /**
-   * Adopts what the channel now says — somebody else wrote on it, or the first
-   * snapshot has only just landed — **unless there is an unsaved edit in the
-   * field**, in which case the person typing keeps what they typed and writes
-   * it on blur. `saved` moves either way: it records what the channel holds,
-   * which is what makes the next comparison honest.
-   */
-  useEffect(() => {
-    setNotepad((draft) =>
-      draft === notepadSaved.current ? notepadHeld : draft
-    );
-    notepadSaved.current = notepadHeld;
-  }, [notepadHeld]);
-  /**
-   * **Whether the notepad is open to write on**, which since 2026-09-13 it is
-   * not by default. The field used to be the notepad: whoever had the room saw
-   * a box of text where everybody else saw the words. A sheet of paper is read
-   * more often than it is written on, so the card shows the text and a small
-   * *Edit* beside it, and the box appears where the text was when that is
-   * pressed.
-   *
-   * Local and unremembered, like `tab`: arriving at the notepad is arriving to
-   * read it.
-   */
-  const [notepadEditing, setNotepadEditing] = useState(false);
-
-  /**
    * Sends an action to this channel.
    *
    * **Declared above every early return, deliberately.** This screen returns
@@ -413,33 +367,6 @@ export function ChannelView({
    */
   const act = (action: Parameters<typeof app.act>[1]) =>
     app.act(channelId, action);
-  /**
-   * Whether the notepad is yours to write on — `canEditChannel`, the same
-   * question the channel's name asks, so either you are in the channel or
-   * nobody is. What it protects against is a member who is somewhere else
-   * rewriting what a conversation in progress says it is for.
-   */
-  const mayWriteNotepad = !!channel && canEditChannel(channel, me);
-  /**
-   * Writes the notepad, if it has actually changed. Guarded as well as
-   * disabled: the reducer refuses this silently, so a stale `saved` ref must
-   * not record an edit that never landed.
-   */
-  /**
-   * The words on the sheet, which is the draft when it is yours to write on
-   * and what the channel holds when it is not. The two are the same thing
-   * almost always — the draft is adopted from every snapshot there is nothing
-   * unsaved to lose to — but somebody who steps out mid-sentence keeps a draft
-   * that can no longer be written, and showing them that as the channel's
-   * notepad would be showing them text nobody else has.
-   */
-  const notepadShown = mayWriteNotepad ? notepad : (channel?.description ?? '');
-  const persistNotepad = () => {
-    if (!mayWriteNotepad) return;
-    if (notepad === notepadSaved.current) return;
-    notepadSaved.current = notepad;
-    act({ type: 'SET_DESCRIPTION', description: notepad });
-  };
   /**
    * Which of the tabs at the top of this screen is showing.
    *
@@ -527,36 +454,6 @@ export function ChannelView({
   const choose = useRef(chooseTab);
   choose.current = chooseTab;
 
-  /**
-   * **The notepad is written when the field goes away, not only when it is
-   * blurred**, which is the half the settings screen got for free: *Close*
-   * called `persist` on the way out, and there is no Close on a tab.
-   *
-   * Three ways the field can leave with an edit still in it — the tab
-   * changes, Settings opens over it, or the whole screen goes — and only the
-   * third actually loses anything, the draft living on this component rather
-   * than in the `TextInput`. The first two are about promptness: a notepad
-   * nobody else can see until the author happens to tap the box again is one
-   * that reads as not having saved.
-   *
-   * A ref because `persistNotepad` is rebuilt every render, and an effect
-   * depending on it directly would run on every one of them.
-   */
-  const persistNotepadRef = useRef(persistNotepad);
-  persistNotepadRef.current = persistNotepad;
-  useEffect(() => {
-    if (tab !== 'notepad' || settingsOpen) {
-      persistNotepadRef.current();
-      // And the card goes back to being a sheet, so returning to the tab is
-      // arriving to read rather than landing in a box with a keyboard up.
-      setNotepadEditing(false);
-    }
-  }, [tab, settingsOpen]);
-  // Unmount, which is the one that would otherwise drop the edit: closing the
-  // channel, the channel ending, or the app tearing the screen down. Fire and
-  // forget, like every other act — there is nothing to await and nobody left
-  // to tell if there were.
-  useEffect(() => () => persistNotepadRef.current(), []);
   /**
    * What came of asking a contact in as a guest, per contact.
    *
@@ -2267,9 +2164,9 @@ export function ChannelView({
       icon: (color) => <PeopleIcon color={color} />,
     },
     {
-      value: 'notepad',
-      label: t.tabNotepad(),
-      icon: (color) => <NotepadIcon color={color} />,
+      value: 'clipboard',
+      label: t.tabClipboard(),
+      icon: (color) => <ClipboardIcon color={color} />,
     },
     {
       value: 'invites',
@@ -2571,12 +2468,13 @@ export function ChannelView({
         what is being watched. The last carries the two ways somebody who is not here gets
         in.
 
-        The notepad used to sit above the switch, outside it and called the
-        *description*, on the reasoning that it is what the channel *is* and so
-        is as true of who gets in as of who is here. It is on *Notepad* now
-        with the clipboard, which is the tab of things the channel has written
-        down — and the line it cost was a line every screenful of every tab
-        paid for, on the screen that has least room to spare.
+        The channel's *description* used to sit above the switch, outside it,
+        on the reasoning that it is what the channel *is* and so is as true of
+        who gets in as of who is here. The line it cost was a line every
+        screenful of every tab paid for, on the screen that has least room to
+        spare — so it went onto the tab with the clipboard as the *notepad*,
+        and on 2026-09-27 back to Channel Settings, where a channel with a
+        public page writes what that page says it is for.
 
         A switch rather than a tab bar at the foot, for the same reason Home's
         is one — the foot of this screen is already spent, on the controls that
@@ -3176,9 +3074,9 @@ export function ChannelView({
 
           **Above the tab content rather than on one tab**, so it is the first
           thing under the switch whichever of the six is showing. Somebody who
-          lands on *Notepad* and finds four strangers in a channel they did not
-          open has the same question as somebody who lands on *People*, and an
-          explanation filed under one tab is one most of them would never
+          lands on *Clipboard* and finds four strangers in a channel they did
+          not open has the same question as somebody who lands on *People*, and
+          an explanation filed under one tab is one most of them would never
           reach.
 
           A readout: a sentence and a way to put it away, and no button
@@ -3720,42 +3618,29 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'notepad' ? (
+        {tab === 'clipboard' ? (
           <>
         {/*
-          **What the channel has written down**, which is two things: the
-          clipboard, which is the last thing somebody in it handed everybody
-          else, and the notepad, which is what the channel is *for*.
+          **The last thing somebody in this channel handed everybody else**,
+          and since 2026-09-27 the only thing on this tab.
 
-          They belong together because they are the same kind of thing at two
-          speeds. Both are text the channel holds rather than a control on the
-          room; one is replaced whenever anybody pastes, the other is written
-          once and rarely changed. Nothing here claims audio, nothing here is
-          refused by the floor, and neither is worth a line on every other tab.
+          It shared the tab with the *notepad* — one sheet of text the channel
+          kept, saying what it was for — on the reading that the two were the
+          same kind of thing at two speeds: text the channel holds rather than
+          a control on the room, one replaced whenever anybody pastes and the
+          other written once and rarely changed. The sheet has gone back to
+          Channel Settings as the channel's *description*, where it is offered
+          only to a channel with a public page, that page being the one place
+          it is read by anybody who was not told it. So the slow half is a
+          setting again and the fast half is this tab, which is why the tab is
+          now called *Clipboard* and not *Notepad*.
 
-          **The clipboard is first, since 2026-09-13.** The order was the other
-          way when the notepad arrived here, on the reading that what a channel
-          is for comes before what somebody just pasted. What a person opens
-          this tab for is the paste: it is minutes old, it is the reason they
-          were told to look, and the notepad is a standing sheet that changes
-          about as often as the channel's name. The fast half goes at the top.
-
-          **Named *Notepad* rather than *Notes*.** *Notes* reads as a list of
-          them, one per thing somebody wanted to say, which is what this tab is
-          not: it is one surface the channel keeps, written over. A notepad is
-          a single sheet, which is exactly that.
-
-          **And it is written on here**, since 2026-09-12 — the section carries
-          the same name as the tab because it is the thing the tab is named
-          after. It arrived read-only, on the reasoning that changing it is a
-          settings act and Settings is a tap away in the header; what killed
-          that is the word. A notepad you can read but must go to another
-          screen to write on is not one, and it sits directly under a clipboard
-          anybody present replaces in place.
-
-          `mayWriteNotepad` is `canEditChannel`, the same gate the name keeps.
+          **No label over it**, on the same terms as *Listen* and
+          *Recordings*: the tab is called Clipboard and this is the only thing
+          on it, so SHARED CLIPBOARD would be the screen saying its own name
+          twice — and the card's own sentence at the foot of it already says
+          that one channel has one clipboard.
         */}
-        <SectionLabel>{t.sharedClipboard()}</SectionLabel>
         <Card style={styles.stack}>
           {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
 
@@ -3816,111 +3701,6 @@ export function ChannelView({
             {canPasteClip(channel, me) ? t.oneClipboard() : t.stepInToPaste()}
           </Text>
         </Card>
-
-        {/*
-          **Plain text, and a small *Edit*, since 2026-09-13.** The field that
-          moved here from Settings brought a markdown parser, a live preview
-          and two lines explaining which five marks worked; a notepad is a
-          sheet somebody writes a reading list on, and none of that is what a
-          sheet of paper does. What the card shows now is the words — the same
-          words, to the person who may write them and to the person who may
-          not — with the box appearing in their place only when *Edit* is
-          pressed. The character cap is the one thing kept, that being the
-          server's rule rather than a flourish.
-        */}
-        <SectionLabel>{t.notepad()}</SectionLabel>
-        {/*
-          In a card, which it was not when it sat above the tabs. There it was
-          the first prose on the screen, under the header's rule, and a card
-          around it would have been a box around the only thing there was. Here
-          it has a section label over it and a card under it, and bare prose
-          between the two reads as text that has come loose from something.
-        */}
-        {/*
-          Brought wholly into view when the keyboard opens over it.
-
-          **Not a `KeyboardAvoidingView` of its own**, which is the obvious
-          reading of the problem and the wrong one: this screen is a `Screen`,
-          so the box is already inside the application's one avoider, and a
-          second one nested in it counts the keyboard's height twice on iOS
-          and leaves a gap that tall under the card. What the avoider does not
-          do is *scroll*, and the notepad sits far enough down a long tab that
-          shortening the viewport can leave it under the keyboard entirely.
-
-          Open while the box is showing rather than while it has focus: it is
-          the only field on this tab, so any keyboard here is that one's. The
-          card is the unit rather than the field, because a reveal that
-          stopped at the field would leave *Done* and the character count
-          beneath the keyboard.
-
-          A `Reveal` rather than the hook it wraps, because the hook has to be
-          called from inside the screen and this component is the one that
-          renders it — called up there it reads no provider and moves nothing,
-          which is how this shipped not working the first time. See
-          `RevealContext`.
-        */}
-        <Reveal when={notepadEditing}>
-          <Card style={styles.stack}>
-            {notepadEditing ? (
-              <>
-                <Field
-                  value={notepad}
-                  onChangeText={(v) =>
-                    setNotepad(v.slice(0, MAX_CHANNEL_DESCRIPTION_LENGTH))
-                  }
-                  placeholder={t.notepadPlaceholder()}
-                  autoCapitalize="sentences"
-                  autoFocus
-                  multiline
-                  onBlur={persistNotepad}
-                />
-                <Text style={styles.count}>
-                  {notepad.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
-                </Text>
-                {/*
-                  *Done* writes and puts the sheet back. Blur writes too — the
-                  keyboard going down, or a tap somewhere else on the tab — so
-                  nothing here depends on this button being found; it is the way
-                  out of the box for somebody who has stopped typing, a
-                  multiline field having no return key that means finished.
-                */}
-                <Button
-                  label={t.done()}
-                  variant="primary"
-                  onPress={() => {
-                    persistNotepad();
-                    setNotepadEditing(false);
-                  }}
-                />
-              </>
-            ) : (
-              <>
-                {notepadShown.trim() ? (
-                  <Text style={styles.description}>{notepadShown}</Text>
-                ) : (
-                  // Said rather than left blank, and it says what would change
-                  // it: a card with a heading and nothing under it reads as
-                  // something that failed to load.
-                  <Text style={type.muted}>
-                    {mayWriteNotepad
-                      ? t.notepadEmptyWritable()
-                      : t.notepadEmpty()}
-                  </Text>
-                )}
-
-                {mayWriteNotepad ? (
-                  <Button
-                    label={t.edit()}
-                    style={styles.notepadEdit}
-                    onPress={() => setNotepadEditing(true)}
-                  />
-                ) : notepadShown.trim() ? (
-                  <Text style={type.muted}>{t.stepInToWrite()}</Text>
-                ) : null}
-              </>
-            )}
-          </Card>
-        </Reveal>
 
           </>
         ) : null}

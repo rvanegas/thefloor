@@ -4,15 +4,20 @@ import {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { Alert, TextInput } from 'react-native';
+import { Alert, Keyboard, TextInput } from 'react-native';
 import { ChannelSettingsView } from '../ChannelSettingsView';
+import { SectionLabel } from '../components';
+import { reduce } from '../../../../core/channel';
 import {
   ME,
+  NOW,
   channelOf,
   findButton,
+  labelOf,
   mockApp,
   render,
   resetHarness,
+  textOf,
 } from '../testing/harness';
 
 jest.mock('../../api/download', () =>
@@ -61,13 +66,26 @@ const channel = channelOf();
 
 function open(
   /** What the snapshot says, which is what the screen is about. */
-  state: { name?: string | null; publicAt?: number | null } = {}
+  state: {
+    name?: string | null;
+    publicAt?: number | null;
+    description?: string | null;
+    /** Stepped out, which is what `canEditChannel` refuses. */
+    away?: boolean;
+  } = {}
 ) {
   mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
+  const held = state.away
+    ? reduce(channel, { type: 'STEP_OUT', userId: ME }, NOW)
+    : channel;
   tree = render(
     <ChannelSettingsView
       publicAt={state.publicAt ?? null}
-      channel={{ ...channel, name: state.name ?? null }}
+      channel={{
+        ...held,
+        name: state.name ?? null,
+        description: state.description ?? null,
+      }}
       derivedTitle="Dana Chu"
       onBack={onBack}
       onLeft={onLeft}
@@ -289,5 +307,138 @@ describe('the public page confirms in both directions', () => {
     act(() => publicPage().off.props.onPress());
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **The description, which only a public channel is offered.**
+ *
+ * It was this screen's second card until 2026-09-12 and the channel screen's
+ * *notepad* until 2026-09-27; the account of both moves is at the head of
+ * `ChannelSettingsView`. What is asserted here is the gate and the save: a
+ * private channel is not asked to write a blurb nobody can read, and the
+ * words are written on the way out of the field on the same terms as the name.
+ */
+describe('the description belongs to the public page', () => {
+  /** This screen's headings, in the order it draws them. */
+  function sectionLabels(): string[] {
+    return tree.root
+      .findAll((node) => node.type === SectionLabel)
+      .map((node) => labelOf(node).trim());
+  }
+
+  /** The description's own field, found by its placeholder. */
+  function descriptionField(): ReactTestInstance | undefined {
+    return tree.root.findAll(
+      (node) =>
+        node.type === TextInput &&
+        node.props?.placeholder === 'What this channel is, in a line or two…'
+    )[0];
+  }
+
+  it('offers nothing to a channel with no public page', () => {
+    open({ name: 'Thursday mornings' });
+    expect(descriptionField()).toBeUndefined();
+    expect(sectionLabels()).not.toContain('Description');
+  });
+
+  it('offers the field once the channel is public', () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    expect(descriptionField()).toBeDefined();
+    expect(sectionLabels()).toContain('Description');
+  });
+
+  it('shows what the channel already holds, and writes a change on blur', () => {
+    open({
+      name: 'Thursday mornings',
+      publicAt: 1_700_000_000_000,
+      description: 'Reading Dune.',
+    });
+    const field = descriptionField()!;
+    expect(field.props.value).toBe('Reading Dune.');
+
+    act(() => field.props.onChangeText('Reading Dune, Thursdays.'));
+    // Nothing while the field has focus: this screen saves as you leave a
+    // field, which is why the only button on it means what it says.
+    expect(mockApp.act).not.toHaveBeenCalled();
+
+    act(() => field.props.onBlur());
+    expect(mockApp.act).toHaveBeenCalledWith(channel.id, {
+      type: 'SET_DESCRIPTION',
+      description: 'Reading Dune, Thursdays.',
+    });
+
+    // And a second blur with nothing changed says nothing twice.
+    mockApp.act.mockClear();
+    act(() => field.props.onBlur());
+    expect(mockApp.act).not.toHaveBeenCalled();
+  });
+
+  it('retries a description that was only queued', () => {
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    mockApp.act.mockReturnValue(false);
+    const field = descriptionField()!;
+    act(() => field.props.onChangeText('Reading Dune.'));
+    act(() => field.props.onBlur());
+
+    // `saved` did not move, so Close tries again — the rename's rule, applied
+    // to the field beside it. See the note in `persist`.
+    mockApp.act.mockReturnValue(true);
+    act(() => findButton(tree, 'Close')!.props.onPress());
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, {
+      type: 'SET_DESCRIPTION',
+      description: 'Reading Dune.',
+    });
+    expect(onBack).toHaveBeenCalled();
+  });
+
+  it('asks to be revealed only while its own keyboard is up', () => {
+    /*
+      The card is the fifth down a screen that scrolls, so `Screen`'s avoider —
+      which shortens the viewport without scrolling it — can leave the field
+      and its character count under the keyboard. `Reveal` is the answer, and
+      the half worth a test is where the request is made from: `RevealContext`'s
+      provider lives inside `Screen`'s own tree, so a reveal asked for by the
+      component that renders `<Screen>`, which this one is, reads the default
+      and moves nothing. That is how it shipped on the notepad in 2026-09-13,
+      looking exactly like a feature that had been written and did not work.
+
+      And only while this field has focus: the name field at the top of the
+      screen needs nothing moved, so a listener held unconditionally would
+      scroll the page down at the name's keyboard.
+    */
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let listeners = 0;
+    jest
+      .spyOn(Keyboard, 'addListener')
+      .mockImplementation(((event: string) => {
+        if (event === 'keyboardDidShow') listeners += 1;
+        return { remove: jest.fn() };
+      }) as unknown as typeof Keyboard.addListener);
+
+    open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
+    const field = descriptionField()!;
+    expect(listeners).toBe(0);
+
+    act(() => field.props.onFocus());
+    expect(listeners).toBe(1);
+    expect(warn).not.toHaveBeenCalled();
+
+    // And it lets go when the field does, rather than holding a listener for a
+    // keyboard that belongs to some other field.
+    act(() => field.props.onBlur());
+  });
+
+  it('greys the field for somebody who is not in the room', () => {
+    open({
+      name: 'Thursday mornings',
+      publicAt: 1_700_000_000_000,
+      description: 'Reading Dune.',
+      away: true,
+    });
+    // Disabled rather than hidden, with the sentence saying what would change
+    // that — the name field's rule, and the reducer refuses this silently.
+    expect(descriptionField()!.props.editable).toBe(false);
+    expect(textOf(tree)).toContain('Step in to change this');
   });
 });

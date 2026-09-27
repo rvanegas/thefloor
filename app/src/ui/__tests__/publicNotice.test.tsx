@@ -10,7 +10,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showNotepad,
+  showClipboard,
   textOf,
 } from '../testing/harness';
 
@@ -79,7 +79,7 @@ describe('the public-page card', () => {
   it('is drawn whichever tab the member landed on', async () => {
     const { tree } = await show(true);
     expect(drawn(tree)).toBe(true);
-    await showNotepad(tree);
+    await showClipboard(tree);
     expect(drawn(tree)).toBe(true);
   });
 

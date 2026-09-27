@@ -436,7 +436,7 @@ export function Picture({
           that is still running while somebody is somewhere else in the
           application — that is the whole of what it is for, and it is why it
           followed them off the *Watch* tab in the first place. Paused, it is a
-          still frame parked over the notepad, and there is nothing in it to
+          still frame parked over whatever tab is showing, and there is nothing in it to
           miss: the transport is on the tab it came from, and the tap that goes
           back there is the tab bar.
 

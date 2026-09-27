@@ -767,6 +767,12 @@ export const es: Strings = {
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal tenga p\u00e1gina p\u00fablica: la p\u00e1gina se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
     renamePrivate: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
+    description: () => 'Descripci\u00f3n',
+    descriptionPlaceholder: () => 'Qu\u00e9 es este canal, en una l\u00ednea o dos\u2026',
+    descriptionNote: () =>
+      'Se muestra bajo el nombre en la p\u00e1gina p\u00fablica del canal, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 en la sala puede cambiarla.',
+    descriptionStepIn: () =>
+      'Entra para cambiar esto. Es lo que el canal le cuenta a quien nunca ha estado dentro.',
     recording: () => 'Grabaci\u00f3n',
     recordAutomatically: () => 'Grabar autom\u00e1ticamente',
     on: () => 'S\u00ed',
@@ -985,7 +991,7 @@ export const es: Strings = {
       'Eso no es un enlace de YouTube. Copia uno desde YouTube y vuelve a pulsar.',
     aFilmNobodyNamed: () => 'Una pel\u00edcula sin nombre',
     tabPeople: () => 'Gente',
-    tabNotepad: () => 'Notas',
+    tabClipboard: () => 'Portapapeles',
     tabInvite: () => 'Invitar',
     tabListen: () => 'Escuchar',
     tabRecordings: () => 'Grabaciones',
@@ -1036,7 +1042,7 @@ export const es: Strings = {
       'Nadie de aqu\u00ed es contacto tuyo, y nadie puede ver tu direcci\u00f3n de correo. Entra y di algo, o sal cuando quieras: en Ajustes del canal, arriba, est\u00e1 Salir de este canal.',
     publicNoticeTitle: () => 'Este canal tiene p\u00e1gina p\u00fablica',
     publicNoticeWhat: () =>
-      'Alguien de este canal le ha dado una p\u00e1gina en la web, que muestra su nombre y sus notas a cualquiera, y aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. En ella no se nombra nunca a ning\u00fan miembro.',
+      'Alguien de este canal le ha dado una p\u00e1gina en la web, que muestra su nombre y su descripci\u00f3n a cualquiera, y aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. En ella no se nombra nunca a ning\u00fan miembro.',
     publicNoticeRecordings: () =>
       'Ninguna grabaci\u00f3n tuya aparece ah\u00ed salvo que lo aceptes t\u00fa, en su propia tarjeta bajo Grabaciones, y que lo acepten tambi\u00e9n todos los dem\u00e1s. Cualquiera de vosotros puede retirarlo despu\u00e9s.',
     elsewhereTaken: () =>
@@ -1070,13 +1076,6 @@ export const es: Strings = {
     oneClipboard: () =>
       'Un solo portapapeles para el canal: pegar sustituye lo que hay, y cualquiera de aqu\u00ed puede copiarlo.',
     stepInToPaste: () => 'Entra para poner algo en el portapapeles del canal.',
-    notepadPlaceholder: () => 'Enlaces, una lista de lecturas, para qu\u00e9 es esto…',
-    done: () => 'Listo',
-    notepadEmptyWritable: () => 'No hay nada en las notas. Escribe algo.',
-    notepadEmpty: () => 'No hay nada en las notas. Entra para escribir.',
-    edit: () => 'Editar',
-    stepInToWrite: () =>
-      'Entra para escribir aqu\u00ed. Es para lo que sirve el canal, y eso lo dice quien est\u00e1 dentro.',
     back15: () => '\u221215 s',
     pause: () => 'Pausa',
     play: () => 'Reproducir',
@@ -1182,8 +1181,6 @@ export const es: Strings = {
       'Sala en silencio: no se oye a nadie mientras va el v\u00eddeo.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Diagn\u00f3stico de audio',
-    sharedClipboard: () => 'Portapapeles compartido',
-    notepad: () => 'Notas',
     recordings: () => 'Grabaciones',
     nothingRecordedYet: () => 'Aqu\u00ed todav\u00eda no hay nada grabado.',
   },

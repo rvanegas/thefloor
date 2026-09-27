@@ -590,8 +590,16 @@ export interface ChannelState {
   name: string | null;
   /**
    * A description of what the channel is for, or null when nobody has written
-   * one. The *notepad*, to a user; see GLOSSARY.md on why the two words
-   * differ, which is that renaming this one would be a wire change.
+   * one. It is the *description* to a user too, since 2026-09-27 — it was the
+   * *notepad* for the fortnight it lived on a tab of the channel screen, which
+   * is the mismatch GLOSSARY.md carried; renaming this one would have been a
+   * wire change for a word, so the wire never moved.
+   *
+   * **Only a channel with a public page is offered a field for it**, that page
+   * and its feed being where a description is read by somebody who was not
+   * told what the channel is. Nothing here enforces that and the reducer does
+   * not either: a channel that goes private keeps what it wrote, so turning
+   * the page back on brings the same words back. See `ChannelSettingsView`.
    *
    * **Plain text since 2026-09-13**, held and shown as the characters
    * somebody typed. It was Markdown source until then, rendered by the app to

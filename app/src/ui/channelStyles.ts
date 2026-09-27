@@ -67,9 +67,9 @@ export const styles = StyleSheet.create({
   centeredText: { textAlign: 'center', lineHeight: 20 },
   presence: { gap: 2, marginBottom: spacing(0.5) },
   /**
-   * The switch between the tabs. Its own margin rather than the notepad's,
-   * back when that sat above it: the notepad is often empty and the gap above
-   * the roster is not.
+   * The switch between the tabs. Its own margin rather than the description's,
+   * back when that sat above it: the description is often empty and the gap
+   * above the roster is not.
    */
   tabs: { marginTop: spacing(0.5), marginBottom: spacing(0.5) },
   /**
@@ -171,33 +171,6 @@ export const styles = StyleSheet.create({
   speakingDotLive: {
     borderColor: colors.floor,
     backgroundColor: colors.floor,
-  },
-  /**
-   * The notepad's words. Body rather than the muted grey it was in: it was a
-   * line under a header when that style was written, and it is the content of
-   * its own card now, with the muted tone left to the sentences *about* it.
-   */
-  description: {
-    ...type.body,
-    lineHeight: 20,
-    marginTop: spacing(0.5),
-    marginBottom: spacing(0.5),
-  },
-  /**
-   * The notepad's *Edit*, which is small on purpose: `flex-start` so it is the
-   * width of the word rather than of the card, the sheet being the thing on
-   * this card and this being the way to change it. The width is the whole of
-   * that now: the tone that used to say it alongside is gone, and a control
-   * the width of its own word is already quieter than the sheet above it.
-   */
-  notepadEdit: { alignSelf: 'flex-start', paddingHorizontal: spacing(1) },
-  /** The notepad's character count, under the field while it is open. */
-  count: {
-    ...type.muted,
-    color: colors.textFaint,
-    fontSize: 12,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
   },
   /**
    * The pinned header, which carries the same horizontal padding as

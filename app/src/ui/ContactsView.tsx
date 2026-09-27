@@ -491,8 +491,8 @@ function AddContact({
     avoider does not do is *scroll*, and this card grows tall enough — a field,
     two buttons, an outcome line, and the invite link under it — that a
     shortened viewport can leave its lower half beneath the keyboard, which is
-    where *Send request* is. Same reasoning as the channel notepad; see
-    `RevealContext`.
+    where *Send request* is. Same reasoning as Channel Settings' description;
+    see `RevealContext`.
 
     `when` is the card being open rather than the field having focus: the only
     keyboard this row of the screen can raise is this field's.
