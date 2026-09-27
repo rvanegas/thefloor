@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { buildApp, type App } from '../src/app';
 import {
   INVITE_GUESS_WINDOW_MS,
@@ -20,18 +24,60 @@ import { invitePage } from '../src/invite';
 let app: App;
 let clock = 1_700_000_000_000;
 
-beforeEach(() => {
+/**
+ * This suite's own train directory rather than `server/web`, and it is empty
+ * unless a test says otherwise — the same arrangement `open.test.ts` and
+ * `train-root.test.ts` make, through the same `BuildOptions.trainRoot`.
+ *
+ * **It is here because this file used to read whatever was on disk, and pass or
+ * fail on it.** § *hands the tab a username and no pin* asserts the page writes
+ * the handover key, which `invitePage` emits only when `webAppReady` — and that
+ * is `server/web/{stable,beta}/index.html` existing, which `bin/deploy-web`
+ * builds and `.gitignore` excludes. So the test passed in a checkout that had
+ * built a train at some point and failed in a fresh worktree, on a condition it
+ * was not testing and nobody had stated. `bin/deploy` runs this suite, so the
+ * failing direction could refuse a deploy for it.
+ *
+ * An empty directory is the honest default: a box serving no train is an
+ * ordinary box, and every test here bar one means that. See
+ * `decisions/2026-09-27-a-test-may-not-read-an-untracked-build.md`.
+ */
+let trainRoot: string;
+
+/**
+ * Runs `body` with these trains standing, and takes them down afterwards.
+ *
+ * `open.test.ts`'s `withTrains` in miniature, and deliberately the same shape:
+ * a train is a fact a test asserts *under*, so it is scoped to the test rather
+ * than set up for the file. The content does not matter — `availableTrains`
+ * only checks that `index.html` is reachable.
+ */
+async function withTrain<T>(name: string, body: () => Promise<T>): Promise<T> {
+  const dir = join(trainRoot, name);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), '<!doctype html>');
+  try {
+    return await body();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+beforeEach(async () => {
   clock = 1_700_000_000_000;
+  trainRoot = await mkdtemp(join(tmpdir(), 'thefloor-invite-trains-'));
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     now: () => clock,
+    trainRoot,
   });
 });
 
 afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
+  await rm(trainRoot, { recursive: true, force: true });
 });
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -480,10 +526,37 @@ describe('the page', () => {
     expect(response.body).toContain('Alice invited you');
   });
 
+  /**
+   * **Under a train, explicitly.** The script that writes the key is drawn only
+   * where there is somewhere for the anchor to go — `accepting` in `invite.ts`
+   * is `options.webAppReady` — so the train is the precondition of the
+   * assertion and is stood up rather than inherited. See `trainRoot` above for
+   * what inheriting it cost.
+   */
   it('hands the tab a username and no pin', async () => {
+    await withTrain('stable', async () => {
+      const body = (await open('/i/alice_k')).body;
+      expect(body).toContain('thefloor.invite');
+      expect(body).toContain('{\\"username\\":\\"alice_k\\"}');
+    });
+  });
+
+  /**
+   * The other direction, which is what would have caught the original defect:
+   * a box serving no train writes nothing into the tab, because there is no
+   * anchor to hang the click on. It is the ordinary state of a fresh box, and
+   * of every other test in this file.
+   *
+   * Asserted here as well as in § *the call to action* below, and the
+   * difference is the seam: that one calls `invitePage` with `webAppReady`
+   * passed in, and this one goes through the route, where the value comes from
+   * the disk. Both halves have been wrong at once.
+   */
+  it('writes nothing into the tab where there is no train to accept in', async () => {
     const body = (await open('/i/alice_k')).body;
-    expect(body).toContain('thefloor.invite');
-    expect(body).toContain('{\\"username\\":\\"alice_k\\"}');
+    expect(body).not.toContain('thefloor.invite');
+    expect(body).not.toContain('id="accept"');
+    expect(body).toContain('not handing out the app yet');
   });
 });
 
