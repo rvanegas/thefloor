@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { AudioDeviceModule, AudioSession } from '@livekit/react-native';
-import { routeSnapshot } from '../../modules/audio-route';
+import { configureSession, routeSnapshot } from '../../modules/audio-route';
+import { CALL } from './session';
 
 /**
  * The bisection harness for TASKS § *Stepping Back In*, built 2026-08-24.
@@ -40,8 +41,16 @@ import { routeSnapshot } from '../../modules/audio-route';
 export interface Probe {
   /** Appears on the button and in the log line. */
   name: string;
-  /** One native call, and nothing else. */
-  run: () => void;
+  /**
+   * One native call, and nothing else.
+   *
+   * **A promise is awaited rather than dropped**, which matters only for the
+   * writes below: `setAppleAudioConfiguration` is asynchronous, and a `✓`
+   * written before the call had landed would timestamp the wrong instant in a
+   * log whose whole use is ordering an `engine stop` against the thing that
+   * caused it.
+   */
+  run: () => void | Promise<void>;
 }
 
 /**
@@ -89,11 +98,18 @@ export const PROBE_GROUPS: Array<{ name: string; probes: Probe[] }> = [
  * relative to it; the *after* line proves the call returned at all, which
  * separates a reader that stops the engine from one that blocks the JS thread
  * against it.
+ *
+ * Asynchronous since the writes arrived, and the `await` is the point rather
+ * than a formality — see `Probe.run`. A synchronous reader resolves in a
+ * microtask and its two lines still bracket nothing but itself.
  */
-export function runProbe(probe: Probe, record: (text: string) => void): void {
+export async function runProbe(
+  probe: Probe,
+  record: (text: string) => void
+): Promise<void> {
   record(`probe ${probe.name} →`);
   try {
-    probe.run();
+    await probe.run();
     record(`probe ${probe.name} ✓`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -134,3 +150,103 @@ export async function restartAudioSession(
     record(`restart session ✗ ${message}`);
   }
 }
+
+/**
+ * **The writes, which are a different experiment in the same rig.**
+ *
+ * Added 2026-09-27 for `planning/tasks/a-film-in-stereo-needs-no-teardown.md`
+ * § *whether the engine stop is caused by the mode change specifically*. The
+ * ten probes above ask which *reader* is destructive; these ask what a
+ * **write** does to a running engine, which is the question three builds were
+ * spent guessing at between 2026-09-23 and 2026-09-26.
+ *
+ * What is settled already: `setAppleAudioConfiguration` mid-run stops the
+ * engine and nothing restarts it — build 296, the log in `session.ts` where
+ * `SCREENING` used to be. What is not settled is the scope of that, because the
+ * write that was measured changed the mode and the options together. Either
+ * **any** write stops the engine, and the configuration route is permanently
+ * dead, or the **mode** does, and a narrower write reopens it. The two lead to
+ * opposite designs and the code currently carries the pessimistic reading on a
+ * single measurement.
+ *
+ * **These are kept out of `PROBES` and out of `PROBE_GROUPS` deliberately.**
+ * That list is readers, which are *meant* to be innocent and are suspected of
+ * not being; every one of these is known to write process-wide state and one of
+ * them is known to kill the engine. A group button that swept both would
+ * destroy the reading it was taking.
+ *
+ * **Read them in order, and stop at the first one that stops the engine.**
+ *
+ * - `CALL unchanged` is the most informative single press: the values already
+ *   in force, so nothing about the configuration changes and only the act of
+ *   writing remains. An `engine stop` here means any write is fatal and the
+ *   rest of the list is moot. **A quiet result here is the weaker half of the
+ *   evidence**, though — a write of identical values may be short-circuited
+ *   before it reaches the observer at all, which is why the two below change
+ *   exactly one thing each.
+ * - `options only` and `mode only` are that pair. Between them they say which
+ *   half of `SCREENING` did it, and `mode only` is the one the task predicts.
+ * - `SCREENING as it was` is the control, and it is the one that must stop the
+ *   engine. If it does not, the rig is not reproducing build 296 and nothing
+ *   above it means anything.
+ * - `raw AVAudioSession` is the discriminator worth having last: it writes the
+ *   same category, mode and options through this app's own native module,
+ *   bypassing the SDK entirely. If the LiveKit write stops the engine and this
+ *   one does not, the stop is the SDK's observer reacting rather than iOS
+ *   tearing anything down — which is a fixable thing rather than a platform
+ *   fact.
+ *
+ * **The lab is the wrong instrument for this and that is not an oversight.**
+ * `AudioLabView` writes configurations all day, and its header says to run it
+ * *outside any channel* so that nothing else is writing. This question is only
+ * about a write while the engine runs, so it has to be asked from inside a
+ * channel, where the lab's whole premise does not hold.
+ */
+export const WRITE_PROBES: Probe[] = [
+  {
+    name: 'write CALL unchanged (livekit)',
+    run: () => AudioSession.setAppleAudioConfiguration(CALL),
+  },
+  {
+    name: 'write options only: CALL + A2DP (livekit)',
+    run: () =>
+      AudioSession.setAppleAudioConfiguration({
+        ...CALL,
+        audioCategoryOptions: [
+          ...(CALL.audioCategoryOptions ?? []),
+          'allowBluetoothA2DP',
+        ],
+      }),
+  },
+  {
+    name: 'write mode only: playAndRecord/default (livekit)',
+    run: () =>
+      AudioSession.setAppleAudioConfiguration({
+        ...CALL,
+        audioMode: 'default',
+      }),
+  },
+  {
+    // What build 296 shipped, exactly: the control that has to reproduce.
+    name: 'write SCREENING as it was (livekit, control)',
+    run: () =>
+      AudioSession.setAppleAudioConfiguration({
+        audioCategory: 'playAndRecord',
+        audioCategoryOptions: ['allowBluetoothA2DP'],
+        audioMode: 'default',
+      }),
+  },
+  {
+    // Not the ADM and not the SDK — `AVAudioSession` through this app's own
+    // module, with `active: true` because the session is already active and
+    // `setActive` is where an interruption would happen if one were going to.
+    name: 'write CALL unchanged (raw AVAudioSession)',
+    run: () =>
+      void configureSession(
+        'playAndRecord',
+        'videoChat',
+        [...(CALL.audioCategoryOptions ?? [])],
+        true
+      ),
+  },
+];

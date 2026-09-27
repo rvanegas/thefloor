@@ -2547,7 +2547,7 @@ describe('the audio diagnostic panel', () => {
    * quietly took two readings would name the wrong culprit, and naming the
    * wrong culprit is how four fixes were written for one symptom in August.
    */
-  it('makes exactly one native call per probe, and logs either side of it', () => {
+  it('makes exactly one native call per probe, and logs either side of it', async () => {
     mockApp.debug = true;
     showChannel(channelOf());
     const { AudioDeviceModule } = require('@livekit/react-native');
@@ -2561,7 +2561,13 @@ describe('the audio diagnostic panel', () => {
         onExit={() => {}}
       />);
     act(() => button(tree, 'Audio diagnostics')!.props.onPress());
-    act(() => button(tree, '· engineAvailability')!.props.onPress());
+    // Awaited, because `runProbe` is asynchronous since the write probes
+    // arrived — it brackets the call with an `await` so that the closing line
+    // timestamps the moment the call landed rather than the moment it was
+    // dispatched. A synchronous `act` here sees the opening line only.
+    await act(async () => {
+      button(tree, '· engineAvailability')!.props.onPress();
+    });
 
     expect(AudioDeviceModule.getEngineAvailability).toHaveBeenCalledTimes(1);
     expect(AudioDeviceModule.isEngineRunning).not.toHaveBeenCalled();

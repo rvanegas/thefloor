@@ -12,7 +12,13 @@ import {
 } from '../audio/diagnostics';
 import { appBuild } from '../api/build';
 import { copyText } from '../clipboard';
-import { PROBES, PROBE_GROUPS, restartAudioSession, runProbe } from '../audio/probe';
+import {
+  PROBES,
+  PROBE_GROUPS,
+  WRITE_PROBES,
+  restartAudioSession,
+  runProbe,
+} from '../audio/probe';
 import type { AudioIntent } from '../audio/useSessionAudio';
 import { colors, radius, spacing, type } from './theme';
 
@@ -215,7 +221,14 @@ export function AudioDebugPanel({
                 key={group.name}
                 label={`▸ ${group.name}`}
                 onPress={() => {
-                  for (const probe of group.probes) runProbe(probe, recordEvent);
+                  void (async () => {
+                    // Sequentially, so that two calls are never in flight
+                    // against each other — a group exists to narrow the
+                    // suspect list, not to widen it.
+                    for (const probe of group.probes) {
+                      await runProbe(probe, recordEvent);
+                    }
+                  })();
                 }}
               />
             ))}
@@ -223,7 +236,33 @@ export function AudioDebugPanel({
               <Tap
                 key={probe.name}
                 label={`· ${probe.name}`}
-                onPress={() => runProbe(probe, recordEvent)}
+                onPress={() => void runProbe(probe, recordEvent)}
+              />
+            ))}
+          </View>
+
+          {/*
+            **The second experiment, and the reason it has a section of its own
+            rather than five more rows above.** Those probes are readers under
+            suspicion; these are writes, one of which is already known to kill
+            the engine. Mixing them would put a destructive press inside a list
+            somebody sweeps, and there is no group button here for the same
+            reason. See `audio/probe.ts` § *The writes*.
+          */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Write the session — in order, stop at the first stop
+            </Text>
+            <Text style={styles.note}>
+              Stepped in, alone, with asked reading CALL and an engine start in
+              the log below. Press one, then look for engine stop within a
+              second or two. Restart audio session before the next.
+            </Text>
+            {WRITE_PROBES.map((probe) => (
+              <Tap
+                key={probe.name}
+                label={`· ${probe.name}`}
+                onPress={() => void runProbe(probe, recordEvent)}
               />
             ))}
           </View>
