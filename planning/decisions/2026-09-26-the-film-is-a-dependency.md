@@ -1,8 +1,11 @@
 # The film is a dependency of the session effect
 
-> **Corrected the same day by
-> 2026-09-26-a-hold-can-move-the-session.md, which has the cause.** The
-> dependency added here was a real latent bug and stays. It was **not** what
+> **Corrected the same day, twice. 2026-09-26-the-film-keeps-its-stereo.md is
+> where this report actually ends**, and
+> 2026-09-26-a-hold-can-move-the-session.md is the step between. The dependency
+> added here is gone with the parameter it named — `useSessionAudio` takes no
+> `screening` — so this is a correct rule about something that no longer
+> exists. It was **not** what
 > was reported: the premise below — that a run ending "moves nothing else at
 > all" — is wrong, because a party mute is a server-side *unsubscription*, so
 > the pause brings every remote track back and moves `othersAudible`, which was

@@ -34,11 +34,7 @@ import { NotificationsView } from './src/ui/NotificationsView';
 import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { Picture } from './src/watch/Picture';
-import {
-  channelHasAudio,
-  isScreening,
-  microphoneNeeded,
-} from '../core/micNeeded';
+import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 import {
@@ -215,17 +211,6 @@ function Root() {
   // room without a microphone is `LISTENING` rather than `CALL`.
   const hasAudio = live ? channelHasAudio(live, me) : !!seat;
 
-  /**
-   * Whether this device is showing the party's film right now.
-   *
-   * **Not whether it may capture — it holds its microphone either way.** What
-   * this decides is which configuration the session holds while it does:
-   * `SCREENING` rather than `CALL`, which is `playAndRecord` under a non-voice
-   * mode with stereo output. Closing the device is what a resume used to wait
-   * a second for, and `core/micNeeded.ts` carries the measurement.
-   */
-  const screening = live ? isScreening(live, me) : false;
-
   const audio = useSessionAudio(
     /*
       **A seat is keyed on its channel, a membership on its media room**, and
@@ -283,10 +268,7 @@ function Root() {
     // film plays on another *device*, so an exclusive claim does not silence it
     // and there is nobody to hand the audio system back to. Occupants mute
     // while it runs, which is ordinary self-mute.
-    true,
-    // **Which configuration a screening device holds**, rather than whether it
-    // holds one — see `screening` above, and `SCREENING` in audio/session.ts.
-    screening
+    true
   );
 
   /**

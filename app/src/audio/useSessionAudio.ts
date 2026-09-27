@@ -504,12 +504,12 @@ function trace(config: AppleAudioConfiguration, want: SessionWant): void {
  * @param canCapture whether the microphone may be open, already adjusted for
  *                   what iOS will grant: false while a promotion is deferred.
  */
-function wantFor(canCapture: boolean, screening = false): SessionWant {
+function wantFor(canCapture: boolean): SessionWant {
   if (!canCapture) return 'listen';
-  return screening ? 'screen' : 'call';
+  return 'call';
 }
 
-function pushPolicy(screening = false): void {
+function pushPolicy(): void {
   // **Android has no counterpart and is not missing one**, which is worth
   // stating because every other `Platform.OS !== 'ios'` guard in this
   // directory marks something Android still owes. This one does not: the
@@ -527,8 +527,12 @@ function pushPolicy(screening = false): void {
   // to deactivate when both engines stop. It is still pushed at each edge
   // rather than once at startup, because a push is a single atomic property
   // assignment and re-stating it is how a superseded setup is superseded.
+  //
+  // It took `screening` back for three days and lost it again on 2026-09-26
+  // with `SCREENING` itself — see the note in session.ts where that
+  // configuration used to be.
   if (Platform.OS !== 'ios') return;
-  setupIOSAudioManagement(true, policyFor(screening));
+  setupIOSAudioManagement(true, policyFor());
 }
 
 /**
@@ -550,24 +554,19 @@ function pushPolicy(screening = false): void {
  */
 export type MicIntent = 'capturing' | 'muted' | 'released';
 
-function intentFor(
-  micNeeded: boolean,
-  selfMuted: boolean,
-  screening = false
-): MicIntent {
-  if (!micNeeded) return 'released';
+function intentFor(micNeeded: boolean, selfMuted: boolean): MicIntent {
   /*
-    **A screening device holds its microphone and publishes nothing.**
+    **A screening device arrives here as `released`, through `micNeeded`.**
 
-    `muted` rather than `capturing`, which is the difference between keeping
-    the device and using it. A run with a screen in the room is enforced-muted
-    for its length — `partyWithholds`, and `isScreening` is keyed on the same
-    flag — so there was never anything for this device to send; what changed on
-    2026-09-23 is that it stops letting the device *go* in order to send
-    nothing. Holding it is what removes the second that a resume was spending
-    on `engine stop`.
+    It took a `screening` argument of its own between 2026-09-23 and
+    2026-09-26, answering `muted` — the device held for the length of a run and
+    publishing nothing, which was how a run avoided the `engine stop` that
+    releasing costs. It also meant the session changed underneath a running
+    engine, which stops it just as thoroughly and with nothing to start it
+    again. So `microphoneNeeded` in core/micNeeded.ts subtracts the film once
+    more, and this sees an ordinary released microphone.
   */
-  if (screening) return 'muted';
+  if (!micNeeded) return 'released';
   return selfMuted ? 'muted' : 'capturing';
 }
 
@@ -742,12 +741,6 @@ export function useSessionAudio(
   recoverPlayout = false,
   deferSubscribe = false,
   holdForPlayout = false,
-  /**
-   * Whether this device is showing the party's film, which decides which
-   * configuration it holds rather than whether it holds one. See `SCREENING`
-   * in `session.ts`, and `isScreening` in core/micNeeded.ts.
-   */
-  screening = false
 ): SessionAudio {
   const [state, setState] = useState<SessionAudio>({
     status: 'idle',
@@ -915,9 +908,6 @@ export function useSessionAudio(
    * re-run when it changes: a foreground is the moment the deferred promotion
    * becomes possible, and nothing else would notice.
    */
-  /** Same reason as `micNeededRef`: the observer is armed at every edge. */
-  const screeningRef = useRef(screening);
-  screeningRef.current = screening;
   /** Same reason as `micNeededRef`: read at connect, acted on below. */
   const selfMutedRef = useRef(selfMuted);
   selfMutedRef.current = selfMuted;
@@ -1443,11 +1433,7 @@ export function useSessionAudio(
         }
         if (cancelled) return;
 
-        const intent = intentFor(
-          micNeededRef.current,
-          selfMutedRef.current,
-          screeningRef.current
-        );
+        const intent = intentFor(micNeededRef.current, selfMutedRef.current);
 
         // The claim, taken before the session is: connecting at all means
         // stepping in, and stepping in is the claim. Applied ahead of
@@ -1460,8 +1446,8 @@ export function useSessionAudio(
         // and the collision build 90 was written to remove. The rule this asks
         // is about *me* and is already settled before the socket exists, so
         // nothing moves.
-        const anyWant = wantFor(micNeededRef.current, screeningRef.current);
-        pushPolicy(screeningRef.current);
+        const anyWant = wantFor(micNeededRef.current);
+        pushPolicy();
         await applyFor(anyWant);
         appliedRef.current = { intent, config: sessionFor(anyWant) };
         update({
@@ -1472,7 +1458,7 @@ export function useSessionAudio(
             othersAudible: 0,
             intent,
             session: sessionFor(anyWant),
-            playout: policyFor(screeningRef.current).playout,
+            playout: policyFor().playout,
           },
         });
         recordEvent(`connect ${intent} ${nameOf(sessionFor(anyWant))}`);
@@ -1708,7 +1694,7 @@ export function useSessionAudio(
   useEffect(() => {
     const room = roomRef.current;
     if (!room || state.status !== 'connected') return;
-    const asked = intentFor(micNeeded, selfMuted, screening);
+    const asked = intentFor(micNeeded, selfMuted);
 
     /**
      * **A hold with nothing to hold, resolved rather than obeyed.**
@@ -1780,7 +1766,7 @@ export function useSessionAudio(
     // Bluetooth profile handover sits on. A self-mute does not reach it —
     // `micNeeded` is true for a muted member — so the 2026-08-19 route loss
     // stays fixed by the shortest argument it has ever had.
-    const want = wantFor(deferring ? false : micNeeded, screening);
+    const want = wantFor(deferring ? false : micNeeded);
     const config = sessionFor(want);
 
     // On its own edge, ahead of the dedupe below, for the reason `deferredRef`
@@ -1819,7 +1805,7 @@ export function useSessionAudio(
                 othersAudible: s.othersAudible,
                 intent,
                 session: config,
-                playout: policyFor(screening).playout,
+                playout: policyFor().playout,
               },
             }
       );
@@ -1849,7 +1835,7 @@ export function useSessionAudio(
         othersAudible: s.othersAudible,
         intent,
         session: config,
-        playout: policyFor(screening).playout,
+        playout: policyFor().playout,
       },
     }));
     recordEvent(`${intent} ${nameOf(config)}`);
@@ -1866,40 +1852,32 @@ export function useSessionAudio(
     // is what prevents it, the engine stays recording through a mute and
     // nothing moves. It needs two phones and a mute to settle, and no bench in
     // this repository can answer it.
-    pushPolicy(screening);
+    pushPolicy();
 
     // Order matters and is opposite in the two directions: the session must
     // already be a call before capture starts, and must stay one until capture
     // has stopped. Configuring a `playback` session that is still recording is
     // exactly what silences the echo canceller.
     //
-    // **A hold has neither ordering problem, and since 2026-09-23 it can still
-    // move the session.** The device stays as it was either way, so there is
-    // nothing for the configuration to be sequenced against — but `muted` now
-    // means two different things. A self-mute leaves the configuration exactly
-    // where it was, which is the 2026-08-20 fix and the reason this branch
-    // wrote nothing for a year; a screening run holds the same device under
-    // `SCREENING` instead of `CALL`, and that is a real move.
+    // **A hold has neither ordering problem**, the device staying as it was
+    // either way, so there is nothing for the configuration to be sequenced
+    // against. It writes the session only when the configuration has actually
+    // moved, which for a `muted` intent is the first pass through a connection
+    // and nothing else: `want` is `call` whenever the microphone is held, so a
+    // self-mute leaves it exactly where it was. That is the 2026-08-20 fix —
+    // re-stating `CALL` across a self-mute is the Bluetooth profile handover
+    // `intentFor` exists to avoid, and `policy.test.tsx` § *leaves the session
+    // a call* pins its absence.
     //
-    // **It went unwritten for three days and cost a room.** This branch is the
-    // whole of what a run *entering* does, so with `applyFor` missing from it
-    // the only writer told about `SCREENING` was `pushPolicy` above — the
-    // native observer, which applies at the next engine transition rather than
-    // now. Measured 2026-09-26 on build 295: `muted SCREENING`, then the
-    // observer's `categoryChange` 1.2 seconds later, then `engine stop play=T
-    // rec=T` and no `engine start` ever again. The pause that followed asked
-    // for `CALL` correctly and produced no `categoryChange` at all, because
-    // nothing had ever told the session it was anything else. Both
-    // microphones unmuted, both subscriptions came back, and all of it landed
-    // on a stopped engine — stepping out and back in was the only cure,
-    // that being the one path that releases the session and starts the engine
-    // from nothing. See `planning/POSTMORTEM-echo.md`: three writers, and this
-    // is them disagreeing from a new direction.
-    //
-    // Guarded on the move rather than stated unconditionally, so a plain
-    // self-mute still writes nothing. Re-stating `CALL` across a self-mute is
-    // the Bluetooth profile handover that `intentFor` exists to avoid, and
-    // `policy.test.tsx` § *leaves the session a call* pins its absence.
+    // **The guard is here because a hold stopped meaning one thing for three
+    // days and this branch did not notice.** From 2026-09-23 a screening run
+    // held the same device under a `SCREENING` configuration, and this branch
+    // — the whole of what entering a run does — applied nothing, so the only
+    // writer told was the native observer above. That cost a room, twice, and
+    // the answer in the end was to stop holding the device at all: see the note
+    // in session.ts where `SCREENING` used to be. The guard outlived it
+    // deliberately, because what it states is true either way and the next
+    // second meaning of `muted` will arrive the same way.
     (intent === 'capturing'
       ? applyFor(want).then(() =>
           room.localParticipant.setMicrophoneEnabled(true)
@@ -1952,18 +1930,12 @@ export function useSessionAudio(
     // so it has to wake this effect. It is also the only dependency here that
     // changes without anything about the channel changing.
     foreground,
-    // **The film, which is an input to both halves of this effect** — the
-    // intent through `intentFor` and the configuration through `wantFor` — and
-    // which was missing from here between 2026-09-23 and 2026-09-26. A run
-    // begins and the effect is woken by something else: the server withholds
-    // the room, every remote subscription goes, and `othersAudible` moves. A
-    // run *ends* and nothing else moves at all — the pause lifts the mute
-    // server-side, the subscriptions come back muted, and with no dependency
-    // naming the film, the device this effect had left holding its microphone
-    // shut went on holding it shut. Two people paused to talk about what they
-    // were watching and neither could hear the other until somebody stepped
-    // out and back in, which is the one thing that rebuilds this from nothing.
-    screening,
+    // **The film is not named here and does not need to be**, since
+    // 2026-09-26: it reaches this effect through `micNeeded`, which
+    // `microphoneNeeded` subtracts it from. It was a dependency for a few hours
+    // on 2026-09-26 while it was an input of its own — see
+    // decisions/2026-09-26-the-film-is-a-dependency.md, which is a correct rule
+    // about a parameter that no longer exists.
     state.status,
     state.othersAudible,
   ]);

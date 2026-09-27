@@ -88,18 +88,25 @@ the first version broke, and both are in its header:
 A third case plays twice, because the first run is the only one the old code
 got any category change out of and every run after it moved nothing at all.
 
-## What is still open
+That file was rewritten once more the same day, when `SCREENING` was deleted: the
+two fixture rules above are why it is shaped as it is and they still hold, but
+what it now asserts is the *absence* of a session change. See
+2026-09-26-the-film-keeps-its-stereo.md.
 
-**Whether `SCREENING` stops the engine even when it is applied properly.** The
-reading above was taken with the JavaScript write missing, so the observer wrote
-the configuration at a transition — and a session reconfigured underneath a
-running engine is exactly the shape POSTMORTEM-echo.md is about. With the write
-landing first the engine may survive it. If a device still shows `engine stop`
-after `muted SCREENING`, the answer is to give `SCREENING` up and hold `CALL`
-for the length of a run: that keeps the half of 2026-09-23 that measured well —
-the device stays open — and drops the half that is stopping the engine. The
-film would lose stereo and play over hands-free, which is the price
-`holdForPlayout` already pays for everything else.
+## What was open, and what still is
+
+**Answered the same day, and the answer was yes.** Build 296 landed the write
+in 174ms rather than the observer's 1.2 seconds, `route` confirmed
+`ModeDefault`, and `engine stop play=T rec=T` happened anyway — so `SCREENING`
+stops the engine however it is applied, and with the engine stopped there is no
+transition left for the pause's `CALL` to be applied at. `SCREENING` is
+therefore deleted, and the film's stereo is bought back the expensive way — the
+device is released again, as it was before 2026-09-23. See
+2026-09-26-the-film-keeps-its-stereo.md, which is where this report
+actually ends.
+
+The fix in this entry stays: it was a real defect, it is why the reading above
+could be taken at all, and the guard it added still states something true.
 
 **`reconcileSilence` does not reconcile the restoring edge**, and that is a
 separate defect found on the way past. `server/src/channels.ts` returns early

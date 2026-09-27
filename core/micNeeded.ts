@@ -38,26 +38,33 @@ import type { ChannelState, UserId } from './types';
  * kind of person the caller is, which is the guest case below.
  */
 export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
+  if (!hasMicrophone(channel, me)) return false;
   /*
-    **The watch exception left this predicate on 2026-09-23 and became a
-    question about the session instead.**
+    **The watch exception, which left this predicate on 2026-09-23 and came
+    back on 2026-09-26.** A device showing the film closes its microphone, so
+    that `sessionFor` asks for `playback` and the film is stereo rather than
+    mono, ducked and voice processed.
 
-    It used to subtract `isScreening` here — a device showing the film closed
-    its microphone, so that `sessionFor` could ask for `playback` and the film
-    got the stereo bloom. What that cost was measured on build 277 and is
-    worse than what it bought: closing the device takes about a second, and
-    the whole of it is spent between somebody pressing Play and the film
-    starting. `engine stop` at 0.92 to 1.11 seconds, with the category change
-    immediately behind it; pausing, which tears nothing down, moved category
-    in 0.27 to 0.41 seconds every time.
+    **What it costs is about a second on every press of Play**, all of it spent
+    tearing the microphone down before the session can move — build 277:
+    `engine stop` at 0.92 to 1.11 seconds with the category change immediately
+    behind it, against 0.27 to 0.41 seconds for a pause. That measurement is
+    why the exception left, and it still stands. What it bought was not worth
+    it, which is the part that turned out to be wrong.
 
-    So the device is held for the length of the party and the *configuration*
-    changes instead — `SCREENING` in `app/src/audio/session.ts`, which is
-    `playAndRecord` under a non-voice mode with A2DP output. `isScreening` is
-    still the question; it is asked by the session rather than by this, and
-    nothing is published either way because a screening run is enforced-muted.
+    **Holding the device and changing the configuration instead cost the room
+    its conversation.** `SCREENING` was `playAndRecord` under `default`, and
+    changing the configuration mid-run stops the audio engine — after which
+    nothing restarts it, so a pause put every microphone back onto a dead
+    engine and nobody could be heard until they left the channel and returned.
+    Measured on build 296, three fixes into one report. It did not even buy the
+    second back: `watch playing after 1689ms`.
+
+    So the second is paid and the film keeps its stereo. See
+    `planning/decisions/2026-09-26-the-film-keeps-its-stereo.md`, and
+    `planning/tasks/` for what a resume that costs nothing would need.
   */
-  return hasMicrophone(channel, me);
+  return !isScreening(channel, me);
 }
 
 /**
@@ -95,27 +102,36 @@ export function hasMicrophone(
 /**
  * Whether this device is showing the film right now, and so must not capture.
  *
- * **What this answers moved on 2026-09-23.** It used to decide whether this
- * device captured at all; it now decides which session configuration it holds
- * while it does — `SCREENING` rather than `CALL`. The question is the same and
- * the answer is spent differently; `microphoneNeeded` says why.
+ * **What this answers moved on 2026-09-23 and moved back on 2026-09-26.** For
+ * three days it decided which session configuration a device held while it went
+ * on capturing — `SCREENING` rather than `CALL` — and changing the
+ * configuration mid-run stopped the audio engine, which nothing restarted. So
+ * it decides again what it originally did: whether this device captures at all.
+ * `microphoneNeeded` says why, and what it costs.
  *
  * **The exception to the one rule above, and it is written down as one so that
  * nobody later deletes it as an inconsistency.** *You hold the audio system if
  * and only if you are stepped in* has been the whole of this file since the
  * 2026-09-08 redesign; this is the first thing to qualify it.
  *
- * **What it buys is stereo, and it no longer buys it by closing anything.**
- * The sentence here used to read that a screen and a microphone on one device
- * cannot both be served, because an open microphone forces `playAndRecord`
- * under a voice mode — mono over Bluetooth, ducked, voice processed — and the
- * film is what everybody came for. The category was never the problem: the
- * *mode* is, and `allowBluetooth` is, and both are choices. `SCREENING` keeps
- * `playAndRecord` with neither of them.
+ * **What it buys is stereo**, and the reason it has to buy it by closing
+ * something is worth stating exactly, because the obvious cheaper version was
+ * tried and shipped and failed. A screen and a microphone on one device cannot
+ * both be served: an open microphone forces `playAndRecord`, and the useful
+ * modes for it are voice modes — mono over Bluetooth, ducked, voice processed —
+ * and the film is what everybody came for.
  *
- * **The price that used to be paid here was a profile handover at every
- * pause, and it turned out to be a second on every resume.** See
- * `microphoneNeeded`.
+ * The category was never the problem; the *mode* is, and `allowBluetooth` is,
+ * and both are choices. **So the cheap version held the device and changed only
+ * the configuration — and changing the configuration is what stops the audio
+ * engine.** Nothing restarts it, so the room could not talk when the film
+ * paused. The category change this exception causes is not a cheaper version of
+ * that: it releases and retakes the device, which is what brings the engine
+ * back up, and it is the reason the second it costs is a second rather than a
+ * silence.
+ *
+ * **The price is paid by whoever pressed Play, once**, and not by the
+ * conversation. That is the ordering the 2026-09-23 attempt had backwards.
  *
  * **Two properties of a watch party make it safe, and neither generalises.**
  * A loaded party already refuses a recording — `canStartRecording` requires

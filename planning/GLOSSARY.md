@@ -2957,16 +2957,21 @@ See decisions/2026-09-20-the-roster-says-who-is-watching.md.
 something. The room's mute is **enforced** for such a run, so that nobody is
 waiting on a voice that cannot arrive.
 
-**It used to cost the microphone and since 2026-09-23 it costs a
-configuration.** The claim here was that a device cannot both play a film in
-stereo and hold a microphone open, so a screen that was also in the room
-stopped capturing while the film played. The category was never what cost the
-stereo — the *mode* is, and the Bluetooth option is — and closing the device
-turned out to cost about a second on every resume, all of it spent tearing the
-microphone down before the session could move. So the device is held for the
-length of the party under `SCREENING`, and publishes nothing. See
-STATES.md § *Audio Session Configuration* and `isScreening` in
-core/micNeeded.ts.
+**It costs the microphone.** A device cannot both play a film in stereo and
+hold a microphone open, so a screen that is also in the room stops capturing
+while the film plays and the session falls to `LISTENING`. The category was
+never what cost the stereo — the *mode* is, and the Bluetooth option is — and
+closing the device costs about a second on every press of Play, all of it spent
+tearing the microphone down before the session can move.
+
+**That second was avoided for three days and the cure was worse.** `SCREENING`
+held the device and changed only the configuration, and changing the
+configuration stops the audio engine with nothing left to restart it — so a
+pause put every microphone back onto a dead engine and the room could not talk
+until somebody left the channel and returned. A category change tears the device
+down *and brings the engine back up*; that is why the expensive version is the
+one that works. See STATES.md § *Audio Session Configuration*, `isScreening` in
+core/micNeeded.ts, and decisions/2026-09-26-the-film-keeps-its-stereo.md.
 
 Sampled when a run starts rather than watched continuously: somebody switching
 to their only device mid-film changes nothing until the next Play, so no voice
@@ -3523,13 +3528,14 @@ defaults to published nothing and read as defunct. Fixed 2026-09-23 by asking
 `watch.status` in Rule A; see *Watch party* and
 decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
 
-**The device is held rather than closed since later the same day**, and that
-fix is still the one carrying this: a screening device now has a track and it
-is muted, and `publishing` counts *transmitting* microphones rather than
-existing ones — so the room is still publishing nothing while the film runs,
-and still needs Rule A to ask `watch.status`. What changed is the reason there
-is nothing: a muted track rather than no track. See `isScreening` in
-core/micNeeded.ts.
+**The device was held rather than closed for three days**, which made a
+screening device hold a muted track where it had held none — and `publishing`
+counts *transmitting* microphones rather than existing ones, so the room was
+publishing nothing either way and Rule A was needed either way. That
+arrangement is gone as of 2026-09-26 and a screening device has no track again,
+so this rests on exactly what it originally did. Worth knowing only because the
+reasoning was rewritten once for the muted-track version and is now back. See
+`isScreening` in core/micNeeded.ts.
 
 ## Participant
 

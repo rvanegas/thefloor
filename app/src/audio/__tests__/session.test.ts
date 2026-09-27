@@ -8,7 +8,6 @@ import {
   CALL,
   LISTENING,
   policyFor,
-  SCREENING,
   sessionFor,
 } from '../session';
 
@@ -33,59 +32,58 @@ describe('sessionFor', () => {
     expect(sessionFor('listen')).toBe(LISTENING);
   });
 
-  it('offers exactly three configurations', () => {
-    expect(
-      new Set([sessionFor('call'), sessionFor('listen'), sessionFor('screen')])
-    ).toEqual(new Set([CALL, LISTENING, SCREENING]));
-  });
-
-  it('screens for a device that is showing the film', () => {
-    expect(sessionFor('screen')).toBe(SCREENING);
+  it('offers exactly two configurations', () => {
+    expect(new Set([sessionFor('call'), sessionFor('listen')])).toEqual(
+      new Set([CALL, LISTENING])
+    );
   });
 });
 
 /**
- * **The configuration that exists to stop the microphone being torn down.**
+ * **A film does not get its own configuration; it gets `LISTENING`, by giving
+ * the microphone up.** This is the measurement that says why there is no third.
  *
- * Every assertion here is one of the three decisions inside it, and each was
- * made against a measurement rather than a preference — so each is a thing a
- * later reader could undo as tidying. Build 277: a press of Play left the app
- * in 40 to 120ms and the film did not start for 1.2 to 3.0 seconds, with
- * `engine stop` at 0.92 to 1.11s and the category change immediately behind
- * it. Pause, which tears nothing down, moved category in 0.27 to 0.41s every
- * time. See planning/decisions/2026-09-23-the-screen-keeps-its-microphone.md.
+ * `SCREENING` existed from 2026-09-23 to 2026-09-26 — `playAndRecord` under
+ * `default` with `allowBluetoothA2DP` — and was there to keep the film's stereo
+ * without paying the second that releasing a device costs. Build 296, with the
+ * write landing promptly from JavaScript rather than a second later from the
+ * observer, showed the change itself stopping the audio engine:
+ *
+ *     muted SCREENING
+ *     route … PlayAndRecord/ModeDefault why=routeConfigurationChange
+ *     engine stop play=T rec=T
+ *     capturing CALL            (no route change, no engine start)
+ *
+ * With the engine stopped there is no transition left for the next
+ * configuration to be applied at, so the pause put both microphones back onto a
+ * dead engine and the room could not talk until somebody stepped out and in.
+ *
+ * **The category change a release causes is not a cheaper version of that** —
+ * it is what brings the engine back up, which is why the expensive arrangement
+ * is the one that works. See
+ * planning/decisions/2026-09-26-the-film-keeps-its-stereo.md, and
+ * `planning/tasks/` for what a resume that costs nothing would need.
  */
-describe('the screening configuration', () => {
-  it('keeps the device, which is the whole of what it is for', () => {
-    // `playAndRecord` and not `playback`: releasing the microphone is the
-    // second that a resume was waiting for, and holding it is the cure.
-    expect(SCREENING.audioCategory).toBe('playAndRecord');
+describe('a film', () => {
+  it('is served by one of the two configurations and not a third', () => {
+    // A `SessionWant` of `'screen'` would not typecheck; this is the runtime
+    // half, and it is what a reader adding a configuration back would break
+    // first.
+    expect(new Set([sessionFor('call'), sessionFor('listen')]).size).toBe(2);
   });
 
-  it('is not a voice mode, which is what would cost the film', () => {
-    // The nine configurations measured on 2026-09-08 say the category costs
-    // nothing and the mode costs everything — the voice modes assert
-    // `duckOthers` behind the caller's back and run the voice processor over
-    // whatever is playing. A film under `videoChat` is the trade not worth
-    // making, so this is the assertion that stops somebody making it.
-    expect(SCREENING.audioMode).not.toBe('videoChat');
-    expect(SCREENING.audioMode).not.toBe('voiceChat');
-    expect(SCREENING.audioMode).not.toBe('gameChat');
-  });
-
-  it('takes Bluetooth as A2DP rather than as hands-free', () => {
-    // `allowBluetooth` is the hands-free profile: mono at 24kHz, which the
-    // build 277 log shows as `BluetoothHFP sr=24000` against
-    // `BluetoothA2DPOutput sr=48000` a few lines away. A screening device is
-    // not using its microphone for anything, so it can take the stereo one.
-    expect(SCREENING.audioCategoryOptions).toContain('allowBluetoothA2DP');
-    expect(SCREENING.audioCategoryOptions).not.toContain('allowBluetooth');
-  });
-
-  it('mixes with nothing, like the other two', () => {
-    // The 2026-09-08 rule holds here as everywhere: a phone has either claimed
-    // the audio system or given it back, and a film is a claim.
-    expect(SCREENING.audioCategoryOptions).not.toContain('mixWithOthers');
+  it('plays under playback, which is what makes it stereo', () => {
+    // `microphoneNeeded` answers false for a screening device, so `wantFor`
+    // says `listen` — see core/micNeeded.ts. The film is then output-only,
+    // which on a Bluetooth headset is A2DP rather than the hands-free profile.
+    expect(sessionFor('listen')).toBe(LISTENING);
+    expect(LISTENING.audioCategory).toBe('playback');
+    // And no voice mode, which is the half that costs the film: the voice modes
+    // assert `duckOthers` behind the caller's back and run the voice processor
+    // over whatever is playing.
+    expect(LISTENING.audioMode).not.toBe('videoChat');
+    expect(LISTENING.audioMode).not.toBe('voiceChat');
+    expect(LISTENING.audioMode).not.toBe('gameChat');
   });
 });
 
@@ -163,18 +161,17 @@ describe('policyFor', () => {
     expect(policyFor().playout).toBe(LISTENING);
   });
 
-  it('arms the observer with the screening one while the film plays', () => {
+  it('takes no argument, so nothing can arm it differently', () => {
     /*
       **The rule this whole file is built on**: every writer of the shared
       configuration must write the same thing, because whoever writes last
-      wins. The observer re-applies `recording` on every engine transition,
-      and while the film is playing what this app applies for a recording
-      device is `SCREENING`. Handing it `CALL` there would let a transition
-      nobody asked for put the film back under a voice mode — the 2026-08-19
-      route loss arriving by a third door.
+      wins. It took a `screening` argument for three days so the observer would
+      re-apply `SCREENING` rather than `CALL` while a film played. The rule is
+      intact and the second value is gone — a run holds `CALL` — so the honest
+      shape is a function of nothing, and a parameter added back here is a
+      second answer for the observer to disagree with.
     */
-    expect(policyFor(true).recording).toBe(SCREENING);
-    expect(policyFor(true).playout).toBe(LISTENING);
+    expect(policyFor.length).toBe(0);
   });
 
   /**
@@ -202,13 +199,14 @@ describe('the same states on Android', () => {
    * both platforms answering it in the same direction. An Android-only state
    * would pass every other test in this file and is exactly what this catches.
    */
-  it.each([['listen'], ['call'], ['screen']] as const)(
+  it.each([['listen'], ['call']] as const)(
     'moves with the same answer as the Apple half (want=%s)',
     (want) => {
       // *Is the device held*, which is the question both platforms answer.
-      // iOS splits a held device two ways — `CALL` for a conversation and
-      // `SCREENING` for a film — and Android has no third profile, so the
-      // correspondence is on holding rather than on which configuration.
+      // iOS split a held device two ways until 2026-09-26 — `CALL` and
+      // `SCREENING` — and Android never had a third profile, so this was
+      // always stated on holding rather than on which configuration. It costs
+      // nothing now and stays for the same reason.
       const apple = sessionFor(want) !== LISTENING;
       const android = androidSessionFor(want) === ANDROID_CALL;
       expect(android).toBe(apple);

@@ -3,36 +3,41 @@ import { AppState } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { AudioSession } from '@livekit/react-native';
 import { useSessionAudio } from '../useSessionAudio';
-import { CALL, SCREENING } from '../session';
+import { CALL, LISTENING } from '../session';
 import { drainEvents, resetDiagnostics } from '../diagnostics';
 
 /**
- * **Pausing the film gives the room its voice back, and the session has to
- * hear about it.**
+ * **A screening device gives its microphone up, and has to get it back when the
+ * film stops.**
  *
- * `screening` is an input to the one effect that decides what the microphone
- * is doing — `SCREENING` rather than `CALL`, and `muted` rather than
- * `capturing`, for the length of a run. Every route into and out of a run
- * therefore has to reach both halves: the device, and the session.
+ * `microphoneNeeded` in core/micNeeded.ts subtracts `isScreening`, so a device
+ * showing the film releases the device and the session falls to `LISTENING` —
+ * `playback`, which is what lets the film be stereo instead of mono, ducked and
+ * voice processed. A pause takes both back. This file is the app-side half of
+ * that; `core/__tests__/watchingHere.test.ts` is the predicate.
  *
- * Reported 2026-09-26 as *one pauses and then neither can hear each other*,
- * with stepping out and back in as the cure.
+ * **Reported 2026-09-26 as *one pauses and then neither can hear each other*,
+ * and it took three fixes because the first two were argued from the code.**
+ * The arrangement that produced it held the microphone through a run and
+ * changed the *configuration* instead, to keep the film's stereo without paying
+ * the second that releasing a device costs. Changing the configuration stops
+ * the audio engine, and nothing restarts it, so a pause put every microphone
+ * back onto a dead engine. Releasing and retaking the device is what brings the
+ * engine up — which is why the expensive version is the one that works. See
+ * decisions/2026-09-26-the-film-keeps-its-stereo.md.
  *
- * **Every case here enters a run rather than starting inside one**, and that is
- * the point rather than tidiness. The first version of this file mounted with
- * `screening` already true, so the *connect* path applied `SCREENING` — and the
- * gap it was written to cover is entirely in the transition, where the
- * `muted` branch was the only writer and wrote nothing. A fixture that begins
- * mid-film cannot see it. `enters()` is that rule, and no case below mounts
- * any other way.
+ * **Every case enters a run rather than starting inside one.** Mounting
+ * mid-film does the work on the *connect* path, and every fault in this story
+ * has been in the transition. `enters()` is that rule and no case below mounts
+ * any other way — the first version of this file did, and passed while the bug
+ * was live.
  *
- * **The pause is modelled with the resubscribe beside it, for the same
- * reason.** A party mute is a server-side *unsubscription* — `setSilenced` in
+ * **The pause carries the resubscribe beside it, for the same reason.** A party
+ * mute is a server-side *unsubscription* — `setSilenced` in
  * `server/src/media.ts` acts on the receiving end — so a run beginning drops
- * every remote track and a pause brings them back. Toggling `screening` alone
- * is not a state this app ever reaches, and a fixture that did so reported a
- * dependency as the whole fault when the resubscribe was already waking that
- * effect by itself.
+ * every remote track and a pause brings them back. A fixture that moved the
+ * film alone reported a missing dependency as the whole cause, when the
+ * resubscribe was already waking that effect by itself.
  */
 
 const mockEngine = { inputAvailable: true };
@@ -136,18 +141,24 @@ jest.mock('../../api/http', () => ({
   },
 }));
 
+/**
+ * `micNeeded` is `!screening`, which is what `microphoneNeeded` computes and is
+ * the whole of how the film reaches this hook — it takes no `screening`
+ * parameter, having had one for a few hours on 2026-09-26. `hasAudio` stays
+ * true throughout: the device is in the room for the length of the run, which
+ * is what makes the session `LISTENING` rather than deactivated.
+ */
 function Probe({ screening }: { screening: boolean }) {
   useSessionAudio(
     'room-1',
     'chan-1',
     'auth-token',
     false,
-    true,
+    !screening,
     true,
     false,
     true,
-    true,
-    screening
+    true
   );
   return null;
 }
@@ -170,8 +181,8 @@ const remote = { kind: 'audio', sid: 'TR_them' };
 /**
  * Mounts in a room with somebody else in it and subscribed, which is where a
  * watch party is started from and the only state these cases may begin in.
- * See the header: a fixture that mounts mid-film applies `SCREENING` on the
- * connect path and cannot see what the transition does or fails to do.
+ * See the header: a fixture that mounts mid-film does its work on the connect
+ * path and cannot see what the transition does or fails to do.
  */
 async function enters(): Promise<ReactTestRenderer> {
   let tree!: ReactTestRenderer;
@@ -215,34 +226,33 @@ describe('a screening device', () => {
   });
   afterEach(() => jest.useRealTimers());
 
-  /**
-   * **The one that was missing, and the whole of the 2026-09-26 fault.**
-   *
-   * A run is entered through the `muted` branch, which wrote nothing to the
-   * session for as long as `muted` meant only a self-mute. So `SCREENING` was
-   * decided, recorded in `appliedRef`, handed to the native observer — and
-   * never applied. Build 295's log has the consequence: the observer's
-   * `categoryChange` a second later, `engine stop play=T rec=T`, and no
-   * `engine start` for the rest of the session.
-   */
-  it('writes the session it decided on when the film starts', async () => {
+  it('gives the device up and falls to playback when the film starts', async () => {
     const tree = await enters();
     expect(lastApplied()).toBe(CALL);
 
     await plays(tree);
 
-    expect(logged().some((l) => l.includes('muted SCREENING'))).toBe(true);
-    // Not merely *decided*. The observer is told through `pushPolicy` either
-    // way; this is the other writer, and it is the one whose absence left the
-    // pause below with nothing to change back.
-    expect(lastApplied()).toBe(SCREENING);
+    // Genuinely released, not held-and-muted: unpublished, which is what lets
+    // the session leave `playAndRecord` and is therefore what buys the stereo.
+    expect(logged().some((l) => l.includes('released LISTENING'))).toBe(true);
+    expect(mockRooms[0].localParticipant.unpublishTrack).toHaveBeenCalled();
+    expect(lastApplied()).toBe(LISTENING);
 
     await act(async () => {
       tree.unmount();
     });
   });
 
-  it('takes the microphone and the call session back when the film pauses', async () => {
+  /**
+   * **The reported bug, and the one assertion this whole file exists for.**
+   *
+   * Under the arrangement that failed, the device was still held here and the
+   * session was still `SCREENING`; the pause asked for `CALL`, got no category
+   * change because the engine had already stopped, and the room stayed silent.
+   * What makes this work is that the category genuinely moves — `playback` back
+   * to `playAndRecord` — which restarts the engine on its way.
+   */
+  it('takes the device and the call session back when the film pauses', async () => {
     const tree = await enters();
     await plays(tree);
     mockRooms[0].localParticipant.setMicrophoneEnabled.mockClear();
@@ -253,8 +263,6 @@ describe('a screening device', () => {
     expect(
       mockRooms[0].localParticipant.setMicrophoneEnabled
     ).toHaveBeenCalledWith(true);
-    // The half that was reaching the device and not the session. A microphone
-    // unmuted under `SCREENING` is a microphone on a stopped engine.
     expect(lastApplied()).toBe(CALL);
 
     await act(async () => {
@@ -263,10 +271,11 @@ describe('a screening device', () => {
   });
 
   /**
-   * Twice through, because the first run is the only one the old code got a
-   * category change out of — the observer's, which stopped the engine — and
-   * every run after it moved nothing at all. A fixture that plays once cannot
-   * tell a session that recovers from one that is merely quiet.
+   * Twice through. The engine stop that broke this was permanent — it happened
+   * on the first run and every run after it moved no category at all, there
+   * being no engine left to move one. So a fixture that plays once cannot tell
+   * a session that recovers from one that is merely quiet, and the second run
+   * is where the old arrangement was already unrecoverable.
    */
   it('survives a second run', async () => {
     const tree = await enters();
@@ -276,10 +285,36 @@ describe('a screening device', () => {
     applied.mockClear();
 
     await plays(tree);
-    expect(lastApplied()).toBe(SCREENING);
+    expect(lastApplied()).toBe(LISTENING);
+
     await pauses(tree);
     expect(lastApplied()).toBe(CALL);
     expect(logged().some((l) => l.includes('capturing CALL'))).toBe(true);
+    expect(
+      mockRooms[0].localParticipant.setMicrophoneEnabled
+    ).toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * **The session must not be left on `playback` when the run ends by the
+   * channel emptying rather than by a pause**, which is the edge the `released`
+   * branch's own comment names: letting the device go hands the session back
+   * only if this app has nothing left to play. Cheap to state and it is the
+   * one route out of a run that is not somebody pressing Pause.
+   */
+  it('is still on playback while the film runs with nobody else there', async () => {
+    const tree = await enters();
+    await plays(tree);
+    await act(async () => {
+      mockRooms[0].fire('participantDisconnected', other);
+    });
+    await settle();
+
+    expect(lastApplied()).toBe(LISTENING);
 
     await act(async () => {
       tree.unmount();

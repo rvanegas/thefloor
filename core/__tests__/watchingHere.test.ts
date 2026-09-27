@@ -304,39 +304,48 @@ describe('enforcement is lifted when its premise goes', () => {
 });
 
 /**
- * **The screen keeps its microphone and changes its session instead.**
+ * **The screen gives its microphone up, and the price is paid by whoever
+ * pressed Play.**
  *
- * This described the opposite until 2026-09-23, and the reversal is measured
- * rather than preferred. Closing the device bought the film a `playback`
- * session and stereo; what it cost was about a second on every resume, all of
- * it spent tearing the microphone down before the category could move —
- * `engine stop` at 0.92 to 1.11 seconds on build 277, against 0.27 to 0.41
- * seconds for a pause, which tears nothing down.
+ * This described the opposite between 2026-09-23 and 2026-09-26, and the
+ * reversal is measured rather than preferred both times. Closing the device
+ * buys the film a `playback` session and stereo, and costs about a second on
+ * every press of Play, all of it spent tearing the microphone down before the
+ * category can move — `engine stop` at 0.92 to 1.11 seconds on build 277,
+ * against 0.27 to 0.41 seconds for a pause.
  *
- * So `isScreening` is still asked and is spent differently: it picks
- * `SCREENING` over `CALL` in `app/src/audio/session.ts`, which is
- * `playAndRecord` under a non-voice mode with A2DP output. Nothing is
- * published from a screening device either way — a run with a screen in the
- * room is enforced-muted for its length.
+ * **Holding the device and changing the configuration instead cost more.**
+ * `SCREENING` kept the film's stereo without releasing anything, and changing
+ * the configuration mid-run stops the audio engine — which nothing restarts, so
+ * the pause put every microphone back onto a dead engine and the room could not
+ * talk until somebody left the channel and came back. Build 296, and it did not
+ * buy the second back either. Releasing and retaking the device is what brings
+ * the engine up, so the expensive version is the one that works. See
+ * decisions/2026-09-26-the-film-keeps-its-stereo.md.
  */
-describe('the screen keeps its microphone', () => {
-  it('does not close it for whoever is watching here, playing or not', () => {
+describe('the screen gives its microphone up', () => {
+  it('closes it for whoever is watching here while the film plays', () => {
     const state = apply(watching(), [
       [here(A), T0],
       [{ type: 'WATCH_PLAY', userId: A }, T0],
     ]);
-    expect(microphoneNeeded(state, A)).toBe(true);
+    expect(microphoneNeeded(state, A)).toBe(false);
+    // **But they still *have* one**, which is the distinction `hasMicrophone`
+    // exists for: `anyScreenInTheRoom` has to ask whether somebody's microphone
+    // matters in order to decide whether to close it, and asking
+    // `microphoneNeeded` would be asking a question whose answer it is
+    // computing.
     expect(hasMicrophone(state, A)).toBe(true);
-    // And nobody else's is touched, which was true before and stays true.
+    // And nobody else's is touched. The exception is about the device showing
+    // the film, not about the room.
     expect(microphoneNeeded(state, B)).toBe(true);
   });
 
-  it('knows which device is screening, which is what the session reads', () => {
+  it('knows which device is screening, which is what closes it', () => {
     const state = apply(watching(), [
       [here(A), T0],
       [{ type: 'WATCH_PLAY', userId: A }, T0],
     ]);
-    // The question survives the change; only what it is spent on moved.
     expect(isScreening(state, A)).toBe(true);
     expect(isScreening(state, B)).toBe(false);
   });
@@ -348,6 +357,11 @@ describe('the screen keeps its microphone', () => {
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
     ]);
     expect(isScreening(state, A)).toBe(false);
+    // **The reported bug of 2026-09-26, at the predicate.** Everything above
+    // this line was true while the room was silent; what failed was further
+    // down, in what the app did with the answer. Pinned here anyway, because a
+    // predicate that stopped saying this would break the room again and from a
+    // place nobody would look twice at.
     expect(microphoneNeeded(state, A)).toBe(true);
   });
 
