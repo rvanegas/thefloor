@@ -6,7 +6,7 @@ import { useApp } from '../state/AppProvider';
 import { api } from '../api/http';
 import { pasteText } from '../clipboard';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
-import { colors, radius, spacing, type } from './theme';
+import { colors, measure, spacing, type } from './theme';
 import { useText, type Strings } from '../i18n';
 
 /**
@@ -346,7 +346,15 @@ export function SeatView({
 }
 
 const styles = StyleSheet.create({
-  container: { gap: spacing(1), paddingBottom: spacing(2) },
+  /**
+   * The gutter, which this screen went without until 2026-09-27 and looked
+   * unfinished for: `Screen` adds no padding of its own, so a `contentStyle`
+   * that names none puts every card against the window. `spacing(2)` is what
+   * `channelStyles.container` uses, and the two screens are read one after
+   * the other — a seat opened from Home is the same distance from the edge as
+   * a channel opened from Home.
+   */
+  container: { padding: spacing(2), paddingBottom: spacing(2), gap: spacing(1) },
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   flexButton: { flex: 1 },
@@ -361,6 +369,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerInner: {
+    ...measure,
     paddingHorizontal: spacing(2),
     paddingVertical: spacing(1.5),
     gap: spacing(0.25),
@@ -370,14 +379,21 @@ const styles = StyleSheet.create({
    * quieter half of the pair and has to stay so: what somebody looks for in a
    * header is which room they are in.
    */
-  headerKind: { ...type.label, color: colors.textMuted },
+  headerKind: { ...type.label },
   headerName: { fontSize: 20, fontWeight: '700', color: colors.text },
   footer: {
-    backgroundColor: colors.bg,
+    // `surface` rather than `bg`, so the bar reads as sitting above the page
+    // — the same relationship the cards have to it, and the same fill the
+    // channel's footer takes.
+    backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   footerInner: {
+    ...measure,
+    // Narrower than `measure`'s 620, for the reason `channelStyles.footerInner`
+    // gives: a bar divided up at the full width stops reading as controls.
+    maxWidth: 560,
     flexDirection: 'row',
     gap: spacing(1),
     paddingHorizontal: spacing(2),
@@ -391,7 +407,6 @@ const styles = StyleSheet.create({
   recording: {
     borderWidth: 1,
     borderColor: colors.recording,
-    borderRadius: radius.md,
   },
   recordingText: { ...type.body, color: colors.recording, fontWeight: '600' },
   personRow: {
