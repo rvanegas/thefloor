@@ -774,10 +774,43 @@ export function followInstructions(
       // the whole of `playerLagMs`. Correcting to where the room is now is
       // what left a slow player permanently behind and seeking once a fuse for
       // ever; the lead is what makes one correction enough.
-      instructions.push({
-        do: 'seek',
-        positionMs: want.positionMs + playerLagMs,
-      });
+      const target = want.positionMs + playerLagMs;
+      /*
+        **A seek to where the player already is throws its buffer away and
+        moves nothing**, and the lead is what made that reachable.
+
+        `adrift` is measured against the *un-led* want, so a player **ahead** of
+        the room by roughly its own latency fails it — and the led target is
+        then the position it is already at. The seek was issued anyway, once per
+        `WATCH_OBEDIENCE_MS`, discarding a part-filled buffer each time and
+        changing nothing: the storm the long comment above exists to prevent,
+        re-entered through the lead four days after it was written.
+
+        That coincidence is structural rather than bad luck. `watchPause` banks
+        what the clock said and the player runs on for its own latency, so every
+        resume begins with the player ahead by exactly the figure this leads by
+        — see planning/backlog/a-pause-banks-a-position-the-player-has-not-reached.md,
+        which is the cause this does not fix.
+
+        **What this buys is a stable error instead of a destructive one, and it
+        is not a repair.** The offset does *not* close by itself — players run at
+        1.0×, so a gap acquired at the start of a run is constant for the length
+        of the film — and a player left alone here stays where it is, ahead of
+        the room and inside `WATCH_REPORT_SLACK_MS`. What is removed is only the
+        seeking: an instruction that cannot reduce the drift it was issued for,
+        paid for in discarded buffer once per fuse. The cause is the pause
+        banking a position the player has not reached, and the repair for it is a
+        stop-side report, which is the backlog entry above and is not this.
+
+        A player genuinely *behind* is untouched — its led target is further from
+        it than the tolerance, so the correction goes out exactly as it did.
+      */
+      if (
+        player.positionMs === null ||
+        Math.abs(player.positionMs - target) > WATCH_DRIFT_MS
+      ) {
+        instructions.push({ do: 'seek', positionMs: target });
+      }
     }
     if (player.state !== 'playing' && !settling) {
       instructions.push({ do: 'play' });

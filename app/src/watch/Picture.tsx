@@ -480,6 +480,10 @@ export function Picture({
         <WatchPlayer
           watch={watch}
           channelId={channelId}
+          // The follower steers on the room's clock, not this device's — the
+          // same `serverNow` the scrubber two hundred lines down is drawn from,
+          // so the picture and the readout cannot answer differently.
+          now={app.serverNow}
           fill
           onFilm={(durationMs, title) =>
             app.act(channelId, { type: 'WATCH_READY', durationMs, title })

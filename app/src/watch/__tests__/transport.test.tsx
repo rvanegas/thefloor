@@ -5,6 +5,7 @@ import { createChannel, reduce } from '../../../../core/channel';
 import {
   WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
+  WATCH_REPORT_SLACK_MS,
   WATCH_STALL_MS,
 } from '../../../../core/constants';
 import type { ChannelState, WatchState } from '../../../../core/types';
@@ -318,12 +319,26 @@ function run(
      * than a constant everything else is written against.
      */
     lag?: number;
+    /**
+     * How far this device's own wall clock is from the server's.
+     *
+     * **The one latency this harness could not model until the follower took a
+     * clock.** Everything here ran on one fake `Date.now()` for both the channel
+     * and the follower, so a device disagreeing with the server about what time
+     * it is was not expressible — which is why `drive.ts` comparing a server
+     * stamp against `Date.now()` went unnoticed. The room's clock is the
+     * server's; the device's is that minus this.
+     */
+    skew?: number;
   } = {}
 ) {
   const player = laggyPlayer(opts.lag ?? LAG_MS);
+  const skew = opts.skew ?? 0;
+  /** What the room thinks the time is, which is what a device is handed. */
+  const roomNow = () => Date.now() + skew;
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true);
+    useFollow(watch, player.port, true, roomNow);
     return <Text>following</Text>;
   }
   act(() => {
@@ -345,24 +360,29 @@ function run(
     advance(ms: number) {
       for (let done = 0; done < ms; done += STEP) {
         const now = Date.now() + STEP;
+        // The channel is the server's, so it is reduced and delivered on the
+        // server's clock. The two are the same number unless `skew` says not.
+        const there = roomNow() + STEP;
         const was = player.state;
         player.step(now, STEP);
         // The report crosses the wire like everything else, so it lands a round
         // trip after the player actually began — which is what a phone does,
         // and is well inside the grace.
         if (was !== 'playing' && player.state === 'playing') {
-          wire.press(started(player.positionMs), now);
+          wire.press(started(player.positionMs), there);
         }
-        wire.deliver(now);
+        wire.deliver(there);
         act(() => {
           tree!.update(<Follower watch={wire.watch} />);
           jest.advanceTimersByTime(STEP);
         });
       }
     },
+    /** The room's clock, which is what a press is stamped with. */
+    now: roomNow,
     /** What the two of them say, side by side. */
     where() {
-      const now = Date.now();
+      const now = roomNow();
       return {
         channel: wire.watch.status,
         channelAt: Math.round(watchPositionMs(wire.watch, now)),
@@ -873,14 +893,34 @@ describe('how long a press takes, and where it goes', () => {
       tolerance, so nothing about this is reachable on the hardware it was
       measured on. See
       planning/backlog/a-pause-banks-a-position-the-player-has-not-reached.md.
+
+      **The seeking that used to follow it is gone, and the offset is not.** The
+      six instructions measured here were
+      `seek:6700 play seek:7400 play play seek:12200`, ending `buffering` at 7.6s
+      under a room at 9.7s — a picture that never settled. They came from the
+      lead being spent on a player that was *ahead*: `adrift` is judged against
+      the un-led want, so it fired, and the led target was then the position the
+      player already held. `followInstructions` declines that seek now. What is
+      left is one instruction and a player 1.7s ahead of the room for the length
+      of the film, which is the banked pause showing through and is the entry
+      above.
     */
-    it('is left alone by all of this when the player is slower than the grace', () => {
+    it('is told once and settles, rather than being seeked at where it is', () => {
       const sim = resumable(2_300);
-      sim.wire.press(play, Date.now());
+      sim.wire.press(play, sim.now());
       sim.advance(8_000);
-      // The picture is running — the press worked — and the room and the player
-      // disagree, which is the entry above rather than a promise broken here.
-      expect(sim.player.state).not.toBe('paused');
+      // One instruction: a seek to within the tolerance of where the player
+      // already is cannot close the drift it was issued for, and costs the
+      // buffer. Before this it was three seeks and a picture still buffering.
+      expect(sim.player.calls).toEqual(['play']);
+      expect(sim.player.state).toBe('playing');
+      // And the offset it settles at is the pause's, which nothing here repairs
+      // — stated as a number so that a stop-side report can be seen to close it.
+      const where = sim.where();
+      expect(where.playerAt - where.channelAt).toBeGreaterThan(WATCH_DRIFT_MS);
+      expect(where.playerAt - where.channelAt).toBeLessThan(
+        WATCH_REPORT_SLACK_MS
+      );
     });
   });
 
@@ -919,5 +959,43 @@ describe('how long a press takes, and where it goes', () => {
       sim.advance(WATCH_COLD_NUDGE_MS + 1_000);
       expect(sim.player.calls).toEqual([]);
     });
+  });
+});
+
+/*
+  **The clock the follower steers on is the room's, and it is not this device's.**
+
+  `watch.startedAt` is stamped by the server, so a follower deriving a position
+  from `Date.now()` compares two clocks with no conversion and is wrong by
+  exactly this device's skew — which is unbounded, drifts, and can be set by
+  hand. It went unnoticed because it cannot be expressed with one clock, and
+  until `useFollow` took one this harness had exactly one: `advance` moved a
+  single fake `Date.now()` for the channel and the follower together, so the
+  two agreed by construction in every test above.
+
+  A skew of ten seconds is far outside `WATCH_DRIFT_MS` and would have had the
+  follower seeking a healthy player once a fuse for the length of the film,
+  while the scrubber beside it — drawn from `app.serverNow()` all along — read
+  correctly. Two answers to one question, which is the shape of every defect in
+  this subsystem.
+*/
+describe('a device whose own clock is wrong', () => {
+  it('follows the room rather than its own watch', () => {
+    // The phone is ten seconds behind the server. Nothing else is unusual.
+    const sim = run({ skew: 10_000 });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    expect(inStep(sim.where())).toBe(true);
+    // A healthy player, so the play is the whole of what it is told: the skew
+    // must not read as drift.
+    expect(sim.player.calls).toEqual(['play']);
+  });
+
+  it('is not driven about by a clock that is ahead either', () => {
+    const sim = run({ skew: -10_000 });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    expect(inStep(sim.where())).toBe(true);
+    expect(sim.player.calls).toEqual(['play']);
   });
 });

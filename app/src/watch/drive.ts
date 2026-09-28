@@ -98,7 +98,24 @@ export function useFollow(
   watch: WatchState,
   port: PlayerPort | null,
   /** Paused when this device is not meant to be showing anything. */
-  active: boolean
+  active: boolean,
+  /**
+   * What time the room thinks it is, which is **not** this device's wall clock.
+   *
+   * `watch.startedAt` is stamped by the server, so deriving a position from
+   * `Date.now()` compares two clocks with no conversion between them and is
+   * wrong by exactly this device's skew — unbounded, settable by hand, and
+   * different on every phone. What that bought was a follower steering two
+   * screens *apart* by their clock difference while the scrubber a component
+   * away read correctly, both of them answering one question: `Picture.tsx` and
+   * `ChannelView.tsx` have always used `app.serverNow()` here.
+   *
+   * It defaults to `Date.now` for the harness, where the channel is reduced off
+   * the same fake clock and the two are the same number by construction. That
+   * default is also why the fault survived: a test with one clock cannot see a
+   * disagreement between two.
+   */
+  clock: () => number = Date.now
 ): void {
   const doing = useRef<Doing>({ phase: 'watching' });
   /**
@@ -165,19 +182,22 @@ export function useFollow(
     status: Desired['status'];
     kinds: Array<WatchInstruction['do']>;
   } | null>(null);
-  const latest = useRef({ watch, port });
-  latest.current = { watch, port };
+  // The clock rides here with the other two so that the loop, which is keyed on
+  // `active` alone, cannot close over a stale one — and so that a caller passing
+  // a fresh closure on every render does not have to be stable for this to work.
+  const latest = useRef({ watch, port, clock });
+  latest.current = { watch, port, clock };
   /** The running loop's own tick, so a press can ring it. See below. */
   const run = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!active) return;
     const tick = () => {
-      const { watch: current, port: player } = latest.current;
+      const { watch: current, port: player, clock: roomNow } = latest.current;
       if (!player) return;
       const reading = player.read();
       if (!reading) return;
-      const now = Date.now();
+      const now = roomNow();
       /*
         Kept before every early return below, and deliberately: a player that
         is buffering while the follower is deaf — waiting out an instruction,

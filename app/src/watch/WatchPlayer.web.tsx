@@ -98,10 +98,13 @@ export function WatchPlayer({
   onFilm,
   onStarted,
   onRefusal: _onRefusal,
+  now,
   fill = false,
 }: {
   watch: WatchState;
   channelId: string;
+  /** The room's clock, the server's rather than this browser's. See WatchPlayer.tsx. */
+  now?: () => number;
   /**
    * How long the video is, the first time this player knows. The channel
    * learns it from whoever loads first; see `learnDuration`.
@@ -267,7 +270,7 @@ export function WatchPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  useFollow(watch, port, true);
+  useFollow(watch, port, true, now);
 
   return (
     <div

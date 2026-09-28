@@ -25,6 +25,24 @@ which puts it further out. In the harness at a latency of 2,300ms: nine
 instructions and a picture that never settles. There is a test that pins that
 limit rather than hiding it — `transport.test.tsx` § *a resume*.
 
+**The seeking half of that is fixed and the cause is not**, 2026-09-28. The
+instructions were six rather than nine when measured —
+`seek:6700 play seek:7400 play play seek:12200`, ending `buffering` at 7.6s under
+a room at 9.7s — and they came from the *lead* rather than from this entry: a
+player ahead by its own latency failed `adrift`, which is judged against the
+un-led want, and the led target was then the position it already held.
+`followInstructions` declines that seek now, so the same case is one instruction
+and a settled picture. See
+decisions/2026-09-28-a-seek-to-where-the-player-already-is.md.
+
+**What is left is this entry, undisturbed**, and it is now a number rather than a
+symptom: the player comes to rest 1.7s ahead of the room and stays there for the
+length of the film, players running at 1.0× so the gap never closes. The test
+asserts that figure, bounded below by `WATCH_DRIFT_MS` and above by
+`WATCH_REPORT_SLACK_MS`, so a stop-side report can be seen to close it. The
+repair is unchanged and so is the open question — what stops a late or repeated
+report ratcheting the position forward.
+
 **The repair is the mirror of the one that shipped.** A player reports where it
 stopped, the way it now reports where it started, and the banked position moves
 forward to meet it — bounded by the same slack, and monotone so that a stale

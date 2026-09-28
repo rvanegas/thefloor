@@ -277,10 +277,21 @@ export function WatchPlayer({
   onFilm,
   onStarted,
   onRefusal,
+  now,
   fill = false,
 }: {
   watch: WatchState;
   channelId: string;
+  /**
+   * The room's clock, which is the server's and not this device's.
+   *
+   * Handed down rather than taken from the context so that this component stays
+   * props-only — `player.test.tsx` and `playerDeath.test.tsx` mount it with no
+   * provider over it. `Picture.tsx` has the context and passes `app.serverNow`;
+   * omitting it falls back to `Date.now`, which is only ever right where the two
+   * are the same number. See `useFollow`.
+   */
+  now?: () => number;
   /**
    * What this player knows about the film it is showing — how long it runs,
    * and what it is called where it can say. Sent once per party, the channel
@@ -549,7 +560,7 @@ export function WatchPlayer({
     };
   }, [ready, recover]);
 
-  useFollow(watch, port, true);
+  useFollow(watch, port, true, now);
 
   /*
     **Whether the frame answers a finger, said to the page rather than drawn
