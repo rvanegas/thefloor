@@ -261,7 +261,7 @@ function quantise(
  * recording it is forbidden to stop. SET_TRACK is excluded too, since a track
  * names a file only the server can put there.
  */
-const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
+export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ENTER',
   'STEP_OUT',
   // Raised by the server's own Rule A as well, which is why it reads oddly

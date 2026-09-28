@@ -1650,6 +1650,22 @@ export type ClientAction =
    */
   | { type: 'WATCH_READY'; durationMs: number; title?: string | null }
   /**
+   * A player says it has started, and where it started.
+   *
+   * **What it is for is the room's clock.** `watchPlay` banks a start
+   * `WATCH_STARTUP_GRACE_MS` in the future, because no player begins at the
+   * press — the measured wait is 1,304ms, almost all of it `AVAudioSession` —
+   * and the first player to send this pulls that start to the truth. Later
+   * reports are ignored, as is a position that is not the film's. See
+   * `watchStarted`, which holds every one of those rules.
+   *
+   * **A server that predates it refuses it and nothing breaks**: the transport
+   * falls back to the deadline the grace already is, which is why this could be
+   * added without a shim. See
+   * planning/decisions/2026-09-28-the-rooms-clock-starts-when-a-player-does.md.
+   */
+  | { type: 'WATCH_STARTED'; positionMs: number }
+  /**
    * This account's device in the room is, or is no longer, the screen.
    *
    * Sent only by the instance that holds this account's presence, and only
