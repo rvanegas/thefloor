@@ -790,6 +790,21 @@ case "$verb" in
        WHERE id = $(quote "$resolved");
     " >/dev/null
     show "$resolved"
+
+    # The shell prompt says how many are waiting, out of a count cached once an
+    # hour because this is an ssh away. Publishing is the only thing that
+    # changes that number -- composing, noting and discarding all leave
+    # `answer` NULL, so the question stays counted -- and without this the line
+    # outlives its own answer for up to an hour, which reads as the publish
+    # having silently not worked.
+    #
+    # Guarded, because the script is one machine's and is deliberately not in
+    # this repo: every other checkout finds nothing here and correctly does
+    # nothing. Skipped under --local, which means leave the box alone, and the
+    # count is the box's.
+    if [ -z "$local_flag" ] && [ -x "$HOME/.config/thefloor/help-notify.sh" ]; then
+      "$HOME/.config/thefloor/help-notify.sh" >/dev/null 2>&1 || true
+    fi
     ;;
 
   *)
