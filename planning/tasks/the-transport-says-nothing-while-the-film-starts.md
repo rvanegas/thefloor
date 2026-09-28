@@ -7,11 +7,30 @@ records the press to the diagnostic log and then the screen waits for the room
 to come back, so a press that went nowhere and a press that is working look
 identical for as long as it takes.
 
-**What spends that time is the round trip plus the `WKWebView` starting
-playback**, and not the audio session — decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md
-is the measurement that took the microphone out of suspicion. So nothing here can
-be made faster by the audio work that was attempted three times; it can only be
-made to *feel* like nothing, which is cheaper than any of it and was never tried.
+**What spends that time is the `WKWebView` starting playback**, and not the audio
+session — decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md is
+the measurement that took the microphone out of suspicion. So nothing here can be
+made faster by the audio work that was attempted three times; it can only be made
+to *feel* like nothing, which is cheaper than any of it and was never tried.
+
+**The round trip is not inside the 1463ms**, corrected 2026-09-27: `drive.ts`
+starts that clock at the instruction, which goes out after the snapshot has
+already come back. So press-to-picture is the round trip *plus* the figure — and
+the figure itself carries up to a `FOLLOW_TICK_MS` of this application noticing
+rather than the film beginning, the arrival being observed on the interval.
+decisions/2026-09-27-the-press-is-apportioned-in-the-harness.md is the table, and
+the thing it settles for this note is that **the follower costs the picture
+nothing**: the tick's window is in the knowing. Sharpening it would not shorten
+the wait by a millisecond, so there is nothing to fix here and a spinner remains
+the whole of the answer.
+
+**And the label is already optimistic**, which decides the second option below.
+`Transport.tsx` reads `watch.status` off the snapshot, so *Play* becomes *Pause*
+at the round trip — about 200ms — and the dead time is entirely *after* the label
+has changed. A pending state hung off the snapshot would therefore end a second
+early and show nothing during the part somebody is actually waiting through: it
+has to hang off the player's own reading. That also empties the optimistic
+transport of its appeal, the transport being optimistic to the eye already.
 
 Two ways, and the second is better if it works:
 
@@ -29,3 +48,32 @@ Two ways, and the second is better if it works:
 from one component — the card, a second device, and the expanded picture's scrim
 — so whatever this becomes appears in all three, which is the property that
 component exists to keep.
+
+
+## The phone run, and what to read out of it
+
+Added 2026-09-27 with the instrument that makes it worth doing. `WatchPlayer.tsx`
+now records every state its player passes through, so the seam between *told to
+play* and *arrived* is no longer blank and one press answers what the nineteen
+could not.
+
+Press Play twenty times with the diagnostic panel on — half of them a first play
+on a fresh party, half a resume from a pause, and say which is which, because they
+are different costs that have only ever been averaged together. The lines to read,
+in order, are `watch press play`, `watch tell play`, `watch player buffering`,
+`watch player playing` and `watch playing after Nms`; every one carries a stamp.
+
+- `tell` minus `press` is the round trip, which nothing had separated before.
+- `player buffering` minus `tell` is the embed getting off the mark.
+- `player playing` minus `player buffering` **is the buffering, and is the whole
+  question** — a resume with no `buffering` line at all was never buffering, and
+  then the time is the media stack or the audio session taking the frame.
+- `after Nms` minus `player playing` is this application noticing, and should be
+  under half a second.
+
+They ship to the server's journal — `journalctl -u thefloor | grep 'audio
+diagnostics'` — so the run can be read the next day rather than off a screen.
+**Any press whose `player playing` is more than 1.5 seconds after its `tell` is on
+the far side of the cliff** in
+backlog/a-player-slower-than-the-drift-never-arrives.md, and how many of the
+twenty land there is the reading that entry is waiting for.

@@ -371,7 +371,43 @@ export function WatchPlayer({
         durationMs: payload.durationMs ?? null,
         videoId: payload.videoId ?? null,
       };
+      /*
+        **Every state this player passes through, stamped, which is the one
+        thing the log never said.**
+
+        `drive.ts` writes down what it told the player and, a tick or more
+        later, that it arrived — and between those two lines is the second and
+        a half that tasks/the-transport-says-nothing-while-the-film-starts.md
+        is about, with nothing in it. So the number could be reported and never
+        apportioned: `watch playing after 1463ms` is *the embed starting* plus
+        *this application noticing*, and no reading of the code can say which
+        is which.
+
+        This is that seam, and it costs one line per transition. A press that
+        goes `paused → buffering → playing` names its own wait and the
+        buffering is measurable from the stamps `recordEvent` already keeps; a
+        press that goes `paused → playing` was never buffering at all, which is
+        the answer the three weeks of audio work needed and did not have.
+
+        **Transitions only, so this is as quiet as the rest of the log.** The
+        page reports four times a second and on every state change
+        (`onStateChange` calls `report`), and an unchanged state is the ordinary
+        case — writing every reading down would bury the audio session's own
+        lines, which are what these have to be read against.
+
+        The position rides along because a resume is not always from where the
+        player was left: a seek behind the play, or an embed rounding to a
+        keyframe, shows here as a jump and nowhere else.
+      */
+      const before = reading.current?.what.state ?? null;
       reading.current = { at: Date.now(), what };
+      if (what.state !== before) {
+        recordEvent(
+          `watch player ${what.state} at ` +
+            `${Math.round((what.positionMs ?? 0) / 1000)}s` +
+            (before === null ? ' (first reading)' : ` (was ${before})`)
+        );
+      }
       /*
         **Nothing is learnt from a video that is not the film.**
 

@@ -2,11 +2,36 @@ import React from 'react';
 import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
-import { WATCH_STALL_MS } from '../../../../core/constants';
+import {
+  WATCH_DRIFT_MS,
+  WATCH_STALL_MS,
+} from '../../../../core/constants';
 import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
+
+/**
+ * The diagnostic log, captured rather than written.
+ *
+ * `drive.ts` is the only thing in this tree that records anything, and what it
+ * records is the whole subject of *how long a press takes, and where it goes*
+ * below — so the module is replaced by a list, stamped off the fake clock.
+ * Built inside the factory and handed back through the mock, because
+ * `jest.mock` is hoisted above every `const` in this file and a closure over
+ * one would be read before it exists.
+ */
+jest.mock('../../audio/diagnostics', () => {
+  const lines: string[] = [];
+  return {
+    recordEvent: (text: string) => lines.push(`${Date.now()} ${text}`),
+    __lines: lines,
+  };
+});
+
+const logged = (
+  jest.requireMock('../../audio/diagnostics') as { __lines: string[] }
+).__lines;
 
 /**
  * The follower with everything that is slow about it left in.
@@ -272,9 +297,18 @@ function run(
      * that arrives at a party already under way.
      */
     already?: (channel: ChannelState) => ChannelState;
+    /**
+     * How long this player takes to start, when the default is not the point.
+     *
+     * Only *how long a press takes, and where it goes* below passes it: that
+     * section is about the relationship between a player's own latency and
+     * what the log says about it, so the latency has to be a variable rather
+     * than a constant everything else is written against.
+     */
+    lag?: number;
   } = {}
 ) {
-  const player = laggyPlayer(LAG_MS);
+  const player = laggyPlayer(opts.lag ?? LAG_MS);
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
     useFollow(watch, player.port, true);
@@ -645,5 +679,153 @@ describe('a film that has run out', () => {
     expect(sim.where().channel).toBe('playing');
     expect(sim.player.state).toBe('playing');
     expect(sim.player.positionMs).toBeLessThan(10_000);
+  });
+});
+
+/**
+ * How long a press takes, and where it goes.
+ *
+ * **Written 2026-09-27, because the number this application reports about
+ * itself had never been apportioned.** `watch playing after 1463ms` — the
+ * median of nineteen presses on build 303, and the whole of
+ * tasks/the-transport-says-nothing-while-the-film-starts.md — had been read as
+ * *the round trip plus the embed starting*, and it is neither of those on its
+ * own: the round trip is over before the clock starts, and up to a
+ * `FOLLOW_TICK_MS` of the figure is this application noticing rather than the
+ * film beginning.
+ *
+ * **`lag` is the one thing this harness cannot know**, being how long a real
+ * embed inside a real `WKWebView` takes to obey; it is a parameter here and
+ * the transition lines in `WatchPlayer.tsx` are what measure it on a phone. So
+ * these are not a measurement of the complaint. They are the shape of the
+ * relationship between that latency and everything this application does with
+ * it — which is what says whether a phone reading is ordinary or a cliff edge.
+ */
+describe('how long a press takes, and where it goes', () => {
+  /** The press, and then time, a step at a time, watching both ends. */
+  function press(lag: number, forMs = 8_000) {
+    const sim = run({ lag });
+    logged.length = 0;
+    sim.wire.press(play, Date.now());
+    /** When the picture actually moved, measured from the press. */
+    let picture: number | null = null;
+    /** When the two ends came into step, which is not the same moment. */
+    let settled: number | null = null;
+    for (let t = 50; t <= forMs; t += 50) {
+      sim.advance(50);
+      if (picture === null && sim.player.state === 'playing') picture = t;
+      if (settled === null && inStep(sim.where())) settled = t;
+    }
+    return {
+      sim,
+      picture,
+      settled,
+      /** Every arrival the log claims, in the order it claims them. */
+      said: logged
+        .map((l) => /watch playing after (\d+)ms/.exec(l))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => Number(m[1])),
+    };
+  }
+
+  it('does not make the picture wait for the follower', () => {
+    /*
+      **The correction that matters most, and it goes the other way to the
+      complaint.** An arrival is noticed on the interval, so there is up to a
+      `FOLLOW_TICK_MS` window between a player starting and this application
+      knowing — and it is tempting to read that window as part of the wait
+      somebody is sitting through. It is not. The press wakes the loop, the
+      command leaves on the snapshot, and everything after that is the embed's
+      own time. The window is in the knowing, not in the picture, so closing it
+      would sharpen the log and would not shorten the wait by a millisecond.
+    */
+    const { picture, sim } = press(600);
+    expect(picture).toBe(TRIP_MS + 600);
+    expect(sim.player.calls).toEqual(['play']);
+  });
+
+  it('reports a figure larger than the embed actually took', () => {
+    // The log's own number against the two things it is made of: the player's
+    // latency, and up to a tick of this application noticing. Anybody
+    // reasoning from `after Nms` about how slow an embed is has the second of
+    // those inside their number, and the round trip outside it.
+    const { said, picture, settled } = press(600);
+    expect(said[0]).toBeGreaterThanOrEqual(600);
+    expect(said[0]).toBeLessThanOrEqual(600 + FOLLOW_TICK_MS);
+    // The picture moved before the line was written, not after it.
+    expect(settled).toBe(picture);
+  });
+
+  /*
+    **The cliff, which is at `WATCH_DRIFT_MS` exactly, and the reason any of
+    this is worth a test.**
+
+    The wanted position is a wall clock that runs while the player obeys, so
+    when a player finally starts it is behind by precisely its own latency —
+    and `hasArrived` compares that gap against `WATCH_DRIFT_MS`. A player
+    quicker than the tolerance is therefore in step the instant it starts; a
+    player slower than it is adrift the instant it starts, and every correction
+    issued to it is stale by the same margin when it lands. There is no
+    convergence on the far side: the follower seeks once a fuse, for ever, and
+    what somebody sees is a picture that plays a second or two and jumps.
+
+    **The measured presses straddle this.** 1271 to 1793ms on build 303, of
+    which up to 500 is the noticing — so the fastest of them is comfortably
+    inside the tolerance and the slowest is at or over it. Nothing in the
+    reading of that sample said which side of a cliff it was on, because
+    nothing said there was one.
+  */
+  describe('a player slower than the drift it is judged against', () => {
+    it('is in step at once when it is inside the tolerance', () => {
+      const { picture, settled, sim } = press(WATCH_DRIFT_MS);
+      expect(settled).toBe(picture);
+      // One command, and nothing said to it afterwards.
+      expect(sim.player.calls).toEqual(['play']);
+    });
+
+    it('never comes into step at all when it is outside it', () => {
+      const { picture, settled, sim } = press(WATCH_DRIFT_MS + 100);
+      // The picture starts — the press worked, and on time.
+      expect(picture).toBe(TRIP_MS + WATCH_DRIFT_MS + 100);
+      // And then it is corrected for ever, and never arrives anywhere.
+      expect(settled).toBeNull();
+      expect(sim.player.calls.filter((c) => c.startsWith('seek:')).length)
+        .toBeGreaterThan(2);
+    });
+
+    it('is nonetheless reported as having arrived, over and over', () => {
+      /*
+        **The log says the opposite of what is happening**, which is why three
+        weeks of reports and readings could not be reconciled.
+
+        `hasArrived` is asked here against `state.want` — the target as it was
+        when the instruction went out — rather than against the target now. A
+        playing player always eventually passes a position the room wanted two
+        seconds ago, so the wait ends in a satisfied `watch playing after Nms`
+        even when the player is two seconds behind and about to be seeked
+        again. Every line in that run is a lie of this shape, and the run above
+        is what it looks like from the sofa.
+
+        Asserted as it stands rather than corrected: comparing against the live
+        target was tried here and it silences these lines without curing the
+        divergence, the player still being slower than the tolerance. Both
+        halves belong to whoever takes the cliff on. See
+        backlog/a-player-slower-than-the-drift-never-arrives.md.
+      */
+      const { said, settled } = press(WATCH_DRIFT_MS + 300);
+      expect(settled).toBeNull();
+      expect(said.length).toBeGreaterThan(1);
+    });
+
+    it('says nothing whatsoever once it is slower than that again', () => {
+      // And the same instrument goes silent rather than wrong when the player
+      // is slower still: nothing ever satisfies the check, the fuse abandons
+      // the wait, and no line is written at all. So the sample the median came
+      // from cannot contain its own tail, in either direction — a press this
+      // slow is invisible and a press just over the cliff is misreported.
+      const { picture, said } = press(WATCH_DRIFT_MS + 1_000);
+      expect(picture).toBe(TRIP_MS + WATCH_DRIFT_MS + 1_000);
+      expect(said).toEqual([]);
+    });
   });
 });
