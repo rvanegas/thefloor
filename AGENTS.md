@@ -157,12 +157,10 @@ happened is the file already open, which is this one.
 
 **Keep it under 550 lines, and nearer 500.** It is 549 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
-against a number nobody has checked — it was once 54 lines stale, claiming 104
-lines of headroom when there were 50. The cap was 650 until 2026-09-07, when
-the file was cut by a fifth and there was no reason to leave the headroom
-behind. Nothing displaces anything here any more, so the file has no reason to
-climb at all: material arrives only when a rule is added, and one should
-usually leave with it.
+against a number nobody has checked — it was once 54 lines stale. Nothing
+displaces anything here any more, so the file has no reason to climb at all:
+material arrives only when a rule is added, and one should usually leave with
+it.
 
 When it passes 550, **do not shave the traps.** Almost all of the excess will be
 one of these:
@@ -329,6 +327,13 @@ are the rules.
   stashed aside and handed back. **Take theirs where the two disagree**: a
   deleted file beats a session's note explaining why the entry was kept.
 
+- **A commit subject opens with Fixed, Added, Improved, Changed or Removed**,
+  as Claude Code's changelog does, since 2026-09-28; Reduced, Renamed or
+  Reverted only where more exact. Four more for what a changelog never sees:
+  **Bumped** a build or version number; **Recorded** a decision or a deploy;
+  **Filed** a task or backlog item; **Documented** standing guidance. The body
+  stays prose and says why.
+
 - **Every commit a session writes carries two trailers**, `Co-Authored-By` and,
   since 2026-09-13, `Claude-Session: https://claude.ai/code/session_<id>` — the
   URL of the conversation the change was argued in. A commit message says what
@@ -377,11 +382,9 @@ are the rules.
   stamps `server/deployed.json` with the sha, marked `-dirty` when the tree
   was. `GET /healthz` and the startup log report it — `bin/health` is that
   read, against this checkout — and the deploy now fails if the box comes back
-  not reporting the sha just sent. **Since 2026-08-21 it
-  refuses a dirty tree unless you pass `--dirty`**, which is the same trade
-  `bin/db --write` makes: shipping the working tree means unrelated work in
-  progress rides along, and whoever runs it is usually deploying for a
-  different reason. The box sat on `cc0e8a9` for a day from exactly that.
+  not reporting the sha just sent. **It refuses a dirty tree unless you pass
+  `--dirty`**, the same trade `bin/db --write` makes: shipping the working
+  tree means unrelated work in progress rides along.
 - **Every upload is tagged `build/<n>`, by `bin/upload-ios`**, which refuses a
   dirty tree: a tag is permanent where a deploy is reversible. Tags are not
   pushed automatically; the command is printed.
@@ -392,9 +395,8 @@ are the rules.
   `bin/submit-ios --status` is the second opinion, since what is downloadable
   is a state Apple holds rather than a ref. It is a **lightweight ref pointing
   at the `build/<n>` tag object**, not at a commit — `git tag -f released
-  build/<n>` moves it and leaves it pointing at that tag object. This demanded
-  `git update-ref`, on the grounds that `git tag -f` peels to the commit; it
-  does not, and both leave a ref of type `tag`.
+  build/<n>` moves it and leaves it pointing at that tag object; it does not
+  peel to the commit, so `git update-ref` is not needed.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
   floor**: a shim may be deleted only once the floor has passed the build that
   needed it. The server enforces nothing, but **the client does, since
@@ -402,11 +404,9 @@ are the rules.
   and disconnects, so raising this number now ends sessions on phones rather
   than merely licensing a deletion. Builds before 37 send no build number at
   all and are counted as `silentBuilds` on `/healthz`; raising the floor past
-  them expires installs nobody can see. **And build 51 was below all of that**:
-  it announced which build it was but predated the expiry client by hours, so
-  the first public build could never be shown the update screen and had to be
-  waited out — which it was, the floor going 51 → 80 on 2026-09-13 once
-  `oldestBuild` had already passed it. Always that order. See RELEASING.md, and
+  them expires installs nobody can see. **Builds up to 51 predate the expiry
+  client** and can never be shown the update screen, so the floor moves only
+  once `oldestBuild` has already passed it. Always that order. See RELEASING.md, and
   **SHIMS.md for what moving it frees**, the only reason to care what it is.
 
 The thing to hold on to: **the App Store is not a version, it is a

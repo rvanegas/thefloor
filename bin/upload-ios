@@ -130,7 +130,7 @@ echo "→ build $BUILD (ios buildNumber and android versionCode)"
 # rather than a description of it. ios/ is generated and gitignored, so
 # prebuild leaves the tree clean and this stays the only change.
 git add app/app.json
-git commit -q -m "Bump build number to $BUILD"
+git commit -q -m "Bumped build number to $BUILD"
 
 # --clean, deliberately. Without it, prebuild reuses the existing ios/ and a
 # newly added native dependency can fail to be linked at all — which is how
