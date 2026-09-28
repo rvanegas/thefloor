@@ -270,7 +270,7 @@ export function WatchPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  useFollow(watch, port, true, now);
+  useFollow(watch, port, true, now, channelId);
 
   return (
     <div

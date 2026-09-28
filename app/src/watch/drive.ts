@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { recordEvent } from '../audio/diagnostics';
+import { forgetDrift, publishDrift } from './drift';
 import {
   desiredFor,
   followInstructions,
@@ -115,7 +116,12 @@ export function useFollow(
    * default is also why the fault survived: a test with one clock cannot see a
    * disagreement between two.
    */
-  clock: () => number = Date.now
+  clock: () => number = Date.now,
+  /**
+   * Which room this is, published with every reading so an instrument can tell
+   * a stale one from a current one. Omitted where nothing is watching.
+   */
+  channelId?: string
 ): void {
   const doing = useRef<Doing>({ phase: 'watching' });
   /**
@@ -185,8 +191,16 @@ export function useFollow(
   // The clock rides here with the other two so that the loop, which is keyed on
   // `active` alone, cannot close over a stale one — and so that a caller passing
   // a fresh closure on every render does not have to be stable for this to work.
-  const latest = useRef({ watch, port, clock });
-  latest.current = { watch, port, clock };
+  /**
+   * Seeks issued since this run began, which is what the instrument draws.
+   *
+   * Reset when the room asks for `playing` having wanted something else — one
+   * press, one count — so the number answers *did this resume need correcting*
+   * rather than *has this party ever been corrected*. See `DriftReading`.
+   */
+  const seeks = useRef(0);
+  const latest = useRef({ watch, port, clock, channelId });
+  latest.current = { watch, port, clock, channelId };
   /** The running loop's own tick, so a press can ring it. See below. */
   const run = useRef<(() => void) | null>(null);
 
@@ -231,6 +245,35 @@ export function useFollow(
       if (!want) return;
 
       /*
+        **Published before every early return below**, so an instrument is live
+        on a party that is working rather than only on one that is not. Nought
+        seeks and a drift inside the tolerance is the reading that says the
+        machinery is doing its job, and a tick that decides to say nothing to the
+        player would never produce it — which is how the seek storm came to be
+        legible only in the next day's journal.
+      */
+      const report = () => {
+        const where = latest.current.channelId;
+        if (where === undefined) return;
+        publishDrift({
+          channelId: where,
+          driftMs:
+            reading.positionMs === null
+              ? null
+              : reading.positionMs - want.positionMs,
+          playerState: reading.state,
+          wantStatus: want.status,
+          bufferingForMs:
+            buffering.current === null ? 0 : now - buffering.current,
+          lagPlayMs: lag.current.play,
+          lagSeekMs: lag.current.seek,
+          seeksThisRun: seeks.current,
+          at: now,
+        });
+      };
+      report();
+
+      /*
         **An advert is a different video in the same frame.** Nothing is said
         to a player that is not showing the film: its clock is the advert's,
         so correcting it would seek the advert. They end by themselves. See
@@ -250,6 +293,9 @@ export function useFollow(
         for an instruction nobody wanted any more.
       */
       const urgent = wanted.current !== null && wanted.current !== want.status;
+      // A run beginning is where the seek count starts from. `urgent` is the
+      // same edge the rules are told about, so the two cannot drift apart.
+      if (urgent && want.status === 'playing') seeks.current = 0;
       wanted.current = want.status;
 
       const state = doing.current;
@@ -396,8 +442,17 @@ export function useFollow(
       for (const instruction of instructions) {
         if (instruction.do === 'play') player.play();
         else if (instruction.do === 'pause') player.pause();
-        else player.seek(instruction.positionMs);
+        else {
+          // Counted here rather than from the list, so the number is seeks this
+          // player was actually told to make and not seeks that were decided on.
+          seeks.current += 1;
+          player.seek(instruction.positionMs);
+        }
       }
+      // The count has moved, so an instrument is told now rather than at the
+      // next tick — a seek that appeared half a second after the stutter it
+      // caused would be the wrong half-second to be looking at.
+      report();
     };
     run.current = tick;
     const timer = setInterval(tick, FOLLOW_TICK_MS);
@@ -405,6 +460,9 @@ export function useFollow(
     return () => {
       clearInterval(timer);
       run.current = null;
+      // A reading nobody is producing any more must not go on being drawn: a
+      // stale drift is indistinguishable from a settled one.
+      forgetDrift();
     };
   }, [active]);
 

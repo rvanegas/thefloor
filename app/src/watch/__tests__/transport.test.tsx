@@ -12,6 +12,7 @@ import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
+import { readDrift } from '../drift';
 
 /**
  * The diagnostic log, captured rather than written.
@@ -57,6 +58,8 @@ const T0 = 1_700_000_000_000;
 const URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const LENGTH = 600_000;
 const VIDEO = 'dQw4w9WgXcQ';
+/** The room the published reading is keyed on. See `drift.ts`. */
+const CHANNEL = 'c1';
 
 /** How long this player takes to do as it is told. Longer than a tick. */
 const LAG_MS = 600;
@@ -338,7 +341,7 @@ function run(
   const roomNow = () => Date.now() + skew;
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true, roomNow);
+    useFollow(watch, player.port, true, roomNow, CHANNEL);
     return <Text>following</Text>;
   }
   act(() => {
@@ -997,5 +1000,67 @@ describe('a device whose own clock is wrong', () => {
     sim.advance(4_000);
     expect(inStep(sim.where())).toBe(true);
     expect(sim.player.calls).toEqual(['play']);
+  });
+});
+
+/*
+  **The instrument, which is the follower's own number and not a second opinion.**
+
+  `DriftReadout` draws what `drive.ts` published rather than recomputing the
+  position, because a readout built to settle a disagreement must not be able to
+  join it. What is asserted here is that the publishing happens on an ordinary
+  tick — not only when something is wrong — and that the seek count says what it
+  claims to.
+*/
+describe('what the follower publishes', () => {
+  it('reports a healthy party as nought seeks and a drift inside the tolerance', () => {
+    const sim = run();
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    const seen = readDrift(CHANNEL);
+    expect(seen).not.toBeNull();
+    expect(seen!.seeksThisRun).toBe(0);
+    expect(seen!.playerState).toBe('playing');
+    expect(seen!.wantStatus).toBe('playing');
+    expect(Math.abs(seen!.driftMs ?? Infinity)).toBeLessThanOrEqual(
+      WATCH_DRIFT_MS
+    );
+  });
+
+  it('counts a seek when a recovered stall is corrected', () => {
+    const sim = run();
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    expect(readDrift(CHANNEL)!.seeksThisRun).toBe(0);
+    // Far enough behind that the correction is owed once it can answer.
+    sim.player.stall(4_000);
+    sim.advance(12_000);
+    expect(readDrift(CHANNEL)!.seeksThisRun).toBe(1);
+  });
+
+  it('says nothing about another room', () => {
+    const sim = run();
+    sim.wire.press(play, sim.now());
+    sim.advance(2_000);
+    expect(readDrift('another-channel')).toBeNull();
+  });
+
+  /*
+    The slow resume, read through the instrument rather than off the call list:
+    no seek, and the offset the pause left is visible as a positive drift. It is
+    the same fact `a resume` asserts above, said in the form somebody holding the
+    phone would see it.
+  */
+  it('shows the pause offset as drift with no seek behind it', () => {
+    const sim = run({ lag: 2_300 });
+    sim.wire.press(play, sim.now());
+    sim.advance(6_000);
+    sim.wire.press(pause, sim.now());
+    sim.advance(3_000);
+    sim.wire.press(play, sim.now());
+    sim.advance(8_000);
+    const seen = readDrift(CHANNEL)!;
+    expect(seen.seeksThisRun).toBe(0);
+    expect(seen.driftMs).toBeGreaterThan(WATCH_DRIFT_MS);
   });
 });

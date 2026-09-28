@@ -560,7 +560,9 @@ export function WatchPlayer({
     };
   }, [ready, recover]);
 
-  useFollow(watch, port, true, now);
+  // `channelId` so the published reading can be told from a stale one — see
+  // `drift.ts`, and `DriftReadout`, which refuses to draw another room's number.
+  useFollow(watch, port, true, now, channelId);
 
   /*
     **Whether the frame answers a finger, said to the page rather than drawn

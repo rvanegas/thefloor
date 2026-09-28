@@ -48,6 +48,16 @@ const NOT_TRANSLATED = [
   'AudioLabView.tsx',
   'AudioDebugPanel.tsx',
   /**
+   * **The third instrument, and it is named here rather than left to luck.**
+   * `DriftReadout.tsx` draws what the follower is steering on for an account with
+   * `debug` set — field names to be read beside a diagnostic log, not words a
+   * user meets, and none of them is in GLOSSARY.md Part One. It passes `QUOTED`
+   * today only because its labels happen to be lower case, which is an accident
+   * and not a decision: capitalising one would demand sixty messages to make a
+   * readout harder to correlate with the code it is reading.
+   */
+  'DriftReadout.tsx',
+  /**
    * **The Android notification channels, by name.** They are user-facing —
    * they appear in Android's own settings — but `ensureChannels` runs at
    * registration, outside any React tree, with no provider above it, and

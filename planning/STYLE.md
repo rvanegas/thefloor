@@ -883,6 +883,22 @@ audio is fine, and a panel for diagnosing the audio that appears only
 alongside a fault is no use to somebody working out why no fault is visible.
 It is drawn for the account that has `debug` set, not for a state.
 
+**The second instrument is a readout rather than a card**, added 2026-09-28:
+`watch/DriftReadout.tsx`, under the watch transport, showing what the follower is
+steering on — the signed drift, the seeks issued this run, the player's state
+against the room's want, how long it has been buffering, and the measured lag a
+correction's lead is spent from. Rule 7 is what permits it where it sits: it
+repeats no control, so it is a readout and no preference about repetition has a
+claim on it. Also drawn for the account with `debug` set rather than for a
+state, and drawn on **both** surfaces that can drive — the watch card and a
+second device — but deliberately **not** on the expanded picture's scrim, which
+carries the transport and the way out and nothing else, and which fades after
+three seconds. Unlike `AudioDebugPanel` it is drawn on the web too: that panel
+compares against `AVAudioSession`, which a browser has none of, whereas the
+follower is the same follower in a browser. `type.mono` at its own size, no new
+hue — `danger` marks a drift outside the tolerance and a seek count above
+nought, both of which are faults and so are what that hue already means.
+
 **A third arrived on 2026-09-15 and is the rule working rather than an
 exception to it.** The *getting-started* card — why you are in a channel with
 four people you have never met, and how to leave it — repeats no control at

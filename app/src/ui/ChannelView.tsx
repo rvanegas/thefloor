@@ -73,6 +73,7 @@ import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
 import { learningToStepIn } from '../state/introduction';
 import { AudioDebugPanel } from './AudioDebugPanel';
+import { DriftReadout } from '../watch/DriftReadout';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
@@ -2739,15 +2740,36 @@ export function ChannelView({
    * film, and how far in the room has got.
    */
   const watchTransport = (withTitle: boolean) => (
-    <WatchTransport
-      watch={watch}
-      party={party}
-      watchAt={watchAt}
-      mayControl={mayControlWatch}
-      mayPlay={mayPlayWatch}
-      withTitle={withTitle}
-      act={act}
-    />
+    <>
+      <WatchTransport
+        watch={watch}
+        party={party}
+        watchAt={watchAt}
+        mayControl={mayControlWatch}
+        mayPlay={mayPlayWatch}
+        withTitle={withTitle}
+        act={act}
+      />
+      {/*
+        **What the follower is steering on, for an account with `debug` set.**
+
+        A readout rather than a control, so rule 7 of STYLE.md § *The rules that
+        are actually load-bearing* permits it under the row it is about: the seek
+        count is the success criterion for the correction machinery and was
+        previously legible only in the next day's journal.
+
+        Drawn here, which is both surfaces that can drive — the watch card and a
+        second device — and **not** on the expanded picture's scrim, which
+        `Picture.tsx` draws and which carries the transport and the way out and
+        nothing else. A readout that faded after three seconds would be the wrong
+        instrument anyway.
+
+        On web as well, unlike `AudioDebugPanel`: that panel compares against
+        `AVAudioSession` and a browser has none, whereas the follower is the same
+        follower here and a browser is a convenient place to watch a number.
+      */}
+      {app.debug && party ? <DriftReadout channelId={channelId} /> : null}
+    </>
   );
 
   /**
