@@ -655,7 +655,11 @@ export function HomeView({
           asking for something — install this, allow that — and a person
           waiting for an answer outranks the application asking for a favour.
         */}
-        <WaitingBar onList={onList} />
+        <WaitingBar
+          onList={onList}
+          onEnterChannel={onEnterChannel}
+          onOpenProfile={openProfile}
+        />
 
         <InstallNotice />
 
@@ -1143,6 +1147,20 @@ function useAnswerWaiting(): boolean {
  * the channel screen keeps the microphone. What was missing was never the
  * button; it was knowing there was one.
  *
+ * **Which is not an argument for the tap doing nothing, and it did.** Naming a
+ * tab was the whole of the destination, so on the tab it named the bar was a
+ * line saying *tap to answer* above a tap that changed nothing — and both bars
+ * had a tab like that. *Channels* is the one Home opens on; *Contacts* is
+ * where accepting a request leaves you, which is the second half of the walk
+ * this bar exists for.
+ *
+ * So a bar that names one thing now goes to it: the invitation opens its
+ * room, the request opens the person. Neither is the control — the room is the
+ * row's own destination and the profile is where *Accept their request*
+ * already lives — and a bar that counts instead of naming still names a tab,
+ * there being nothing singular to open. The press handlers say which case is
+ * which.
+ *
  * **Two bars rather than one**, when both are outstanding. A single line
  * counting unlike things — *2 things waiting* — names neither and points at
  * one tab while meaning two. Each of these names what it is and goes where it
@@ -1202,7 +1220,20 @@ function useWaiting(): { people: number; rooms: number; any: boolean } {
   return { people, rooms, any: people > 0 || rooms > 0 };
 }
 
-function WaitingBar({ onList }: { onList: (list: List) => void }) {
+function WaitingBar({
+  onList,
+  onEnterChannel,
+  onOpenProfile,
+}: {
+  onList: (list: List) => void;
+  onEnterChannel: (channelId: string) => void;
+  /**
+   * Where one contact request goes. `HomeView`'s own `openProfile`, which
+   * opens the screen in the pane next door when there is one and here when
+   * there is not — the same handler the contact rows are given.
+   */
+  onOpenProfile: (contact: { id: string; name: string }) => void;
+}) {
   const app = useApp();
   const t = useText().home;
   const requests = answerableRequests(app.home);
@@ -1230,7 +1261,36 @@ function WaitingBar({ onList }: { onList: (list: List) => void }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t.waitingBarLabel(asks)}
-          onPress={() => onList("contacts")}
+          /*
+            **The person, when the sentence names one; the list when it counts
+            them.** The invitation bar's fix exactly, and it was the same bug:
+            naming a tab is no journey at all for somebody already standing on
+            it, and accepting a request is what leaves them standing on
+            Contacts — so the second thing this bar is for was the case where
+            it did nothing.
+
+            **The profile, which is a destination `RequestRow` deliberately
+            does not offer.** That row opens nobody, and its reason is about
+            the *outgoing* half: a request you sent is an address rather than a
+            person, and whether anybody is behind it is exactly what the server
+            withholds. None of that is true of an incoming one —
+            `answerableRequests` is the incoming half alone, and they told you
+            who they are. What is behind it is *Accept their request*, in
+            `ProfileView`, beside everything there is to read about somebody an
+            acquaintance is asking you to know. The bar carries no control of
+            its own here, which is the whole of the 2026-09-23 decision.
+
+            A count keeps the tab switch, naming nobody to open — the
+            invitation bar's first exception, for its reason.
+          */
+          onPress={() =>
+            people === 1 && requests[0]
+              ? onOpenProfile({
+                  id: requests[0].account.id,
+                  name: requests[0].account.displayName,
+                })
+              : onList("contacts")
+          }
           style={styles.waitingBar}
         >
           <View style={styles.rowMain}>
@@ -1246,7 +1306,36 @@ function WaitingBar({ onList }: { onList: (list: List) => void }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t.waitingBarLabel(invites)}
-          onPress={() => onList("channels")}
+          /*
+            **The room, when the sentence names one; the list when it does
+            not.** This said `onList("channels")` and nothing else, which is a
+            tap that does nothing at all in the commonest case there is: Home
+            opens on *Channels*, so the bar is usually pinned directly above
+            the list it was pointing at, and pressing it left the screen
+            exactly as it was under a line that promises *tap to answer*. It
+            read as a bar that was not pressable.
+
+            Going to the channel is the row's own journey — `openChannel` in
+            `ChannelsView`, which opens and steps in to nothing — so this
+            takes nothing away from the list and accepts nothing on the way.
+            The decision that the bar is a sentence rather than the card is
+            about *Accept*, not about navigating: see
+            `decisions/2026-09-23-what-is-waiting-for-you-is-said-in-words.md`.
+
+            **Two cases keep the tab switch, because neither has a room to
+            open.** A count names none — opening the first of several would be
+            opening something the bar did not say — and a *seat* has no
+            channel screen until it is taken up, that being the one act this
+            bar must not perform. Both then do what they always did, which on
+            the Channels tab is still nothing; the rows they point at are on
+            screen below, which is the half of the complaint that was never
+            the bug.
+          */
+          onPress={() =>
+            rooms === 1 && invitation && !invitation.guest
+              ? onEnterChannel(invitation.channelId)
+              : onList("channels")
+          }
           style={styles.waitingBar}
         >
           <View style={styles.rowMain}>

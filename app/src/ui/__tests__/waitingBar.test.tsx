@@ -87,19 +87,53 @@ describe('The waiting bar', () => {
     act(() => tree.unmount());
   });
 
-  it('sends that tap to the list that holds the row', () => {
-    // A bar rather than the row itself: the *Accept* stays in `ContactsView`,
-    // and this only has to get somebody to it. See `WaitingBar`.
+  it('opens the profile of the one person asking, from either tab', () => {
+    // **Not the tab, which on *Contacts* is no journey at all** — and
+    // Contacts is exactly where accepting a request leaves somebody. The
+    // profile is where *Accept their request* already lives, so the bar gains
+    // a destination and carries no control. `RequestRow` opens nobody for the
+    // outgoing half's reason, which an incoming request does not share. See
+    // `WaitingBar`.
     withWaiting({ contacts: [incoming('Pat Ito')] });
     const onList = jest.fn();
+    const onOpenProfile = jest.fn();
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <HomeView {...homeNav} list="channels" onList={onList} />
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onList={onList}
+          onOpenProfile={onOpenProfile}
+        />
       );
     });
     act(() => findButton(tree, 'wants to be a contact')!.props.onPress());
+    expect(onOpenProfile).toHaveBeenCalledWith({ id: 'them', name: 'Pat Ito' });
+    expect(onList).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('sends a count of requests to the list, naming nobody to open', () => {
+    withWaiting({
+      contacts: [incoming('Pat Ito', 'a'), incoming('Dana Chu', 'b')],
+    });
+    const onList = jest.fn();
+    const onOpenProfile = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView
+          {...homeNav}
+          list="channels"
+          onList={onList}
+          onOpenProfile={onOpenProfile}
+        />
+      );
+    });
+    act(() => findButton(tree, 'want to be contacts')!.props.onPress());
     expect(onList).toHaveBeenCalledWith('contacts');
+    expect(onOpenProfile).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
@@ -132,17 +166,81 @@ describe('The waiting bar', () => {
     act(() => tree.unmount());
   });
 
-  it('sends an invitation tap to the channel list', () => {
+  it('opens the channel one invitation names, from either tab', () => {
+    // **Not the tab, which on *Channels* is no journey at all.** Home opens
+    // there, so the bar is usually pinned above the very list it named and the
+    // tap changed nothing under a line reading *tap to answer* — a bar that
+    // reads as not pressable. The room is the row's own destination and
+    // accepts nothing on the way. See `WaitingBar`.
     withWaiting({ invites: [invite({ name: 'Kitchen' })] });
     const onList = jest.fn();
+    const onEnterChannel = jest.fn();
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <HomeView {...homeNav} list="contacts" onList={onList} />
+        <HomeView
+          {...homeNav}
+          list="channels"
+          onList={onList}
+          onEnterChannel={onEnterChannel}
+        />
       );
     });
     act(() => findButton(tree, 'asked you into')!.props.onPress());
+    expect(onEnterChannel).toHaveBeenCalledWith('sess_a');
+    expect(onList).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('sends a count to the list instead, naming no room', () => {
+    // Two invitations name no channel between them, and opening the first
+    // would be opening something the bar did not say.
+    withWaiting({
+      invites: [
+        invite({ name: 'Kitchen' }),
+        invite({ channelId: 'sess_b', name: 'Garden' }),
+      ],
+    });
+    const onList = jest.fn();
+    const onEnterChannel = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onList={onList}
+          onEnterChannel={onEnterChannel}
+        />
+      );
+    });
+    act(() => findButton(tree, '2 invitations waiting')!.props.onPress());
     expect(onList).toHaveBeenCalledWith('channels');
+    expect(onEnterChannel).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('sends a seat to the list, there being no screen to open', () => {
+    // A seat is not a membership and has no channel screen until it is taken
+    // up — which is the one act this bar must not perform. So it goes where
+    // the card that may perform it is.
+    withWaiting({ invites: [invite({ name: 'Kitchen', guest: true })] });
+    const onList = jest.fn();
+    const onEnterChannel = jest.fn();
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        <HomeView
+          {...homeNav}
+          list="contacts"
+          onList={onList}
+          onEnterChannel={onEnterChannel}
+        />
+      );
+    });
+    act(() => findButton(tree, 'kept you a seat')!.props.onPress());
+    expect(onList).toHaveBeenCalledWith('channels');
+    expect(onEnterChannel).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 
