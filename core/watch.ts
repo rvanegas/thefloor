@@ -691,6 +691,55 @@ export function followInstructions(
       whenever it says something to a stalled player, so this is one nudge per
       `WATCH_STALL_MS` rather than the storm the silence was written against.
     */
+    /*
+      **A player that is about to be started is positioned first, and that is
+      cheaper than correcting it afterwards.**
+
+      Measured on build 305, ten resumes: the picture comes back 1.3 seconds
+      after the press, the transport's wall clock has run the whole time, and
+      the player therefore begins 1.3 seconds behind the room. Half of those
+      resumes then drifted past `WATCH_DRIFT_MS` and were seeked about half a
+      second later — a jump — and the other half simply stayed a second behind
+      for the rest of the film, which on two phones in one room is worse than
+      the jump. Alternating, because a corrected resume ends exactly in step and
+      leaves the next one just inside the tolerance.
+
+      So the position goes out *with* the play rather than a correction later.
+      What it costs is the same second of film either way: today's correction
+      skips it too, only later and visibly. What it buys is that every device
+      lands where the room is, on the first attempt, once.
+
+      **`paused` and not `unstarted`, deliberately.** A fresh party starts at
+      zero with a clock that has barely moved — the cold start is 705ms — and
+      leading it would skip the opening of the film to correct a drift nothing
+      would have noticed. The case this is for is a resume, which is the case
+      that was measured.
+
+      The alternative was to stop the room's clock running while players start,
+      which loses no film at all and is a change to what the transport *means*
+      on several devices at once — whose player defines the start. That wants a
+      design and not a patch. See
+      planning/decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md.
+    */
+    /*
+      **Started first and positioned second, which is the opposite of the
+      correction below and is not a style choice.**
+
+      `seekTo` leaves a paused player paused — YouTube's own rule, and the
+      harness models it — so a seek issued ahead of the play does the
+      positioning and then the play has to undo the pause anyway; worse, a play
+      landing while the seek is in flight is a play that may be dropped, which
+      is a party whose picture never starts. Playing first and then seeking is
+      safe under both readings: the player is running when the position arrives,
+      and a seek at a player that is already going is the one thing this file
+      has always done.
+    */
+    if (player.state === 'paused' && playerLagMs > 0 && !settling) {
+      return [
+        { do: 'play' },
+        { do: 'seek', positionMs: want.positionMs + playerLagMs },
+      ];
+    }
     if (adrift && !settling) {
       // **Ahead of the room by what this player takes to get there**, which is
       // the whole of `playerLagMs`. Correcting to where the room is now is

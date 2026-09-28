@@ -825,6 +825,57 @@ describe('how long a press takes, and where it goes', () => {
   });
 
   /*
+    **A resume, which is the press the whole of this file is now about.**
+
+    Before the lead, a resume started where the film was paused, ran a second
+    behind the room, and was either corrected — a jump, half a second after the
+    picture came back — or left behind for the rest of the film. Measured on
+    build 305 at five of ten and one of five. Now the position goes out with the
+    play, so the picture arrives in step and nothing is said to it afterwards.
+  */
+  describe('a resume, with the cost of the player already known', () => {
+    /** Play, settle, pause, settle: a party ready to be resumed. */
+    function resumable(lag: number) {
+      const sim = run({ lag });
+      sim.wire.press(play, Date.now());
+      sim.advance(6_000);
+      sim.wire.press(pause, Date.now());
+      sim.advance(3_000);
+      sim.player.calls.length = 0;
+      return sim;
+    }
+
+    it('comes back in step rather than a second behind', () => {
+      const sim = resumable(1_150);
+      sim.wire.press(play, Date.now());
+      sim.advance(4_000);
+      // In step the moment it is running, not after a correction.
+      expect(inStep(sim.where())).toBe(true);
+      const where = sim.where();
+      expect(Math.abs(where.channelAt - where.playerAt)).toBeLessThan(600);
+    });
+
+    it('is told nothing at all once the picture is back', () => {
+      const sim = resumable(1_150);
+      sim.wire.press(play, Date.now());
+      // Everything said to it is said with the play, before there is a picture.
+      sim.advance(1_500);
+      const atPicture = sim.player.calls.length;
+      sim.advance(6_000);
+      expect(sim.player.calls).toHaveLength(atPicture);
+    });
+
+    it('does so at the latency the phone actually showed, and at twice it', () => {
+      for (const lag of [1_150, 2_300]) {
+        const sim = resumable(lag);
+        sim.wire.press(play, Date.now());
+        sim.advance(8_000);
+        expect(inStep(sim.where())).toBe(true);
+      }
+    });
+  });
+
+  /*
     **The ten-second window is for a buffer, and a wedged player has none.**
 
     `settling` is right about a player refilling and wrong about one that never

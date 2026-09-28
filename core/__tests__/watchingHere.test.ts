@@ -416,6 +416,51 @@ describe('following the transport', () => {
     ]);
   });
 
+  /*
+    **A player being started is positioned with the play, not corrected after
+    it.** Measured on build 305: a resume's picture comes back 1.3 seconds after
+    the press and the transport's clock has run the whole time, so the player
+    began that far behind the room — half of them drifting past the tolerance
+    and jumping about half a second later, the rest simply staying a second
+    behind, which on two phones in one room is worse than the jump.
+  */
+  it('positions a player it is about to start, ahead by its own cost', () => {
+    const at = T0 + 30_000;
+    expect(
+      followInstructions(playing(), reading('paused', 30_000), at, 0, false, 1_150)
+    ).toEqual([
+      { do: 'play' },
+      { do: 'seek', positionMs: 31_150 },
+    ]);
+  });
+
+  it('plays before it seeks, a seek leaving a paused player paused', () => {
+    // YouTube's own rule, and the reason the order here is the opposite of the
+    // correction's: positioning first would leave the play to undo the pause,
+    // and a play landing while the seek is in flight can be dropped altogether
+    // — which is a party whose picture never starts.
+    const at = T0 + 30_000;
+    const [first, second] = followInstructions(
+      playing(),
+      reading('paused', 30_000),
+      at,
+      0,
+      false,
+      700
+    );
+    expect(first).toEqual({ do: 'play' });
+    expect(second.do).toBe('seek');
+  });
+
+  it('does not position a player that has never started', () => {
+    // A fresh party begins at zero with a clock that has barely moved — the
+    // cold start is 705ms — so leading it would skip the opening of the film to
+    // correct a drift nobody would have seen.
+    expect(
+      followInstructions(playing(), reading('unstarted', 0), T0, 0, false, 1_150)
+    ).toEqual([{ do: 'play' }]);
+  });
+
   it('leads nothing when nothing has been measured', () => {
     // The behaviour that shipped, which is what a follower that has never
     // watched this player obey has to fall back to.

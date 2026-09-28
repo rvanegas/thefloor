@@ -64,13 +64,66 @@ backlog/a-play-inside-the-pause-can-wedge-the-player.md is still open, and wheth
 the second `play` is enough to unstick a wedged embed is the thing the next run
 finds out.
 
+## Second pass: the start is positioned rather than corrected
+
+Measured on a phone the same night, build 305, ten resumes with the lead in.
+**The jumping did not stop, and the reason is that the lead fixed the wrong half
+of it.** No press was corrected more than once — which is what the lead was for,
+and it held — but five of ten were still corrected *once*, alternating, and the
+other five simply ran a second behind the room for the rest of the film. The
+alternation is the tell: a corrected resume ends exactly in step, which leaves
+the next one just inside the tolerance, which leaves the one after just outside.
+A coin landing on the 1,500ms boundary.
+
+Neither half is acceptable, and the second is worse than it looks: every device
+plays the film's own audio, so a screen that is quietly a second behind is two
+phones in a room disagreeing audibly, for the length of the film.
+
+**So a player about to be started is positioned with the play.** The seek was
+conditional on the drift having already happened; it is now also issued for a
+player being started from a pause, led by what that player is known to cost.
+
+| the player's cost | picture at | drift when it started | corrections after the picture |
+| --- | --- | --- | --- |
+| 600ms | 900ms | −100ms | **none** |
+| 1,150ms — the phone's | 1,450ms | −50ms | **none** |
+| 1,300ms | 1,600ms | −400ms | **none** |
+
+The picture arrives at the same moment it always did — trip plus the player's own
+cost, and nothing here touches that — but it arrives **in step**, and nothing is
+said to it afterwards. The second of film that used to be skipped visibly, half a
+second in, is skipped before there is a picture to see it in.
+
+**Played first, then positioned**, which is the opposite of the correction and is
+not a style choice: `seekTo` leaves a paused player paused, so a seek issued ahead
+of the play leaves the play to undo the pause — and a play landing while the seek
+is in flight can be dropped altogether, which is a party whose picture never
+starts. The harness models that rule and caught it.
+
+**Not for a player that has never started.** A fresh party begins at zero with a
+clock that has barely moved, the cold start being 705ms, so leading it would skip
+the opening of the film to correct a drift nobody would have seen.
+
+**What was not done, and it is the better answer if it can be had.** None of this
+would be needed if the room's clock did not run while players start — `watchPlay`
+could begin it when a player first reports playing rather than at the press, and
+then no film is skipped and no correction is needed at all. It changes what the
+transport means on several devices at once, whose player defines the start being
+the whole question, and that wants a design rather than a patch.
+
 ## What is still wrong in the log
 
 `hasArrived` is asked in the `sending` branch against the target as it was when the
 instruction went out, so a playing player eventually passes a position the room
 wanted two seconds ago and the wait ends in a satisfied `watch playing after Nms`
 whatever actually happened. Harmless now that the divergence it used to hide is
-gone, and still a line that says the wrong thing. Comparing against the live target
+gone, and still a line that says the wrong thing.
+
+**And the positions in it were rounded to whole seconds**, which is why build
+305's alternating corrections could not be explained from the log at all: a pair
+of positions rounded to seconds leaves a drift anywhere between 100ms and 1.9s,
+and the question was whether it had passed 1,500. They now carry ten
+milliseconds. Comparing against the live target
 was tried on 2026-09-27 and silences it; it is left alone here because this commit
 is a fix to behaviour and that is a fix to a log, and the two want separate
 readings.

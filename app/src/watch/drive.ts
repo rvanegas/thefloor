@@ -359,9 +359,19 @@ export function useFollow(
       */
       recordEvent(
         `watch tell ${instructions.map((i) => i.do).join('+')} ` +
-          `(player ${reading.state} at ${Math.round(
+          /*
+            **Two decimals, because the question is a boundary.** Whole seconds
+            were enough while the question was *what is it doing*; they are not
+            enough for *is this drift over 1,500ms*, where a pair of positions
+            rounded to seconds leaves the answer anywhere between 100ms and
+            1.9s. Build 305's alternating corrections could not be explained
+            from the log for exactly that reason. Ten milliseconds of resolution
+            costs three characters a line.
+          */
+          `(player ${reading.state} at ${(
             (reading.positionMs ?? 0) / 1000
-          )}s, want ${want.status} at ${Math.round(want.positionMs / 1000)}s)`
+          ).toFixed(2)}s, want ${want.status} at ` +
+          `${(want.positionMs / 1000).toFixed(2)}s)`
       );
       for (const instruction of instructions) {
         if (instruction.do === 'play') player.play();

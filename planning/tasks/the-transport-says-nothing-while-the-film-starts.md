@@ -65,7 +65,9 @@ taking the session and happens whoever holds it.
 decisions/2026-09-28-the-film-waits-for-the-audio-session.md is both halves of that.
 
 **One thing might still avoid it rather than shorten it**, and until it has been
-run this note should not be built against. The muted-start probe begins the film
+run this note should not be built against. It is **probe B** in the audio panel —
+the two probes are lettered because a run on 2026-09-28 used A believing it was
+B, which is four minutes of pressing that answers the wrong question. The muted-start probe begins the film
 silent, on the premise that iOS gates *audible* playback on a session and silent
 playback may need none — in which case the picture starts at once and the sound
 arrives a second later, and what wants drawing is completely different. Run that

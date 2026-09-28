@@ -293,16 +293,20 @@ export function AudioDebugPanel({
           */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Film — keep the microphone through the film
+              Probe A — hold the microphone through the film
+            </Text>
+            <Text style={styles.note}>
+              One of two, and they answer different questions — B is below and
+              changes the film, not the microphone. Say which one a run used.
             </Text>
             <Text style={styles.note}>
               Turn on, then press Play on a watch party on this device. Watch for
               engine stop play=T rec=T — the signature from build 296, which this
               app has never been seen to produce. Turn off when done; it holds a
-              microphone open through a film.
+              microphone open through a film. Writes film probe on to the log.
             </Text>
             <Tap
-              label={filmProbe ? '■ on — release the microphone again' : '▶ off — keep the microphone'}
+              label={filmProbe ? '■ A on — release the microphone again' : '▶ A off — hold the microphone'}
               onPress={() => setFilmProbe(!filmProbe, recordEvent)}
             />
           </View>
@@ -316,17 +320,22 @@ export function AudioDebugPanel({
           */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Muted start — begin the film silent
+              Probe B — start the film silent, sound a moment later
+            </Text>
+            <Text style={styles.note}>
+              The other of the two, and it touches no microphone: the player is
+              muted by this app before Play and unmuted the moment it reports
+              playing. Nothing to mute by hand.
             </Text>
             <Text style={styles.note}>
               Turn on, then resume a paused party. Watch for watch player
               buffering arriving in ~150ms instead of ~1,200, and for watch
               player unmuted after it. If the picture is quick and the sound is
               late, that is the trade working; if the unmute drags the picture
-              with it, it is not.
+              with it, it is not. Writes muted-start probe on to the log.
             </Text>
             <Tap
-              label={mutedStart ? '■ on — begin with sound again' : '▶ off — begin the film silent'}
+              label={mutedStart ? '■ B on — start with sound again' : '▶ B off — start the film silent'}
               onPress={() => setMutedStart(!mutedStart, recordEvent)}
             />
           </View>

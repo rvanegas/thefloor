@@ -442,7 +442,10 @@ export function WatchPlayer({
       if (what.state !== before) {
         recordEvent(
           `watch player ${what.state} at ` +
-            `${Math.round((what.positionMs ?? 0) / 1000)}s` +
+            // Two decimals, for the reason `drive.ts` gives where it reports
+            // the same pair: a drift question cannot be answered from positions
+            // rounded to seconds.
+            `${((what.positionMs ?? 0) / 1000).toFixed(2)}s` +
             (before === null ? ' (first reading)' : ` (was ${before})`)
         );
       }
