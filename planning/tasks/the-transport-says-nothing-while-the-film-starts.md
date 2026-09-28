@@ -50,6 +50,30 @@ from one component — the card, a second device, and the expanded picture's scr
 component exists to keep.
 
 
+## The phone run was done, and it was not buffering
+
+Run the same evening on build 304, eighteen presses of Play and nine of Pause.
+**A resume is 1,304ms from press to picture, of which 80ms is buffering and about
+1,150ms is the audio session renegotiating; a cold start is 705ms and is genuinely
+a fetch.** So the premise of this note — *a press of Play is answered by
+a second and a half of nothing* — is a fact about resumes.
+
+**And it cannot be made faster, which was measured rather than assumed.** The film
+probe presses Play without releasing the microphone, and fourteen such presses cost
+1,271ms against 1,235ms for the shipped path: the renegotiation is `WKWebView`
+taking the session and happens whoever holds it. So a spinner is the answer to the
+wait after all — decisions/2026-09-28-the-film-waits-for-the-audio-session.md is
+both halves of that.
+
+**And there is a second thing to draw, which this note did not know about.** Four
+of the ten resumes were seeked half a second after the picture started, being over
+`WATCH_DRIFT_MS` by then — so what somebody sees is the wait *and then a jump*. The
+jump is a defect rather than a drawing problem and has its own entry,
+backlog/a-player-slower-than-the-drift-never-arrives.md; but until it is fixed, a
+spinner that ends when the picture starts hands attention straight to it. Worth
+knowing which of the two is being covered before choosing where the pending state
+ends.
+
 ## The phone run, and what to read out of it
 
 Added 2026-09-27 with the instrument that makes it worth doing. `WatchPlayer.tsx`

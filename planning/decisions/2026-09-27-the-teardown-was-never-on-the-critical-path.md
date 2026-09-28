@@ -1,5 +1,15 @@
 # The teardown was never on the critical path
 
+> **Corrected 2026-09-28: right conclusion, no control.** The held arm of this
+> comparison did not hold the audio *session* — with the microphone held the
+> category is re-asserted rather than changed, and `WKWebView` renegotiates it
+> anyway — so both arms paid the same 1.2 seconds and the +85ms varied nothing.
+> Measured directly on build 304 with the film's own transitions: a resume is
+> 1,304ms, of which 80ms is buffering and about 1,150 is the session. The title
+> survives and so does the microphone's innocence; what is on the critical path is
+> a renegotiation nobody here owns.
+> See 2026-09-28-the-film-waits-for-the-audio-session.md.
+
 Measured 2026-09-27 on build 303, nineteen presses of Play, and it closes
 tasks/ § *A film in stereo needs no teardown* by removing its premise. **Giving
 the microphone up for the film costs nothing measurable.** The task is deleted;

@@ -45,12 +45,31 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
     that `sessionFor` asks for `playback` and the film is stereo rather than
     mono, ducked and voice processed.
 
-    **What it costs is about a second on every press of Play**, all of it spent
-    tearing the microphone down before the session can move — build 277:
+    **What it costs is about a second on every press of Play** — build 277:
     `engine stop` at 0.92 to 1.11 seconds with the category change immediately
     behind it, against 0.27 to 0.41 seconds for a pause. That measurement is
     why the exception left, and it still stands. What it bought was not worth
     it, which is the part that turned out to be wrong.
+
+    **Where the second goes was measured on build 304, and it is the session
+    rather than this predicate's own teardown.** A resume of a paused party is
+    1,304ms from press to picture: 70ms of that is the microphone being released,
+    80ms is the film buffering, and about 1,150 is `AVAudioSession` moving to
+    `Playback` — the media element takes its first step 9ms after the category
+    lands. A *cold* start is 705ms, paying the same move underneath a 563ms fetch
+    and never feeling it, which is why the two halves of a party behave
+    differently for reasons nobody chose.
+
+    **And the second is not this predicate's, which was measured with the film
+    probe rather than argued.** Fourteen presses that did *not* release the
+    microphone took 1,271ms against 1,235ms for five that did, and with the
+    microphone held the category never becomes `playback` at all — ours is
+    re-asserted, and the player still waits the same 1.2 seconds for it. So sampling this
+    rule earlier would buy nothing: the renegotiation is `WKWebView` taking the
+    session, and it happens whoever holds it. **The pause is the half that is
+    ours** — 417ms held against 1,113ms released, so about 700ms of every pause is
+    the microphone being retaken, which is the beat this ordering chooses to pay.
+    See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
 
     **Holding the device and changing the configuration instead cost the room
     its conversation.** `SCREENING` was `playAndRecord` under `default`, and on
@@ -70,7 +89,7 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
 
     So the second is paid and the film keeps its stereo. See
     `planning/decisions/2026-09-26-the-film-keeps-its-stereo.md`, and
-    `planning/tasks/` for what a resume that costs nothing would need.
+    `planning/backlog/` for what a resume that costs nothing would need.
   */
   return !isScreening(channel, me);
 }

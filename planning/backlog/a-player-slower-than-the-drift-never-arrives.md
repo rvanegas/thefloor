@@ -27,12 +27,14 @@ Comparing against the *live* target was tried in the harness on 2026-09-27. It
 silences the false arrivals and does not cure the divergence — the player is
 still slower than the tolerance — so it is a fix to the log and not to this.
 
-**Whether it is reachable on a phone is unmeasured**, and that is the first
-question rather than the design. It needs a `play` or a `seek` that takes over
-1.5 seconds inside the `WKWebView`; build 303's presses were logged at 1271 to
-1793ms, of which up to 500 is the follower noticing, so the slowest of them is at
-or over the line. The transition lines in `WatchPlayer.tsx` are what settle it —
-see tasks/the-transport-says-nothing-while-the-film-starts.md § *The phone run*.
+**It is reached on a phone, and by every resume.** Measured the same evening on
+build 304: ten resumes of a paused party, at 1,304ms from press to picture, and
+**four of the ten were seeked within four seconds** — a jump about half a second
+after the picture started. None of the eight cold starts was, at 705ms. So the
+boundary predicted from the harness that afternoon is where the application
+actually lives, and which side of it a press falls on is decided by the audio
+session rather than by anything anybody chose.
+decisions/2026-09-28-the-film-waits-for-the-audio-session.md is the run.
 
 A cure has to give the follower some notion that its player is slow: seek *ahead*
 of the wanted position by the latency last observed, or widen the tolerance for a
