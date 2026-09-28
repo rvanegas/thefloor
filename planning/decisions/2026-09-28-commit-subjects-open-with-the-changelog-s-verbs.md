@@ -6,8 +6,13 @@ uses. Across its 406 releases and about 6,500 entries, those five open 83% of
 entries — Fixed 56%, Added 11%, Improved 10%, Changed 5%, Removed under 1% —
 and about 95% of the most recent fifty releases. The long tail is a handful
 of more exact verbs: Reduced, Updated, Deprecated, Renamed, Hardened,
-Reverted. Those are allowed here where they are the more exact word, and not
-as a way round choosing one of the five.
+Reverted.
+
+**The list is a default, not a cage.** It is meant to be light, not
+policed. When none of the verbs fits a commit, use the best verb there is and
+propose it as an addition. Adding it means one edit to the AGENTS.md bullet
+and one to this list. The long-tail verbs above are ones the changelog already
+reaches for, so they need no proposal where they are the more exact word.
 
 **What it replaces.** Until now a subject was a declarative sentence stating
 what had become true — *The follower steers on the room's clock, and stops
@@ -41,7 +46,12 @@ reasoning, as `7a2d4a3d` does. The convention governs the first line only.
 
 **`bin/upload-ios`'s build commit follows it too**: *Bumped build number to
 N* instead of *Bump build number to N*. There are 297 commits in the old form,
-and nothing rewrites history, so `git log --grep 'Bump'` still matches both.
+so `git log --grep 'Bump'` still matches both.
+
+**History is not rewritten.** The convention applies to new commits only.
+The roughly 1,500 commits before it keep their subjects as they were written,
+since rewriting them would change every sha that a tag, a deploy stamp or a
+decision file cites.
 
 Not adopted: the changelog's bracketed surface tags (`[VSCode]`,
 `[Claude Code on the web]`). The nearest equivalent here would be

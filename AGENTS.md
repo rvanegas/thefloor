@@ -327,12 +327,12 @@ are the rules.
   stashed aside and handed back. **Take theirs where the two disagree**: a
   deleted file beats a session's note explaining why the entry was kept.
 
-- **A commit subject opens with Fixed, Added, Improved, Changed or Removed**,
-  as Claude Code's changelog does, since 2026-09-28; Reduced, Renamed or
-  Reverted only where more exact. Four more for what a changelog never sees:
-  **Bumped** a build or version number; **Recorded** a decision or a deploy;
-  **Filed** a task or backlog item; **Documented** standing guidance. The body
-  stays prose and says why.
+- **A commit subject opens with a verb**, as Claude Code's changelog does, since
+  2026-09-28: Fixed, Added, Improved, Changed, Removed; Bumped a build or
+  version; Recorded a decision or deploy; Filed a task or backlog item;
+  Documented standing guidance. **The list is a default, not a cage** — when
+  none fits, use the best verb and propose adding it. The body stays prose and
+  says why. Older commits keep their subjects; history is not rewritten.
 
 - **Every commit a session writes carries two trailers**, `Co-Authored-By` and,
   since 2026-09-13, `Claude-Session: https://claude.ai/code/session_<id>` — the
