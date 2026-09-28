@@ -1,6 +1,36 @@
 import { useEffect, useRef } from 'react';
-import type { ChannelState, WatchStatus } from '../../../core/types';
+import { isScreening } from '../../../core/micNeeded';
+import type { ChannelState, UserId, WatchStatus } from '../../../core/types';
 import { chime, warmChimes, type ChimeKind } from './chime';
+import { observedCategory, recordEvent } from './diagnostics';
+
+/**
+ * The category a chime can be heard in on a device that has just given its
+ * microphone back, spelled as `AppleAudioConfiguration` spells it.
+ *
+ * This is `CALL`'s category and nothing else is compared against: what the
+ * pause chime is waiting for is *this app holding a settled session again*, and
+ * on a screening device the retake of the microphone is what produces it.
+ */
+const SETTLED = 'playAndRecord';
+
+/**
+ * How long the pause chime will wait for that, before it is thrown away.
+ *
+ * **Two seconds against a measured seven hundred milliseconds.** About 700ms of
+ * every pause is the microphone being retaken — 417ms with the device held
+ * against 1,113ms with it released, in
+ * decisions/2026-09-28-the-film-waits-for-the-audio-session.md — so this is
+ * generous by half again over the slow half of that pair.
+ *
+ * **And it sits inside `CHIME_STALE_MS`**, deliberately: `chime` throws away
+ * anything further behind than that, and a wait that outlasted it would spend
+ * the two seconds and then be discarded by the queue for having done so.
+ */
+const SETTLE_WAIT_MS = 2_000;
+
+/** How often the category is looked at while a chime is held. */
+const SETTLE_POLL_MS = 100;
 
 /**
  * Sounds a chime in the room this device is standing in when the party's film
@@ -42,7 +72,9 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  */
 export function useWatchChime(
   channel: ChannelState | null,
-  fire: (kind: ChimeKind) => void = chime
+  me: UserId,
+  fire: (kind: ChimeKind) => void = chime,
+  category: () => string | null = observedCategory
 ): void {
   /**
    * The status this hook last saw, or null before the first look.
@@ -56,7 +88,21 @@ export function useWatchChime(
    * memory rather than a transition — nothing that was already playing where
    * you have just arrived began while you were there.
    */
-  const seen = useRef<{ channelId: string; status: WatchStatus } | null>(null);
+  const seen = useRef<{
+    channelId: string;
+    status: WatchStatus;
+    /**
+     * Whether *this device* was showing the film, which the pause edge cannot
+     * work out for itself.
+     *
+     * By the time the status has left `playing`, `isScreening` reads false for
+     * everybody — it is defined on a run being under way — so whether this
+     * device's session moved during the run is only knowable from what was
+     * seen while it was. It decides which of the two pause paths is taken and
+     * nothing else.
+     */
+    screening: boolean;
+  } | null>(null);
 
   /**
    * Renders the sounds before they are wanted, for the reason the other hooks
@@ -71,6 +117,7 @@ export function useWatchChime(
 
   const channelId = channel?.id ?? null;
   const status = channel?.watch?.status ?? 'idle';
+  const screening = channel ? isScreening(channel, me) : false;
 
   useEffect(() => {
     if (channelId === null) {
@@ -79,7 +126,7 @@ export function useWatchChime(
     }
 
     const before = seen.current;
-    seen.current = { channelId, status };
+    seen.current = { channelId, status, screening };
 
     if (!before || before.channelId !== channelId) return;
     if (before.status === status) return;
@@ -102,9 +149,87 @@ export function useWatchChime(
       would have to be taught a third cue to learn it.
     */
     if (status === 'playing') {
+      /*
+        **Fired at once, and never held.** The session is still `playAndRecord`
+        at this instant even on the device about to show the film, because
+        `useFilmHandover` withholds the microphone release for exactly the
+        length of this sound — so the ordering is arranged over there and there
+        is nothing to wait for here.
+
+        And it must not be held in any case: a play chime that arrives late is
+        announcing a film that is already running, which is the thing the
+        `seen`-is-null rule above refuses to do on arrival.
+      */
       fire('play');
       return;
     }
-    if (before.status === 'playing') fire('pause');
-  }, [channelId, status, fire]);
+    if (before.status !== 'playing') return;
+
+    /*
+      **The pause chime waits for the session, where the play chime was waited
+      for.**
+
+      A chime is an `AVAudioPlayer` playing into the session this app holds —
+      `CHIME_PATH` is `player`, and `playThroughPlayer` in
+      `AudioRouteModule.swift` is explicit that it configures nothing of its
+      own. On the device that was showing the film that session is `playback`
+      at this moment and the `WKWebView` has had it for the length of the run;
+      what brings it back is the microphone being retaken, about 700ms later.
+      A chime fired now is simply lost, which is what this hook was reported
+      for.
+
+      **Only where the session actually moves, which is the screening device
+      alone.** A phone in a pocket is present without watching here, never
+      leaves `CALL`, and hears this immediately as it always has — and that
+      phone is the ear this whole hook exists for. A guest with no speech grant
+      is on `playback` permanently and would wait the full two seconds and be
+      given nothing, so they are not made to wait either. The gate is *did this
+      device hand its session over*, not *what category is it in*.
+    */
+    if (!before.screening) {
+      fire('pause');
+      return;
+    }
+
+    const settled = category();
+    if (settled === null || settled === SETTLED) {
+      // Unreadable counts as settled, and that direction is deliberate:
+      // `observedCategory` answers null on Android, under jest, in a browser
+      // and in any build where the local module did not link. A cue withheld
+      // because a diagnostic could not be read would be indistinguishable from
+      // the fault this is fixing.
+      fire('pause');
+      return;
+    }
+
+    /*
+      **A poll rather than `onRouteChange`.** That listener fires on *route*
+      changes, and a category change only reaches it by moving the route —
+      `reasonName`'s `.categoryChange` case in `AudioRouteModule.swift` is what
+      one looks like when it does. A poll cannot miss an edge that moved no
+      route. It runs only while a chime is held, for at most two seconds, and
+      `routeSnapshot` is cheap enough that `probe.ts` uses it as the control in
+      a timing harness.
+    */
+    const from = Date.now();
+    recordEvent(`watch chime held (${settled})`);
+    const timer = setInterval(() => {
+      const waited = Date.now() - from;
+      if (category() === SETTLED) {
+        clearInterval(timer);
+        recordEvent(`watch chime after ${waited}ms`);
+        fire('pause');
+        return;
+      }
+      if (waited < SETTLE_WAIT_MS) return;
+      clearInterval(timer);
+      // **Dropped rather than played late**, which is the rule `chime` already
+      // applies to anything further behind than `CHIME_STALE_MS`: a notice
+      // about the room getting its voices back, arriving seconds after they
+      // came back, sends somebody looking for a change that has already
+      // happened.
+      recordEvent(`watch chime dropped after ${waited}ms`);
+    }, SETTLE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [channelId, status, screening, fire, category]);
 }

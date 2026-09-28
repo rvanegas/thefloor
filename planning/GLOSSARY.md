@@ -40,7 +40,7 @@ caused; the list carries the meaning.
 - **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
-- **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say
+- **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
 - **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, the media path then playing it at full gain
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
@@ -498,6 +498,23 @@ what the sound says is *the room has its voices back*, which is equally true of
 all three ways out, and a listener who cannot see the screen has no use for a
 third cue to tell them apart. See
 `decisions/2026-09-26-the-film-says-when-it-starts-and-stops.md`.
+
+**On the screening device the two chimes are ordered against the audio
+session, and in opposite directions.** A chime is an `AVAudioPlayer` playing
+into the session this app holds, and *watching here* is precisely the state in
+which this app gives that session up — so a chime fired on the edge of a run is
+fired into `playback`, or into a session the `WKWebView` has taken, and is
+lost. The play chime is therefore sounded **first** and the microphone released
+after it, which `useFilmHandover` does by holding the device for the length of
+the sound; the pause chime is sounded **last**, waiting out the ~700ms retake
+that brings `playAndRecord` back. A play chime cannot be deferred — late, it
+announces a film that is already running — and a pause chime that waits more
+than two seconds is thrown away rather than played late. **Nobody else waits**:
+a phone in a pocket is present without watching here and never leaves
+`playAndRecord`, and a *guest* without a speech grant is on `playback`
+throughout, so the gate is *did this device hand its session over* rather than
+*what category is it in*. See
+`decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
 
 **It is not in the media room**, and that is the distinction the word has to
 hold. Nothing is published into LiveKit; each device makes its own sound about

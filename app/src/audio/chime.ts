@@ -143,8 +143,18 @@ export function chimePause(amplitude?: number): void {
   playChime('pause', amplitude);
 }
 
-/** How long a kind occupies the speaker, in milliseconds. */
-function spanMs(kind: ChimeKind): number {
+/**
+ * How long a kind occupies the speaker, in milliseconds.
+ *
+ * **Exported since 2026-09-28, for one caller outside this file.**
+ * `useFilmHandover` holds the microphone open for exactly this long on the
+ * play edge, so that the chime finishes under `playAndRecord` rather than
+ * racing the category change that follows it. Deriving the hold from the sound
+ * it is protecting is the same move `CHIME_STALE_MS` below makes: a constant
+ * chosen beside this one is a constant that has to be remembered, and the beat
+ * has already drifted once under exactly that arrangement.
+ */
+export function spanMs(kind: ChimeKind): number {
   return CHIME_NOTES[kind] * CHIME_NOTE_SECONDS * 1000;
 }
 

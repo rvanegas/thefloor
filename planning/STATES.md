@@ -890,6 +890,19 @@ guest who may not speak, for the same reason: neither has a microphone open. The
 produces them is one sentence: **a session is held if and only if the phone is
 stepped in.**
 
+**Two things are ordered against this state rather than merely reading it, and
+both look like tidying.** The *film chimes* are an `AVAudioPlayer` playing into
+the session this app holds, so on the device *watching here* — the one whose
+session moves for a run — the play chime is sounded before the microphone is
+released and the pause chime waits for `playAndRecord` to come back. The hold
+on the release is `useFilmHandover`, which is why `micNeeded` in `App.tsx`
+carries a term that adds a microphone back for 180ms after a film starts; the
+wait is in `useWatchChime`, which polls `observedCategory`. Neither is
+redundant with the other and neither is a guard against a race — they are
+opposite orderings, because only the chime can afford to be late and only on
+one of the two edges. See
+`decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
+
 **These are our names, not Apple's, and the two that are configurations are
 requests rather than states.** Each is an `AppleAudioConfiguration` bundling a
 category, its options and a mode. We write; iOS disposes.

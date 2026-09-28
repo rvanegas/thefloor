@@ -9,6 +9,7 @@ import { useChannelLink } from './src/state/useChannelLink';
 import { useLockScreen } from './src/state/useLockScreen';
 import { usePresenceChime } from './src/audio/usePresenceChime';
 import { useRecordingChime } from './src/audio/useRecordingChime';
+import { useFilmHandover } from './src/audio/useFilmHandover';
 import { useWatchChime } from './src/audio/useWatchChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
@@ -36,7 +37,12 @@ import { NotificationsView } from './src/ui/NotificationsView';
 import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { Picture } from './src/watch/Picture';
-import { channelHasAudio, microphoneNeeded } from '../core/micNeeded';
+import {
+  channelHasAudio,
+  hasMicrophone,
+  isScreening,
+  microphoneNeeded,
+} from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
 import { colors } from './src/ui/theme';
 import {
@@ -200,13 +206,24 @@ function Root() {
   // Whether this device should be capturing, which since 2026-09-08 is whether
   // it is stepped in — and, for a guest, whether they have been granted the
   // microphone.
+  // **The handover, which is about 180ms and is about being heard.** A film
+  // starting takes this device's session from `playAndRecord` to `playback`,
+  // and a chime is an `AVAudioPlayer` playing into the session this app holds —
+  // so the play chime fired on that same edge would be lost. Holding the
+  // microphone for the length of the sound keeps the session where it can be
+  // heard until it has been. See `audio/useFilmHandover.ts`, which carries the
+  // whole argument and the cost.
+  const handover = useFilmHandover(live ? isScreening(live, me) : false);
+
   const micNeeded = live
-    ? // `filmProbe` is the one thing that may add to this, and it may only add
-      // back what the film subtracted — `hasMicrophone`, never a room somebody
-      // is not in and never a guest without a grant. See `audio/probe.ts` §
-      // *The film probe*; it is off unless somebody with `debug` turned it on
-      // in the audio panel this launch.
-      microphoneNeeded(live, me) || filmProbeKeepsMicrophone(live, me)
+    ? // `filmProbe` and the handover are the two things that may add to this,
+      // and both may only add back what the film subtracted — `hasMicrophone`,
+      // never a room somebody is not in and never a guest without a grant. See
+      // `audio/probe.ts` § *The film probe*; it is off unless somebody with
+      // `debug` turned it on in the audio panel this launch.
+      microphoneNeeded(live, me) ||
+      (handover && hasMicrophone(live, me)) ||
+      filmProbeKeepsMicrophone(live, me)
     : // A guest's microphone is the grant a member said yes to, and holding
       // it muted is still holding it — the same reading `microphoneNeeded`
       // makes of a member who has muted themselves. See `GuestView.you.mic`.
@@ -399,7 +416,7 @@ function Root() {
    * backgrounded, so the room genuinely does fall silent in somebody's hand.
    * See `useWatchChime`.
    */
-  useWatchChime(live);
+  useWatchChime(live, me);
 
   /**
    * Says this device is being attended, which is all a client does about

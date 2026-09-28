@@ -23,6 +23,8 @@
 import {
   CHIME_AMPLITUDE,
   CHIME_BEAT_SECONDS,
+  CHIME_NOTE_SECONDS,
+  CHIME_NOTES,
   type ChimeKind,
 } from '../../modules/audio-route';
 
@@ -183,6 +185,25 @@ export function chime(
     // directory holds itself to.
     return 'refused';
   }
+}
+
+/**
+ * How long a kind occupies the speaker, in milliseconds.
+ *
+ * **Computed from the shared constants rather than from `KINDS` above**, so
+ * that this and its native twin cannot answer differently for the same kind.
+ * The row lengths here and in `CHIME_NOTES` are already required to agree —
+ * that is what the comment on `KINDS` is for — and taking the number from the
+ * one both platforms import is the cheaper way to keep the agreement than a
+ * second table that happens to match.
+ *
+ * Exported for `useFilmHandover`, which runs on both platforms because
+ * `App.tsx` does. The hold it buys is meaningless in a browser, there being no
+ * `AVAudioSession` to hand over, and it is harmless: a browser's chime is
+ * scheduled rather than played late.
+ */
+export function spanMs(kind: ChimeKind): number {
+  return CHIME_NOTES[kind] * CHIME_NOTE_SECONDS * 1000;
 }
 
 /**

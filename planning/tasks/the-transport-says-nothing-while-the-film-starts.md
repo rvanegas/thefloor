@@ -73,6 +73,15 @@ playback may need none — in which case the picture starts at once and the soun
 arrives a second later, and what wants drawing is completely different. Run that
 before drawing anything.
 
+**One thing was added to the resume on purpose, and it is 180ms.** Since
+2026-09-28 the microphone release waits out the play chime, so the sound is
+heard before the session leaves `playAndRecord` rather than being lost into it
+— `useFilmHandover`, and
+decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md
+for why a chime is inaudible otherwise. So the budget above is now a resume
+plus one chime span, which is a seventh of a wait that is not ours to shorten.
+Any phone run measured against the 1,304ms should expect it.
+
 **The jump that used to follow the wait is gone**, which changes what this note
 has left to do. Half the resumes were being seeked half a second after the picture
 came back, because the room's clock ran while the player started; it no longer

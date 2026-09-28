@@ -121,6 +121,33 @@ export function shortName(raw: string): string {
   return stripped[0].toLowerCase() + stripped.slice(1);
 }
 
+/**
+ * The category the session is in **right now**, in the spelling
+ * `AppleAudioConfiguration` uses — or null when it cannot be read.
+ *
+ * **The one reader here that is not diagnostic**, added 2026-09-28.
+ * `useWatchChime` holds the pause chime until this answers `playAndRecord`,
+ * because a chime is an `AVAudioPlayer` playing into the session this app
+ * holds — see `playThroughPlayer` in `AudioRouteModule.swift` — and one played
+ * into a `playback` session that the `WKWebView` has taken is simply lost.
+ *
+ * **Null means fire, never withhold, and that rule belongs to the caller.**
+ * This module degrades to null on Android, under jest, in a browser and in any
+ * build where the local module did not link, which is the whole contract of
+ * `app/modules/audio-route`. A cue silently withheld because a *diagnostic*
+ * could not be read would be the worst outcome available here, and it would
+ * look exactly like the bug this was written to fix.
+ *
+ * The session as it **is**, not as it was asked for: `SessionAudio.asked`
+ * carries the other half and says of itself that nothing may decide anything
+ * from it.
+ */
+export function observedCategory(): string | null {
+  const route = routeSnapshot();
+  if (!route) return null;
+  return shortName(route.category);
+}
+
 /** A line in the panel. */
 export interface DiagnosticRow {
   label: string;
