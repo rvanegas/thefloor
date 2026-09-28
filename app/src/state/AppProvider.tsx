@@ -1337,6 +1337,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const standing = useRef<string | null>(null);
   standing.current = state.standingIn;
   /**
+   * The seats this device is holding, where a socket handler can read them.
+   *
+   * `standing`'s shape and `standing`'s reason. What reads it is the promotion
+   * below: a `channel` snapshot cannot say what it replaced, so the handler
+   * has to know whether this id was a seat a moment ago, and the handlers are
+   * built once and cannot ask `state`.
+   */
+  const seated = useRef<Record<string, GuestView>>({});
+  seated.current = state.seatViews;
+  /**
    * The screen role, where a socket handler can read it.
    *
    * `standing`'s shape and `standing`'s reason: the handlers are built once,
@@ -1407,10 +1417,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         onHome: (home) => setState((s) => ({ ...s, home })),
         // Keyed by the channel the snapshot is about, never by which screen
         // asked for it: whoever is looking picks out the one they want.
-        onChannel: (view) =>
+        onChannel: (view) => {
+          /*
+            **A seat can end upwards, and the membership takes its standing.**
+
+            `pushChannel` answers a watch with a membership where there is one
+            and a seat otherwise — one or the other, never both — so a
+            `channel` snapshot for an id this device holds a seat in is the
+            server saying that seat has closed because the person is now a
+            member of the room they were sitting in. See
+            `Channels.closeSeatFor`, which is reached from `INVITE`.
+
+            **Nothing else says so**, which is the bug this answers. The seat's
+            snapshot was left where it was: `onChannelGone` is the only thing
+            that drops one, and no channel is gone here. So the app went on
+            holding both, and since `App.tsx` reads the seat for the audio
+            whenever no membership is *live* — and a new member is present
+            nowhere — the phone stayed connected to the room on the seat's
+            credential, as a guest the roster no longer had a row for, while
+            the channel screen correctly said *out*. Stepping in then swapped
+            the media identity from the guest to the account, which is a room
+            connection torn down and rebuilt: the audio drops for a moment,
+            for a reason nothing on screen has given.
+
+            **Taking the standing here rather than on the server**, for the
+            reason `enterSeat` gives at the other end of the same walk:
+            standing is a fact about *this device* and the server has no way to
+            know which of an account's sockets was sitting in the seat. The
+            walk in took this device's standing; the walk up gives it back, so
+            somebody who was in the room stays in it.
+
+            **Self-muted unless they were already holding the microphone**,
+            because stepping in is the claim and the room could not hear them a
+            second ago. A guest listening without a grant who is made a member
+            has agreed to be a member, not to be heard — and `INVITE` clears
+            `selfMuted` for the invitee, so without this the promotion opens a
+            microphone nobody asked to open.
+          */
+          const seat = seated.current[view.channel.id];
+          if (seat) {
+            // Cleared before the send rather than waiting for the render, so a
+            // second snapshot arriving in the same tick does not enter twice.
+            const { [view.channel.id]: promoted, ...rest } = seated.current;
+            seated.current = rest;
+            realtime.act(view.channel.id, { type: 'ENTER' });
+            if (seat.you.mic !== 'open') {
+              realtime.act(view.channel.id, {
+                type: 'SET_SELF_MUTE',
+                muted: true,
+              });
+            }
+          }
           setState((s) => ({
             ...s,
             channelViews: { ...s.channelViews, [view.channel.id]: view },
+            // The seat this id was, if it was one. Holding both is the
+            // disagreement `pushChannel` exists to prevent; see above.
+            seatViews: s.seatViews[view.channel.id]
+              ? Object.fromEntries(
+                  Object.entries(s.seatViews).filter(
+                    ([id]) => id !== view.channel.id
+                  )
+                )
+              : s.seatViews,
             // Confirmed: the real rule takes over from here, and it says the
             // same thing for as long as the run lasts.
             recordingAsked:
@@ -1424,7 +1493,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             goneChannels: s.goneChannels.includes(view.channel.id)
               ? s.goneChannels.filter((id) => id !== view.channel.id)
               : s.goneChannels,
-          })),
+          }));
+        },
         // The seat's half of `onChannel`, and deliberately the same shape:
         // keyed by the channel it is about, so whoever is looking picks the
         // one they want. Nothing about recordings — a seat is never told

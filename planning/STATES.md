@@ -376,6 +376,16 @@ from, which is the whole of what makes the phone's implicit step-out work. See
 GLOSSARY.md § *Attention*, and note that it is a *standing* that expires rather
 than a presence: a second device signed into the same account is unaffected.
 
+**A fourth way in, and it is the client's move rather than a fourth event.**
+Since 2026-09-27 a seat that ends *upwards* — its holder asked into the channel
+they were sitting in, so `INVITE` closes the seat — is followed by an ordinary
+`ENTER` sent by the app, self-muted unless that guest was already holding the
+microphone. Somebody who was in the room stays in it. It is the client's
+because standing is a fact about *this device* and the server cannot know which
+of an account's sockets held the seat, which is the same reason `enterSeat`
+steps this device out at the other end of the walk.
+decisions/2026-09-27-a-seat-that-ends-upwards-keeps-the-room.md.
+
 **Where the sources disagree.** The request's list flattens three different
 things that this file keeps apart:
 
