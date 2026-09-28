@@ -4,7 +4,9 @@ import {
   WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
   WATCH_LENGTH_SLACK_MS,
+  WATCH_REPORT_SLACK_MS,
   WATCH_STALL_MS,
+  WATCH_STARTUP_GRACE_MS,
 } from './constants';
 import type { WatchParty, WatchState } from './types';
 
@@ -50,7 +52,13 @@ export function watchPositionMs(watch: WatchState, now: number): number {
   if (watch.status !== 'playing' || watch.startedAt === null) {
     return watch.positionMs;
   }
-  const elapsed = watch.positionMs + (now - watch.startedAt);
+  /*
+    **A start in the future means the film has not moved yet**, and without the
+    floor here the position would run *backwards* for the length of the grace —
+    a scrubber going the wrong way and, worse, a follower seeking every player
+    to a position behind where it already is. See `WATCH_STARTUP_GRACE_MS`.
+  */
+  const elapsed = watch.positionMs + Math.max(0, now - watch.startedAt);
   return Math.min(elapsed, watch.party?.durationMs ?? elapsed);
 }
 
@@ -208,7 +216,15 @@ export function watchPlay(
     ...watch,
     status: 'playing',
     positionMs: atEnd ? 0 : watch.positionMs,
-    startedAt: now,
+    /*
+      **In the future, by `WATCH_STARTUP_GRACE_MS`, because no player starts at
+      the press.** The position holds still until it arrives — see
+      `watchPositionMs` — so a player that takes a second to come back is in
+      step when it does, rather than a second behind a clock that ran without
+      it. `watchStarted` replaces this with the real moment as soon as any
+      player says it is running, and the first to say so wins.
+    */
+    startedAt: now + WATCH_STARTUP_GRACE_MS,
     // Forced on rather than merely locked: a run that cannot be unmuted must
     // also not begin audible, or the first thing an enforced party does is
     // publish a room full of microphones pointed at their own screens.
@@ -216,6 +232,52 @@ export function watchPlay(
     enforced: screenInTheRoom,
     failure: null,
   };
+}
+
+/**
+ * A player says it is running, and the room's clock starts from there.
+ *
+ * **The first report wins and the rest are ignored**, which needs no flag: the
+ * only reports this accepts are ones that arrive while the start is still in the
+ * future, and the first one accepted puts it in the past. Everything after that
+ * is a report about a run already under way — a film that stalled and
+ * recovered, a screen that joined late — and the room's clock is not theirs to
+ * move.
+ *
+ * **The clock is set so that the player that spoke is in step, not so that it is
+ * `now`.** A player reports the position it is actually at, which is usually the
+ * banked one and occasionally a little past it: an embed that rounds to a
+ * keyframe, or one that played a frame before the message left. Setting
+ * `startedAt` to `now` would leave that difference as drift for everybody;
+ * subtracting it means the room agrees with the player it heard from.
+ *
+ * **This is also where the pause's error is repaired**, which is the mirror of
+ * the one the grace fixes: `watchPause` banks what the clock said, and a player
+ * stops 350 to 1,100ms after being told to, so it rests further into the film
+ * than the room's number. A player reporting where it really is pulls the room to
+ * agree with it — which is why `WATCH_REPORT_SLACK_MS` and not the drift
+ * tolerance. A guard tight enough to refuse that difference refuses the repair,
+ * and the follower then seeks the player *backwards* to a position it has already
+ * passed; at a pause latency of 2.3 seconds that was nine instructions and a
+ * picture that never settled.
+ *
+ * **A wild position is still refused rather than trusted.** Nothing here can
+ * check that a position is the film's, so the slack is bounded: further out than
+ * that is an advert in the frame or a player showing something else, and taking
+ * it would move the whole room to wherever that was.
+ */
+export function watchStarted(
+  watch: WatchState,
+  now: number,
+  positionMs: number
+): WatchState {
+  if (!watch.party) return watch;
+  if (watch.status !== 'playing' || watch.startedAt === null) return watch;
+  // Already running: the grace expired, or another player got here first.
+  if (now >= watch.startedAt) return watch;
+  const ahead = positionMs - watch.positionMs;
+  if (Math.abs(ahead) > WATCH_REPORT_SLACK_MS) return watch;
+  return { ...watch, startedAt: now - Math.max(0, ahead) };
 }
 
 export function watchPause(watch: WatchState, now: number): WatchState {
@@ -692,54 +754,21 @@ export function followInstructions(
       `WATCH_STALL_MS` rather than the storm the silence was written against.
     */
     /*
-      **A player that is about to be started is positioned first, and that is
-      cheaper than correcting it afterwards.**
+      **A player being started is no longer positioned as well, and that is the
+      grace's doing.**
 
-      Measured on build 305, ten resumes: the picture comes back 1.3 seconds
-      after the press, the transport's wall clock has run the whole time, and
-      the player therefore begins 1.3 seconds behind the room. Half of those
-      resumes then drifted past `WATCH_DRIFT_MS` and were seeked about half a
-      second later — a jump — and the other half simply stayed a second behind
-      for the rest of the film, which on two phones in one room is worse than
-      the jump. Alternating, because a corrected resume ends exactly in step and
-      leaves the next one just inside the tolerance.
+      It was, for about an hour on 2026-09-28: the room's clock ran from the
+      press, so a player that took 1.3 seconds to come back began that far
+      behind and the seek went out with the play to put it where the room would
+      be. `WATCH_STARTUP_GRACE_MS` removes the premise — the clock does not run
+      until a player is running — so the banked position *is* where the room is,
+      a starting player is in step by construction, and a lead here would skip a
+      second of film to correct a drift that no longer exists.
 
-      So the position goes out *with* the play rather than a correction later.
-      What it costs is the same second of film either way: today's correction
-      skips it too, only later and visibly. What it buys is that every device
-      lands where the room is, on the first attempt, once.
-
-      **`paused` and not `unstarted`, deliberately.** A fresh party starts at
-      zero with a clock that has barely moved — the cold start is 705ms — and
-      leading it would skip the opening of the film to correct a drift nothing
-      would have noticed. The case this is for is a resume, which is the case
-      that was measured.
-
-      The alternative was to stop the room's clock running while players start,
-      which loses no film at all and is a change to what the transport *means*
-      on several devices at once — whose player defines the start. That wants a
-      design and not a patch. See
-      planning/decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md.
+      What survives is the lead on the correction below, which is for a player
+      that has fallen behind while playing. That drift is real, and a seek to
+      where the room is now would still land late.
     */
-    /*
-      **Started first and positioned second, which is the opposite of the
-      correction below and is not a style choice.**
-
-      `seekTo` leaves a paused player paused — YouTube's own rule, and the
-      harness models it — so a seek issued ahead of the play does the
-      positioning and then the play has to undo the pause anyway; worse, a play
-      landing while the seek is in flight is a play that may be dropped, which
-      is a party whose picture never starts. Playing first and then seeking is
-      safe under both readings: the player is running when the position arrives,
-      and a seek at a player that is already going is the one thing this file
-      has always done.
-    */
-    if (player.state === 'paused' && playerLagMs > 0 && !settling) {
-      return [
-        { do: 'play' },
-        { do: 'seek', positionMs: want.positionMs + playerLagMs },
-      ];
-    }
     if (adrift && !settling) {
       // **Ahead of the room by what this player takes to get there**, which is
       // the whole of `playerLagMs`. Correcting to where the room is now is

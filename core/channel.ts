@@ -45,6 +45,7 @@ import {
   watchPause,
   watchPlay,
   watchSeek,
+  watchStarted,
 } from './watch';
 import {
   canPauseOrStopRecording,
@@ -2848,6 +2849,20 @@ function reduceAction(
           typeof action.title === 'string'
             ? learnTitle(named, action.title)
             : named,
+      };
+    }
+
+    case 'WATCH_STARTED': {
+      // Being in the room and nothing more, which is `WATCH_READY`'s standing
+      // and for the same reasons — it is a report about the film the room is
+      // watching, from a device that has a player. What it may change is one
+      // number on a run already under way, and `watchStarted` is where every
+      // guard about *which* number lives: the first report only, inside the
+      // grace only, and only a position that is this film's.
+      if (!inRoom(state, action.userId)) return state;
+      return {
+        ...state,
+        watch: watchStarted(state.watch, now, action.positionMs),
       };
     }
 

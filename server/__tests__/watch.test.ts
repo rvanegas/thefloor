@@ -440,6 +440,14 @@ describe('across a restart', () => {
       title: 'A Film',
     } as never);
     app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PLAY' });
+    // The report a player sends when it actually starts, which is what starts
+    // the room's clock: `watchPlay` banks a start WATCH_STARTUP_GRACE_MS ahead
+    // because no player begins at the press. Without it this run would be two
+    // seconds short of the half minute it is meant to have played.
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'WATCH_STARTED',
+      positionMs: 0,
+    } as never);
     clock += 30_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'WATCH_PAUSE' });
 

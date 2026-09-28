@@ -96,6 +96,7 @@ export function WatchPlayer({
   watch,
   channelId,
   onFilm,
+  onStarted,
   onRefusal: _onRefusal,
   fill = false,
 }: {
@@ -107,6 +108,17 @@ export function WatchPlayer({
    */
   /** See the native player: how long the film runs, and what it is called. */
   onFilm: (durationMs: number, title: string | null) => void;
+  /**
+   * That this player has begun, and where. See the native player, which carries
+   * the whole of why the transport wants to be told.
+   *
+   * **Implemented here as well as there, and not as a courtesy.** The room's clock
+   * waits `WATCH_STARTUP_GRACE_MS` for somebody to say a film is running; a web
+   * viewer that said nothing would make every party it watched sit out the whole
+   * grace, which is the one case where a party of web screens would be slower
+   * than a party of phones.
+   */
+  onStarted?: (positionMs: number) => void;
   /**
    * Taken and never called, this player having no `onError` of its own: a
    * refusal in a browser shows as YouTube's own message inside the frame and
@@ -124,6 +136,15 @@ export function WatchPlayer({
   const player = useRef<YouTubePlayer | null>(null);
   const [port, setPort] = useState<PlayerPort | null>(null);
   const told = useRef(false);
+  /**
+   * Where the player's callbacks can reach it without the player being rebuilt.
+   *
+   * The effect below lists `videoId` and nothing else on purpose — see the note
+   * at its end about `onFilm` — so anything it calls has to be read through a ref
+   * or it would be a film torn down on every render of the screen above.
+   */
+  const reportStarted = useRef(onStarted);
+  reportStarted.current = onStarted;
   const videoId = watch.party?.videoId ?? null;
 
   useKeepAwake(`watch:${channelId}`, watch.status === 'playing');
@@ -186,6 +207,19 @@ export function WatchPlayer({
             });
           },
           onStateChange: () => {
+            /*
+              **The report, before the duration below.** `read` is synchronous
+              here — there is no bridge and no poll — so this callback is the
+              earliest this application can know, and the only state worth
+              reporting is the one the transport is waiting for. A transition
+              into anything else is not this report's business; the reducer
+              ignores all but the first in any case.
+            */
+            const started = player.current;
+            if (started && started.getPlayerState() === 1) {
+              const at = started.getCurrentTime?.();
+              reportStarted.current?.(typeof at === 'number' ? at * 1000 : 0);
+            }
             // The duration is not known at ready and turns up whenever the
             // player learns it, which is why this is read here rather than
             // once. Said once per party — the channel keeps the first answer.

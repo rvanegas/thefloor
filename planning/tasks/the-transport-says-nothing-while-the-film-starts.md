@@ -73,14 +73,13 @@ playback may need none — in which case the picture starts at once and the soun
 arrives a second later, and what wants drawing is completely different. Run that
 before drawing anything.
 
-**And there is a second thing to draw, which this note did not know about.** Four
-of the ten resumes were seeked half a second after the picture started, being over
-`WATCH_DRIFT_MS` by then — so what somebody sees is the wait *and then a jump*. The
-jump is a defect rather than a drawing problem and has its own entry,
-decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md; but until it is fixed, a
-spinner that ends when the picture starts hands attention straight to it. Worth
-knowing which of the two is being covered before choosing where the pending state
-ends.
+**The jump that used to follow the wait is gone**, which changes what this note
+has left to do. Half the resumes were being seeked half a second after the picture
+came back, because the room's clock ran while the player started; it no longer
+does — decisions/2026-09-28-the-rooms-clock-starts-when-a-player-does.md. So the
+wait is the whole of the remaining complaint, and a spinner that ends when the
+picture starts now ends on a picture that is in step rather than handing attention
+to a jump.
 
 ## The phone run, and what to read out of it
 

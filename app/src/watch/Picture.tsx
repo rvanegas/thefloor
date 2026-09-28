@@ -484,6 +484,9 @@ export function Picture({
           onFilm={(durationMs, title) =>
             app.act(channelId, { type: 'WATCH_READY', durationMs, title })
           }
+          onStarted={(positionMs) =>
+            app.act(channelId, { type: 'WATCH_STARTED', positionMs })
+          }
           onRefusal={(message) => setRefused(message !== null)}
         />
       </WatchDock>

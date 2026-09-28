@@ -312,6 +312,11 @@ const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'WATCH_PAUSE',
   'WATCH_SEEK',
   'WATCH_READY',
+  // A report, like `WATCH_READY` above and unlike `WATCH_FAILED`: what a client
+  // can do by sending one is agree with the transport about when a run it did
+  // not start actually began — inside a two-second window, once. See
+  // `watchStarted`.
+  'WATCH_STARTED',
   'WATCH_HERE',
   'SET_WATCH_MUTE',
   'PASTE_CLIP',

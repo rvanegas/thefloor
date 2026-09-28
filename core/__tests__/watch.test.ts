@@ -18,7 +18,12 @@ import {
   partyMuteRequested,
   reduce,
 } from '../channel';
-import type { ChannelAction, ChannelState, PlaybackTrack } from '../types';
+import type {
+  ChannelAction,
+  ChannelState,
+  PlaybackTrack,
+  UserId,
+} from '../types';
 
 const A = 'user-a';
 const B = 'user-b';
@@ -49,6 +54,28 @@ function apply(
   steps: Array<[ChannelAction, number]>
 ): ChannelState {
   return steps.reduce((s, [action, at]) => reduce(s, action, at), state);
+}
+
+
+/**
+ * A press of Play and the report a player sends when it actually starts.
+ *
+ * **Both, because the transport needs both.** `watchPlay` banks a start
+ * `WATCH_STARTUP_GRACE_MS` in the future — no player begins at the press, and
+ * the measured wait is 1.3 seconds — and the first player to say it is running
+ * pulls that start to the truth. A test that presses without reporting is
+ * testing the deadline, which is a real state with its own tests below and not
+ * what most of these are about.
+ */
+function play(
+  userId: UserId,
+  at: number,
+  positionMs = 0
+): Array<[ChannelAction, number]> {
+  return [
+    [{ type: 'WATCH_PLAY', userId }, at],
+    [{ type: 'WATCH_STARTED', userId, positionMs }, at],
+  ];
 }
 
 /** A party loaded by A, with its length reported as a follower's would be. */
@@ -207,13 +234,13 @@ describe('starting a party', () => {
 
 describe('the transport', () => {
   it('derives the position from elapsed wall clock while playing', () => {
-    const s = reduce(watching(), { type: 'WATCH_PLAY', userId: A }, T0);
+    const s = apply(watching(), play(A, T0));
     expect(watchPositionMs(s.watch, T0 + 30_000)).toBe(30_000);
   });
 
   it('banks the position on pause and does not move after it', () => {
     const s = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 30_000],
     ]);
     expect(s.watch.positionMs).toBe(30_000);
@@ -276,7 +303,7 @@ describe('the transport', () => {
 
   it('comes to rest where it got to when it fails', () => {
     const s = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'WATCH_FAILED', reason: 'Embedding is disabled.' }, T0 + 20_000],
     ]);
     expect(s.watch.status).toBe('paused');
@@ -314,7 +341,7 @@ describe('who may drive it', () => {
 
   it('does not pause the video — a claim confers control, not silence', () => {
     const s = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'CLAIM_FLOOR', userId: B }, T0 + 5_000],
     ]);
     expect(s.watch.status).toBe('playing');
@@ -810,7 +837,7 @@ describe('muting the room', () => {
 describe('an empty channel', () => {
   it('pauses a playing party when the last person steps out', () => {
     const s = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
     ]);
@@ -830,7 +857,7 @@ describe('an empty channel', () => {
 
   it('leaves it where it was for whoever comes back', () => {
     const emptied = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'STEP_OUT', userId: B }, T0 + 20_000],
     ]);
@@ -841,7 +868,7 @@ describe('an empty channel', () => {
 
   it('comes to rest rather than vanishing when the channel ends', () => {
     const s = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'LEAVE_CHANNEL', userId: B }, T0 + 5_000],
       [{ type: 'DELETE_CHANNEL', userId: A }, T0 + 10_000],
     ]);
@@ -881,7 +908,7 @@ describe('a party playing to an empty room', () => {
   /** Paused, not stopped: the evening survives being walked out of. */
   it('comes to rest where the room left off, keeping the party', () => {
     const emptied = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
+      ...play(A, T0),
       [{ type: 'STEP_OUT', userId: A }, T0 + 10_000],
       [{ type: 'STEP_OUT', userId: B }, T0 + 10_000],
     ]);

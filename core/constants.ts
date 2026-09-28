@@ -325,6 +325,63 @@ export const WATCH_STALL_MS = 10_000;
 export const WATCH_COLD_NUDGE_MS = 4_000;
 
 /**
+ * How long the transport waits, after a press of Play, before its clock runs.
+ *
+ * **The room's clock used to start at the press, and no player can.** Measured
+ * on build 304: a resume's picture comes back 1,304ms after the press, almost
+ * all of it `AVAudioSession` renegotiating, and the wall clock ran through every
+ * millisecond of it — so each player began that far behind the room and was
+ * either corrected, which is a jump about half a second after the picture, or
+ * left behind for the length of the film, which on two phones in one room is
+ * two phones disagreeing audibly. Alternating between the two, because a
+ * corrected resume ends exactly in step and leaves the next one on the boundary.
+ * See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
+ *
+ * So `watchPlay` banks a start that is *in the future* and the position holds
+ * still until it arrives. Nothing is skipped and nothing needs correcting: a
+ * player that takes a second to start is in step when it does.
+ *
+ * **Two seconds, which is deliberately longer than the wait it covers.** The
+ * grace is not an estimate of how long a player takes — `watchStarted` replaces
+ * it with the real thing the moment a player says it is running, and the first
+ * to say so wins. It is the deadline for the case where nobody says anything:
+ * a wedged player, a backgrounded app, a refused video, an older build that
+ * does not send the report at all. Longer is therefore safer, because it leaves
+ * more room for a real report to win, and it costs only that the scrubber
+ * starts a beat late in a room where nothing reported. Two seconds is
+ * comfortably past the 1,304ms measured and comfortably short of anything
+ * somebody would sit through wondering.
+ *
+ * A grace that has expired is indistinguishable from one that never ran, which
+ * is what makes *first to report* need no flag: a report arriving after the
+ * clock has started is a report about a run already under way, and is ignored.
+ */
+export const WATCH_STARTUP_GRACE_MS = 2_000;
+
+/**
+ * How far from the banked position a player's report may be and still be
+ * believed.
+ *
+ * **It has to cover the pause's own error, which is the mirror of the one the
+ * grace fixes.** `watchPause` banks what the room's clock says, and a player
+ * stops 350 to 1,100ms after being told to — measured on build 305 — so it comes
+ * to rest that much *further into the film* than the number the room kept. The
+ * play-side report is what quietly repairs that: a player reporting where it
+ * really is pulls the room's clock to agree with it, and a guard tight enough to
+ * refuse the difference would refuse the repair and leave the follower to seek
+ * the player *backwards* instead. Which it did, at a pause latency of 2.3
+ * seconds: nine instructions and a picture that never settled.
+ *
+ * **Five seconds, and bounded because a report is a claim.** It must clear a
+ * slow pause plus a slow start with room to spare; it must not be unbounded,
+ * because nothing on the server can check that the position a client sends is
+ * the film's. What stands between the two is `showingTheFilm` on the client,
+ * which is the rule about adverts, and this, which is the rule about how far
+ * wrong a report may be before it is somebody else's video.
+ */
+export const WATCH_REPORT_SLACK_MS = 5_000;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the

@@ -275,6 +275,7 @@ export function WatchPlayer({
   watch,
   channelId,
   onFilm,
+  onStarted,
   onRefusal,
   fill = false,
 }: {
@@ -286,6 +287,16 @@ export function WatchPlayer({
    * keeping the first answer for both.
    */
   onFilm: (durationMs: number, title: string | null) => void;
+  /**
+   * That this player has begun, and where.
+   *
+   * **The transport banks its start two seconds ahead precisely so that this can
+   * pull it back to the truth** — see `WATCH_STARTUP_GRACE_MS`. Reported on every
+   * transition into `playing` rather than once per run, because this component
+   * has no idea what a run is: the reducer keeps the first report and ignores the
+   * rest, which is one rule in one place instead of two halves that can disagree.
+   */
+  onStarted?: (positionMs: number) => void;
   /**
    * That this film is not going to play, said upwards.
    *
@@ -360,6 +371,12 @@ export function WatchPlayer({
     verdict. `told` is the pattern one field over: the callback is rebuilt on
     every render of the screen above, so it is deliberately not a dependency.
   */
+  /**
+   * Where `onMessage` can read it without being rebuilt on every render of the
+   * screen above — the pattern `reportRefusal` below is, and for the same reason.
+   */
+  const reportStarted = useRef(onStarted);
+  reportStarted.current = onStarted;
   /** The refusal, where `recover` can read it without being rebuilt. */
   const refusedRef = useRef(refused);
   refusedRef.current = refused;
@@ -440,6 +457,13 @@ export function WatchPlayer({
       const before = reading.current?.what.state ?? null;
       reading.current = { at: Date.now(), what };
       if (what.state !== before) {
+        // The room's clock starts from the first of these it hears. Sent from
+        // beside the log line rather than from a second place that watches the
+        // same readings, so a line in the log and a report on the wire cannot
+        // disagree about when this player began.
+        if (what.state === 'playing') {
+          reportStarted.current?.(what.positionMs ?? 0);
+        }
         recordEvent(
           `watch player ${what.state} at ` +
             // Two decimals, for the reason `drive.ts` gives where it reports

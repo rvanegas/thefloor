@@ -380,8 +380,26 @@ describe('following the transport', () => {
     durationMs: number | null = LENGTH
   ): PlayerReading => ({ state, positionMs, durationMs, videoId: VIDEO });
 
-  const playing = (at = T0) =>
-    apply(watching(at), [[{ type: 'WATCH_PLAY', userId: A }, at]]).watch;
+  /**
+   * A run under way, with a player having reported that it started.
+   *
+   * **The report matters as much as the press.** `watchPlay` banks a start
+   * `WATCH_STARTUP_GRACE_MS` in the future, because no player begins at the
+   * press — so a transport that has only been pressed is one whose clock has
+   * not started, and every drift measured against it would be measured against
+   * a position that is standing still. That is a real state and it has its own
+   * tests; it is not the state these are about.
+   */
+  const playing = (at = T0) => {
+    const pressed = apply(watching(at), [
+      [{ type: 'WATCH_PLAY', userId: A }, at],
+    ]);
+    return reduce(
+      pressed,
+      { type: 'WATCH_STARTED', userId: A, positionMs: pressed.watch.positionMs },
+      at
+    ).watch;
+  };
 
   it('starts a player that is not playing', () => {
     expect(
@@ -417,48 +435,28 @@ describe('following the transport', () => {
   });
 
   /*
-    **A player being started is positioned with the play, not corrected after
-    it.** Measured on build 305: a resume's picture comes back 1.3 seconds after
-    the press and the transport's clock has run the whole time, so the player
-    began that far behind the room — half of them drifting past the tolerance
-    and jumping about half a second later, the rest simply staying a second
-    behind, which on two phones in one room is worse than the jump.
+    **A player being started needs no lead, and that is the grace's doing.**
+
+    For about an hour on 2026-09-28 it did: the room's clock ran from the press,
+    so a player that took 1.3 seconds to come back began that far behind and the
+    seek went out with the play. `WATCH_STARTUP_GRACE_MS` removes the premise —
+    the clock does not run until a player is running — so the banked position is
+    where the room is and a starting player is in step by construction.
   */
-  it('positions a player it is about to start, ahead by its own cost', () => {
-    const at = T0 + 30_000;
+  it('says only play to a paused player, however slow it is known to be', () => {
     expect(
-      followInstructions(playing(), reading('paused', 30_000), at, 0, false, 1_150)
-    ).toEqual([
-      { do: 'play' },
-      { do: 'seek', positionMs: 31_150 },
-    ]);
-  });
-
-  it('plays before it seeks, a seek leaving a paused player paused', () => {
-    // YouTube's own rule, and the reason the order here is the opposite of the
-    // correction's: positioning first would leave the play to undo the pause,
-    // and a play landing while the seek is in flight can be dropped altogether
-    // — which is a party whose picture never starts.
-    const at = T0 + 30_000;
-    const [first, second] = followInstructions(
-      playing(),
-      reading('paused', 30_000),
-      at,
-      0,
-      false,
-      700
-    );
-    expect(first).toEqual({ do: 'play' });
-    expect(second.do).toBe('seek');
-  });
-
-  it('does not position a player that has never started', () => {
-    // A fresh party begins at zero with a clock that has barely moved — the
-    // cold start is 705ms — so leading it would skip the opening of the film to
-    // correct a drift nobody would have seen.
-    expect(
-      followInstructions(playing(), reading('unstarted', 0), T0, 0, false, 1_150)
+      followInstructions(playing(), reading('paused', 0), T0, 0, false, 1_150)
     ).toEqual([{ do: 'play' }]);
+  });
+
+  it('still leads a correction, a player behind mid-film being really behind', () => {
+    // The drift that survives the grace: a player that fell behind while
+    // playing. A seek to where the room is *now* would land its own latency
+    // late, which is what left a slow player seeking once a fuse for ever.
+    const at = T0 + 30_000;
+    expect(
+      followInstructions(playing(), reading('playing', 0), at, 0, false, 700)
+    ).toEqual([{ do: 'seek', positionMs: 30_700 }]);
   });
 
   it('leads nothing when nothing has been measured', () => {
@@ -565,6 +563,9 @@ describe('following the transport', () => {
   it('leaves an ended player alone while the channel agrees it is over', () => {
     const ended = apply(watching(), [
       [{ type: 'WATCH_PLAY', userId: A }, T0],
+      // Reported, so the room's clock reaches the film's end when the film
+      // does rather than two seconds after it. See `WATCH_STARTUP_GRACE_MS`.
+      [{ type: 'WATCH_STARTED', userId: A, positionMs: 0 }, T0],
     ]).watch;
     const at = LENGTH;
     expect(
@@ -583,10 +584,15 @@ describe('following the transport', () => {
   });
 
   it('pauses first and corrects second', () => {
-    const paused = apply(watching(), [
+    const pressed = apply(watching(), [
       [{ type: 'WATCH_PLAY', userId: A }, T0],
-      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 60_000],
-    ]).watch;
+      [{ type: 'WATCH_STARTED', userId: A, positionMs: 0 }, T0],
+    ]);
+    const paused = reduce(
+      pressed,
+      { type: 'WATCH_PAUSE', userId: A },
+      T0 + 60_000
+    ).watch;
     expect(
       followInstructions(paused, reading('playing', 0), T0 + 60_000)
     ).toEqual([{ do: 'pause' }, { do: 'seek', positionMs: 60_000 }]);
@@ -757,9 +763,17 @@ describe('what the channel wants a player to be', () => {
   });
 
   it('is the pair, and the position is the shared clock’s', () => {
-    const watch = apply(watching(), [
+    const pressed = apply(watching(), [
       [{ type: 'WATCH_PLAY', userId: A }, T0],
-    ]).watch;
+    ]);
+    // With a player having said it started — otherwise the clock has not
+    // started and the pair below is the one the grace asks for, which is its
+    // own test.
+    const watch = reduce(
+      pressed,
+      { type: 'WATCH_STARTED', userId: A, positionMs: 0 },
+      T0
+    ).watch;
     expect(desiredFor(watch, T0 + 5_000)).toEqual({
       status: 'playing',
       positionMs: 5_000,
@@ -787,7 +801,17 @@ describe('a channel with a film on', () => {
       T0
     );
 
-  const playingFilm = () => reduce(withFilm(), { type: 'WATCH_PLAY', userId: A }, T0);
+  const playingFilm = () => {
+    // Pressed *and* reported: the film in these tests runs to its end, and a
+    // transport whose clock never started would reach it two seconds late. See
+    // `WATCH_STARTUP_GRACE_MS`.
+    const pressed = reduce(withFilm(), { type: 'WATCH_PLAY', userId: A }, T0);
+    return reduce(
+      pressed,
+      { type: 'WATCH_STARTED', userId: A, positionMs: 0 },
+      T0
+    );
+  };
 
   it('allows a floor claim while it sits paused, and refuses one while it runs', () => {
     expect(canClaimFloor(withoutFilm(), A, T0)).toBe(true);

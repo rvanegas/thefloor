@@ -104,12 +104,17 @@ starts. The harness models that rule and caught it.
 clock that has barely moved, the cold start being 705ms, so leading it would skip
 the opening of the film to correct a drift nobody would have seen.
 
-**What was not done, and it is the better answer if it can be had.** None of this
-would be needed if the room's clock did not run while players start — `watchPlay`
-could begin it when a player first reports playing rather than at the press, and
-then no film is skipped and no correction is needed at all. It changes what the
-transport means on several devices at once, whose player defines the start being
-the whole question, and that wants a design rather than a patch.
+**And then it was done, the same night**, which retires the section above rather
+than completing it: the room's clock no longer runs while players start, so a
+starting player is in step by construction and there is nothing to lead. The seek
+at the start lasted about an hour. See
+2026-09-28-the-rooms-clock-starts-when-a-player-does.md, where *whose player
+defines the start* is answered — the first to report, with a two-second deadline
+behind it.
+
+**What survives from this entry is the lead on a mid-film correction**, where a
+player really has fallen behind and a seek to where the room is now would still
+land its own latency late.
 
 ## What is still wrong in the log
 

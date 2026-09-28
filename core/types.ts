@@ -1147,6 +1147,21 @@ export type ChannelAction =
       title?: string | null;
     }
   /**
+   * A follower's player says it has started, and where it started.
+   *
+   * **A fact rather than a control**, the same standing `WATCH_READY` has: it
+   * grants nobody anything and cannot start, stop or move a film. What it can do
+   * is settle *when* a run that has already been started actually began — the
+   * transport banks a start `WATCH_STARTUP_GRACE_MS` in the future precisely so
+   * that the first player to come back can pull it to the truth. See
+   * `watchStarted`, which ignores everything after the first and anything whose
+   * position is not the film's.
+   *
+   * Sent by the same component that sends `WATCH_READY`, on the same reasoning
+   * about which devices have a player at all.
+   */
+  | { type: 'WATCH_STARTED'; userId: UserId; positionMs: number }
+  /**
    * This account's device in the room is, or is no longer, the screen.
    *
    * A fact about a device rather than a control over the channel, so it is
