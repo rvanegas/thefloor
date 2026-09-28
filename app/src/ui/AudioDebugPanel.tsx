@@ -17,6 +17,9 @@ import {
   PROBE_GROUPS,
   WRITE_PROBES,
   filmProbeEngaged,
+  mutedStartEngaged,
+  setMutedStart,
+  subscribeMutedStart,
   restartAudioSession,
   runProbe,
   setFilmProbe,
@@ -130,8 +133,13 @@ export function AudioDebugPanel({
   // Subscribed rather than read once: `App.tsx` holds the same subscription, and
   // a label that disagreed with what the flag is doing is worse than no label.
   const [filmProbe, setFilmProbeLabel] = useState(filmProbeEngaged());
+  const [mutedStart, setMutedStartLabel] = useState(mutedStartEngaged());
   useEffect(
     () => subscribeFilmProbe(() => setFilmProbeLabel(filmProbeEngaged())),
+    []
+  );
+  useEffect(
+    () => subscribeMutedStart(() => setMutedStartLabel(mutedStartEngaged())),
     []
   );
 
@@ -296,6 +304,30 @@ export function AudioDebugPanel({
             <Tap
               label={filmProbe ? '■ on — release the microphone again' : '▶ off — keep the microphone'}
               onPress={() => setFilmProbe(!filmProbe, recordEvent)}
+            />
+          </View>
+
+          {/*
+            **The second half of the same question**, and the one with a fix on
+            the end of it: the film's second is `WKWebView` taking the audio
+            session, and silent playback may not need one. Kept beside the film
+            probe because they are read together — one says whose session it is
+            and this one says whether it is needed at all.
+          */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Muted start — begin the film silent
+            </Text>
+            <Text style={styles.note}>
+              Turn on, then resume a paused party. Watch for watch player
+              buffering arriving in ~150ms instead of ~1,200, and for watch
+              player unmuted after it. If the picture is quick and the sound is
+              late, that is the trade working; if the unmute drags the picture
+              with it, it is not.
+            </Text>
+            <Tap
+              label={mutedStart ? '■ on — begin with sound again' : '▶ off — begin the film silent'}
+              onPress={() => setMutedStart(!mutedStart, recordEvent)}
             />
           </View>
 

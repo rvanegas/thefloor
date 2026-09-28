@@ -1,6 +1,7 @@
 import {
   MAX_FILM_TITLE,
   MAX_WATCH_HISTORY,
+  WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
   WATCH_LENGTH_SLACK_MS,
   WATCH_STALL_MS,
@@ -550,7 +551,44 @@ export function followInstructions(
    *
    * `drive.ts` sets it, being the only thing that can see the want change.
    */
-  urgent = false
+  urgent = false,
+  /**
+   * How long this player took to obey the last thing it was told, or 0 when
+   * nothing has been measured yet.
+   *
+   * **The correction below aims where the room *will* be, and this is how far
+   * ahead that is.** A seek is not instant — 400 to 700ms on a phone, and a
+   * play from a pause is 1.2 seconds — and the transport is a wall clock that
+   * runs the whole time, so a seek to where the room is now lands exactly this
+   * far behind it. Which is how a player came to be corrected to a position it
+   * was already going to be late for: see
+   * planning/decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md, where a
+   * player slower than `WATCH_DRIFT_MS` could never arrive at all.
+   *
+   * Measured rather than assumed, and it has to be: it is a property of one
+   * embed on one phone on one connection, and the same rule runs on three
+   * platforms. `drive.ts` keeps the reading, this decides what to do with it.
+   *
+   * **It is a lead on the seek and nothing else.** No tolerance is widened —
+   * every device plays the film's own audio, so two screens in a room a second
+   * apart is worse than one that jumps once and then agrees.
+   */
+  playerLagMs = 0,
+  /**
+   * Whether this player's buffering began from a standstill rather than
+   * mid-film.
+   *
+   * **The two are the same reading and not the same event.** A film that
+   * stalls while playing is filling a buffer it will finish filling, and the
+   * patience below is written for it. A player that was told to play, went to
+   * `buffering` and has stayed there never started at all — nothing is on its
+   * way, and ten seconds of waiting to find out is ten seconds of a still
+   * frame while the room watches the film. Seen on build 304: a Play pressed
+   * inside the pause before it wedged a player for 10.5 seconds until the
+   * stall rule rescued it, thirteen seconds of film behind the room. See
+   * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
+   */
+  fromStandstill = false
 ): WatchInstruction[] {
   const want = desiredFor(watch, now);
   if (!want) return [];
@@ -654,9 +692,42 @@ export function followInstructions(
       `WATCH_STALL_MS` rather than the storm the silence was written against.
     */
     if (adrift && !settling) {
-      instructions.push({ do: 'seek', positionMs: want.positionMs });
+      // **Ahead of the room by what this player takes to get there**, which is
+      // the whole of `playerLagMs`. Correcting to where the room is now is
+      // what left a slow player permanently behind and seeking once a fuse for
+      // ever; the lead is what makes one correction enough.
+      instructions.push({
+        do: 'seek',
+        positionMs: want.positionMs + playerLagMs,
+      });
     }
     if (player.state !== 'playing' && !settling) {
+      instructions.push({ do: 'play' });
+    }
+    /*
+      **A player that never started is told again, and nothing is thrown away.**
+
+      `settling` is right about a buffering player and wrong about a wedged
+      one, and until the ten seconds are up the two are the same reading. So
+      this asks the one question that separates them — did it come from a
+      standstill — and answers it with the cheapest instruction there is: the
+      same `play` again, with no seek beside it. A repeated `play` cannot
+      discard a part-filled buffer, which is the only reason the long window
+      exists; if the player really was on its way it arrives regardless and
+      this cost a message.
+
+      **`WATCH_STALL_MS` is untouched and still the backstop.** A stall that
+      outlives that gets the seek it always got, buffer and all, because by
+      then the buffer is not worth protecting. This is the earlier, gentler
+      knock — one per window, `drive.ts` restarting the clock whenever it says
+      anything.
+    */
+    if (
+      settling &&
+      fromStandstill &&
+      bufferingForMs >= WATCH_COLD_NUDGE_MS &&
+      instructions.length === 0
+    ) {
       instructions.push({ do: 'play' });
     }
     return instructions;

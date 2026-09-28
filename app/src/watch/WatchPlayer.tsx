@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { recordEvent } from '../audio/diagnostics';
+import { mutedStartEngaged } from '../audio/probe';
 import type { WatchState } from '../../../core/types';
 import { showingTheFilm } from '../../../core/watch';
 import type { PlayerReading, PlayerState } from '../../../core/watch';
@@ -105,6 +106,8 @@ function page(videoId: string): string {
 <script>
 (function(){
   var player = null;
+  /** Whether this player was muted by us and owes itself an unmute. */
+  var unmuting = false;
   var post = function (payload) {
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify(payload));
@@ -145,6 +148,14 @@ function page(videoId: string): string {
   };
   function report() {
     if (!player || !player.getPlayerState) return;
+    // The sound, handed back the moment there is a picture to hang it on. The
+    // line is the measurement: what matters is whether the category change
+    // lands beside this one or 1.2 seconds before it.
+    if (unmuting && player.getPlayerState() === 1) {
+      unmuting = false;
+      if (player.unMute) player.unMute();
+      post({ t: 'unmuted' });
+    }
     var seconds = player.getCurrentTime ? player.getCurrentTime() : null;
     var length = player.getDuration ? player.getDuration() : 0;
     // **What the embed already knows it is showing.** Nothing is asked of
@@ -200,8 +211,31 @@ function page(videoId: string): string {
       return;
     }
     if (!player) return;
-    if (command.do === 'play' && player.playVideo) player.playVideo();
-    else if (command.do === 'pause' && player.pauseVideo) player.pauseVideo();
+    /*
+      **The muted start, which is an experiment rather than a behaviour.**
+
+      iOS gates *audible* playback on an active audio session, and about 1,150ms
+      of every resume is that session being renegotiated — the player moves nine
+      milliseconds after the category lands. Silent playback may need none of
+      it. So when the probe is on, the film begins muted and is given its sound
+      on the first state change that says it is running.
+
+      \`unmuting\` is what carries that across the two callbacks: \`report\` runs on
+      every state change and would otherwise have no way of knowing whether this
+      player was muted by us or by somebody's own hand. Cleared on a pause so
+      that a film paused mid-unmute does not come back silent for ever.
+    */
+    if (command.do === 'play' && player.playVideo) {
+      if (command.muted && player.mute && player.getPlayerState() !== 1) {
+        unmuting = true;
+        player.mute();
+      }
+      player.playVideo();
+    }
+    else if (command.do === 'pause' && player.pauseVideo) {
+      unmuting = false;
+      player.pauseVideo();
+    }
     else if (command.do === 'seek' && player.seekTo) {
       player.seekTo(command.positionMs / 1000, true);
     }
@@ -351,6 +385,10 @@ export function WatchPlayer({
       } catch {
         return;
       }
+      if (payload.t === 'unmuted') {
+        recordEvent('watch player unmuted');
+        return;
+      }
       if (payload.t === 'ready') {
         recordEvent('watch player ready');
         setReady(true);
@@ -471,7 +509,13 @@ export function WatchPlayer({
         if (!last) return null;
         return Date.now() - last.at > READING_STALE_MS ? null : last.what;
       },
-      play: () => command({ do: 'play' }),
+      /*
+        **Muted when the probe says so, and the page does the rest.** Read at
+        the command rather than held here: the switch is flipped by hand
+        between readings, and a player built before it was flipped would
+        otherwise go on answering the old experiment. See `mutedStartEngaged`.
+      */
+      play: () => command({ do: 'play', muted: mutedStartEngaged() }),
       pause: () => command({ do: 'pause' }),
       seek: (positionMs: number) => command({ do: 'seek', positionMs }),
       recover,

@@ -4,8 +4,10 @@ Two runs on a phone, build 304, with the transition lines
 2026-09-27-the-press-is-apportioned-in-the-harness.md added — the first time the
 film has said in its own words and with a stamp when it moved. Twenty-seven
 presses on the evening of the 27th, nineteen more just after midnight using the
-film probe as the control. **It is not buffering; it is `AVAudioSession`; and no
-part of it is this application's to shorten.**
+film probe as the control. **It is not buffering; it is `AVAudioSession`; and it is
+not ours giving the session up, because holding it changes nothing.** Whether it
+can be avoided altogether rather than shortened is the one question left, and the
+muted-start probe under *What is left* is it.
 
 ## What a press is made of
 
@@ -85,13 +87,21 @@ engine stop lands 0.92 to 1.11s after the press* is what the first table says. W
 
 ## What is left
 
-**The follower and the drawing, and nothing in the audio stack.** The jump half a
-second after the picture starts is fixable and costs nobody a second —
-backlog/a-player-slower-than-the-drift-never-arrives.md, where four of ten resumes
-crossed `WATCH_DRIFT_MS` at 1,304ms against a tolerance of 1,500, exactly as the
-harness predicted that afternoon. And the spinner
-tasks/the-transport-says-nothing-while-the-film-starts.md asked for is now the
-whole of the answer to the waiting, the waiting having turned out to be nobody's to
+**The jump is fixed** — 2026-09-28-a-correction-aims-where-the-room-will-be.md,
+the same day: a correction now leads by what the player is known to cost, so one
+seek lands in step where ten used to land behind.
+
+**The second is not, and one thing has never been tried.** iOS gates *audible*
+playback on an active session; silent playback may not need one. The muted-start
+probe added beside the film probe begins the film muted and unmutes it on the
+first reading that says `playing` — if the picture then moves in the cold start's
+150ms, a resume becomes a picture that starts at once and gains its sound a second
+later, which is a far better second than a still frame. It has never been
+exercised in any form: `mutedAll` mutes the room's microphones and not the film, so
+no code path here has ever muted a player. One run decides it.
+
+**And the spinner** tasks/the-transport-says-nothing-while-the-film-starts.md asked
+for, if the probe comes back negative and the second turns out to be nobody's to
 remove.
 
 **One new fault, found by pressing too fast**:

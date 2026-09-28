@@ -20,6 +20,7 @@ import {
   watchPositionMs,
 } from '../watch';
 import {
+  WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
   WATCH_LENGTH_SLACK_MS,
   WATCH_STALL_MS,
@@ -390,6 +391,78 @@ describe('following the transport', () => {
 
   it('says nothing to a player that is already in step', () => {
     expect(followInstructions(playing(), reading('playing', 0), T0)).toEqual([]);
+  });
+
+  /*
+    **A correction aims where the room will be, not where it is.**
+
+    A seek is not instant — 400 to 700ms on a phone, and a play from a pause is
+    1.2 seconds — and the transport is a wall clock that runs the whole time, so
+    a seek to the position the room has *now* lands exactly that late. A player
+    slower than `WATCH_DRIFT_MS` could therefore never arrive at all: every
+    correction was stale by the same margin as the last, once per fuse, for
+    ever. See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md
+    and `drive.ts`, which measures the lead this takes.
+  */
+  it('leads the correction by what the player is known to cost', () => {
+    const at = T0 + 20_000;
+    const adrift = reading('playing', 0);
+    expect(followInstructions(playing(), adrift, at, 0, false, 0)).toEqual([
+      { do: 'seek', positionMs: 20_000 },
+    ]);
+    // The same drift, from a player that has been seen to take 700ms.
+    expect(followInstructions(playing(), adrift, at, 0, false, 700)).toEqual([
+      { do: 'seek', positionMs: 20_700 },
+    ]);
+  });
+
+  it('leads nothing when nothing has been measured', () => {
+    // The behaviour that shipped, which is what a follower that has never
+    // watched this player obey has to fall back to.
+    const at = T0 + 20_000;
+    expect(
+      followInstructions(playing(), reading('playing', 0), at)
+    ).toEqual([{ do: 'seek', positionMs: 20_000 }]);
+  });
+
+  /*
+    **The gentle knock, for a player that never started.** `WATCH_STALL_MS` is
+    ten seconds because the instruction it releases is a seek, and a seek
+    discards a part-filled buffer. A player that was told to play and went
+    straight to `buffering` has no buffer worth protecting and may have nothing
+    on its way at all — build 304 wedged one for 10.5 seconds — so it is told
+    again after `WATCH_COLD_NUDGE_MS`, and told the one thing that costs it
+    nothing.
+  */
+  it('tells a player that never started to play again, without a seek', () => {
+    expect(
+      followInstructions(
+        playing(),
+        reading('buffering', 0),
+        T0,
+        WATCH_COLD_NUDGE_MS,
+        false,
+        0,
+        true
+      )
+    ).toEqual([{ do: 'play' }]);
+  });
+
+  it('still leaves a player that stalled mid-film alone', () => {
+    // The same reading and the same clock, from a player that was playing when
+    // the buffering began. Nothing is said: it is filling a buffer it will
+    // finish, and this is the case the long window was written for.
+    expect(
+      followInstructions(
+        playing(),
+        reading('buffering', 0),
+        T0,
+        WATCH_COLD_NUDGE_MS,
+        false,
+        0,
+        false
+      )
+    ).toEqual([]);
   });
 
   it('leaves a buffering player alone rather than restating play', () => {

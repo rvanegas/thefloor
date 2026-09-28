@@ -6,7 +6,11 @@ import {
   hasArrived,
   showingTheFilm,
 } from '../../../core/watch';
-import type { Desired, PlayerReading } from '../../../core/watch';
+import type {
+  Desired,
+  PlayerReading,
+  WatchInstruction,
+} from '../../../core/watch';
 import { WATCH_OBEDIENCE_MS } from '../../../core/constants';
 import type { WatchState } from '../../../core/types';
 
@@ -119,6 +123,48 @@ export function useFollow(
    * `followInstructions`.
    */
   const wanted = useRef<Desired['status'] | null>(null);
+  /**
+   * How long this player last took to obey, per kind of instruction.
+   *
+   * **The one thing a correction needs and nothing measured until now.** A
+   * seek lands where it was aimed a latency ago, and the transport is a wall
+   * clock that ran the whole time — so a correction to *where the room is*
+   * arrives exactly this far behind it, which is why a slow player was seeked
+   * once a fuse for ever and never arrived. `followInstructions` takes it as a
+   * lead; the rule decides what to do with it and this file is what may keep a
+   * clock.
+   *
+   * Kept per kind rather than as one number because the two differ by a factor
+   * of two, and the lead is spent on a seek. Null until this player has
+   * demonstrated something: nothing here guesses, and a lead of zero is the
+   * behaviour that shipped.
+   */
+  const lag = useRef<{ play: number | null; seek: number | null }>({
+    play: null,
+    seek: null,
+  });
+  /**
+   * Whether the buffering this player is doing began from a standstill.
+   *
+   * A stall mid-film is filling a buffer it will finish; a player that was told
+   * to play and went straight to `buffering` may never have started at all, and
+   * the two are the same reading. Recorded when the buffering begins, which is
+   * the only moment the difference is visible. See `WATCH_COLD_NUDGE_MS`.
+   */
+  const standstill = useRef(false);
+  /** The last state read, which is how `standstill` knows what came before. */
+  const seen = useRef<PlayerReading['state'] | null>(null);
+  /**
+   * The last thing said to this player, until it does it.
+   *
+   * Cleared the moment the player reaches the state it was asked for, which is
+   * when `lag` learns what that cost. See where it is set.
+   */
+  const told = useRef<{
+    at: number;
+    status: Desired['status'];
+    kinds: Array<WatchInstruction['do']>;
+  } | null>(null);
   const latest = useRef({ watch, port });
   latest.current = { watch, port };
   /** The running loop's own tick, so a press can ring it. See below. */
@@ -139,8 +185,28 @@ export function useFollow(
         ran when somebody was looking would never reach the threshold it is
         for.
       */
+      const wasPlaying = seen.current === 'playing';
+      seen.current = reading.state;
       if (reading.state !== 'buffering') buffering.current = null;
-      else if (buffering.current === null) buffering.current = now;
+      else if (buffering.current === null) {
+        buffering.current = now;
+        standstill.current = !wasPlaying;
+      }
+      /*
+        **How long this player takes to obey, measured wherever it lands.** One
+        reading per instruction and no averaging: the interesting case is a
+        player whose latency has just changed — a route moving, a film
+        starting — and a mean is the slowest possible way to notice one.
+      */
+      const said = told.current;
+      if (said && reading.state === said.status) {
+        const took = now - said.at;
+        for (const kind of said.kinds) {
+          if (kind === 'play' || kind === 'seek') lag.current[kind] = took;
+        }
+        told.current = null;
+      }
+
       const want = desiredFor(current, now);
       if (!want) return;
 
@@ -253,13 +319,35 @@ export function useFollow(
         reading,
         now,
         buffering.current === null ? 0 : now - buffering.current,
-        urgent
+        urgent,
+        // The seek's own latency where there is one, the play's as the next
+        // best thing, and zero — which is what shipped — until this player has
+        // shown either. A first correction led by a play's 1.2 seconds
+        // overshoots by about half of it, which is a player half a second ahead
+        // of the room rather than a second behind it, and the next correction
+        // has the right number.
+        lag.current.seek ?? lag.current.play ?? 0,
+        standstill.current
       );
       if (instructions.length === 0) return;
       // The stall clock restarts with the instruction, so a player that is
       // never going to play is prodded once a window rather than every tick.
       if (buffering.current !== null) buffering.current = now;
       doing.current = { phase: 'sending', want, since: now };
+      /*
+        **What was said and when, kept apart from the phase above.** The lead
+        has to be learnt from the slowest players, and a slow player is exactly
+        the one that never *arrives* — its position is hopeless whatever it
+        does — so the phase, which is about arrival, is the wrong thing to hang
+        this on. What is measured here is narrower and always available: how
+        long until the player *did what it was told*, which is a fact about its
+        state and not about where the room has got to.
+      */
+      told.current = {
+        at: now,
+        status: want.status,
+        kinds: instructions.map((i) => i.do),
+      };
       /*
         **One line per instruction, and they are rare.** Nothing is said to a
         player that is where it should be, so this is quiet on an ordinary

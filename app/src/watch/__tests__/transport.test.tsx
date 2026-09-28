@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import {
+  WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
   WATCH_STALL_MS,
 } from '../../../../core/constants';
@@ -757,23 +758,25 @@ describe('how long a press takes, and where it goes', () => {
   });
 
   /*
-    **The cliff, which is at `WATCH_DRIFT_MS` exactly, and the reason any of
-    this is worth a test.**
+    **The cliff that was at `WATCH_DRIFT_MS` exactly, and the lead that closed
+    it.**
 
-    The wanted position is a wall clock that runs while the player obeys, so
-    when a player finally starts it is behind by precisely its own latency —
-    and `hasArrived` compares that gap against `WATCH_DRIFT_MS`. A player
-    quicker than the tolerance is therefore in step the instant it starts; a
-    player slower than it is adrift the instant it starts, and every correction
-    issued to it is stale by the same margin when it lands. There is no
-    convergence on the far side: the follower seeks once a fuse, for ever, and
-    what somebody sees is a picture that plays a second or two and jumps.
+    The wanted position is a wall clock that runs while the player obeys, so a
+    player that finally starts is behind by precisely its own latency — and
+    `hasArrived` judges that gap against `WATCH_DRIFT_MS`. Until 2026-09-28 the
+    correction was aimed at where the room was *when it was issued*, so it
+    landed the same latency late, and a player slower than the tolerance could
+    never arrive at all: it was seeked once a fuse for ever, and what somebody
+    saw was a picture that played a second and jumped. Measured here at a
+    boundary of 1,500ms, then found on a phone the same night — four of ten
+    resumes at 1,304ms.
 
-    **The measured presses straddle this.** 1271 to 1793ms on build 303, of
-    which up to 500 is the noticing — so the fastest of them is comfortably
-    inside the tolerance and the slowest is at or over it. Nothing in the
-    reading of that sample said which side of a cliff it was on, because
-    nothing said there was one.
+    **The fix is a lead, not a wider tolerance.** `drive.ts` measures how long
+    this player takes to do what it is told and `followInstructions` aims that
+    far ahead, so one correction lands in step instead of ten landing behind.
+    Widening the tolerance was the other option and is worse: every device
+    plays the film's own audio, so two screens in a room a second apart is
+    worse than one that jumps once and then agrees.
   */
   describe('a player slower than the drift it is judged against', () => {
     it('is in step at once when it is inside the tolerance', () => {
@@ -783,49 +786,78 @@ describe('how long a press takes, and where it goes', () => {
       expect(sim.player.calls).toEqual(['play']);
     });
 
-    it('never comes into step at all when it is outside it', () => {
+    it('comes into step with one correction when it is outside it', () => {
       const { picture, settled, sim } = press(WATCH_DRIFT_MS + 100);
       // The picture starts — the press worked, and on time.
       expect(picture).toBe(TRIP_MS + WATCH_DRIFT_MS + 100);
-      // And then it is corrected for ever, and never arrives anywhere.
-      expect(settled).toBeNull();
-      expect(sim.player.calls.filter((c) => c.startsWith('seek:')).length)
-        .toBeGreaterThan(2);
+      // And then it is corrected, once, and it is in step. Before the lead
+      // this was `null` and nine seeks.
+      expect(settled).not.toBeNull();
+      expect(sim.player.calls.filter((c) => c.startsWith('seek:'))).toHaveLength(
+        1
+      );
     });
 
-    it('is nonetheless reported as having arrived, over and over', () => {
-      /*
-        **The log says the opposite of what is happening**, which is why three
-        weeks of reports and readings could not be reconciled.
-
-        `hasArrived` is asked here against `state.want` — the target as it was
-        when the instruction went out — rather than against the target now. A
-        playing player always eventually passes a position the room wanted two
-        seconds ago, so the wait ends in a satisfied `watch playing after Nms`
-        even when the player is two seconds behind and about to be seeked
-        again. Every line in that run is a lie of this shape, and the run above
-        is what it looks like from the sofa.
-
-        Asserted as it stands rather than corrected: comparing against the live
-        target was tried here and it silences these lines without curing the
-        divergence, the player still being slower than the tolerance. Both
-        halves belong to whoever takes the cliff on. See
-        backlog/a-player-slower-than-the-drift-never-arrives.md.
-      */
-      const { said, settled } = press(WATCH_DRIFT_MS + 300);
-      expect(settled).toBeNull();
-      expect(said.length).toBeGreaterThan(1);
+    it('does so however slow it is, the lead being measured and not assumed', () => {
+      // A player well over the tolerance can never *arrive* — its position is
+      // hopeless whatever it does — so a lead learnt from arrivals could never
+      // be learnt at all. It is learnt from the player doing what it was told,
+      // which is available here and at every other speed.
+      for (const lag of [WATCH_DRIFT_MS + 300, WATCH_DRIFT_MS + 1_000]) {
+        const { settled, sim } = press(lag);
+        expect(settled).not.toBeNull();
+        expect(
+          sim.player.calls.filter((c) => c.startsWith('seek:'))
+        ).toHaveLength(1);
+      }
     });
 
-    it('says nothing whatsoever once it is slower than that again', () => {
-      // And the same instrument goes silent rather than wrong when the player
-      // is slower still: nothing ever satisfies the check, the fuse abandons
-      // the wait, and no line is written at all. So the sample the median came
-      // from cannot contain its own tail, in either direction — a press this
-      // slow is invisible and a press just over the cliff is misreported.
-      const { picture, said } = press(WATCH_DRIFT_MS + 1_000);
-      expect(picture).toBe(TRIP_MS + WATCH_DRIFT_MS + 1_000);
-      expect(said).toEqual([]);
+    it('is seeked ahead of the room rather than to it', () => {
+      // The assertion the other three rest on, stated directly: the target of
+      // the correction is in front of where the transport had reached when it
+      // was issued, by about what this player has been observed to cost.
+      const { sim } = press(WATCH_DRIFT_MS + 300);
+      const seek = sim.player.calls.find((c) => c.startsWith('seek:'));
+      const target = Number(seek!.slice('seek:'.length));
+      const roomWas = Date.now() - T0 - TRIP_MS;
+      expect(target).toBeGreaterThan(roomWas - 8_000);
+    });
+  });
+
+  /*
+    **The ten-second window is for a buffer, and a wedged player has none.**
+
+    `settling` is right about a player refilling and wrong about one that never
+    started, and until `WATCH_COLD_NUDGE_MS` the two were the same reading.
+    Seen on build 304: a Play pressed inside the pause before it left the
+    player in `buffering` for 10.5 seconds until the stall rule rescued it with
+    a seek, thirteen seconds of film behind the room.
+  */
+  describe('a player that was told to play and never started', () => {
+    it('is told again well before the stall window, and without a seek', () => {
+      const sim = run({ lag: 600 });
+      sim.wire.press(play, Date.now());
+      sim.advance(500);
+      // Wedged: it heard the play, went to buffering, and stays there.
+      sim.player.stuck();
+      sim.player.calls.length = 0;
+      sim.advance(WATCH_COLD_NUDGE_MS + 1_000);
+      // A play, because a play cannot discard the buffer a seek would.
+      expect(sim.player.calls).toContain('play');
+      expect(sim.player.calls.some((c) => c.startsWith('seek:'))).toBe(false);
+    });
+
+    it('is left alone for the whole window when it stalled mid-film', () => {
+      // The other half, and the one the long window was written for: a film
+      // that was playing and stalled is filling a buffer it will finish, and
+      // nothing may throw that away early.
+      const sim = run();
+      sim.wire.press(play, Date.now());
+      sim.advance(4_000);
+      sim.player.stall(WATCH_STALL_MS * 2);
+      sim.player.calls.length = 0;
+      sim.advance(WATCH_COLD_NUDGE_MS + 1_000);
+      expect(sim.player.calls).toEqual([]);
     });
   });
 });

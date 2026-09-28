@@ -361,3 +361,63 @@ export function subscribeFilmProbe(watcher: () => void): () => void {
   filmProbeWatchers.add(watcher);
   return () => filmProbeWatchers.delete(watcher);
 }
+
+/**
+ * **The muted-start probe: begin the film silent, and give it its sound when
+ * it is running.**
+ *
+ * Added 2026-09-28, out of the one thing the film probe could not answer. A
+ * resume is 1,304ms from press to picture and about 1,150 of that is
+ * `AVAudioSession` renegotiating — the player takes its first step nine
+ * milliseconds after the category lands, and holding the microphone changes
+ * none of it, so the renegotiation is `WKWebView`'s rather than ours. See
+ * planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
+ *
+ * **What has never been tried is not needing one.** iOS gates *audible*
+ * playback on an active session; silent playback plausibly does not need one at
+ * all. So this mutes the player before `playVideo` and unmutes it on the first
+ * reading that says `playing`. If the picture then moves in the cold start's
+ * 150ms, a resume becomes a picture that starts at once and gains its sound a
+ * second later — which is a far better second than a still frame.
+ *
+ * **The risk is that it moves the stutter into the sound**, the unmute
+ * triggering the same renegotiation with the film already running. The
+ * transition lines say which immediately: `watch player unmuted` against the
+ * category change beside it.
+ *
+ * It has never been exercised, and that is worth saying plainly: `mutedAll`
+ * mutes the room's microphones and not the film, so no code path in this
+ * application has ever muted a player.
+ *
+ * Off on every launch and not persisted, for the film probe's reason: a
+ * reading, not a state to wake up in.
+ */
+let mutedStart = false;
+
+const mutedStartWatchers = new Set<() => void>();
+
+/** Whether a play should begin muted. Read by `WatchPlayer` at the command. */
+export function mutedStartEngaged(): boolean {
+  return mutedStart;
+}
+
+/** Turns it on or off, and says so in the log — `setFilmProbe`'s reasoning. */
+export function setMutedStart(
+  on: boolean,
+  record: (text: string) => void
+): void {
+  if (mutedStart === on) return;
+  mutedStart = on;
+  record(
+    on
+      ? 'muted-start probe on — the film begins silent'
+      : 'muted-start probe off — the film begins with its sound'
+  );
+  for (const watcher of mutedStartWatchers) watcher();
+}
+
+/** Subscribes to changes, in the idiom `diagnostics.ts` already uses. */
+export function subscribeMutedStart(watcher: () => void): () => void {
+  mutedStartWatchers.add(watcher);
+  return () => mutedStartWatchers.delete(watcher);
+}

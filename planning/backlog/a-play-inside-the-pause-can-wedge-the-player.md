@@ -24,9 +24,17 @@ ordinary.
 **What it says about the machinery is good news.** The stall nudge is the only
 reason that press ever recovered, and it is the rule added on 2026-09-20 for
 exactly this — a buffering player with nothing on the far side of it. Without it
-the picture would have stayed dark until somebody pressed something. It is also
-ten seconds, which is a long time to look at a still frame while the room watches
-the film.
+the picture would have stayed dark until somebody pressed something.
+
+**Ten seconds of it has since gone.** `WATCH_COLD_NUDGE_MS` now tells a player
+that never started to play again after four — see
+decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md — and a repeated
+`play` cannot discard a buffer, so it needs none of the caution the long window is
+built from. **That shortens this fault, it does not close it.** Whether a second
+`play` actually unsticks a wedged embed is unknown: the wedge has been seen twice
+and neither time was anything said to it before the ten seconds were up. The next
+run finds out, and if it does not work the entry stands unchanged with a shorter
+symptom.
 
 **The mechanism is a guess and the cheap test is not.** A pause restores
 `PlayAndRecord` and starts the engine (about 700ms, and it is ours — see

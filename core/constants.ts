@@ -297,6 +297,34 @@ export const WATCH_OBEDIENCE_MS = 1_500;
 export const WATCH_STALL_MS = 10_000;
 
 /**
+ * How long a player that never started may be buffering before it is told
+ * again.
+ *
+ * **The earlier, gentler half of `WATCH_STALL_MS`, added 2026-09-28.** That
+ * window is ten seconds because the instruction it releases is a seek, and a
+ * seek discards a part-filled buffer; ten seconds is how long a refill deserves
+ * before anybody gives up on it. But the same reading covers a second case it
+ * was not written for — a player told to play that went to `buffering` and
+ * never came out, having nothing on its way at all — and for that one, ten
+ * seconds is ten seconds of a still frame while the room watches the film.
+ * Measured on build 304: 10.5s, and thirteen seconds of film skipped when the
+ * rescue finally came.
+ *
+ * So a player buffering **from a standstill** is told again after four seconds,
+ * and told the one thing that cannot cost it anything: `play`, with no seek
+ * beside it. Nothing is discarded, so this needs none of the caution the long
+ * window is built from — and if the player was genuinely filling a buffer, a
+ * second `play` changes nothing about when it finishes.
+ *
+ * **Four seconds rather than two**, because an honest cold start is 563ms on a
+ * good connection and nobody has measured a bad one; a window that fires during
+ * an ordinary first fetch would be a message per window for the length of every
+ * slow party. And rather than eight, because the whole point is to be well
+ * inside the ten.
+ */
+export const WATCH_COLD_NUDGE_MS = 4_000;
+
+/**
  * The most characters a channel name may hold.
  *
  * Long enough for "Tuesday planning with the cousins", short enough that the

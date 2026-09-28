@@ -58,18 +58,24 @@ Run the same evening on build 304, eighteen presses of Play and nine of Pause.
 a fetch.** So the premise of this note — *a press of Play is answered by
 a second and a half of nothing* — is a fact about resumes.
 
-**And it cannot be made faster, which was measured rather than assumed.** The film
-probe presses Play without releasing the microphone, and fourteen such presses cost
-1,271ms against 1,235ms for the shipped path: the renegotiation is `WKWebView`
-taking the session and happens whoever holds it. So a spinner is the answer to the
-wait after all — decisions/2026-09-28-the-film-waits-for-the-audio-session.md is
-both halves of that.
+**And it is not ours to make faster, which was measured rather than assumed.** The
+film probe presses Play without releasing the microphone, and fourteen such presses
+cost 1,271ms against 1,235ms for the shipped path: the renegotiation is `WKWebView`
+taking the session and happens whoever holds it.
+decisions/2026-09-28-the-film-waits-for-the-audio-session.md is both halves of that.
+
+**One thing might still avoid it rather than shorten it**, and until it has been
+run this note should not be built against. The muted-start probe begins the film
+silent, on the premise that iOS gates *audible* playback on a session and silent
+playback may need none — in which case the picture starts at once and the sound
+arrives a second later, and what wants drawing is completely different. Run that
+before drawing anything.
 
 **And there is a second thing to draw, which this note did not know about.** Four
 of the ten resumes were seeked half a second after the picture started, being over
 `WATCH_DRIFT_MS` by then — so what somebody sees is the wait *and then a jump*. The
 jump is a defect rather than a drawing problem and has its own entry,
-backlog/a-player-slower-than-the-drift-never-arrives.md; but until it is fixed, a
+decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md; but until it is fixed, a
 spinner that ends when the picture starts hands attention straight to it. Worth
 knowing which of the two is being covered before choosing where the pending state
 ends.
@@ -99,5 +105,5 @@ They ship to the server's journal — `journalctl -u thefloor | grep 'audio
 diagnostics'` — so the run can be read the next day rather than off a screen.
 **Any press whose `player playing` is more than 1.5 seconds after its `tell` is on
 the far side of the cliff** in
-backlog/a-player-slower-than-the-drift-never-arrives.md, and how many of the
+decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md, and how many of the
 twenty land there is the reading that entry is waiting for.
