@@ -58,6 +58,24 @@ export function appBuild(): number | null {
 }
 
 /**
+ * The marketing version, `CFBundleShortVersionString` — `1.8.0` — for showing
+ * a person rather than for the server, which compares builds and never this.
+ * Read from the binary for the same reason the build is. Null when the
+ * platform will not say.
+ */
+const version = (() => {
+  try {
+    return Application.nativeApplicationVersion || null;
+  } catch {
+    return null;
+  }
+})();
+
+export function appVersion(): string | null {
+  return version;
+}
+
+/**
  * The header carrying it. Named for this project rather than something generic
  * so that a proxy or a shared host cannot collide with it.
  *

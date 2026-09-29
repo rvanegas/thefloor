@@ -19,6 +19,11 @@ jest.mock('../../api/upload', () => require('../testing/harness').uploadMock());
 jest.mock('../../state/AppProvider', () =>
   require('../testing/harness').appProviderMock()
 );
+jest.mock('../../api/build', () => ({
+  ...jest.requireActual('../../api/build'),
+  appVersion: () => '1.8.0',
+  appBuild: () => 316,
+}));
 
 /**
  * Asking The Floor a question, from the button on the Support tab to the
@@ -100,6 +105,14 @@ describe('the way in', () => {
 });
 
 describe('the help screen', () => {
+  it('says which version and build it is, at the foot', async () => {
+    const tree = render(<HelpView onBack={() => {}} />);
+    await settle();
+
+    expect(textOf(tree)).toContain('Version 1.8.0 (316)');
+    act(() => tree.unmount());
+  });
+
   it('shows an unanswered question as waiting rather than hiding it', async () => {
     mockApp.loadHelp.mockResolvedValueOnce({
       questions: [

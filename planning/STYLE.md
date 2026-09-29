@@ -228,6 +228,8 @@ These are the sizes that are not in the table, each because of where it sits:
 - **11** — a segment's or footer action's label when a glyph sits above it.
   The smallest type in the application, and the one place it is right: the
   glyph has already said it, and the pair is what gets read.
+  The only other 11 is the version line at the foot of Help, which is
+  there to be read out when asked for and never otherwise.
 
 ### Two typographic rules with meaning
 

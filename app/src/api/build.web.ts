@@ -45,6 +45,16 @@ export function appBuild(): number | null {
   return build;
 }
 
+/**
+ * The version of the same train, inlined beside the build by `bin/deploy-web`
+ * from the same `app.json`. Shown at the foot of Help and sent nowhere.
+ */
+const version = process.env.EXPO_PUBLIC_VERSION?.trim() || null;
+
+export function appVersion(): string | null {
+  return version;
+}
+
 export const BUILD_HEADER = 'x-thefloor-build';
 
 /**

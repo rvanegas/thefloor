@@ -115,6 +115,7 @@ git worktree add --detach --quiet "$WORK/src" "$REF^{commit}"
 # `released`, so this is the released build, and the beta train from build/<n>,
 # so it is that one. Nothing has to be kept in step with anything.
 BUILD=$(node -e "process.stdout.write(String(require('$WORK/src/app/app.json').expo.ios.buildNumber))")
+VERSION=$(node -e "process.stdout.write(String(require('$WORK/src/app/app.json').expo.version))")
 echo "→ build $BUILD"
 
 # `experiments.baseUrl` prepends the prefix to every bundled asset link, which
@@ -155,12 +156,16 @@ echo "→ exporting"
   # EXPO_PUBLIC_BUILD is read by `api/build.web.ts`. Leaving it unset would
   # make the client silent, which is the one thing WEB.md says it must not be.
   #
+  # EXPO_PUBLIC_VERSION is read by the same file, for the version line at the
+  # foot of Help and for nothing else.
+  #
   # EXPO_PUBLIC_BASE is read by `ui/webRoute.ts`, which has to build and parse
   # addresses under whichever prefix this train is served at. It is the same
   # value as `experiments.baseUrl` above and is passed separately rather than
   # sniffed from `location`, because sniffing would have to know the set of
   # prefixes and would be wrong the first time there was a third.
   EXPO_PUBLIC_BUILD="$BUILD" \
+  EXPO_PUBLIC_VERSION="$VERSION" \
   EXPO_PUBLIC_BASE="$PREFIX" \
     npx expo export --platform web --output-dir "$WORK/out" --clear >/dev/null
 )

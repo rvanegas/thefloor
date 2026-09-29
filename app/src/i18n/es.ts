@@ -147,6 +147,8 @@ export const es: Strings = {
     answer: () => 'Respuesta',
     askedNotAnswered: (since: string) =>
       `Preguntado hace ${since} \u00b7 sin responder todav\u00eda`,
+    version: (version: string, build: string) =>
+      `Versi\u00f3n ${version} (${build})`,
   },
   auth: {
     brand: () => 'The Floor',

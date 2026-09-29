@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { HelpQuestion } from '../../../core/protocol';
+import { appBuild, appVersion } from '../api/build';
 import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
 import { Button, Card, Field, IconButton, Screen, SectionLabel } from './components';
@@ -165,7 +166,28 @@ export function HelpView({ onBack }: { onBack: () => void }) {
           </View>
         </>
       ) : null}
+
+      {/* Last, and small: what somebody reporting a problem is asked for
+          first, without being the first thing anybody reads. */}
+      <VersionLine />
     </Screen>
+  );
+}
+
+/**
+ * `Version 1.8.0 (316)`, or nothing when the platform will not say either —
+ * a development web bundle has neither, and a line reading "(unknown)" would
+ * only invite a question about itself.
+ */
+function VersionLine() {
+  const t = useText().help;
+  const version = appVersion();
+  const build = appBuild();
+  if (!version && build === null) return null;
+  return (
+    <Text style={styles.version}>
+      {t.version(version ?? '?', build === null ? '?' : String(build))}
+    </Text>
   );
 }
 
@@ -218,4 +240,10 @@ const styles = StyleSheet.create({
   answerLabel: { ...type.label, color: colors.textFaint },
   pending: { ...type.muted, color: colors.textFaint },
   error: { color: colors.danger, fontSize: 13 },
+  version: {
+    fontSize: 11,
+    color: colors.textFaint,
+    textAlign: 'center',
+    marginTop: spacing(2),
+  },
 });
