@@ -485,6 +485,8 @@ export function Picture({
           // so the picture and the readout cannot answer differently.
           now={app.serverNow}
           fill
+          // Drift is corrected by hand under `debug`, from the readout's button.
+          byHand={app.debug}
           onFilm={(durationMs, title) =>
             app.act(channelId, { type: 'WATCH_READY', durationMs, title })
           }

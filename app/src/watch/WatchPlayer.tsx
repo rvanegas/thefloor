@@ -279,6 +279,7 @@ export function WatchPlayer({
   onRefusal,
   now,
   fill = false,
+  byHand = false,
 }: {
   watch: WatchState;
   channelId: string;
@@ -330,6 +331,12 @@ export function WatchPlayer({
    * not a screen's.
    */
   fill?: boolean;
+  /**
+   * Correct drift only when asked, for an account with `debug` set. Handed
+   * down for the reason `now` is: this component stays props-only. See
+   * `useFollow`.
+   */
+  byHand?: boolean;
 }): React.ReactElement | null {
   const t = useText().watch;
   const view = useRef<WebView | null>(null);
@@ -562,7 +569,7 @@ export function WatchPlayer({
 
   // `channelId` so the published reading can be told from a stale one — see
   // `drift.ts`, and `DriftReadout`, which refuses to draw another room's number.
-  useFollow(watch, port, true, now, channelId);
+  useFollow(watch, port, true, now, channelId, byHand);
 
   /*
     **Whether the frame answers a finger, said to the page rather than drawn

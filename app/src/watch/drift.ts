@@ -56,6 +56,15 @@ export interface DriftReading {
    * previously legible only by reading the diagnostic journal the next day.
    */
   seeksThisRun: number;
+  /**
+   * Whether a correction is being held back for somebody to ask for.
+   *
+   * Only ever true on an account with `debug` set, where the follower does not
+   * correct drift of its own accord — see `useFollow`'s `byHand`. It is what
+   * the readout's button is enabled by, so the button is live exactly when a
+   * press would do something.
+   */
+  withheld: boolean;
   /** When the reading was taken, on the room's clock rather than the device's. */
   at: number;
 }
@@ -97,4 +106,27 @@ export function forgetDrift(): void {
 export function subscribeDrift(watcher: () => void): () => void {
   watchers.add(watcher);
   return () => watchers.delete(watcher);
+}
+
+let asked: (() => void) | null = null;
+
+/**
+ * The instrument's one control: *make the correction you are holding back.*
+ *
+ * **The other direction through the same module**, for the same reason the
+ * reading comes this way — the button is drawn under the transport and the
+ * follower lives in `Picture`'s layer over the whole application, and nothing
+ * but a module joins the two without routing a debug control through the
+ * context. There is one follower, so there is one listener.
+ */
+export function requestCorrection(): void {
+  asked?.();
+}
+
+/** Registered by `drive.ts` while a follower is running. */
+export function onCorrectionRequested(listener: () => void): () => void {
+  asked = listener;
+  return () => {
+    if (asked === listener) asked = null;
+  };
 }

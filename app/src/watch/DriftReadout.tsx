@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WATCH_DRIFT_MS } from '../../../core/constants';
+import { Button } from '../ui/components';
 import { colors, spacing, type } from '../ui/theme';
-import { readDrift, subscribeDrift, type DriftReading } from './drift';
+import {
+  readDrift,
+  requestCorrection,
+  subscribeDrift,
+  type DriftReading,
+} from './drift';
 
 /**
  * What the follower is steering on, drawn for an account with `debug` set.
@@ -23,6 +29,12 @@ import { readDrift, subscribeDrift, type DriftReading } from './drift';
  * sibling of the transport rather than a row inside it: `Transport.tsx` is drawn
  * in three places from one definition and must not be re-rendered on a tick for
  * a readout that only one account can see.
+ *
+ * **And it carries the one control drift has.** Under `debug` the follower
+ * corrects nothing of its own accord — see `useFollow`'s `byHand` — so a
+ * correction it would have made waits here for somebody to press for it. Drawn
+ * with the numbers it is judged by rather than in the transport, which is one
+ * row in three places and has no business learning about an account flag.
  */
 export function DriftReadout({
   channelId,
@@ -98,6 +110,18 @@ export function DriftReadout({
         label="lag play / seek"
         value={`${ms(reading.lagPlayMs)} / ${ms(reading.lagSeekMs)}`}
       />
+      {/*
+        Enabled by `withheld` rather than by the drift passing the tolerance:
+        the rule has more to say than the tolerance does — a player ahead by its
+        own lead is outside it and is left alone — and a button enabled on a
+        second opinion would be pressed and do nothing.
+      */}
+      <Button
+        label="Correct drift"
+        onPress={requestCorrection}
+        disabled={!reading.withheld}
+        style={styles.correct}
+      />
     </View>
   );
 }
@@ -145,4 +169,5 @@ const styles = StyleSheet.create({
   */
   value: { ...type.mono, fontVariant: [...type.mono.fontVariant] },
   alert: { color: colors.danger },
+  correct: { marginTop: spacing(1) },
 });

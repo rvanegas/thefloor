@@ -12,7 +12,7 @@ import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
-import { readDrift } from '../drift';
+import { readDrift, requestCorrection } from '../drift';
 
 /**
  * The diagnostic log, captured rather than written.
@@ -333,6 +333,8 @@ function run(
      * server's; the device's is that minus this.
      */
     skew?: number;
+    /** Drift corrected only when asked, as an account with `debug` has it. */
+    byHand?: boolean;
   } = {}
 ) {
   const player = laggyPlayer(opts.lag ?? LAG_MS);
@@ -341,7 +343,7 @@ function run(
   const roomNow = () => Date.now() + skew;
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true, roomNow, CHANNEL);
+    useFollow(watch, player.port, true, roomNow, CHANNEL, opts.byHand);
     return <Text>following</Text>;
   }
   act(() => {
@@ -1062,5 +1064,75 @@ describe('what the follower publishes', () => {
     const seen = readDrift(CHANNEL)!;
     expect(seen.seeksThisRun).toBe(0);
     expect(seen.driftMs).toBeGreaterThan(WATCH_DRIFT_MS);
+  });
+});
+
+/*
+  **Under `debug`, drift waits to be asked about.**
+
+  A film playing alone on one phone was found with four seeks in one run and
+  nobody to be in step with, so an account with `debug` set has the follower
+  hold its corrections back and a button that lets the next one through. What
+  it still does of its own accord is *position* a player — a screen arriving,
+  a scrub — since that is a press being obeyed and not a drift being corrected.
+*/
+describe('drift corrected by hand', () => {
+  const seeks = (calls: string[]) => calls.filter((c) => c.startsWith('seek'));
+
+  it('holds back the correction a recovered stall would get', () => {
+    const sim = run({ byHand: true });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    sim.player.stall(4_000);
+    sim.advance(12_000);
+    const seen = readDrift(CHANNEL)!;
+    expect(seen.seeksThisRun).toBe(0);
+    expect(seen.withheld).toBe(true);
+    expect(seen.driftMs).toBeLessThan(-WATCH_DRIFT_MS);
+  });
+
+  it('makes it when asked, and the pair are back in step', () => {
+    const sim = run({ byHand: true });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    sim.player.stall(4_000);
+    sim.advance(12_000);
+    act(() => requestCorrection());
+    sim.advance(4_000);
+    const seen = readDrift(CHANNEL)!;
+    expect(seen.seeksThisRun).toBe(1);
+    expect(seen.withheld).toBe(false);
+    expect(inStep(sim.where())).toBe(true);
+  });
+
+  it('still follows a scrub, which is a press and not a drift', () => {
+    const sim = run({ byHand: true });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    sim.wire.press(seekTo(300_000), sim.now());
+    sim.advance(6_000);
+    expect(seeks(sim.player.calls)).toHaveLength(1);
+    expect(inStep(sim.where())).toBe(true);
+    expect(readDrift(CHANNEL)!.withheld).toBe(false);
+  });
+
+  it('still puts a screen arriving at a party where the party is', () => {
+    const sim = run({
+      byHand: true,
+      already: (c) => pause(started(0)(play(c, T0), T0), T0 + 60_000),
+    });
+    sim.advance(8_000);
+    expect(Math.abs(sim.player.positionMs - 60_000)).toBeLessThanOrEqual(
+      WATCH_DRIFT_MS
+    );
+  });
+
+  it('does nothing when asked with nothing held back', () => {
+    const sim = run({ byHand: true });
+    sim.wire.press(play, sim.now());
+    sim.advance(4_000);
+    act(() => requestCorrection());
+    sim.advance(2_000);
+    expect(seeks(sim.player.calls)).toEqual([]);
   });
 });
