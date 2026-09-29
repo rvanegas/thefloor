@@ -130,3 +130,28 @@ export function onCorrectionRequested(listener: () => void): () => void {
     if (asked === listener) asked = null;
   };
 }
+
+let pressListener: ((status: 'playing' | 'paused') => void) | null = null;
+
+/**
+ * A play or pause pressed on this device, announced as it leaves.
+ *
+ * The transport calls this for every press it sends; whether anything is done
+ * about it is the follower's business and happens only under `debug` — see
+ * `useFollow`'s `byHand`. Through this module rather than a prop for the
+ * reason `requestCorrection` is: the transport and the follower are on
+ * opposite sides of the route table.
+ */
+export function announcePress(status: 'playing' | 'paused'): void {
+  pressListener?.(status);
+}
+
+/** Registered by `drive.ts` while a follower is running. */
+export function onPress(
+  listener: (status: 'playing' | 'paused') => void
+): () => void {
+  pressListener = listener;
+  return () => {
+    if (pressListener === listener) pressListener = null;
+  };
+}

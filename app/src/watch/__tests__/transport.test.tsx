@@ -12,7 +12,7 @@ import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
-import { readDrift, requestCorrection } from '../drift';
+import { announcePress, readDrift, requestCorrection } from '../drift';
 
 /**
  * The diagnostic log, captured rather than written.
@@ -210,6 +210,21 @@ function laggyPlayer(lag: number) {
       pause: () => {
         calls.push('pause');
         if (deaf) return;
+        /*
+          **A seek already on its way lands, and the pause takes effect
+          after it**, as the API has it: a cued player seeked and then paused
+          ends up paused at the new position, not paused where it began.
+          Dropping the position here once cost a new screen its only seek.
+        */
+        if (pending?.seeking) {
+          const land = pending.run;
+          pending.run = () => {
+            land();
+            state = 'paused';
+            want = 'paused';
+          };
+          return;
+        }
         if (state === 'paused' || want === 'paused') return;
         want = 'paused';
         pending = {
@@ -1134,5 +1149,63 @@ describe('drift corrected by hand', () => {
     act(() => requestCorrection());
     sim.advance(2_000);
     expect(seeks(sim.player.calls)).toEqual([]);
+  });
+});
+
+/*
+  **Under `debug`, a press reaches the player before it reaches the room.**
+
+  The rest of the time a press goes to the server and comes back as a snapshot
+  before this follower says anything, a round trip on top of whatever the embed
+  takes. The switch is there to feel the embed alone, so the press is carried
+  out on the spot and the follower is kept from undoing it while the room
+  catches up.
+*/
+describe('a press carried out at once', () => {
+  const seeks = (calls: string[]) => calls.filter((c) => c.startsWith('seek'));
+
+  it('plays the player before the room has answered', () => {
+    const sim = run({ byHand: true });
+    sim.advance(1_000);
+    sim.player.calls.length = 0;
+    act(() => announcePress('playing'));
+    sim.wire.press(play, sim.now());
+    expect(sim.player.calls).toEqual(['play']);
+    sim.advance(4_000);
+    expect(sim.player.state).toBe('playing');
+    // Not undone while the round trip was in flight, and not told twice.
+    expect(sim.player.calls).toEqual(['play']);
+  });
+
+  it('pauses and resumes where the player is, with no seek', () => {
+    const sim = run({ byHand: true, lag: 2_300 });
+    act(() => announcePress('playing'));
+    sim.wire.press(play, sim.now());
+    sim.advance(6_000);
+    act(() => announcePress('paused'));
+    sim.wire.press(pause, sim.now());
+    sim.advance(3_000);
+    expect(sim.player.state).toBe('paused');
+    act(() => announcePress('playing'));
+    sim.wire.press(play, sim.now());
+    sim.advance(8_000);
+    expect(sim.player.state).toBe('playing');
+    expect(seeks(sim.player.calls)).toEqual([]);
+  });
+
+  it('is followed back when the room never takes it up', () => {
+    const sim = run({ byHand: true });
+    sim.advance(1_000);
+    act(() => announcePress('playing'));
+    sim.advance(6_000);
+    expect(sim.player.state).toBe('paused');
+  });
+
+  it('is left to the round trip without debug', () => {
+    const sim = run();
+    sim.advance(1_000);
+    sim.player.calls.length = 0;
+    act(() => announcePress('playing'));
+    expect(sim.player.calls).toEqual([]);
   });
 });

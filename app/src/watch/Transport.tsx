@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ClientAction } from '../../../core/protocol';
 import type { WatchParty, WatchState } from '../../../core/types';
 import { recordEvent } from '../audio/diagnostics';
+import { announcePress } from './drift';
 import { Button } from '../ui/components';
 import { useText } from '../i18n';
 import { colors, formatDuration, radius, spacing, type } from '../ui/theme';
@@ -214,6 +215,11 @@ export function WatchTransport({
               `watch press ${watch.status === 'playing' ? 'pause' : 'play'}` +
                 (sent ? '' : ' (not sent)')
             );
+            // Only a press that left: a player started for a room that never
+            // heard would be one the room then stops again.
+            if (sent) {
+              announcePress(watch.status === 'playing' ? 'paused' : 'playing');
+            }
           }}
         />
         <Button
