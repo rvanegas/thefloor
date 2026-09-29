@@ -1,11 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { recordEvent } from '../audio/diagnostics';
-import {
-  forgetDrift,
-  onCorrectionRequested,
-  onPress,
-  publishDrift,
-} from './drift';
+import { forgetDrift, onCorrectionRequested, publishDrift } from './drift';
+import { onPress, startHolding, subscribeStart } from './filmStart';
 import {
   desiredFor,
   followInstructions,
@@ -407,6 +403,16 @@ export function useFollow(
       }
 
       /*
+        **Nothing plays while this device is getting its session ready for the
+        film.** A press of Play here releases the microphone first and waits for
+        iOS to say `Playback` — see `filmStart.ts`, and build 312, where a
+        player that began before the category landed stuck in `buffering` for
+        five seconds. The room may say `playing` before that; the player waits,
+        and the change of phase rings this tick again.
+      */
+      if (want.status === 'playing' && startHolding()) return;
+
+      /*
         **A press spends every kind of patience this file keeps.**
 
         Two of them, and build 277 was caught by both at once. The stall
@@ -641,9 +647,11 @@ export function useFollow(
       and `pressed` is what keeps the follower from contradicting it in the
       meantime.
     */
-    const unpressed = onPress((status) => {
-      const { port: player, clock: roomNow, byHand } = latest.current;
-      if (!byHand || !player) return;
+    /** A play pressed here under `byHand`, waiting for the session. */
+    let waitingToPlay = false;
+    const carryOut = (status: 'playing' | 'paused') => {
+      const { port: player, clock: roomNow } = latest.current;
+      if (!player) return;
       const reading = player.read();
       if (!reading || reading.state === 'ended') return;
       const now = roomNow();
@@ -667,12 +675,38 @@ export function useFollow(
         `watch tell ${status === 'playing' ? 'play' : 'pause'} at the press ` +
           `(player ${reading.state}, debug)`
       );
+    };
+    const unpressed = onPress((status) => {
+      if (!latest.current.byHand) return;
+      waitingToPlay = false;
+      /*
+        The start has already been planned by the time this runs — see
+        `announcePress` — so a press that is releasing the microphone first is
+        held here, and carried out when the session is ready. The room's answer
+        must not be contradicted in the meantime either, hence the hold.
+      */
+      if (status === 'playing' && startHolding()) {
+        waitingToPlay = true;
+        pressed.current = { status, at: latest.current.clock() };
+        recordEvent('watch play waits for the session (debug)');
+        return;
+      }
+      carryOut(status);
+    });
+    const unstarted = subscribeStart(() => {
+      if (startHolding()) return;
+      if (waitingToPlay) {
+        waitingToPlay = false;
+        carryOut('playing');
+      }
+      tick();
     });
     tick();
     return () => {
       clearInterval(timer);
       unasked();
       unpressed();
+      unstarted();
       pressed.current = null;
       run.current = null;
       withheld.current = false;

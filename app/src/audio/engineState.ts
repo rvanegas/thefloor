@@ -144,33 +144,84 @@ export function engineSnapshot(): EngineSnapshot | null {
 export function watchEngineTransitions(
   record: (text: string) => void
 ): void {
-  if (Platform.OS !== 'ios') return;
+  onEngineTransition(({ what, play, rec }) =>
+    record(`engine ${what} play=${flag(play)} rec=${flag(rec)}`)
+  );
+}
 
-  const handler =
-    (what: string) =>
-    async ({
-      isPlayoutEnabled,
-      isRecordingEnabled,
-    }: {
-      isPlayoutEnabled: boolean;
-      isRecordingEnabled: boolean;
-    }): Promise<void> => {
+/** One transition, as the delegate reported it. */
+export interface EngineTransition {
+  what: 'start' | 'stop';
+  play: boolean;
+  rec: boolean;
+}
+
+const transitionListeners = new Set<(transition: EngineTransition) => void>();
+
+/**
+ * Subscribes to the engine's transitions, which more than the log needs now.
+ *
+ * **Added 2026-09-29 for the pause chime**, which must not sound until the
+ * engine is confirmed running again — see `useWatchChime`. The two slots each
+ * hold a single handler, so the log and the chime cannot each register their
+ * own: the second would silently replace the first. So the slots are given one
+ * handler that fans out, and everything that wants a transition subscribes
+ * here.
+ *
+ * **Registering is idempotent**, the handler being the same function every
+ * time. It is repeated on each subscription rather than done once, so that a
+ * native observer recreated since the last one is given it again — the SDK
+ * re-syncs its active flags on every set.
+ *
+ * The three rules above hold for the fan-out as a whole: each listener is
+ * called inside its own `try`, nothing is awaited, and nothing here touches
+ * the engine. A listener must obey the same rules — it runs while the audio
+ * worker thread is blocked waiting for this to resolve.
+ */
+export function onEngineTransition(
+  listener: (transition: EngineTransition) => void
+): () => void {
+  if (Platform.OS !== 'ios') return () => {};
+  transitionListeners.add(listener);
+  try {
+    audioDeviceModuleEvents.setWillStartEngineHandler(fanOut('start'));
+    audioDeviceModuleEvents.setDidStopEngineHandler(fanOut('stop'));
+  } catch {
+    // An SDK bump that moved or removed these leaves the panel with its poll
+    // and no transitions, which is where it was before this existed — and
+    // leaves the pause chime to its time bound. See `useWatchChime`.
+  }
+  return () => {
+    transitionListeners.delete(listener);
+  };
+}
+
+const fanOuts = new Map<
+  EngineTransition['what'],
+  (params: { isPlayoutEnabled: boolean; isRecordingEnabled: boolean }) => Promise<void>
+>();
+
+/** The one handler per slot, made once so that registering is idempotent. */
+function fanOut(what: EngineTransition['what']) {
+  const existing = fanOuts.get(what);
+  if (existing) return existing;
+  const handler = async ({
+    isPlayoutEnabled,
+    isRecordingEnabled,
+  }: {
+    isPlayoutEnabled: boolean;
+    isRecordingEnabled: boolean;
+  }): Promise<void> => {
+    for (const listener of transitionListeners) {
       try {
-        record(
-          `engine ${what} play=${flag(isPlayoutEnabled)} rec=${flag(isRecordingEnabled)}`
-        );
+        listener({ what, play: isPlayoutEnabled, rec: isRecordingEnabled });
       } catch {
         // See above: escaping here would cancel the engine operation.
       }
-    };
-
-  try {
-    audioDeviceModuleEvents.setWillStartEngineHandler(handler('start'));
-    audioDeviceModuleEvents.setDidStopEngineHandler(handler('stop'));
-  } catch {
-    // An SDK bump that moved or removed these leaves the panel with its poll
-    // and no transitions, which is where it was before this existed.
-  }
+    }
+  };
+  fanOuts.set(what, handler);
+  return handler;
 }
 
 /** The spelling the panel's own rows use, so the log reads like the reading. */

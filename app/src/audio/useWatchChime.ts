@@ -2,26 +2,19 @@ import { useEffect, useRef } from 'react';
 import { isScreening } from '../../../core/micNeeded';
 import type { ChannelState, UserId, WatchStatus } from '../../../core/types';
 import { chime, warmChimes, type ChimeKind } from './chime';
-import { observedCategory, recordEvent } from './diagnostics';
+import { Platform } from 'react-native';
+import { recordEvent } from './diagnostics';
+import { onEngineTransition } from './engineState';
+import { readStart } from '../watch/filmStart';
 
 /**
- * The category a chime can be heard in on a device that has just given its
- * microphone back, spelled as `AppleAudioConfiguration` spells it.
+ * How long the pause chime will wait for the engine to restart, before it is
+ * thrown away.
  *
- * This is `CALL`'s category and nothing else is compared against: what the
- * pause chime is waiting for is *this app holding a settled session again*, and
- * on a screening device the retake of the microphone is what produces it.
- */
-const SETTLED = 'playAndRecord';
-
-/**
- * How long the pause chime will wait for that, before it is thrown away.
- *
- * **Two seconds against a measured seven hundred milliseconds.** About 700ms of
- * every pause is the microphone being retaken — 417ms with the device held
- * against 1,113ms with it released, in
- * decisions/2026-09-28-the-film-waits-for-the-audio-session.md — so this is
- * generous by half again over the slow half of that pair.
+ * **Two seconds against a measured six hundred and fifty milliseconds.** The
+ * engine restarts with recording 640 to 660ms after a pause press on build 312
+ * (three pauses, 2026-09-29), the microphone being retaken on the way. So this
+ * is three times the wait it is for.
  *
  * **And it sits inside `CHIME_STALE_MS`**, deliberately: `chime` throws away
  * anything further behind than that, and a wait that outlasted it would spend
@@ -29,8 +22,33 @@ const SETTLED = 'playAndRecord';
  */
 const SETTLE_WAIT_MS = 2_000;
 
-/** How often the category is looked at while a chime is held. */
-const SETTLE_POLL_MS = 100;
+/**
+ * Calls `done` once the audio engine has confirmed it is starting with
+ * recording on, and returns a way to stop waiting.
+ *
+ * **The engine's own report, because nothing else can confirm it safely.**
+ * The session's category flips the moment it is written — about 200ms before
+ * the route notices and 480ms before the engine restarts — and the chimes
+ * fired on that reading were the ones swallowed on build 312. Asking the engine
+ * whether it is running means reading the audio device module, and one of its
+ * nine readers is known to stop the sound without anybody knowing which: see
+ * backlog/why-a-playout-only-engine-renders-nothing-is-not-known.md. What is
+ * left is `willStartEngine`, which the engine calls itself, on its own audio
+ * thread, and waits on. `done` runs a macrotask later, once the handler has
+ * returned and the start it was holding has gone ahead.
+ */
+function engineRestart(done: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const off = onEngineTransition(({ what, rec }) => {
+    if (what !== 'start' || !rec || timer !== null) return;
+    off();
+    timer = setTimeout(done, 0);
+  });
+  return () => {
+    off();
+    if (timer !== null) clearTimeout(timer);
+  };
+}
 
 /**
  * Sounds a chime in the room this device is standing in when the party's film
@@ -74,7 +92,14 @@ export function useWatchChime(
   channel: ChannelState | null,
   me: UserId,
   fire: (kind: ChimeKind) => void = chime,
-  category: () => string | null = observedCategory
+  /**
+   * How to wait for the engine, or null where there is no engine to hear from
+   * — Android and a browser, whose sessions do not move for a film.
+   */
+  waitForEngine: ((done: () => void) => () => void) | null = Platform.OS ===
+  'ios'
+    ? engineRestart
+    : null
 ): void {
   /**
    * The status this hook last saw, or null before the first look.
@@ -160,6 +185,10 @@ export function useWatchChime(
         announcing a film that is already running, which is the thing the
         `seen`-is-null rule above refuses to do on arrival.
       */
+      // Already sounded, at the press, by a start on this device — before its
+      // microphone was released, which is the only moment it could be heard.
+      // See `watch/filmStart.ts`.
+      if (readStart() !== null) return;
       fire('play');
       return;
     }
@@ -191,45 +220,39 @@ export function useWatchChime(
       return;
     }
 
-    const settled = category();
-    if (settled === null || settled === SETTLED) {
-      // Unreadable counts as settled, and that direction is deliberate:
-      // `observedCategory` answers null on Android, under jest, in a browser
-      // and in any build where the local module did not link. A cue withheld
-      // because a diagnostic could not be read would be indistinguishable from
-      // the fault this is fixing.
+    /*
+      **Waits for the engine, not for the category, since 2026-09-29.** It
+      waited for `observedCategory` to read `playAndRecord`, which it does the
+      moment the retake writes it — about 200ms before the route notices and
+      480ms before the engine is back. Two of three pause chimes on build 312
+      fired into that gap and were swallowed; the one that happened not to wait
+      was heard. See `engineRestart` for why the engine's own report is the
+      confirmation, and not a reading of it.
+    */
+    if (!waitForEngine) {
       fire('pause');
       return;
     }
-
-    /*
-      **A poll rather than `onRouteChange`.** That listener fires on *route*
-      changes, and a category change only reaches it by moving the route —
-      `reasonName`'s `.categoryChange` case in `AudioRouteModule.swift` is what
-      one looks like when it does. A poll cannot miss an edge that moved no
-      route. It runs only while a chime is held, for at most two seconds, and
-      `routeSnapshot` is cheap enough that `probe.ts` uses it as the control in
-      a timing harness.
-    */
     const from = Date.now();
-    recordEvent(`watch chime held (${settled})`);
-    const timer = setInterval(() => {
-      const waited = Date.now() - from;
-      if (category() === SETTLED) {
-        clearInterval(timer);
-        recordEvent(`watch chime after ${waited}ms`);
-        fire('pause');
-        return;
-      }
-      if (waited < SETTLE_WAIT_MS) return;
-      clearInterval(timer);
+    recordEvent('watch chime held (engine)');
+    let cancel: (() => void) | null = null;
+    const timer = setTimeout(() => {
+      cancel?.();
       // **Dropped rather than played late**, which is the rule `chime` already
       // applies to anything further behind than `CHIME_STALE_MS`: a notice
       // about the room getting its voices back, arriving seconds after they
       // came back, sends somebody looking for a change that has already
       // happened.
-      recordEvent(`watch chime dropped after ${waited}ms`);
-    }, SETTLE_POLL_MS);
-    return () => clearInterval(timer);
-  }, [channelId, status, screening, fire, category]);
+      recordEvent(`watch chime dropped after ${SETTLE_WAIT_MS}ms, no engine start`);
+    }, SETTLE_WAIT_MS);
+    cancel = waitForEngine(() => {
+      clearTimeout(timer);
+      recordEvent(`watch chime after engine start, ${Date.now() - from}ms`);
+      fire('pause');
+    });
+    return () => {
+      clearTimeout(timer);
+      cancel?.();
+    };
+  }, [channelId, status, screening, fire, waitForEngine]);
 }

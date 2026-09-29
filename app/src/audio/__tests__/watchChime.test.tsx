@@ -53,29 +53,39 @@ const here = (channel: ChannelState, by = ME, at = NOW + 1_500) =>
   reduce(channel, { type: 'WATCH_HERE', userId: by, watching: true }, at);
 
 /**
- * The category the session is in, as the hook reads it.
+ * The audio engine, as the hook hears from it.
  *
- * A function rather than a value because the whole point is that it *changes*
- * under the hook: a pause on a screening device starts in `playback` and
- * arrives at `playAndRecord` about seven hundred milliseconds later.
+ * A pause on a screening device retakes the microphone, and the engine
+ * restarts with recording about six hundred and fifty milliseconds later. The
+ * hook is told by `willStartEngine`; this stands in for it, and `start` is the
+ * engine reporting in. Null is a platform with no engine to hear from.
  */
-function category(initial: string | null) {
-  let now = initial;
-  const read = () => now;
-  return Object.assign(read, {
-    settle: () => {
-      now = 'playAndRecord';
+function engine() {
+  let waiting: (() => void) | null = null;
+  const wait = (done: () => void) => {
+    waiting = done;
+    return () => {
+      waiting = null;
+    };
+  };
+  // A getter on the function itself: `Object.assign` would copy its value once.
+  Object.defineProperty(wait, 'waiting', { get: () => waiting !== null });
+  return Object.assign(wait as typeof wait & { readonly waiting: boolean }, {
+    start: () => {
+      const done = waiting;
+      waiting = null;
+      done?.();
     },
   });
 }
 
 function mount(
   channel: ChannelState | null,
-  reading: () => string | null = () => 'playAndRecord'
+  waitForEngine: ((done: () => void) => () => void) | null = null
 ) {
   const fire = jest.fn();
   function Probe({ state }: { state: ChannelState | null }) {
-    useWatchChime(state, ME, fire, reading);
+    useWatchChime(state, ME, fire, waitForEngine);
     return null;
   }
   let tree: ReactTestRenderer;
@@ -203,55 +213,59 @@ describe('useWatchChime', () => {
 
     const screening = () => here(load(joined()));
 
-    it('holds the pause chime until the session comes back', () => {
-      const reading = category('playback');
+    /*
+      **The engine, not the category.** Build 312 waited for the category to
+      read `playAndRecord`, which it does the moment it is written, and two of
+      three pause chimes fired into the half-second before the engine was back
+      and were swallowed.
+    */
+    it('holds the pause chime until the engine has restarted', () => {
+      const restart = engine();
       const playing = play(screening());
-      const probe = mount(playing, reading);
+      const probe = mount(playing, restart);
       probe.update(pause(playing));
       expect(probe.fire).not.toHaveBeenCalled();
+      expect(restart.waiting).toBe(true);
 
       act(() => void jest.advanceTimersByTime(600));
       expect(probe.fire).not.toHaveBeenCalled();
 
-      reading.settle();
-      act(() => void jest.advanceTimersByTime(200));
+      act(() => restart.start());
       expect(probe.fire.mock.calls).toEqual([['pause']]);
     });
 
     /**
      * **Dropped rather than played late**, which is the rule `chime` already
-     * applies to anything further behind than `CHIME_STALE_MS`. A session that
+     * applies to anything further behind than `CHIME_STALE_MS`. An engine that
      * never comes back is a dropped connection or a backgrounded app, and a
      * notice about the room getting its voices back, arriving seconds after it
      * did, sends somebody looking for a change already on screen.
      */
-    it('throws the pause chime away if the session never comes back', () => {
+    it('throws the pause chime away if the engine never restarts', () => {
+      const restart = engine();
       const playing = play(screening());
-      const probe = mount(playing, category('playback'));
+      const probe = mount(playing, restart);
       probe.update(pause(playing));
       act(() => void jest.advanceTimersByTime(5_000));
+      expect(restart.waiting).toBe(false);
+      act(() => restart.start());
       expect(probe.fire).not.toHaveBeenCalled();
     });
 
     it('never holds the play chime', () => {
       const loaded = here(load(joined()));
-      const probe = mount(loaded, category('playAndRecord'));
+      const probe = mount(loaded, engine());
       probe.update(play(loaded));
       expect(probe.fire.mock.calls).toEqual([['play']]);
     });
 
-    it('does not wait when the session is already back', () => {
-      const playing = play(screening());
-      const probe = mount(playing, category('playAndRecord'));
-      probe.update(pause(playing));
-      expect(probe.fire.mock.calls).toEqual([['pause']]);
-    });
-
     it('stops waiting when the channel is left mid-hold', () => {
+      const restart = engine();
       const playing = play(screening());
-      const probe = mount(playing, category('playback'));
+      const probe = mount(playing, restart);
       probe.update(pause(playing));
       probe.unmount();
+      expect(restart.waiting).toBe(false);
       act(() => void jest.advanceTimersByTime(5_000));
       expect(probe.fire).not.toHaveBeenCalled();
     });
@@ -266,19 +280,19 @@ describe('useWatchChime', () => {
    */
   it('sounds at once for somebody present who is not watching here', () => {
     const playing = play(load(joined()));
-    const probe = mount(playing, category('playback'));
+    const probe = mount(playing, engine());
     probe.update(pause(playing));
     expect(probe.fire.mock.calls).toEqual([['pause']]);
   });
 
   /**
-   * Android, jest, a browser, and any build where the local module did not
-   * link. A cue withheld because a *diagnostic* could not be read would be
-   * indistinguishable from the fault this gate was written to fix.
+   * Android and a browser, where there is no engine to hear from and the
+   * session does not move for a film. A cue withheld for want of a report that
+   * can never come would be the fault this gate was written to fix.
    */
-  it('sounds at once when the category cannot be read', () => {
+  it('sounds at once where there is no engine to hear from', () => {
     const playing = play(here(load(joined())));
-    const probe = mount(playing, category(null));
+    const probe = mount(playing, null);
     probe.update(pause(playing));
     expect(probe.fire.mock.calls).toEqual([['pause']]);
   });

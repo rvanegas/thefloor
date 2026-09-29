@@ -1,5 +1,5 @@
 import { audioDeviceModuleEvents } from '@livekit/react-native';
-import { watchEngineTransitions } from '../engineState';
+import { onEngineTransition, watchEngineTransitions } from '../engineState';
 
 /**
  * The instrument that must not become the fault.
@@ -88,4 +88,26 @@ it('survives an SDK that no longer offers the slots', () => {
   // The panel falls back to its once-a-second poll, which is where it was
   // before transitions existed. What must not happen is a throw at startup.
   expect(() => watchEngineTransitions(() => {})).not.toThrow();
+});
+
+/*
+  **Two readers, one slot.** The pause chime needs the engine's start as much
+  as the log does, and a slot holds a single handler — so a second
+  registration of its own would have silently replaced the log's.
+*/
+it('tells every subscriber, the log and the chime alike', async () => {
+  const lines: string[] = [];
+  const seen: string[] = [];
+  watchEngineTransitions((text) => lines.push(text));
+  const stop = onEngineTransition((t) => seen.push(`${t.what} ${t.rec}`));
+
+  const slot = events.setWillStartEngineHandler.mock.calls;
+  await (slot[slot.length - 1][0] as (p: {
+    isPlayoutEnabled: boolean;
+    isRecordingEnabled: boolean;
+  }) => Promise<void>)({ isPlayoutEnabled: true, isRecordingEnabled: true });
+
+  expect(lines).toEqual(['engine start play=T rec=T']);
+  expect(seen).toEqual(['start true']);
+  stop();
 });

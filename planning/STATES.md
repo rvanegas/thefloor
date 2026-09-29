@@ -29,7 +29,7 @@ either of the other two.
 
 ## Contents
 
-Added 2026-09-07. Read the section you need, not the file: this is eighty-eight
+Added 2026-09-07. Read the section you need, not the file: this is ninety-three
 kilobytes and almost no question needs all of it. **The figure had said
 sixty-two since it was written and was twenty-four kilobytes stale by
 2026-09-26** — correct it in the same commit as anything added here, on
@@ -890,17 +890,24 @@ guest who may not speak, for the same reason: neither has a microphone open. The
 produces them is one sentence: **a session is held if and only if the phone is
 stepped in.**
 
-**Two things are ordered against this state rather than merely reading it, and
-both look like tidying.** The *film chimes* are an `AVAudioPlayer` playing into
-the session this app holds, so on the device *watching here* — the one whose
-session moves for a run — the play chime is sounded before the microphone is
-released and the pause chime waits for `playAndRecord` to come back. The hold
-on the release is `useFilmHandover`, which is why `micNeeded` in `App.tsx`
-carries a term that adds a microphone back for 180ms after a film starts; the
-wait is in `useWatchChime`, which polls `observedCategory`. Neither is
-redundant with the other and neither is a guard against a race — they are
-opposite orderings, because only the chime can afford to be late and only on
-one of the two edges. See
+**Three things are ordered against this state rather than merely reading it,
+and all three look like tidying.** The *film chimes* are an `AVAudioPlayer`
+playing into the session this app holds, so on the device *watching here* — the
+one whose session moves for a run — the play chime is sounded before the
+microphone is released, and the pause chime waits for the **engine** to restart
+with recording, not for the category to read `playAndRecord`: the reading flips
+the moment it is written, about 480ms before the engine is back, and chimes
+fired on it were swallowed (build 312). And **the player is not told to play
+until the release has landed**: a press of Play on the device that will show the
+film chimes, holds the microphone 180ms, releases it, and waits for iOS to
+report `Playback` before the follower may play — `watch/filmStart.ts`, whose
+phase `App.tsx` reads *ahead of* `microphoneNeeded`, which still says paused
+until the snapshot. A category change landing under a starting player is what
+left it stuck in `buffering`. A run started from another device still takes the
+old path: `useFilmHandover` holds the release on the snapshot. None of these is
+redundant with another and none is a guard against a race. See
+`decisions/2026-09-29-the-film-waits-for-its-session.md`, which supersedes the
+ordering in
 `decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
 
 **These are our names, not Apple's, and the two that are configurations are

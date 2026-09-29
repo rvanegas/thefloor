@@ -37,6 +37,7 @@ import { NotificationsView } from './src/ui/NotificationsView';
 import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
 import { Picture } from './src/watch/Picture';
+import { useFilmStart } from './src/watch/filmStart';
 import {
   channelHasAudio,
   hasMicrophone,
@@ -214,16 +215,28 @@ function Root() {
   // heard until it has been. See `audio/useFilmHandover.ts`, which carries the
   // whole argument and the cost.
   const handover = useFilmHandover(live ? isScreening(live, me) : false);
+  // **A film started by a press on this device**, which gives the microphone up
+  // before the player is told to play rather than when the server's snapshot
+  // arrives. While it runs it decides the microphone outright: held for the
+  // chime, then released — ahead of `microphoneNeeded`, which still says the
+  // room is paused, and in place of the handover, whose chime was sounded at
+  // the press. See `watch/filmStart.ts`.
+  const start = useFilmStart(live, me);
 
   const micNeeded = live
-    ? // `filmProbe` and the handover are the two things that may add to this,
-      // and both may only add back what the film subtracted — `hasMicrophone`,
-      // never a room somebody is not in and never a guest without a grant. See
-      // `audio/probe.ts` § *The film probe*; it is off unless somebody with
-      // `debug` turned it on in the audio panel this launch.
-      microphoneNeeded(live, me) ||
-      (handover && hasMicrophone(live, me)) ||
-      filmProbeKeepsMicrophone(live, me)
+    ? start
+      ? start === 'chiming'
+        ? hasMicrophone(live, me)
+        : filmProbeKeepsMicrophone(live, me)
+      : // `filmProbe` and the handover are the two things that may add to
+        // this, and both may only add back what the film subtracted —
+        // `hasMicrophone`, never a room somebody is not in and never a guest
+        // without a grant. See `audio/probe.ts` § *The film probe*; it is off
+        // unless somebody with `debug` turned it on in the audio panel this
+        // launch.
+        microphoneNeeded(live, me) ||
+        (handover && hasMicrophone(live, me)) ||
+        filmProbeKeepsMicrophone(live, me)
     : // A guest's microphone is the grant a member said yes to, and holding
       // it muted is still holding it — the same reading `microphoneNeeded`
       // makes of a member who has muted themselves. See `GuestView.you.mic`.

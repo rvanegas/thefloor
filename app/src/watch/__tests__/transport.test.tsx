@@ -12,7 +12,9 @@ import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
-import { announcePress, readDrift, requestCorrection } from '../drift';
+import { readDrift, requestCorrection } from '../drift';
+import { announcePress, useFilmStart, wouldScreen } from '../filmStart';
+import type { RouteSnapshot } from '../../../modules/audio-route';
 
 /**
  * The diagnostic log, captured rather than written.
@@ -286,6 +288,10 @@ function server(initial: ChannelState, trip: number) {
     get watch(): WatchState {
       return state.watch;
     },
+    /** The whole channel, for the one reader that needs more than the film. */
+    get channel(): ChannelState {
+      return state;
+    },
     /** A button, pressed anywhere in the room. */
     press(
       action: (c: ChannelState, now: number) => ChannelState,
@@ -350,6 +356,13 @@ function run(
     skew?: number;
     /** Drift corrected only when asked, as an account with `debug` has it. */
     byHand?: boolean;
+    /**
+     * This device shows the film, and runs the start that releases its
+     * microphone before the player plays. See `filmStart.ts`.
+     */
+    startHere?: {
+      routes: (listener: (s: RouteSnapshot) => void) => () => void;
+    };
   } = {}
 ) {
   const player = laggyPlayer(opts.lag ?? LAG_MS);
@@ -361,8 +374,18 @@ function run(
     useFollow(watch, player.port, true, roomNow, CHANNEL, opts.byHand);
     return <Text>following</Text>;
   }
+  function Start({ channel }: { channel: ChannelState }) {
+    useFilmStart(channel, A, () => {}, opts.startHere!.routes);
+    return null;
+  }
+  const Both = () => (
+    <>
+      <Follower watch={wire.watch} />
+      {opts.startHere ? <Start channel={wire.channel} /> : null}
+    </>
+  );
   act(() => {
-    tree = renderer.create(<Follower watch={wire.watch} />);
+    tree = renderer.create(<Both />);
   });
   const STEP = 50;
   return {
@@ -393,7 +416,7 @@ function run(
         }
         wire.deliver(there);
         act(() => {
-          tree!.update(<Follower watch={wire.watch} />);
+          tree!.update(<Both />);
           jest.advanceTimersByTime(STEP);
         });
       }
@@ -1208,4 +1231,69 @@ describe('a press carried out at once', () => {
     act(() => announcePress('playing'));
     expect(sim.player.calls).toEqual([]);
   });
+});
+
+/*
+  **A film started here waits for the session it will play in.**
+
+  Build 312 told the player to play at the press, or on the snapshot, while the
+  microphone was released on the snapshot — so the category change landed under
+  a starting player, and three resumes in four stuck in `buffering` for five
+  seconds. Now the press releases the microphone first and the player is told
+  nothing until iOS says `Playback`.
+*/
+describe('a film started on the device showing it', () => {
+  function routes() {
+    const listeners = new Set<(s: RouteSnapshot) => void>();
+    return Object.assign(
+      (listener: (s: RouteSnapshot) => void) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+      {
+        playback() {
+          for (const l of [...listeners]) {
+            l({
+              outputs: [],
+              inputs: [],
+              sampleRate: 48_000,
+              category: 'AVAudioSessionCategoryPlayback',
+              mode: '',
+            });
+          }
+        },
+      }
+    );
+  }
+  const watchingHere = (c: ChannelState, t: number) =>
+    reduce(c, { type: 'WATCH_HERE', userId: A, watching: true }, t);
+
+  for (const byHand of [true, false]) {
+    it(`is not told to play until the session is Playback${byHand ? ' (debug)' : ''}`, () => {
+      const route = routes();
+      const sim = run({
+        byHand,
+        startHere: { routes: route },
+        already: (c) => watchingHere(c, T0),
+      });
+      expect(wouldScreen(sim.wire.channel, A)).toBe(true);
+      sim.advance(1_000);
+      sim.player.calls.length = 0;
+
+      act(() => announcePress('playing'));
+      sim.wire.press(play, sim.now());
+      // The room has answered by now, and the chime's hold is long over.
+      sim.advance(1_000);
+      expect(sim.player.calls).toEqual([]);
+
+      act(() => route.playback());
+      sim.advance(50);
+      expect(sim.player.calls).toEqual(['play']);
+      sim.advance(3_000);
+      expect(sim.player.state).toBe('playing');
+      expect(sim.player.calls).toEqual(['play']);
+    });
+  }
 });
