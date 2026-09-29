@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { spanMs } from './chime';
 
 /**
@@ -67,24 +67,41 @@ export const HANDOVER_MS = spanMs('play');
  */
 export function useFilmHandover(screening: boolean): boolean {
   const [holding, setHolding] = useState(false);
-  /** The last value seen, so the hold is armed by the edge and not the level. */
-  const seen = useRef(screening);
+  /**
+   * The last value an effect has acted on, so the hold is armed by the edge
+   * and not the level.
+   */
+  const [seen, setSeen] = useState(screening);
 
   useEffect(() => {
-    const before = seen.current;
-    seen.current = screening;
-    if (!screening || before) return;
+    if (screening === seen) return;
+    setSeen(screening);
+    setHolding(screening);
+  }, [screening, seen]);
 
-    setHolding(true);
+  useEffect(() => {
+    if (!holding) return;
+    // Cleared on unmount with the timer, and the state goes with the
+    // component: leaving the channel mid-hold cannot leave a microphone held.
     const timer = setTimeout(() => setHolding(false), HANDOVER_MS);
-    return () => {
-      clearTimeout(timer);
-      // **Released rather than left standing**, which matters on the path this
-      // guards: unmounting mid-hold is leaving the channel, and a microphone
-      // held by a timer that no longer exists would be held for ever.
-      setHolding(false);
-    };
-  }, [screening]);
+    return () => clearTimeout(timer);
+  }, [holding]);
 
-  return holding;
+  /*
+    **Answered from the render the edge arrives in, not from the one after.**
+    Until 2026-09-29 this returned `holding` alone, which an effect set — so
+    the render where `screening` turned true still answered `false`, and
+    `App.tsx` computes `micNeeded` from that render. Every Play from build 309
+    therefore released the session, retook it when the effect ran, and
+    released it again 180ms later: three session changes where there should be
+    one, and the retake's capture, finishing after the second release, dragged
+    the session back to `playAndRecord` under a starting film.
+
+    `screening && !seen` is that first render: an edge nothing has acted on
+    yet. Derived rather than set during render, because a render React throws
+    away is still a render — `useSessionAudio` runs in it with whatever this
+    returns. And `screening &&` on the whole of it, so an edge down releases at
+    once, as it always did.
+  */
+  return screening && (holding || !seen);
 }

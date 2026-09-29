@@ -60,6 +60,38 @@ describe('useFilmHandover', () => {
   });
 
   /**
+   * **Held from the render the film starts in, not the one after.** The hold
+   * was set in an effect, so the render where `screening` turned true still
+   * answered `false` — and `App.tsx` computes `micNeeded` from that render, so
+   * every Play released the session, retook it when the effect ran, and
+   * released it again 180ms later. Three category changes where there should
+   * be one, and the retake's asynchronous capture finishing after the second
+   * release dragged the session back to `playAndRecord` under the film. Seen
+   * on every press from build 309, which is the build this hook arrived in.
+   * The test above only read the value after effects had run, so it could not
+   * see the render that did the damage.
+   */
+  it('never answers false between the edge and the end of the hold', () => {
+    const seen: boolean[] = [];
+    function Probe({ on }: { on: boolean }) {
+      seen.push(useFilmHandover(on));
+      return null;
+    }
+    let tree: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<Probe on={false} />);
+    });
+    const before = seen.length;
+    act(() => {
+      tree.update(<Probe on={true} />);
+    });
+    expect(seen.slice(before)).not.toContain(false);
+    act(() => void jest.advanceTimersByTime(HANDOVER_MS + 1));
+    expect(seen[seen.length - 1]).toBe(false);
+    act(() => tree.unmount());
+  });
+
+  /**
    * **A film already running when this mounts is not a film that started.**
    * The chime hooks take it as read on the same reasoning — announcing it
    * would be reporting the past — so there is no sound to protect and no
