@@ -1,0 +1,19 @@
+A channel's members can remove one of their own, and it takes two of them. "Move to remove them" is at the foot of a member's profile; nothing happens until another member agrees, within a day. The person removed is told it happened and not who decided, and anybody can invite them back. A channel of two cannot remove anybody.
+
+While you are in a room on one device, Home on your others pins it at the top: "On another device".
+
+The Notepad tab is now Clipboard. What the notepad said is the channel's Description, in the channel's Settings under Public page, and it is shown only while the channel has a public page.
+
+A chime sounds when a film starts and another when it stops, since the room's microphones close while it plays. Pausing a film gives everybody their microphone back at once.
+
+People says "not watching" beside anybody in the room with the film on none of their devices.
+
+A film resumes in step with the room on every device, and tapping the picture in the corner always opens it.
+
+The floor can be claimed whenever no film is playing.
+
+A guest made a member while in the room stays in the conversation, muted unless they were already speaking.
+
+A bar on Home naming one invitation opens its channel, and one naming one contact request opens that person.
+
+"In the app now" under a contact means they are using it, not only that it is open somewhere.
