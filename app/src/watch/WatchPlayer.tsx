@@ -177,13 +177,28 @@ function page(videoId: string): string {
       name = null;
       showing = null;
     }
+    // **Whether the player thinks it is making a sound**, which nothing
+    // reported until a film went silent after a seek on 2026-09-29 with the
+    // session, the route and the engine all unchanged. Guarded like the rest:
+    // null where the API does not answer.
+    var muted = null;
+    var volume = null;
+    try {
+      muted = player.isMuted ? player.isMuted() : null;
+      volume = player.getVolume ? player.getVolume() : null;
+    } catch (e) {
+      muted = null;
+      volume = null;
+    }
     post({
       t: 'reading',
       state: player.getPlayerState(),
       positionMs: typeof seconds === 'number' ? seconds * 1000 : null,
       durationMs: length > 0 ? Math.round(length * 1000) : null,
       title: name,
-      videoId: showing
+      videoId: showing,
+      muted: muted,
+      volume: volume
     });
   }
   setInterval(report, ${REPORT_MS});
@@ -372,6 +387,7 @@ export function WatchPlayer({
   useEffect(() => {
     setReady(false);
     reading.current = null;
+    heard.current = null;
   }, [videoId, generation]);
 
   // A refusal and a duration belong to the film rather than to the player
@@ -393,6 +409,8 @@ export function WatchPlayer({
    * Where `onMessage` can read it without being rebuilt on every render of the
    * screen above — the pattern `reportRefusal` below is, and for the same reason.
    */
+  /** The last `muted`/`volume` pair logged, so only a change is written. */
+  const heard = useRef<string | null>(null);
   const reportStarted = useRef(onStarted);
   reportStarted.current = onStarted;
   /** The refusal, where `recover` can read it without being rebuilt. */
@@ -414,6 +432,8 @@ export function WatchPlayer({
         durationMs?: number | null;
         title?: string | null;
         videoId?: string | null;
+        muted?: boolean | null;
+        volume?: number | null;
       };
       try {
         payload = JSON.parse(event.nativeEvent.data);
@@ -490,6 +510,28 @@ export function WatchPlayer({
             `${((what.positionMs ?? 0) / 1000).toFixed(2)}s` +
             (before === null ? ' (first reading)' : ` (was ${before})`)
         );
+      }
+      /*
+        **Whether the player thinks it is making a sound, written down when it
+        changes.** Added for a film that went silent after a seek with nothing
+        else in the log moving: this separates a player that muted itself, or
+        dropped its volume, from one that says it is sounding and is not heard —
+        which is the audio session's question, and the interruption lines in
+        `diagnostics.ts` are its instrument.
+      */
+      const sound = `muted=${
+        payload.muted === undefined || payload.muted === null
+          ? '?'
+          : payload.muted
+            ? 'T'
+            : 'F'
+      } volume=${payload.volume ?? '?'}`;
+      if (sound !== heard.current) {
+        recordEvent(
+          `watch player sound ${sound}` +
+            (heard.current === null ? ' (first reading)' : ` (was ${heard.current})`)
+        );
+        heard.current = sound;
       }
       /*
         **Nothing is learnt from a video that is not the film.**

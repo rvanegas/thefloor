@@ -38,6 +38,7 @@ jest.mock('react-native-webview', () => {
 });
 
 import { WatchPlayer } from '../WatchPlayer';
+import { diagnosticEvents, resetDiagnostics } from '../../audio/diagnostics';
 
 const watch: WatchState = {
   party: {
@@ -82,6 +83,8 @@ function reports(
     durationMs: number;
     title: string;
     videoId: string;
+    muted?: boolean;
+    volume?: number;
   }
 ): void {
   const onMessage = props.onMessage as (event: {
@@ -276,5 +279,44 @@ describe('the pre-roll before a newly started film', () => {
     ready(props);
     reports(props, { ...film, videoId: null as unknown as string });
     expect(learnt).toEqual([{ durationMs: 600_000, title: 'The film' }]);
+  });
+});
+
+/*
+  **Whether the player thinks it is sounding, written down when it changes.**
+  Added after a film went silent following a seek with the session, the route
+  and the engine all unchanged in the log: this tells a player that muted
+  itself from one that says it is sounding and is not heard.
+*/
+describe('the sound the player says it is making', () => {
+  const film = {
+    positionMs: 1_000,
+    durationMs: 600_000,
+    title: 'A film',
+    videoId: 'abc123',
+  };
+  const lines = () =>
+    diagnosticEvents()
+      .map((e) => e.text)
+      .filter((text) => text.startsWith('watch player sound'));
+
+  it('is logged on the first reading and on each change, and not otherwise', () => {
+    resetDiagnostics();
+    const props = draw();
+    reports(props, { ...film, state: 1, muted: false, volume: 100 });
+    reports(props, { ...film, state: 1, muted: false, volume: 100 });
+    reports(props, { ...film, state: 1, muted: true, volume: 100 });
+    reports(props, { ...film, state: 1, muted: true, volume: 100 });
+    expect(lines()).toEqual([
+      'watch player sound muted=F volume=100 (first reading)',
+      'watch player sound muted=T volume=100 (was muted=F volume=100)',
+    ]);
+  });
+
+  it('says it could not tell, rather than claiming silence', () => {
+    resetDiagnostics();
+    const props = draw();
+    reports(props, { ...film, state: 1 });
+    expect(lines()).toEqual(['watch player sound muted=? volume=? (first reading)']);
   });
 });

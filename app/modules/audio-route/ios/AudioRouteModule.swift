@@ -63,6 +63,16 @@ public class AudioRouteModule: Module {
   private var observer: NSObjectProtocol?
 
   /**
+   Interruptions and media-services resets, observed beside the route.
+
+   **Added 2026-09-29 for a film that went silent after a seek** with the route,
+   the category and the engine all unchanged in the log. An interruption can
+   silence audio without moving the route, so the route observer cannot see
+   one; this is the observer that can. Log-only: nothing in the app acts on it.
+   */
+  private var sessionObservers: [NSObjectProtocol] = []
+
+  /**
    The lab's input tap, held so it can be stopped.
 
    Nil except while a trial is deliberately capturing. This is the only audio
@@ -84,7 +94,7 @@ public class AudioRouteModule: Module {
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
-    Events("onRouteChange")
+    Events("onRouteChange", "onSessionInterruption")
 
     // Synchronous on purpose. Callers take it either side of a transition and
     // compare, and an await between the two samples is exactly how the
@@ -396,6 +406,54 @@ public class AudioRouteModule: Module {
         self.sendEvent("onRouteChange", payload)
       }
 
+      let center = NotificationCenter.default
+      self.sessionObservers = [
+        center.addObserver(
+          forName: AVAudioSession.interruptionNotification,
+          object: nil,
+          queue: .main
+        ) { [weak self] notification in
+          guard let self else { return }
+          var payload = Self.snapshot()
+          let info = notification.userInfo ?? [:]
+          let type = info[AVAudioSessionInterruptionTypeKey] as? UInt
+          payload["kind"] =
+            type == AVAudioSession.InterruptionType.began.rawValue
+            ? "began"
+            : type == AVAudioSession.InterruptionType.ended.rawValue ? "ended" : "unknown"
+          // Only on a `began`, and only from iOS 14.5. By raw value, so that a
+          // case one SDK lacks cannot fail the build.
+          if let raw = info[AVAudioSessionInterruptionReasonKey] as? UInt {
+            payload["reason"] = Self.interruptionReasonName(raw)
+          }
+          // Only on an `ended`.
+          if let raw = info[AVAudioSessionInterruptionOptionKey] as? UInt {
+            payload["shouldResume"] = AVAudioSession.InterruptionOptions(rawValue: raw)
+              .contains(.shouldResume)
+          }
+          self.sendEvent("onSessionInterruption", payload)
+        },
+        center.addObserver(
+          forName: AVAudioSession.mediaServicesWereLostNotification,
+          object: nil,
+          queue: .main
+        ) { [weak self] _ in
+          guard let self else { return }
+          var payload = Self.snapshot()
+          payload["kind"] = "mediaServicesLost"
+          self.sendEvent("onSessionInterruption", payload)
+        },
+        center.addObserver(
+          forName: AVAudioSession.mediaServicesWereResetNotification,
+          object: nil,
+          queue: .main
+        ) { [weak self] _ in
+          guard let self else { return }
+          var payload = Self.snapshot()
+          payload["kind"] = "mediaServicesReset"
+          self.sendEvent("onSessionInterruption", payload)
+        },
+      ]
     }
 
     OnStopObserving {
@@ -403,6 +461,10 @@ public class AudioRouteModule: Module {
         NotificationCenter.default.removeObserver(observer)
         self.observer = nil
       }
+      for observer in self.sessionObservers {
+        NotificationCenter.default.removeObserver(observer)
+      }
+      self.sessionObservers = []
     }
   }
 
@@ -887,6 +949,19 @@ public class AudioRouteModule: Module {
   /// only there to tell two of the same kind apart.
   private static func describe(_ port: AVAudioSessionPortDescription) -> String {
     "\(port.portType.rawValue)(\(port.portName))"
+  }
+
+  /** `AVAudioSession.InterruptionReason`, named by raw value. See the header. */
+  private static func interruptionReasonName(_ raw: UInt) -> String {
+    switch raw {
+    case 0: return "default"
+    case 1: return "appWasSuspended"
+    case 2: return "builtInMicMuted"
+    case 3: return "sceneWasBackgrounded"
+    case 4: return "routeDisconnected"
+    case 5: return "deviceUnauthenticated"
+    default: return "unknown(\(raw))"
+    }
   }
 
   private static func reasonName(_ raw: UInt?) -> String {

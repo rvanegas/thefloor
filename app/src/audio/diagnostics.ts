@@ -3,6 +3,7 @@ import { AudioEngineMuteMode } from '@livekit/react-native';
 import type { AppleAudioConfiguration } from '@livekit/react-native';
 import {
   onRouteChange,
+  onSessionInterruption,
   routeFault,
   routeLine,
   routeSnapshot,
@@ -669,6 +670,20 @@ export function startDiagnosticRecording(): void {
     // reason — which is the field that exists only on the notification and is
     // gone by the next poll.
     recordEvent(`route ${routeLine(snapshot)}`);
+  });
+
+  // What the route observer cannot see: an interruption silences audio without
+  // moving the route. Added for a film that went silent after a seek with
+  // nothing else in the log moving. See `onSessionInterruption`.
+  onSessionInterruption((event) => {
+    recordEvent(
+      `session ${event.kind}` +
+        (event.reason ? ` reason=${event.reason}` : '') +
+        (event.shouldResume === undefined
+          ? ''
+          : ` shouldResume=${event.shouldResume ? 'T' : 'F'}`) +
+        ` ${routeLine(event)}`
+    );
   });
 
   // The engine's own transitions, which the once-a-second poll above cannot

@@ -130,6 +130,10 @@ interface NativeAudioRoute {
     event: 'onRouteChange',
     listener: (payload: RouteSnapshot) => void
   ): { remove(): void };
+  addListener(
+    event: 'onSessionInterruption',
+    listener: (payload: SessionInterruption) => void
+  ): { remove(): void };
 }
 
 function load(): NativeAudioRoute | null {
@@ -636,6 +640,34 @@ export function chime(
  */
 export function chimeArity(): number | null {
   return acceptedArity;
+}
+
+/**
+ * An `AVAudioSession` interruption, or media services lost or reset.
+ *
+ * **The route observer cannot see these**, and the reason this exists: a film
+ * went silent after a seek on 2026-09-29 with the route, the category and the
+ * engine all unchanged in the log. An interruption can silence audio without
+ * moving the route. `kind` is `began`, `ended`, `mediaServicesLost` or
+ * `mediaServicesReset`; `reason` comes only with a `began` and `shouldResume`
+ * only with an `ended`. Log-only.
+ */
+export interface SessionInterruption extends RouteSnapshot {
+  kind: string;
+  reason?: string;
+  shouldResume?: boolean;
+}
+
+/** Subscribes to interruptions, in `onRouteChange`'s shape. A no-op without the module. */
+export function onSessionInterruption(
+  listener: (payload: SessionInterruption) => void
+): () => void {
+  try {
+    const sub = native?.addListener('onSessionInterruption', listener);
+    return () => sub?.remove();
+  } catch {
+    return () => {};
+  }
 }
 
 /**
