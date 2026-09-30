@@ -11,7 +11,7 @@ import { inRoom } from '../../../core/guests';
 import { useApp } from '../state/AppProvider';
 import { COLUMN_GAP, useWatchShape } from '../ui/layout';
 import { colors } from '../ui/theme';
-import { watchPositionMs } from '../../../core/watch';
+import { isUprightFilm, watchPositionMs } from '../../../core/watch';
 import { WatchDock, type Rect } from './Dock';
 import { FullScreen } from './FullScreen';
 import { usePortraitUnlessAtTheFilm } from './orientation';
@@ -88,6 +88,10 @@ type PictureApi = {
    * *Watch* tab and by nothing else, which is the right condition, but it is
    * a layout measurement — it is null for a frame before `onLayout` lands and
    * it went null once for a bug — and a lock that flickers rotates a phone.
+   *
+   * **False for an upright film**, which is at the film and is not a reason
+   * to turn — `ChannelView` reports the exception to the lock rather than the
+   * place. See `isUprightFilm`.
    */
   atTheFilm: boolean;
   setAtTheFilm: (there: boolean) => void;
@@ -285,21 +289,6 @@ export function Picture({
   const exit = useRef<(() => void) | null>(null);
   /** The open channel screen's way to its own film, if one is open. See `setWayIn`. */
   const wayIn = useRef<{ channelId: string; go: () => void } | null>(null);
-  /*
-    Which way up the phone may be, which is decided here because this is the
-    only place that knows the answer for the whole application. The rule is
-    about *every* screen — a phone is upright on Home and on a transcript as
-    much as on the roster — and the exception is the film, whose two flags
-    this component holds precisely because the picture outlives the screen
-    that asked for it. See orientation.ts; on a tablet and in a browser it
-    does nothing.
-
-    Both flags rather than `atTheFilm` alone, though the terms make the second
-    imply the first: the expanded picture is this component's own state and
-    the other is a report from a screen, so a phone with the film on the glass
-    is never left locked by a report that has not arrived yet.
-  */
-  usePortraitUnlessAtTheFilm(atTheFilm || fullScreen);
   /** Where the host itself is, which is what turns a window measurement into
       one of its own. */
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
@@ -384,6 +373,32 @@ export function Picture({
   const watch = channel?.watch ?? null;
   const party = watch?.party ?? null;
   const me = app.me?.id ?? '';
+
+  /*
+    Which way up the phone may be, which is decided here because this is the
+    only place that knows the answer for the whole application. The rule is
+    about *every* screen — a phone is upright on Home and on a transcript as
+    much as on the roster — and the exception is the film, whose two flags
+    this component holds precisely because the picture outlives the screen
+    that asked for it. See orientation.ts; on a tablet and in a browser it
+    does nothing.
+
+    Both flags rather than `atTheFilm` alone, though the terms make the second
+    imply the first: the expanded picture is this component's own state and
+    the other is a report from a screen, so a phone with the film on the glass
+    is never left locked by a report that has not arrived yet.
+
+    **Except an upright film, which keeps the phone upright on the glass as
+    well** — a Short is a tall picture, and turning the phone for one only
+    makes it smaller. `ChannelView` already leaves it out of `atTheFilm`;
+    this is the other flag, which is this component's own and would otherwise
+    unlock a phone that pressed its way into the picture. See `isUprightFilm`.
+
+    Below the party it is read off, and not beside its state. Nothing between
+    the two returns early, so the hook is called on every render wherever it
+    sits.
+  */
+  usePortraitUnlessAtTheFilm(atTheFilm || (fullScreen && !isUprightFilm(party)));
 
   /**
    * The layer's own size, which is what a corner is measured against.

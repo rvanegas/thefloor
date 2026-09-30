@@ -85,8 +85,23 @@ const LANDSCAPE = { width: 956, height: 440, scale: 3, fontScale: 1 };
  * 2026-09-20 fix; see `isHandheld` in `../layout`.
  */
 const TABLET_LANDSCAPE = { width: 1133, height: 744, scale: 2, fontScale: 1 };
+/**
+ * Which way up the phone was told to be, which is a fifth mock and only
+ * recorded: the rotation is iOS's, and the call is all this side can see.
+ * Most of the file never looks — `orientation.test.tsx` has the hook — and
+ * the *upright film* tests below are what it is for.
+ */
+const mockLock = jest.fn((_lock: number) => Promise.resolve());
+const mockUnlock = jest.fn(() => Promise.resolve());
+jest.mock('expo-screen-orientation', () => ({
+  lockAsync: (lock: number) => mockLock(lock),
+  unlockAsync: () => mockUnlock(),
+  OrientationLock: { PORTRAIT_UP: 1 },
+}));
 beforeEach(() => {
   mockWindow = PORTRAIT;
+  mockLock.mockClear();
+  mockUnlock.mockClear();
 });
 
 /**
@@ -1010,6 +1025,67 @@ describe('Channel, watching together', () => {
       again(tree);
       expect(expanded(tree)).toBe(false);
       act(() => tree.unmount());
+    });
+
+    describe('for an upright film', () => {
+      /** A Short, by the link its own *Share* hands out. */
+      function short() {
+        mockWindow = PHONE;
+        mockApp.screenFor = 'sess_1';
+        showChannel(
+          channelOf((s) =>
+            reduce(
+              s,
+              {
+                type: 'START_WATCH',
+                userId: ME,
+                videoId: 'dQw4w9WgXcQ',
+                url: 'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+              },
+              NOW
+            )
+          )
+        );
+        return open();
+      }
+
+      it('is not turned into, the phone staying upright for it', () => {
+        /*
+          **A Short sideways is a tall picture in a wide window**, smaller
+          than it was upright. The lock should never hand this window over at
+          all; this is the other half, for the moment before it lands — one
+          film swapped for a Short while the phone was held turned.
+        */
+        const tree = short();
+        mockWindow = LANDSCAPE;
+        again(tree);
+        expect(expanded(tree)).toBe(false);
+        expect(onTheCard(tree)).toBe(true);
+        act(() => tree.unmount());
+      });
+
+      it('is pressed into and out of, and never lets go of the lock', () => {
+        const tree = short();
+        act(() => findButton(tree, 'Full screen')!.props.onPress());
+        expect(expanded(tree)).toBe(true);
+        // The way out is the button, as for a phone lying flat.
+        expect(findButton(tree, 'Exit full screen')).toBeDefined();
+        expect(mockUnlock).not.toHaveBeenCalled();
+        expect(mockLock).toHaveBeenCalled();
+
+        act(() => findButton(tree, 'Exit full screen')!.props.onPress());
+        expect(expanded(tree)).toBe(false);
+        expect(mockUnlock).not.toHaveBeenCalled();
+        act(() => tree.unmount());
+      });
+
+      it('leaves an ordinary film free to turn, which is the contrast', () => {
+        const tree = phone();
+        act(() => findButton(tree, 'Full screen')!.props.onPress());
+        expect(expanded(tree)).toBe(true);
+        expect(mockUnlock).toHaveBeenCalled();
+        act(() => tree.unmount());
+      });
     });
 
     it('answers a press on a phone that is never turned', () => {

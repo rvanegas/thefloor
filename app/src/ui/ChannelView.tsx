@@ -16,6 +16,7 @@ import {
 import { playbackPositionMs } from '../../../core/playback';
 import {
   initialWatchState,
+  isUprightFilm,
   parseYouTubeUrl,
   watchPositionMs,
 } from '../../../core/watch';
@@ -885,7 +886,23 @@ export function ChannelView({
     !settingsOpen &&
     !viewing &&
     !transcriptFor;
-  const turned = useIsTurned();
+  /*
+    **An upright film is not something the phone turns for**, added
+    2026-09-29 — a Short on a sideways phone is a tall picture in a wide
+    window, smaller than it was upright. So for one the phone stays locked
+    upright on the card and in the picture both, the press is the only way in
+    and *Exit full screen* the way out, exactly as for a phone lying flat.
+
+    Two halves, because the lock and the turn are read in two places. What
+    `Picture` is told is the lock's exception, and a film the phone may not
+    turn for is not one; and a window still sideways in the moment before the
+    lock lands — one film swapped for a Short while somebody held the phone
+    turned — is not a turn either. See `isUprightFilm` for what it can and
+    cannot tell.
+  */
+  const uprightFilm = isUprightFilm(channel?.watch?.party ?? null);
+  const mayTurn = atTheFilm && !uprightFilm;
+  const turned = useIsTurned() && !uprightFilm;
   const wantsFullScreen = (pressedFullScreen || turned) && atTheFilm;
   /*
     **The television takes the window, for the reason the expanded picture
@@ -928,8 +945,8 @@ export function ChannelView({
   */
   const tellPicture = picture?.setAtTheFilm;
   useEffect(() => {
-    tellPicture?.(atTheFilm);
-  }, [tellPicture, atTheFilm]);
+    tellPicture?.(mayTurn);
+  }, [tellPicture, mayTurn]);
   const leaveTheFilm = useRef(tellPicture);
   leaveTheFilm.current = tellPicture;
   useEffect(() => () => leaveTheFilm.current?.(false), []);

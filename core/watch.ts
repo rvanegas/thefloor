@@ -411,6 +411,31 @@ export function parseYouTubeUrl(url: string): { videoId: string } | null {
 }
 
 /**
+ * Whether the film is upright — a Short — which decides that a phone stays
+ * upright for it too.
+ *
+ * **Read off the link, because nothing else here can say.** The IFrame API
+ * reports a title and a length and no dimensions, and asking YouTube's oEmbed
+ * — which does know, measured 2026-09-29 — would be the first request this
+ * project ever made to Google, the line
+ * decisions/2026-09-20-the-film-says-what-it-is-called.md holds. A Short's
+ * own *Share* hands out `youtube.com/shorts/<id>`, so the link is the shape
+ * whenever it came from where Shorts come from.
+ *
+ * **What it misses is a Short pasted as `watch?v=`, and an upright video that
+ * is not a Short.** Both play as every film did before this: the phone may
+ * turn, and the picture is a tall film in a wide window. That is the fallback
+ * the misreading costs, and it is the behaviour nobody complained about until
+ * a Short was on the glass.
+ */
+export function isUprightFilm(party: { url: string } | null): boolean {
+  if (!party) return false;
+  return /^(?:https?:\/\/)?(?:[\w-]+\.)*youtube(?:-nocookie)?\.com\/shorts\//i.test(
+    party.url.trim()
+  );
+}
+
+/**
  * What a player is doing, in the only five states any of this cares about.
  *
  * YouTube's own numbers are deliberately not used here: core must not know

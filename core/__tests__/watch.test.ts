@@ -1,5 +1,5 @@
 import { DISCONNECT_GRACE_MS, FLOOR_CLAIM_MS } from '../constants';
-import { parseYouTubeUrl, watchPositionMs } from '../watch';
+import { isUprightFilm, parseYouTubeUrl, watchPositionMs } from '../watch';
 import {
   channelHasAudio,
   microphoneNeeded,
@@ -115,6 +115,32 @@ describe('parsing a pasted link', () => {
     ['https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ'],
   ])('refuses %s', (url) => {
     expect(parseYouTubeUrl(url)).toBeNull();
+  });
+});
+
+describe('which way up the film is', () => {
+  it.each([
+    ['https://www.youtube.com/shorts/dQw4w9WgXcQ'],
+    ['youtube.com/shorts/dQw4w9WgXcQ?feature=share'],
+    ['https://m.youtube.com/shorts/dQw4w9WgXcQ'],
+    ['  https://www.youtube.com/SHORTS/dQw4w9WgXcQ  '],
+  ])('reads %s as upright', (url) => {
+    expect(isUprightFilm({ url })).toBe(true);
+  });
+
+  it.each([
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    ['https://youtu.be/dQw4w9WgXcQ'],
+    ['https://www.youtube.com/embed/dQw4w9WgXcQ'],
+    // A path that merely mentions Shorts somewhere other than first.
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=shorts/x'],
+    ['https://youtube.com.evil.example/shorts/dQw4w9WgXcQ'],
+  ])('reads %s as wide', (url) => {
+    expect(isUprightFilm({ url })).toBe(false);
+  });
+
+  it('reads no party as wide, which is what a phone did before this', () => {
+    expect(isUprightFilm(null)).toBe(false);
   });
 });
 
