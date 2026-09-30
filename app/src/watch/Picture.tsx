@@ -14,6 +14,7 @@ import { colors } from '../ui/theme';
 import { isUprightFilm, watchPositionMs } from '../../../core/watch';
 import { WatchDock, type Rect } from './Dock';
 import { FullScreen } from './FullScreen';
+import { OfflineStrip } from './OfflineStrip';
 import { usePortraitUnlessAtTheFilm } from './orientation';
 import { WatchTransport } from './Transport';
 import { WatchPlayer } from './WatchPlayer';
@@ -273,10 +274,16 @@ export function DockSlot(): React.ReactElement {
 
 export function Picture({
   onOpen,
+  offline = false,
   children,
 }: {
   /** Takes somebody to the channel whose film this is, on its *Watch* tab. */
   onOpen: (channelId: string) => void;
+  /**
+   * Whether the app is *offline*, which puts a playing film over the whole
+   * window with `OfflineStrip` across it. See the note on `place` below.
+   */
+  offline?: boolean;
   children: React.ReactNode;
 }): React.ReactElement {
   const app = useApp();
@@ -445,7 +452,25 @@ export function Picture({
           gesture anybody makes at a film. The player stays where it is and
           the box changes; see `Dock.Place`.
         */
-        place={fullScreen ? 'full' : slot ? 'docked' : 'floating'}
+        /*
+          **Offline, the film has the window or is not drawn**, since
+          2026-09-30. `App.tsx` draws the wall over every screen underneath
+          this layer, so a docked slot or a corner is a hole in a wall; a
+          playing film takes the whole of it instead, and a paused one goes to
+          the one place that is never drawn, a hidden corner. Not unmounted,
+          for `Dock`'s standing reason: the page would reload.
+        */
+        place={
+          offline
+            ? watch.status === 'playing'
+              ? 'full'
+              : 'floating'
+            : fullScreen
+              ? 'full'
+              : slot
+                ? 'docked'
+                : 'floating'
+        }
         /*
           **A paused film has no corner.** The floating rectangle is for a film
           that is still running while somebody is somewhere else in the
@@ -556,7 +581,17 @@ export function Picture({
           tick, and a value that arrived through state would be a render of
           everything underneath this for every one of them.
         */}
-        {fullScreen && channelId && watch && party ? (
+        {/*
+          **The strip, over a film that has the window because the app is
+          offline.** It replaces the scrim rather than joining it: every
+          control on the scrim is a channel action, and offline those are
+          dropped, so a transport here would be buttons that silently do
+          nothing — the thing the wall exists to prevent.
+        */}
+        {offline && picture && watch?.status === 'playing' ? (
+          <OfflineStrip />
+        ) : null}
+        {!offline && fullScreen && channelId && watch && party ? (
           <FullScreen
             chrome={
               <WatchTransport

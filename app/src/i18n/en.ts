@@ -61,6 +61,8 @@ export const en = {
     asOfLastUpdate: () =>
       'As of the last update that arrived. Nobody is being added or removed here until the connection is back.',
     tryingAgain: () => 'Trying again…',
+    filmCarriesOn: () =>
+      'The film plays on while it can. Nothing else responds until the connection is back.',
   },
   support: {
     title: () => 'Support',

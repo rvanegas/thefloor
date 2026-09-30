@@ -61,6 +61,8 @@ export const es: Strings = {
     asOfLastUpdate: () =>
       'Según la última actualización que llegó. Aquí no se añade ni se quita a nadie hasta que vuelva la conexión.',
     tryingAgain: () => 'Reintentando…',
+    filmCarriesOn: () =>
+      'La película sigue mientras pueda. Nada más responde hasta que vuelva la conexión.',
   },
   support: {
     title: () => 'Apoyo',

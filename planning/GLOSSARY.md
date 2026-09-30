@@ -79,7 +79,7 @@ caused; the list carries the meaning.
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
-- **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
+- **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
@@ -1838,6 +1838,16 @@ be *changed*: every control in this app is a `channel.action` down the socket,
 the microphone included, so *offline* and *nothing works* are the same
 sentence even while you can still hear the room. The wall says so in two
 different ways depending on whether the room is up, and blocks in both.
+
+**A film is the one thing it leaves running, since 2026-09-30.** The film is
+fed by YouTube rather than by this server, so on a device that is the *screen*
+the wall is drawn over the application instead of replacing it, and a playing
+film fills the window above the wall with a strip across its top — the wall's
+sentence, shrunk. Replacing the application had unmounted the channel screen,
+and that unmount gives the screen role up: a fifteen-second Wi-Fi drop took a
+film off an iPad for good while the party played on. When the internet itself
+is gone YouTube stalls too once its buffer runs out, so the strip promises the
+film only *while it can*.
 
 **Crossing the threshold is one event with two halves**: the queue of actions
 taken during the gap is discarded, and the app declares itself offline. They

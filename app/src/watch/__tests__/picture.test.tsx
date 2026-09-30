@@ -14,6 +14,7 @@ import {
 import { DockSlot, Picture, usePicture } from '../Picture';
 import { WatchDock } from '../Dock';
 import { WatchPlayer } from '../WatchPlayer';
+import { OfflineStrip } from '../OfflineStrip';
 
 jest.mock('../../state/AppProvider', () =>
   require('../../ui/testing/harness').appProviderMock()
@@ -374,6 +375,73 @@ describe('The picture outlives the screen it was started from', () => {
     });
     expect(dock()?.props.place).toBe('floating');
     expect(dock()?.props.hidden).toBe(false);
+    expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /**
+   * **Offline, a playing film takes the window and keeps its page**, since
+   * 2026-09-30. The wall used to replace the application, the channel screen's
+   * unmount gave the screen role up, and a fifteen-second Wi-Fi drop took the
+   * film off an iPad for good. `App.tsx` now draws the wall under this layer,
+   * so the film goes over all of it with the strip across the top.
+   */
+  it('keeps a playing film through being offline, over the wall', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(playing());
+
+    const tree = render(
+      <Picture onOpen={() => {}}>
+        <Text>the channel</Text>
+      </Picture>
+    );
+    const dock = () => tree.root.findAll((node) => node.type === WatchDock)[0];
+    const strip = () => tree.root.findAll((node) => node.type === OfflineStrip);
+    expect(strip()).toHaveLength(0);
+
+    act(() => {
+      tree.update(
+        <Picture onOpen={() => {}} offline>
+          <Text>the channel</Text>
+        </Picture>
+      );
+    });
+    expect(dock()?.props.place).toBe('full');
+    expect(strip()).toHaveLength(1);
+    expect(mockMounts.count).toBe(1);
+
+    // And back, to wherever it was, with the same page.
+    act(() => {
+      tree.update(
+        <Picture onOpen={() => {}}>
+          <Text>the channel</Text>
+        </Picture>
+      );
+    });
+    expect(dock()?.props.place).toBe('floating');
+    expect(strip()).toHaveLength(0);
+    expect(mockMounts.count).toBe(1);
+    act(() => tree.unmount());
+  });
+
+  /*
+    A paused film offline is not drawn: a docked or cornered picture would be a
+    hole in the wall, and a still frame filling it would hide the wall's own
+    words. Kept mounted, for the reason every test in this file is about.
+  */
+  it('hides a paused film while offline, and draws no strip', () => {
+    mockApp.screenFor = 'sess_1';
+    showChannel(watching());
+
+    const tree = render(
+      <Picture onOpen={() => {}} offline>
+        <Text>the channel</Text>
+      </Picture>
+    );
+    const dock = () => tree.root.findAll((node) => node.type === WatchDock)[0];
+    expect(dock()?.props.place).toBe('floating');
+    expect(dock()?.props.hidden).toBe(true);
+    expect(tree.root.findAll((node) => node.type === OfflineStrip)).toHaveLength(0);
     expect(mockMounts.count).toBe(1);
     act(() => tree.unmount());
   });

@@ -832,15 +832,25 @@ function Root() {
    * the media room is still up — that being the case where somebody can hear
    * voices, and would otherwise be looking at a screen that cannot name them.
    * See `OfflineView`.
+   *
+   * **Except on a device that is showing a film**, since 2026-09-30, where the
+   * wall is drawn *over* the application rather than instead of it — see
+   * `wall` at the bottom. Replacing the tree unmounted the channel screen, and
+   * its unmount gives the screen role up: a fifteen-second Wi-Fi drop took the
+   * film off an iPad for good, and the party played on with no device showing
+   * it. YouTube does not need this server, so the film carries on over the
+   * wall under a strip that says why nothing else does. The wall is opaque and
+   * takes every touch, so nothing underneath is reachable — which is the whole
+   * of what *instead of* was for.
    */
-  if (app.offline) {
-    const roster =
-      live && audio.status === 'connected'
-        ? (app.channelViews[live.id]?.participants ?? []).map(
-            (participant) => participant.displayName
-          )
-        : null;
-    return <OfflineView roster={roster} />;
+  const offlineRoster =
+    live && audio.status === 'connected'
+      ? (app.channelViews[live.id]?.participants ?? []).map(
+          (participant) => participant.displayName
+        )
+      : null;
+  if (app.offline && app.screenFor === null) {
+    return <OfflineView roster={offlineRoster} />;
   }
 
   if (!token) return <AuthView />;
@@ -1239,7 +1249,7 @@ function Root() {
     panes and outlives every one of them. See `watch/Picture.tsx`.
   */
   return (
-    <Picture onOpen={(id) => enterChannel(id, 'watch')}>
+    <Picture onOpen={(id) => enterChannel(id, 'watch')} offline={app.offline}>
     <Panes
       layout={layout}
       list={listPane}
@@ -1279,6 +1289,19 @@ function Root() {
       // the swipe that does the same thing both come through here.
       open={detail.kind !== 'none'}
     />
+    {/*
+      **The wall, over rather than instead of**, and only ever reached on a
+      device that is showing a film — every other device returned the wall
+      above. Last among `Picture`'s children, so it covers the panes and sits
+      under the picture's own layer, which is where a playing film and its
+      strip are drawn. A paused film is not drawn at all offline, so this is
+      what such a device shows. See the note on the early return.
+    */}
+    {app.offline ? (
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }]}>
+        <OfflineView roster={offlineRoster} />
+      </View>
+    ) : null}
     </Picture>
   );
 }

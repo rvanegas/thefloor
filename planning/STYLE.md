@@ -1388,6 +1388,14 @@ however the phone is being held.
 The stage is `#000` rather than `colors.bg`, for the reason the player's card
 is: what shows beside a film is letterbox, which belongs to the film.
 
+**Offline, a playing film has the window and a strip instead of the scrim**,
+since 2026-09-30. `watch/OfflineStrip.tsx`: the scrim's black at 0.6 across
+the top edge, a spinner, *Not connected* and one line, and it answers no touch.
+The transport is not offered, because every control on it is a channel action
+and offline those are dropped — a transport there would be buttons that do
+nothing. A paused film is not drawn offline at all; the wall is what such a
+device shows. See GLOSSARY.md § *Offline*.
+
 ### Two panes
 
 Above the breakpoint, `Panes` puts a 360pt list behind a right-hand hairline
