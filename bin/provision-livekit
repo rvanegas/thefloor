@@ -223,7 +223,11 @@ Wants=network-online.target
 User=livekit
 Group=livekit
 ExecStart=/usr/local/bin/livekit-server --config /etc/livekit/livekit.yaml
-Restart=on-failure
+# Always, not on-failure: a bind error at startup exits 0. On 2026-09-30 an
+# unattended systemd upgrade restarted this alongside systemd-networkd, the
+# IPv6 address was not yet assignable, and it exited "successfully" and stayed
+# down for three hours with every call silent.
+Restart=always
 RestartSec=2
 # One fd per peer connection per transport, plus the mux sockets. Not a limit
 # this workload reaches, but if it ever did the failure would be refused
@@ -263,7 +267,8 @@ ExecStart=/usr/bin/docker run --rm --name livekit-egress \\
   -e EGRESS_CONFIG_FILE=/etc/egress.yaml \\
   livekit/egress:$EGRESS_VERSION
 ExecStop=/usr/bin/docker stop livekit-egress
-Restart=on-failure
+# Always, for the same reason as livekit-server: a clean exit is still an outage.
+Restart=always
 RestartSec=5
 # Egress finishes uploading an in-flight recording as it shuts down. Stopping it
 # sooner loses the stem and leaves a row pointing at a key that never lands in
