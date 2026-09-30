@@ -28,10 +28,10 @@ const {
  *    module's native half. See the `.gitignore` entry that un-ignores a local
  *    module's own `ios` directory.
  * 3. Adds the extension target, its sources, and the embed phase.
- * 4. Adds the **two shared files** to the *app* target as well. This is the
+ * 4. Adds the **shared files** to the *app* target as well. This is the
  *    subtle half: `FloorActivityAttributes` must be the same type in both
- *    binaries or ActivityKit matches nothing, and `ToggleMuteIntent` must be
- *    in the app because that is where a `LiveActivityIntent` is performed.
+ *    binaries or ActivityKit matches nothing, and the two intents must be in
+ *    the app because that is where a `LiveActivityIntent` is performed.
  * 5. Registers the controller from `AppDelegate`.
  *
  * **`LOCKSCREEN_WIDGET_EXTENSION` is set on the extension and nowhere else.**
@@ -51,7 +51,11 @@ const TARGET = 'LockScreenWidget';
  * runs in, which for the intent is the difference between reaching the room
  * and reaching nothing.
  */
-const SHARED = ['FloorActivityAttributes.swift', 'ToggleMuteIntent.swift'];
+const SHARED = [
+  'FloorActivityAttributes.swift',
+  'ToggleMuteIntent.swift',
+  'StepOutIntent.swift',
+];
 
 /** App target only: it imports the pod, which the extension must not. */
 const APP_ONLY = ['LockScreenController.swift'];

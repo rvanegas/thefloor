@@ -4,7 +4,8 @@ import SwiftUI
 import WidgetKit
 
 /**
- The card itself: a name, an Open button, a microphone, and a tap that opens.
+ The card itself: a name, an Open button, a microphone, Out, and a tap that
+ opens.
 
  **Colours are copied from `app/src/ui/theme.ts` rather than shared with it.**
  A widget extension is a separate process with no JavaScript in it, so there is
@@ -147,6 +148,45 @@ private struct MicGlyph: View {
   }
 }
 
+/**
+ Stepping out, transcribed from `StepIcon` in `app/src/ui/icons.tsx`.
+
+ `lucide/log-out`, on `MicShape`'s box and stroke and for its reason: the
+ footer's Out rung draws this, and the card's button is the same act. The two
+ corners are quarter sweeps, written as deltas for the reason `MicShape` gives.
+ Change one, change both.
+ */
+@available(iOS 16.1, *)
+private struct StepOutShape: Shape {
+  func path(in rect: CGRect) -> Path {
+    let s = min(rect.width, rect.height) / 24
+    func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+      CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+    }
+    var p = Path()
+    // The arrowhead, and the shaft leaving through it.
+    p.move(to: pt(16, 17))
+    p.addLine(to: pt(21, 12))
+    p.addLine(to: pt(16, 7))
+    p.move(to: pt(21, 12))
+    p.addLine(to: pt(9, 12))
+    // The doorway it leaves, open on the right.
+    p.move(to: pt(9, 21))
+    p.addLine(to: pt(5, 21))
+    p.addRelativeArc(
+      center: pt(5, 19), radius: 2 * s,
+      startAngle: .degrees(90), delta: .degrees(90)
+    )
+    p.addLine(to: pt(3, 5))
+    p.addRelativeArc(
+      center: pt(5, 5), radius: 2 * s,
+      startAngle: .degrees(180), delta: .degrees(90)
+    )
+    p.addLine(to: pt(9, 3))
+    return p
+  }
+}
+
 @available(iOS 16.1, *)
 struct LockScreenCard: View {
   let state: FloorActivityAttributes.ContentState
@@ -192,6 +232,7 @@ struct LockScreenCard: View {
       Spacer(minLength: 8)
       OpenControl(channelId: channelId, dark: dark, scale: Self.scale)
       MuteControl(state: state, dark: dark, scale: Self.scale)
+      OutControl(state: state, dark: dark, scale: Self.scale)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
@@ -301,6 +342,48 @@ private struct MuteControl: View {
   }
 }
 
+/**
+ Out: the step-out the footer's last rung makes, without opening the app.
+
+ **A glyph like the microphone, not a word like *Open*.** It is the footer's
+ `StepIcon`, which is how the app draws the same act, and the word — *Out*, in
+ whichever language the app is speaking — is its accessibility label.
+
+ **Never grey.** A departure is the one act nothing withholds; the reducer has
+ no refusal for `STEP_OUT`, so there is no disabled state to draw.
+
+ **iOS 17 only, like the microphone**, for the same reason: `Button(intent:)`.
+ A 16.x card draws nothing here rather than a glyph that does nothing — the
+ microphone is shown there because it states something true about the room,
+ and a door does not.
+ */
+@available(iOS 16.1, *)
+private struct OutControl: View {
+  let state: FloorActivityAttributes.ContentState
+  let dark: Bool
+  var scale: CGFloat = 1
+
+  var body: some View {
+    if #available(iOS 17.0, *) {
+      Button(intent: StepOutIntent()) {
+        StepOutShape()
+          .stroke(
+            Palette.text(dark),
+            style: StrokeStyle(
+              lineWidth: 2 * (22 * scale) / 24, lineCap: .round, lineJoin: .round
+            )
+          )
+          .frame(width: 22 * scale, height: 22 * scale)
+          .padding(9 * scale)
+          .background(Palette.raised(dark))
+          .clipShape(Circle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(state.outLabel ?? "Out")
+    }
+  }
+}
+
 @available(iOS 16.1, *)
 struct LockScreenLiveActivity: Widget {
   var body: some WidgetConfiguration {
@@ -318,7 +401,7 @@ struct LockScreenLiveActivity: Widget {
             .lineLimit(1)
         }
         /**
-         The two controls, in the card's order, in the region wide enough for
+         The controls, in the card's order, in the region wide enough for
          them.
 
          They were leading and trailing, which is where an expanded island puts
@@ -331,6 +414,7 @@ struct LockScreenLiveActivity: Widget {
             OpenControl(channelId: context.attributes.channelId, dark: true)
             Spacer(minLength: 8)
             MuteControl(state: context.state, dark: true)
+            OutControl(state: context.state, dark: true)
           }
         }
       } compactLeading: {

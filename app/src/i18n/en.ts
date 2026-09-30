@@ -1484,15 +1484,17 @@ export const en = {
     frameTitle: () => 'Published conversations',
   },
   /**
-   * The two words the lock-screen card says, resolved here and sent to the
+   * The words the lock-screen card says, resolved here and sent to the
    * widget as finished strings — see `LockScreenState.micLabel`. They are the
-   * footer's own words, deliberately: it is the same control.
+   * footer's own words, deliberately: they are the same controls, and `out`
+   * is `rungOut` by another name.
    */
   lockScreen: {
     unmute: () => 'Unmute',
     mute: () => 'Mute',
     microphoneMuted: () => 'Your microphone is muted',
     microphoneOpen: () => 'Your microphone is open',
+    out: () => 'Out',
   },
   /**
    * The three sentences the provider produces. They are errors rather than

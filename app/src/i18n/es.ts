@@ -1262,6 +1262,7 @@ export const es: Strings = {
     mute: () => 'Silenciar',
     microphoneMuted: () => 'Tu micr\u00f3fono est\u00e1 silenciado',
     microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
+    out: () => 'Fuera',
   },
   provider: {
     couldNotAcceptInvitation: () => 'No se ha podido aceptar la invitaci\u00f3n.',

@@ -8,6 +8,7 @@ import { AppState } from 'react-native';
 import { recordEvent } from '../audio/diagnostics';
 import { useText, type Strings } from '../i18n';
 import {
+  addLockScreenStepOutListener,
   addLockScreenToggleListener,
   hideLockScreen,
   showLockScreen,
@@ -16,7 +17,7 @@ import {
 
 /**
  * Keeps the lock screen's card in step with the channel, and brings its Mute
- * button back the other way.
+ * and Out buttons back the other way.
  *
  * **Held above the channel screen, in `App.tsx`, for the reason
  * `useSilencedNudge` is**: presence is not a screen. Somebody who walked back
@@ -41,7 +42,7 @@ import {
  * going away.
  */
 
-/** What the two controls read, derived once so the hook and its test agree. */
+/** What the controls read, derived once so the hook and its test agree. */
 export function lockScreenStateFor(
   view: ChannelView,
   me: UserId,
@@ -94,6 +95,7 @@ export function lockScreenStateFor(
      * stays live.
      */
     canToggle: !noInput && canSetSelfMute(channel, me, !muted),
+    outLabel: words.out(),
   };
 }
 
@@ -117,11 +119,20 @@ export function useLockScreen(
   inputAvailable: boolean | undefined,
   inTouch: boolean,
   onSetMute: (channelId: string, muted: boolean) => void,
+  /**
+   * Steps this account out of the channel, returning whether the action
+   * reached the socket — `act`'s own answer, which the card needs. See
+   * `addLockScreenStepOutListener`.
+   */
+  onStepOut: (channelId: string) => boolean,
   show: (state: LockScreenState) => void = SHOW,
   hide: () => void = HIDE,
   subscribe: (
     handle: (muted: boolean) => void
-  ) => () => void = addLockScreenToggleListener
+  ) => () => void = addLockScreenToggleListener,
+  subscribeStepOut: (
+    handle: () => boolean
+  ) => () => void = addLockScreenStepOutListener
 ): void {
   const words = useText().lockScreen;
   const naming = useText().naming;
@@ -228,4 +239,24 @@ export function useLockScreen(
       act.current(current.channelId, muted);
     });
   }, [subscribe]);
+
+  const leave = useRef(onStepOut);
+  leave.current = onStepOut;
+
+  useEffect(() => {
+    return subscribeStepOut(() => {
+      /**
+       * Read at the moment the tap arrives, for the Mute button's reason. No
+       * card state means there is no channel being stood in, and a card still
+       * showing is one iOS has not yet taken down: nothing to step out of, and
+       * `false` leaves the card to the hook, which is already ending it.
+       *
+       * **Never refused otherwise**: the reducer has no refusal for
+       * `STEP_OUT`, which is why the button is never grey.
+       */
+      const current = latest.current;
+      if (!current) return false;
+      return leave.current(current.channelId);
+    });
+  }, [subscribeStepOut]);
 }

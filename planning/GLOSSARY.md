@@ -73,7 +73,7 @@ caused; the list carries the meaning.
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
-- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone button 17 and later
+- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out without a passcode, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
@@ -1257,7 +1257,9 @@ The one piece of this interface that renders outside the app. An ActivityKit
 Live Activity, up for as long as this device is standing in a channel and in
 touch with it, drawn by the widget extension in `app/targets/lock-screen/`.
 Built 2026-09-17;
-`decisions/2026-09-17-the-lock-screen-carries-two-controls.md` is the entry.
+`decisions/2026-09-17-the-lock-screen-carries-two-controls.md` is the entry,
+and `decisions/2026-09-29-the-lock-screen-carries-a-way-out.md` the third
+control.
 
 **That sentence used to say *exactly as long as*, and it was not true twice
 over.** An activity outlives the process that started it, so a force-quit or a
@@ -1270,13 +1272,24 @@ told it is going away, and `useLockScreen` takes an `inTouch` that holds it for
 DISCONNECT_GRACE_MS and no longer. See
 `decisions/2026-09-18-the-lock-screen-card-does-not-outlive-the-room.md`.
 
-**Two controls, and the count is the design.** A mute button, and a way into
-the channel. Nothing else was put on it, and
-in particular **there is no way to claim the floor from it** — claiming means
-opening a microphone, which iOS refuses to a backgrounded app, and the card
-would be offering something it could not deliver. That refusal is what
+**Three controls, and the test is the design rather than the count**: the card
+offers only what a locked phone can deliver. A mute button, a way into the
+channel, and since 2026-09-29 a way out of it. It said *two, and the count is
+the design* until then, and the count was only ever the test's outcome.
+**There is no way to claim the floor from it** — claiming means opening a
+microphone, which iOS refuses to a backgrounded app, and the card would be
+offering something it could not deliver. That refusal is what
 `useSessionAudio` calls deferring, and the entitlement that would lift it is
 Apple's PushToTalk, which this app does not hold.
+
+**Out is the footer's last rung**, `STEP_OUT`, drawn with the footer's glyph
+and never grey, since nothing refuses a departure. **It is the one control
+that is answered**: giving up the room gives up the audio session, after which
+iOS may suspend the app before a snapshot takes the card down, so the intent
+waits to hear whether the step-out reached the socket and ends the card itself
+if it did. If it was only queued the card stays, because the device is still
+in the room and can still be heard. It asks for no passcode on iOS 26, where
+that became a setting.
 
 **Muting is the thing that *can* be done from a locked phone**, and the reason
 is worth keeping: a self-muted member still needs the microphone, so the audio

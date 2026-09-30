@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 /**
- * The card on the lock screen, and the two controls on it.
+ * The card on the lock screen, and the three controls on it.
  *
  * A Live Activity rather than a notification, and the choice was forced rather
  * than preferred. The design is *a mute button, greyed when unavailable, plus a
@@ -92,11 +92,17 @@ export interface LockScreenState {
    * Assessing what is going on is what the tap is for.
    */
   canToggle: boolean;
+  /**
+   * What the Out button is called, resolved for `micLabel`'s reason. Read
+   * only by the screen reader, the button itself being a glyph.
+   */
+  outLabel: string;
 }
 
 interface NativeLiveActivity {
   show(state: LockScreenState): Promise<boolean>;
   hide(): Promise<boolean>;
+  answerStepOut(id: string, reached: boolean): void;
   addListener(event: string): void;
   removeListeners(count: number): void;
 }
@@ -182,6 +188,53 @@ export function addLockScreenToggleListener(
       'onToggleMute',
       (event: { muted?: unknown }) => {
         if (typeof event?.muted === 'boolean') handle(event.muted);
+      }
+    );
+    return () => subscription.remove();
+  } catch {
+    return () => {};
+  }
+}
+
+/**
+ * The lock screen's Out button, coming back the other way — **and answered**.
+ *
+ * Performed in this process for the Mute button's reason. What is different is
+ * that the native side waits to hear whether the step-out reached the socket:
+ * a step-out gives up the audio session, after which iOS may suspend the app
+ * before the snapshot that takes the card down arrives. So `handle` returns
+ * what `act` returned, the intent ends the card itself when that was `true`,
+ * and leaves it up when the action was only queued — this device is then still
+ * in the room and can still be heard, and the card saying so is the truth. See
+ * `targets/lock-screen/StepOutIntent.swift`.
+ *
+ * A `handle` that throws is answered `false`, for the same reason.
+ *
+ * @returns an unsubscribe function, safe to call twice.
+ */
+export function addLockScreenStepOutListener(
+  handle: () => boolean
+): () => void {
+  if (!native) return () => {};
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { EventEmitter } = require('expo-modules-core');
+    const emitter = new EventEmitter(native as object);
+    const subscription = emitter.addListener(
+      'onStepOut',
+      (event: { id?: unknown }) => {
+        if (typeof event?.id !== 'string') return;
+        let reached = false;
+        try {
+          reached = handle();
+        } catch {
+          reached = false;
+        }
+        try {
+          native.answerStepOut(event.id, reached);
+        } catch {
+          // The native side times out on its own and keeps the card.
+        }
       }
     );
     return () => subscription.remove();

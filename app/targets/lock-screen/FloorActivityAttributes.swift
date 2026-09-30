@@ -76,6 +76,17 @@ struct FloorActivityAttributes: ActivityAttributes {
      they are left with when the claim ends.
      */
     var canToggle: Bool
+
+    /**
+     What the Out button is called, resolved for `micLabel`'s reason.
+
+     **Optional, and only so that an older card still decodes.** A card
+     outlives the process that started it, and `LockScreenController.adopt()`
+     picks one up at launch — which after an update is a card this field did
+     not exist for. The app always sends it; the widget draws *Out* when a
+     card from before 2026-09-29 has none.
+     */
+    var outLabel: String?
   }
 
   /** Which channel to come back to. Carried into the card's deep link. */

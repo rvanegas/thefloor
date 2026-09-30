@@ -1540,8 +1540,8 @@ rules.
 
 The one piece of this interface that renders outside the app: a Live Activity,
 up whenever this device is standing in a channel, drawn by the widget
-extension in `app/targets/lock-screen/`. It carries a name, two buttons and a
-tap.
+extension in `app/targets/lock-screen/`. It carries a name, three buttons and
+a tap.
 
 **Its palette is a transcription, not an import.** A widget extension is a
 separate process with no JavaScript in it, so `theme.ts` cannot reach it and
@@ -1553,7 +1553,8 @@ there means adding it here first and deciding what it is for, exactly as for
 any other surface. Both palettes are carried, chosen on the system's colour
 scheme, for the reason every other surface carries both.
 
-**The microphone glyph is transcribed too**, since 2026-09-17, and for the same
+**The microphone glyph is transcribed too**, since 2026-09-17, and so since
+2026-09-29 is Out's, `StepIcon`'s `lucide/log-out` as `StepOutShape`, for the same
 reason: `MicShape` is `lucide/mic` and `lucide/mic-off` written out as a
 SwiftUI `Path` on the same 24-unit box and the same 2-unit stroke that
 `icons.tsx` draws them on. **Not an SF Symbol that resembles them** — an icon
@@ -1569,7 +1570,7 @@ name until 2026-09-17, and it said what the glyph beside it already said. Two
 statements of one fact on a surface with room for about six words; the glyph is
 the half that survives.
 
-Five rules that look like details and are not:
+Six rules that look like details and are not:
 
 - **Both controls are visible, and the card is still a tap.** *Open* is a
   `Link` to the same deep link `widgetURL` carries. It is not a second way in
@@ -1604,13 +1605,18 @@ Five rules that look like details and are not:
   still set their own mute, and it is what they are left with when the claim
   ends. The footer keeps the control live and spends `silenced` orange on it;
   the card has no colour to spend and simply stays live.
+- **Out is a glyph and is never grey.** The footer's step-out glyph in the
+  microphone's disc, after it, with *Out* as its accessibility label; nothing
+  refuses a departure, so it has no disabled state. **Three at `scale` 1.5
+  has not been looked at on a phone** — the number was judged with two, and a
+  third takes about sixty points from the name.
 
 Below iOS 17 the microphone is not a button — `Button(intent:)` is what lets a
 tap act without opening the app, and there is no earlier spelling of it. The
-card shows the glyph in the same grey, and *Open*, which needs no intent, is
-the only control that does anything.
+card shows the glyph in the same grey, draws no Out at all, and *Open*, which
+needs no intent, is the only control that does anything.
 
-**The Dynamic Island carries the same two controls**, in the same order, in the
+**The Dynamic Island carries the same controls**, in the same order, in the
 expanded `.bottom` region with the name above them. They were in `.leading` and
 `.trailing` until 2026-09-17, which is where an island puts an icon and a badge
 rather than a pair of buttons — and the leading one was a third microphone,

@@ -10,7 +10,7 @@ import os
  with two target memberships, compiled into each. A pod is a third module, and
  a third copy would be a third type that ActivityKit would not match against
  the other two. So this module never names the attributes at all; it hands
- these four fields to whoever registered as the host, and the host is in the
+ these fields to whoever registered as the host, and the host is in the
  app target where the shared file is.
 
  See `targets/lock-screen/FloorActivityAttributes.swift` for the type this
@@ -25,6 +25,8 @@ public struct LockScreenPayload {
   public let micState: String
   public let muted: Bool
   public let canToggle: Bool
+  /** What the Out button is called, resolved for `micLabel`'s reason. */
+  public let outLabel: String
 }
 
 /**
@@ -47,7 +49,7 @@ public protocol LockScreenHost: AnyObject {
 }
 
 /**
- The card on the lock screen, and the two controls on it.
+ The card on the lock screen, and the three controls on it.
 
  See `modules/live-activity/index.ts` for why this is a Live Activity rather
  than a notification — in one line, `UNNotificationAction` has no disabled
@@ -57,8 +59,9 @@ public protocol LockScreenHost: AnyObject {
  **This module does no ActivityKit work and holds no activity.** It is a wire
  between JavaScript and `LockScreenController` in the app target, for the
  reason `LockScreenPayload` gives. What it does own is the *event* going the
- other way: the Mute button is an App Intent performed in this process, and
- `emitToggle` is how its result reaches the JavaScript that can act on it.
+ other way: the Mute and Out buttons are App Intents performed in this
+ process, and `emitToggle` and `requestStepOut` are how they reach the
+ JavaScript that can act on them.
  */
 public class LiveActivityModule: Module {
   /**
@@ -103,10 +106,59 @@ public class LiveActivityModule: Module {
     current?.sendEvent("onToggleMute", ["muted": muted])
   }
 
+  /**
+   Step-outs asked of JavaScript and not yet answered, by the id each was sent
+   with. Touched only on the main queue, which is what makes a plain
+   dictionary enough.
+   */
+  private static var pendingStepOuts: [String: CheckedContinuation<Bool, Never>] = [:]
+
+  /**
+   How long the Out button waits to hear whether its action left the phone.
+
+   A socket send is immediate when the socket is open, so the answer ordinarily
+   comes back in a frame. The wait exists for the case where nothing answers —
+   JavaScript not listening yet — and then the card stays up, which is the
+   same answer as *queued*.
+   */
+  private static let stepOutWait: TimeInterval = 2
+
+  /**
+   The Out button, arriving from the app target, and **the one event that is
+   answered**.
+
+   Called by `StepOutIntent.perform()`. Returns whether JavaScript reached the
+   socket with the step-out — true meaning the departure is on its way and the
+   card may be ended here, without waiting for a snapshot that a suspended app
+   might never receive. See `StepOutIntent.swift` for why *false* keeps the
+   card.
+   */
+  public static func requestStepOut() async -> Bool {
+    await withCheckedContinuation { continuation in
+      DispatchQueue.main.async {
+        guard let module = current else {
+          continuation.resume(returning: false)
+          return
+        }
+        let id = UUID().uuidString
+        pendingStepOuts[id] = continuation
+        module.sendEvent("onStepOut", ["id": id])
+        DispatchQueue.main.asyncAfter(deadline: .now() + stepOutWait) {
+          settleStepOut(id, reached: false)
+        }
+      }
+    }
+  }
+
+  /** Resumes a waiting step-out once, whichever of answer and timeout is first. */
+  private static func settleStepOut(_ id: String, reached: Bool) {
+    pendingStepOuts.removeValue(forKey: id)?.resume(returning: reached)
+  }
+
   public func definition() -> ModuleDefinition {
     Name("LiveActivity")
 
-    Events("onToggleMute")
+    Events("onToggleMute", "onStepOut")
 
     OnCreate {
       LiveActivityModule.current = self
@@ -127,7 +179,8 @@ public class LiveActivityModule: Module {
         let micLabel = state["micLabel"] as? String,
         let micState = state["micState"] as? String,
         let muted = state["muted"] as? Bool,
-        let canToggle = state["canToggle"] as? Bool
+        let canToggle = state["canToggle"] as? Bool,
+        let outLabel = state["outLabel"] as? String
       else {
         // A malformed payload is a bug on the JavaScript side, and the useful
         // thing to do with it is nothing: a card drawn from half a payload
@@ -141,13 +194,20 @@ public class LiveActivityModule: Module {
           micLabel: micLabel,
           micState: micState,
           muted: muted,
-          canToggle: canToggle
+          canToggle: canToggle,
+          outLabel: outLabel
         )
       )
     }
 
     AsyncFunction("hide") { () -> Bool in
       return LiveActivityModule.host?.hide() ?? false
+    }
+
+    Function("answerStepOut") { (id: String, reached: Bool) in
+      DispatchQueue.main.async {
+        LiveActivityModule.settleStepOut(id, reached: reached)
+      }
     }
   }
 }

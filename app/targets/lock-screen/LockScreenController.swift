@@ -135,7 +135,8 @@ import UIKit
       micLabel: payload.micLabel,
       micState: payload.micState,
       muted: payload.muted,
-      canToggle: payload.canToggle
+      canToggle: payload.canToggle,
+      outLabel: payload.outLabel
     )
 
     /**

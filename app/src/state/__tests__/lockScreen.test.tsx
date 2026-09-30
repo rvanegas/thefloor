@@ -13,9 +13,11 @@ import type { LockScreenState } from '../../../modules/live-activity';
 import { lockScreenStateFor, useLockScreen } from '../useLockScreen';
 import { channelOfUrl } from '../useChannelLink';
 import { en } from '../../i18n/en';
+import { es } from '../../i18n/es';
 
 /**
- * The card on the lock screen: what it says, and what its Mute button does.
+ * The card on the lock screen: what it says, and what its Mute and Out
+ * buttons do.
  *
  * **The rule being defended is that the card and the footer describe one
  * microphone.** `ui/ChannelView.tsx` folds three causes into one appearance —
@@ -68,6 +70,16 @@ function viewOf(channel: ChannelState): ChannelView {
 }
 
 describe('lockScreenStateFor', () => {
+  it('calls the Out button what the footer calls its rung, in either language', () => {
+    const view = viewOf(channelWith([ME, THEM]));
+    expect(lockScreenStateFor(view, ME, true, en.lockScreen, en.naming).outLabel).toBe(
+      en.channel.rungOut()
+    );
+    expect(lockScreenStateFor(view, ME, true, es.lockScreen, es.naming).outLabel).toBe(
+      es.channel.rungOut()
+    );
+  });
+
   it('names the channel after who is in it when nobody has named it', () => {
     const state = lockScreenStateFor(viewOf(channelWith([ME, THEM])), ME, true, en.lockScreen, en.naming);
     // `describeChannel` over the others, which is what the header, the list
@@ -120,6 +132,9 @@ function harness() {
   let hidden = 0;
   const acted: Array<{ channelId: string; muted: boolean }> = [];
   let fire: ((muted: boolean) => void) | null = null;
+  const left: string[] = [];
+  let reaches = true;
+  let fireOut: (() => boolean) | null = null;
 
   const show = (state: LockScreenState) => {
     shown.push(state);
@@ -135,6 +150,16 @@ function harness() {
   };
   const onSetMute = (channelId: string, muted: boolean) => {
     acted.push({ channelId, muted });
+  };
+  const onStepOut = (channelId: string) => {
+    left.push(channelId);
+    return reaches;
+  };
+  const subscribeStepOut = (handle: () => boolean) => {
+    fireOut = handle;
+    return () => {
+      fireOut = null;
+    };
   };
 
   function Probe({
@@ -152,9 +177,11 @@ function harness() {
       inputAvailable,
       inTouch,
       onSetMute,
+      onStepOut,
       show,
       hide,
-      subscribe
+      subscribe,
+      subscribeStepOut
     );
     return null;
   }
@@ -164,6 +191,13 @@ function harness() {
     acted,
     hidden: () => hidden,
     tap: (muted: boolean) => fire?.(muted),
+    left,
+    /** Whether `act` will say the step-out reached the socket. */
+    offline: () => {
+      reaches = false;
+    },
+    /** A tap on Out, answering what the native side would be told. */
+    tapOut: () => fireOut?.(),
     Probe,
   };
 }
@@ -220,6 +254,65 @@ describe('useLockScreen', () => {
       h.tap(true);
     });
     expect(h.acted).toHaveLength(1);
+  });
+
+  it('steps out of the channel being stood in now, and says it reached the socket', () => {
+    const h = harness();
+    let tree!: ReactTestRenderer;
+    reactAct(() => {
+      tree = renderer.create(<h.Probe view={viewOf(channelWith([ME, THEM]))} />);
+    });
+    let answer: boolean | undefined;
+    reactAct(() => {
+      answer = h.tapOut();
+    });
+    expect(h.left).toEqual(['chan_one']);
+    // What lets the intent end the card itself, before a suspended app would
+    // ever see the snapshot that ends it here.
+    expect(answer).toBe(true);
+
+    // Gone already. A tap from a card iOS has not yet taken down must step
+    // out of nothing, and answer that nothing left — the card is the hook's.
+    reactAct(() => {
+      tree.update(<h.Probe view={null} />);
+    });
+    reactAct(() => {
+      answer = h.tapOut();
+    });
+    expect(h.left).toHaveLength(1);
+    expect(answer).toBe(false);
+  });
+
+  it('answers false when the step-out was only queued, so the card stays', () => {
+    const h = harness();
+    h.offline();
+    reactAct(() => {
+      renderer.create(<h.Probe view={viewOf(channelWith([ME, THEM]))} />);
+    });
+    let answer: boolean | undefined;
+    reactAct(() => {
+      answer = h.tapOut();
+    });
+    // Asked for, and queued for the reconnect — but until then this device
+    // is still in the media room and can still be heard, which is what a card
+    // left up says.
+    expect(h.left).toEqual(['chan_one']);
+    expect(answer).toBe(false);
+  });
+
+  it('offers Out on a card whose microphone is grey', () => {
+    const h = harness();
+    reactAct(() => {
+      renderer.create(
+        <h.Probe view={viewOf(channelWith([ME, THEM]))} inputAvailable={false} />
+      );
+    });
+    expect(h.shown[0].canToggle).toBe(false);
+    reactAct(() => {
+      h.tapOut();
+    });
+    // A departure is the one act nothing withholds.
+    expect(h.left).toEqual(['chan_one']);
   });
 
   it('ignores a tap on a button that should be grey', () => {
@@ -355,7 +448,7 @@ describe('useLockScreen, on its own defaults', () => {
     const show = jest.spyOn(liveActivity, 'showLockScreen');
     show.mockResolvedValue(true);
     function Probe({ view }: { view: ChannelView | null }) {
-      useLockScreen(view, ME, true, true, () => {});
+      useLockScreen(view, ME, true, true, () => {}, () => true);
       return null;
     }
     let tree!: ReactTestRenderer;

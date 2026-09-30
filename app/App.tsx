@@ -375,7 +375,7 @@ function Root() {
    * cannot open one is the promise `ChannelView` already refuses to make.
    *
    * See `modules/live-activity` for why this is a Live Activity and not a
-   * notification, and `state/useLockScreen.ts` for what the two controls read.
+   * notification, and `state/useLockScreen.ts` for what the controls read.
    */
   useLockScreen(
     here,
@@ -389,7 +389,11 @@ function Root() {
     // server has stepped this account out and the card is describing a
     // conversation it cannot hear — see `state/useLockScreen.ts`.
     app.status === 'open' || audio.status === 'connected',
-    (channelId, muted) => app.act(channelId, { type: 'SET_SELF_MUTE', muted })
+    (channelId, muted) => app.act(channelId, { type: 'SET_SELF_MUTE', muted }),
+    // A bare act rather than the footer's `stepOut`: that only adds whether
+    // leaving closes the screen, which it does not (`stepOutClosesScreen`),
+    // and a locked phone has no screen to close.
+    (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
 
   /**
