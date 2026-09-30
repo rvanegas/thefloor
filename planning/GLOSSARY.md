@@ -181,7 +181,7 @@ caused; the list carries the meaning.
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
-- **Session want — `call`, `idle`** — What this app is asking iOS for, decided in one place (`wantFor`)
+- **Session want — `call`, `listen`** — What this app is asking iOS for, decided in one place (`wantFor`): `call` captures, `listen` only hears — a guest without speech, a device *watching here*, a deferred *promotion*; being in no room asks for nothing
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
 - **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
@@ -3965,57 +3965,49 @@ closed.
 codebase and is more often what a file named `session.ts` is about — see *session
 want*. Nor a `guest_sessions` row, which is a *seat (developer sense)*.
 
-## Session want — `call`, `idle`
+## Session want — `call`, `listen`
 
-The three answers to *what is this app asking iOS for*, named by `SessionWant`
+The two answers to *what is this app asking iOS for*, named by `SessionWant`
 in `app/src/audio/session.ts` and decided in one place, `wantFor` in
-`useSessionAudio.ts`. **A request, not an observation** — the audio debug panel
-shows `asked` against `actual` precisely because they can differ, and most of
-this system's audio history is that gap.
+`useSessionAudio.ts`; `sessionFor` turns one into a configuration. **A request,
+not an observation** — the audio debug panel shows `asked` against `actual`
+precisely because they can differ, and most of this system's audio history is
+that gap.
 
-**`call`** is `playAndRecord` / `videoChat` with `allowBluetooth`,
-`allowAirPlay` and `defaultToSpeaker`. No `mixWithOthers`, so it is
-**exclusive**: taking it stops another app's audio. It is the only one under
-which this device may transmit, and on a Bluetooth headset it is the hands-free
-profile — mono, 24 kHz. Asked for whenever there is audio to hear, *and* for a
-**silent wait**: standing in a quiet channel with nothing else playing, where
-the microphone is opened at step-in so an arrival can be heard and answered
-without touching the phone. That is only possible up front — iOS refuses a
-backgrounded app a microphone it did not already have.
+**`call`** is `CALL`: `playAndRecord` / `videoChat` with `allowBluetooth`,
+`allowAirPlay` and `defaultToSpeaker`. The only one under which this device may
+transmit, and on a Bluetooth headset the hands-free profile — mono, 24 kHz.
+Asked for by anybody stepped in with a microphone to open: a member, or a
+*guest* who may speak.
 
-**`idle`** is `playback` / `spokenAudio` / `mixWithOthers`, and **hands the
-audio system back**: stereo A2DP on a headset, another app's audio untouched.
-Asked for when this app should take nothing — a *watch party* withholding for
-its film — and for an **accompanied wait**, where somebody steps into a channel
-while their phone is already playing something.
+**`listen`** is `LISTENING`: `playback` / `spokenAudio`, hearing the room with
+no microphone, in stereo. Asked for by three cases: a guest with no speech
+grant, a device *watching here* while its film plays — see `isScreening` in
+`core/micNeeded.ts` — and a *promotion* deferred while the app is backgrounded.
 
-**An accompanied wait gives up presence.** The phone is not kept awake, so it
-suspends, its presence lapses, and the roster reads *Nearby* — the arrival
-notification does the work. That was decided after the alternative was built
-and tried: staying awake meant the arrival could be *heard* but not answered,
-since iOS grants a backgrounded app no microphone, and being talked to with no
-way to reply is worse than being absent.
+**Both are exclusive.** Neither carries `mixWithOthers`, so taking either stops
+another app's audio; being in the room is the claim. Somebody who wants their
+music left alone declares *nearby*, which asks for nothing.
 
-**Which wait you get is decided at step-in**, from whether another app was
-playing at that moment, and re-decided only when the app is brought forward.
-`isOtherAudioPlaying` tells the truth only while this app is active — it
-reports our own foreground state rather than anybody else's audio — and that is
-also the only moment the decision can be acted on.
+**There is no third value, because the third state is not a configuration.**
+Nearby, stepped out and not in a room are one audio state, *none*: the session
+is deactivated, which is a thing that happens rather than a category that is
+written. See `policyFor`.
 
-**Two other values have existed and gone.** `WAITING` was `call` plus
-`mixWithOthers`, meant to hold the hands-free route through a quiet channel. It
-was deleted on 2026-09-06: a call-shaped session stops another app's audio
-whether or not it mixes, so the option bought nothing and the category cost
-everything. A reader who finds it in an older document is reading about
-something that no longer exists. `ducked` was `idle` plus `duckOthers`, and
-lasted about an hour: it could only be reached from a state this app then
-stopped keeping alive, so nothing could ever have reached it.
+**Four values have existed and gone**, and a reader who finds one in an older
+document is reading about something that no longer exists. `idle` —
+`playback` with `mixWithOthers`, handing the audio system back — was the second
+value until 2026-09-08, when stepping in became a claim and the state it
+served became a phone with no session at all. `WAITING` was `call` plus
+`mixWithOthers` and lasted one day, 2026-09-06. `ducked` was
+`idle` plus `duckOthers` and lasted about an hour. `SCREENING` held a
+microphone under a film from 2026-09-23 to 2026-09-26, and the room could not
+talk after a pause; see `planning/decisions/2026-09-27-the-film-stops-the-engine.md`.
 
-`sessionFor` turns a want into the configuration; `policyFor` hands the same
-answer to the SDK's native observer, which is a second writer that re-applies a
-configuration on every engine transition with no JavaScript in the path. The
-two must agree or the last write wins. See STATES.md § *Audio Session
-Configuration*.
+`policyFor` hands the SDK's native observer the same answer — a second writer
+that re-applies a configuration on every engine transition with no JavaScript
+in the path — and the two must agree or the last write wins. See STATES.md §
+*Audio Session Configuration*.
 
 ## Silenced
 
