@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# Restarts the media plane's services that are running outdated libraries,
+# when nobody is in a call.
+#
+#   bin/restart-services              restart what is stale, if nobody is live
+#   bin/restart-services --anyway     restart it even with people in a call
+#   bin/restart-services --list       say what is stale, and restart nothing
+#
+# **Unattended upgrades patch the box but no longer restart anything that
+# carries a call.** needrestart is told to leave livekit-server, egress, Redis,
+# docker and containerd alone (bin/provision-livekit), because its 06:15 UTC
+# restarts dropped calls and on 2026-09-30 left the SFU down for three hours.
+# So their new libraries wait for a person, and this is that person's half.
+# `thefloor` is not on the list: every deploy restarts it.
+#
+# **Restarting any of these drops every call on the box**, which is why it
+# looks first. "Live" is an open `usage_spans` row, the same evidence bin/live
+# reads, so it is good to within the fifteen-second poll — a call that started
+# moments ago may not show yet.
+#
+# One `systemctl restart` of everything stale, and systemd does the ordering:
+# livekit-server Requires= Redis and egress Requires= docker, so restarting
+# either restarts what depends on it too. Then it waits for the SFU to answer
+# through Caddy, since a LiveKit that exits cleanly at startup is exactly the
+# failure this whole arrangement came from.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+SERVICES='livekit-server|livekit-egress|redis-server|docker|containerd'
+
+list_only=false
+anyway=false
+for arg in "$@"; do
+  case "$arg" in
+    --list) list_only=true ;;
+    --anyway) anyway=true ;;
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+STALE=$($SSH "$HOST" 'sudo needrestart -b -r l 2>/dev/null' \
+  | sed -n 's/^NEEDRESTART-SVC: //p' \
+  | grep -E "^($SERVICES)\.service\$" \
+  | tr '\n' ' ' | sed 's/ $//' || true)
+
+if [ -z "$STALE" ]; then
+  $list_only || echo "✓ nothing in the media plane is running outdated libraries"
+  exit 0
+fi
+
+if $list_only; then
+  echo "! running outdated libraries, left alone: $STALE"
+  echo "  when nobody is talking: bin/restart-services"
+  exit 0
+fi
+
+echo "→ stale: $STALE"
+
+LIVE=$($SSH "$HOST" "sqlite3 -readonly '$REMOTE_DB'" <<'SQL'
+SELECT COUNT(DISTINCT account_id) FROM usage_spans
+WHERE ended_at IS NULL AND kind IN ('mic', 'listen');
+SQL
+)
+if [ "$LIVE" != 0 ]; then
+  if $anyway; then
+    echo "! $LIVE in a call right now; restarting anyway"
+  else
+    echo "✗ $LIVE in a call right now (bin/live says where); restarting would drop them." >&2
+    echo "  Try again later, or pass --anyway." >&2
+    exit 1
+  fi
+fi
+
+echo "→ restarting"
+$SSH "$HOST" "sudo systemctl restart $STALE"
+
+echo "→ waiting for the SFU"
+for _ in $(seq 1 15); do
+  if curl -sf --max-time 5 -o /dev/null https://livekit.rvanegas.co/; then
+    STILL=$($SSH "$HOST" 'sudo needrestart -b -r l 2>/dev/null' \
+      | sed -n 's/^NEEDRESTART-SVC: //p' \
+      | grep -E "^($SERVICES)\.service\$" | tr '\n' ' ' || true)
+    if [ -n "$STILL" ]; then
+      echo "! LiveKit answers, but still stale: $STILL" >&2
+      exit 1
+    fi
+    echo "✓ restarted; LiveKit answers"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "✗ LiveKit did not come back within thirty seconds. Its last words:" >&2
+$SSH "$HOST" 'systemctl is-active livekit-server; sudo journalctl -u livekit-server --no-pager -n 15 -o cat' >&2 || true
+exit 1

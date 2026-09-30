@@ -96,8 +96,9 @@ planning/decisions/ for 2026-09-21.
   `livekit-egress`, Redis, docker and containerd alone (`/etc/needrestart/
   conf.d/`, written by the two provisioners), because its 06:15 UTC restarts
   dropped calls and on 2026-09-30 left the SFU down for three hours. So stale
-  libraries in the media plane wait for a hand: `sudo needrestart -r l` lists
-  them under *deferred*, and a quiet moment is when to restart them.
+  libraries in the media plane wait for a hand: `bin/deploy` ends by naming
+  them, and `bin/restart-services` restarts them, refusing while anybody is
+  in a call unless told `--anyway`.
   `thefloor` needs no such step, since every deploy restarts it.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
   instance and was deliberately left alone — it owns ports 80 and 443 there

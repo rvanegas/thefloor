@@ -203,8 +203,8 @@ $SSH "$HOST" 'sudo chown livekit-egress:livekit-egress /etc/livekit/egress.yaml 
 # systemd-networkd, which left it down for three hours (see Restart=always
 # below). Redis is on the list because livekit-server Requires= it, so
 # restarting Redis restarts the SFU; docker and containerd because egress runs
-# under them. They are then restarted by hand when nobody is talking —
-# `sudo needrestart -b -r l` lists what is stale.
+# under them. They are then restarted by hand when nobody is talking, with
+# bin/restart-services, which bin/deploy reminds you of.
 echo "→ needrestart leaves the media plane alone"
 $SSH "$HOST" 'sudo tee /etc/needrestart/conf.d/livekit.conf >/dev/null <<'"'"'CONF'"'"'
 $nrconf{override_rc}{qr(^livekit-server\.service$)} = 0;
