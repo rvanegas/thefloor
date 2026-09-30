@@ -903,7 +903,13 @@ film chimes, holds the microphone 180ms, releases it, and waits for iOS to
 report `Playback` before the follower may play — `watch/filmStart.ts`, whose
 phase `App.tsx` reads *ahead of* `microphoneNeeded`, which still says paused
 until the snapshot. A category change landing under a starting player is what
-left it stuck in `buffering`. A run started from another device still takes the
+left it stuck in `buffering`. **That release also waits for a capture still
+starting**: `useSessionAudio` runs each microphone transition after the one
+before it, since a release beside an unfinished `setMicrophoneEnabled(true)`
+found nothing to unpublish, and the capture then landed under the film. That is
+a Play within about 700ms of a Pause, bounded by `TRANSITION_WAIT_MS`. See
+`decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md`. A run
+started from another device still takes the
 old path: `useFilmHandover` holds the release on the snapshot. None of these is
 redundant with another and none is a guard against a race. See
 `decisions/2026-09-29-the-film-waits-for-its-session.md`, which supersedes the

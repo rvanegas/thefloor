@@ -36,6 +36,21 @@ and neither time was anything said to it before the ten seconds were up. The nex
 run finds out, and if it does not work the entry stands unchanged with a shorter
 symptom.
 
+**One mechanism was found in the code on 2026-09-29, and it fits this timing.**
+The two fixes that day,
+decisions/2026-09-29-the-film-handover-released-before-it-held.md and
+decisions/2026-09-29-the-film-waits-for-its-session.md, cover a Play after the
+pause has finished. They did not cover this one. The Play's release ran beside
+the pause's unfinished capture, found no published track, and returned. iOS
+reported `Playback`, the player was told to play, and then the capture landed:
+the session went back to `PlayAndRecord` under it, and the microphone stayed
+open, because nothing took it back. A release now waits for the capture before
+it. See decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md.
+**This entry stays open until a run shows it**: nothing has been measured on a
+phone, and the page-side question below is still open if the wedge survives.
+Look for `released waits for the transition before it` in the log beside a
+rapid press.
+
 **The mechanism is a guess and the cheap test is not.** A pause restores
 `PlayAndRecord` and starts the engine (about 700ms, and it is ours — see
 decisions/2026-09-28-the-film-waits-for-the-audio-session.md), and a Play landing

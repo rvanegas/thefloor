@@ -113,6 +113,27 @@ export type AudioStatus =
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
+/**
+ * **How long a microphone transition waits for the one before it to finish.**
+ *
+ * Until 2026-09-29 each transition started at once, beside whatever was still
+ * running. A release reads the published track synchronously, so a release
+ * made while a capture's `setMicrophoneEnabled(true)` was still in flight
+ * found nothing to unpublish and returned. The capture then finished, the
+ * engine restarted with recording on, and nothing took it back, because
+ * `appliedRef` already said `released`. That is a Play pressed within about
+ * 700ms of a Pause on the device showing the film: `filmStart.ts` heard
+ * `Playback` from the release, told the player to play, and the retake pulled
+ * the session back to `PlayAndRecord` under it. See
+ * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
+ *
+ * So each transition now waits for the previous one to settle. The engine
+ * starts in about 700ms. Two seconds is the backstop for a chain that never
+ * settles, so that one hung call cannot hold every later transition, and it
+ * is logged when it is reached.
+ */
+const TRANSITION_WAIT_MS = 2_000;
+
 export interface SessionAudio {
   status: AudioStatus;
   /** Set when status is 'error' or 'denied'. */
@@ -653,6 +674,29 @@ async function releaseMicrophone(room: Room): Promise<void> {
 }
 
 /**
+ * Resolves once the transition before this one has settled, or after
+ * `TRANSITION_WAIT_MS` if it has not. Immediate when there is none. Never
+ * rejects, since the chain it waits on catches its own errors.
+ */
+function afterTransition(
+  before: { done: Promise<void>; settled: boolean } | null,
+  intent: MicIntent
+): Promise<void> {
+  if (!before || before.settled) return Promise.resolve();
+  recordEvent(`${intent} waits for the transition before it`);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      recordEvent(
+        `${intent} gave up waiting after ${TRANSITION_WAIT_MS}ms, going ahead`
+      );
+      resolve();
+    }, TRANSITION_WAIT_MS);
+  });
+  return Promise.race([before.done, late]).finally(() => clearTimeout(timer));
+}
+
+/**
  * Puts the session where the microphone's state says it belongs.
  *
  * Both directions are stated, and that is the point rather than tidiness.
@@ -972,6 +1016,17 @@ export function useSessionAudio(
    * about the most surprising thing the app just did.
    */
   const deferredRef = useRef(false);
+
+  /**
+   * The microphone transition still under way, which the next one waits for.
+   * See `TRANSITION_WAIT_MS`. Keyed on the room, so that a chain left over
+   * from a connection that has since been replaced delays nothing.
+   */
+  const transitionRef = useRef<{
+    room: Room;
+    done: Promise<void>;
+    settled: boolean;
+  } | null>(null);
 
   /**
    * Keeps Android's foreground service up for as long as this app is in a
@@ -1878,22 +1933,36 @@ export function useSessionAudio(
     // in session.ts where `SCREENING` used to be. The guard outlived it
     // deliberately, because what it states is true either way and the next
     // second meaning of `muted` will arrive the same way.
-    (intent === 'capturing'
-      ? applyFor(want).then(() =>
-          room.localParticipant.setMicrophoneEnabled(true)
-        )
-      : intent === 'muted'
-        ? (configMoved ? applyFor(want) : Promise.resolve()).then(() =>
-            holdMicrophone(room)
-          )
-        : releaseMicrophone(room)
-            // Re-stated rather than assumed, and note this no longer implies
-            // `playback`: letting *our* device go hands the session back only
-            // if this app has nothing left to play either. That is the edge
-            // where somebody's music is let back in — the last person leaving
-            // a channel, or a shared track coming to rest.
-            .then(() => applyFor(want))
-    )
+    //
+    // **After the transition before it, never beside it**, since 2026-09-29 —
+    // see `TRANSITION_WAIT_MS`. A release beside an unfinished capture found
+    // nothing to unpublish, and the capture then landed with nobody left to
+    // take it back.
+    const before =
+      transitionRef.current?.room === room ? transitionRef.current : null;
+    const entry = {
+      room,
+      done: Promise.resolve(),
+      settled: false,
+    };
+    const done = afterTransition(before, intent)
+      .then((): Promise<unknown> =>
+        intent === 'capturing'
+          ? applyFor(want).then(() =>
+              room.localParticipant.setMicrophoneEnabled(true)
+            )
+          : intent === 'muted'
+            ? (configMoved ? applyFor(want) : Promise.resolve()).then(() =>
+                holdMicrophone(room)
+              )
+            : releaseMicrophone(room)
+                // Re-stated rather than assumed, and note this no longer
+                // implies `playback`: letting *our* device go hands the session
+                // back only if this app has nothing left to play either. That
+                // is the edge where somebody's music is let back in — the last
+                // person leaving a channel, or a shared track coming to rest.
+                .then(() => applyFor(want))
+      )
       // The publication as it stands once the chain has settled, which is the
       // signal `START_RECORDING` waits on. Read from the room rather than
       // inferred from `intent`, so a publish that iOS refused reads false
@@ -1917,7 +1986,12 @@ export function useSessionAudio(
           error instanceof Error ? error.message : String(error)
         }`
       );
-    });
+    })
+      .finally(() => {
+        entry.settled = true;
+      });
+    entry.done = done;
+    transitionRef.current = entry;
     const transmitting = intent === 'capturing';
     setState((s) =>
       s.micOpen === transmitting ? s : { ...s, micOpen: transmitting }
