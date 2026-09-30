@@ -403,6 +403,9 @@ export const styles = StyleSheet.create({
   volumeReadout: { justifyContent: 'center', minWidth: 44, alignItems: 'center' },
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
+  // A row holding a `PasteButton`, whose system control carries a caption
+  // beneath it; stretched, the row would draw its neighbour that tall.
+  buttonRowTop: { alignItems: 'flex-start' },
   flexButton: { flex: 1 },
   inviteRow: {
     flexDirection: 'row',

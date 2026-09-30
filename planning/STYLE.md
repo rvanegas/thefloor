@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button and its five variants, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
+| *Controls* | Button and its five variants, PasteButton and the one control Apple draws, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, the notice card, a profile's section order, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
@@ -433,6 +433,34 @@ not fit, with the sentence it gives up carried by the note under the row. It is
 also why it is not called *System* like the scheme's option one card below: two
 buttons of one name on one screen are announced identically by a screen reader.
 See GLOSSARY.md § *Language*.
+
+### PasteButton
+
+**The one control in the app that Apple draws, since 2026-09-29.** Every
+button that takes somebody's clipboard — *Watch something together*, *Watch
+this instead*, *Paste my clipboard*, a guest's *Paste mine* — is a
+`PasteButton`, which on iOS 16 and later is the system's `UIPasteControl`. A
+tap on that is the permission, so there is no *Allow Paste?* sheet; a
+`Button` that reads the clipboard itself gets the sheet every time.
+
+What that costs, all of it forced:
+
+- **The word is *Paste*, with Apple's glyph**, in the system's language. The
+  label and sublabel the `Button` would have carried are drawn as a centred
+  caption beneath it — the label at 13/600 in `text`, the sublabel at 13 in
+  `textMuted`.
+- **Fill and ink are the `default` or `primary` pair, handed across as
+  colours** rather than set through `style`, which the control ignores.
+  `colors.*` go over opaque and the native side resolves them, so rule 2
+  holds. The corner is Apple's `large`, the nearest it offers to `radius.md`.
+- **It greys itself** when the clipboard holds no text or link, without
+  reading it. It has no refused state that the app can set, so **a refused
+  paste is drawn as the ordinary disabled `Button`**, words and all — rule 9.
+- **A row holding one is top-aligned** (`buttonRowTop`), since the caption
+  would otherwise stretch its neighbour.
+
+iOS 15, Android and the web have no such control and get the `Button`,
+unchanged. See `app/src/ui/PasteButton.tsx`.
 
 ### IconButton
 

@@ -44,6 +44,12 @@ jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(async () => true),
   getStringAsync: jest.fn(async () => ''),
   hasStringAsync: jest.fn(async () => false),
+  // No system paste control by default, so every paste button renders as the
+  // ordinary `Button` a test can find by its label. A test that wants the
+  // control spies on `systemPasteAvailable` in src/clipboard.ts; the stub is
+  // a host component so it can be found by type and pressed with a payload.
+  isPasteButtonAvailable: false,
+  ClipboardPasteButton: 'ClipboardPasteButton',
 }));
 
 // The audio SDK reaches native modules at import time — it installs a

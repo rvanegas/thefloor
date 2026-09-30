@@ -67,7 +67,7 @@ import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
-import { copyText, pasteText } from '../clipboard';
+import { copyText } from '../clipboard';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
@@ -120,6 +120,7 @@ import {
   SectionLabel,
   Segmented,
 } from './components';
+import { PasteButton } from './PasteButton';
 import { ago, duration } from './relativeTime';
 import {
   colors,
@@ -2065,13 +2066,16 @@ export function ChannelView({
    * lit whenever the floor allows a film to be put on, and whether there is a
    * link is answered afterwards, in words.
    *
+   * **Handed the text rather than reading it**, since 2026-09-29: the read is
+   * `PasteButton`'s, which on iOS 16 and later is the system's own control and
+   * sets off no *Allow Paste?* sheet. Task `allow-paste`.
+   *
    * The whole of why `parseYouTubeUrl` is in core: this decides whether the
    * press does anything and the server decides whether to accept, and a
    * refusal here and a refusal there must not disagree about what a link is.
    */
-  const pasteWatchUrl = async () => {
+  const pasteWatchUrl = (text: string | null) => {
     setWatchPasteError(null);
-    const text = await pasteText();
     if (text === null) {
       setWatchPasteError(t.nothingOnClipboard());
       return;
@@ -2248,9 +2252,8 @@ export function ChannelView({
   // nothing and preview as blank — which reads as a paste that failed.
   const clipPreview = clip ? clip.text.replace(/\s+/g, ' ').trim() : '';
 
-  const pasteClip = async () => {
+  const pasteClip = (text: string | null) => {
     setClipError(null);
-    const text = await pasteText();
     if (text === null) {
       setClipError(t.nothingOnClipboard());
       return;
@@ -3713,10 +3716,10 @@ export function ChannelView({
             <Empty>{t.nothingOnTheChannelClipboard()}</Empty>
           )}
 
-          <Button
+          <PasteButton
             label={clip ? t.replaceWithMyClipboard() : t.pasteMyClipboard()}
             disabled={!canPasteClip(channel, me)}
-            onPress={() => void pasteClip()}
+            onPaste={pasteClip}
           />
 
           <Text style={type.muted}>
@@ -4306,14 +4309,19 @@ export function ChannelView({
                     {watchPasteError ? (
                       <Text style={styles.warning}>{watchPasteError}</Text>
                     ) : null}
-                    <View style={styles.buttonRow}>
-                      <Button
+                    {/*
+                      Top-aligned because the system paste control carries
+                      its words as a caption underneath, and a stretched row
+                      would pull *Cancel* down to the caption's foot.
+                    */}
+                    <View style={[styles.buttonRow, styles.buttonRowTop]}>
+                      <PasteButton
                         label={t.watchThisInstead()}
                         sublabel={t.watchThisInsteadSub()}
                         variant="primary"
                         style={styles.flexButton}
                         disabled={!mayStartWatch}
-                        onPress={() => void pasteWatchUrl()}
+                        onPaste={pasteWatchUrl}
                       />
                       <Button
                         label={t.cancel()}
@@ -4540,11 +4548,11 @@ export function ChannelView({
                   names where its audio comes from, and this names where its
                   link does.
                 */}
-                <Button
+                <PasteButton
                   label={t.watchSomethingTogether()}
                   sublabel={t.watchSomethingTogetherSub()}
                   disabled={!mayStartWatch}
-                  onPress={() => void pasteWatchUrl()}
+                  onPaste={pasteWatchUrl}
                 />
                 {/*
                   **The way back to something this channel has already

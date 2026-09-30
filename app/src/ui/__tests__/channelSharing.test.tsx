@@ -15,6 +15,7 @@ import { WatchPlayer } from '../../watch/WatchPlayer';
 import { resetDiagnostics } from '../../audio/diagnostics';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as clipboard from '../../clipboard';
 import {
   AUDIO,
   ME,
@@ -270,6 +271,58 @@ describe('Channel, watching together', () => {
       url: URL,
     });
     act(() => tree.unmount());
+  });
+
+  it('starts from the system paste control without reading the clipboard', async () => {
+    // iOS 16 and later. The control is the system's, so a tap on it is the
+    // permission and there is no *Allow Paste?* sheet — which holds only if
+    // nothing here also calls `getStringAsync`. Task `allow-paste`.
+    const available = jest
+      .spyOn(clipboard, 'systemPasteAvailable')
+      .mockReturnValue(true);
+    const read = jest.spyOn(Clipboard, 'getStringAsync');
+    read.mockClear();
+    showChannel(channelOf());
+    const tree = open();
+
+    // The words the button carried are the caption under the control.
+    expect(textOf(tree)).toContain('Watch something together');
+    const control = tree.root.findByType(
+      'ClipboardPasteButton' as unknown as React.ElementType
+    );
+    await act(async () => {
+      control.props.onPress({ type: 'text', text: `  ${URL}\n` });
+    });
+
+    expect(read).not.toHaveBeenCalled();
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'START_WATCH',
+      url: URL,
+    });
+    act(() => tree.unmount());
+    available.mockRestore();
+  });
+
+  it('draws the ordinary refused button, not the system control, when a film may not start', () => {
+    // The control has no refused state of its own; STYLE.md rule 9.
+    const available = jest
+      .spyOn(clipboard, 'systemPasteAvailable')
+      .mockReturnValue(true);
+    // Outside a channel somebody else is in: starting a film asks presence.
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW))
+    );
+    const tree = open();
+    expect(
+      findButton(tree, 'Watch something together')!.props.disabled
+    ).toBe(true);
+    expect(
+      tree.root.findAllByType(
+        'ClipboardPasteButton' as unknown as React.ElementType
+      )
+    ).toHaveLength(0);
+    act(() => tree.unmount());
+    available.mockRestore();
   });
 
   it('shows the transport once a party is loaded', () => {

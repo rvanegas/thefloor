@@ -62,3 +62,16 @@ export async function pasteText(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Whether this device can draw the system's own paste control, which reads the
+ * clipboard **without the prompt** `pasteText` sets off. See `PasteButton`.
+ *
+ * iOS 16 and later; never Android and never the web, where the flag is false
+ * and the caller falls back to a button that calls `pasteText`. A function
+ * rather than a re-export so a test can say *this is a phone that has it*
+ * without reaching into the native module.
+ */
+export function systemPasteAvailable(): boolean {
+  return Clipboard.isPasteButtonAvailable === true;
+}

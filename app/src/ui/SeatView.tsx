@@ -4,8 +4,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { GuestView } from '../../../core/protocol';
 import { useApp } from '../state/AppProvider';
 import { api } from '../api/http';
-import { pasteText } from '../clipboard';
 import { Button, Card, Field, Screen, SectionLabel } from './components';
+import { PasteButton } from './PasteButton';
 import { colors, measure, spacing, type } from './theme';
 import { useText, type Strings } from '../i18n';
 
@@ -290,12 +290,12 @@ export function SeatView({
         <Text style={view.clip ? type.body : type.muted}>
           {view.clip ? view.clip.text : t.nothingOnTheClipboard()}
         </Text>
-        <View style={styles.buttonRow}>
-          <Button
+        {/* Top-aligned for `PasteButton`'s caption; see `buttonRowTop`. */}
+        <View style={[styles.buttonRow, styles.buttonRowTop]}>
+          <PasteButton
             label={t.pasteMine()}
             style={styles.flexButton}
-            onPress={async () => {
-              const text = await pasteText();
+            onPaste={(text) => {
               // Nothing to paste is nothing to say: an empty clipboard is not
               // a refusal, and clearing the channel's because this phone's was
               // empty would be answering a question nobody asked.
@@ -357,6 +357,9 @@ const styles = StyleSheet.create({
   container: { padding: spacing(2), paddingBottom: spacing(2), gap: spacing(1) },
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
+  // A row holding a `PasteButton`, whose system control carries a caption
+  // beneath it; stretched, the row would draw its neighbour that tall.
+  buttonRowTop: { alignItems: 'flex-start' },
   flexButton: { flex: 1 },
   /**
    * The two pinned bars, built the way every pinned bar in this app is: the
