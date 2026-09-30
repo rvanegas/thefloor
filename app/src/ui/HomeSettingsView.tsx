@@ -409,6 +409,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       {app.debug ? (
         <>
         <SectionLabel>{t.diagnostics()}</SectionLabel>
+        <View style={styles.cards}>
         <Card style={styles.stack}>
           <Text style={type.heading}>{t.forgetThisPhone()}</Text>
           <Button
@@ -467,6 +468,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           />
           <Text style={type.muted}>{t.dabsNote()}</Text>
         </Card>
+        </View>
         </>
       ) : null}
 
@@ -715,6 +717,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  /* Two cards under one label, which would otherwise touch edge to edge. */
+  cards: { gap: spacing(1.5) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
   /*
