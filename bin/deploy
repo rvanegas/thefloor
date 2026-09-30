@@ -215,6 +215,19 @@ for _ in $(seq 1 20); do
       *) echo "✗ healthy, but not reporting $SHA — the restart did not take" >&2
          exit 1 ;;
     esac
+    # needrestart is told not to restart the media plane on its own (see
+    # bin/provision-livekit), so stale libraries there wait for a person — and
+    # a deploy is when one is at the keyboard. Reported, never acted on: this
+    # restart cost presence, and one of these would cost the calls themselves.
+    # A failure to ask is not a failed deploy.
+    STALE=$($SSH "$HOST" 'sudo needrestart -b -r l 2>/dev/null' \
+      | sed -n 's/^NEEDRESTART-SVC: //p' \
+      | grep -E '^(livekit-server|livekit-egress|redis-server|docker|containerd)\.service$' \
+      | tr '\n' ' ' || true)
+    if [ -n "$STALE" ]; then
+      echo "! running outdated libraries, left alone: $STALE"
+      echo "  when nobody is talking: $SSH $HOST 'sudo systemctl restart $STALE'"
+    fi
     exit 0
   fi
   sleep 2
