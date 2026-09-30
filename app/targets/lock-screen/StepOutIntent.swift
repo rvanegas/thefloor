@@ -30,10 +30,10 @@ import AppIntents
 
  **No passcode, stated rather than relied on.** `authenticationPolicy` is iOS
  26, and `.alwaysAllowed` is already what `ToggleMuteIntent`'s built metadata
- records without saying so — yet the Mute button has been seen asking for the
- passcode, which `tasks/unmute-without-unlock.md` is chasing. So this line is
- the intent written down, not the fix: whatever makes Mute ask may make this
- ask too. The worst anybody holding somebody else's phone can do with this is
+ records without saying so — and on build 320 a locked phone ran Mute's tap
+ with no passcode and without opening the app. So this line is the intent
+ written down rather than a fix: nothing was asking for one to begin with.
+ The worst anybody holding somebody else's phone can do with this is
  take them out of a conversation the card already names. Decided 2026-09-29;
  see `planning/decisions/2026-09-29-the-lock-screen-carries-a-way-out.md`.
  */

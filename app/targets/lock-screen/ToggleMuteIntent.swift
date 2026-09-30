@@ -1,9 +1,7 @@
 import AppIntents
-import os
 
 #if !LOCKSCREEN_WIDGET_EXTENSION
   import LiveActivity
-  import UIKit
 #endif
 
 /**
@@ -60,23 +58,7 @@ struct ToggleMuteIntent: LiveActivityIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    // TEMPORARY, for tasks/unmute-without-unlock.md: whether the tap reached
-    // the intent at all, in which process, and whether the phone was locked.
-    // `idevicesyslog -m "[lock-screen]"`. Remove with the fix.
-    #if LOCKSCREEN_WIDGET_EXTENSION
-      Logger(subsystem: "co.rvanegas.thefloor", category: "lock-screen").notice(
-        "[lock-screen] intent performed in the EXTENSION muted=\(muted, privacy: .public)"
-      )
-    #else
-      let (protected, state) = await MainActor.run {
-        (
-          UIApplication.shared.isProtectedDataAvailable,
-          UIApplication.shared.applicationState.rawValue
-        )
-      }
-      Logger(subsystem: "co.rvanegas.thefloor", category: "lock-screen").notice(
-        "[lock-screen] intent performed in the app muted=\(muted, privacy: .public) protectedData=\(protected, privacy: .public) appState=\(state, privacy: .public)"
-      )
+    #if !LOCKSCREEN_WIDGET_EXTENSION
       LiveActivityModule.emitToggle(muted: muted)
     #endif
     return .result()

@@ -4,8 +4,6 @@ import { DISCONNECT_GRACE_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import type { ChannelView } from '../../../core/protocol';
 import type { UserId } from '../../../core/types';
-import { AppState } from 'react-native';
-import { recordEvent } from '../audio/diagnostics';
 import { useText, type Strings } from '../i18n';
 import {
   addLockScreenStepOutListener,
@@ -183,20 +181,12 @@ export function useLockScreen(
   const key = state ? JSON.stringify(state) : null;
   const latest = useRef(state);
   latest.current = state;
-  const input = useRef(inputAvailable);
-  input.current = inputAvailable;
 
   useEffect(() => {
     if (!key || !latest.current) {
       hide();
       return;
     }
-    // TEMPORARY, for tasks/unmute-without-unlock.md: what the card was told,
-    // so a grey button at the lock can be told from one that asked for a
-    // passcode. Remove with the fix.
-    recordEvent(
-      `lock card muted=${latest.current.muted} canToggle=${latest.current.canToggle} input=${input.current} app=${AppState.currentState}`
-    );
     show(latest.current);
     // No teardown that hides, deliberately: this effect re-runs whenever the
     // card's contents move, and hiding on the way out of each run would take
@@ -227,11 +217,6 @@ export function useLockScreen(
        * minutes later.
        */
       const current = latest.current;
-      // TEMPORARY, for tasks/unmute-without-unlock.md: whether a tap reached
-      // JavaScript at all, and what it found when it did.
-      recordEvent(
-        `lock tap muted=${muted} card=${current ? `canToggle=${current.canToggle}` : 'none'} input=${input.current} app=${AppState.currentState}`
-      );
       if (!current || !current.canToggle) return;
       // The button said what it would do, so the tap carries an intent rather
       // than a toggle. Honouring the word on the button is what keeps a stale
