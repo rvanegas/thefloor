@@ -1568,8 +1568,8 @@ rules.
 
 The one piece of this interface that renders outside the app: a Live Activity,
 up whenever this device is standing in a channel, drawn by the widget
-extension in `app/targets/lock-screen/`. It carries a name, three buttons and
-a tap.
+extension in `app/targets/lock-screen/`. It carries a name, two buttons and a
+tap.
 
 **Its palette is a transcription, not an import.** A widget extension is a
 separate process with no JavaScript in it, so `theme.ts` cannot reach it and
@@ -1600,11 +1600,12 @@ the half that survives.
 
 Six rules that look like details and are not:
 
-- **Both controls are visible, and the card is still a tap.** *Open* is a
-  `Link` to the same deep link `widgetURL` carries. It is not a second way in
-  so much as the first one made legible — *the whole card is a button* is a
-  convention somebody has to already know, and the reader who most needs a way
-  back is the one who has used the app least.
+- **The way in is the card itself, and nothing spells it out.** `widgetURL`
+  makes a tap anywhere that is not a button open the app at the channel. An
+  *Open* button made that legible from 2026-09-17 and was removed on
+  2026-09-29, by instruction, to give the room back to the two glyphs — see
+  `decisions/2026-09-29-the-lock-screen-card-drops-open.md`. Do not put a word
+  back to explain the tap without reading that first.
 - **The microphone button shows three states as two, in a glyph and not a
   word.** It strikes through on the same derivation the footer icon uses —
   *you are not being heard*, which folds in a device with no input — rather
@@ -1614,20 +1615,20 @@ Six rules that look like details and are not:
   glyph's label is the word it replaced.
 - **Refused is grey, with no sentence saying why**, which is the named
   exception in § *Words on controls*. There is no room for a sentence on a
-  lock screen and being refused here is ordinary rather than an error, so
-  *Open* stands in for one: it opens the app at the channel, where every
+  lock screen and being refused here is ordinary rather than an error, so the
+  card's tap stands in for one: it opens the app at the channel, where every
   reason is already stated in its own place.
 - **The card's controls are half again the island's, and both by the same
   factor.** A lock screen is read at arm's length and often not held; the
   expanded island is a panel with three regions to fit, and a control that is
   comfortable there is small here. `LockScreenCard.scale` is that number, and
-  **both controls take it** — the microphone's glyph and the disc around it,
-  *Open*'s type and its padding — so the pair keeps its proportions. A glyph
-  that grew while the word beside it did not would read as two sizes rather
-  than one. **It was 1 and then 2 before it was 1.5**, and both ends were
-  looked at on a phone: unscaled the microphone is small across the width of
-  the screen, doubled the pair crowds the name beside it and the card reads as
-  a toolbar. The number is a judgement about this surface, so change it by
+  **both controls take it** — each glyph and the disc around it — so the pair
+  keeps its proportions. **It was 1 and then 2 before it was 1.5**, and both
+  ends were looked at on a phone, when the pair was *Open* and the microphone:
+  unscaled the microphone is small across the width of the screen, doubled the
+  pair crowds the name beside it and the card reads as a toolbar. The pair is
+  now two discs and narrower than it was, so 1.5 has not been looked at in
+  this shape. The number is a judgement about this surface, so change it by
   looking rather than by arithmetic.
 - **Being silenced does not grey it.** Somebody silenced by another's claim may
   still set their own mute, and it is what they are left with when the claim
@@ -1635,14 +1636,12 @@ Six rules that look like details and are not:
   the card has no colour to spend and simply stays live.
 - **Out is a glyph and is never grey.** The footer's step-out glyph in the
   microphone's disc, after it, with *Out* as its accessibility label; nothing
-  refuses a departure, so it has no disabled state. **Three at `scale` 1.5
-  has not been looked at on a phone** — the number was judged with two, and a
-  third takes about sixty points from the name.
+  refuses a departure, so it has no disabled state.
 
 Below iOS 17 the microphone is not a button — `Button(intent:)` is what lets a
 tap act without opening the app, and there is no earlier spelling of it. The
-card shows the glyph in the same grey, draws no Out at all, and *Open*, which
-needs no intent, is the only control that does anything.
+card shows the glyph in the same grey, draws no Out at all, and the tap on the
+card, which needs no intent, is the only thing on it that does anything.
 
 **The Dynamic Island carries the same controls**, in the same order, in the
 expanded `.bottom` region with the name above them. They were in `.leading` and

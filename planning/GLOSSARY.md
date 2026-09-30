@@ -73,7 +73,7 @@ caused; the list carries the meaning.
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
-- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, an *Open* button, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
+- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
@@ -1272,10 +1272,11 @@ told it is going away, and `useLockScreen` takes an `inTouch` that holds it for
 DISCONNECT_GRACE_MS and no longer. See
 `decisions/2026-09-18-the-lock-screen-card-does-not-outlive-the-room.md`.
 
-**Three controls, and the test is the design rather than the count**: the card
-offers only what a locked phone can deliver. A mute button, a way into the
-channel, and since 2026-09-29 a way out of it. It said *two, and the count is
-the design* until then, and the count was only ever the test's outcome.
+**The test is the design rather than the count**: the card offers only what a
+locked phone can deliver. A mute button, a way into the channel — the tap on
+the card, since the *Open* button that spelled it out went on 2026-09-29 — and
+since the same day a way out of it. It said *two, and the count is the design*
+until then, and the count was only ever the test's outcome.
 **There is no way to claim the floor from it** — claiming means opening a
 microphone, which iOS refuses to a backgrounded app, and the card would be
 offering something it could not deliver. That refusal is what
@@ -1306,14 +1307,14 @@ than on the reducer's `selfMuted`; see *Mute (four things, one word)*, which is
 the entry a reader should check before narrowing it. When the button is refused
 it goes grey and **says nothing about why**.
 
-The second control is a button reading *Open*, added 2026-09-17 alongside the
-card-wide tap rather than in place of it: the tap has always been the card's
-way in, and *the whole card is a button* is a convention somebody has to have
-been taught. It is also what stands in for the sentence a greyed mute button
-cannot carry — open the app and every reason is stated in its own place — and
-STYLE.md carries that as a named exception to its rule that a disabled control
-is accompanied by a reason. `decisions/2026-09-17-the-lock-screen-card-shows-its-controls.md`
-is the entry.
+**The way in is the tap on the card**, which is also what stands in for the
+sentence a greyed mute button cannot carry — open the app and every reason is
+stated in its own place — and STYLE.md carries that as a named exception to
+its rule that a disabled control is accompanied by a reason. A button reading
+*Open* spelled the tap out from 2026-09-17
+(`decisions/2026-09-17-the-lock-screen-card-shows-its-controls.md`) and was
+removed on 2026-09-29
+(`decisions/2026-09-29-the-lock-screen-card-drops-open.md`).
 
 **Not the same thing as Android's notification.** `modules/call-service` puts a
 foreground-service notification on an Android lock screen, and that exists to

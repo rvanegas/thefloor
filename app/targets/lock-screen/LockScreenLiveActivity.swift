@@ -4,8 +4,7 @@ import SwiftUI
 import WidgetKit
 
 /**
- The card itself: a name, an Open button, a microphone, Out, and a tap that
- opens.
+ The card itself: a name, a microphone, Out, and a tap that opens.
 
  **Colours are copied from `app/src/ui/theme.ts` rather than shared with it.**
  A widget extension is a separate process with no JavaScript in it, so there is
@@ -230,7 +229,6 @@ struct LockScreenCard: View {
         .foregroundColor(Palette.text(dark))
         .lineLimit(1)
       Spacer(minLength: 8)
-      OpenControl(channelId: channelId, dark: dark, scale: Self.scale)
       MuteControl(state: state, dark: dark, scale: Self.scale)
       OutControl(state: state, dark: dark, scale: Self.scale)
     }
@@ -246,43 +244,11 @@ struct LockScreenCard: View {
      than an error — so *go and look* is the affordance that stands in for it.
      See `planning/STYLE.md`, which carries that as a named exception.
 
-     **The whole card stays tappable even though *Open* is now written on it.**
-     The button is not a second way in so much as the first one made visible:
-     the tap was always here, and nobody new could see it.
+     **The only way in since 2026-09-29.** An *Open* button spelled this tap
+     out from 2026-09-17 and was taken off to give the controls back their
+     room; see `planning/decisions/2026-09-29-the-lock-screen-card-drops-open.md`.
      */
     .widgetURL(URL(string: "thefloor://channel/\(channelId)"))
-  }
-}
-
-/**
- The way in, spelled out.
-
- A `Link` rather than a second `widgetURL` — a card has one of those, and it is
- the tap on everything else. Both go to the same place; this one is here
- because *the whole card is a button* is a convention somebody has to already
- know, and the people who most need a way back into the app are the ones who
- have used it least.
-
- **It opens on every iOS the card runs on**, unlike the microphone beside it,
- since a link needs no `Button(intent:)`. On 16.x it is the only control the
- card has that does anything.
- */
-@available(iOS 16.1, *)
-private struct OpenControl: View {
-  let channelId: String
-  let dark: Bool
-  var scale: CGFloat = 1
-
-  var body: some View {
-    Link(destination: URL(string: "thefloor://channel/\(channelId)")!) {
-      Text("Open")
-        .font(.system(size: 15 * scale, weight: .medium))
-        .foregroundColor(Palette.text(dark))
-        .padding(.horizontal, 14 * scale)
-        .padding(.vertical, 8 * scale)
-        .background(Palette.raised(dark))
-        .clipShape(Capsule())
-    }
   }
 }
 
@@ -299,7 +265,7 @@ private struct OpenControl: View {
  without opening the app, and there is no earlier spelling of it — a 16.x card
  falls back to showing the microphone rather than offering to change it, which
  is worth more than a button that would have to open the app to work and would
- therefore be *Open* beside it wearing a different glyph.
+ therefore be the card's own tap wearing a glyph.
  */
 @available(iOS 16.1, *)
 private struct MuteControl: View {
@@ -345,7 +311,7 @@ private struct MuteControl: View {
 /**
  Out: the step-out the footer's last rung makes, without opening the app.
 
- **A glyph like the microphone, not a word like *Open*.** It is the footer's
+ **A glyph like the microphone, not a word.** It is the footer's
  `StepIcon`, which is how the app draws the same act, and the word — *Out*, in
  whichever language the app is speaking — is its accessibility label.
 
@@ -411,7 +377,6 @@ struct LockScreenLiveActivity: Widget {
          */
         DynamicIslandExpandedRegion(.bottom) {
           HStack(spacing: 10) {
-            OpenControl(channelId: context.attributes.channelId, dark: true)
             Spacer(minLength: 8)
             MuteControl(state: context.state, dark: true)
             OutControl(state: context.state, dark: true)
