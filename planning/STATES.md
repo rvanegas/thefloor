@@ -943,7 +943,10 @@ The one thing that can make a stepped-in member ask for `listen` is a
 **deferred promotion**: iOS refuses a backgrounded app a *new* microphone, so
 the app stays on `LISTENING`, hears the person, and takes the call session at
 the next foreground. The transition is what is forbidden, not the state, so a
-session already `CALL` is left alone when the app goes off screen.
+session already `CALL` is left alone when the app goes off screen. **Deferred
+on `background`, not on leaving `active`**, since 2026-09-30: at `inactive` the
+app is still in front as far as a microphone goes, and that is where a device
+showing the film retakes `CALL`.
 
 | Situation | Session |
 | --- | --- |
@@ -953,9 +956,17 @@ session already `CALL` is left alone when the app goes off screen.
 | Stepped in, muted | `CALL` |
 | Stepped in, everybody muted | `CALL` |
 | Stepped in, watch party on another device, while it plays | `CALL` |
-| Stepped in, **watching here**, while it plays | `LISTENING` |
+| Stepped in, **watching here**, while it plays, app in front | `LISTENING` |
+| Stepped in, watching here, while it plays, app behind | `CALL` |
 | Guest in the room, no speech grant | `LISTENING` |
 | Stepped in, promotion deferred while backgrounded | `LISTENING` |
+
+**`CALL` is given up only to play a film in front, or to leave the room**,
+since 2026-09-30. A film on a device that is behind is not being watched, so
+the release waits for the front and is taken back at `inactive` —
+`useFilmTakesMicrophone`. The reason is the keep-alive: `LISTENING` in the
+background has nothing flowing during a party-muted run, iOS suspended it, and
+the account went *Nearby* under a film playing on its second device.
 
 **The watching-here row is the one exception to *a session follows whether you
 are stepped in*, and it left and came back inside three days.** `isScreening` in

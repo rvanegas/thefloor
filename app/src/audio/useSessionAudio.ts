@@ -868,10 +868,25 @@ export function useSessionAudio(
   const [foreground, setForeground] = useState(
     AppState.currentState === 'active'
   );
+  /**
+   * Whether iOS has put the app in the background, which is narrower than not
+   * being in front and is what a promotion is deferred on.
+   *
+   * **`inactive` is neither**: the app has begun to leave — a lock, a swipe
+   * home, Control Center — and iOS still treats it as in front for the purpose
+   * of a microphone. That is the moment a device that released for a film
+   * retakes `CALL`, because the film is no longer being watched; see
+   * `useFilmTakesMicrophone`. Deferring it there, as `!foreground` did, would
+   * leave it on `LISTENING` with nothing flowing, which is what iOS suspends.
+   */
+  const [background, setBackground] = useState(
+    AppState.currentState === 'background'
+  );
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) =>
-      setForeground(next === 'active')
-    );
+    const subscription = AppState.addEventListener('change', (next) => {
+      setForeground(next === 'active');
+      setBackground(next === 'background');
+    });
     return () => subscription.remove();
   }, []);
 
@@ -1815,7 +1830,11 @@ export function useSessionAudio(
      * `planning/decisions/2026-09-08-the-arrival-is-offered.md`.
      */
     const inCall = appliedRef.current?.config === CALL;
-    const deferring = micNeeded && !foreground && !inCall;
+    // `background` rather than `!foreground`, so that a promotion asked for
+    // at `inactive` is attempted — see `background` above. Once asked, the ask
+    // is what `appliedRef` records, so the `background` that follows a moment
+    // later finds `inCall` and does not take it back.
+    const deferring = micNeeded && background && !inCall;
     const intent = deferring ? 'released' : wanted;
     // The one thing that may move the audio *category*, which is the boundary a
     // Bluetooth profile handover sits on. A self-mute does not reach it —
@@ -2000,10 +2019,11 @@ export function useSessionAudio(
     selfMuted,
     micNeeded,
     hasAudio,
-    // The foreground is what turns a deferred promotion into an attempted one,
-    // so it has to wake this effect. It is also the only dependency here that
-    // changes without anything about the channel changing.
-    foreground,
+    // Leaving the background is what turns a deferred promotion into an
+    // attempted one, so it has to wake this effect. It is also the only
+    // dependency here that changes without anything about the channel
+    // changing.
+    background,
     // **The film is not named here and does not need to be**, since
     // 2026-09-26: it reaches this effect through `micNeeded`, which
     // `microphoneNeeded` subtracts it from. It was a dependency for a few hours

@@ -355,6 +355,66 @@ describe('capture against the foreground', () => {
   });
 
   /**
+   * **`inactive` is not the background**, and it is where a device that
+   * released for a film retakes `CALL`: the app has begun to leave and iOS
+   * still grants it a microphone. Deferring there left a phone on `LISTENING`
+   * with nothing flowing during a run, which iOS suspends — see
+   * `useFilmTakesMicrophone`.
+   */
+  it('promotes while the app is only inactive', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+    await appState('inactive');
+    logged();
+
+    await act(async () => {
+      tree.update(<Probe audio={true} />);
+    });
+    await settle();
+
+    const lines = logged();
+    expect(lines).not.toContain('capture deferred (backgrounded)');
+    expect(lines.some((l) => l.includes('capturing CALL'))).toBe(true);
+    expect(micOf()).toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
+   * And the background that follows a moment later does not take the ask
+   * back: it is a session already asked for as `CALL`, which is the state iOS
+   * lets a backgrounded app keep.
+   */
+  it('keeps a promotion asked at inactive through the background', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe audio={false} />);
+    });
+    await settle();
+    await appState('inactive');
+    await act(async () => {
+      tree.update(<Probe audio={true} />);
+    });
+    await settle();
+    logged();
+
+    await appState('background');
+
+    const lines = logged();
+    expect(lines).not.toContain('capture deferred (backgrounded)');
+    expect(lines.some((l) => l.startsWith('released'))).toBe(false);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /**
    * The half that must not regress: switching apps mid-conversation. iOS lets
    * a session that is already capturing carry on, and dropping to `playback`
    * here would cut somebody's microphone every time they checked a message.

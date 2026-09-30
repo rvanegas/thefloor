@@ -99,7 +99,15 @@ export function useWatchChime(
   waitForEngine: ((done: () => void) => () => void) | null = Platform.OS ===
   'ios'
     ? engineRestart
-    : null
+    : null,
+  /**
+   * Whether this device actually handed its session to the film, which is
+   * `isScreening` qualified by the app being in front — see
+   * `useFilmTakesMicrophone`. A screening device that is behind has kept
+   * `CALL`, so its pause chime has no retake to wait for. Defaults to the
+   * room's answer, for a caller that has nothing better.
+   */
+  released: boolean = channel ? isScreening(channel, me) : false
 ): void {
   /**
    * The status this hook last saw, or null before the first look.
@@ -142,7 +150,7 @@ export function useWatchChime(
 
   const channelId = channel?.id ?? null;
   const status = channel?.watch?.status ?? 'idle';
-  const screening = channel ? isScreening(channel, me) : false;
+  const screening = released;
 
   useEffect(() => {
     if (channelId === null) {
