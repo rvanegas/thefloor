@@ -170,6 +170,7 @@ caused; the list carries the meaning.
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
+- **Promotion (of the audio session)** — A stepped-in device going from `LISTENING` to `CALL`, taking a microphone it did not hold — the film leaving it, a guest granted speech. *Deferred* while the app is backgrounded, since iOS refuses a backgrounded app a new microphone: it stays on `LISTENING`, hears the room, and promotes at the next foreground. Not stepping in, and not a session already `CALL` going to the background, which keeps what it has
 - **Protocol** — `core/protocol.ts` — the wire
 - **Pump** — `PlaybackPump` — what *produces* shared playback, as distinct from publishing
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
@@ -3786,6 +3787,34 @@ Whether this device is actually rendering the audio it is subscribed to, read
 from `inbound-rtp` sample counts. The only measurement of that which does not
 itself stop the audio: reading the WebRTC audio device module killed the sound
 for four days in August 2026, and the diagnostic panel was the fault.
+
+## Promotion (of the audio session)
+
+A device already stepped in moving from `LISTENING` — `playback`, hearing the
+room with no microphone — up to `CALL`, which captures. **Not stepping in**,
+which takes `CALL` directly from no session at all; a promotion is the
+microphone coming back to somebody who was in the room without one. The film
+leaving a device that was *watching here* is the common case; a *guest* being
+granted speech is the other.
+
+**A promotion is deferred while the app is in the background**, because iOS
+lets a backgrounded app keep a microphone and refuses it a new one. The device
+stays on `LISTENING`, so it still hears whoever is audible, logs
+`capture deferred (backgrounded)`, and promotes at the next foreground.
+`deferring` in `useSessionAudio.ts` is the whole rule. **Only the transition is
+withheld**: a session already `CALL` going to the background is the ordinary
+case of switching apps mid-conversation, and keeps what it has.
+
+**What it separates is hearing from speaking.** Before it, one answer served
+both, so on 2026-09-05 a locked phone asked for `CALL` for an arrival, was
+silently refused, and rendered nothing for four minutes — denied the
+microphone, it was denied the voice as well.
+
+**What it does not do is keep the process alive.** `LISTENING` holds a
+backgrounded app only while audio is actually flowing, and a deferral in a
+room that is *party-muted* has none — so a phone handing the film to a second
+device from a pocket can be suspended before it ever reaches the foreground.
+`tasks/keep-alive.md`.
 
 ## Protocol
 
