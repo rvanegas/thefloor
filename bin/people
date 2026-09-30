@@ -36,6 +36,14 @@
 # `last_seen` and a 1 here cannot happen. See planning/GLOSSARY.md § Paused
 # (of arrivals).
 #
+# `notifications` is whether the phone lets the app reach them when it is not
+# running, as their client last said: `granted`, `undetermined` or `denied`.
+# Blank means nobody has said — a build that predates the header, or only ever
+# the web client, which has no such permission to report — and is not the same
+# as denied. It is the install's answer written on the account, so somebody on
+# two devices shows whichever spoke last. See *Notification answer* in
+# planning/GLOSSARY.md.
+#
 # `build` is what they last connected from, and null means "at or below the
 # first build that says" — every build up to 36 sends nothing, so a blank is
 # not the same as an old number and cannot be compared with one. `expired` is
@@ -107,6 +115,7 @@ SELECT identifier,
        CASE WHEN unanswered_since IS NOT NULL
              AND unanswered_since <= unixepoch() * 1000 - 604800000
             THEN 1 ELSE '' END AS paused,
+       COALESCE(notifications, '') AS notifications,
        date(created_at / 1000, 'unixepoch') AS joined
 FROM accounts
 ORDER BY last_seen_at;
