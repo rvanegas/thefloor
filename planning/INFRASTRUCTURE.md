@@ -91,6 +91,14 @@ planning/decisions/ for 2026-09-21.
   `disconnectedAt`, the floor and any recording in flight — the process, not
   the place. This file claimed the opposite for a day after `9761d72` made it
   false, and was believed.
+- **Unattended upgrades patch the box but restart nothing that carries a
+  call.** needrestart is told to leave `thefloor`, `livekit-server`,
+  `livekit-egress`, Redis, docker and containerd alone (`/etc/needrestart/
+  conf.d/`, written by the two provisioners), because its 06:15 UTC restarts
+  dropped calls and on 2026-09-30 left the SFU down for three hours. So stale
+  libraries in the media plane wait for a hand: `sudo needrestart -r l` lists
+  them under *deferred*, and a quiet moment is when to restart them.
+  `thefloor` needs no such step, since every deploy restarts it.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
   instance and was deliberately left alone — it owns ports 80 and 443 there
   with its own nginx and certbot.

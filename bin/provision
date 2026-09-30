@@ -109,6 +109,16 @@ $SSH "$HOST" 'sudo systemctl daemon-reload && sudo systemctl enable thefloor >/d
 echo "→ unattended upgrades"
 $SSH "$HOST" 'sudo systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true'
 
+# The upgrades stay; what goes is needrestart restarting this service at 06:15
+# UTC whenever a library it maps changes, which drops presence, the floor and
+# any recording in flight. bin/deploy restarts it anyway, often, so the stale
+# library is picked up at a moment somebody chose. provision-livekit does the
+# same for the media plane.
+echo "→ needrestart leaves thefloor alone"
+$SSH "$HOST" 'sudo tee /etc/needrestart/conf.d/thefloor.conf >/dev/null <<'"'"'CONF'"'"'
+$nrconf{override_rc}{qr(^thefloor\.service$)} = 0;
+CONF'
+
 echo "✓ provisioned. Still to do by hand, in order:"
 echo "    1. copy server/.env and the APNs .p8   (planning/MIGRATION.md)"
 echo "    2. copy the database into ~/thefloor-data/"

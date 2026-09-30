@@ -197,6 +197,23 @@ log_level: info
 YAML
 $SSH "$HOST" 'sudo chown livekit-egress:livekit-egress /etc/livekit/egress.yaml && sudo chmod 600 /etc/livekit/egress.yaml'
 
+# Unattended upgrades restart every service whose libraries changed, through
+# needrestart, at about 06:15 UTC. Every one of those drops the calls in
+# progress, and on 2026-09-30 it restarted livekit-server in the same second as
+# systemd-networkd, which left it down for three hours (see Restart=always
+# below). Redis is on the list because livekit-server Requires= it, so
+# restarting Redis restarts the SFU; docker and containerd because egress runs
+# under them. They are then restarted by hand when nobody is talking —
+# `sudo needrestart -b -r l` lists what is stale.
+echo "→ needrestart leaves the media plane alone"
+$SSH "$HOST" 'sudo tee /etc/needrestart/conf.d/livekit.conf >/dev/null <<'"'"'CONF'"'"'
+$nrconf{override_rc}{qr(^livekit-server\.service$)} = 0;
+$nrconf{override_rc}{qr(^livekit-egress\.service$)} = 0;
+$nrconf{override_rc}{qr(^redis-server\.service$)} = 0;
+$nrconf{override_rc}{qr(^docker\.service$)} = 0;
+$nrconf{override_rc}{qr(^containerd\.service$)} = 0;
+CONF'
+
 # livekit-server warns at startup that the default 425984 is too small. A burst
 # of RTP arriving faster than the SFU drains it is dropped in the kernel, which
 # reaches a listener as choppy audio and appears in no log at all.
