@@ -287,9 +287,12 @@ describe('Channel, watching together', () => {
 
     // The words the button carried are the caption under the control.
     expect(textOf(tree)).toContain('Watch something together');
-    const control = tree.root.findByType(
-      'ClipboardPasteButton' as unknown as React.ElementType
+    // `findAll` with a predicate rather than `findByType`, which the installed
+    // react-test-renderer types do not declare.
+    const [control] = tree.root.findAll(
+      (node) => node.type === 'ClipboardPasteButton'
     );
+    if (!control) throw new Error('no ClipboardPasteButton rendered');
     await act(async () => {
       control.props.onPress({ type: 'text', text: `  ${URL}\n` });
     });
@@ -317,9 +320,7 @@ describe('Channel, watching together', () => {
       findButton(tree, 'Watch something together')!.props.disabled
     ).toBe(true);
     expect(
-      tree.root.findAllByType(
-        'ClipboardPasteButton' as unknown as React.ElementType
-      )
+      tree.root.findAll((node) => node.type === 'ClipboardPasteButton')
     ).toHaveLength(0);
     act(() => tree.unmount());
     available.mockRestore();
