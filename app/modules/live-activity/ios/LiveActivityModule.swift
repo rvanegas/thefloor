@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import os
 
 /**
  What the lock screen card shows, as it crosses from JavaScript.
@@ -94,6 +95,11 @@ public class LiveActivityModule: Module {
    card that should not have been up.
    */
   public static func emitToggle(muted: Bool) {
+    // TEMPORARY, for tasks/unmute-without-unlock.md: a nil here is a tap that
+    // reached the process and never reached JavaScript.
+    Logger(subsystem: "co.rvanegas.thefloor", category: "lock-screen").notice(
+      "[lock-screen] emitToggle listening=\(current != nil, privacy: .public)"
+    )
     current?.sendEvent("onToggleMute", ["muted": muted])
   }
 
