@@ -28,12 +28,14 @@ import AppIntents
  audible that they had left. It comes down the ordinary way, with the snapshot
  that follows the reconnect.
 
- **No passcode.** `authenticationPolicy` is iOS 26 and asks, by default, for
- the phone to be unlocked before an intent from a locked screen runs — which is
- the one thing a lock screen button exists to avoid. The worst anybody holding
- somebody else's phone can do with this is take them out of a conversation, and
- the card already shows them the conversation. Decided 2026-09-29; see
- `planning/decisions/2026-09-29-the-lock-screen-carries-a-way-out.md`.
+ **No passcode, stated rather than relied on.** `authenticationPolicy` is iOS
+ 26, and `.alwaysAllowed` is already what `ToggleMuteIntent`'s built metadata
+ records without saying so — yet the Mute button has been seen asking for the
+ passcode, which `tasks/unmute-without-unlock.md` is chasing. So this line is
+ the intent written down, not the fix: whatever makes Mute ask may make this
+ ask too. The worst anybody holding somebody else's phone can do with this is
+ take them out of a conversation the card already names. Decided 2026-09-29;
+ see `planning/decisions/2026-09-29-the-lock-screen-carries-a-way-out.md`.
  */
 @available(iOS 17.0, *)
 struct StepOutIntent: LiveActivityIntent {

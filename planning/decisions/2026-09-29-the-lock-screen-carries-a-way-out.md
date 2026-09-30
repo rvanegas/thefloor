@@ -45,11 +45,15 @@ treated as false for the same reason.
 ## No passcode
 
 **`authenticationPolicy` is `.alwaysAllowed`**, which is iOS 26's setting and
-did not exist before it; the property is declared `@available(iOS 26.0, *)` and
-the older systems never ask. The sibling task *Unmute without Unlock* reports
-the Mute button asking for the passcode, and the default policy is the likely
-cause — **inferred, not confirmed on a phone**; the header gives the property
-and not its default.
+did not exist before it; the property is declared `@available(iOS 26.0, *)`.
+
+**It is stated, not relied on.** This entry first guessed that the default
+policy was why the Mute button asks for a passcode (*Unmute without Unlock*).
+Commit a81c270c, landed the same day from the session chasing that task, had
+already found `ToggleMuteIntent`'s built metadata recording `alwaysAllowed`
+with nothing declared — so the default is not the cause, and whatever is may
+make Out ask too. Its temporary logging is what will tell; until then the line
+here is the instruction written down.
 
 The instruction was explicit, and the reasoning is short: the worst somebody
 holding another person's phone can do with this button is take them out of a
