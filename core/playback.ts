@@ -115,6 +115,8 @@ export function seek(
   now: number
 ): PlaybackState {
   if (!playback.track) return playback;
+  // Refused rather than clamped to 0, for the reason `watchSeek` gives.
+  if (!Number.isFinite(positionMs)) return playback;
   const clamped = Math.max(0, Math.min(positionMs, playback.track.durationMs));
   return {
     ...playback,

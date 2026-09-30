@@ -4,6 +4,7 @@ import type { ClientAction } from '../../../core/protocol';
 import type { WatchParty, WatchState } from '../../../core/types';
 import { recordEvent } from '../audio/diagnostics';
 import { announcePress } from './filmStart';
+import { tapOffset } from './tapOffset';
 import { Button } from '../ui/components';
 import { useText } from '../i18n';
 import { colors, formatDuration, radius, spacing, type } from '../ui/theme';
@@ -83,8 +84,10 @@ export function WatchTransport({
             A tap rather than a drag: a drag wants a gesture handler and a held
             position that does not follow the channel while a finger is down,
             and neither is worth having before somebody has used this one.
-            `locationX` is measured against the track itself, so the arithmetic
-            is the fill's in reverse.
+            The offset is measured against the track itself, so the arithmetic
+            is the fill's in reverse — and it is `tapOffset`'s to measure,
+            since a browser's press carries no `locationX` and reading it as
+            if it did sent every web tap to the start of the film.
           */}
           <Pressable
             accessibilityRole="adjustable"
@@ -92,9 +95,9 @@ export function WatchTransport({
             disabled={!mayControl}
             onPress={(event) => {
               const width = trackWidth.current;
-              if (!width || !party.durationMs) return;
-              const at =
-                (event.nativeEvent.locationX / width) * party.durationMs;
+              const x = tapOffset(event);
+              if (!width || !party.durationMs || x === null) return;
+              const at = (x / width) * party.durationMs;
               act({
                 type: 'WATCH_SEEK',
                 positionMs: Math.max(

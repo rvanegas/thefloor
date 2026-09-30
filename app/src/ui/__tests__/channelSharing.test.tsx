@@ -409,6 +409,29 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
+  it('sends no seek for a tap it cannot place', () => {
+    // A press with no offset once sent `NaN`, which the wire spells `null`
+    // and the reducer read as the start of the film. See tapOffset.web.ts.
+    showChannel(
+      watching((s) =>
+        reduce(s, { type: 'WATCH_READY', userId: ME, durationMs: 600_000 }, NOW)
+      )
+    );
+    const tree = open();
+    const track = tree.root
+      .findAll((n) => n.props?.accessibilityLabel === 'Seek')
+      .at(0);
+
+    act(() => track!.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
+    act(() => track!.props.onPress({ nativeEvent: {} }));
+
+    expect(mockApp.act).not.toHaveBeenCalledWith(
+      'sess_1',
+      expect.objectContaining({ type: 'WATCH_SEEK' })
+    );
+    act(() => tree.unmount());
+  });
+
   it('says how far in everybody is before any screen has said how long it is', () => {
     showChannel(watching());
     const tree = open();

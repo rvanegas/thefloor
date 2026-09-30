@@ -149,6 +149,19 @@ describe('seeking', () => {
     );
     expect(past.playback.positionMs).toBe(TRACK.durationMs);
   });
+
+  it('ignores a position that is not a number', () => {
+    const at = reduce(loaded(), { type: 'SEEK', userId: A, positionMs: 60_000 }, T0);
+    for (const positionMs of [NaN, null, undefined, '30000', Infinity]) {
+      expect(
+        reduce(
+          at,
+          { type: 'SEEK', userId: A, positionMs: positionMs as number },
+          T0 + 1_000
+        )
+      ).toEqual(at);
+    }
+  });
 });
 
 describe('volume', () => {

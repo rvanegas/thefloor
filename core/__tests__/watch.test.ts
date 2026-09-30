@@ -295,6 +295,24 @@ describe('the transport', () => {
     ).toBe(0);
   });
 
+  it('ignores a seek to a position that is not a number', () => {
+    // What the web scrubber sent on every tap: `NaN` computed on the page,
+    // `null` once it had crossed the wire.
+    const s = reduce(
+      watching(),
+      { type: 'WATCH_SEEK', userId: A, positionMs: 90_000 },
+      T0
+    );
+    for (const positionMs of [NaN, null, undefined, '30000', Infinity]) {
+      const after = reduce(
+        s,
+        { type: 'WATCH_SEEK', userId: A, positionMs: positionMs as number },
+        T0 + 1_000
+      );
+      expect(after).toEqual(s);
+    }
+  });
+
   it('comes to rest at the end on the next tick', () => {
     const s = apply(watching(), [
       [{ type: 'WATCH_PLAY', userId: A }, T0],

@@ -302,6 +302,12 @@ export function watchSeek(
   now: number
 ): WatchState {
   if (!watch.party) return watch;
+  // **Refused rather than clamped**, since 2026-09-29. The wire carries JSON,
+  // which spells `NaN` as `null`, and `Math.min(null, n)` is 0 — so a client
+  // that computed nothing sent every screen back to the opening titles. The web
+  // scrubber did exactly that on every tap. Nothing on the way in checks a
+  // field's type, so this is where a position that is not one stops.
+  if (!Number.isFinite(positionMs)) return watch;
   const ceiling = watch.party.durationMs;
   const clamped = Math.max(
     0,
