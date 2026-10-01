@@ -169,6 +169,34 @@ fi
 if [ "$BRANCH" != "master" ]; then
   echo "⚠ deploying from $BRANCH, not master" >&2
 fi
+# The revision being replaced, asked of the box rather than remembered, for the
+# record below. Before the sync, since afterwards the answer is this one. A box
+# that does not answer is recorded as such rather than holding up a deploy that
+# may be the fix for exactly that.
+FROM=$(curl -fsS --max-time 5 https://thefloor.rvanegas.co/healthz 2>/dev/null \
+  | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)
+FROM=${FROM:-unknown}
+
+# **The deploy record is written by this script, on the box, since 2026-10-01.**
+# It was planning/decisions/deploy-history.md, kept by hand, and it went quiet
+# for two weeks and a hundred-odd deploys the day deploying moved from sessions
+# to bin/deploy-all at the prompt — nobody whose job it was to write it was
+# there. It cannot be a tracked file written from here: the append would leave
+# the tree dirty, and bin/upload-ios, the very next stage of bin/deploy-all,
+# refuses one. So it lives beside the database, outside the tree --delete
+# replaces, and bin/deploys reads it.
+#
+# Written for every outcome once the box has been touched, not only success: a
+# deploy that left the box unhealthy is the line most worth finding later. A
+# failure to write it is said and does not fail the deploy.
+record() {
+  printf '%s\tdeploy\t%s → %s\t%s\t%s\t%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$FROM" "$SHA" "$BRANCH" "$1" \
+    "$(id -un)@$(hostname -s)" \
+    | $SSH "$HOST" 'cat >> ~/thefloor-data/deploys.log' \
+    || echo "⚠ could not append to the box's deploys.log" >&2
+}
+
 cat > server/deployed.json <<JSON
 {
   "commit": "$SHA",
@@ -195,11 +223,15 @@ rsync -az --delete -e "$SSH" \
 rm -f server/deployed.json
 
 echo "→ installing and restarting"
-$SSH "$HOST" '
+if ! $SSH "$HOST" '
   cd ~/thefloor/server && npm install --omit=dev --no-audit --no-fund --silent
   sudo systemctl daemon-reload
   sudo systemctl restart thefloor
-'
+'; then
+  record "install or restart failed"
+  echo "✗ install or restart failed on the box" >&2
+  exit 1
+fi
 
 echo "→ waiting for health"
 for _ in $(seq 1 20); do
@@ -212,9 +244,11 @@ for _ in $(seq 1 20); do
     # afterwards gets verified against the wrong revision.
     case "$HEALTH" in
       *"\"$SHA\""*) ;;
-      *) echo "✗ healthy, but not reporting $SHA — the restart did not take" >&2
+      *) record "healthy, but not serving it"
+         echo "✗ healthy, but not reporting $SHA — the restart did not take" >&2
          exit 1 ;;
     esac
+    record ok
     # needrestart is told not to restart the media plane on its own, so stale
     # libraries there wait for a person — and a deploy is when one is at the
     # keyboard. Reported, never acted on: this restart cost presence, and one
@@ -226,5 +260,6 @@ for _ in $(seq 1 20); do
   sleep 2
 done
 
+record "did not come back healthy"
 echo "✗ did not come back healthy; check: $SSH $HOST 'journalctl -u thefloor -n 40'" >&2
 exit 1

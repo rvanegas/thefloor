@@ -79,8 +79,24 @@ if [ "$LIVE" != 0 ]; then
   fi
 fi
 
+# One line in the box's deploy record per restart, since restarting the media
+# plane is the other thing done to the box by hand, and the thing most worth
+# finding afterwards — bin/deploy's header has why the record lives there. A
+# failure to write it is said and changes nothing else.
+record() {
+  printf '%s\trestart\t%s\t%s live\t%s\t%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STALE" "$LIVE" "$1" \
+    "$(id -un)@$(hostname -s)" \
+    | $SSH "$HOST" 'cat >> ~/thefloor-data/deploys.log' \
+    || echo "⚠ could not append to the box's deploys.log" >&2
+}
+
 echo "→ restarting"
-$SSH "$HOST" "sudo systemctl restart $STALE"
+if ! $SSH "$HOST" "sudo systemctl restart $STALE"; then
+  record "systemctl restart failed"
+  echo "✗ systemctl restart failed" >&2
+  exit 1
+fi
 
 echo "→ waiting for the SFU"
 for _ in $(seq 1 15); do
@@ -89,15 +105,18 @@ for _ in $(seq 1 15); do
       | sed -n 's/^NEEDRESTART-SVC: //p' \
       | grep -E "^($SERVICES)\.service\$" | tr '\n' ' ' || true)
     if [ -n "$STILL" ]; then
+      record "LiveKit answers, still stale: $STILL"
       echo "! LiveKit answers, but still stale: $STILL" >&2
       exit 1
     fi
+    record ok
     echo "✓ restarted; LiveKit answers"
     exit 0
   fi
   sleep 2
 done
 
+record "LiveKit did not come back"
 echo "✗ LiveKit did not come back within thirty seconds. Its last words:" >&2
 $SSH "$HOST" 'systemctl is-active livekit-server; sudo journalctl -u livekit-server --no-pager -n 15 -o cat' >&2 || true
 exit 1

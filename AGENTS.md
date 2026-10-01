@@ -45,8 +45,8 @@ filenames first, and the archive's headings
 (`grep -n '^## ' planning/decisions/archive/*.md`) second, rather than sweeping
 the prose.
 
-**The exception is `planning/decisions/deploy-history.md`**, which is written to
-on every deploy and is the one part of the collection still in routine use.
+**Deploys are not in it.** `bin/deploy` and `bin/restart-services` record
+themselves on the box and `bin/deploys` reads them; nobody writes a deploy down.
 
 **`planning/RELEASING.md`** answers a fourth, and is different in kind from the
 rest: it is not deferred work or history but standing guidance that was in this
@@ -165,9 +165,9 @@ it.
 When it passes 550, **do not shave the traps.** Almost all of the excess will be
 one of these:
 
-- **Deploy narrative.** None of it belongs here. A deploy is written up in
-  `planning/decisions/deploy-history.md`, newest
-  first, and what is running right now is `bin/health` rather than any sentence.
+- **Deploy narrative.** None of it belongs here. `bin/deploys` is what was
+  deployed, a dated decision is why if it needs saying, and what is running
+  right now is `bin/health` rather than any sentence.
   This file kept the most recent deploy until 2026-08-23 and was wrong twice.
 - **Reasoning about unshipped work.** Belongs in
   `planning/decisions/`, or in its own `planning/` design document
@@ -426,11 +426,11 @@ that is this checkout's HEAD or behind it, the compatibility floor and the
 build census, with `--raw` for the body `/healthz` actually returned. Run it
 before believing anything here about the state of production.
 
-What each deploy *was* is in planning/decisions/deploy-history.md, newest first
-— **add an entry there when you deploy.** That running record is the exception
-to the archaeology rule above, being the one part of the collection still
-written to as a matter of course. This file used to carry the latest deploy and
-went stale twice; it is not coming back.
+What each deploy *was* is `bin/deploys`, newest first: **`bin/deploy` writes it
+on the box itself, since 2026-10-01**, as does `bin/restart-services`. The
+hand-kept `deploy-history.md` went quiet for two weeks once deploying moved to
+the prompt, and is frozen in the archive. Nothing about a deploy is written by
+hand; one whose reasons are worth keeping gets a dated decision.
 
 `bin/deploy` syncs the server, reinstalls, restarts, and waits for health. It
 runs the tests first and refuses to continue if they fail, and refuses a dirty

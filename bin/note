@@ -94,15 +94,15 @@ valid_dir() {
 }
 
 # Files that are entries. READMEs are the convention, not an item, and
-# decisions/ holds two running records that are edited in place and are not
-# dated entries.
+# decisions/ holds a running record that is edited in place and is not a dated
+# entry.
 entries() {
   local dir="$1" f base
   for f in "$planning/$dir"/*.md; do
     [[ -e "$f" ]] || continue
     base="$(basename "$f" .md)"
     case "$base" in
-      README|deploy-history|android-adaptive-icon) continue ;;
+      README|android-adaptive-icon) continue ;;
     esac
     echo "$f"
   done

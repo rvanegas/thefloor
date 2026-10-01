@@ -34,6 +34,7 @@ rebuilding or re-hosting, RELEASING.md for getting a build to a phone.
 | Media config | `/etc/livekit/livekit.yaml` and `egress.yaml`, mode 600 |
 | Node | 22, required for the built-in `node:sqlite` |
 | Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
+| Deploy record | `/home/ubuntu/thefloor-data/deploys.log`, appended by `bin/deploy` and `bin/restart-services`, read by `bin/deploys`; a re-host carries it with the database |
 | Logs | `journalctl -u thefloor`, `-u caddy`, `-u livekit-server`, `-u livekit-egress` |
 
 Node binds to loopback only; nothing reaches it except through Caddy. So does

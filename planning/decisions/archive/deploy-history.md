@@ -1,5 +1,14 @@
 # The deploy history
 
+**Frozen on 2026-10-01.** Deploys and media-plane restarts are recorded on the
+box now, by `bin/deploy` and `bin/restart-services` themselves; `bin/deploys`
+reads them. This file was kept by hand, by whichever session ran the deploy,
+and it stops at 2026-09-14 because deploying moved to `bin/deploy-all` at the
+prompt and nobody was left whose job it was — about a hundred and twenty
+deploys between then and the freeze are recorded nowhere. The one entry after
+the gap was written the day it was noticed. Why it moved is
+`../2026-10-01-the-deploy-record-is-written-by-the-deploy.md`.
+
 ## 2026-09-30 — `docker.service` restarted, no deploy
 
 Not a deploy: no code moved, and the box stays on `4c0a622`. It is here

@@ -13,7 +13,8 @@ mistake.
 **Nothing here is read as a matter of course.** AGENTS.md § *`DECISIONS` is
 more than one file* is the rule: this is archaeology, for when a decision in
 the code is inexplicable and knowing why would change what you do. The
-exception is `deploy-history.md`, which is written to on every deploy.
+exception was `deploy-history.md`, until 2026-10-01; deploys are recorded on
+the box now, and `bin/deploys` reads them.
 
 ## One decision, one file
 
@@ -61,12 +62,18 @@ same file, and there is no rollover to perform.
 read limit that drove all of it applies to a file, and no single decision comes
 close.
 
-## The two running records
+## The running record
 
-`deploy-history.md` is newest-first and grows at the top — **add an entry when
-you deploy.** `android-adaptive-icon.md` describes something still unshipped.
-Neither is dated in its filename, because neither is a dated entry; both are
-edited in place, and **neither is ever copied anywhere.**
+`android-adaptive-icon.md` describes something still unshipped. It is not dated
+in its filename, because it is not a dated entry; it is edited in place, and
+**it is never copied anywhere.**
+
+There were two until 2026-10-01. `deploy-history.md` was kept by hand and went
+quiet for two weeks once nobody whose job it was ran the deploys; it is frozen
+in `archive/`, and **nobody writes a deploy down any more** — `bin/deploy`
+records itself on the box, and `bin/deploys` reads it. A deploy that needs its
+reasons kept gets an ordinary dated decision.
+`2026-10-01-the-deploy-record-is-written-by-the-deploy.md` has why.
 
 ## The archive
 

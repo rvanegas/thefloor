@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# What has been done to the box by hand, newest first: every deploy and every
+# media-plane restart, as recorded on the box itself.
+#
+#   bin/deploys            the last twenty
+#   bin/deploys -n 50      the last fifty
+#   bin/deploys --all      everything recorded
+#
+# Read-only. The record is ~/thefloor-data/deploys.log, appended to by
+# bin/deploy and bin/restart-services and by nothing else, one tab-separated
+# line each: when (UTC), what kind, what changed, the branch or how many were
+# live, the outcome, and who ran it from where. A line whose outcome is not
+# `ok` is a time the box was left in a state somebody did not choose.
+#
+# It begins on 2026-10-01. What came before is the hand-kept
+# planning/decisions/archive/deploy-history.md, which says why a deploy was made
+# where this says only that it was — and which has nothing at all between
+# 2026-09-14 and then.
+#
+# `bin/health` is what is running now; this is how it got there.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+SSH="ssh -i $KEY -o BatchMode=yes"
+
+count=20
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) shift; [ $# -gt 0 ] || { echo "-n needs a number" >&2; exit 1; }
+        count=$1 ;;
+    --all) count=0 ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the
+    # header gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+case "$count" in
+  ''|*[!0-9]*) echo "-n needs a number" >&2; exit 1 ;;
+esac
+
+log=$($SSH "$HOST" 'cat ~/thefloor-data/deploys.log 2>/dev/null || true')
+if [ -z "$log" ]; then
+  echo "nothing recorded yet — the first bin/deploy or bin/restart-services writes it"
+  exit 0
+fi
+
+# Newest first, matching the hand-kept history it replaces. `tail -r` is BSD
+# and this runs on a Mac; awk reverses portably.
+echo "$log" \
+  | awk '{ lines[NR] = $0 } END { for (i = NR; i >= 1; i--) print lines[i] }' \
+  | { if [ "$count" -gt 0 ]; then head -n "$count"; else cat; fi; } \
+  | column -t -s $'\t'

@@ -23,8 +23,12 @@ them forward instead of moving them, so `DECISIONS-2026-08-31-to-2026-09-04.md`
 and `DECISIONS-2026-09-04-to-2026-09-06.md` each ended up carrying a copy. The
 copies had gone stale — the earlier one was missing the 2026-09-06 deploy — so
 somebody grepping the set could get a wrong answer about what was on the box.
-Both copies were deleted. The live versions are `../deploy-history.md` and
+Both copies were deleted. The live versions were `../deploy-history.md` and
 `../android-adaptive-icon.md`.
+
+**`deploy-history.md` joined the archive itself on 2026-10-01**, frozen, when
+the deploy record moved to the box. It is the one file here that is not a
+volume, and the same rule holds: nothing is appended.
 
 | Volume | Covers |
 | --- | --- |
