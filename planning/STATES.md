@@ -411,6 +411,12 @@ things that this file keeps apart:
   a lock on the room; a ping is the room's only way to call somebody back, and
   the minute it was withheld for was the exact minute it was for. See
   decisions/ § *The grace period stops withholding the ping*.
+
+  **And Home's counts ask it, since 2026-10-01.** `presentCount` is
+  `connectedCount` and `nearbyCount` is `othersNearby`, both in
+  `core/channel.ts`: somebody in the grace is *nearby* on Home exactly as
+  their roster card says *Nearby*. Counting `present.length` had Home listing
+  a room as *1 present* while its roster showed nobody in it.
 - **Standing** — `Realtime.enteredChannel` on the client, mirrored into the
   app as `AppProvider.standingIn`. Which channel *this copy of the app* is in.
   **Presence is an account's and standing is a device's**, and the two come

@@ -267,9 +267,32 @@ export function isWaiting(state: ChannelState, userId: UserId): boolean {
  * channel is not worth putting in front of somebody on the strength of their
  * own reachability, and it would be the one number on the row that counted
  * them.
+ *
+ * **Both rungs the roster calls *Nearby*, since 2026-10-01**: the declared wait,
+ * and somebody still in `present` whose connection the server has lost and is
+ * holding open for `DISCONNECT_GRACE_MS`. Home counted the second as present,
+ * so a room whose roster read *Nearby* for everybody in it was listed as
+ * *1 present* for the minute — the same person, the same moment, two words.
+ * A set, because nothing promises the two lists are disjoint.
  */
-export function othersWaiting(state: ChannelState, userId: UserId): number {
-  return state.waiting.filter((id) => id !== userId).length;
+export function othersNearby(state: ChannelState, userId: UserId): number {
+  const nearby = new Set(state.waiting);
+  for (const id of state.present) {
+    if (id in state.disconnectedAt) nearby.add(id);
+  }
+  nearby.delete(userId);
+  return nearby.size;
+}
+
+/**
+ * How many people are present **and still connected** — what Home says as
+ * *N present*, and the other half of `othersNearby`: somebody in the grace
+ * period moves from this count to that one, as the roster's card for them
+ * moves from *Present* to *Nearby*. Not `isPresent`, which every guard still
+ * asks and which deliberately holds a dropped person's place for the minute.
+ */
+export function connectedCount(state: ChannelState): number {
+  return state.present.filter((id) => !(id in state.disconnectedAt)).length;
 }
 
 /**

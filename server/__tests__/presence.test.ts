@@ -692,6 +692,31 @@ describe('Home is told which channels you are nearby in', () => {
       app.channels.dispatch(channelId, bob.id, { type: 'STEP_OUT' });
       expect(entryFor(alice.id, channelId).nearbyCount).toBe(0);
     });
+
+    /**
+     * **The grace rung counts as nearby, not present**, since 2026-10-01. Home
+     * said *1 present* for a room whose roster read *Nearby* for the one
+     * person in it, because the count was `present.length` and the grace holds
+     * a dropped person in `present` for the minute.
+     */
+    it('moves somebody whose connection dropped from present to nearby', async () => {
+      const { alice, bob, channelId } = await roomOfTwo();
+      await poll();
+      expect(entryFor(alice.id, channelId).presentCount).toBe(2);
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(0);
+
+      app.channels.report(channelId, bob.id, 'DISCONNECTED', 'socket');
+      expect(graceOn(channelId, bob.id)).toBe(true);
+      expect(entryFor(alice.id, channelId).presentCount).toBe(1);
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(1);
+
+      // And once the minute is out, the same count by the other route: the
+      // grace hands him to `waiting`, which is counted once and not twice.
+      clock += DISCONNECT_GRACE_MS;
+      app.channels.tick();
+      expect(entryFor(alice.id, channelId).presentCount).toBe(1);
+      expect(entryFor(alice.id, channelId).nearbyCount).toBe(1);
+    });
   });
 });
 

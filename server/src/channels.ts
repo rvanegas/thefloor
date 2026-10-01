@@ -36,7 +36,8 @@ import {
   isPresent,
   canPing,
   isWaiting,
-  othersWaiting,
+  othersNearby,
+  connectedCount,
   isWithheld,
   lastPresenceAt,
   lastPresenceByOthers,
@@ -2859,7 +2860,7 @@ export class ChannelRegistry {
           others: otherParticipants(channel, userId)
             .map((id) => this.accounts.public(id))
             .filter((account): account is PublicAccount => !!account),
-          presentCount: channel.present.length,
+          presentCount: connectedCount(channel),
           lastPresenceAt: lastPresenceAt(channel),
           // Nearby in a channel you have never entered is a real state: a
           // declaration is not an entry, so `everPresent` still excludes you
@@ -2868,7 +2869,7 @@ export class ChannelRegistry {
           // Everybody else within reach of it, which Home reads as a second
           // way of being live. The reader is subtracted rather than filtered
           // by name because `waiting` holds ids and nothing else.
-          nearbyCount: othersWaiting(channel, userId),
+          nearbyCount: othersNearby(channel, userId),
         });
       }
     }
@@ -2901,7 +2902,7 @@ export class ChannelRegistry {
         // standing in it is not something to tell somebody who has never been.
         // `describeChannel` falling back to the sender's name is the right
         // description for an offer made by a person.
-        presentCount: channel.present.length,
+        presentCount: connectedCount(channel),
         // Neither of these is a guest's to read, exactly as `rejoinableFor`
         // withholds them from a seat: being nearby is a member's declaration
         // about a room they belong to.
@@ -2969,7 +2970,7 @@ export class ChannelRegistry {
         channelId: channel.id,
         name: channel.name,
         others,
-        presentCount: channel.present.length,
+        presentCount: connectedCount(channel),
         createdAt: channel.createdAt,
         lastActiveAt: channel.lastActiveAt,
         lastPresenceAt: lastPresenceAt(channel),
@@ -2994,7 +2995,7 @@ export class ChannelRegistry {
         // so it is one this list may say out loud.
         nearby: isWaiting(channel, userId),
         // Everybody else within reach of it — see `RejoinableView.nearbyCount`.
-        nearbyCount: othersWaiting(channel, userId),
+        nearbyCount: othersNearby(channel, userId),
         // Null for every ordinary channel and for every reader who is not a
         // host. The cohorts are all called the same thing now, so this is what
         // stops a host's list being three indistinguishable rows.
@@ -3025,7 +3026,7 @@ export class ChannelRegistry {
         // Names only is the guest rule, and this shape carries ids, so it
         // carries nobody.
         others: [],
-        presentCount: channel.present.length,
+        presentCount: connectedCount(channel),
         // The seat's own facts standing in for the channel's history, which is
         // not a guest's to read.
         createdAt: session.admitted_at,
