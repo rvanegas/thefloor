@@ -23,6 +23,7 @@ const mockApp = {
   appearance: 'system' as const,
   setAppearance: jest.fn(),
   signOut: jest.fn(),
+  switchAccounts: [] as string[],
   deleteAccount: jest.fn(async () => {}),
   saveProfile: jest.fn(async () => {}),
   loadProfile: jest.fn(async (accountId: string) => ({

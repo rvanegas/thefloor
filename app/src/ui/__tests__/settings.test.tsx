@@ -132,6 +132,24 @@ describe("Home settings", () => {
       return jest.spyOn(Alert, "alert").mockImplementation(() => {});
     };
 
+    it("offers no account switching to anybody the server did not name", async () => {
+      const tree = await openSettings();
+      expect(textOf(tree)).not.toContain("Switch to");
+      act(() => tree.unmount());
+    });
+
+    it("offers a switch to each of the developer's other accounts", async () => {
+      mockApp.switchAccounts = ["rtest1@example.co", "rtest2@example.co"];
+      const tree = await openSettings();
+      expect(findButton(tree, "Switch to rtest2@example.co")).toBeDefined();
+
+      await act(async () =>
+        findButton(tree, "Switch to rtest1@example.co")!.props.onPress(),
+      );
+      expect(mockApp.switchAccount).toHaveBeenCalledWith("rtest1@example.co");
+      act(() => tree.unmount());
+    });
+
     it("is offered on the same screen as signing out", async () => {
       const tree = await openSettings();
       expect(findButton(tree, "Delete account")).toBeDefined();

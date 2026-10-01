@@ -223,6 +223,17 @@ const cohortHosts = (process.env.COHORT_HOST_IDENTIFIERS ?? '')
   .filter((identifier) => identifier.length > 0);
 
 /**
+ * The developer's own accounts, which may switch between each other from
+ * Floor Settings without a code. Comma-separated like the hosts above; unset is
+ * off. The review accounts are dropped from it whatever is written here — see
+ * switching.ts.
+ */
+const switchAccounts = (process.env.SWITCH_ACCOUNT_IDENTIFIERS ?? '')
+  .split(',')
+  .map((identifier) => identifier.trim())
+  .filter((identifier) => identifier.length > 0);
+
+/**
  * Donations, which are optional in both halves and independently so.
  *
  * KOFI_URL is what the app is told to open; unset, it offers nothing, and that
@@ -299,6 +310,7 @@ const app = buildApp({
   trackRoot,
   review,
   cohortHosts,
+  switchAccounts,
   kofi,
   contactEmail: process.env.CONTACT_EMAIL,
   // Where a build below MIN_SUPPORTED_BUILD is sent. Configuration rather than
@@ -351,6 +363,9 @@ app.fastify
         // able to see from the outside, rather than having to read .env to
         // find out whether one is open.
         review: review ? review.identifier : 'none',
+        // Worth a line for the same reason `review` is: these sessions are
+        // interchangeable, and that should be visible without reading .env.
+        switchAccounts: switchAccounts.length > 0 ? switchAccounts : 'none',
         donations: kofiVerificationToken ? 'ko-fi' : 'not configured',
         // Worth a line for the same reason `review` is: it changes what a
         // public page claims, and reading .env is not how anybody should have

@@ -227,6 +227,12 @@ interface AppState {
    * screen away at the next connection rather than at the next reinstall.
    */
   leaderboard: boolean;
+  /**
+   * The developer's other accounts, which Floor Settings offers to switch to,
+   * from the same `hello` and on the same terms as the two flags above. Empty
+   * for everybody else.
+   */
+  switchAccounts: string[];
   home: HomeView | null;
   /**
    * The latest snapshot of each channel this client is watching, by id.
@@ -540,6 +546,11 @@ interface AppValue extends AppState {
    * were is worse than an error.
    */
   signOutOthers: () => Promise<number>;
+  /**
+   * Signs out and back in as another of the developer's own accounts, without
+   * a code. Rejects — leaving this session as it was — if the server refused.
+   */
+  switchAccount: (identifier: string) => Promise<void>;
   /**
    * Deletes the account and signs out. Rejects — leaving you signed in — if the
    * server did not do it, since the alternative is a screen that says you have
@@ -1250,6 +1261,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * goes on receiving somebody else's notifications.
    */
   const deviceToken = useRef<string | null>(null);
+  /** A session `switchAccount` was handed, waiting for the sign-out to draw. */
+  const pendingSwitch = useRef<{
+    token: string;
+    account: PublicAccount;
+    identifier: string;
+  } | null>(null);
   /**
    * What the last reachable `/healthz` said about this install: whether it is
    * below the server's floor, and where to go if it is.
@@ -1278,6 +1295,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     me: null,
     debug: false,
     leaderboard: false,
+    switchAccounts: [],
     home: null,
     channelViews: {},
     seatViews: {},
@@ -1412,8 +1430,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // only thing that tells a relaunched app who it is. Without it `me`
         // stays null, and every screen that compares against the current user
         // — the whole floor mechanic — silently compares against nothing.
-        onHello: (account, debug, leaderboard, settings) => {
-          setState((s) => ({ ...s, me: account, debug, leaderboard }));
+        onHello: (account, debug, leaderboard, settings, switchAccounts = []) => {
+          setState((s) => ({
+            ...s,
+            me: account,
+            debug,
+            leaderboard,
+            switchAccounts,
+          }));
           // Null from a server that predates the field, which is not the same
           // as one saying the defaults — this device keeps what it cached.
           if (settings) applySettings(settings);
@@ -1792,6 +1816,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.token]);
 
   /**
+   * The second half of `switchAccount`: adopting the session it was handed,
+   * once the signed-out state has actually been drawn.
+   *
+   * **An effect rather than the next line, because a switch has to pass
+   * through signed out.** Several things here forget the last account only on
+   * seeing no token — the introduction's keys on this device among them — so
+   * going straight from one token to the other would hand the account arrived
+   * at the checklist of the one left. Waiting for the commit that says null is
+   * the one ordering React promises.
+   */
+  useEffect(() => {
+    const pending = pendingSwitch.current;
+    if (state.token || !pending) return;
+    pendingSwitch.current = null;
+    void (async () => {
+      await storage.set(TOKEN_KEY, pending.token);
+      rememberIdentifier(pending.identifier);
+      setState((s) => ({ ...s, token: pending.token, me: pending.account }));
+      connect(pending.token);
+    })();
+  }, [state.token, rememberIdentifier, connect]);
+
+  /**
    * Whether there is anybody at all who could reach you, which is the floor
    * under every reason to ask about notifications — see `worthAsking`.
    *
@@ -2023,6 +2070,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         me: null,
         debug: false,
         leaderboard: false,
+        switchAccounts: [],
         screens: [],
         screensElsewhere: [],
         standingElsewhere: [],
@@ -2373,6 +2421,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           me: null,
           debug: false,
           leaderboard: false,
+          switchAccounts: [],
           home: null,
           channelViews: {},
           seatViews: {},
@@ -2412,6 +2461,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       /**
+       * The server first, like `deleteAccount` and unlike `signOut`: a refusal
+       * has to leave this session intact. Then the local half of a sign-out —
+       * the server has already revoked the old token, so there is nobody to
+       * tell — and the new session is adopted by the effect that watches
+       * `pendingSwitch`, once the signed-out state has drawn.
+       */
+      switchAccount: async (identifier) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        const result = await api.switchAccount(
+          state.token,
+          identifier,
+          deviceToken.current ?? undefined
+        );
+        pendingSwitch.current = { ...result, identifier };
+        deviceToken.current = null;
+        realtime.disconnect();
+        await storage.remove(TOKEN_KEY);
+        forgetSettings();
+        setState({
+          ready: true,
+          token: null,
+          me: null,
+          debug: false,
+          leaderboard: false,
+          switchAccounts: [],
+          home: null,
+          channelViews: {},
+          seatViews: {},
+          goneChannels: [],
+          recordingAsked: null,
+          movedChannel: null,
+          displaced: false,
+          screens: [],
+          screensElsewhere: [],
+          standingElsewhere: [],
+          screenFor: null,
+          screenAsked: null,
+          landedChannel: null,
+          standingIn: null,
+          nearbyIn: [],
+          nearbyArrival: {},
+          status: 'closed',
+          offline: false,
+          lastError: null,
+        });
+      },
+
+      /**
        * Deletes the account, then lands where signing out lands.
        *
        * The opposite order to `signOut`, and deliberately: signing out clears
@@ -2434,6 +2531,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           me: null,
           debug: false,
           leaderboard: false,
+          switchAccounts: [],
           home: null,
           channelViews: {},
           seatViews: {},

@@ -101,6 +101,7 @@ import {
   type Pusher,
 } from './push';
 import type { RecordingStore } from './storage';
+import { switchableSet, switchTargets } from './switching';
 import {
   createHomeNotifier,
   createReachability,
@@ -214,6 +215,15 @@ export interface BuildOptions {
    * planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md.
    */
   cohortHosts?: string[];
+  /**
+   * The developer's own accounts, by sign-in address, any one of which may
+   * switch to any other from Floor Settings without a code. See
+   * `switching.ts`, which drops the review accounts from it whatever is
+   * configured here.
+   *
+   * **Unset is off**, and is what every box but the developer's runs.
+   */
+  switchAccounts?: string[];
   /**
    * Where to send somebody who wants to donate, and the token that proves an
    * incoming webhook came from Ko-fi.
@@ -380,6 +390,12 @@ export function buildApp(options: BuildOptions = {}): App {
     options.kofi?.verificationToken
   );
   const help = new Help(db);
+  // Never the review accounts, whatever `.env` says — see switching.ts. A
+  // refusal is logged once, at startup, which is when somebody is looking.
+  const { allowed: switchable, refused: switchRefused } = switchableSet(
+    options.switchAccounts ?? [],
+    options.review
+  );
   // The `req` serializer is the whole of what keeps credentials out of the
   // journal — several addresses here carry one in the URL, and Fastify's
   // default serializer logs `request.url` verbatim. See log-url.ts for which
@@ -437,6 +453,13 @@ export function buildApp(options: BuildOptions = {}): App {
     { parseAs: 'string' },
     (_request, body: string, done) => done(null, body)
   );
+
+  if (switchRefused.length > 0) {
+    fastify.log.warn(
+      { refused: switchRefused },
+      'review accounts dropped from SWITCH_ACCOUNT_IDENTIFIERS'
+    );
+  }
 
   // Filled in once the websocket plugin loads; no-ops until then.
   const homeNotifier = createHomeNotifier();
@@ -1136,6 +1159,46 @@ export function buildApp(options: BuildOptions = {}): App {
     const sessions = accounts.revokeOthersForAccount(account.id, token);
     devices.forgetOthers(account.id, body?.deviceToken);
     return { sessions };
+  });
+
+  /**
+   * Trades this session for one on another of the developer's own accounts.
+   *
+   * Refused — as a 404, the way `/leaderboard` refuses — unless both the
+   * caller and the target are in the switchable set; see `switching.ts` for
+   * why holding one of those sessions is as good as holding them all.
+   *
+   * **A switch is a sign-out followed by a sign-in, in one request**, and does
+   * what each of those does: the caller's token is revoked and this device's
+   * address forgotten for the account being left — a phone switched away from
+   * an account must stop receiving its notifications — and a fresh token is
+   * minted for the one arrived at, whose address the app registers again when
+   * its token changes, as it does after any sign-in.
+   *
+   * Never creates an account. A target nobody has signed up as is a 404, since
+   * an address in `.env` is not consent to have an account made for it.
+   */
+  fastify.post('/auth/switch', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as
+      | { identifier?: string; deviceToken?: string }
+      | undefined;
+    const wanted = body?.identifier?.trim().toLowerCase();
+    const target = switchTargets(account.identifier, switchable).find(
+      (identifier) => identifier.toLowerCase() === wanted
+    );
+    const row = target ? accounts.byIdentifier(target) : undefined;
+    if (!row) return reply.code(404).send({ error: 'Not found.' });
+
+    if (body?.deviceToken) devices.forget(body.deviceToken);
+    accounts.revokeToken(request.headers.authorization?.slice(7) ?? '');
+    const token = accounts.issueToken(row.id, now());
+    request.log.info(
+      { from: account.identifier, to: row.identifier },
+      'switched account'
+    );
+    return { token, account: toPublic(row) };
   });
 
   // --- Devices ------------------------------------------------------------
@@ -5351,6 +5414,7 @@ export function buildApp(options: BuildOptions = {}): App {
       preferences,
       mediaUrl: options.mediaUrl,
       heartbeatIntervalMs: options.heartbeatIntervalMs,
+      switchTargets: (identifier) => switchTargets(identifier, switchable),
     });
   });
 

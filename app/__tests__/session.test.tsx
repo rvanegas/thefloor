@@ -142,6 +142,7 @@ const mockApp = {
   /** Granted by hand on the account, and the only way Standings is reachable. */
   leaderboard: false,
   loadLeaderboard: jest.fn(async () => []),
+  switchAccounts: [] as string[],
 };
 
 /**

@@ -222,6 +222,18 @@ export const api = {
     }),
 
   /**
+   * Trades this session for one on another of the developer's own accounts.
+   * The device token travels for the reason it travels with `signOut`: this
+   * phone must stop being reached as the account it is leaving.
+   */
+  switchAccount: (token: string, identifier: string, deviceToken?: string) =>
+    request<{ token: string; account: PublicAccount }>('/auth/switch', {
+      method: 'POST',
+      body: { identifier, deviceToken },
+      token,
+    }),
+
+  /**
    * Deletes the account this token belongs to, and everything it is.
    *
    * No device token, unlike sign-out. That one names a single phone, because

@@ -288,6 +288,9 @@ export const mockApp = {
   })),
   // Nobody has the standings by default, matching the column that grants them.
   leaderboard: false,
+  // Nobody is in the switchable set by default, matching an unset server.
+  switchAccounts: [] as string[],
+  switchAccount: jest.fn(async (_identifier: string) => {}),
   loadLeaderboard: jest.fn(async () => [
     { account: { id: 'acct_a', displayName: 'Ada' }, invited: 4 },
     { account: { id: 'acct_b', displayName: 'Grace' }, invited: 1 },
@@ -875,6 +878,7 @@ export function resetHarness(): void {
   // somebody who is not in the room.
   mockApp.me = { id: ME, displayName: 'Me' };
   mockApp.home = null;
+  mockApp.switchAccounts = [];
   mockApp.channelViews = {};
   mockApp.seatViews = {};
   mockApp.goneChannels = [];

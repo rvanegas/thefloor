@@ -464,6 +464,11 @@ export function registerWebsocket(deps: {
    * itself.
    */
   heartbeatIntervalMs?: number;
+  /**
+   * The other accounts this one may switch to, by sign-in address — empty for
+   * everybody outside the developer's own set. See switching.ts.
+   */
+  switchTargets?: (identifier: string) => string[];
 }): void {
   const {
     fastify,
@@ -479,6 +484,7 @@ export function registerWebsocket(deps: {
     preferences,
     mediaUrl,
     heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
+    switchTargets = () => [],
   } = deps;
   const connections = new Set<Connection>();
   const guestConnections = new Set<GuestConnection>();
@@ -1695,6 +1701,13 @@ export function registerWebsocket(deps: {
       // per connection, so setting the column by hand takes effect at the next
       // reconnect rather than needing a restart.
       ...(account.leaderboard === 1 ? { leaderboard: true } : {}),
+      // Absent unless there is somewhere to go, like the two flags above. The
+      // set is configuration rather than a column, so this changes at a
+      // restart; `/auth/switch` checks it again rather than trusting a client.
+      ...(() => {
+        const targets = switchTargets(account.identifier);
+        return targets.length > 0 ? { switchAccounts: targets } : {};
+      })(),
       // Read fresh per connection like the two above, and unlike them it is
       // always present: these are settings rather than grants, so there is no
       // "absent means no" to lean on — a client that reads this has to be able

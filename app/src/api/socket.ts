@@ -38,12 +38,16 @@ export interface RealtimeHandlers {
    * field is optional and sent only when true. Passed alongside the account
    * rather than folded into it, because neither is part of the identity every
    * roster carries: see `ServerMessage` in core/protocol.ts.
+   *
+   * `switchAccounts` is the same kind of thing, a list rather than a flag:
+   * the developer's other accounts, empty for everybody else.
    */
   onHello?: (
     account: { id: string; displayName: string },
     debug: boolean,
     leaderboard: boolean,
-    settings: AccountSettings | null
+    settings: AccountSettings | null,
+    switchAccounts?: string[]
   ) => void;
   /**
    * This account's settings, as the server now holds them — sent on every
@@ -466,7 +470,8 @@ export class Realtime {
             message.account,
             message.debug === true,
             message.leaderboard === true,
-            message.settings ?? null
+            message.settings ?? null,
+            message.switchAccounts ?? []
           );
           break;
         case 'settings':

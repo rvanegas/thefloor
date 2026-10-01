@@ -921,6 +921,10 @@ export const en = {
     signOutOthers: () => 'Sign out others',
     signOutOthersNote: () =>
       'For a phone you have lost. It is the only way to end a session from a device you no longer have.',
+    switchTo: (identifier: string) => `Switch to ${identifier}`,
+    switching: () => 'Switching\u2026',
+    switchAccountNote: () =>
+      'Your own accounts only. Signs out here and back in as the other one, without a code.',
     deleting: () => 'Deleting\u2026',
     deleteAccount: () => 'Delete account',
     deleteAccountAsk: () => 'Delete your account?',

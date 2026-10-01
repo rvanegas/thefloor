@@ -186,6 +186,7 @@ caused; the list carries the meaning.
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
 - **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
 - **Stem** — One participant's isolated audio from a recording, uploaded by its own *egress* job
+- **Switchable set** — The developer's own accounts, by address in `SWITCH_ACCOUNT_IDENTIFIERS`, any of which may become another from *Floor Settings* without a code (`POST /auth/switch`); never a review account, whatever `.env` says. `server/src/switching.ts`
 - **Train** — A deployed build of the web app: `/app` (stable) and `/beta` (TestFlight)
 - **Withheld** — `isWithheld` — the single answer to whether this person may be heard
 

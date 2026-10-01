@@ -1913,6 +1913,17 @@ export type ServerMessage =
        */
       leaderboard?: boolean;
       /**
+       * The other accounts this one may switch to from Floor Settings without
+       * a code, by sign-in address — the developer's own, configured on the
+       * server as `SWITCH_ACCOUNT_IDENTIFIERS`.
+       *
+       * Absent for everybody else, on the terms of the two above: a fact about
+       * you, and a field a server can send before any client reads it. Like
+       * `leaderboard` it only says what to offer; `POST /auth/switch` checks
+       * the set again and refuses anybody outside it.
+       */
+      switchAccounts?: string[];
+      /**
        * What this account has chosen: the scheme and the tap. Complete, with
        * the server's defaults filled in, so a client can apply it without
        * knowing what a default is.

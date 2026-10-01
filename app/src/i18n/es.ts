@@ -732,6 +732,10 @@ export const es: Strings = {
     signOutOthers: () => 'Cerrar en los dem\u00e1s',
     signOutOthersNote: () =>
       'Para un tel\u00e9fono que has perdido. Es la \u00fanica forma de terminar una sesi\u00f3n desde un dispositivo que ya no tienes.',
+    switchTo: (identifier: string) => `Cambiar a ${identifier}`,
+    switching: () => 'Cambiando\u2026',
+    switchAccountNote: () =>
+      'Solo tus propias cuentas. Cierra la sesi\u00f3n aqu\u00ed y la abre con la otra, sin c\u00f3digo.',
     deleting: () => 'Borrando\u2026',
     deleteAccount: () => 'Borrar la cuenta',
     deleteAccountAsk: () => '\u00bfBorrar tu cuenta?',

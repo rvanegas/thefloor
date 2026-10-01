@@ -62,6 +62,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [forgetting, setForgetting] = useState(false);
   const [forgettingIntro, setForgettingIntro] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -179,6 +180,22 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSigningOutOthers(false);
+    }
+  };
+
+  /**
+   * Becomes another of the developer's own accounts. Success lands on Home as
+   * the other account, the way signing in does, so there is nothing to do
+   * afterwards; a refusal leaves this session as it was and says why.
+   */
+  const switchTo = async (identifier: string) => {
+    setSwitchingTo(identifier);
+    setError(null);
+    try {
+      await app.switchAccount(identifier);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSwitchingTo(null);
     }
   };
 
@@ -668,6 +685,31 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           }
         />
         <Text style={type.muted}>{t.signOutOthersNote()}</Text>
+
+        {/*
+          The developer's own accounts, and nobody else's: the list is empty
+          unless the server named this account in its switchable set, so for
+          everybody else none of this is drawn. One button per account rather
+          than a picker, there being two or three of them. No confirmation —
+          it is undone by the same button on the other side.
+        */}
+        {app.switchAccounts.length > 0 ? (
+          <>
+            {app.switchAccounts.map((identifier) => (
+              <Button
+                key={identifier}
+                label={
+                  switchingTo === identifier
+                    ? t.switching()
+                    : t.switchTo(identifier)
+                }
+                disabled={switchingTo !== null}
+                onPress={() => void switchTo(identifier)}
+              />
+            ))}
+            <Text style={type.muted}>{t.switchAccountNote()}</Text>
+          </>
+        ) : null}
 
         {/*
           Below Sign out, in the same card, because they are the two ways
