@@ -33,6 +33,7 @@ import { startShippingDiagnostics } from '../audio/shipping';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
+import { traceSocket } from '../api/socketTrace';
 import { shouldReport } from './attention';
 import { storage } from './storage';
 import {
@@ -1299,6 +1300,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const realtime = useRef(new Realtime()).current;
+  // TEMPORARY: the control socket's life into the diagnostics log. See
+  // `traceSocket` for what it is for and when it goes.
+  useEffect(() => {
+    traceSocket(recordEvent);
+    return () => traceSocket(null);
+  }, []);
   /**
    * serverNow - Date.now() at the last snapshot. Countdowns are derived from
    * this rather than the device clock, which drifts and which the user can set.

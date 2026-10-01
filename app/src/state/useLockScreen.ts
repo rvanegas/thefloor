@@ -4,6 +4,8 @@ import { DISCONNECT_GRACE_MS } from '../../../core/constants';
 import { describeChannel } from '../../../core/naming';
 import type { ChannelView } from '../../../core/protocol';
 import type { UserId } from '../../../core/types';
+import { AppState } from 'react-native';
+import { recordEvent } from '../audio/diagnostics';
 import { useText, type Strings } from '../i18n';
 import {
   addLockScreenStepOutListener,
@@ -187,6 +189,8 @@ export function useLockScreen(
       hide();
       return;
     }
+    // TEMPORARY, with the tap's line below: when the card actually moved.
+    recordEvent(`lock card muted=${latest.current.muted} app=${AppState.currentState}`);
     show(latest.current);
     // No teardown that hides, deliberately: this effect re-runs whenever the
     // card's contents move, and hiding on the way out of each run would take
@@ -217,6 +221,12 @@ export function useLockScreen(
        * minutes later.
        */
       const current = latest.current;
+      // TEMPORARY, for tasks/a-lock-screen-tap-during-a-reconnect-looks-dead.md:
+      // the tap, so the socket's `sent`/`queued` line after it can be told from
+      // an in-app Mute. Goes with the fix, with the trace in socket.ts.
+      recordEvent(
+        `lock tap muted=${muted} canToggle=${current?.canToggle ?? 'none'} app=${AppState.currentState}`
+      );
       if (!current || !current.canToggle) return;
       // The button said what it would do, so the tap carries an intent rather
       // than a toggle. Honouring the word on the button is what keeps a stale

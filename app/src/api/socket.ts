@@ -19,6 +19,7 @@ import { DEVICE_ID, DEVICE_NAME } from './device';
 import { notificationPermission } from './notify';
 import { WS_URL } from './config';
 import { reportSignedOut } from './http';
+import { trace } from './socketTrace';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
@@ -206,6 +207,9 @@ function jitter(ms: number): number {
 /** Enough for any plausible burst of taps; a cap so an offline hour cannot grow without bound. */
 const QUEUE_LIMIT = 32;
 
+/** TEMPORARY: the actions whose fate is traced. See socketTrace.ts. */
+const TRACED_ACTIONS: ReadonlySet<string> = new Set(['SET_SELF_MUTE']);
+
 /**
  * The channel channel. Everything the client shows is pushed from the server;
  * nothing here computes channel state.
@@ -217,6 +221,8 @@ const QUEUE_LIMIT = 32;
  * it was in, rather than silently showing a stale screen.
  */
 export class Realtime {
+  /** TEMPORARY: when a traced action went out, until a snapshot answers it. See socketTrace.ts. */
+  private tracedSentAt = 0;
   private socket: WebSocket | null = null;
   private token: string | null = null;
   private handlers: RealtimeHandlers = {};
@@ -333,6 +339,7 @@ export class Realtime {
     // prompted it, and `beginOutage` is idempotent for exactly that reason.
     this.beginOutage();
     this.handlers.onStatus?.('connecting');
+    trace('socket connecting');
 
     // A query parameter rather than a header, because the token is already one
     // and for the same reason: React Native's WebSocket does not carry custom
@@ -392,6 +399,7 @@ export class Realtime {
 
     socket.onopen = () => {
       if (!current()) return;
+      trace(`socket open, ${this.queued.length} queued`);
       this.reconnectAttempt = 0;
       // Before anything is restored, because the wall coming down is about
       // the connection rather than about what it manages to recover.
@@ -468,6 +476,10 @@ export class Realtime {
           this.handlers.onHome?.(message.home);
           break;
         case 'channel':
+          if (this.tracedSentAt) {
+            trace(`socket snapshot ${Date.now() - this.tracedSentAt}ms after the send`);
+            this.tracedSentAt = 0;
+          }
           this.handlers.onServerTime?.(message.view.serverNow);
           this.handlers.onChannel?.(message.view);
           break;
@@ -545,6 +557,10 @@ export class Realtime {
       // An orphan's close says nothing about the connection this client is
       // using. See `current`.
       if (!current()) return;
+      trace(
+        `socket closed ${event?.code ?? '?'}` +
+          (this.closedByUs ? ', by us' : this.suspended ? ', suspended' : '')
+      );
 
       this.socket = null;
       this.stopHeartbeat();
@@ -634,6 +650,7 @@ export class Realtime {
    */
   suspend(): void {
     if (!this.token || this.closedByUs || this.suspended) return;
+    trace('socket suspended');
     this.suspended = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -674,6 +691,9 @@ export class Realtime {
     // whichever branch below runs: a tab that was put down has no socket, so
     // this falls through to the reopen.
     this.suspended = false;
+    trace(
+      `socket resume, ${this.socket?.readyState === WebSocket.OPEN ? 'open' : 'reopening'}`
+    );
 
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.lastSeen = Date.now();
@@ -794,6 +814,7 @@ export class Realtime {
   private goOffline(): void {
     this.offlineTimer = null;
     if (this.offline) return;
+    trace(`socket offline, ${this.queued.length} queued dropped`);
     this.offline = true;
     this.queued = [];
     this.handlers.onOffline?.(true);
@@ -822,10 +843,19 @@ export class Realtime {
    * action is lost; it means nothing may yet be concluded from it.
    */
   private send(message: ClientMessage): boolean {
+    const traced =
+      message.type === 'channel.action' && TRACED_ACTIONS.has(message.action.type)
+        ? message.action.type
+        : null;
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
+      if (traced) {
+        trace(`socket sent ${traced}`);
+        this.tracedSentAt = Date.now();
+      }
       return true;
     }
+    if (traced) trace(`socket queued ${traced}`);
 
     // Only actions are worth keeping. `watch.home`, `watch.channel`,
     // `screens.showing` and the re-entry are re-sent by `onopen` from the

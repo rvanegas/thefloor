@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+//
+// The diagnostic lines phones have shipped to the deployed server, read back
+// out of its journal as one timeline.
+//
+//   bin/diagnostics                               the last hour
+//   bin/diagnostics --since "2026-09-30 10:20"    from then (local time) to now
+//   bin/diagnostics --since … --until …           a window
+//   bin/diagnostics --account acct_…              one account's lines only
+//   bin/diagnostics --grep 'socket|lock|app '     lines whose text matches
+//
+// Read-only. **Only a debug account's phone ships anything**: `POST
+// /diagnostics` refuses everybody else, so an empty answer for an ordinary
+// account is the gate rather than a quiet phone. What ships is the panel's
+// log — `recordEvent` in app/src/audio/diagnostics.ts — and every line keeps
+// the phone's own stamp, which is what this sorts by and prints, in this
+// machine's local time. The journal's stamp is only when a batch arrived, and
+// a phone with no signal sends a minute of lines at once.
+//
+// **The window is applied to the journal, so it is about arrival.** A batch
+// sent a little after the window closes holds lines from inside it and is
+// missed; widen `--until` by a minute when the tail matters. Times are read
+// here and handed to the box as epoch seconds, so the box's own timezone
+// never enters into it.
+//
+// The journal is the only copy. It rotates by size, so a run from weeks ago
+// may simply not be there any more — which is a reason to read a run on the
+// day it was made.
+
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+
+const HOST = process.env.THEFLOOR_HOST || 'ubuntu@44.241.121.49';
+const KEY = process.env.THEFLOOR_KEY || `${process.env.HOME}/.ssh/lightsail-ubuntu`;
+
+function die(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
+function help() {
+  const source = fs.readFileSync(__filename, 'utf8').split('\n');
+  for (const line of source.slice(1)) {
+    if (!line.startsWith('//')) break;
+    process.stdout.write(`${line.replace(/^\/\/ ?/, '')}\n`);
+  }
+}
+
+/** A local time as typed, to epoch seconds — the form journalctl takes as `@N`. */
+function seconds(text, flag) {
+  const parsed = new Date(text.includes('T') ? text : text.replace(' ', 'T'));
+  if (Number.isNaN(parsed.getTime())) die(`${flag}: not a time: ${text}`);
+  return Math.floor(parsed.getTime() / 1000);
+}
+
+function stamp(ms) {
+  const d = new Date(ms);
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+  );
+}
+
+function main(argv) {
+  let since = Math.floor(Date.now() / 1000) - 3600;
+  let until = null;
+  let account = null;
+  let pattern = null;
+  for (let i = 0; i < argv.length; i++) {
+    const value = () => argv[++i] ?? die(`${argv[i - 1]} needs a value`);
+    if (argv[i] === '--since') since = seconds(value(), '--since');
+    else if (argv[i] === '--until') until = seconds(value(), '--until');
+    else if (argv[i] === '--account') account = value();
+    else if (argv[i] === '--grep') pattern = new RegExp(value());
+    else if (argv[i] === '-h' || argv[i] === '--help') return help();
+    else die(`Unknown option: ${argv[i]}`);
+  }
+
+  // Filtered on the box, so that what crosses the wire is the diagnostics and
+  // not the whole service's journal for the window.
+  const remote =
+    `sudo journalctl -u thefloor --no-pager -o cat --since @${since}` +
+    (until === null ? '' : ` --until @${until}`) +
+    ` | grep -F '"msg":"audio diagnostics"' || true`;
+  const output = execFileSync('ssh', ['-i', KEY, '-o', 'BatchMode=yes', HOST, remote], {
+    encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  });
+
+  const seen = new Set();
+  const rows = [];
+  for (const raw of output.split('\n')) {
+    if (!raw.trim()) continue;
+    let entry;
+    try {
+      entry = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (account && entry.accountId !== account) continue;
+    for (const line of entry.lines ?? []) {
+      const at = typeof line.at === 'number' ? line.at : entry.time;
+      if (pattern && !pattern.test(line.text)) continue;
+      // A batch the phone could not confirm is sent again, so the same line
+      // can arrive twice; its stamp and text together are its identity.
+      const key = `${entry.accountId} ${at} ${line.text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ at, accountId: entry.accountId, build: entry.build, text: line.text });
+    }
+  }
+  rows.sort((a, b) => a.at - b.at);
+
+  if (rows.length === 0) {
+    process.stdout.write('No diagnostics in that window.\n');
+    return;
+  }
+  // The account and build only where they distinguish anything.
+  const several = new Set(rows.map((r) => `${r.accountId} ${r.build}`)).size > 1;
+  for (const r of rows) {
+    const who = several ? `  ${r.accountId} b${r.build ?? '?'}` : '';
+    process.stdout.write(`${stamp(r.at)}${who}  ${r.text}\n`);
+  }
+  if (!several) {
+    process.stdout.write(`\n${rows.length} lines, ${rows[0].accountId}, build ${rows[0].build ?? '?'}\n`);
+  }
+}
+
+main(process.argv.slice(2));

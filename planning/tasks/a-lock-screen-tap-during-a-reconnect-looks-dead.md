@@ -55,11 +55,25 @@ Mute should close the local track at once — the one direction that can never
 claim a microphone is open when it is not. Read STATES.md first; it treats the
 duplicated mute as load-bearing.
 
-**Whether locking started the reconnect is undecidable too.** `room
-reconnecting` preceded the tap, so the tap did not cause it; but the phone
-was already `app=background`, and the log carries no timestamp for the
-transition, the logging that printed it having been removed.
+**Whether locking started the reconnect is not yet read, but probably is
+recorded.** `room reconnecting` preceded the tap, so the tap did not cause
+it. The finding above said the transition to the background carries no
+timestamp; **that was wrong** (corrected 2026-09-30). `AppState` changes are
+logged permanently, not by the removed temporary lines — `app <state>` in
+`audio/diagnostics.ts`, the source of the `app active` line in the excerpt —
+and ship to the journal with everything else. The excerpt was trimmed. So
+`bin/diagnostics --since "2026-09-30 10:15" --until "2026-09-30 10:45"` may
+answer it from the existing run: an `app background` or `app inactive` line
+just before 10:27:44.364 says locking started the reconnect.
 
-**Next:** temporary logging of the control socket's open and close and of
-`AppState` changes, then a reproduction. That answers both open questions
-before anything is built.
+**Instrumented 2026-09-30, awaiting a run.** Temporary lines, all marked
+TEMPORARY and to go with the fix: `traceSocket` in `api/socket.ts` records the
+control socket connecting, opening (with how many actions were queued),
+closing, suspending, resuming and going offline (with how many were dropped),
+and a `SET_SELF_MUTE` as `sent` or `queued` with the delay to the snapshot
+that answers it; `useLockScreen.ts` records the tap and each card change again.
+
+**Next:** on a debug account, lock the phone in a channel, wait for `room
+reconnecting`, tap Mute, and read it back with `bin/diagnostics`. `socket
+queued SET_SELF_MUTE` means the tap waited for the socket; `socket sent` with a
+long `snapshot … after the send` means the server's answer was what waited.
