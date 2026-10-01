@@ -101,6 +101,28 @@ public class LiveActivityModule: Module {
   }
 
   /**
+   The newest card's push token, kept for a listener that arrives after it.
+
+   A card adopted at launch reports its token before JavaScript has mounted
+   anything to hear it, and an event sent then is simply lost. So the last one
+   is held, and `addLockScreenPushTokenListener` reads it as it subscribes.
+   Touched only on the main queue.
+   */
+  private static var lastPushToken: [String: String]?
+
+  /**
+   A card's push token, arriving from the app target. See
+   `LockScreenController.forwardPushTokens` for what it is for.
+   */
+  public static func emitPushToken(channelId: String, token: String) {
+    DispatchQueue.main.async {
+      let event = ["channelId": channelId, "token": token]
+      lastPushToken = event
+      current?.sendEvent("onPushToken", event)
+    }
+  }
+
+  /**
    Step-outs asked of JavaScript and not yet answered, by the id each was sent
    with. Touched only on the main queue, which is what makes a plain
    dictionary enough.
@@ -152,7 +174,7 @@ public class LiveActivityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LiveActivity")
 
-    Events("onToggleMute", "onStepOut")
+    Events("onToggleMute", "onStepOut", "onPushToken")
 
     OnCreate {
       LiveActivityModule.current = self
@@ -196,6 +218,10 @@ public class LiveActivityModule: Module {
 
     AsyncFunction("hide") { () -> Bool in
       return LiveActivityModule.host?.hide() ?? false
+    }
+
+    Function("lastPushToken") { () -> [String: String]? in
+      return LiveActivityModule.lastPushToken
     }
 
     Function("answerStepOut") { (id: String, reached: Bool) in

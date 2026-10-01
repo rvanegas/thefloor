@@ -9,8 +9,16 @@ import { DEFAULT_NOTIFICATION_LEVEL } from '../../../../core/notifications';
 import type { ChannelState } from '../../../../core/types';
 import type { ChannelView } from '../../../../core/protocol';
 import * as liveActivity from '../../../modules/live-activity';
-import type { LockScreenState } from '../../../modules/live-activity';
-import { lockScreenStateFor, useLockScreen } from '../useLockScreen';
+import type {
+  LockScreenPushToken,
+  LockScreenState,
+} from '../../../modules/live-activity';
+import {
+  LOCK_SCREEN_HOLD_MS,
+  lockScreenStateFor,
+  useLockScreen,
+  useLockScreenPushToken,
+} from '../useLockScreen';
 import { channelOfUrl } from '../useChannelLink';
 import { en } from '../../i18n/en';
 import { es } from '../../i18n/es';
@@ -331,7 +339,14 @@ describe('useLockScreen', () => {
     expect(h.acted).toHaveLength(0);
   });
 
-  it('holds the card through a blip and takes it down once the grace is out', () => {
+  it('takes the card down before the server would step this device out', () => {
+    // The server's clock starts when it notices, the phone's when it does, and
+    // the phone notices later. Equal numbers put the card's end after the
+    // step-out; see `LOCK_SCREEN_HOLD_MS`.
+    expect(LOCK_SCREEN_HOLD_MS).toBeLessThan(DISCONNECT_GRACE_MS);
+  });
+
+  it('holds the card through a blip and takes it down once the hold is out', () => {
     jest.useFakeTimers();
     try {
       const h = harness();
@@ -343,17 +358,17 @@ describe('useLockScreen', () => {
       expect(h.shown).toHaveLength(1);
 
       // Out of touch. The last snapshot still says this account is in the
-      // room, and for the length of the server's grace it still is.
+      // room, and for most of the server's grace it still is.
       reactAct(() => {
         tree.update(<h.Probe view={view} inTouch={false} />);
       });
       reactAct(() => {
-        jest.advanceTimersByTime(DISCONNECT_GRACE_MS - 1);
+        jest.advanceTimersByTime(LOCK_SCREEN_HOLD_MS - 1);
       });
       expect(h.hidden()).toBe(0);
 
-      // And out of it. The server has run `DISCONNECT_EXPIRED` by now, so the
-      // card is describing a conversation this device is no longer in.
+      // And out of it, ahead of the server's `DISCONNECT_EXPIRED`, which is
+      // about to make the card describe a conversation this device is not in.
       reactAct(() => {
         jest.advanceTimersByTime(1);
       });
@@ -376,13 +391,13 @@ describe('useLockScreen', () => {
         tree.update(<h.Probe view={view} inTouch={false} />);
       });
       reactAct(() => {
-        jest.advanceTimersByTime(DISCONNECT_GRACE_MS / 2);
+        jest.advanceTimersByTime(LOCK_SCREEN_HOLD_MS / 2);
       });
       reactAct(() => {
         tree.update(<h.Probe view={view} />);
       });
       reactAct(() => {
-        jest.advanceTimersByTime(DISCONNECT_GRACE_MS);
+        jest.advanceTimersByTime(LOCK_SCREEN_HOLD_MS);
       });
       // A tunnel is not a departure: nothing was taken down and nothing was
       // pushed a second time.
@@ -393,7 +408,7 @@ describe('useLockScreen', () => {
     }
   });
 
-  it('ignores a tap that arrives after the grace has run out', () => {
+  it('ignores a tap that arrives after the hold has run out', () => {
     jest.useFakeTimers();
     try {
       const h = harness();
@@ -406,7 +421,7 @@ describe('useLockScreen', () => {
         tree.update(<h.Probe view={view} inTouch={false} />);
       });
       reactAct(() => {
-        jest.advanceTimersByTime(DISCONNECT_GRACE_MS);
+        jest.advanceTimersByTime(LOCK_SCREEN_HOLD_MS);
       });
       // iOS may not have taken the card down yet, and the button on it is
       // for a channel this account has been removed from.
@@ -481,5 +496,77 @@ describe('channelOfUrl', () => {
     // this would otherwise open. See `inviteLink.test.ts`.
     expect(channelOfUrl('thefloor://i/annak/042317')).toBeNull();
     expect(channelOfUrl('thefloor://channel/')).toBeNull();
+  });
+});
+
+/**
+ * The card's push token, filed with the server so that the server can end the
+ * card when it steps this device out — which a suspended app cannot.
+ */
+describe('useLockScreenPushToken', () => {
+  function tokenHarness(file: (event: LockScreenPushToken) => Promise<unknown>) {
+    let emit: (event: LockScreenPushToken) => void = () => {};
+    const subscribe = (handle: (event: LockScreenPushToken) => void) => {
+      emit = handle;
+      return () => {};
+    };
+    function Probe({ inTouch }: { inTouch: boolean }) {
+      useLockScreenPushToken(inTouch, file, subscribe);
+      return null;
+    }
+    return { Probe, emit: (event: LockScreenPushToken) => emit(event) };
+  }
+
+  const CARD = { channelId: 'chan_one', token: 'abc123' };
+
+  it('files a token as soon as it arrives', async () => {
+    const file = jest.fn(async () => ({ ok: true }));
+    const h = tokenHarness(file);
+    reactAct(() => {
+      renderer.create(<h.Probe inTouch />);
+    });
+    await reactAct(async () => {
+      h.emit(CARD);
+    });
+    expect(file).toHaveBeenCalledWith(CARD);
+    expect(file).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for touch, and tries again after a failure once touch returns', async () => {
+    const file = jest
+      .fn<Promise<unknown>, [LockScreenPushToken]>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ok: true });
+    const h = tokenHarness(file);
+    let tree!: ReactTestRenderer;
+    reactAct(() => {
+      tree = renderer.create(<h.Probe inTouch={false} />);
+    });
+    await reactAct(async () => {
+      h.emit(CARD);
+    });
+    expect(file).not.toHaveBeenCalled();
+
+    await reactAct(async () => {
+      tree.update(<h.Probe inTouch />);
+    });
+    expect(file).toHaveBeenCalledTimes(1);
+
+    await reactAct(async () => {
+      tree.update(<h.Probe inTouch={false} />);
+    });
+    await reactAct(async () => {
+      tree.update(<h.Probe inTouch />);
+    });
+    expect(file).toHaveBeenCalledTimes(2);
+
+    // Accepted, so nothing is left to send however often touch comes and goes.
+    await reactAct(async () => {
+      tree.update(<h.Probe inTouch={false} />);
+    });
+    await reactAct(async () => {
+      tree.update(<h.Probe inTouch />);
+    });
+    expect(file).toHaveBeenCalledTimes(2);
   });
 });

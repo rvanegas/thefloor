@@ -6,6 +6,7 @@ import {
   ApnsPusher,
   ConsolePusher,
   FcmPusher,
+  type LiveActivityEnder,
   type Pusher,
 } from './push';
 import { deployed, MIN_SUPPORTED_BUILD } from './release';
@@ -128,7 +129,7 @@ const apnsTeamId = process.env.APNS_TEAM_ID;
 const apnsBundleId = process.env.APNS_BUNDLE_ID ?? 'co.rvanegas.thefloor';
 const apnsEnv =
   process.env.APNS_ENV === 'sandbox' ? 'sandbox' : 'production';
-const pusher: Pusher | undefined =
+const pusher: (Pusher & LiveActivityEnder) | undefined =
   apnsKeyPath && apnsKeyId && apnsTeamId
     ? new ApnsPusher({
         key: readFileSync(apnsKeyPath, 'utf8'),
@@ -324,6 +325,9 @@ const app = buildApp({
   store,
   pusher,
   androidPusher,
+  // The same sender: an activity's token is an APNs address under the same
+  // key, host and environment, on a topic `end` adds the suffix to.
+  liveActivityEnder: pusher,
   transcription,
   transcribeUnlimitedIdentifier,
   freeTranscriptMinutes,

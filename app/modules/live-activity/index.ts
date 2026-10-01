@@ -103,6 +103,7 @@ interface NativeLiveActivity {
   show(state: LockScreenState): Promise<boolean>;
   hide(): Promise<boolean>;
   answerStepOut(id: string, reached: boolean): void;
+  lastPushToken(): { channelId?: unknown; token?: unknown } | null;
   addListener(event: string): void;
   removeListeners(count: number): void;
 }
@@ -237,6 +238,52 @@ export function addLockScreenStepOutListener(
         }
       }
     );
+    return () => subscription.remove();
+  } catch {
+    return () => {};
+  }
+}
+
+/** A card's ActivityKit push token, and the channel the card is about. */
+export interface LockScreenPushToken {
+  channelId: string;
+  token: string;
+}
+
+/**
+ * Each push token a card is given, for the server to end it with.
+ *
+ * **What lets a card come down on a phone that is not running.** The hook ends
+ * the card whenever JavaScript sees the step-out, which a suspended or killed
+ * app never does; the server sees every step-out it makes. So the token goes
+ * to the server, which sends the end itself — see
+ * `server/src/live-activities.ts`.
+ *
+ * `handle` is called at once with the newest token already issued, if there is
+ * one: a card adopted at launch reports its token before anything is
+ * listening, and the native side holds it for exactly this.
+ *
+ * @returns an unsubscribe function, safe to call twice.
+ */
+export function addLockScreenPushTokenListener(
+  handle: (event: LockScreenPushToken) => void
+): () => void {
+  if (!native) return () => {};
+  const forward = (event: { channelId?: unknown; token?: unknown } | null) => {
+    if (typeof event?.channelId !== 'string') return;
+    if (typeof event.token !== 'string') return;
+    handle({ channelId: event.channelId, token: event.token });
+  };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { EventEmitter } = require('expo-modules-core');
+    const emitter = new EventEmitter(native as object);
+    const subscription = emitter.addListener('onPushToken', forward);
+    try {
+      forward(native.lastPushToken());
+    } catch {
+      // A build without the function has nothing held to report.
+    }
     return () => subscription.remove();
   } catch {
     return () => {};

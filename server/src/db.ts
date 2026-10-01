@@ -1125,6 +1125,35 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 CREATE INDEX IF NOT EXISTS device_tokens_account ON device_tokens(account_id);
 
+-- Where to send the push that takes one lock screen card down: the ActivityKit
+-- token of a Live Activity, the channel it is about, and which copy of the app
+-- started it. See live-activities.ts.
+--
+-- A different address from device_tokens', and not a column on it. Apple mints
+-- one per *activity* — a card, not an install — and it is good for nothing but
+-- updating or ending that card, so a row lives exactly as long as the card
+-- does: written when the app hears the token, deleted when the end is sent.
+--
+-- Durable rather than held in memory because the case it exists for outlasts
+-- a deploy: a phone suspended in a pocket, whose card has to come down when
+-- the grace runs out, may have been stepped in before the restart and say
+-- nothing at all after it.
+--
+-- device_key is ws.ts's deviceKey — the device the app names, or the
+-- session it authenticated on — so that an ENTER from another device of the
+-- same account can find the card it displaced. Not a foreign key on the
+-- channel: a channel deleted under a card is exactly a card to end, and a
+-- cascade would delete the row before anybody could send that.
+CREATE TABLE IF NOT EXISTS live_activities (
+  token      TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  channel_id TEXT NOT NULL,
+  device_key TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS live_activities_channel ON live_activities(channel_id);
+CREATE INDEX IF NOT EXISTS live_activities_account ON live_activities(account_id);
+
 -- A capability to knock at one channel's door, and nothing more. Holding it
 -- gets you as far as asking: a member who is present has to accept, and what
 -- they accept is a name a stranger typed.

@@ -8,10 +8,12 @@ import { AppState } from 'react-native';
 import { recordEvent } from '../audio/diagnostics';
 import { useText, type Strings } from '../i18n';
 import {
+  addLockScreenPushTokenListener,
   addLockScreenStepOutListener,
   addLockScreenToggleListener,
   hideLockScreen,
   showLockScreen,
+  type LockScreenPushToken,
   type LockScreenState,
 } from '../../modules/live-activity';
 
@@ -36,11 +38,39 @@ import {
  * **Neither condition survives the process, and the card does.** An activity
  * outlives the app that started it, so a force-quit or a crash leaves one on
  * the lock screen describing a room the server has since stepped this account
- * out of. Nothing in JavaScript can reach that card; the answer is in
+ * out of. Nothing in JavaScript can reach that card. Two things can:
  * `targets/lock-screen/LockScreenController.swift`, which adopts whatever is
  * still running at launch and ends the card when the process is told it is
- * going away.
+ * going away; and the server, which since 2026-10-01 ends the card by push
+ * when it steps this device out — see `useLockScreenPushToken`.
  */
+
+/**
+ * How long the card outlives losing touch with the room, which is **less than
+ * the server's grace, and on purpose**.
+ *
+ * Until 2026-10-01 it was `DISCONNECT_GRACE_MS` exactly, on the argument that
+ * the two ends should make one bargain with one number. They do not start
+ * their clocks at the same moment. The server's runs from when *it* notices —
+ * a socket closing, the room losing the phone — and the phone's from when
+ * `inTouch` goes false, which waits on its own heartbeat to time out: up to
+ * `HEARTBEAT_TIMEOUT_MS` of silence, checked every `HEARTBEAT_INTERVAL_MS`,
+ * and longer still when it is the media room that has to give up first. So a
+ * card held for the same minute came down *after* the server had stepped the
+ * account out, every time, and the lock screen spent those seconds offering a
+ * Mute to a room that had already watched its owner leave.
+ *
+ * Fifteen seconds early covers that lag with room to spare, and still holds
+ * the card through a deploy as seen from a phone — a restart the phone rides
+ * out in twenty-five seconds — and through an ordinary tunnel. A card that
+ * comes down while the server still counts the phone present is the right
+ * error to make: the phone is, by then, unable to hear the room either.
+ *
+ * **This is the half that works while the app runs.** A suspended or killed
+ * app runs no timer at all, and its card is ended by the server instead — see
+ * `useLockScreenPushToken` below.
+ */
+export const LOCK_SCREEN_HOLD_MS = DISCONNECT_GRACE_MS - 15_000;
 
 /** What the controls read, derived once so the hook and its test agree. */
 export function lockScreenStateFor(
@@ -148,13 +178,12 @@ export function useLockScreen(
    * conversation carries on without it and the card carries on describing
    * one, with a Mute button that can reach neither end of it.
    *
-   * So the card is held for exactly the grace the server gives, and no
-   * longer. Held rather than dropped at once because losing touch is
-   * ordinarily a blip — a tunnel, a handover, a deploy rounding up to a
-   * retry — and a card that flickered off and on at the lock screen for every
-   * one of those would be worse than one that is a minute stale. The server
-   * makes the same bargain with the same number, which is the point: until it
-   * expires this device is still in the room, and after it, it is not.
+   * So the card is held for a little less than the grace the server gives —
+   * `LOCK_SCREEN_HOLD_MS`, which says why less. Held rather than dropped at
+   * once because losing touch is ordinarily a blip — a tunnel, a handover, a
+   * deploy rounding up to a retry — and a card that flickered off and on at
+   * the lock screen for every one of those would be worse than one that is
+   * most of a minute stale.
    */
   const [adrift, setAdrift] = useState(false);
   useEffect(() => {
@@ -162,7 +191,7 @@ export function useLockScreen(
       setAdrift(false);
       return;
     }
-    const timer = setTimeout(() => setAdrift(true), DISCONNECT_GRACE_MS);
+    const timer = setTimeout(() => setAdrift(true), LOCK_SCREEN_HOLD_MS);
     return () => clearTimeout(timer);
   }, [inTouch]);
 
@@ -254,4 +283,41 @@ export function useLockScreen(
       return leave.current(current.channelId);
     });
   }, [subscribeStepOut]);
+}
+
+/**
+ * Files each lock screen card's push token with the server, which ends the
+ * card when it steps this device out — the one ending that still happens when
+ * this app is suspended or killed. See `server/src/live-activities.ts`.
+ *
+ * **Sent while in touch, and kept until it is accepted.** A token arrives a
+ * moment after the card goes up, ordinarily with the socket open; one that
+ * arrives offline, or whose request fails, is tried again the next time the
+ * device is in touch. Only the newest is kept: a newer token is either the
+ * same card's reissue or a later card's, and either way the older one is
+ * about a card that is no longer the one up.
+ *
+ * Held in `App.tsx` beside `useLockScreen`, for its reason.
+ */
+export function useLockScreenPushToken(
+  inTouch: boolean,
+  file: (event: LockScreenPushToken) => Promise<unknown>,
+  subscribe: (
+    handle: (event: LockScreenPushToken) => void
+  ) => () => void = addLockScreenPushTokenListener
+): void {
+  const [pending, setPending] = useState<LockScreenPushToken | null>(null);
+  const send = useRef(file);
+  send.current = file;
+
+  useEffect(() => subscribe(setPending), [subscribe]);
+
+  useEffect(() => {
+    if (!pending || !inTouch) return;
+    send.current(pending).then(
+      () => setPending((current) => (current === pending ? null : current)),
+      // Left pending; the next time touch is regained tries it again.
+      () => {}
+    );
+  }, [pending, inTouch]);
 }

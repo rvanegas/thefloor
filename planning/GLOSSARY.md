@@ -73,7 +73,7 @@ caused; the list carries the meaning.
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
-- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it*, carrying the channel's name, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
+- **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it* — ended by the server, by push, when it steps this device out — carrying the channel's name, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
@@ -1272,8 +1272,16 @@ a phone that lost the network went on asserting a presence the grace had run
 out on. Neither is the hook's doing — it takes the card down the moment there
 is no channel. The card is now adopted at launch and ended when the process is
 told it is going away, and `useLockScreen` takes an `inTouch` that holds it for
-DISCONNECT_GRACE_MS and no longer. See
+a little less than DISCONNECT_GRACE_MS. See
 `decisions/2026-09-18-the-lock-screen-card-does-not-outlive-the-room.md`.
+
+**And since 2026-10-01 the server ends it too**, by an ActivityKit push, in
+the same change as any step-out it makes — the grace or attention expiring, a
+removal, another device stepping in — because the phone those happen to is
+most often one iOS has suspended, which runs nothing that could take the card
+down. The phone's own hold is fifteen seconds shorter than the grace, so that
+while it *is* running the card goes first. See
+`decisions/2026-10-01-the-server-ends-the-lock-screen-card.md`.
 
 **The test is the design rather than the count**: the card offers only what a
 locked phone can deliver. A mute button, a way into the channel — the tap on

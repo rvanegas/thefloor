@@ -618,6 +618,20 @@ export interface Pusher {
 }
 
 /**
+ * Takes one lock screen card down, from a server that has just stepped its
+ * device out of the room the card describes. See live-activities.ts.
+ *
+ * **Its own interface rather than a method on `Pusher`**, for `androidPusher`'s
+ * reason in app.ts: `MemoryPusher.sent` is what the notification tests read,
+ * and an end that landed there would be a notification nobody sent.
+ *
+ * Never rejects, on `Pusher.send`'s contract.
+ */
+export interface LiveActivityEnder {
+  end(token: string): Promise<PushResult>;
+}
+
+/**
  * Reaching people from code that must not know how notifications work.
  *
  * `ChannelRegistry` decides *that* something is worth telling somebody about;
@@ -669,7 +683,7 @@ const JWT_TTL_MS = 50 * 60 * 1000;
 /** How long to wait for one notification before giving up on it. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-export class ApnsPusher implements Pusher {
+export class ApnsPusher implements Pusher, LiveActivityEnder {
   private privateKey: KeyObject;
   private host: string;
   private session: ClientHttp2Session | null = null;
@@ -772,51 +786,127 @@ export class ApnsPusher implements Pusher {
     }
   }
 
+  /**
+   * Ends a Live Activity, dismissing its card at once.
+   *
+   * **The `liveactivity` push type, on the bundle's `.push-type.liveactivity`
+   * topic** — APNs refuses an activity's token under the app's plain topic,
+   * and the token is the activity's, not the device's. Same host, same key and
+   * same environment as an alert: an activity started by a debug build has a
+   * sandbox token exactly as its device token is.
+   *
+   * `dismissal-date` is now, which is ActivityKit's `.immediate`: the card is
+   * about a room this device is no longer in, and the default would leave it
+   * up for four hours.
+   *
+   * **`content-state` is required on an end and must decode**, or the push is
+   * accepted by APNs and dropped by the phone. The card is gone the moment it
+   * lands, so what it holds is never drawn; it only has to be a valid
+   * `FloorActivityAttributes.ContentState`, which is these five fields.
+   *
+   * Priority 10, because a card asserting a microphone that nothing is holding
+   * is the thing to fix promptly, and an activity's budget is spent on updates
+   * and this is the last one it will ever receive.
+   */
+  async end(token: string): Promise<PushResult> {
+    const seconds = Math.floor(this.now() / 1000);
+    const payload = JSON.stringify({
+      aps: {
+        timestamp: seconds,
+        event: 'end',
+        'dismissal-date': seconds,
+        'content-state': {
+          channelName: '',
+          micLabel: '',
+          micState: '',
+          muted: true,
+          canToggle: false,
+        },
+      },
+    });
+    try {
+      const { status, reason } = await this.post(token, payload, {
+        'apns-topic': `${this.options.bundleId}.push-type.liveactivity`,
+        'apns-push-type': 'liveactivity',
+        'apns-priority': '10',
+        // Never zero, for the reason the alert's comment gives. An hour: long
+        // enough to reach a phone that is out of signal for a while, and an
+        // end delivered late is harmless — the token belongs to this one
+        // activity, so it cannot take down a card started since.
+        'apns-expiration': String(seconds + 60 * 60),
+      });
+      return { token, status, reason, dead: isDeadToken(status) };
+    } catch (error) {
+      return {
+        token,
+        status: 0,
+        error: error instanceof Error ? error.message : String(error),
+        dead: false,
+      };
+    }
+  }
+
   private request(
     token: string,
     message: PushMessage,
     payload: string,
     alert: NotificationAlert
   ): Promise<{ status: number; reason?: string }> {
+    return this.post(token, payload, {
+      'apns-topic': this.options.bundleId,
+      'apns-push-type': 'alert',
+      // Delivered immediately. The alternative, 5, lets iOS batch for
+      // battery, which is the wrong trade for an announcement that expires
+      // in five minutes.
+      //
+      // Except for a passive announcement about the room, where 5 is the
+      // honest header: somebody who set this channel to arrive quietly is
+      // not owed a radio waking for the news that it filled up.
+      //
+      // **Never for a ping, whatever level it is arriving at**, and the
+      // exception was missing for an hour. Priority 5 lets iOS defer
+      // delivery while the five-minute expiry keeps running, so the two
+      // compound: the phone least likely to be awake belongs to the person
+      // who turned the channel down, and the outcome is not a quiet ping but
+      // no ping and no record that one was sent. `low` says do not interrupt
+      // me. It does not say throw away what people write to me — and the
+      // difference between quieting something and losing it is the whole of
+      // why a ping does not collapse either.
+      'apns-priority':
+        alert === 'passive' && message.kind !== 'pinged' ? '5' : '10',
+      // Omitted entirely when the message replaces nothing. APNs has no
+      // value meaning "collapse with nothing" — the absence of the header is
+      // how that is said, and a key invented to be unique would say it by
+      // arithmetic instead.
+      ...(message.collapseKey === null
+        ? {}
+        : { 'apns-collapse-id': message.collapseKey }),
+      // Whose window the message brought with it. Never zero, which APNs
+      // reads as "attempt once and store nothing" rather than as "no
+      // expiry" — the two are easy to conflate and mean opposite things.
+      'apns-expiration': String(
+        Math.floor((this.now() + message.lifetimeMs) / 1000)
+      ),
+    });
+  }
+
+  /**
+   * One POST to APNs, whatever kind of push it is.
+   *
+   * The path and the provider token are the same for every push type; what
+   * differs — topic, push type, priority, expiry — is the caller's.
+   */
+  private post(
+    token: string,
+    payload: string,
+    headers: Record<string, string>
+  ): Promise<{ status: number; reason?: string }> {
     return new Promise((resolve, reject) => {
       const stream = this.connection().request({
         [constants.HTTP2_HEADER_METHOD]: 'POST',
         [constants.HTTP2_HEADER_PATH]: `/3/device/${token}`,
         authorization: `bearer ${this.authToken()}`,
-        'apns-topic': this.options.bundleId,
-        'apns-push-type': 'alert',
-        // Delivered immediately. The alternative, 5, lets iOS batch for
-        // battery, which is the wrong trade for an announcement that expires
-        // in five minutes.
-        //
-        // Except for a passive announcement about the room, where 5 is the
-        // honest header: somebody who set this channel to arrive quietly is
-        // not owed a radio waking for the news that it filled up.
-        //
-        // **Never for a ping, whatever level it is arriving at**, and the
-        // exception was missing for an hour. Priority 5 lets iOS defer
-        // delivery while the five-minute expiry keeps running, so the two
-        // compound: the phone least likely to be awake belongs to the person
-        // who turned the channel down, and the outcome is not a quiet ping but
-        // no ping and no record that one was sent. `low` says do not interrupt
-        // me. It does not say throw away what people write to me — and the
-        // difference between quieting something and losing it is the whole of
-        // why a ping does not collapse either.
-        'apns-priority':
-          alert === 'passive' && message.kind !== 'pinged' ? '5' : '10',
-        // Omitted entirely when the message replaces nothing. APNs has no
-        // value meaning "collapse with nothing" — the absence of the header is
-        // how that is said, and a key invented to be unique would say it by
-        // arithmetic instead.
-        ...(message.collapseKey === null
-          ? {}
-          : { 'apns-collapse-id': message.collapseKey }),
-        // Whose window the message brought with it. Never zero, which APNs
-        // reads as "attempt once and store nothing" rather than as "no
-        // expiry" — the two are easy to conflate and mean opposite things.
-        'apns-expiration': String(
-          Math.floor((this.now() + message.lifetimeMs) / 1000)
-        ),
+        ...headers,
       });
 
       let status = 0;
@@ -1327,7 +1417,7 @@ export function mintServiceAccountAssertion(
 }
 
 /** Prints what would have been sent. For local work without an APNs key. */
-export class ConsolePusher implements Pusher {
+export class ConsolePusher implements Pusher, LiveActivityEnder {
   constructor(private log: (message: string) => void = console.log) {}
 
   async send(
@@ -1340,6 +1430,21 @@ export class ConsolePusher implements Pusher {
         `${message.title} — ${message.body} (${message.channelId}, ${alert}) ──\n`
     );
     return tokens.map((token) => ({ token, status: 200, dead: false }));
+  }
+
+  async end(token: string): Promise<PushResult> {
+    this.log(`\n  ── live activity ended: ${token.slice(0, 12)}… ──\n`);
+    return { token, status: 200, dead: false };
+  }
+}
+
+/** Records which cards would have been ended. For tests. */
+export class MemoryLiveActivityEnder implements LiveActivityEnder {
+  readonly ended: string[] = [];
+
+  async end(token: string): Promise<PushResult> {
+    this.ended.push(token);
+    return { token, status: 200, dead: false };
   }
 }
 

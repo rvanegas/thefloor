@@ -289,3 +289,34 @@ describe('what a notification is allowed to interrupt', () => {
     expect('sound' in aps).toBe(false);
   });
 });
+
+describe('ending a lock screen card', () => {
+  /**
+   * Apple refuses an activity's token on the app's plain topic, and the phone
+   * drops an end whose `content-state` does not decode as the card's
+   * `ContentState` — the second after APNs has answered 200. Neither failure
+   * is visible from this end, which is why both are pinned here.
+   */
+  it('goes on the liveactivity topic, as an end dismissed at once', async () => {
+    const result = await pusher().end('activity-token');
+
+    expect(result).toEqual({ token: 'activity-token', status: 200, dead: false });
+    const [sent] = requests;
+    expect(sent.headers[':path']).toBe('/3/device/activity-token');
+    expect(sent.headers['apns-topic']).toBe(
+      'co.rvanegas.thefloor.push-type.liveactivity'
+    );
+    expect(sent.headers['apns-push-type']).toBe('liveactivity');
+    expect(sent.headers['apns-priority']).toBe('10');
+    const aps = sent.payload.aps as Record<string, unknown>;
+    expect(aps.event).toBe('end');
+    expect(aps['dismissal-date']).toBe(1_700_000_000);
+    expect(Object.keys(aps['content-state'] as object).sort()).toEqual([
+      'canToggle',
+      'channelName',
+      'micLabel',
+      'micState',
+      'muted',
+    ]);
+  });
+});

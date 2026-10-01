@@ -296,9 +296,18 @@ function claimedDeviceName(raw: string | null | undefined): string | null {
  * side's values can be forged into the other's is not one to leave open.
  */
 function deviceKey(connection: Connection): string {
-  return connection.device === null
-    ? `token:${connection.tokenHash}`
-    : `device:${connection.device}`;
+  return deviceKeyOf(connection.device, connection.tokenHash);
+}
+
+/**
+ * The same key from its two ingredients, for a request that is not a socket —
+ * `POST /live-activities`, which has to file a card under the device that will
+ * later be displaced. `device` is passed through `claimedDevice` here so the
+ * two paths cannot sanitise it differently.
+ */
+export function deviceKeyOf(device: string | null, tokenHash: string): string {
+  const claimed = claimedDevice(device);
+  return claimed === null ? `token:${tokenHash}` : `device:${claimed}`;
 }
 
 /** Close code for a credential the server will not accept. */
@@ -450,6 +459,13 @@ export function registerWebsocket(deps: {
   /** Where a guest's page should connect for audio. Absent without a media plane. */
   mediaUrl?: string;
   /**
+   * A device of this account has stepped in, by its `deviceKey`. Every other
+   * device of the account has just been displaced, including the ones whose
+   * sockets are gone and so cannot be told — which is what this is for. See
+   * live-activities.ts.
+   */
+  onEntered?: (userId: string, deviceKey: string) => void;
+  /**
    * How often the sweep below runs, in milliseconds.
    *
    * A real interval rather than anything derived from `now`, and so the one
@@ -483,6 +499,7 @@ export function registerWebsocket(deps: {
     reachability,
     preferences,
     mediaUrl,
+    onEntered = () => {},
     heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
     switchTargets = () => [],
   } = deps;
@@ -2101,6 +2118,7 @@ export function registerWebsocket(deps: {
           // others. See `Connection.standing`.
           if (message.action.type === 'ENTER') {
             connection.standing = message.channelId;
+            onEntered(connection.userId, deviceKey(connection));
           } else if (
             message.action.type === 'STEP_OUT' ||
             message.action.type === 'ATTENTION_EXPIRED' ||

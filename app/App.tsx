@@ -6,7 +6,9 @@ import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useChannelLink } from './src/state/useChannelLink';
-import { useLockScreen } from './src/state/useLockScreen';
+import { useLockScreen, useLockScreenPushToken } from './src/state/useLockScreen';
+import { api } from './src/api/http';
+import { DEVICE_ID } from './src/api/device';
 import { usePresenceChime } from './src/audio/usePresenceChime';
 import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useFilmHandover } from './src/audio/useFilmHandover';
@@ -405,6 +407,15 @@ function Root() {
     // leaving closes the screen, which it does not (`stepOutClosesScreen`),
     // and a locked phone has no screen to close.
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
+  );
+  // The server's half of taking the card down: it ends the card itself when it
+  // steps this device out, which matters when this app is too suspended to.
+  useLockScreenPushToken(
+    app.status === 'open' || audio.status === 'connected',
+    async ({ token: activityToken, channelId }) => {
+      if (!token) throw new Error('signed out');
+      await api.registerLiveActivity(token, activityToken, channelId, DEVICE_ID);
+    }
   );
 
   /**

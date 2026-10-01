@@ -82,6 +82,7 @@ import UIKit
     }
     activity = keep
     channelId = keep.attributes.channelId
+    forwardPushTokens(of: keep)
   }
 
   /**
@@ -148,8 +149,17 @@ import UIKit
      activity would leave its `channelId` pointing at the room they left, and
      the deep link on the card would take them back to it.
      */
+    /**
+     **Only a card that is still up.** The server ends a card by push when it
+     steps this device out, which this process does not hear about — so the
+     activity held here can be over while `channelId` still matches, and
+     updating it would draw nothing. Asked rather than observed: the card a
+     server ended is one a later `show()` should replace, and this is the one
+     place that happens.
+     */
     if let running = activity as? Activity<FloorActivityAttributes>,
-      channelId == payload.channelId
+      channelId == payload.channelId,
+      running.activityState == .active
     {
       Task { await running.update(using: state) }
       return true
@@ -161,10 +171,11 @@ import UIKit
       let started = try Activity.request(
         attributes: FloorActivityAttributes(channelId: payload.channelId),
         contentState: state,
-        pushType: nil
+        pushType: .token
       )
       activity = started
       channelId = payload.channelId
+      forwardPushTokens(of: started)
       return true
     } catch {
       /**
@@ -180,6 +191,31 @@ import UIKit
       activity = nil
       channelId = nil
       return false
+    }
+  }
+
+  /**
+   Hands each push token this card is given to JavaScript, which files it with
+   the server — so that the server can end the card when it steps this device
+   out, whether or not this process is running by then. See
+   `server/src/live-activities.ts`.
+
+   **`.token` on the request is what makes there be one**, and costs nothing
+   on the phone: the app already holds the `aps-environment` entitlement for
+   its notifications, and an activity's token is minted under the same one.
+
+   A stream rather than a value, because iOS may reissue the token during the
+   card's life; it ends when the activity does, which is what bounds the task.
+   Hex, as the server sends it back to APNs.
+   */
+  @available(iOS 16.1, *)
+  private func forwardPushTokens(of running: Activity<FloorActivityAttributes>) {
+    let channelId = running.attributes.channelId
+    Task {
+      for await data in running.pushTokenUpdates {
+        let token = data.map { String(format: "%02x", $0) }.joined()
+        LiveActivityModule.emitPushToken(channelId: channelId, token: token)
+      }
     }
   }
 

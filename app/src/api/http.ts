@@ -251,6 +251,24 @@ export const api = {
       token,
     }),
 
+  /**
+   * Files a lock screen card's push token, so the server can end the card when
+   * it steps this device out. `device` is the socket's `DEVICE_ID`, which is
+   * how the server tells this card from one on another of the account's
+   * devices. See `server/src/live-activities.ts`.
+   */
+  registerLiveActivity: (
+    token: string,
+    activityToken: string,
+    channelId: string,
+    device: string
+  ) =>
+    request<{ ok: true }>('/live-activities', {
+      method: 'POST',
+      body: { token: activityToken, channelId, device },
+      token,
+    }),
+
   home: (token: string) => request<HomeView>('/home', { token }),
 
   /** Reads a profile. Refused as a 404 unless you are entitled to see it. */

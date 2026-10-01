@@ -42,6 +42,7 @@ import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './d
 import { deletionPage } from './deletion';
 import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
+import { LiveActivities } from './live-activities';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
 import { artworkKeyFor, MAX_ARTWORK_BYTES, readArtwork } from './artwork';
@@ -98,6 +99,7 @@ import {
   createPushNotifier,
   NOTIFICATION_PAUSE_MS,
   notifications,
+  type LiveActivityEnder,
   type Pusher,
 } from './push';
 import type { RecordingStore } from './storage';
@@ -107,6 +109,7 @@ import {
   createReachability,
   createSettingsNotifier,
   registerWebsocket,
+  deviceKeyOf,
 } from './ws';
 
 export interface BuildOptions {
@@ -180,6 +183,12 @@ export interface BuildOptions {
    * credential exists.
    */
   androidPusher?: Pusher;
+  /**
+   * Takes a lock screen card down when this server steps its device out. In
+   * production the same `ApnsPusher` as `pusher`, passed twice rather than
+   * inferred, for the reason `androidPusher` gives. Absent, the console.
+   */
+  liveActivityEnder?: LiveActivityEnder;
   now?: () => number;
   logger?: boolean;
   /**
@@ -483,6 +492,19 @@ export function buildApp(options: BuildOptions = {}): App {
   const pusherFor = (platform: DevicePlatform): Pusher =>
     platform === 'android' ? androidPusher : pusher;
   const pushNotifier = createPushNotifier();
+  const liveActivities = new LiveActivities(
+    db,
+    options.liveActivityEnder ?? new ConsolePusher(() => {}),
+    (result) =>
+      fastify.log.warn(
+        {
+          status: result.status,
+          reason: result.reason,
+          error: result.error,
+        },
+        'live activity end refused'
+      )
+  );
 
 
   /**
@@ -797,6 +819,20 @@ export function buildApp(options: BuildOptions = {}): App {
       accounts.byId(userId)?.notifications === 'granted' &&
       devices.tokensFor([userId]).length > 0
   );
+
+  // **Every step-out the server makes takes the card down with it** — the
+  // grace or attention expiring, a removal, a deletion — in the same change,
+  // whether or not the phone holding the card is awake to hear it. An ended
+  // channel counts as one nobody is in. See live-activities.ts.
+  channels.onChange((changedIds) => {
+    for (const channelId of changedIds) {
+      const channel = channels.get(channelId);
+      liveActivities.endWhereAbsent(
+        channelId,
+        channel?.status === 'active' ? channel.present : null
+      );
+    }
+  });
 
   // Publishing, which is the one thing this server does that the world can
   // see. Constructed here beside the registry rather than inside it, on the
@@ -1325,6 +1361,47 @@ export function buildApp(options: BuildOptions = {}): App {
     // asking whether a given token belongs to somebody else.
     devices.forget(token);
     return reply.code(204).send();
+  });
+
+  /**
+   * Records the push token of the lock screen card this device has just put
+   * up, so the server can take it down when it steps this device out. See
+   * live-activities.ts.
+   *
+   * `device` is the id the app puts on its socket; with the bearer token it
+   * makes the same `deviceKey` ws.ts displaces by, which is how a card on a
+   * suspended phone is found when another device steps in.
+   *
+   * **A card for a room the account is not in is ended on arrival.** The app
+   * starts a card from a snapshot saying it is present, and the token follows
+   * a moment later; a step-out that landed in between would otherwise leave a
+   * row that nothing will ever end.
+   */
+  fastify.post('/live-activities', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as
+      | { token?: string; channelId?: string; device?: string }
+      | undefined;
+    const token = body?.token?.trim();
+    const channelId = body?.channelId?.trim();
+    if (!token || !channelId) {
+      return reply.code(400).send({ error: 'token and channelId are required' });
+    }
+    const session = request.headers.authorization?.slice(7) ?? '';
+    liveActivities.register(
+      token,
+      account.id,
+      channelId,
+      deviceKeyOf(body?.device ?? null, sha256(session)),
+      now()
+    );
+    const channel = channels.get(channelId);
+    liveActivities.endWhereAbsent(
+      channelId,
+      channel?.status === 'active' ? channel.present : null
+    );
+    return { ok: true };
   });
 
   // --- Contacts -----------------------------------------------------------
@@ -5413,6 +5490,8 @@ export function buildApp(options: BuildOptions = {}): App {
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,
+      onEntered: (userId, deviceKey) =>
+        liveActivities.endOtherDevices(userId, deviceKey),
       heartbeatIntervalMs: options.heartbeatIntervalMs,
       switchTargets: (identifier) => switchTargets(identifier, switchable),
     });
