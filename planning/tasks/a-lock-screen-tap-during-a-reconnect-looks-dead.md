@@ -61,10 +61,16 @@ it. The finding above said the transition to the background carries no
 timestamp; **that was wrong** (corrected 2026-09-30). `AppState` changes are
 logged permanently, not by the removed temporary lines — `app <state>` in
 `audio/diagnostics.ts`, the source of the `app active` line in the excerpt —
-and ship to the journal with everything else. The excerpt was trimmed. So
-`bin/diagnostics --since "2026-09-30 10:15" --until "2026-09-30 10:45"` may
-answer it from the existing run: an `app background` or `app inactive` line
-just before 10:27:44.364 says locking started the reconnect.
+and ship to the journal with everything else. The excerpt was trimmed. **The excerpt's times are UTC**: the run was 03:27 Pacific, on
+`acct_sudUOdevBXfN`, and `bin/diagnostics`, which prints the phone's stamps
+in local time, finds it there and not at 10:27. The same morning holds more
+than the excerpt — two `room reconnecting` at 03:12 with no tap, a Mute and
+Unmute at 03:28:17, and three taps at 03:47 with no reconnect near them,
+which are the comparison: taps on a healthy connection. So
+`bin/diagnostics --since "2026-09-30 03:26" --until "2026-09-30 03:30"
+--account acct_sudUOdevBXfN` may answer it from the existing run: an `app
+background` or `app inactive` line just before 03:27:44.364 says locking
+started the reconnect.
 
 **Instrumented 2026-09-30, awaiting a run.** Temporary lines, all marked
 TEMPORARY and to go with the fix: `traceSocket` in `api/socket.ts` records the
