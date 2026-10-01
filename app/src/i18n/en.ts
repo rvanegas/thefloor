@@ -1,3 +1,5 @@
+import type { InviteRefusal } from '../state/inviteRefusal';
+
 /**
  * What the app says, in English — the source of truth for what messages exist.
  *
@@ -1502,13 +1504,33 @@ export const en = {
     out: () => 'Out',
   },
   /**
-   * The three sentences the provider produces. They are errors rather than
+   * The sentences the provider produces. They are errors rather than
    * copy, but they reach a screen — `lastError` is drawn on the sign-in
    * screen, and an `ApiError`'s message is what a catch block puts in front
    * of somebody — so they are messages like any other.
    */
   provider: {
     couldNotAcceptInvitation: () => 'Could not accept the invitation.',
+    /**
+     * Why an invite link was refused, said here rather than by the server so
+     * that it can be said in Spanish. The English is the server's own
+     * `refusalText` word for word, which an older server still sends instead;
+     * `unknown` covers `locked` too, the route sending them alike.
+     */
+    inviteRefused: (refusal: InviteRefusal): string => {
+      switch (refusal) {
+        case 'used':
+          return 'This invite link has already been used.';
+        case 'expired':
+          return 'This invite link has expired.';
+        case 'self':
+          return 'This is your own invite link.';
+        case 'too_many':
+          return 'You have followed as many invite links as you can today.';
+        case 'unknown':
+          return 'This invite link cannot be opened.';
+      }
+    },
     signedOut: () =>
       'You were signed out. Sign in again with a fresh code by email.',
     /**

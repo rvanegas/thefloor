@@ -1442,6 +1442,11 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * The refusals are told apart here, unlike a sign-in code's: see
    * `InviteRefusal`. What the app does with them is say them.
+   *
+   * **Each carries a `code` beside the sentence, since 2026-09-30**, so that
+   * the app can say it in the reader's language rather than this server's.
+   * `error` stays, and stays English: an app older than the code reads it,
+   * and a newer one falls back to it for a code it does not know.
    */
   fastify.post('/contacts/invite/accept', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -1465,14 +1470,22 @@ export function buildApp(options: BuildOptions = {}): App {
     // alike, or this becomes the directory `core/username.ts` says there is
     // not — and unlike a pin, a username is guessable by design.
     if (!owner) {
-      return reply.code(400).send({ error: inviteRefusalText('unknown') });
+      return reply
+        .code(400)
+        .send({ error: inviteRefusalText('unknown'), code: 'unknown' });
     }
 
     const result = body.pin
       ? accounts.redeemInvitePin(owner.id, body.pin, account.id, now())
       : accounts.acceptInviteLink(owner.id, account.id, now());
     if (!result.ok) {
-      return reply.code(400).send({ error: inviteRefusalText(result.reason) });
+      // `locked` goes out as `unknown`, the sentence it already shares: a
+      // code of its own would tell apart the two answers the sentence was
+      // made the same to keep alike.
+      const code = result.reason === 'locked' ? 'unknown' : result.reason;
+      return reply
+        .code(400)
+        .send({ error: inviteRefusalText(result.reason), code });
     }
 
     // The same two follow-ups the guest acceptance makes, and for the same

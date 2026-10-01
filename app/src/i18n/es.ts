@@ -1270,6 +1270,20 @@ export const es: Strings = {
   },
   provider: {
     couldNotAcceptInvitation: () => 'No se ha podido aceptar la invitaci\u00f3n.',
+    inviteRefused: (refusal) => {
+      switch (refusal) {
+        case 'used':
+          return 'Este enlace de invitaci\u00f3n ya se ha usado.';
+        case 'expired':
+          return 'Este enlace de invitaci\u00f3n ha caducado.';
+        case 'self':
+          return 'Este es tu propio enlace de invitaci\u00f3n.';
+        case 'too_many':
+          return 'Hoy ya has seguido todos los enlaces de invitaci\u00f3n que puedes.';
+        case 'unknown':
+          return 'Este enlace de invitaci\u00f3n no se puede abrir.';
+      }
+    },
     signedOut: () =>
       'Se ha cerrado tu sesi\u00f3n. Vuelve a entrar con un c\u00f3digo nuevo por correo.',
     notSignedIn: () => 'Sin sesi\u00f3n iniciada.',

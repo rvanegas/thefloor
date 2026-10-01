@@ -58,6 +58,7 @@ import {
   type ColorSchemePreference,
 } from '../ui/appearance';
 import { useInviteLink } from './useInviteLink';
+import { inviteRefusalMessage } from './inviteRefusal';
 import { useText } from '../i18n';
 import { useLanguagePreference } from '../i18n/language';
 import {
@@ -1751,10 +1752,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         setState((s) => ({
           ...s,
-          lastError:
-            error instanceof ApiError
-              ? error.message
-              : words.couldNotAcceptInvitation(),
+          lastError: inviteRefusalMessage(error, words),
         }));
       });
     return () => {

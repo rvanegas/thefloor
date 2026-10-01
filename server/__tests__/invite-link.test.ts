@@ -300,6 +300,77 @@ describe('following a link', () => {
 });
 
 /**
+ * The `code` beside each refusal's sentence, which is what lets the app say it
+ * in the reader's language. `error` is checked alongside, because an app older
+ * than the code still reads it.
+ */
+describe('a refusal names itself', () => {
+  const refusal = (response: { json: () => unknown }) =>
+    response.json() as { error: string; code?: string };
+
+  it('names the owner taking up their own link', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const { username } = halves(await link(alice));
+    expect(refusal(await redeem(alice, username))).toEqual({
+      error: 'This is your own invite link.',
+      code: 'self',
+    });
+  });
+
+  it('names a username nobody holds', async () => {
+    const bob = await signIn('bob@example.com', 'Bob');
+    expect(refusal(await redeem(bob, 'nobody_at_all'))).toEqual({
+      error: 'This invite link cannot be opened.',
+      code: 'unknown',
+    });
+  });
+
+  it('names a day that has run out', async () => {
+    const bob = await signIn('bob@example.com', 'Bob');
+    for (let i = 0; i < LINK_MAX_ACCEPTS; i += 1) {
+      const owner = await named(`o${i}@example.com`, `Owner ${i}`, `owner_${i}`);
+      await redeem(bob, halves(await link(owner)).username);
+    }
+    const extra = await named('extra@example.com', 'Extra', 'extra_one');
+    expect(refusal(await redeem(bob, halves(await link(extra)).username)).code).toBe(
+      'too_many'
+    );
+  });
+
+  it('names an old link that was used, and one that expired', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    const { username, pin } = oldLink(alice, 'alice_k');
+    await redeem(bob, username, pin);
+    expect(refusal(await redeem(carol, username, pin)).code).toBe('used');
+
+    const dave = await named('dave@example.com', 'Dave', 'dave_d');
+    const stale = oldLink(dave, 'dave_d', '111111');
+    clock += INVITE_TTL_MS + 1;
+    expect(refusal(await redeem(carol, stale.username, stale.pin)).code).toBe(
+      'expired'
+    );
+  });
+
+  /**
+   * `locked` shares `unknown`'s sentence on purpose, and a code of its own
+   * would tell apart what the sentence keeps alike.
+   */
+  it('names a lock exactly as it names a username nobody holds', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const { username, pin } = oldLink(alice, 'alice_k');
+    for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
+      await redeem(bob, username, '000000');
+    }
+    expect(refusal(await redeem(bob, username, pin))).toEqual(
+      refusal(await redeem(bob, 'nobody_at_all'))
+    );
+  });
+});
+
+/**
  * The budget, which is what a standing door costs.
  *
  * A link carries no pin, so the accept route names an owner and nothing else —
