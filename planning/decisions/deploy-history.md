@@ -1,5 +1,23 @@
 # The deploy history
 
+## 2026-09-30 — `docker.service` restarted, no deploy
+
+Not a deploy: no code moved, and the box stays on `4c0a622`. It is here
+because it restarted part of the media plane, which is the kind of event this
+record exists to explain afterwards.
+
+**The deploy of `4c0a622` ended by reporting `docker.service` as running
+outdated libraries** — the first time that report fired. That is the
+arrangement working: needrestart no longer restarts livekit-server, egress,
+Redis, docker or containerd on its own, so their patched libraries wait for a
+person, and the deploy is when one is at the keyboard. Only docker was stale;
+which upgrade made it so was not checked.
+
+`bin/restart-services` was run at the prompt with nobody in a call (no open
+`mic` or `listen` span). It restarted docker alone — and with it egress, which
+`Requires=` it — LiveKit answered through Caddy afterwards, and needrestart
+had nothing left stale in the media plane.
+
 ## 2026-09-14 (third) — `a5bbeb1` → `d5401dd`
 
 One paragraph swap on `/`, at the prompt, after reading the live page.
