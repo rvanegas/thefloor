@@ -72,6 +72,28 @@ which are the comparison: taps on a healthy connection. So
 background` or `app inactive` line just before 03:27:44.364 says locking
 started the reconnect.
 
+**Read back 2026-09-30, and two things are settled.** **Locking did not start
+the reconnect**: the lock is `app inactive` at 03:03:35, twenty-four minutes
+earlier. **And the lock screen is not slow**: on a live connection a tap
+reaches `muted CALL` and a moved card in about 60ms, both ways — 03:28:17 and
+03:47:25. So the nine seconds is the reconnect and nothing else; the card
+moved at 03:27:53.197 with the re-entry, 190ms before the unlock, so the unlock
+did not move it either.
+
+**What probably started it is the tap itself**, waking a suspended app. Nothing
+logged `app background` after the 03:03 lock, though the tap at 03:27:44 found
+the app in the background — a transition JavaScript was not running to
+record. And the tap's native half runs first, so `room reconnecting` 47ms
+before the JavaScript line is that wake, not evidence against it. Likely, not
+proven: it was not alone in the room, having resubscribed to one track at
+03:12:09, so the quiet-room suspension `bin/suspend-log` measured does not
+explain it.
+
+**If so, the tap was queued, and it was close.** A socket asleep for a quarter
+of an hour is closed; the re-entry at 03:27:53.17 is 8.8s after the tap,
+against `OFFLINE_AFTER_MS` of 10s. A slightly slower reconnect discards the
+tap silently and the card never moves — the worse case above, nearly met.
+
 **Instrumented 2026-09-30, awaiting a run.** Temporary lines, all marked
 TEMPORARY and to go with the fix: `traceSocket` in `api/socket.ts` records the
 control socket connecting, opening (with how many actions were queued),
@@ -79,7 +101,9 @@ closing, suspending, resuming and going offline (with how many were dropped),
 and a `SET_SELF_MUTE` as `sent` or `queued` with the delay to the snapshot
 that answers it; `useLockScreen.ts` records the tap and each card change again.
 
-**Next:** on a debug account, lock the phone in a channel, wait for `room
-reconnecting`, tap Mute, and read it back with `bin/diagnostics`. `socket
-queued SET_SELF_MUTE` means the tap waited for the socket; `socket sent` with a
-long `snapshot … after the send` means the server's answer was what waited.
+**Next:** on a debug account, in a channel, lock the phone and leave it long
+enough to be suspended — a quarter of an hour did it — then tap Mute, and read
+it back with `bin/diagnostics`. `socket connecting` straight after the `lock
+tap`, then `socket queued SET_SELF_MUTE`, confirms the wake and the queue;
+`socket sent` with a long `snapshot … after the send` would mean the server's
+answer was what waited instead.
