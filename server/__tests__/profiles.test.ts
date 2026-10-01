@@ -716,6 +716,88 @@ describe('asking somebody in your channel to be a contact', () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  /**
+   * Home cannot say this — its outgoing rows carry an address and an empty id
+   * — so a profile reached by id has to, or *Add contact* goes straight back to
+   * *Add contact* after a request that worked.
+   */
+  describe('saying on their profile that you asked', () => {
+    const requested = async (viewer: User, id: string) =>
+      ((await read(viewer, id)).json() as { requested?: boolean }).requested;
+
+    it('is said once you have asked, and to nobody else', async () => {
+      const { alice, bob, carol } = await strangersInAChannel();
+      expect(await requested(bob, carol.account.id)).toBeUndefined();
+
+      await ask(bob, carol.account.id);
+
+      expect(await requested(bob, carol.account.id)).toBe(true);
+      // The other direction is an incoming request, which Home already shows.
+      expect(await requested(carol, bob.account.id)).toBeUndefined();
+      expect(await requested(alice, carol.account.id)).toBeUndefined();
+      // Home is unchanged: still an address, still no id.
+      const outgoing = app.accounts
+        .contactsFor(bob.account.id)
+        .find((entry) => entry.status === 'outgoing');
+      expect(outgoing?.account).toEqual({
+        id: '',
+        displayName: 'carol@example.com',
+      });
+    });
+
+    it('says no more for a request made by address than asking by id already does', async () => {
+      // A request by address to somebody you share a channel with is visible
+      // here — and was already, as the by-id route's refusal. Both are below.
+      const { bob, carol } = await strangersInAChannel();
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/request',
+        headers: auth(bob.token),
+        payload: { identifier: 'carol@example.com' },
+      });
+
+      expect(await requested(bob, carol.account.id)).toBe(true);
+      expect(
+        ((await ask(bob, carol.account.id)).json() as { error: string }).error
+      ).toBe('Request already sent.');
+    });
+
+    it('stops once they accept', async () => {
+      const { bob, carol } = await strangersInAChannel();
+      await ask(bob, carol.account.id);
+      await app.fastify.inject({
+        method: 'POST',
+        url: `/contacts/${bob.account.id}/accept`,
+        headers: auth(carol.token),
+      });
+      expect(await requested(bob, carol.account.id)).toBeUndefined();
+    });
+
+    it('stops once they decline', async () => {
+      const { bob, carol } = await strangersInAChannel();
+      await ask(bob, carol.account.id);
+      await app.fastify.inject({
+        method: 'POST',
+        url: `/contacts/${bob.account.id}/decline`,
+        headers: auth(carol.token),
+      });
+      expect(await requested(bob, carol.account.id)).toBeUndefined();
+    });
+
+    it('stops once you withdraw', async () => {
+      const { bob, carol } = await strangersInAChannel();
+      await ask(bob, carol.account.id);
+      const withdrawn = await app.fastify.inject({
+        method: 'POST',
+        url: '/contacts/withdraw',
+        headers: auth(bob.token),
+        payload: { identifier: 'carol@example.com' },
+      });
+      expect(withdrawn.statusCode).toBe(200);
+      expect(await requested(bob, carol.account.id)).toBeUndefined();
+    });
+  });
 });
 
 /**

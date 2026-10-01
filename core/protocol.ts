@@ -86,6 +86,27 @@ export interface ProfileView {
    */
   invitedBy?: PublicAccount;
   /**
+   * That the reader has asked this person to be a contact and they have not
+   * answered. Since 2026-09-30.
+   *
+   * **Here because Home cannot say it.** Home's outgoing rows carry an address
+   * and an empty id, so that a request to a real account and one to an address
+   * with nobody behind it look the same — and a screen that finds its person
+   * by id therefore never finds an outgoing request at all. *Add contact*
+   * worked and went straight back to *Add contact*, and only a second tap's
+   * refusal said otherwise.
+   *
+   * **It unmasks nothing that was not already answerable.** The profile is
+   * readable only by somebody entitled to the id, and asking that id for a
+   * contact already answers *Request already sent.* for any pending request
+   * from the reader, however it was made. This says on arrival what that
+   * refusal said on the second tap.
+   *
+   * Absent rather than false, the shape an older server sends; a client reads
+   * both as *not asked*.
+   */
+  requested?: boolean;
+  /**
    * Where this person has been in each channel the two of you share.
    *
    * One entry per shared channel, and deliberately nothing that Home already

@@ -1227,6 +1227,27 @@ describe('a ping', () => {
     );
   });
 
+  /**
+   * The window is on every roster card, so it has to reach every roster.
+   * A ping changes nothing a reducer knows about, and until 2026-09-30 it
+   * therefore waited for the next unrelated change to be seen by anybody but
+   * the sender's own tap.
+   */
+  it('announces the channel, and only a ping that was sent', async () => {
+    const { alice, bob, channelId } = await bobStepsOut();
+    const announced: string[][] = [];
+    const stop = app.channels.onChange((ids) => announced.push([...ids]));
+
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    expect(announced).toEqual([[channelId]]);
+    expect(app.channels.pingWindows(channelId)[bob.account.id]).toBeDefined();
+
+    // Refused inside the window: nothing changed, so nothing is announced.
+    await ping(alice.token, channelId, { targetId: bob.account.id });
+    stop();
+    expect(announced).toEqual([[channelId]]);
+  });
+
   it('refuses to ping somebody standing in the room', async () => {
     const { alice, bob, channelId } = await bobStepsOut();
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });

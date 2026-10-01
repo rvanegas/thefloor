@@ -1038,6 +1038,11 @@ export class Accounts {
       viewerId === id || this.areContacts(viewerId, id)
         ? this.imHandles(row)
         : {};
+    // See `ProfileView.requested` for why this does not undo the masking of
+    // outgoing rows in `contactsFor`.
+    const standing = viewerId === id ? null : this.contactState(viewerId, id);
+    const requested =
+      standing?.state === 'pending' && standing.requester === viewerId;
     return {
       account: { id: row.id, displayName: row.display_name },
       // Everybody entitled to the profile gets it, unlike the handles above —
@@ -1049,6 +1054,7 @@ export class Accounts {
       // Absent rather than empty, which is what the client reads as "nothing
       // to draw" — the same shape a server that predates this sends.
       ...(Object.keys(im).length > 0 ? { im } : {}),
+      ...(requested ? { requested: true } : {}),
     };
   }
 

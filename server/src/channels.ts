@@ -4426,6 +4426,13 @@ export class ChannelRegistry {
         channelId
       )
     );
+    // Nothing about the channel changed, but its snapshot did: `pingableAt`
+    // and `pingTexts` are on every member's roster card and on the profile.
+    // Without this they waited for whatever unrelated change came next, so
+    // nobody but the sender saw *Pinged* — and the sender stopped seeing it
+    // once the card's own tap was forgotten, the profile composer coming back
+    // on reopening. Emitted the way the nearby echo is, without a dispatch.
+    this.emit([channelId]);
     return { ok: true };
   }
 

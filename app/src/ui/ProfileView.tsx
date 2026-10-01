@@ -445,9 +445,17 @@ export function ProfileView({
 
   // Their standing with you, if any. Absent from the list means a stranger —
   // which, on a profile reached from a channel roster, is the whole point.
-  const contact = (app.home?.contacts ?? []).find(
+  //
+  // **Except an outgoing request, which Home can never be matched on**: its
+  // rows carry an address and an empty id, deliberately — see
+  // `Accounts.contactsFor`. So that one standing comes from the profile's own
+  // `requested` instead, and Home's answer wins wherever it has one, an accept
+  // or a crossed request arriving there first.
+  const homeContact = (app.home?.contacts ?? []).find(
     (entry) => entry.account.id === accountId
   );
+  const contact: { status: string } | undefined =
+    homeContact ?? (profile?.requested ? { status: 'outgoing' } : undefined);
 
   /**
    * What this screen is, said above the name — *Contact*, which is the word a
@@ -576,7 +584,14 @@ export function ProfileView({
     setAsking(true);
     setAskError(null);
     try {
-      await app.connectWith(accountId);
+      const { accepted } = await app.connectWith(accountId);
+      // What the server would now say if the profile were fetched again, set
+      // rather than fetched: a request that is not an accept is an outgoing
+      // one, and Home cannot show it — see `contact` above. An accept needs
+      // nothing, Home carrying it on the snapshot `connectWith` waited for.
+      if (!accepted) {
+        setProfile((p) => (p ? { ...p, requested: true } : p));
+      }
     } catch (e) {
       setAskError(e instanceof Error ? e.message : String(e));
     } finally {
