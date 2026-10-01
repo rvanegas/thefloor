@@ -1,0 +1,13 @@
+Pasting a link no longer asks "Allow Paste?". Each paste button is now iOS's own Paste control, with what it does written beneath it. With nothing copied, it says what to copy first.
+
+The lock screen card has Out, which steps you out of the room. Open is gone; tapping the card still opens the channel.
+
+A Short stays upright in full screen, whichever way the phone is held.
+
+A film goes on playing through a brief loss of connection on the device showing it.
+
+A profile says "Request sent" as soon as you tap Add contact, and "Pinged" appears on everybody's People straight away.
+
+When an invitation cannot be accepted, the reason is given in Spanish as well as English.
+
+Help ends with the app's version and build number.
