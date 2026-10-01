@@ -297,8 +297,11 @@ describe('Channel, watching together', () => {
       .mockReturnValue(true);
     const read = jest.spyOn(Clipboard, 'getStringAsync');
     read.mockClear();
+    // Asking whether there is text is not reading it, and draws no sheet.
+    jest.mocked(Clipboard.hasStringAsync).mockResolvedValueOnce(true);
     showChannel(channelOf());
     const tree = open();
+    await act(async () => {});
 
     // The words the button carried are the caption under the control.
     expect(textOf(tree)).toContain('Watch something together');
@@ -317,6 +320,29 @@ describe('Channel, watching together', () => {
       type: 'START_WATCH',
       url: URL,
     });
+    act(() => tree.unmount());
+    available.mockRestore();
+  });
+
+  it('says what to copy, rather than an empty slot, when the clipboard holds nothing', async () => {
+    // On a device the control draws nothing at all for an empty clipboard,
+    // so it is not drawn: the refused button is, saying what would light it.
+    const available = jest
+      .spyOn(clipboard, 'systemPasteAvailable')
+      .mockReturnValue(true);
+    const read = jest.spyOn(Clipboard, 'getStringAsync');
+    read.mockClear();
+    showChannel(channelOf());
+    const tree = open();
+    await act(async () => {});
+
+    const button = findButton(tree, 'Watch something together')!;
+    expect(button.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Copy a YouTube link first');
+    expect(
+      tree.root.findAll((node) => node.type === 'ClipboardPasteButton')
+    ).toHaveLength(0);
+    expect(read).not.toHaveBeenCalled();
     act(() => tree.unmount());
     available.mockRestore();
   });

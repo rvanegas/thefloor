@@ -47,6 +47,7 @@ export const es: Strings = {
   shared: {
     close: () => 'Cerrar',
     labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
+    copySomethingFirst: () => 'Copia algo primero',
   },
   offline: {
     partlyConnected: () => 'Conexión parcial',
@@ -1135,6 +1136,7 @@ export const es: Strings = {
     copyVideoLink: () => 'Copiar el enlace del v\u00eddeo',
     watchSomethingTogether: () => 'Ver algo juntos',
     watchSomethingTogetherSub: () => 'Un enlace de YouTube de tu portapapeles',
+    copyAYouTubeLinkFirst: () => 'Copia primero un enlace de YouTube',
     hideWhatWeHaveWatched: () => 'Ocultar lo que hemos visto',
     watchedBefore: (count: number) => `Vistas antes (${count})`,
     watchedBeforeSub: () => 'Vuelve a poner una, sin enlace',

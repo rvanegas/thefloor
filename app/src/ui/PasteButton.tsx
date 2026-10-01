@@ -7,7 +7,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { ClipboardPasteButton } from 'expo-clipboard';
-import { pasteText, systemPasteAvailable } from '../clipboard';
+import {
+  pasteText,
+  systemPasteAvailable,
+  useClipboardHasPasteable,
+} from '../clipboard';
+import { useText } from '../i18n';
 import { Button } from './components';
 import { colors, spacing, type } from './theme';
 
@@ -38,13 +43,22 @@ import { colors, spacing, type } from './theme';
  * nothing it accepts — and a control the state would overrule is drawn as
  * one that says so, not as a live one that does nothing (STYLE.md rule 9).
  *
+ * **And when the clipboard holds nothing it takes**, since 2026-09-30. On a
+ * device the control does not grey itself for that, as was assumed when it
+ * went in: it draws nothing, and the caption sat under an empty slot. So the
+ * clipboard is asked first — without being read, see
+ * `useClipboardHasPasteable` — and an empty one gets the disabled `Button`
+ * with `emptySublabel`, which says what to go and do rather than what the
+ * press would have done.
+ *
  * Either way the caller is handed the text, or null for nothing. An empty
  * clipboard is null through the fallback and cannot happen through the
- * control, which will not light for one.
+ * control, which is not drawn for one.
  */
 export function PasteButton({
   label,
   sublabel,
+  emptySublabel,
   onPaste,
   disabled,
   variant = 'default',
@@ -53,18 +67,27 @@ export function PasteButton({
   /** What the press does, in words. The caption under the system control. */
   label: string;
   sublabel?: string;
+  /** The sublabel while the clipboard holds nothing to paste: what to copy. */
+  emptySublabel?: string;
   onPaste: (text: string | null) => void;
   disabled?: boolean;
   variant?: 'default' | 'primary';
   style?: StyleProp<ViewStyle>;
 }) {
-  if (disabled || !systemPasteAvailable()) {
+  const shared = useText().shared;
+  const system = systemPasteAvailable();
+  const empty = useClipboardHasPasteable(system && !disabled) === false;
+  if (disabled || !system || empty) {
     return (
       <Button
         label={label}
-        sublabel={sublabel}
+        sublabel={
+          empty && !disabled
+            ? (emptySublabel ?? shared.copySomethingFirst())
+            : sublabel
+        }
         variant={variant}
-        disabled={disabled}
+        disabled={disabled || empty}
         style={style}
         onPress={() => void pasteText().then(onPaste)}
       />

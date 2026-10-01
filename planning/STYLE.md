@@ -453,9 +453,13 @@ What that costs, all of it forced:
   colours** rather than set through `style`, which the control ignores.
   `colors.*` go over opaque and the native side resolves them, so rule 2
   holds. The corner is Apple's `large`, the nearest it offers to `radius.md`.
-- **It greys itself** when the clipboard holds no text or link, without
-  reading it. It has no refused state that the app can set, so **a refused
-  paste is drawn as the ordinary disabled `Button`**, words and all — rule 9.
+- **It has no refused state that the app can set**, so **a refused paste is
+  drawn as the ordinary disabled `Button`**, words and all — rule 9.
+- **Nor an empty one: on a device it draws nothing** when the clipboard holds
+  no text or link — not grey, nothing, the caption left under a blank slot.
+  The simulator draws it anyway. So the clipboard is asked first, without
+  being read, and an empty one gets the disabled `Button` too, its sublabel
+  saying what to copy — *Copy a YouTube link first* on the watch card.
 - **A row holding one is top-aligned** (`buttonRowTop`), since the caption
   would otherwise stretch its neighbour.
 

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 /**
@@ -74,4 +76,47 @@ export async function pasteText(): Promise<string | null> {
  */
 export function systemPasteAvailable(): boolean {
   return Clipboard.isPasteButtonAvailable === true;
+}
+
+/**
+ * Whether the clipboard holds anything the system paste control would take —
+ * text or a link — **asked without reading it**, so without a prompt:
+ * `hasStrings` and `hasURLs` are the questions iOS answers silently.
+ *
+ * It matters because the control does not grey itself for an empty clipboard,
+ * whatever its documentation implies: **on a device it draws nothing at all**,
+ * leaving the caption under an empty slot. The simulator draws it either way,
+ * which is how that reached build 319. So `PasteButton` asks this first.
+ *
+ * Asked again whenever the clipboard changes in this app and whenever the app
+ * comes back to the front, which is when a link copied elsewhere arrives.
+ * Null until the first answer, which a caller treats as *yes*: the control is
+ * what it would have drawn anyway. Only runs where `enabled`, which is where
+ * the control exists at all.
+ */
+export function useClipboardHasPasteable(enabled: boolean): boolean | null {
+  const [has, setHas] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    const ask = () => {
+      void Promise.all([
+        Clipboard.hasStringAsync().catch(() => true),
+        Clipboard.hasUrlAsync().catch(() => true),
+      ]).then(([text, url]) => {
+        if (live) setHas(text || url);
+      });
+    };
+    ask();
+    const changed = Clipboard.addClipboardListener(ask);
+    const front = AppState.addEventListener('change', (next) => {
+      if (next === 'active') ask();
+    });
+    return () => {
+      live = false;
+      changed.remove();
+      front.remove();
+    };
+  }, [enabled]);
+  return has;
 }

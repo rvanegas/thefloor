@@ -47,6 +47,8 @@ export const en = {
      * language may make a different one.
      */
     labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
+    /** A paste button's sublabel while the clipboard holds nothing it takes. */
+    copySomethingFirst: () => 'Copy something first',
   },
   offline: {
     partlyConnected: () => 'Partly connected',
@@ -1356,6 +1358,7 @@ export const en = {
     copyVideoLink: () => 'Copy video link',
     watchSomethingTogether: () => 'Watch something together',
     watchSomethingTogetherSub: () => 'A YouTube link on your clipboard',
+    copyAYouTubeLinkFirst: () => 'Copy a YouTube link first',
     hideWhatWeHaveWatched: () => 'Hide what we have watched',
     watchedBefore: (count: number) => `Watched before (${count})`,
     watchedBeforeSub: () => 'Puts one of them back on, without a link',
