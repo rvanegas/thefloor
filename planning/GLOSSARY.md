@@ -1292,9 +1292,13 @@ that is answered**: giving up the room gives up the audio session, after which
 iOS may suspend the app before a snapshot takes the card down, so the intent
 waits to hear whether the step-out reached the socket and ends the card itself
 if it did. If it was only queued the card stays, because the device is still
-in the room and can still be heard. It is declared to need no passcode, which
-is iOS 26's setting — though Mute declares the same by default and has been
-seen asking; see *Unmute without Unlock*.
+in the room and can still be heard.
+
+**Both buttons ask for Face ID or the passcode on a locked iOS 26 phone**,
+though both declare `.alwaysAllowed`: iOS requires it of third-party Live
+Activity buttons whatever they declare, and Face ID answers it unseen when the
+phone is being looked at. See
+`decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
 
 **Muting is the thing that *can* be done from a locked phone**, and the reason
 is worth keeping: a self-muted member still needs the microphone, so the audio

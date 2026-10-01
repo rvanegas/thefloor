@@ -11,9 +11,12 @@ on build 320, 2026-09-30. From the diagnostics:
     10:27:53.385 app active
 
 A button that does nothing visible gets tapped again, and then the phone gets
-unlocked to go and look — which is plausibly how this was first reported as
-"unmuting asks for a passcode". That task was closed once a locked phone was
-seen unmuting without one. Find out why the card waits for the reconnect —
+unlocked to go and look. This was once thought to be how "unmuting asks for a
+passcode" came to be reported; **it is not** — the lock screen asks for the
+passcode outright, whatever the app declares, and the run that seemed to show
+otherwise had Face ID answering unseen
+(`decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`).
+This task is the nine seconds, which is separate. Find out why the card waits for the reconnect —
 whether the tap is queued behind the socket and the card only follows a
 snapshot — and whether it can show what was asked for in the meantime without
 claiming a microphone state the room does not have yet. Also worth knowing

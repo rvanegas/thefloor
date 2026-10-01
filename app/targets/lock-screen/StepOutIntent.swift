@@ -28,14 +28,14 @@ import AppIntents
  audible that they had left. It comes down the ordinary way, with the snapshot
  that follows the reconnect.
 
- **No passcode, stated rather than relied on.** `authenticationPolicy` is iOS
- 26, and `.alwaysAllowed` is already what `ToggleMuteIntent`'s built metadata
- records without saying so — and on build 320 a locked phone ran Mute's tap
- with no passcode and without opening the app. So this line is the intent
- written down rather than a fix: nothing was asking for one to begin with.
- The worst anybody holding somebody else's phone can do with this is
- take them out of a conversation the card already names. Decided 2026-09-29;
- see `planning/decisions/2026-09-29-the-lock-screen-carries-a-way-out.md`.
+ **`.alwaysAllowed` is the intent, and iOS asks anyway.** On iOS 26 a locked
+ phone wants Face ID or the passcode before this runs, declaration or not —
+ the build 320 run that seemed to show otherwise was a phone Face ID had
+ already unlocked. See
+ `planning/decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
+ It stays, and `ToggleMuteIntent` now says the same: the worst anybody holding
+ somebody else's phone can do with this is take them out of a conversation the
+ card already names, so asking is iOS's choice and not this app's.
  */
 @available(iOS 17.0, *)
 struct StepOutIntent: LiveActivityIntent {

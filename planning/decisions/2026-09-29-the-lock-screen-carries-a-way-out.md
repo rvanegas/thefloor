@@ -42,18 +42,18 @@ left. It comes down the ordinary way, with the snapshot after the reconnect,
 or at the end of the grace if there is no reconnect. No answer at all is
 treated as false for the same reason.
 
-## No passcode
+## No passcode, declared — and asked for all the same
 
 **`authenticationPolicy` is `.alwaysAllowed`**, which is iOS 26's setting and
 did not exist before it; the property is declared `@available(iOS 26.0, *)`.
 
-**It is stated, not relied on.** This entry first guessed that the default
-policy was why the Mute button asks for a passcode (*Unmute without Unlock*).
-Commit a81c270c, landed the same day from the session chasing that task, had
-already found `ToggleMuteIntent`'s built metadata recording `alwaysAllowed`
-with nothing declared — so the default is not the cause, and whatever is may
-make Out ask too. Its temporary logging is what will tell; until then the line
-here is the instruction written down.
+**Corrected 2026-10-01: iOS asks regardless.** This section went on to say
+the declaration was redundant, a locked phone having run Mute with no
+passcode on build 320. That phone was held to its owner's face, and Face ID
+had satisfied the check. With Face ID kept out of it, Out asks too, as does
+another app's Live Activity button.
+`2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md` is the account,
+and Mute now declares the same.
 
 The instruction was explicit, and the reasoning is short: the worst somebody
 holding another person's phone can do with this button is take them out of a
@@ -94,8 +94,9 @@ things can only be judged there:
   when there were two, chosen by looking; a third at the same scale takes about
   sixty more points from the name. Look before changing the number.
 - **The walk:** step in, lock, tap Out — the room hears the falling chime and
-  the card goes; the same in airplane mode — the card stays; on iOS 26, no
-  passcode is asked for.
+  the card goes; the same in airplane mode — the card stays. (*On iOS 26, no
+  passcode is asked for* was the third check, and is false — see the
+  correction above.)
 
 A project generated before this change needs `prebuild --clean`: the plugin
 returns early on a project that already has the widget target, so the new file
