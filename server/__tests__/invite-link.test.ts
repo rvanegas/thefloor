@@ -608,6 +608,36 @@ describe('the call to action, on a box that cannot make the usual one', () => {
     expect(body).toContain('Alice');
   });
 
+  /**
+   * The return tap, which is how an install keeps the invitation: the App
+   * Store drops the address, so the page asks the reader to come back and
+   * open the app from it. Only beside the store button — a box with no store
+   * link has no installs to open.
+   */
+  it('offers the return tap into the app beside the install', () => {
+    const body = drawn({ appStoreUrl: STORE });
+    expect(body).toContain('<a href="thefloor://i/alice_k">Open in the app</a>');
+    expect(body).toContain('come back to this link and tap Open in the app');
+  });
+
+  it('offers no return tap where there is no install to return from', () => {
+    for (const extra of [{ webAppReady: true }, {}]) {
+      expect(drawn(extra)).not.toContain('thefloor://');
+    }
+  });
+
+  it('still says it in a few sentences with the return tap drawn', () => {
+    const body = drawn({ appStoreUrl: STORE, webAppReady: true });
+    const prose = body
+      .slice(body.indexOf('<body>'))
+      .replace(/<script[\s\S]*?<\/script>/g, ' ')
+      .replace(/<svg[\s\S]*?<\/svg>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    expect(prose.split(' ').length).toBeLessThan(120);
+  });
+
   it('never writes an empty href in any of the four', () => {
     for (const extra of [
       { appStoreUrl: STORE, webAppReady: true },

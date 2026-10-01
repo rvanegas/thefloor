@@ -117,8 +117,9 @@ keeping because it recurs: no installed build can be reached by a scheme URL
 until one ships carrying the handler for *that* URL. The scheme being
 registered is not the same as the path being understood — installed builds have
 opened on `thefloor://` since build 288 and ignored `/i/` paths entirely, which
-is why `tasks/the-invite-page-can-offer-open-in-the-app.md` holds the invite
-page's button back until a build carrying `useInviteLink.ts` is *released*.
+is why the invite page's button was held back until a build carrying
+`useInviteLink.ts` was *released* — build 316, and the button followed on
+2026-09-30.
 
 ## What it would cost here
 

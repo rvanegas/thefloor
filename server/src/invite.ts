@@ -150,7 +150,7 @@ const CARD = {
 };
 
 /**
- * The two rules `CTA_STYLE` does not carry, because only this page wants them.
+ * The rules `CTA_STYLE` does not carry, because only this page wants them.
  *
  * `.lede` and the button furniture are shared — see `CTA_STYLE` in html.ts,
  * and the warning there that nothing in it may assume a light ground, which is
@@ -158,6 +158,7 @@ const CARD = {
  */
 const STYLE = `${CTA_STYLE}
   .ends { font-size: 0.9rem; opacity: 0.7; margin: 2rem 0 0; }
+  .app { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
 `;
 
 export interface InvitePageOptions {
@@ -313,11 +314,24 @@ export function invitePage(options: InvitePageOptions): string {
   const name = escapeHtml(raw);
 
   // The second step of the one call to action, and on this page it is what the
-  // install buys: the link is taken up by the app the moment there is a
-  // session, so the person arrives with a contact and a channel rather than an
-  // empty Home. A box with no store link says the same about the browser — see
-  // callToAction.
-  const aside = `Free. ${name} is in your contacts as soon as you sign in.`;
+  // install buys — but only by way of the return tap, since a trip through the
+  // App Store drops the address. So the aside says to come back, and the line
+  // below is what the app takes the invitation up from, holding it across the
+  // sign-in (`useInviteLink.ts`). A box with no store link says the same about
+  // the browser — see callToAction.
+  const aside = `Free. Once it’s installed, come back to this link and tap Open in the app below: ${name} is in your contacts as soon as you sign in.`;
+
+  // The return tap. Drawn only beside the store button: a box with no store
+  // link has no installs to open, and the aside above is what points here.
+  // `thefloor://` rather than an `https://` link, permanently — a universal
+  // link does not fire from a page on its own domain, so it would only reload
+  // this tab; planning/UNIVERSAL-LINKS.md § *The button is a custom scheme*.
+  // Somebody who taps it before installing gets Safari's error and the store
+  // button above it, which is why it says *once you have it*.
+  const openInApp = options.appStoreUrl
+    ? `<p class="app"><a href="thefloor://i/${escapeHtml(options.username)}">Open in the app</a>
+— once you have it.</p>`
+    : '';
 
   // Offered only where there is something to open, the way `landing.ts`
   // withholds its browser link: a box can quite normally be serving no web app
@@ -355,6 +369,7 @@ you are here.</p>`
 into: you arrive when it suits you, and whoever is there is there.</p>
 
 ${callToAction(options, aside)}
+${openInApp}
 ${browser}
 ${neither}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
