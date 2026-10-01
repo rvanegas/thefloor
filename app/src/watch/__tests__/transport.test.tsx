@@ -772,8 +772,9 @@ describe('a film that has run out', () => {
  *
  * **Written 2026-09-27, because the number this application reports about
  * itself had never been apportioned.** `watch playing after 1463ms` — the
- * median of nineteen presses on build 303, and the whole of
- * tasks/the-transport-says-nothing-while-the-film-starts.md — had been read as
+ * median of nineteen presses on build 303, and the wait that
+ * decisions/2026-10-01-the-transport-stays-quiet-while-the-film-starts.md
+ * leaves undrawn — had been read as
  * *the round trip plus the embed starting*, and it is neither of those on its
  * own: the round trip is over before the clock starts, and up to a
  * `FOLLOW_TICK_MS` of the figure is this application noticing rather than the
