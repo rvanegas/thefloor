@@ -169,8 +169,6 @@ export const en = {
     answer: () => 'Answer',
     /** `since` is already a phrase — see `relativeTime.ago`. */
     askedNotAnswered: (since: string) => `Asked ${since} \u00b7 not answered yet`,
-    /** At the foot of the screen, so an asker can say which app they have. */
-    version: (version: string, build: string) => `Version ${version} (${build})`,
   },
   auth: {
     /**
@@ -449,6 +447,8 @@ export const en = {
     audioLab: () => 'Audio lab',
     audioLabWhy: () =>
       'A bench for the iOS audio session. Run a trial outside any channel, or what it measures is three writers arguing.',
+    /** Under the Support tab's cards, so an asker can say which app they have. */
+    version: (version: string, build: string) => `Version ${version} (${build})`,
     putItOnYourPhone: () => 'Put The Floor on your phone',
     browserCannotNotify: () =>
       'A browser cannot notify you, so nobody can reach you here unless you are looking. The app can.',

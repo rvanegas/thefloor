@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { appBuild, appVersion } from "../api/build";
 import { useApp } from "../state/AppProvider";
 import { answersWaiting } from "../state/helpSeen";
 import { Button, Card, IconButton, Screen, Segmented } from "./components";
@@ -938,7 +939,29 @@ function SupportBody({
           <Text style={type.muted}>{t.audioLabWhy()}</Text>
         </Card>
       ) : null}
+
+      {/* Last, and small: what somebody reporting a problem is asked for
+          first, on the tab they come to with one. It sat at the foot of
+          Help until 2026-10-02. */}
+      <VersionLine />
     </View>
+  );
+}
+
+/**
+ * `Version 1.8.0 (316)`, or nothing when the platform will not say either —
+ * a development web bundle has neither, and a line reading "(unknown)" would
+ * only invite a question about itself.
+ */
+function VersionLine() {
+  const t = useText().home;
+  const version = appVersion();
+  const build = appBuild();
+  if (!version && build === null) return null;
+  return (
+    <Text style={styles.version}>
+      {t.version(version ?? "?", build === null ? "?" : String(build))}
+    </Text>
   );
 }
 
@@ -1471,6 +1494,13 @@ const styles = StyleSheet.create({
   container: { padding: spacing(2.5), paddingBottom: spacing(6) },
   /** The Podcasts tab's body, which fills rather than scrolls; see above. */
   fill: { flexGrow: 1 },
+  /** The Support tab's last line; see `VersionLine`. */
+  version: {
+    fontSize: 11,
+    color: colors.textFaint,
+    textAlign: "center",
+    marginTop: spacing(1),
+  },
   /**
    * The pinned top. It carries `container`'s horizontal padding itself, being
    * outside the scroll, so the title lines up with the rows under it, and the

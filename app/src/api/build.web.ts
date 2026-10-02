@@ -47,7 +47,7 @@ export function appBuild(): number | null {
 
 /**
  * The version of the same train, inlined beside the build by `bin/deploy-web`
- * from the same `app.json`. Shown at the foot of Help and sent nowhere.
+ * from the same `app.json`. Shown under the Support tab and sent nowhere.
  */
 const version = process.env.EXPO_PUBLIC_VERSION?.trim() || null;
 

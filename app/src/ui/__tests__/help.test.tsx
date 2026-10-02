@@ -90,6 +90,23 @@ describe('the way in', () => {
     act(() => tree.unmount());
   });
 
+  it('says which version and build it is, under the cards', async () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
+    const tree = render(<HomeView {...homeNav} list="support" />);
+    await settle();
+
+    expect(textOf(tree)).toContain('Version 1.8.0 (316)');
+    act(() => tree.unmount());
+  });
+
+  it('does not say it on the help screen as well', async () => {
+    const tree = render(<HelpView onBack={() => {}} />);
+    await settle();
+
+    expect(textOf(tree)).not.toContain('Version 1.8.0');
+    act(() => tree.unmount());
+  });
+
   it('opens the screen rather than doing anything itself', async () => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     const onOpenHelp = jest.fn();
@@ -105,14 +122,6 @@ describe('the way in', () => {
 });
 
 describe('the help screen', () => {
-  it('says which version and build it is, at the foot', async () => {
-    const tree = render(<HelpView onBack={() => {}} />);
-    await settle();
-
-    expect(textOf(tree)).toContain('Version 1.8.0 (316)');
-    act(() => tree.unmount());
-  });
-
   it('shows an unanswered question as waiting rather than hiding it', async () => {
     mockApp.loadHelp.mockResolvedValueOnce({
       questions: [

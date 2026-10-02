@@ -150,8 +150,6 @@ export const es: Strings = {
     answer: () => 'Respuesta',
     askedNotAnswered: (since: string) =>
       `Preguntado hace ${since} \u00b7 sin responder todav\u00eda`,
-    version: (version: string, build: string) =>
-      `Versi\u00f3n ${version} (${build})`,
   },
   auth: {
     brand: () => 'The Floor',
@@ -347,6 +345,8 @@ export const es: Strings = {
     audioLab: () => 'Laboratorio de audio',
     audioLabWhy: () =>
       'Un banco de pruebas para la sesi\u00f3n de audio de iOS. Haz una prueba fuera de cualquier canal, o lo que mide son tres cosas discutiendo.',
+    version: (version: string, build: string) =>
+      `Versi\u00f3n ${version} (${build})`,
     putItOnYourPhone: () => 'Instala The Floor en tu tel\u00e9fono',
     browserCannotNotify: () =>
       'Un navegador no puede avisarte, as\u00ed que nadie puede localizarte aqu\u00ed a menos que est\u00e9s mirando. La app s\u00ed.',
