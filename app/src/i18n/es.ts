@@ -902,7 +902,6 @@ export const es: Strings = {
     sent: () => 'Enviado.',
     pinged: () => 'Avisado.',
     pingAgainIn: (wait: string) => ` Puedes volver a avisarle dentro de ${wait}.`,
-    notPingedAgain: () => ' No se le volver\u00e1 a avisar durante unos minutos.',
     said: (who: string) => `${who} dijo:`,
     pingPlaceholder: () => 'Lo que quieras decir (opcional)',
     charactersLeft: (left: number) => `quedan ${left}`,

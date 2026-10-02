@@ -1113,7 +1113,6 @@ export const en = {
     sent: () => 'Sent.',
     pinged: () => 'Pinged.',
     pingAgainIn: (wait: string) => ` You can ping them again in ${wait}.`,
-    notPingedAgain: () => ' They will not be pinged again for a few minutes.',
     said: (who: string) => `${who} said:`,
     pingPlaceholder: () => 'Anything you want to say (optional)',
     charactersLeft: (left: number) => `${left} left`,

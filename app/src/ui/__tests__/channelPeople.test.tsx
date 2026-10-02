@@ -1914,7 +1914,8 @@ describe('pinging somebody who is not in the room', () => {
   const renderProfile = async (
     onPing?: (text: string) => Promise<void>,
     pingableAt?: number | null,
-    pingedWith?: { by: string | null; text: string } | null
+    pingedWith?: { by: string | null; text: string } | null,
+    onBack: () => void = () => {}
   ) => {
     mockApp.home = { invites: [], rejoinable: [], contacts: [] };
     let tree!: ReactTestRenderer;
@@ -1923,7 +1924,7 @@ describe('pinging somebody who is not in the room', () => {
         <ProfileView
           accountId={THEM}
           fallbackName="Dana Chu"
-          onBack={() => {}}
+          onBack={onBack}
           onPing={onPing}
           pingableAt={pingableAt}
           pingedWith={pingedWith}
@@ -1993,6 +1994,7 @@ describe('pinging somebody who is not in the room', () => {
       text: 'come when you can',
     });
 
+    expect(textOf(tree)).toContain('Sent.');
     expect(textOf(tree)).toContain('come when you can');
     expect(textOf(tree)).not.toContain('said:');
     act(() => tree.unmount());
@@ -2019,9 +2021,14 @@ describe('pinging somebody who is not in the room', () => {
     act(() => tree.unmount());
   });
 
-  it('sends what was typed, and says so afterwards', async () => {
+  /**
+   * Back to the roster rather than a "Sent." on this card: the roster card for
+   * them says "Pinged" itself, and the way out was the only move left here.
+   */
+  it('sends what was typed, and goes back to the roster', async () => {
     const onPing = jest.fn(async () => {});
-    const tree = await renderProfile(onPing);
+    const onBack = jest.fn();
+    const tree = await renderProfile(onPing, null, null, onBack);
 
     const field = tree.root.findAll(
       (n) => n.props?.placeholder === 'Anything you want to say (optional)'
@@ -2030,11 +2037,7 @@ describe('pinging somebody who is not in the room', () => {
     await act(async () => buttonFor(tree, 'Send ping').props.onPress());
 
     expect(onPing).toHaveBeenCalledWith('we are starting');
-    expect(textOf(tree)).toContain('Sent.');
-    // Quoted straight back, without waiting on the snapshot that will carry
-    // them: the words have gone, and a confirmation that cannot yet say what
-    // was sent reads as one that lost them.
-    expect(textOf(tree)).toContain('we are starting');
+    expect(onBack).toHaveBeenCalledTimes(1);
     act(() => tree.unmount());
   });
 
@@ -2046,12 +2049,13 @@ describe('pinging somebody who is not in the room', () => {
     const onPing = jest.fn(async () => {
       throw new Error('They have just been pinged. Try again in a few minutes.');
     });
-    const tree = await renderProfile(onPing);
+    const onBack = jest.fn();
+    const tree = await renderProfile(onPing, null, null, onBack);
 
     await act(async () => buttonFor(tree, 'Send ping').props.onPress());
 
     expect(textOf(tree)).toContain('They have just been pinged');
-    expect(textOf(tree)).not.toContain('Sent.');
+    expect(onBack).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 });

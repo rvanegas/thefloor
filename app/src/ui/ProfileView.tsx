@@ -197,6 +197,11 @@ export function ProfileView({
    * Rejects with a message meant to be read. The server refuses a ping for
    * ordinary reasons — they walked in a moment ago, somebody pinged them
    * already — and those are answers rather than faults.
+   *
+   * Resolving closes the card through `onBack`, since 2026-10-02: the roster
+   * card it was opened from says "Pinged" itself, so the errand is over and
+   * the room is where the next thing happens. A refusal keeps it open, the
+   * words still in the field.
    */
   onPing?: (text: string) => Promise<void>;
   /**
@@ -345,16 +350,6 @@ export function ProfileView({
   const [pingText, setPingText] = useState('');
   const [pinging, setPinging] = useState(false);
   const [pingError, setPingError] = useState<string | null>(null);
-  const [pingSent, setPingSent] = useState(false);
-  /**
-   * The words of the ping just sent from this screen, so the confirmation can
-   * quote them before the snapshot that carries them arrives.
-   *
-   * Local and short-lived on purpose: `pingedWith` is the durable answer and
-   * replaces this the moment it lands, which is also what makes the quotation
-   * survive closing the card and opening it again. This is only the gap.
-   */
-  const [sentText, setSentText] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   /** While the decision about your own address is in flight. */
   const [showingEmail, setShowingEmail] = useState(false);
@@ -683,16 +678,15 @@ export function ProfileView({
     const said = pingText.trim();
     try {
       await onPing(said);
-      // Cleared on the way out so that reopening the card does not offer to
-      // send the same words again, which the interval would refuse anyway.
-      setPingText('');
-      setPingSent(true);
-      setSentText(said || null);
     } catch (e) {
       setPingError(e instanceof Error ? e.message : String(e));
-    } finally {
       setPinging(false);
+      return;
     }
+    // Back to the roster, whose card for them now says "Pinged". There used to
+    // be a "Sent." here, quoting the words back, and it held the person on a
+    // screen whose only remaining move was the way out.
+    onBack();
   };
 
   /**
@@ -954,15 +948,10 @@ export function ProfileView({
 
   /**
    * The words to quote under the confirmation, or null where the ping had
-   * none.
-   *
-   * The snapshot first, since it is the attributed and durable answer and is
-   * what survives closing this card; `sentText` covers only the half-second
-   * before it lands, and so is unattributed — it is yours, and "Sent." has
-   * just said so.
+   * none. Only ever the snapshot's: sending closes this card, so there is no
+   * gap before it lands for a local copy to cover.
    */
-  const said: { by: string | null; text: string } | null =
-    pingedWith ?? (sentText !== null ? { by: null, text: sentText } : null);
+  const said = pingedWith;
 
   /**
    * How long until this person can be muted by somebody else again, or null
@@ -1279,24 +1268,19 @@ export function ProfileView({
           renders it; called up there it read no provider and moved nothing.
           See `RevealContext`.
         */
-        <Reveal when={!pingSent && pingWait === null}>
+        <Reveal when={pingWait === null}>
           <SectionLabel>{t.ping()}</SectionLabel>
           <Card style={styles.stack}>
-            {pingSent || pingWait !== null ? (
-              // Two facts, either of which replaces the composer: they have
-              // just sent one, or somebody has. The confirmation does not wait
-              // on the countdown — a snapshot is half a second away and the
-              // words have already gone, so hanging "Sent" on the server
-              // having told us the window would leave the screen looking as
-              // though it had lost them. When the window *is* known it is said
-              // as a length rather than a moment; when it is not, the sentence
-              // this said before the countdown existed is still true.
+            {pingWait !== null ? (
+              // Somebody has pinged them, which replaces the composer. Said as
+              // a length rather than a moment. "Sent." where the words quoted
+              // are yours — the caller nulls `by` for exactly that — and
+              // "Pinged." otherwise, including your own wordless ping, which
+              // the snapshot cannot tell from anybody else's.
               <>
                 <Text style={type.muted}>
-                  {pingSent ? t.sent() : t.pinged()}
-                  {pingWait !== null
-                    ? t.pingAgainIn(duration(pingWait))
-                    : t.notPingedAgain()}
+                  {said?.by === null ? t.sent() : t.pinged()}
+                  {t.pingAgainIn(duration(pingWait))}
                 </Text>
                 {/*
                   What was actually said, when anything was. Body weight rather
@@ -1324,11 +1308,6 @@ export function ProfileView({
               value={pingText}
               onChangeText={(v) => {
                 setPingText(v.slice(0, MAX_PING_TEXT_LENGTH));
-                // The confirmation belongs to the ping that was sent, not to
-                // the field; typing again is the start of a different one, and
-                // the quotation goes with the confirmation it belongs to.
-                setPingSent(false);
-                setSentText(null);
               }}
               placeholder={t.pingPlaceholder()}
               autoCapitalize="sentences"
