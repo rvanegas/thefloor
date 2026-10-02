@@ -2788,7 +2788,9 @@ export function ChannelView({
         `AVAudioSession` and a browser has none, whereas the follower is the same
         follower here and a browser is a convenient place to watch a number.
       */}
-      {app.debug && party ? <DriftReadout channelId={channelId} /> : null}
+      {app.debug && party ? (
+        <DriftReadout channelId={channelId} nameOf={nameOf} />
+      ) : null}
     </>
   );
 

@@ -14,6 +14,7 @@ import type {
   RecordingView,
   ScreenDevice,
   ServerMessage,
+  SharedDrift,
 } from '../../core/protocol';
 import type { AccountSettings } from '../../core/settings';
 import type { Accounts } from './accounts';
@@ -174,6 +175,22 @@ interface Connection {
    */
   standing: string | null;
   /**
+   * Whether this account has `debug` set, read once at connect like `hello`
+   * reads it — so the column takes effect at the next reconnect, as the panel
+   * it gates already does.
+   *
+   * Held because it is what `relayDrift` routes by, per reading, and a
+   * database read twice a second per screen is not what a fan-out should cost.
+   */
+  debug: boolean;
+  /**
+   * The channel this device last reported a drift reading for, or null.
+   *
+   * Remembered only so that the reading can be withdrawn on the debug readouts
+   * it reached when the socket closes — see `ClientMessage.watch.drift`.
+   */
+  driftIn: string | null;
+  /**
    * When this socket was accepted, which is the start of the only clock that
    * says how long it lasted.
    *
@@ -215,6 +232,40 @@ interface Connection {
    * answer a question that stopped being interesting a few seconds in.
    */
   claimRead: boolean;
+}
+
+const PLAYER_STATES: ReadonlySet<string> = new Set([
+  'unstarted',
+  'buffering',
+  'playing',
+  'paused',
+  'ended',
+]);
+
+/**
+ * A client's drift reading as something safe to relay, or null for a
+ * withdrawal and for anything that is not a reading.
+ *
+ * Rebuilt field by field rather than passed through, so that nothing a client
+ * adds to the object reaches another account's device.
+ */
+function sharedDrift(value: unknown): SharedDrift | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const finite = (x: unknown): x is number =>
+    typeof x === 'number' && Number.isFinite(x);
+  if (v.driftMs !== null && !finite(v.driftMs)) return null;
+  if (typeof v.playerState !== 'string' || !PLAYER_STATES.has(v.playerState)) {
+    return null;
+  }
+  if (!finite(v.bufferingForMs) || !finite(v.seeksThisRun)) return null;
+  return {
+    driftMs: v.driftMs as number | null,
+    playerState: v.playerState as SharedDrift['playerState'],
+    bufferingForMs: v.bufferingForMs,
+    seeksThisRun: v.seeksThisRun,
+    withheld: v.withheld === true,
+  };
 }
 
 /**
@@ -766,6 +817,25 @@ export function registerWebsocket(deps: {
       ids.add(other.userId);
     }
     return [...ids];
+  };
+
+  /**
+   * Hands one screen's drift reading to the `debug` sessions watching its
+   * channel, and to nobody else — see `ServerMessage.watch.drift`.
+   *
+   * Not to the account's own sessions: what this device is steering on is
+   * already drawn on it, and its other devices are not screens for this film.
+   */
+  const relayDrift = (
+    from: Connection,
+    channelId: string,
+    reading: SharedDrift | null
+  ): void => {
+    for (const other of connections) {
+      if (!other.debug || other.userId === from.userId) continue;
+      if (!other.watchingChannels.has(channelId)) continue;
+      send(other, { type: 'watch.drift', channelId, userId: from.userId, reading });
+    }
   };
 
   /**
@@ -1620,6 +1690,8 @@ export function registerWebsocket(deps: {
       deviceName: claimedDeviceName(url.searchParams.get('deviceName')),
       screening: null,
       standing: null,
+      debug: account.debug === 1,
+      driftIn: null,
       openedAt: now(),
       endedBy: null,
       claimRead: false,
@@ -1844,6 +1916,31 @@ export function registerWebsocket(deps: {
             message.speaking === true
           );
           return;
+
+        /**
+         * What this screen's player is steering on, for the debug readouts in
+         * the room — see `ClientMessage.watch.drift`.
+         *
+         * A reading is taken only from the device that is this account's
+         * screen for that channel, which is the server's own record and not
+         * the client's say-so; a withdrawal only from the channel the last
+         * reading was for, since a screen that has moved on has already
+         * cleared `screening`. Numbers are checked for being numbers and
+         * nothing more: this is relayed to a diagnostic and decides nothing.
+         */
+        case 'watch.drift': {
+          if (typeof message.channelId !== 'string') return;
+          const reading = sharedDrift(message.reading);
+          if (reading === null) {
+            if (connection.driftIn !== message.channelId) return;
+            connection.driftIn = null;
+          } else {
+            if (connection.screening !== message.channelId) return;
+            connection.driftIn = message.channelId;
+          }
+          relayDrift(connection, message.channelId, reading);
+          return;
+        }
 
         case 'ping':
           send(connection, { type: 'pong', serverNow: now() });
@@ -2189,6 +2286,11 @@ export function registerWebsocket(deps: {
       // go and look at. After the delete, on the note below.
       if (connection.scope.kind === 'session' && connection.standing !== null) {
         pushStanding(connection.userId);
+      }
+      // A follower that has gone has stopped steering, and its last reading
+      // must not go on looking settled on somebody's readout.
+      if (connection.driftIn !== null) {
+        relayDrift(connection, connection.driftIn, null);
       }
       if (connection.scope.kind === 'session' && connection.screening !== null) {
         pushScreening(connection.userId);

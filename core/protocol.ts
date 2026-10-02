@@ -3,6 +3,7 @@ import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { Tried } from './tried';
 import type { ChannelState, Clip, UserId } from './types';
+import type { PlayerState } from './watch';
 
 /**
  * The wire contract between the app and the server. It lives in core for the
@@ -1724,6 +1725,28 @@ export type ClientAction =
    */
   | { type: 'ASK_GUEST_JOIN'; guestId: string };
 
+/**
+ * One screen's drift, as its follower last read it, for the readout of an
+ * account with `debug` set on some other device in the room.
+ *
+ * **The follower's own numbers, never a recomputation**, for the reason
+ * `app/src/watch/drift.ts` gives: what a follower is steering on is the only
+ * thing worth drawing. The subset of `DriftReading` that says something about
+ * *that* player — the room's half, what it wants and its clock, is the same for
+ * every reader and is already in their own reading.
+ */
+export interface SharedDrift {
+  /** Signed, positive is ahead; null when the player cannot say where it is. */
+  driftMs: number | null;
+  playerState: PlayerState;
+  /** How long this player has been buffering without a break, 0 when it is not. */
+  bufferingForMs: number;
+  /** Seeks issued since this run began — the headline, and nought is success. */
+  seeksThisRun: number;
+  /** Whether a correction is being held back, which only a debug account does. */
+  withheld: boolean;
+}
+
 export type ClientMessage =
   /** Start receiving Home snapshots. */
   /**
@@ -1869,7 +1892,24 @@ export type ClientMessage =
    * remaining case — released floor, ended visit — needs no message at all,
    * the reader pruning against `isWithheld` and the roster.
    */
-  | { type: 'channel.speaking'; channelId: string; speaking: boolean };
+  | { type: 'channel.speaking'; channelId: string; speaking: boolean }
+  /**
+   * What this device's film player is steering on, or null when it has
+   * stopped following.
+   *
+   * **Sent by every screen, read only by `debug` accounts.** Drift is a fact
+   * only the device playing the film can know, and the readout under the
+   * transport was drawing one device's of them — the reader's own — while the
+   * question it exists to settle is whether the *room* is in step. So each
+   * screen says, and the server relays to whichever `debug` sessions are
+   * watching that channel and to nobody else; see `ServerMessage.watch.drift`.
+   *
+   * **About once a second, not per tick**, and never queued: a reading is
+   * superseded by the next one, so a dropped one costs nothing. The null is
+   * sent when the follower stops, and a closing socket stands in for any null
+   * that could not be.
+   */
+  | { type: 'watch.drift'; channelId: string; reading: SharedDrift | null };
 
 export type ServerMessage =
   | {
@@ -2028,6 +2068,25 @@ export type ServerMessage =
    * take the room away from the device somebody is holding.
    */
   | { type: 'displaced' }
+  /**
+   * Another screen's drift in a channel this session is watching, or null when
+   * it has stopped following — see `ClientMessage.watch.drift`.
+   *
+   * **Sent only to sessions of an account with `debug` set**, and that is the
+   * whole of its privacy argument: how somebody's player is behaving is a
+   * diagnostic, the same as the audio panel, and only the accounts that see
+   * diagnostics are told it. Keyed by account rather than device because one
+   * account has one screen.
+   *
+   * A build that has never heard of this ignores it, the client's dispatch
+   * having no default case, so it may be sent to any build.
+   */
+  | {
+      type: 'watch.drift';
+      channelId: string;
+      userId: UserId;
+      reading: SharedDrift | null;
+    }
   /**
    * This account's other live instances, for the screen picker.
    *

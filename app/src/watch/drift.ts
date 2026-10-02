@@ -1,3 +1,4 @@
+import type { SharedDrift } from '../../../core/protocol';
 import type { PlayerState } from '../../../core/watch';
 
 /**
@@ -87,6 +88,75 @@ export function publishDrift(reading: DriftReading): void {
 export function readDrift(channelId: string): DriftReading | null {
   if (!latest || latest.channelId !== channelId) return null;
   return latest;
+}
+
+/** The last reading whatever channel it is for, which is what is reported. */
+export function currentDrift(): DriftReading | null {
+  return latest;
+}
+
+/**
+ * How often a screen tells the room its drift: one in two of the follower's
+ * ticks, which is plenty for a number somebody is reading.
+ */
+export const DRIFT_REPORT_MS = 1000;
+
+/**
+ * How long another screen's reading is believed without a newer one.
+ *
+ * Three of its reports. A screen that stops says so and
+ * a closing socket says so for it, so this is the net under a withdrawal that
+ * was lost — a stale drift looks exactly like a settled one, here as above.
+ */
+export const OTHER_DRIFT_STALE_MS = 3 * DRIFT_REPORT_MS;
+
+/** Another screen in the room, as its own follower last read itself. */
+export interface OtherDrift {
+  userId: string;
+  reading: SharedDrift;
+  /** On this device's clock: only ever compared with it, for staleness. */
+  receivedAt: number;
+}
+
+/** Keyed `channelId`, then the account whose screen it is. */
+const others = new Map<string, Map<string, OtherDrift>>();
+
+/**
+ * Another screen's reading arriving, or its withdrawal — relayed by the server
+ * to accounts with `debug` set. See `ServerMessage.watch.drift`.
+ */
+export function receiveDrift(
+  channelId: string,
+  userId: string,
+  reading: SharedDrift | null
+): void {
+  let room = others.get(channelId);
+  if (reading === null) {
+    if (!room?.delete(userId)) return;
+    if (room.size === 0) others.delete(channelId);
+  } else {
+    if (!room) others.set(channelId, (room = new Map()));
+    room.set(userId, { userId, reading, receivedAt: Date.now() });
+  }
+  for (const watcher of watchers) watcher();
+}
+
+/**
+ * Every other screen's reading for this channel that is still fresh.
+ *
+ * A fresh array on every call, so a reader holding it in state re-renders when
+ * it asks again.
+ */
+export function readOtherDrifts(channelId: string): OtherDrift[] {
+  const room = others.get(channelId);
+  if (!room) return [];
+  const cutoff = Date.now() - OTHER_DRIFT_STALE_MS;
+  const fresh: OtherDrift[] = [];
+  for (const [userId, other] of room) {
+    if (other.receivedAt < cutoff) room.delete(userId);
+    else fresh.push(other);
+  }
+  return fresh;
 }
 
 /**

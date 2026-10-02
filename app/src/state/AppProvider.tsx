@@ -30,6 +30,12 @@ import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { recordEvent } from '../audio/diagnostics';
 import { startShippingDiagnostics } from '../audio/shipping';
+import {
+  currentDrift,
+  DRIFT_REPORT_MS,
+  receiveDrift,
+  subscribeDrift,
+} from '../watch/drift';
 import { mustUpdate } from '../api/expiry';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
@@ -1649,6 +1655,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
         onDisplaced: () =>
           setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
+        // Straight to the drift module, as the follower's own readings go:
+        // the readout subscribes there, and nothing else reads these.
+        onDrift: receiveDrift,
         // Mirrored rather than derived. Every transition of it is a decision
         // already taken in `Realtime` — entering, stepping out, being
         // displaced, following a move, giving up a stale re-entry past the
@@ -2001,6 +2010,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * Anything else — a tunnel, a restarting server, a build the server predates
    * — comes back and waits.
    */
+  /**
+   * Tells the room what this device's film player is steering on, so that a
+   * `debug` account elsewhere in it can see every screen's drift and not only
+   * its own — see `ClientMessage.watch.drift`.
+   *
+   * **Every account reports, and the server decides who hears.** The follower
+   * publishes twice a second; this passes on about one of those a second, and
+   * the withdrawal at once, since a reading left standing after its player has
+   * stopped would look settled.
+   */
+  useEffect(() => {
+    let sentFor: string | null = null;
+    let sentAt = 0;
+    return subscribeDrift(() => {
+      const reading = currentDrift();
+      if (reading === null) {
+        if (sentFor !== null && realtime.drift(sentFor, null)) sentFor = null;
+        return;
+      }
+      const at = Date.now();
+      // Less a margin, so that ticks landing a millisecond early do not make
+      // every report wait for the third tick rather than the second.
+      if (reading.channelId === sentFor && at - sentAt < DRIFT_REPORT_MS * 0.9) {
+        return;
+      }
+      if (sentFor !== null && sentFor !== reading.channelId) {
+        realtime.drift(sentFor, null);
+      }
+      const sent = realtime.drift(reading.channelId, {
+        driftMs: reading.driftMs,
+        playerState: reading.playerState,
+        bufferingForMs: reading.bufferingForMs,
+        seeksThisRun: reading.seeksThisRun,
+        withheld: reading.withheld,
+      });
+      if (!sent) return;
+      sentFor = reading.channelId;
+      sentAt = at;
+    });
+  }, [realtime]);
+
   useEffect(() => {
     const token = state.token;
     if (!state.debug || !token) return;

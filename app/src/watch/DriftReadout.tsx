@@ -4,10 +4,13 @@ import { WATCH_DRIFT_MS } from '../../../core/constants';
 import { Button } from '../ui/components';
 import { colors, spacing, type } from '../ui/theme';
 import {
+  DRIFT_REPORT_MS,
   readDrift,
+  readOtherDrifts,
   requestCorrection,
   subscribeDrift,
   type DriftReading,
+  type OtherDrift,
 } from './drift';
 
 /**
@@ -35,25 +38,96 @@ import {
  * correction it would have made waits here for somebody to press for it. Drawn
  * with the numbers it is judged by rather than in the transport, which is one
  * row in three places and has no business learning about an account flag.
+ *
+ * **Then every other screen in the room, a line each**, as their own followers
+ * reported them — see `ClientMessage.watch.drift`. Drift is a question about
+ * the room being in step, and one device's answer to it was half the answer.
+ * Drawn even where this device is not the screen, since a debug account
+ * watching the room from its phone is exactly who wants the other lines.
  */
 export function DriftReadout({
   channelId,
+  nameOf,
 }: {
   channelId: string;
+  /** Who a screen belongs to, by account. */
+  nameOf: (userId: string) => string;
 }): React.ReactElement | null {
   const [reading, setReading] = useState<DriftReading | null>(() =>
     readDrift(channelId)
   );
-  useEffect(
-    () => subscribeDrift(() => setReading(readDrift(channelId))),
-    [channelId]
+  const [others, setOthers] = useState<OtherDrift[]>(() =>
+    readOtherDrifts(channelId)
   );
+  useEffect(() => {
+    const read = () => {
+      setReading(readDrift(channelId));
+      setOthers(readOtherDrifts(channelId));
+    };
+    read();
+    // Re-read on a clock as well as on news, since what retires a line that
+    // nobody withdrew is time passing and nothing announces that.
+    const timer = setInterval(read, DRIFT_REPORT_MS);
+    const unsubscribe = subscribeDrift(read);
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+    };
+  }, [channelId]);
 
   // Nothing to say before a player has been read, and nothing to say about a
   // dead one — `forgetDrift` is what makes the second of those true, and the
   // difference matters: a stale drift looks exactly like a settled one.
-  if (!reading) return null;
+  if (!reading && others.length === 0) return null;
 
+  return (
+    <View style={styles.block}>
+      {reading ? <OwnDrift reading={reading} /> : null}
+      {others.map((other) => (
+        <Row
+          key={other.userId}
+          label={nameOf(other.userId)}
+          value={describeOther(other)}
+          alert={
+            outsideTolerance(other.reading.driftMs) ||
+            other.reading.seeksThisRun > 0
+          }
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Another screen on one line: its drift, its player, its seeks, and the
+ * buffering only while there is some. Red on the same two faults the own block
+ * reddens for, since the line has room for one colour.
+ */
+function describeOther({ reading }: OtherDrift): string {
+  const parts = [
+    signed(reading.driftMs),
+    reading.playerState,
+    `${reading.seeksThisRun} seeks`,
+  ];
+  if (reading.bufferingForMs > 0) {
+    parts.push(`buf ${(reading.bufferingForMs / 1000).toFixed(2)}s`);
+  }
+  if (reading.withheld) parts.push('withheld');
+  return parts.join(' · ');
+}
+
+function outsideTolerance(drift: number | null): boolean {
+  return drift !== null && Math.abs(drift) > WATCH_DRIFT_MS;
+}
+
+function signed(drift: number | null): string {
+  return drift === null
+    ? '—'
+    : `${drift >= 0 ? '+' : '−'}${(Math.abs(drift) / 1000).toFixed(2)}s`;
+}
+
+/** This device's own reading, in full, with the one control drift has. */
+function OwnDrift({ reading }: { reading: DriftReading }): React.ReactElement {
   const drift = reading.driftMs;
   /*
     **Signed, and ahead is positive.** The sign is the whole reading on a resume:
@@ -63,14 +137,11 @@ export function DriftReadout({
     leave a drift anywhere between 100ms and 1.9s, which is why build 305's
     alternating corrections could not be explained from the log at all.
   */
-  const driftText =
-    drift === null
-      ? '—'
-      : `${drift >= 0 ? '+' : '−'}${(Math.abs(drift) / 1000).toFixed(2)}s`;
-  const outside = drift !== null && Math.abs(drift) > WATCH_DRIFT_MS;
+  const driftText = signed(drift);
+  const outside = outsideTolerance(drift);
 
   return (
-    <View style={styles.block}>
+    <>
       <Row label="drift" value={driftText} alert={outside} />
       {/*
         **The headline, and the success criterion for the whole correction
@@ -122,7 +193,7 @@ export function DriftReadout({
         disabled={!reading.withheld}
         style={styles.correct}
       />
-    </View>
+    </>
   );
 }
 

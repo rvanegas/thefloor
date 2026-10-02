@@ -744,6 +744,84 @@ describe('websocket', () => {
     });
   });
 
+  describe('every screen’s drift, for a debug readout', () => {
+    const reading = (driftMs: number) => ({
+      driftMs,
+      playerState: 'playing' as const,
+      bufferingForMs: 0,
+      seeksThisRun: 0,
+      withheld: false,
+    });
+
+    /** Alice with `debug` set and Bob, both watching the channel. */
+    async function watching() {
+      const { alice, bob, channelId } = await pairInSession();
+      app.db
+        .prepare('UPDATE accounts SET debug = 1 WHERE id = ?')
+        .run(alice.account.id);
+      const a = new Client(alice.token, baseUrl);
+      const b = new Client(bob.token, baseUrl);
+      await Promise.all([a.open(), b.open()]);
+      a.send({ type: 'watch.channel', channelId });
+      b.send({ type: 'watch.channel', channelId });
+      await Promise.all([a.next('channel'), b.next('channel')]);
+      return { alice, bob, channelId, a, b };
+    }
+
+    it('relays another screen’s reading to a debug account', async () => {
+      const { bob, channelId, a, b } = await watching();
+      b.send({ type: 'screens.showing', channelId });
+      b.send({ type: 'watch.drift', channelId, reading: reading(-420) });
+      const relayed = await a.next('watch.drift');
+      expect(relayed).toEqual({
+        type: 'watch.drift',
+        channelId,
+        userId: bob.account.id,
+        reading: reading(-420),
+      });
+      a.close();
+      b.close();
+    });
+
+    /**
+     * Asserted by order rather than by waiting: the refused report goes first
+     * on the same socket, so if it were relayed it would be what arrives.
+     */
+    it('takes a reading only from the device that is the screen', async () => {
+      const { channelId, a, b } = await watching();
+      b.send({ type: 'watch.drift', channelId, reading: reading(111) });
+      b.send({ type: 'screens.showing', channelId });
+      b.send({ type: 'watch.drift', channelId, reading: reading(222) });
+      const relayed = await a.next('watch.drift');
+      expect(relayed.reading?.driftMs).toBe(222);
+      a.close();
+      b.close();
+    });
+
+    it('tells nobody without debug', async () => {
+      const { channelId, a, b } = await watching();
+      a.send({ type: 'screens.showing', channelId });
+      a.send({ type: 'watch.drift', channelId, reading: reading(5) });
+      b.send({ type: 'ping' });
+      await b.next('pong');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(b.received.some((m) => m.type === 'watch.drift')).toBe(false);
+      a.close();
+      b.close();
+    });
+
+    it('withdraws a reading when its socket closes', async () => {
+      const { bob, channelId, a, b } = await watching();
+      b.send({ type: 'screens.showing', channelId });
+      b.send({ type: 'watch.drift', channelId, reading: reading(10) });
+      await a.next('watch.drift');
+      b.close();
+      const withdrawn = await a.next('watch.drift', (m) => m.reading === null);
+      expect(withdrawn.userId).toBe(bob.account.id);
+      a.close();
+    });
+  });
+
   it('pushes a floor claim to the silenced party', async () => {
     const { alice, bob, channelId } = await pairInSession();
     const a = new Client(alice.token, baseUrl);

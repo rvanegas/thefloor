@@ -11,6 +11,7 @@ import type {
   HomeView,
   ScreenDevice,
   ServerMessage,
+  SharedDrift,
   ChannelView,
 } from '../../../core/protocol';
 import type { AccountSettings } from '../../../core/settings';
@@ -115,6 +116,12 @@ export interface RealtimeHandlers {
    * with it is forget what it would re-enter on a reconnect.
    */
   onDisplaced?: () => void;
+  /**
+   * Another screen's drift in a channel this session is watching, or null
+   * when it has stopped. Only ever sent to an account with `debug` set — see
+   * `ServerMessage.watch.drift`.
+   */
+  onDrift?: (channelId: string, userId: string, reading: SharedDrift | null) => void;
   /**
    * Which channel *this device* is standing in, or null for none.
    *
@@ -539,6 +546,9 @@ export class Realtime {
           // the device somebody is holding, or undo a Step Out taken there.
           this.setStanding(null);
           this.handlers.onDisplaced?.();
+          break;
+        case 'watch.drift':
+          this.handlers.onDrift?.(message.channelId, message.userId, message.reading);
           break;
         case 'error':
           this.handlers.onError?.(message.message);
@@ -1100,6 +1110,20 @@ export class Realtime {
   speaking(channelId: string, speaking: boolean): boolean {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.send({ type: 'channel.speaking', channelId, speaking });
+    return true;
+  }
+
+  /**
+   * Says what this device's film player is steering on, or that it has
+   * stopped — see `ClientMessage.watch.drift`.
+   *
+   * Dropped rather than queued when there is no socket, on `speaking`'s
+   * reasoning: the next reading supersedes this one, and a closing socket
+   * withdraws whatever the last one was.
+   */
+  drift(channelId: string, reading: SharedDrift | null): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.send({ type: 'watch.drift', channelId, reading });
     return true;
   }
 
