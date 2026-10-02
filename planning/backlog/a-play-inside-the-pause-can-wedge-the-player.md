@@ -35,8 +35,7 @@ The 2026-10-01 run below told a wedged player `play` five times, four seconds
 apart, and it never moved. And because `drive.ts` restarts the stall clock
 whenever it says anything to a buffering player, every cold nudge set the clock
 back to zero, so `WATCH_STALL_MS` was never reached and the `seek+play` backstop
-never went out. Before the cold nudge, this wedge lasted ten seconds. Now it lasts
-until somebody presses something.
+never went out, until 2026-10-01 (see the run below).
 
 **One mechanism was found in the code on 2026-09-29, and it fits this timing.**
 The two fixes that day,
@@ -97,8 +96,8 @@ account's phone sends its log.
   and no instruction, then the player was rebuilt at 19:07:36. It looks like a
   screen with no player mounted. Nobody has checked.
 
-**What the run leaves to do, in order.** First, stop the cold nudge from
-restarting the stall clock (`drive.ts`, where `buffering.current = now`). Without
-that, the backstop is starved and a wedge lasts until somebody presses something.
-Second, hold a play that comes from the room until the session has settled, just
-as a press made on the phone is held.
+**What the run leaves to do.** The backstop no longer starves: since
+2026-10-01 a cold nudge has its own clock (`knocked` in `drive.ts`, `quietForMs`
+in `followInstructions`), so a wedge lasts at most `WATCH_STALL_MS` again, with
+the knocks inside it. Still to do: hold a play that comes from the room until the
+session has settled, just as a press made on the phone is held.

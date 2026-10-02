@@ -162,6 +162,15 @@ export function useFollow(
    */
   const buffering = useRef<number | null>(null);
   /**
+   * When this buffering player was last given a cold nudge, or null.
+   *
+   * **A second clock, so that a nudge does not reset the first.** The nudge
+   * comes every `WATCH_COLD_NUDGE_MS`, and while it restarted `buffering` the
+   * stall window never closed: on build 327 a wedged player got `play` five
+   * times in 23 seconds and never the `seek+play` backstop.
+   */
+  const knocked = useRef<number | null>(null);
+  /**
    * What the room wanted at the last tick, so that a change can be seen.
    *
    * **The one thing a follower cannot read off a player.** Everything else
@@ -286,8 +295,10 @@ export function useFollow(
       */
       const wasPlaying = seen.current === 'playing';
       seen.current = reading.state;
-      if (reading.state !== 'buffering') buffering.current = null;
-      else if (buffering.current === null) {
+      if (reading.state !== 'buffering') {
+        buffering.current = null;
+        knocked.current = null;
+      } else if (buffering.current === null) {
         buffering.current = now;
         standstill.current = !wasPlaying;
       }
@@ -537,7 +548,10 @@ export function useFollow(
         // of the room rather than a second behind it, and the next correction
         // has the right number.
         lag.current.seek ?? lag.current.play ?? 0,
-        standstill.current
+        standstill.current,
+        buffering.current === null
+          ? 0
+          : now - Math.max(buffering.current, knocked.current ?? 0)
       );
       /*
         **Held back rather than decided differently.** The rule is asked the
@@ -576,7 +590,16 @@ export function useFollow(
       if (instructions.length === 0) return;
       // The stall clock restarts with the instruction, so a player that is
       // never going to play is prodded once a window rather than every tick.
-      if (buffering.current !== null) buffering.current = now;
+      // A cold nudge restarts only its own clock. Restarting the stall clock
+      // too is what starved the backstop; see `knocked`.
+      if (buffering.current !== null) {
+        if (instructions.some((i) => i.do === 'play' && i.knock)) {
+          knocked.current = now;
+        } else {
+          buffering.current = now;
+          knocked.current = null;
+        }
+      }
       doing.current = { phase: 'sending', want, since: now };
       /*
         **What was said and when, kept apart from the phase above.** The lead

@@ -488,7 +488,23 @@ describe('following the transport', () => {
         0,
         true
       )
-    ).toEqual([{ do: 'play' }]);
+    ).toEqual([{ do: 'play', knock: true }]);
+  });
+
+  it('spaces the knocks by the time since the last one', () => {
+    // Long into the stall, but knocked a moment ago: nothing yet.
+    expect(
+      followInstructions(
+        playing(),
+        reading('buffering', 0),
+        T0,
+        WATCH_COLD_NUDGE_MS * 2,
+        false,
+        0,
+        true,
+        WATCH_COLD_NUDGE_MS - 1
+      )
+    ).toEqual([]);
   });
 
   it('still leaves a player that stalled mid-film alone', () => {

@@ -596,7 +596,11 @@ export function hasArrived(player: PlayerReading, want: Desired): boolean {
  * One thing to do to a player. A tick may produce none, one or two.
  */
 export type WatchInstruction =
-  | { do: 'play' }
+  /**
+   * `knock` marks the cold nudge — see `WATCH_COLD_NUDGE_MS` — so that
+   * `drive.ts` can leave the stall clock running under it. Nothing else reads it.
+   */
+  | { do: 'play'; knock?: true }
   | { do: 'pause' }
   | { do: 'seek'; positionMs: number };
 
@@ -681,7 +685,20 @@ export function followInstructions(
    * stall rule rescued it, thirteen seconds of film behind the room. See
    * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
    */
-  fromStandstill = false
+  fromStandstill = false,
+  /**
+   * How long since this buffering player was last told anything, which is what
+   * spaces the cold nudges. It equals `bufferingForMs` until the first one.
+   *
+   * **Kept apart from `bufferingForMs` because a nudge must not restart the
+   * stall clock.** Until 2026-10-01 a single clock served both, so a nudge every
+   * four seconds kept it from ever reaching `WATCH_STALL_MS`. A wedged player
+   * then got `play` again and again, and never the `seek+play` that is the only
+   * thing that has ever rescued one. On build 327 it sat for 23 seconds until
+   * somebody pressed Pause. See
+   * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
+   */
+  quietForMs = bufferingForMs
 ): WatchInstruction[] {
   const want = desiredFor(watch, now);
   if (!want) return [];
@@ -861,16 +878,16 @@ export function followInstructions(
       **`WATCH_STALL_MS` is untouched and still the backstop.** A stall that
       outlives that gets the seek it always got, buffer and all, because by
       then the buffer is not worth protecting. This is the earlier, gentler
-      knock — one per window, `drive.ts` restarting the clock whenever it says
-      anything.
+      knock, one per `WATCH_COLD_NUDGE_MS` of `quietForMs`. It does not restart
+      the stall clock, so the backstop still goes off on time.
     */
     if (
       settling &&
       fromStandstill &&
-      bufferingForMs >= WATCH_COLD_NUDGE_MS &&
+      quietForMs >= WATCH_COLD_NUDGE_MS &&
       instructions.length === 0
     ) {
-      instructions.push({ do: 'play' });
+      instructions.push({ do: 'play', knock: true });
     }
     return instructions;
   }

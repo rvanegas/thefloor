@@ -991,6 +991,23 @@ describe('how long a press takes, and where it goes', () => {
       expect(sim.player.calls.some((c) => c.startsWith('seek:'))).toBe(false);
     });
 
+    it('is still rescued with a seek when the knocks do not move it', () => {
+      /*
+        Build 327, 2026-10-01: a wedged player was knocked five times in 23
+        seconds and never got the backstop, because every knock restarted the
+        stall clock. The knock does not unstick a wedge. The seek is what
+        rescues one, so it has to arrive on time whatever was said before it.
+      */
+      const sim = run({ lag: 600 });
+      sim.wire.press(play, Date.now());
+      sim.advance(500);
+      sim.player.stuck();
+      sim.player.calls.length = 0;
+      sim.advance(WATCH_STALL_MS + 1_000);
+      expect(sim.player.calls.filter((c) => c === 'play').length).toBeGreaterThan(1);
+      expect(sim.player.calls.some((c) => c.startsWith('seek:'))).toBe(true);
+    });
+
     it('is left alone for the whole window when it stalled mid-film', () => {
       // The other half, and the one the long window was written for: a film
       // that was playing and stalled is filling a buffer it will finish, and
