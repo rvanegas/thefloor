@@ -557,6 +557,72 @@ describe('the silencing matrix with three people', () => {
       silenced: true,
     });
   });
+
+  /**
+   * The direction that fails as silence. A release is one best-effort shot
+   * from `assertSilence`, and the reconciliation used to stop looking the
+   * moment nobody was withheld — so a restoration that missed left the room
+   * quiet for good while every screen said it was open.
+   */
+  it('restores a room whose restoration missed', async () => {
+    const { alice, bob, carol, channelId } = await trioAllPresent();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+
+    const setSilenced = media.setSilenced.bind(media);
+    media.setSilenced = async (params) => {
+      if (!params.silenced) throw new Error('timeout');
+      return setSilenced(params);
+    };
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'RELEASE_FLOOR',
+    });
+    await settle();
+    expect(media.muted.get(`${channelId}/${bob.account.id}`)).toBe(true);
+
+    media.setSilenced = setSilenced;
+    media.subscriptions.length = 0;
+    clock += 500;
+    app.channels.tick();
+    await settle();
+
+    for (const speaker of [bob.account.id, carol.account.id]) {
+      expect(media.muted.get(`${channelId}/${speaker}`)).toBe(false);
+      for (const listener of [alice.account.id, bob.account.id, carol.account.id]) {
+        if (listener === speaker) continue;
+        expect(media.subscriptions).toContainEqual({
+          room: channelId,
+          speaker,
+          listener,
+          silenced: false,
+        });
+      }
+    }
+  });
+
+  /**
+   * What the guard was for, kept: a reconciliation is a round trip to the
+   * media server, and an idle channel must not pay it every tick for ever.
+   * One look to see the room restored, and then nothing.
+   */
+  it('stops looking once the room is seen restored', async () => {
+    const { alice, channelId } = await trioAllPresent();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+    await settle();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'RELEASE_FLOOR',
+    });
+    await settle();
+
+    const asked = jest.spyOn(media, 'audioTracks');
+    for (let i = 0; i < 20; i += 1) {
+      clock += 500;
+      app.channels.tick();
+      await settle();
+    }
+    expect(asked).toHaveBeenCalledTimes(1);
+    asked.mockRestore();
+  });
 });
 
 describe('recording with people joining mid-run', () => {

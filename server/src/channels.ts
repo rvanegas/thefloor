@@ -650,6 +650,19 @@ export class ChannelRegistry {
    */
   private silenceStated = new Map<string, Map<string, string>>();
   /**
+   * Channels where somebody has been withheld and the room has not since been
+   * seen given its voice back — every pair present stated as heard, against
+   * the tracks it is carrying now.
+   *
+   * `silenceStated` cannot answer this alone, because a restoration that fails
+   * leaves its pair absent, and absent is also what a pair that was never
+   * withheld looks like. Without this, the reconciliation stopped looking the
+   * moment the withholding ended — exactly when `assertSilence` handed it the
+   * pairs it could not restore — and a missed restoration was a room gone
+   * quiet for good while every screen said it was open.
+   */
+  private unrestored = new Set<string>();
+  /**
    * When each participant was silenced, as offsets into the *recorded* audio
    * rather than wall clock — so paused time is already excluded and the
    * encoder can gate on these directly. An open window has `toMs` null.
@@ -1066,8 +1079,15 @@ export class ChannelRegistry {
       // same reason: a track can be replaced under a statement made about it,
       // so a phone that flaps during a muted film comes back audible unless
       // somebody re-checks. Skipping a muted room here would leave exactly the
-      // gap this loop exists to close.
-      if (channel.floor.holder === null && !isPartyMuted(channel)) continue;
+      // gap this loop exists to close. And it goes on until the room has been
+      // seen restored, since a restoration can miss as easily as a mute can.
+      if (
+        channel.floor.holder === null &&
+        !isPartyMuted(channel) &&
+        !this.unrestored.has(id)
+      ) {
+        continue;
+      }
       this.run(() => this.reconcileSilence(channel), `reconcileSilence ${id}`);
     }
     for (const id of this.capturing.keys()) {
@@ -3828,6 +3848,7 @@ export class ChannelRegistry {
         this.channels.delete(after.id);
         this.persisted.delete(after.id);
         this.silenceStated.delete(after.id);
+        this.unrestored.delete(after.id);
         this.mediaSeen.delete(after.id);
       this.socketDropped.delete(after.id);
       this.autoRecorded.delete(after.id);
@@ -4595,6 +4616,9 @@ export class ChannelRegistry {
     this.silenceStated.set(state.id, stated);
     const pair = `${listener}<-${speaker}`;
     stated.delete(pair);
+    // Before the call, so a withholding that fails is owed a restoration as
+    // surely as one that lands — the media plane may have acted on it anyway.
+    if (silenced) this.unrestored.add(state.id);
     this.media.setSilenced({ room, speaker, listener, silenced }).then(
       (tracks) => {
         // Nothing published is nothing stated: whoever publishes next is
@@ -4617,7 +4641,8 @@ export class ChannelRegistry {
    * carrying against what was last stated about it, and restates the pairs
    * that disagree.
    *
-   * Run once a tick while somebody holds the floor, because everything a
+   * Run once a tick while anybody is withheld, and on until the room is seen
+   * restored afterwards — `unrestored` says why — because everything a
    * one-shot statement rests on can stop being true without anything the
    * reducer sees changing. A silenced speaker whose connection flaps comes
    * back publishing a new track that the old unsubscribe does not cover and
@@ -4864,8 +4889,10 @@ export class ChannelRegistry {
     if (!this.media || state.status !== 'active') return;
     const holder = state.floor.holder;
     const muted = isPartyMuted(state);
-    // Nothing to reconcile when nobody is being withheld for either reason.
-    if (holder === null && !muted) return;
+    // Nothing to reconcile when nobody is being withheld for either reason and
+    // the room has been seen with its voice back since anybody last was.
+    const withholding = holder !== null || muted;
+    if (!withholding && !this.unrestored.has(state.id)) return;
     const room = state.mediaRoom;
     const roster = await this.media.audioTracks(room);
     // The channel may have moved rooms, released the floor, or unmuted the
@@ -4884,6 +4911,7 @@ export class ChannelRegistry {
     const present = statedIdentities(state).filter((id) => roster.has(id));
     const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
     this.silenceStated.set(state.id, stated);
+    let agreed = true;
     for (const speaker of present) {
       // Every track, muted ones included, unlike `meterRoom` above: silencing
       // is a statement about a subscription, and a muted track is subscribed
@@ -4897,9 +4925,15 @@ export class ChannelRegistry {
       for (const listener of present) {
         if (listener === speaker) continue;
         if (stated.get(`${listener}<-${speaker}`) === signature) continue;
+        agreed = false;
         this.stateSilence(state, speaker, listener, silenced);
       }
     }
+    // Restored, and seen to be: every pair in the room heard, on the tracks it
+    // is carrying now. Anybody absent or publishing nothing needs no statement
+    // — whoever arrives or publishes next is subscribed to by default — so the
+    // channel can go back to costing nothing a tick.
+    if (!withholding && agreed) this.unrestored.delete(state.id);
   }
 
   /**
