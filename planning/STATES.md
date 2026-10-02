@@ -914,9 +914,13 @@ starting**: `useSessionAudio` runs each microphone transition after the one
 before it, since a release beside an unfinished `setMicrophoneEnabled(true)`
 found nothing to unpublish, and the capture then landed under the film. That is
 a Play within about 700ms of a Pause, bounded by `TRANSITION_WAIT_MS`. See
-`decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md`. A run
-started from another device still takes the
-old path: `useFilmHandover` holds the release on the snapshot. None of these is
+`decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md`. **A run
+started from another device is held the same way, since 2026-10-01**: the
+snapshot's edge into `playing` starts the same three phases in a layout effect,
+which runs before the follower's own effect hears it. Until then the follower
+played on the snapshot and the release came after, and on build 327 that wedged a
+player for 23 seconds. See
+`decisions/2026-10-01-the-room-s-play-waits-for-the-session-too.md`. None of these is
 redundant with another and none is a guard against a race. See
 `decisions/2026-09-29-the-film-waits-for-its-session.md`, which supersedes the
 ordering in

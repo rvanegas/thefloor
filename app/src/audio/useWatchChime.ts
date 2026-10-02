@@ -193,9 +193,9 @@ export function useWatchChime(
         announcing a film that is already running, which is the thing the
         `seen`-is-null rule above refuses to do on arrival.
       */
-      // Already sounded, at the press, by a start on this device — before its
-      // microphone was released, which is the only moment it could be heard.
-      // See `watch/filmStart.ts`.
+      // Already sounded by a start on this device, at the press or at the
+      // room's play, before its microphone was released, which is the only
+      // moment it could be heard. See `watch/filmStart.ts`.
       if (readStart() !== null) return;
       fire('play');
       return;

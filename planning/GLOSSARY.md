@@ -508,8 +508,8 @@ into the session this app holds, and *watching here* is precisely the state in
 which this app gives that session up — so a chime fired on the edge of a run is
 fired into `playback`, or into a session the `WKWebView` has taken, and is
 lost. The play chime is therefore sounded **first** and the microphone released
-after it, which `useFilmHandover` does by holding the device for the length of
-the sound; the pause chime is sounded **last**, waiting out the ~700ms retake
+after it, which `filmStart.ts` does by holding the device for the length of
+the sound, whether the Play was pressed here or came from the room; the pause chime is sounded **last**, waiting out the ~700ms retake
 that brings `playAndRecord` back. A play chime cannot be deferred — late, it
 announces a film that is already running — and a pause chime that waits more
 than two seconds is thrown away rather than played late. **Nobody else waits**:

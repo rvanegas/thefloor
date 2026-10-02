@@ -71,11 +71,11 @@ function routes() {
 
 let tree: ReactTestRenderer | null = null;
 
-function mount(channel: ChannelState) {
+function mount(channel: ChannelState, takes = true) {
   const sound = jest.fn();
   const route = routes();
   function Probe({ live }: { live: ChannelState }) {
-    useFilmStart(live, ME, sound, route);
+    useFilmStart(live, ME, sound, route, takes);
     return null;
   }
   act(() => {
@@ -185,4 +185,62 @@ it('gives the microphone back when the room never takes the press up', () => {
   expect(readStart()).not.toBeNull();
   advance(1);
   expect(readStart()).toBeNull();
+});
+
+/**
+ * **A play from the room is held as a press is**, since build 327 started a
+ * player under a session still changing because the press was on the other
+ * phone.
+ */
+describe('a play from the room', () => {
+  const theirs = (c: ChannelState) =>
+    reduce(c, { type: 'WATCH_PLAY', userId: THEM }, NOW + 2_000);
+
+  it('chimes, holds and releases on the snapshot', () => {
+    const before = here(loaded(joined()));
+    const probe = mount(before);
+    probe.update(theirs(before));
+    expect(probe.sound).toHaveBeenCalledTimes(1);
+    expect(readStart()).toBe('chiming');
+    expect(startHolding()).toBe(true);
+
+    advance(HANDOVER_MS);
+    expect(readStart()).toBe('releasing');
+    act(() => probe.route.category('AVAudioSessionCategoryPlayback'));
+    expect(readStart()).toBe('ready');
+
+    // And the run's end is the room's, as for a press.
+    probe.update(pause(theirs(before)));
+    expect(readStart()).toBe(null);
+  });
+
+  it('starts nothing for a film already running on arrival', () => {
+    const probe = mount(theirs(here(loaded(joined()))));
+    expect(probe.sound).not.toHaveBeenCalled();
+    expect(readStart()).toBe(null);
+  });
+
+  it('starts nothing while the film would not take the microphone', () => {
+    const before = here(loaded(joined()));
+    const probe = mount(before, false);
+    probe.update(theirs(before));
+    expect(probe.sound).not.toHaveBeenCalled();
+    expect(readStart()).toBe(null);
+  });
+
+  it('chimes once for a press here that the room then confirms', () => {
+    const before = here(loaded(joined()));
+    const probe = mount(before);
+    act(() => announcePress('playing'));
+    probe.update(play(before));
+    expect(probe.sound).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts nothing on a device not watching here', () => {
+    const before = loaded(joined());
+    const probe = mount(before);
+    probe.update(theirs(before));
+    expect(probe.sound).not.toHaveBeenCalled();
+    expect(readStart()).toBe(null);
+  });
 });

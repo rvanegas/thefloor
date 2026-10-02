@@ -99,5 +99,9 @@ account's phone sends its log.
 **What the run leaves to do.** The backstop no longer starves: since
 2026-10-01 a cold nudge has its own clock (`knocked` in `drive.ts`, `quietForMs`
 in `followInstructions`), so a wedge lasts at most `WATCH_STALL_MS` again, with
-the knocks inside it. Still to do: hold a play that comes from the room until the
-session has settled, just as a press made on the phone is held.
+the knocks inside it. A play from the room is now held for the session just as a
+press is (decisions/2026-10-01-the-room-s-play-waits-for-the-session-too.md). **The
+entry stays open until a run on a build with both fixes shows** that a play from
+the other phone waits (look for `watch start chiming (room played)` on the
+screening phone) and that a rapid press still does not wedge. If a wedge survives
+both, the page-side question above is what is left.

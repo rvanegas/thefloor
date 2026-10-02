@@ -879,7 +879,8 @@ export function followInstructions(
       outlives that gets the seek it always got, buffer and all, because by
       then the buffer is not worth protecting. This is the earlier, gentler
       knock, one per `WATCH_COLD_NUDGE_MS` of `quietForMs`. It does not restart
-      the stall clock, so the backstop still goes off on time.
+      the stall clock, so the backstop still goes off on time. See
+      planning/decisions/2026-10-01-a-cold-nudge-does-not-restart-the-stall-clock.md.
     */
     if (
       settling &&

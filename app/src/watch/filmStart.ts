@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { hasMicrophone, isScreening } from '../../../core/micNeeded';
 import type { ChannelState, UserId } from '../../../core/types';
 import { onRouteChange, type RouteSnapshot } from '../../modules/audio-route';
@@ -34,10 +34,19 @@ import { HANDOVER_MS } from '../audio/useFilmHandover';
  * 3. **`ready`** — the follower may tell the player to play. It stays `ready`
  *    for the run, because `App.tsx` reads the microphone off it.
  *
- * **Only for a press on the device that will show the film.** A press on a
- * second device, or on a phone not stepped in, starts nothing here; the device
- * showing the film then learns of the run from the snapshot, as it always did,
- * and `useFilmHandover` does the chime's hold there.
+ * **And for a play from the room, since 2026-10-01.** When the press is on
+ * another device, the device showing the film learns of the run from the
+ * snapshot, and it used to tell its player to play on that same snapshot,
+ * releasing the microphone a beat later. That is build 312's order again, and on
+ * build 327 a player started that way sat in `buffering` for 23 seconds. So the
+ * snapshot's edge into `playing` starts the same three steps a press does, in a
+ * layout effect: that runs before the follower's own effect sees the snapshot,
+ * so the player is already being held when it hears. See
+ * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
+ *
+ * A press on a device that will not show the film starts nothing on that device,
+ * and neither does a film already running when this mounts. That is not a start,
+ * and nothing is chimed for it.
  *
  * **The room still decides.** This orders one device's session against its own
  * player and asserts nothing about the channel: a press the server never takes
@@ -151,7 +160,14 @@ export function useFilmStart(
   live: ChannelState | null,
   me: UserId,
   sound: () => void = chimePlay,
-  routes: (listener: (snapshot: RouteSnapshot) => void) => () => void = onRouteChange
+  routes: (listener: (snapshot: RouteSnapshot) => void) => () => void = onRouteChange,
+  /**
+   * Whether the film would take this device's microphone at all, which is
+   * `useFilmTakesMicrophone` in `App.tsx`: not while the app is behind. A play
+   * from the room starts nothing unless it does, since there would be no
+   * release to wait for.
+   */
+  takes = true
 ): StartPhase | null {
   const [, bump] = useState(0);
   useEffect(() => subscribeStart(() => bump((n) => n + 1)), []);
@@ -225,6 +241,32 @@ export function useFilmStart(
   */
   const status = live?.watch?.status ?? null;
   const screening = live ? isScreening(live, me) : false;
+  const channelId = live?.id ?? null;
+
+  /*
+    **A play from the room is held exactly as a press is.** A layout effect,
+    because the follower ticks on this snapshot in an ordinary effect, and every
+    layout effect runs first: by the time it asks `startHolding()` the answer is
+    already yes. The chime is sounded here for the reason the press path sounds
+    it, and `useWatchChime` stands aside on seeing a start.
+
+    Only on the edge, within one channel. The first snapshot of a room is taken
+    as read, so a film already running when this mounts starts nothing.
+  */
+  const takesRef = useRef(takes);
+  takesRef.current = takes;
+  const heard = useRef<{ channelId: string; status: string | null } | null>(null);
+  useLayoutEffect(() => {
+    const before = heard.current;
+    heard.current = channelId === null ? null : { channelId, status };
+    if (!before || before.channelId !== channelId) return;
+    if (before.status === 'playing' || status !== 'playing') return;
+    if (phase !== null || !screening || !takesRef.current) return;
+    pressedAt.current = Date.now();
+    confirmed.current = true;
+    soundRef.current();
+    setPhase('chiming', 'room played');
+  }, [channelId, status, screening]);
   useEffect(() => {
     if (!phase) return;
     if (status === 'playing') {
@@ -242,7 +284,6 @@ export function useFilmStart(
   }, [phase, status, screening]);
 
   // A different room, or none, is not the run this was started for.
-  const channelId = live?.id ?? null;
   const startedIn = useRef(channelId);
   useEffect(() => {
     if (startedIn.current !== channelId) {

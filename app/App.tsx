@@ -226,13 +226,13 @@ function Root() {
   const screening = live ? isScreening(live, me) : false;
   const filmTakes = useFilmTakesMicrophone(screening);
   const handover = useFilmHandover(filmTakes);
-  // **A film started by a press on this device**, which gives the microphone up
-  // before the player is told to play rather than when the server's snapshot
-  // arrives. While it runs it decides the microphone outright: held for the
+  // **A film this device will show, started by a press here or by the room**,
+  // which gives the microphone up before the player is told to play rather than
+  // beside it. While it runs it decides the microphone outright: held for the
   // chime, then released — ahead of `microphoneNeeded`, which still says the
   // room is paused, and in place of the handover, whose chime was sounded at
   // the press. See `watch/filmStart.ts`.
-  const start = useFilmStart(live, me);
+  const start = useFilmStart(live, me, undefined, undefined, filmTakes);
 
   const micNeeded = live
     ? start

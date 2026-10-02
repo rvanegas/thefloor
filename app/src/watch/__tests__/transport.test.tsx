@@ -1314,4 +1314,30 @@ describe('a film started on the device showing it', () => {
       expect(sim.player.calls).toEqual(['play']);
     });
   }
+
+  /*
+    Build 327, 2026-10-01: the press was on the other phone, so this one learnt
+    of the run from the snapshot, told its player to play on it, and released
+    its microphone 258ms later. The player sat in `buffering` for 23 seconds.
+  */
+  it('holds a play from the room until the session is Playback as well', () => {
+    const route = routes();
+    const sim = run({
+      startHere: { routes: route },
+      already: (c) => watchingHere(c, T0),
+    });
+    sim.advance(1_000);
+    sim.player.calls.length = 0;
+
+    // Pressed elsewhere: nothing is announced on this device.
+    sim.wire.press(play, sim.now());
+    sim.advance(1_000);
+    expect(sim.player.calls).toEqual([]);
+
+    act(() => route.playback());
+    sim.advance(50);
+    expect(sim.player.calls).toEqual(['play']);
+    sim.advance(3_000);
+    expect(sim.player.state).toBe('playing');
+  });
 });
