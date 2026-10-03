@@ -8,3 +8,7 @@ to get a busy signal. Doing it means rewriting the "there is no CallKit in it
 at all" position in `DESCRIPTION.md` § 2 and `LAUNCH.md`. Read STATES.md and
 POSTMORTEM-echo.md first, because CallKit takes over activating the audio
 session.
+
+On the call with Erta, 2026-10-02, Rodrigo said he wants this: being on The
+Floor should count as a phone call to the phone, so that **incoming calls see
+you as busy** and **the call shows up in Recents**.

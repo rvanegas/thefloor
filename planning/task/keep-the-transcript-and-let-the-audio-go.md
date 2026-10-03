@@ -26,3 +26,9 @@ whether this is a policy or just a setting:
 
 Read TRANSCRIPTS.md first. Its design assumes a recording exists and a
 transcript is *attached to* it, and this proposal turns that around.
+
+Rodrigo restated this on the call with Erta, 2026-10-02: transcribe in real
+time, which he found costs the same, and let a transcript be saved without the
+recording, because people mind a recording more than a transcript. Erta's
+condition: if a recording is going to be public, she wants to know that while
+she is speaking.
