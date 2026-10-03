@@ -694,6 +694,41 @@ describe('websocket', () => {
       b.close();
     });
 
+    it('logs a speaker reported unheard, and not a withheld one', async () => {
+      // Two sockets are not ordered against each other, so after Bob's true
+      // report arrives this waits a little longer for Alice's to be refused.
+      const { alice, bob, channelId, a, b } = await underClaim();
+      const notices: unknown[] = [];
+      app.channels.onSilenceNotice = (notice) => notices.push(notice);
+      a.send({
+        type: 'channel.unheard',
+        channelId,
+        speaker: bob.account.id,
+        forMs: 5000,
+      });
+      b.send({
+        type: 'channel.unheard',
+        channelId,
+        speaker: alice.account.id,
+        forMs: 5000,
+      });
+      for (let i = 0; i < 50 && notices.length === 0; i += 1) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      await new Promise((r) => setTimeout(r, 50));
+      expect(notices).toEqual([
+        {
+          kind: 'unheard',
+          channelId,
+          listener: bob.account.id,
+          speaker: alice.account.id,
+          forMs: 5000,
+        },
+      ]);
+      a.close();
+      b.close();
+    });
+
     it('drops it when the floor is released, without being told', async () => {
       // Nothing withholds them any more, so there is nothing for the report to
       // be about. The client sends no stop here — the release is the stop —

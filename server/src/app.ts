@@ -857,6 +857,11 @@ export function buildApp(options: BuildOptions = {}): App {
   channels.onGuestConsentChanged = (channelId, guestId, consented) =>
     publication.guestConsentChanged(channelId, guestId, consented);
 
+  // One message for all three kinds, so that `bin/diagnostics` finds them with
+  // one match and lays them on the phones' timeline. See `SilenceNotice`.
+  channels.onSilenceNotice = (notice) =>
+    fastify.log.warn(notice, 'silence notice');
+
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
   // reports itself unavailable and every path into it is closed.

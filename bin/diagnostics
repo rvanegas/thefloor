@@ -23,6 +23,13 @@
 // here and handed to the box as epoch seconds, so the box's own timezone
 // never enters into it.
 //
+// **The server's silence notices are laid on the same timeline**, marked
+// `server`: a restoration that missed and was put right, a room still not
+// restored ten seconds after a release, and a phone saying it is not hearing
+// somebody it should — see `SilenceNotice` in server/src/channels.ts. They are
+// shown whoever's account is asked about, since they are what the phones'
+// lines are evidence against; `--account` keeps those naming that account.
+//
 // The journal is the only copy. It rotates by size, so a run from weeks ago
 // may simply not be there any more — which is a reason to read a run on the
 // day it was made.
@@ -62,6 +69,20 @@ function stamp(ms) {
   );
 }
 
+/** One server notice as a line, in the phones' register. */
+function silenceText(n) {
+  switch (n.kind) {
+    case 'restoring':
+      return `silence: restoring ${n.listener}<-${n.speaker} (first attempt missed) in ${n.channelId}`;
+    case 'unrestored':
+      return `silence: still unrestored after ${n.forMs}ms in ${n.channelId}: ${(n.pairs ?? []).join(' ')}`;
+    case 'unheard':
+      return `silence: ${n.listener} cannot hear ${n.speaker} after ${n.forMs}ms in ${n.channelId}`;
+    default:
+      return `silence: ${n.kind} in ${n.channelId}`;
+  }
+}
+
 function main(argv) {
   let since = Math.floor(Date.now() / 1000) - 3600;
   let until = null;
@@ -82,7 +103,7 @@ function main(argv) {
   const remote =
     `sudo journalctl -u thefloor --no-pager -o cat --since @${since}` +
     (until === null ? '' : ` --until @${until}`) +
-    ` | grep -F '"msg":"audio diagnostics"' || true`;
+    ` | grep -F -e '"msg":"audio diagnostics"' -e '"msg":"silence notice"' || true`;
   const output = execFileSync('ssh', ['-i', KEY, '-o', 'BatchMode=yes', HOST, remote], {
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
@@ -96,6 +117,13 @@ function main(argv) {
     try {
       entry = JSON.parse(raw);
     } catch {
+      continue;
+    }
+    if (entry.msg === 'silence notice') {
+      const text = silenceText(entry);
+      if (account && !text.includes(account)) continue;
+      if (pattern && !pattern.test(text)) continue;
+      rows.push({ at: entry.time, accountId: 'server', build: null, text });
       continue;
     }
     if (account && entry.accountId !== account) continue;
@@ -119,7 +147,11 @@ function main(argv) {
   // The account and build only where they distinguish anything.
   const several = new Set(rows.map((r) => `${r.accountId} ${r.build}`)).size > 1;
   for (const r of rows) {
-    const who = several ? `  ${r.accountId} b${r.build ?? '?'}` : '';
+    const who = !several
+      ? ''
+      : r.accountId === 'server'
+        ? '  server'
+        : `  ${r.accountId} b${r.build ?? '?'}`;
     process.stdout.write(`${stamp(r.at)}${who}  ${r.text}\n`);
   }
   if (!several) {

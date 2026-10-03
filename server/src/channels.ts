@@ -90,6 +90,47 @@ import { pairSpan, UsageMeter } from './usage';
 
 export const TICK_INTERVAL_MS = 500;
 
+/**
+ * How long a room may go on being restored before anybody is told.
+ *
+ * Twenty ticks. A restoration that misses is put right on the next one, so a
+ * room still unrestored after this many is not a miss but something the loop
+ * cannot fix — a speaker the media server keeps answering about with no
+ * track, or a call that keeps failing — and that is silent unless said.
+ */
+export const UNRESTORED_NOTICE_MS = 10_000;
+
+/** The least time between two `unheard` notices about one pair. */
+export const UNHEARD_NOTICE_GAP_MS = 30_000;
+
+/**
+ * What the server has to say about withholding that nothing else will.
+ *
+ * Three cases, each the evidence for a different question about whether a
+ * room got its voice back:
+ *
+ * - `restoring` — after a release, a pair found not yet heard and asked for
+ *   again. The first attempt missed, and this is the reconciliation doing
+ *   the job nothing did before `unrestored` existed.
+ * - `unrestored` — a room still not seen restored `UNRESTORED_NOTICE_MS`
+ *   after the withholding ended. The reconciliation is not winning. Said once
+ *   per release.
+ * - `unheard` — a listener's own device saying it is not subscribed to a
+ *   speaker the room is not withholding. The only one of the three that is
+ *   about what LiveKit actually did rather than what it was asked to, since
+ *   nothing the server can query reports a subscription.
+ */
+export type SilenceNotice =
+  | { kind: 'restoring'; channelId: string; listener: string; speaker: string }
+  | { kind: 'unrestored'; channelId: string; forMs: number; pairs: string[] }
+  | {
+      kind: 'unheard';
+      channelId: string;
+      listener: string;
+      speaker: string;
+      forMs: number;
+    };
+
 /** How often deleted rows past their week are looked for. */
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -663,6 +704,29 @@ export class ChannelRegistry {
    */
   private unrestored = new Set<string>();
   /**
+   * When each unrestored channel stopped withholding, and whether that has
+   * been said yet — the clock `UNRESTORED_NOTICE_MS` runs on. Cleared with
+   * `unrestored`, and by any new withholding, so each release is timed from
+   * its own end.
+   */
+  private restoringSince = new Map<string, { since: number; told: boolean }>();
+  /**
+   * The pairs of each unrestored channel that were withheld, until each has
+   * been reported restoring or the room is seen restored — what lets a
+   * `restoring` notice mean a missed restoration rather than a newcomer, who
+   * is unstated too.
+   */
+  private withheldPairs = new Map<string, Set<string>>();
+  /** When each pair was last reported unheard. See `unheard`. */
+  private lastUnheardAt = new Map<string, number>();
+  /**
+   * Pairs with a statement on its way to the media server, so that the
+   * reconciliation passing one before it lands is not reported as a miss. The
+   * statement is still made again — that is the reconciliation's existing
+   * behaviour and harmless — only the notice is held back.
+   */
+  private silenceInFlight = new Map<string, number>();
+  /**
    * When each participant was silenced, as offsets into the *recorded* audio
    * rather than wall clock — so paused time is already excluded and the
    * encoder can gate on these directly. An open window has `toMs` null.
@@ -872,6 +936,12 @@ export class ChannelRegistry {
    * to be able to say who is asking as well as what they said.
    */
   private pingedWith = new Map<string, { by: string; text: string }>();
+
+  /**
+   * Told what `SilenceNotice` describes. Set by the composition root, which
+   * logs it, on `onGuestConsentChanged`'s terms.
+   */
+  onSilenceNotice?: (notice: SilenceNotice) => void;
 
   /**
    * Told when a guest agrees, or stops agreeing, that their voice may be
@@ -2469,6 +2539,47 @@ export class ChannelRegistry {
   }
 
   /**
+   * A listener's device says it is not subscribed to somebody it should be
+   * hearing — see `ClientMessage.channel.unheard`.
+   *
+   * **Logged and nothing else.** It is the one report of what the media plane
+   * actually did, and it could be made to repair the pair too, by forgetting
+   * what was stated so the reconciliation says it again. Not yet: the first
+   * job is to find out whether it ever happens.
+   *
+   * Refused unless it is true of the room as the server sees it — both
+   * present, the speaker not withheld — so that a report crossing a claim
+   * cannot read as a fault. At most one a pair per `UNHEARD_NOTICE_GAP_MS`,
+   * against a client that sends more than its once per episode.
+   */
+  unheard(
+    listener: string,
+    channelId: string,
+    speaker: string,
+    forMs: number
+  ): void {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') return;
+    if (listener === speaker) return;
+    if (!inRoom(channel, listener) || !inRoom(channel, speaker)) return;
+    if (isWithheld(channel, speaker)) return;
+    const now = this.now();
+    for (const [key, at] of this.lastUnheardAt) {
+      if (now - at >= UNHEARD_NOTICE_GAP_MS) this.lastUnheardAt.delete(key);
+    }
+    const key = `${channelId} ${listener}<-${speaker}`;
+    if (this.lastUnheardAt.has(key)) return;
+    this.lastUnheardAt.set(key, now);
+    this.onSilenceNotice?.({
+      kind: 'unheard',
+      channelId,
+      listener,
+      speaker,
+      forMs,
+    });
+  }
+
+  /**
    * Who this channel's snapshot should report as talking while withheld.
    *
    * **Pruned on read against the state as it is now**, which is what makes
@@ -3849,6 +3960,8 @@ export class ChannelRegistry {
         this.persisted.delete(after.id);
         this.silenceStated.delete(after.id);
         this.unrestored.delete(after.id);
+        this.restoringSince.delete(after.id);
+        this.withheldPairs.delete(after.id);
         this.mediaSeen.delete(after.id);
       this.socketDropped.delete(after.id);
       this.autoRecorded.delete(after.id);
@@ -4618,9 +4731,22 @@ export class ChannelRegistry {
     stated.delete(pair);
     // Before the call, so a withholding that fails is owed a restoration as
     // surely as one that lands — the media plane may have acted on it anyway.
-    if (silenced) this.unrestored.add(state.id);
+    if (silenced) {
+      this.unrestored.add(state.id);
+      this.restoringSince.delete(state.id);
+      const withheld = this.withheldPairs.get(state.id) ?? new Set<string>();
+      this.withheldPairs.set(state.id, withheld.add(pair));
+    }
+    const flight = `${state.id} ${pair}`;
+    this.silenceInFlight.set(flight, (this.silenceInFlight.get(flight) ?? 0) + 1);
+    const landed = () => {
+      const left = (this.silenceInFlight.get(flight) ?? 1) - 1;
+      if (left > 0) this.silenceInFlight.set(flight, left);
+      else this.silenceInFlight.delete(flight);
+    };
     this.media.setSilenced({ room, speaker, listener, silenced }).then(
       (tracks) => {
+        landed();
         // Nothing published is nothing stated: whoever publishes next is
         // subscribed to by default, so this has to be said again against a
         // real track — which is exactly what the reconciliation will see.
@@ -4628,11 +4754,13 @@ export class ChannelRegistry {
           stated.set(pair, silenceSignature(room, silenced, tracks));
         }
       },
-      (error) =>
+      (error) => {
+        landed();
         this.onMediaError(
           error,
           `setSilenced ${state.id} ${pair}=${silenced}`
-        )
+        );
+      }
     );
   }
 
@@ -4911,7 +5039,8 @@ export class ChannelRegistry {
     const present = statedIdentities(state).filter((id) => roster.has(id));
     const stated = this.silenceStated.get(state.id) ?? new Map<string, string>();
     this.silenceStated.set(state.id, stated);
-    let agreed = true;
+    const withheld = this.withheldPairs.get(state.id);
+    const disagreeing: string[] = [];
     for (const speaker of present) {
       // Every track, muted ones included, unlike `meterRoom` above: silencing
       // is a statement about a subscription, and a muted track is subscribed
@@ -4924,16 +5053,58 @@ export class ChannelRegistry {
       const signature = silenceSignature(room, silenced, tracks);
       for (const listener of present) {
         if (listener === speaker) continue;
-        if (stated.get(`${listener}<-${speaker}`) === signature) continue;
-        agreed = false;
+        const pair = `${listener}<-${speaker}`;
+        if (stated.get(pair) === signature) continue;
+        disagreeing.push(pair);
+        // Said once per pair per release, and only of a pair that was
+        // withheld and is not merely still on its way: a newcomer is unstated
+        // too, and so is a restoration that has not answered yet, and neither
+        // is a miss. In that order: a pair still in flight keeps its place,
+        // so that if this attempt fails too the next pass can say so.
+        if (
+          !withholding &&
+          !this.silenceInFlight.has(`${state.id} ${pair}`) &&
+          withheld?.delete(pair)
+        ) {
+          this.onSilenceNotice?.({
+            kind: 'restoring',
+            channelId: state.id,
+            listener,
+            speaker,
+          });
+        }
         this.stateSilence(state, speaker, listener, silenced);
       }
     }
+    if (withholding) return;
     // Restored, and seen to be: every pair in the room heard, on the tracks it
     // is carrying now. Anybody absent or publishing nothing needs no statement
     // — whoever arrives or publishes next is subscribed to by default — so the
     // channel can go back to costing nothing a tick.
-    if (!withholding && agreed) this.unrestored.delete(state.id);
+    if (disagreeing.length === 0) {
+      this.unrestored.delete(state.id);
+      this.restoringSince.delete(state.id);
+      this.withheldPairs.delete(state.id);
+      return;
+    }
+    // Not yet, and timed from the first pass to find it so: past
+    // UNRESTORED_NOTICE_MS this is no longer a miss being put right but a
+    // room the loop is not winning.
+    const nowMs = this.now();
+    const restoring = this.restoringSince.get(state.id) ?? {
+      since: nowMs,
+      told: false,
+    };
+    this.restoringSince.set(state.id, restoring);
+    if (!restoring.told && nowMs - restoring.since >= UNRESTORED_NOTICE_MS) {
+      restoring.told = true;
+      this.onSilenceNotice?.({
+        kind: 'unrestored',
+        channelId: state.id,
+        forMs: nowMs - restoring.since,
+        pairs: disagreeing,
+      });
+    }
   }
 
   /**

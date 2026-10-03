@@ -1894,6 +1894,26 @@ export type ClientMessage =
    */
   | { type: 'channel.speaking'; channelId: string; speaking: boolean }
   /**
+   * This device has gone `forMs` without a subscription to `speaker`, who is
+   * in the room, publishing audio, and not withheld.
+   *
+   * **The only evidence anywhere of what LiveKit actually did with a
+   * subscription.** The server states subscriptions and trusts the answer;
+   * nothing it can query reports who is subscribed to whom, so a statement
+   * that was accepted and not applied is invisible from there. It is logged
+   * and changes nothing — see `ChannelRegistry.unheard`.
+   *
+   * Once per episode, never queued. **A server that predates it answers
+   * `Unknown message type`**, so the server has to be deployed before a build
+   * that sends it is uploaded.
+   */
+  | {
+      type: 'channel.unheard';
+      channelId: string;
+      speaker: string;
+      forMs: number;
+    }
+  /**
    * What this device's film player is steering on, or null when it has
    * stopped following.
    *

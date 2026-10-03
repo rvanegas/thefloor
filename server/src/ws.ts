@@ -1918,6 +1918,25 @@ export function registerWebsocket(deps: {
           return;
 
         /**
+         * This device is not subscribed to somebody it should be hearing.
+         * Session sockets only, as `channel.speaking` is; the registry checks
+         * it against the room, so only the shape is checked here.
+         */
+        case 'channel.unheard':
+          if (typeof message.channelId !== 'string') return;
+          if (typeof message.speaker !== 'string') return;
+          if (typeof message.forMs !== 'number' || !Number.isFinite(message.forMs)) {
+            return;
+          }
+          channels.unheard(
+            connection.userId,
+            message.channelId,
+            message.speaker,
+            message.forMs
+          );
+          return;
+
+        /**
          * What this screen's player is steering on, for the debug readouts in
          * the room — see `ClientMessage.watch.drift`.
          *

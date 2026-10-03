@@ -150,6 +150,7 @@ caused; the list carries the meaning.
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
 - **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
+- **Hearing (a device's)** — `Hearing` — who in the media room is publishing audio and which of them this device is subscribed to; read off the room, the only account of what LiveKit actually did with a subscription, and nothing to do with *reach*
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
@@ -182,12 +183,14 @@ caused; the list carries the meaning.
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
 - **Session want — `call`, `listen`** — What this app is asking iOS for, decided in one place (`wantFor`): `call` captures, `listen` only hears — a guest without speech, a device *watching here*, a deferred *promotion*; being in no room asks for nothing
+- **Silence notice** — `SilenceNotice` — the server's log line when a restoration missed, when a room is still not restored ten seconds after a release, or when an *unheard report* arrives; read by `bin/diagnostics`
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
 - **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
 - **Stem** — One participant's isolated audio from a recording, uploaded by its own *egress* job
 - **Switchable set** — The developer's own accounts, by address in `SWITCH_ACCOUNT_IDENTIFIERS`, any of which may become another from *Floor Settings* without a code (`POST /auth/switch`); never a review account, whatever `.env` says. `server/src/switching.ts`
 - **Train** — A deployed build of the web app: `/app` (stable) and `/beta` (TestFlight)
+- **Unheard report** — A *listener's* device saying it has gone five seconds without a subscription to somebody in the room, publishing and not *withheld*; logged and changes nothing. Not a *speaking report*, which is the withheld speaker's own device
 - **Withheld** — `isWithheld` — the single answer to whether this person may be heard
 
 ---
@@ -3482,6 +3485,19 @@ out to let a member play a track into a channel from outside it, seen on build
 name, who gets in, the clipboard. See *Watch party* and
 decision/2026-09-20-playing-is-not-tidying.md.
 
+## Hearing (a device's)
+
+`Hearing` in `app/src/audio/unheard.ts`, on `SessionAudio.hearing`: who in the
+media room is publishing audio, and which of them this device is subscribed to.
+Read off the LiveKit room after every event that could change it, rather than
+counted from the events, so it cannot drift from what the room holds.
+
+**The only account anywhere of what the media plane actually did.** The server
+withholds and restores by stating subscriptions and takes the answer on trust;
+nothing it can query says who is subscribed to whom. *Reconcile / restate*
+compares against what was stated, not against this. Not *reach*, which is
+about contacts.
+
 ## Heartbeat
 
 `STILL_HERE`, sent per channel while somebody is in one. The least eventful
@@ -4022,6 +4038,16 @@ that re-applies a configuration on every engine transition with no JavaScript
 in the path — and the two must agree or the last write wins. See STATES.md §
 *Audio Session Configuration*.
 
+## Silence notice
+
+`SilenceNotice` in `server/src/channels.ts`, logged as `silence notice` and
+laid on the phones' timeline by `bin/diagnostics`. Three kinds:
+`restoring` — after a release, a pair that was withheld found not yet heard and
+asked for again, meaning the first attempt missed; `unrestored` — a room still
+not seen restored ten seconds after the withholding ended, said once per
+release; `unheard` — an *unheard report*. The first two are the server's view
+of what it asked for; only the third is evidence of what happened.
+
 ## Silenced
 
 Derived from `floor.holder` rather than stored: you are silenced iff somebody
@@ -4096,6 +4122,19 @@ door that decides which a browser is sent to, from what that browser last used.
 Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
 box. See decision/ § *Three variants of deploy*.
+
+## Unheard report
+
+`ClientMessage.channel.unheard`, sent by `useUnheardReport` — a listener's
+device saying it has gone five seconds without a subscription to somebody the
+channel has in the room, who is publishing and is not *withheld*. Once per
+episode, with a `heard again` line in the device's own log when it ends, and
+never while the room is reconnecting. The server checks it against the room and
+logs it as a *silence notice*; it repairs nothing, yet.
+
+The other end of a *speaking report*: that is the withheld speaker's device
+saying what no listener can see, this is a listener's device saying what the
+server cannot.
 
 ## Withheld
 

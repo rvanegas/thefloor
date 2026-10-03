@@ -2,6 +2,11 @@ import { buildApp, type App } from '../src/app';
 import { buildFilterGraph } from '../src/export';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
+import {
+  UNHEARD_NOTICE_GAP_MS,
+  UNRESTORED_NOTICE_MS,
+  type SilenceNotice,
+} from '../src/channels';
 
 /**
  * Channels holding more than two people: creation with several invitees,
@@ -622,6 +627,121 @@ describe('the silencing matrix with three people', () => {
     }
     expect(asked).toHaveBeenCalledTimes(1);
     asked.mockRestore();
+  });
+
+  /**
+   * What makes the repair above visible in production, where nothing else
+   * records it: a release that lands says nothing, one that misses says so
+   * once per pair, and one the loop cannot win says so once more.
+   */
+  describe('silence notices', () => {
+    let notices: SilenceNotice[];
+    beforeEach(() => {
+      notices = [];
+      app.channels.onSilenceNotice = (notice) => notices.push(notice);
+    });
+
+    async function releaseFailing(fail: () => boolean) {
+      const trio = await trioAllPresent();
+      app.channels.dispatch(trio.channelId, trio.alice.account.id, {
+        type: 'CLAIM_FLOOR',
+      });
+      await settle();
+      const setSilenced = media.setSilenced.bind(media);
+      media.setSilenced = async (params) => {
+        if (!params.silenced && fail()) throw new Error('timeout');
+        return setSilenced(params);
+      };
+      app.channels.dispatch(trio.channelId, trio.alice.account.id, {
+        type: 'RELEASE_FLOOR',
+      });
+      await settle();
+      return trio;
+    }
+
+    async function ticks(n: number) {
+      for (let i = 0; i < n; i += 1) {
+        clock += 500;
+        app.channels.tick();
+        await settle();
+      }
+    }
+
+    it('says nothing about a release that lands', async () => {
+      await releaseFailing(() => false);
+      await ticks(30);
+      expect(notices).toEqual([]);
+    });
+
+    it('reports each missed pair once as it is restored', async () => {
+      let failing = true;
+      const { alice, bob, carol, channelId } = await releaseFailing(
+        () => failing
+      );
+      failing = false;
+      await ticks(30);
+
+      const restoring = notices.filter((n) => n.kind === 'restoring');
+      const pairs = restoring.map((n) =>
+        n.kind === 'restoring' ? `${n.listener}<-${n.speaker}` : ''
+      );
+      // Bob and Carol were withheld from everybody; Alice, the holder, never.
+      const expected = [bob, carol].flatMap((speaker) =>
+        [alice, bob, carol]
+          .filter((listener) => listener !== speaker)
+          .map((listener) => `${listener.account.id}<-${speaker.account.id}`)
+      );
+      expect(pairs.sort()).toEqual(expected.sort());
+      expect(restoring.every((n) => n.channelId === channelId)).toBe(true);
+      expect(notices.some((n) => n.kind === 'unrestored')).toBe(false);
+    });
+
+    it('reports a room the loop cannot restore, once', async () => {
+      const { channelId } = await releaseFailing(() => true);
+      // The first pass starts the clock, so the notice is due a pass later.
+      await ticks(UNRESTORED_NOTICE_MS / 500);
+      expect(notices.filter((n) => n.kind === 'unrestored')).toHaveLength(0);
+      await ticks(2);
+      const unrestored = notices.filter((n) => n.kind === 'unrestored');
+      expect(unrestored).toHaveLength(1);
+      expect(unrestored[0]).toMatchObject({ channelId });
+      // Every pair, Alice's included: her restorations failed as well, she
+      // was simply never withheld.
+      expect(
+        unrestored[0].kind === 'unrestored' && unrestored[0].pairs.length
+      ).toBe(6);
+      // And not again for as long as it stays that way.
+      await ticks(40);
+      expect(notices.filter((n) => n.kind === 'unrestored')).toHaveLength(1);
+      // Nor is each retry a fresh miss.
+      expect(notices.filter((n) => n.kind === 'restoring')).toHaveLength(4);
+    });
+
+    it('logs a listener reporting a speaker unheard, and only when true', async () => {
+      const { alice, bob, channelId } = await trioAllPresent();
+      app.channels.unheard(alice.account.id, channelId, bob.account.id, 5000);
+      expect(notices).toEqual([
+        {
+          kind: 'unheard',
+          channelId,
+          listener: alice.account.id,
+          speaker: bob.account.id,
+          forMs: 5000,
+        },
+      ]);
+      // Once a pair per gap, against a client that repeats itself.
+      app.channels.unheard(alice.account.id, channelId, bob.account.id, 6000);
+      expect(notices).toHaveLength(1);
+
+      // A withheld speaker is meant to be unheard.
+      app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
+      await settle();
+      app.channels.unheard(alice.account.id, 'chan_nope', bob.account.id, 5000);
+      app.channels.unheard(bob.account.id, channelId, bob.account.id, 5000);
+      clock += UNHEARD_NOTICE_GAP_MS;
+      app.channels.unheard(alice.account.id, channelId, bob.account.id, 5000);
+      expect(notices).toHaveLength(1);
+    });
   });
 });
 
