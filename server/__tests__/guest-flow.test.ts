@@ -1502,7 +1502,7 @@ describe('being asked in as a guest', () => {
  * with the seat's own `GuestView`, a guest's acts are sent over the same
  * socket, and the media token route serves the seat's grant. The credential
  * throughout is the session — see
- * planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+ * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
  *
  * Every test here drives Dana's *member* socket. She is a member of nothing;
  * the socket is hers because the account is.

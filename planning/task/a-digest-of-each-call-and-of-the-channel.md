@@ -15,5 +15,5 @@ chosen channels") or text-only ("Keep the transcript and let the audio go").
 Open questions: which model writes the summaries, and who pays for it; how the
 digest reaches people (push, or the channel); whether a newcomer may read
 digests of calls from before they joined, which is a consent question like
-publishing (`decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`);
+publishing (`decision/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`);
 and what happens to a digest when its recording or transcript is deleted.

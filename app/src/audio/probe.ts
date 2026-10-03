@@ -158,7 +158,7 @@ export async function restartAudioSession(
  *
  * Added 2026-09-27 for the question *whether the engine stop is caused by the
  * mode change specifically* — the task that asked it is closed and its premise
- * gone; decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md is
+ * gone; decision/2026-09-27-the-teardown-was-never-on-the-critical-path.md is
  * where that went. The
  * ten probes above ask which *reader* is destructive; these ask what a
  * **write** does to a running engine, which is the question three builds were
@@ -285,7 +285,7 @@ export const WRITE_PROBES: Probe[] = [
  * is the cause. Both directions still enabled is the signature of an
  * interruption from outside, and the only other instance anybody has logged is
  * iOS taking the session from a backgrounded app. See
- * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+ * planning/decision/2026-09-27-the-film-stops-the-engine.md.
  *
  * **It is kept because it is the only way to press Play without releasing the
  * microphone**, which is the control for anything measured about that press. It
@@ -294,7 +294,7 @@ export const WRITE_PROBES: Probe[] = [
  * path, so the pause already pays that beat. And then the whole premise fell —
  * nineteen presses, a median of 1463ms released against 1662ms held, so the
  * teardown was never in the picture's way at all. See
- * planning/decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
+ * planning/decision/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
  *
  * So there is no longer a design waiting on this. Keep it for the next reading
  * that needs a press with the microphone held — a headset run is the obvious
@@ -371,7 +371,7 @@ export function subscribeFilmProbe(watcher: () => void): () => void {
  * `AVAudioSession` renegotiating — the player takes its first step nine
  * milliseconds after the category lands, and holding the microphone changes
  * none of it, so the renegotiation is `WKWebView`'s rather than ours. See
- * planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
+ * planning/decision/2026-09-28-the-film-waits-for-the-audio-session.md.
  *
  * **What has never been tried is not needing one.** iOS gates *audible*
  * playback on an active session; silent playback plausibly does not need one at

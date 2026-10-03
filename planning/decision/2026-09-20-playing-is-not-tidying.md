@@ -24,7 +24,7 @@ in walks into was chosen by somebody who is not there, which is the case
 one guard along, arguing against the branch that let this through.
 
 The watch party reached the same place hours earlier by a different route
-(decisions/2026-09-20-watching-is-something-you-are-in.md): a seek from outside
+(decision/2026-09-20-watching-is-something-you-are-in.md): a seek from outside
 the room moves a picture somebody is watching. Two features, two failures, one
 rule. The divergence that decision recorded lasted a day.
 

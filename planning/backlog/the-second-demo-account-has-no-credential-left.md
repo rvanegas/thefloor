@@ -2,7 +2,7 @@
 
 **Status:** not started, and not urgent until that account has to be signed in
 as or torn down. Found 2026-08-24; re-measured against production 2026-09-15,
-which changed what this entry says. See decisions/ § *The demo account's tokens
+which changed what this entry says. See decision/ § *The demo account's tokens
 keep dying*.
 
 **Every token recorded in `~/.config/thefloor/demo-account.txt` is dead** —

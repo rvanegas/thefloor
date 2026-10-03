@@ -42,7 +42,7 @@ itself.**
 
 ## So: one file per decision
 
-`planning/decisions/<date>-<title>.md`. Two branches never touch the same file,
+`planning/decision/<date>-<title>.md`. Two branches never touch the same file,
 so landings stop conflicting. There is no volume to choose, no cap to check and
 no rollover to perform, so there is no surgery to get wrong. The running
 records are their own files, edited in place and never copied, so the
@@ -68,7 +68,7 @@ the only edits it will ever get.
 anyway — most name `DECISIONS.md` for an entry that had already moved to a
 dated volume. The title is the durable half, and it survives the change intact
 as the filename. Rewriting them would churn thirty-odd source files for a
-filing decision. `planning/decisions/README.md` says how to resolve one.
+filing decision. `planning/decision/README.md` says how to resolve one.
 
 **An index file was considered and rejected**, as it was for the archaeology
 change earlier the same day. A generated index of 180 entry titles is a file to

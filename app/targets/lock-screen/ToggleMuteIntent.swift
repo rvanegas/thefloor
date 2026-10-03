@@ -53,7 +53,7 @@ struct ToggleMuteIntent: LiveActivityIntent {
    locked phone asks. iOS 26 asks for Face ID or the passcode before a
    third-party Live Activity button runs, whatever this says — Out declares it
    and asks, and so does another app's — see
-   `planning/decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
+   `planning/decision/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
    It is here so that the two buttons state the same intent, and so that it is
    already the answer if iOS starts honouring it.
    */

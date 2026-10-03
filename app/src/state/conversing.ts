@@ -32,7 +32,7 @@ export interface Occupied {
  * a conversation held entirely with a guest reading as silence — on a ladder
  * whose third rung is *bring in a guest*, and under a row whose whole claim is
  * that this is the moment people can hear you. A guest hears you. See
- * `decisions/2026-09-13-a-rung-says-what-ticks-it.md`.
+ * `decision/2026-09-13-a-rung-says-what-ticks-it.md`.
  */
 export function isConversing(channel: Occupied, me: string): boolean {
   if (!channel.present.includes(me)) return false;

@@ -43,7 +43,7 @@ trip.** Both directions at once, which is why it cannot be read as either.
 **There is a cliff at `WATCH_DRIFT_MS` exactly**, and build 303's presses
 straddle it. A player slower than the tolerance it is judged against is adrift
 the instant it starts and so is every correction sent to it;
-decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md is that entry, with the
+decision/2026-09-28-a-correction-aims-where-the-room-will-be.md is that entry, with the
 two ways the log hides it.
 
 ## What is instrumented, and what it is for

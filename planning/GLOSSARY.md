@@ -224,7 +224,7 @@ language further in.
 
 **It is not an index of the code.** Where the reasoning behind a term is long,
 the entry says the term's meaning in a sentence or two and points at the file
-that argues it — usually STATES.md, decisions/, or the type's own
+that argues it — usually STATES.md, decision/, or the type's own
 comment. Nothing here should have to be rewritten when an implementation
 changes, only when a *meaning* does.
 
@@ -250,7 +250,7 @@ what the room can carry as an audience. The two speakers are drawn from the
 forty rather than added to it — a guest granted the microphone occupies one of
 them, not a forty-first place. Until 2026-09-21 neither guest number existed
 and a member could hand out microphones without limit; see
-`decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
+`decision/2026-09-21-asking-somebody-in-as-a-guest.md`.
 
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
@@ -280,7 +280,7 @@ in* and the code says *live*.
 It used to be withheld in a split whose detail pane held that very channel, on
 the grounds that offering to take you back is false when you are already there
 — which left the sidebar naming it nowhere at all. See
-planning/decisions/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
+planning/decision/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 
 ## Channel tabs
 
@@ -314,7 +314,7 @@ the rest of the app answers in. **And it does not translate**, which was the
 reason that reached none of the three places that rename was written up and is
 the one that decided it. Part Three below is where that reasoning ended up
 once the app actually had a second language;
-`decisions/2026-09-23-every-word-the-app-says-is-a-function.md` is the pass
+`decision/2026-09-23-every-word-the-app-says-is-a-function.md` is the pass
 that settled it.
 
 *Members* was narrower than its contents deliberately, on the grounds that a
@@ -367,7 +367,7 @@ there or above the footer, with a coin toss deciding which an account that had
 never said got. Both are gone: a set of controls with two homes is a set with
 two places to look for it, and the one setting in the application whose
 untouched case was not a fixed default is no longer an exception to explain.
-See planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+See planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
 
 **Two of them, since 2026-09-12; six before that is wrong and two is what it
 was.** *Roster* and *Invite links* were the pair, and everything else ran down
@@ -382,7 +382,7 @@ able to stop it. Since 2026-09-18 it is behind nothing, so every tab is offered
 to everybody at all times, whatever the room is doing; a set of fixed controls
 that changes shape under a finger already on its way is the wrong one pressed.
 
-See planning/decisions/2026-09-12-the-channel-screen-is-six-tabs.md.
+See planning/decision/2026-09-12-the-channel-screen-is-six-tabs.md.
 
 ## Channels
 
@@ -419,7 +419,7 @@ two rang until 2026-09-17 and was the case the third chime was built for, which
 makes it the real cost of the rule rather than a tidy-up. One filter sits on
 top and is not derivable from either clause: **only a departure somebody chose
 rings `out`**, a dropped connection and a spent attention window being clocks
-rather than decisions. See `decisions/2026-09-17-the-chime-follows-the-room.md`.
+rather than decisions. See `decision/2026-09-17-the-chime-follows-the-room.md`.
 
 **You never hear your own movement, in any direction**, which is the oldest
 rule here and the reason the cue is local rather than published into the media
@@ -437,7 +437,7 @@ decay of the note before it. Until 2026-09-17 they were *simultaneous*
 chord rather than a sequence — which made the narration order inaudible and the
 events unrecoverable. The queue is in `chime.ts` and spans both hooks, so an
 arrival and a recording starting in one tick are spaced too. See
-`decisions/2026-09-17-two-chimes-at-once-are-a-chord.md`.
+`decision/2026-09-17-two-chimes-at-once-are-a-chord.md`.
 
 **Why *nearby* needed a sound of its own at all**, which is the 2026-09-15
 half and still holds: it had been ringing the arrival chime, so *stepped in*
@@ -462,7 +462,7 @@ scope is deliberate rather than settled. What it is *for* is
 notice that a run was underway was a red dot, which reaches whoever is looking
 at a screen and nobody else. It does not answer that question and must not be
 read as answering it. See
-`decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
+`decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
 
 **A fifth and a sixth since 2026-09-26, and they are the *film*'s.** A falling
 octave — A5 then A4 — when a **watch party**'s film starts playing, and a
@@ -500,7 +500,7 @@ silent — a party is loaded *paused* — and so is a paused party being stopped
 what the sound says is *the room has its voices back*, which is equally true of
 all three ways out, and a listener who cannot see the screen has no use for a
 third cue to tell them apart. See
-`decisions/2026-09-26-the-film-says-when-it-starts-and-stops.md`.
+`decision/2026-09-26-the-film-says-when-it-starts-and-stops.md`.
 
 **On the screening device the two chimes are ordered against the audio
 session, and in opposite directions.** A chime is an `AVAudioPlayer` playing
@@ -517,7 +517,7 @@ a phone in a pocket is present without watching here and never leaves
 `playAndRecord`, and a *guest* without a speech grant is on `playback`
 throughout, so the gate is *did this device hand its session over* rather than
 *what category is it in*. See
-`decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
+`decision/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
 
 **It is not in the media room**, and that is the distinction the word has to
 hold. Nothing is published into LiveKit; each device makes its own sound about
@@ -526,7 +526,7 @@ the rule that decided the whole design — for the three presence kinds, **never
 about**. You know you walked in; the recording chime and the two film chimes
 are the exceptions, and both say why above — in each case the sound is the
 moment the room was told rather than feedback for whoever caused it. See
-`decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+`decision/2026-09-14-the-room-says-who-came-and-went.md`.
 
 **How loud is one number, and was the listener's for one day.** It is the
 **peak the file is rendered at** and not a volume control:
@@ -542,7 +542,7 @@ full scale for a sine, and the ceiling the renderer clamps to, so there is no
 larger number to reach for. Louder than this is the path or the waveform, not
 the peak. The audio lab still
 sweeps the five, which is where any other number is heard. See
-`decisions/2026-09-15-the-chime-has-one-loudness-again.md`.
+`decision/2026-09-15-the-chime-has-one-loudness-again.md`.
 
 **Only a departure somebody chose.** Of the four ways to stop being present,
 two are clocks running out — a connection past its grace, an attention window
@@ -555,7 +555,7 @@ and writes no audio session — until 2026-09-17, and now share only the second
 half of that reason. A chime goes out an `AVAudioPlayer` on the media path,
 which also writes nothing to the session but, unlike an alert, is not silenced
 by the ringer switch; the buzz is still a system sound. See
-`decisions/2026-09-17-the-chime-is-not-an-alert.md`. `usePresenceChime` is the
+`decision/2026-09-17-the-chime-is-not-an-alert.md`. `usePresenceChime` is the
 schedule for the three and `useRecordingChime` for the fourth, `chime.ts` the sound, and `AudioRouteModule.swift` renders it —
 `chimeNotes` there is the table of kinds, and `chime.web.ts` mirrors it row for
 row so the same event does not sound like a different one depending on which
@@ -595,7 +595,7 @@ settings, and which channel a channel screen is — so the browser's Back does
 not see them: pressing it leaves for the list, or leaves the site. Chosen on
 2026-09-04 rather than overlooked, and the alternative was giving those screens
 addresses, which would have meant putting ids in them. See
-decisions/ § *An address names a place and never an id*.
+decision/ § *An address names a place and never an id*.
 
 **The channel screen's own way off used to be two words and three cases** —
 *Home* on a phone, *Close* in the *detail* pane, and neither while you were
@@ -694,13 +694,13 @@ and nothing is remembered. On *Support* it means an answer to one of your *Help*
 questions has come back since this phone last opened that screen — which has to
 be remembered, an answered question staying answered for ever. One clears itself;
 the other is cleared by being read. `state/helpSeen.ts` argues it, and
-`decisions/2026-09-15-the-two-dabs-are-not-symmetrical.md` is why.
+`decision/2026-09-15-the-two-dabs-are-not-symmetrical.md` is why.
 
 **The *Support* one is drawn twice, and is still one fact.** The tab wears it
 and so does the *Help* card behind the tab, off one condition, because a tab
 saying *go and look* onto a screen of four cards is a direction turned into a
 search. Both clear together the moment the help screen is opened.
-`decisions/2026-09-22-a-marked-tab-marks-the-card-it-meant.md` has it, and it
+`decision/2026-09-22-a-marked-tab-marks-the-card-it-meant.md` has it, and it
 is the only place a control rather than a tab wears this mark: a dab on a
 button means *the tab you came through was marked about this*, never a second
 thing of its own.
@@ -881,7 +881,7 @@ happens on the registration that brings an account its first device token,
 which is `POST /devices` and not the signup, and an account that never turns
 them on is never placed. *Cohort-eligible* is the server's name for somebody
 waiting on exactly that and nothing else. See
-`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
+`decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
 
 **A device token was standing in for the permission**, and the two come apart
 in both directions — a token outlives a permission switched off in Settings, a
@@ -899,7 +899,7 @@ enough to seed itself, and when growth no longer needs it, emptying
 page's section about them in the same restart. Channels already made are left
 standing — by then they hold conversations, and retiring a feature is not a
 reason to take one away from anybody. See
-`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md`.
+`decision/2026-09-15-a-new-account-does-not-arrive-alone.md`.
 
 The card below the tabs is what says all of this to whoever is in one; it can
 be dismissed, per install, and dismissing it changes nothing about the channel.
@@ -1044,7 +1044,7 @@ a house labelled *Home* rather than the cross every other header draws. See
 inside it; passages elsewhere that say "Home" for a list of channels are from
 before that. Above the width breakpoint Home is the *list* pane and never goes
 away, which is what lets *Close* mean one thing in both layouts. See
-decisions/ § *The tier above both lists*.
+decision/ § *The tier above both lists*.
 
 ## In the app now
 
@@ -1067,7 +1067,7 @@ was awake, and the row said *In the app now* about somebody who had been
 unresponsive for hours. The socket was the right *kind* of evidence and the
 wrong question — the fix was not a shorter timeout on it but a different
 question, which *attention* was already asking about rooms and now asks about
-people. See `decisions/2026-09-25-in-the-app-now-counts-attention.md`.
+people. See `decision/2026-09-25-in-the-app-now-counts-attention.md`.
 
 **One clock for the words and the number**, which is the other half of that
 correction and the reason it was not a one-line change. The timestamp underneath
@@ -1117,7 +1117,7 @@ request to be answered: the address was written to, and the person turned up at
 it. Which is the same consent an *invite link* takes, by the other road — and
 since this email carries that link, the two had to agree or one invitation
 meant two things. See
-`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`.
+`decision/2026-09-25-an-invite-link-is-a-standing-door.md`.
 
 Which is why it is the only ask with a price on it. **Twenty per sender per
 twenty-four hours** — `INVITE_MAX_SENDS` — counted at the attempt and never
@@ -1137,7 +1137,7 @@ answers who a username belongs to.
 spent, never expired. It used to carry an *invite pin* and be good for one
 person; what that bought was a limit rather than a consent, which is the
 argument in
-`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`. Following one
+`decision/2026-09-25-an-invite-link-is-a-standing-door.md`. Following one
 twice, or after somebody else has, is not a refusal — it is the second call
 finding the pair already contacts.
 
@@ -1166,13 +1166,13 @@ tab the page hands over to, and from a phone it comes back over
 `thefloor://i/<username>` when they press *Open in the app* after
 installing. Either way the pin is redeemed once there is a session, and the
 inviter is a *contact* with a *channel* before the first screen is drawn. See
-planning/decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
+planning/decision/2026-09-25-the-invitation-asks-for-one-thing.md.
 
 ## Invite pin
 
 **Six digits that used to end an invite link**, and made it good for one
 person. Gone since 2026-09-25 —
-`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`. Nothing mints one;
+`decision/2026-09-25-an-invite-link-is-a-standing-door.md`. Nothing mints one;
 what still reads them serves links minted before that day, and
 `planning/SHIMS.md` § *Gate 290* says when that goes.
 
@@ -1199,7 +1199,7 @@ for you.** Off for everybody until they turn it on, and it belongs to the
 account rather than to the phone. One thing is behind it today: *transcripts*.
 The *watch party* was the other and left on 2026-09-18, which is what graduating
 looks like — see
-planning/decisions/2026-09-18-the-watch-party-comes-out-of-labs.md.
+planning/decision/2026-09-18-the-watch-party-comes-out-of-labs.md.
 
 It is a gate, not a preference: with it off the section is not on the screen at
 all — no greyed buttons, no empty cards. And it is only about you: a member of
@@ -1260,8 +1260,8 @@ The one piece of this interface that renders outside the app. An ActivityKit
 Live Activity, up for as long as this device is standing in a channel and in
 touch with it, drawn by the widget extension in `app/targets/lock-screen/`.
 Built 2026-09-17;
-`decisions/2026-09-17-the-lock-screen-carries-two-controls.md` is the entry,
-and `decisions/2026-09-29-the-lock-screen-carries-a-way-out.md` the third
+`decision/2026-09-17-the-lock-screen-carries-two-controls.md` is the entry,
+and `decision/2026-09-29-the-lock-screen-carries-a-way-out.md` the third
 control.
 
 **That sentence used to say *exactly as long as*, and it was not true twice
@@ -1273,7 +1273,7 @@ out on. Neither is the hook's doing — it takes the card down the moment there
 is no channel. The card is now adopted at launch and ended when the process is
 told it is going away, and `useLockScreen` takes an `inTouch` that holds it for
 a little less than DISCONNECT_GRACE_MS. See
-`decisions/2026-09-18-the-lock-screen-card-does-not-outlive-the-room.md`.
+`decision/2026-09-18-the-lock-screen-card-does-not-outlive-the-room.md`.
 
 **And since 2026-10-01 the server ends it too**, by an ActivityKit push, in
 the same change as any step-out it makes — the grace or attention expiring, a
@@ -1281,7 +1281,7 @@ removal, another device stepping in — because the phone those happen to is
 most often one iOS has suspended, which runs nothing that could take the card
 down. The phone's own hold is fifteen seconds shorter than the grace, so that
 while it *is* running the card goes first. See
-`decisions/2026-10-01-the-server-ends-the-lock-screen-card.md`.
+`decision/2026-10-01-the-server-ends-the-lock-screen-card.md`.
 
 **The test is the design rather than the count**: the card offers only what a
 locked phone can deliver. A mute button, a way into the channel — the tap on
@@ -1306,7 +1306,7 @@ in the room and can still be heard.
 though both declare `.alwaysAllowed`: iOS requires it of third-party Live
 Activity buttons whatever they declare, and Face ID answers it unseen when the
 phone is being looked at. See
-`decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
+`decision/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
 
 **Muting is the thing that *can* be done from a locked phone**, and the reason
 is worth keeping: a self-muted member still needs the microphone, so the audio
@@ -1327,9 +1327,9 @@ sentence a greyed mute button cannot carry — open the app and every reason is
 stated in its own place — and STYLE.md carries that as a named exception to
 its rule that a disabled control is accompanied by a reason. A button reading
 *Open* spelled the tap out from 2026-09-17
-(`decisions/2026-09-17-the-lock-screen-card-shows-its-controls.md`) and was
+(`decision/2026-09-17-the-lock-screen-card-shows-its-controls.md`) and was
 removed on 2026-09-29
-(`decisions/2026-09-29-the-lock-screen-card-drops-open.md`).
+(`decision/2026-09-29-the-lock-screen-card-drops-open.md`).
 
 **Not the same thing as Android's notification.** `modules/call-service` puts a
 foreground-service notification on an Android lock screen, and that exists to
@@ -1452,7 +1452,7 @@ faces, and for a stronger reason. `REMOVAL_MOVES_REQUIRED`,
 `MIN_PARTICIPANTS_TO_REMOVE` and `REMOVAL_MOTION_WINDOW_MS` in
 core/constants.ts; `canMoveToRemove`, `canWithdrawRemoval`, `removalMotion` and
 `removalMovesWanted` in core/channel.ts; and
-`decisions/2026-09-26-removing-a-member-takes-two.md`.
+`decision/2026-09-26-removing-a-member-takes-two.md`.
 
 ## Removal notice
 
@@ -1535,7 +1535,7 @@ exactly as it always has.
 `screening` and for the same reason: each connection is told about the others
 and never about itself, which makes the answer mean *another device of mine* on
 every device at once. See
-`decisions/2026-09-25-the-room-is-pinned-on-every-device.md`.
+`decision/2026-09-25-the-room-is-pinned-on-every-device.md`.
 
 ## Nearby / Stepped out
 
@@ -1576,7 +1576,7 @@ been present in** announces nothing: the notification for that is an
 invitation, which is a month-long statement about membership sent once in a
 channel's life, and *Alice stepped in* would be false about a room the
 recipient has never heard of. See
-`decisions/2026-09-12-a-declaration-is-an-arrival.md`.
+`decision/2026-09-12-a-declaration-is-an-arrival.md`.
 
 **Two clocks, and the state decides which**, corrected 2026-09-09 the same day
 one clock was adopted. *Nearby* counts attention: the time since they were last
@@ -1648,7 +1648,7 @@ It used to be only something that happened *to* somebody.
   the strongest evidence there is that they are holding their phone. It
   announces nothing — a declaration announces because it is an arrival, and
   this is a departure. See
-  `decisions/2026-09-12-moving-rooms-leaves-you-nearby.md`.
+  `decision/2026-09-12-moving-rooms-leaves-you-nearby.md`.
 
 **One name for the two declarations, since 2026-09-09**, because they are one
 action — `DECLARE_NEARBY`, whose internal branch is the whole of the difference
@@ -1662,7 +1662,7 @@ present, leaving *Nearby* as a rung you could only leave by stepping in or by
 waiting fifteen minutes. So the three states are a ladder — **in, nearby,
 out** — and every screen that offers any of them offers the two moves off the
 rung you are on, in that order. See
-`decisions/2026-09-09-presence-is-a-ladder.md`.
+`decision/2026-09-09-presence-is-a-ladder.md`.
 
 **Nearby never enters a room by itself.** When somebody steps into a channel a
 declared-nearby phone is standing in, it **says so and does nothing** — one
@@ -1675,13 +1675,13 @@ rung and a control that only put the card away, and four of the card's five
 parts were said elsewhere on the same screen at the same moment. **The one
 word that survived is *just*** — the roster gives a clock to your own row and
 not to anybody else's, so *Present* alone cannot tell a second ago from an
-hour ago. See `decisions/2026-09-15-the-arrival-is-a-line.md`.
+hour ago. See `decision/2026-09-15-the-arrival-is-a-line.md`.
 
 **Nothing about the arrival is answered, then.** The line is filtered against
 the roster rather than dismissed or expired, so it goes when the person who
 arrived leaves. Promotion, where the phone stepped itself in, was built and
 removed on 2026-09-08 without ever running on a device; see
-`decisions/2026-09-08-the-arrival-is-offered.md`.
+`decision/2026-09-08-the-arrival-is-offered.md`.
 
 **Nothing else about it changed, and that is the point.** It is not kept alive,
 it lapses to *Stepped out* after the same window, and it is carried by the same
@@ -1709,14 +1709,14 @@ minute except stepping off the rung and back on, which restarted it anyway.
 The tap is the evidence the window is looking for, so it restamps both clocks
 — the card's `declaredNearbyAt` and the server's attention stamp — and
 converts a wait that began by running out of grace into a declared one. See
-`decisions/2026-09-13-tapping-nearby-restarts-the-wait.md`.
+`decision/2026-09-13-tapping-nearby-restarts-the-wait.md`.
 
 **Home hoists it, since 2026-09-12.** The tier pins a bar for each channel you
 are nearby in, under where it pins the channel you are present in and never
 beside it — a paler hue of its own, a hollow dot, and *Nearby · 2 present*.
 Several bars is ordinary. Pressing one opens the channel and steps in nowhere,
 that being the act which ends the state. See
-`decisions/2026-09-12-nearby-is-hoisted-too.md`.
+`decision/2026-09-12-nearby-is-hoisted-too.md`.
 
 **Both tiers are drawn at once**, corrected later the same day. A live bar used
 to exclude every nearby bar, on the premise that presence and nearby could not
@@ -1781,7 +1781,7 @@ makes a sound at the default level.
 open the channel they name, and none of them steps you into it — reasoned out
 one kind at a time on 2026-09-15 and arriving at one rule, which is why the
 list above says nothing about it. See
-`decisions/2026-09-15-a-notification-names-the-room-it-is-about.md`. *Step in*
+`decision/2026-09-15-a-notification-names-the-room-it-is-about.md`. *Step in*
 stays a second, deliberate tap on the footer, so *opened from a notification*
 is an ordinary instance of looking at a channel you are not in.
 
@@ -1871,7 +1871,7 @@ second or so; above it, the old doubling backoff resumes.
 
 `AppState.offline` in the code, reported by `Realtime` through `onOffline`,
 rendered by `OfflineView`. Distinct from `ConnectionStatus`, which cycles
-while retrying and is not sticky. See decisions/2026-09-16-being-offline-is-one-state.md.
+while retrying and is not sticky. See decision/2026-09-16-being-offline-is-one-state.md.
 
 ## Ping
 
@@ -1907,7 +1907,7 @@ changes nothing: `lastPingedAt` is still the only authority on whether a ping
 may be sent, the record is written after it has decided, and nothing in the
 application reads the table. Swept at `USAGE_RETENTION_MS` with the rest of
 the meter, and described on `/privacy`. See
-`decisions/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
+`decision/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
 
 ## Present
 
@@ -1929,7 +1929,7 @@ different fact about a different connection, and the two came apart: an app
 force-quit and reopened held a room it was not in, for ever, because merely
 watching the channel renewed the grace period. `Channels.reconcilePresence`
 asks the room instead. See
-planning/decisions/2026-09-08-present-is-the-media-connection.md.
+planning/decision/2026-09-08-present-is-the-media-connection.md.
 
 **Entering is still what creates it.** The tap is what grants a presence,
 because a step-in has to move the screen without a round trip through LiveKit.
@@ -1942,7 +1942,7 @@ grace *it* started the room may not cancel — a phone keeps its claim for as lo
 as it holds the audio, and the socket is what says whether it still does. So a
 suspended phone the SFU goes on listing reads *Nearby* rather than *Present*.
 Only a reconnecting client's own re-entry restores it. See
-planning/decisions/2026-09-08-the-socket-is-what-holds-a-place.md.
+planning/decision/2026-09-08-the-socket-is-what-holds-a-place.md.
 
 **A dropped connection is still not an absence — and since 2026-09-08 the
 roster stops calling it presence.** A connection that dies and returns changes
@@ -1951,7 +1951,7 @@ length of that grace the card reads ***Nearby*** rather than *Present ·
 reconnecting…*, because a window in which somebody may come back is not a claim
 that they can hear you. The ping was already offered there — presence is not
 reachability — so the button was right before the word was. See
-planning/decisions/2026-09-08-the-grace-is-not-a-presence.md. What changed is which
+planning/decision/2026-09-08-the-grace-is-not-a-presence.md. What changed is which
 connection is asked, not how patient the answer is.
 
 **The socket keeps the other clock.** How long ago somebody was last heard from
@@ -1990,7 +1990,7 @@ than about who is deciding. An unnamed channel's only name is its roster, the
 one thing a public page may never show, so the page and the directory row
 answered with *A conversation* — which named nothing and was the same string
 on every such row. See
-`decisions/2026-09-22-only-a-named-channel-can-be-public.md`; the fallback is
+`decision/2026-09-22-only-a-named-channel-can-be-public.md`; the fallback is
 still in app.ts for the channels that went public before the rule.
 
 **A public channel is findable, not merely reachable** — which is a change,
@@ -2045,7 +2045,7 @@ What does protect somebody's voice is *agree to publish*, per recording and
 unanimous, and the card's second paragraph says so — that is the sentence
 doing the real work. `public_notices` in db.ts,
 `owesPublicNotice` in publication.ts, and
-`decisions/2026-09-22-a-page-nobody-was-told-about.md`.
+`decision/2026-09-22-a-page-nobody-was-told-about.md`.
 
 ## Directory page
 
@@ -2057,7 +2057,7 @@ word**, and it arrived after the channels did. A page whose address nobody
 publishes is unlisted; a page on a list is findable. That distinction was the
 whole question the day this was built, and it was decided at the prompt rather
 than assumed — see
-`decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`,
+`decision/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`,
 which also records that the app's and `/privacy`'s wording had to be corrected
 in the same commit, and that anything widening this audience again owes the
 same correction.
@@ -2315,7 +2315,7 @@ the guest page in a browser, which is what a *guest link* always produces and
 is unchanged: the app boots into a sign-in, and an anonymous seat has nothing
 to sign in as. Before that date every seat was the browser's, and a phone was
 shown an alert naming a web address. See
-`decisions/2026-09-22-a-seat-rides-the-member-socket.md`.
+`decision/2026-09-22-a-seat-rides-the-member-socket.md`.
 
 **A seat may exist before anybody has sat in it**, since 2026-09-21: that is
 what a *guest invitation* is, and it is the one kind whose holder has never been
@@ -2438,7 +2438,7 @@ rather than as acts, because the slot you are on is lit and a lit word naming
 an act would be naming one you cannot perform. They are short forms and not new
 terms: a roster card still says *Present* and *Stepped out* about other people,
 and at 11pt in a fifth of a phone those truncate. See
-`decisions/2026-09-09-presence-is-a-ladder.md`.
+`decision/2026-09-09-presence-is-a-ladder.md`.
 
 **A session is held if and only if the phone is stepped in.** Nearby, stepped
 out and not in a room are one audio state, and it is *none*.
@@ -2454,7 +2454,7 @@ and the screen followed it symmetrically from 2026-09-08: for somebody whose
 tap stepped in, stepping out closed the screen, because arriving at the screen
 had been the step in and there was nothing left to look at. The setting and its
 column went on 2026-09-21 and the looking half became the only half. See
-`decisions/2026-09-21-a-tap-only-ever-looks.md`.
+`decision/2026-09-21-a-tap-only-ever-looks.md`.
 
 ## Support tab
 
@@ -2579,7 +2579,7 @@ Behind *Labs* from 2026-09-06 to 2026-09-18, on the starting side only —
 anybody in a channel could always stop, pause and seek a party already running,
 whoever started it. It is behind nothing now: the tab is on every channel
 screen and anybody in the room can begin one. See
-planning/decisions/2026-09-18-the-watch-party-comes-out-of-labs.md.
+planning/decision/2026-09-18-the-watch-party-comes-out-of-labs.md.
 
 A YouTube video everybody watches on their own screens, in step. Nothing about
 it is fetched, published, recorded or stored here: it is a link, and each
@@ -2600,7 +2600,7 @@ voice back — so over a paused film the party was quieting nobody and the claim
 was refused anyway. A film that reaches its end comes to rest paused and
 loaded, so a channel that watched something through and never pressed *Stop*
 could not claim the floor again at all. See
-planning/decisions/2026-09-24-the-floor-waits-on-the-film-not-the-party.md.
+planning/decision/2026-09-24-the-floor-waits-on-the-film-not-the-party.md.
 
 **Against the shared track the exclusivity is between the two transports
 rather than the two loads, since 2026-09-20.** Both may be loaded at once;
@@ -2640,7 +2640,7 @@ small draggable rectangle in the corner of the other five. It was a child of
 that tab's card until then, so somebody stepping into a room with a film
 running — landing on *Members*, as everybody does — saw nothing, heard
 nothing, and was reported to the room as watching. See *the picture* below and
-decisions/2026-09-19-the-film-is-not-a-tab.md.
+decision/2026-09-19-the-film-is-not-a-tab.md.
 
 **The video's own controls are off**, and have been since 2026-09-18:
 `controls: 0`, with `disablekb` beside it. The picture is not a control. The
@@ -2819,7 +2819,7 @@ somebody's devices at once. **Off every instance of the account, since
 2026-09-21, and not only the ones it has a record of**: what it holds is what
 each device last managed to *say*, which a dropped socket takes with it, so
 filtering the eviction on it skipped exactly the devices that had drifted. See
-decisions/2026-09-21-a-declaration-displaces-every-instance.md.
+decision/2026-09-21-a-declaration-displaces-every-instance.md.
 
 **Handing it over only *asks*.** The film moves when the target instance
 declares itself the screen, and the eviction that follows is what takes it off
@@ -2914,7 +2914,7 @@ person is already holding.
 **A film on a second device sounds best**, which is the configuration the
 design prefers: a screen does not step in, so it claims no audio session and
 displaces nothing. See *screen*, which is the role, and
-`decisions/2026-09-20-the-second-device-is-a-television.md`.
+`decision/2026-09-20-the-second-device-is-a-television.md`.
 
 ## The picture
 
@@ -3091,7 +3091,7 @@ answer. `WatchParty.title`, and `learnTitle` is the rule.
 without a title for: the URL came off it on 2026-09-18 and nothing replaced it,
 because fetching a name would have been the first request this project ever
 made to Google. A player describing the video it already has is not that
-request. See decisions/2026-09-20-the-film-says-what-it-is-called.md.
+request. See decision/2026-09-20-the-film-says-what-it-is-called.md.
 
 **Null is ordinary**: the first seconds of every party, a party nobody is
 showing anywhere, and an embed whose `getVideoData` is missing — the method is
@@ -3177,8 +3177,8 @@ about, and their card already says where they are. *Watching* itself is not
 gated that way and must not become so: a *second device* is a screen without a
 voice, so a stepped-out member may hold the picture and is reported.
 
-See decisions/2026-09-20-the-roster-says-who-is-watching.md and
-decisions/2026-09-26-a-blank-suffix-was-two-answers.md.
+See decision/2026-09-20-the-roster-says-who-is-watching.md and
+decision/2026-09-26-a-blank-suffix-was-two-answers.md.
 
 ## Watching here
 
@@ -3200,7 +3200,7 @@ pause put every microphone back onto a dead engine and the room could not talk
 until somebody left the channel and returned. A category change tears the device
 down *and brings the engine back up*; that is why the expensive version is the
 one that works. See STATES.md § *Audio Session Configuration*, `isScreening` in
-core/micNeeded.ts, and decisions/2026-09-26-the-film-keeps-its-stereo.md.
+core/micNeeded.ts, and decision/2026-09-26-the-film-keeps-its-stereo.md.
 
 Sampled when a run starts rather than watched continuously: somebody switching
 to their only device mid-film changes nothing until the next Play, so no voice
@@ -3348,7 +3348,7 @@ room.
 **It is not *step in*.** Stepping into an empty channel is not conversing, and
 the rung that reads this said *Step in* until people who had stepped in were
 told they had not. See
-`decisions/2026-09-13-a-rung-says-what-ticks-it.md`.
+`decision/2026-09-13-a-rung-says-what-ticks-it.md`.
 
 ## Detail (pane)
 
@@ -3395,7 +3395,7 @@ words, and conflating them is the readiest mistake in this area.
 is what mints one; an install that declined has a live session and no row here
 at all. That single fact is why this table cannot stand in for a list of
 somebody's devices, however much it looks like the nearer half of one — see
-decisions/ § *Sessions are ended wholesale, and that is not a defect*.
+decision/ § *Sessions are ended wholesale, and that is not a defect*.
 
 `session_hash` joins a row to the session that registered it, and is the only
 join the server has between a push address and a live socket: `POST /devices` is
@@ -3480,7 +3480,7 @@ something other people are watching in real time; and the audio player's turned
 out to let a member play a track into a channel from outside it, seen on build
 261. What the empty half still governs is what a conversation can *see* — its
 name, who gets in, the clipboard. See *Watch party* and
-decisions/2026-09-20-playing-is-not-tidying.md.
+decision/2026-09-20-playing-is-not-tidying.md.
 
 ## Heartbeat
 
@@ -3531,7 +3531,7 @@ not one: **a button press is an action.** Nothing infers anything, so nothing
 is swallowed, and actions are applied in the order they arrive and fanned out
 to every player — which is all the channel ever did.
 
-See planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
+See planning/decision/2026-09-18-the-picture-is-not-a-control.md.
 
 ## Introduction
 
@@ -3582,12 +3582,12 @@ reports it and the rung is simply not drawn, so its absence is the tick. What
 each browser is told to do is `state/install.ts`, and where a browser
 volunteers a `beforeinstallprompt` the row installs it directly. See
 *installed (web app)*, and
-`decisions/2026-09-13-the-web-app-can-be-installed.md`.
+`decision/2026-09-13-the-web-app-can-be-installed.md`.
 
 **It was four rungs until 2026-09-13**: *say who you are* and *choose a
 username* went when both became derived at signup, and with them the profile
 request the username rung needed. See
-`decisions/2026-09-13-the-checklist-is-two-rungs.md`.
+`decision/2026-09-13-the-checklist-is-two-rungs.md`.
 
 **Four more rungs since 2026-09-13, and they are a different kind**: *claim
 the floor*, *say you are nearby*, *bring in a guest*, *play something
@@ -3600,7 +3600,7 @@ They say *try this* where the rungs above say *this is true of you*. They were
 per install, in `thefloor.intro.tried.*`, for the day between their being
 built and the account taking them; those keys are read once and handed to the
 server now. `core/tried.ts` and
-`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`.
+`decision/2026-09-13-the-tried-rungs-belong-to-the-account.md`.
 
 **One rung is drawn in full: the first that is not done.** The ones behind
 somebody are a title each, and the ones after the next are behind *See more*,
@@ -3617,7 +3617,7 @@ card returns to Home afterwards carrying what is left.
 `thefloor.intro.doneAt` is still written at the first conversation and still
 called that on disk, but it now ticks *step in with somebody* and nothing else,
 rather than retiring anything by itself. See
-`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
+`decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
 
 **Every row carries a cross, since 2026-09-13, and that is the second exit.**
 Until then the only way out was finishing it, which is fine for a ladder
@@ -3629,7 +3629,7 @@ list, so it is written on this install, in `thefloor.intro.dismissed`, beside
 the *starting line* and `doneAt` rather than on the account. The last dismissal
 retires the whole card, an empty one being a bug rather than a quiet card. See
 *dismiss (a rung)* and
-`decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
+`decision/2026-09-13-the-checklist-has-a-second-exit.md`.
 
 **And *Show the checklist again* returns the whole ladder hollow.** It moves
 the *starting line* to the contact count of the moment rather than clearing it,
@@ -3755,7 +3755,7 @@ track at all, which is neither this sense nor sense 3 but the absence of
 anything for either to describe. So a room watching a film the way the app
 defaults to published nothing and read as defunct. Fixed 2026-09-23 by asking
 `watch.status` in Rule A; see *Watch party* and
-decisions/2026-09-23-a-film-is-not-a-defunct-room.md.
+decision/2026-09-23-a-film-is-not-a-defunct-room.md.
 
 **The device was held rather than closed for three days**, which made a
 screening device hold a muted track where it had held none — and `publishing`
@@ -3860,7 +3860,7 @@ In the room it appears as an ordinary remote participant under the identity
 the server-side component and `media:chan_…` is its face inside a LiveKit room;
 they are one thing named from two sides. It is not a person and holds no seat.
 
-See `decisions/` § *The phone holds a microphone in order to hear*, a whole
+See `decision/` § *The phone holds a microphone in order to hear*, a whole
 investigation into this participant's track failing to render on a device that
 was subscribed to it.
 
@@ -3970,7 +3970,7 @@ token: the row is a hash and some timestamps, with no platform, no model and no
 origin. So the only two operations are the session you are holding
 (`/auth/sign-out`) and every other one at once (`/auth/sign-out-others`), with no
 way to name a third — and the second spares the caller by hash rather than by
-count. That is deliberate and settled: decisions/ § *Sessions are ended
+count. That is deliberate and settled: decision/ § *Sessions are ended
 wholesale, and that is not a defect* is the gap, and why it is not being
 closed.
 
@@ -4015,7 +4015,7 @@ served became a phone with no session at all. `WAITING` was `call` plus
 `mixWithOthers` and lasted one day, 2026-09-06. `ducked` was
 `idle` plus `duckOthers` and lasted about an hour. `SCREENING` held a
 microphone under a film from 2026-09-23 to 2026-09-26, and the room could not
-talk after a pause; see `planning/decisions/2026-09-27-the-film-stops-the-engine.md`.
+talk after a pause; see `planning/decision/2026-09-27-the-film-stops-the-engine.md`.
 
 `policyFor` hands the SDK's native observer the same answer — a second writer
 that re-applies a configuration on every engine transition with no JavaScript
@@ -4095,7 +4095,7 @@ is) and `/beta` (`beta/`, what TestFlight has). `server/src/open.ts` is the one
 door that decides which a browser is sent to, from what that browser last used.
 Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
-box. See decisions/ § *Three variants of deploy*.
+box. See decision/ § *Three variants of deploy*.
 
 ## Withheld
 
@@ -4111,7 +4111,7 @@ the server states to the media plane.
   where
   two layers describe the same thing and can differ. The file to read before
   anything that looks stated twice.
-- **decisions/** and its closed volumes — why a thing is the way it
+- **decision/** and its closed volumes — why a thing is the way it
   is, including what was deliberately not built. Grep the whole set.
 - **EXPIRATIONS.md** — every deadline measured in days.
 - **AGENTS.md** — the traps that cost a day, and the five verbs (*land*,
@@ -4156,7 +4156,7 @@ broken in the commonest case it governs is not a rule.
 been raised once and will be raised again by anybody who reads the old rule, or
 who knows Spanish and not this decision. A gender setting was built on
 2026-09-25 to feed it and was backed out the next day — see
-`decisions/2026-09-26-the-copy-uses-the-generic-masculine.md`, which is the
+`decision/2026-09-26-the-copy-uses-the-generic-masculine.md`, which is the
 place to argue with any of this.
 
 **The vocabulary the old rule produced is kept**, and this is the one thing not
@@ -4181,7 +4181,7 @@ are settled:
   person and not a description of a state.
 - **Invitations** (the People tab's group of guest seats nobody has taken up) —
   *Invitaciones*. Settled 2026-09-22, ahead of the rest, in
-  `decisions/2026-09-22-the-members-tab-is-the-people-tab.md`: the noun rather
+  `decision/2026-09-22-the-members-tab-is-the-people-tab.md`: the noun rather
   than the participle, because *Invited as guests* renders as *invitados como
   invitados*.
 - **Invited** (the status line on a member who has never entered) —

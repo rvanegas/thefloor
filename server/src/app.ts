@@ -150,7 +150,7 @@ export interface BuildOptions {
    * the same time delete each other's fixture, which is how a `bin/deploy`
    * that overlapped anything else running the suite failed in `open`,
    * `train-root` and `guest-flow` and nowhere else. See
-   * `decisions/2026-09-17-the-tests-stopped-sharing-a-directory.md`.
+   * `decision/2026-09-17-the-tests-stopped-sharing-a-directory.md`.
    *
    * Unset, it is `server/web`, which is what production uses and what every
    * caller but a test wants. It covers **only the train directories**: the
@@ -221,7 +221,7 @@ export interface BuildOptions {
    * and retiring a feature is not a reason to take one away from anybody.
    *
    * It is a growth hack with a sunset written into its off switch. See
-   * planning/decisions/2026-09-15-a-new-account-does-not-arrive-alone.md.
+   * planning/decision/2026-09-15-a-new-account-does-not-arrive-alone.md.
    */
   cohortHosts?: string[];
   /**
@@ -1102,7 +1102,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // about notifications ten seconds into an install — the app deliberately
     // does not ask there. Placing is now `POST /devices`'s job, on the
     // registration that brings an account its first address. See
-    // decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
+    // decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
 
     // **A signup that resolved invitations owes each pair a channel**, added
     // 2026-09-25 with the rule that an invitation sent to an address accepts
@@ -1307,7 +1307,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * phone at the moment it goes wrong, and not at all for a fault that appears
    * once in a session of stepping in and out. A force-quit, a crash or an
    * update takes it, and those are exactly the three things somebody does when
-   * the audio has stopped and they want it back. See decisions/ § *The phone
+   * the audio has stopped and they want it back. See decision/ § *The phone
    * holds a microphone in order to hear*, the investigation this was built
    * for, which lists what the lines mean.
    *
@@ -2019,7 +2019,7 @@ export function buildApp(options: BuildOptions = {}): App {
    *
    * `/app` is what the App Store release is, `/beta` what TestFlight has, and
    * they are deployed by `bin/deploy-web` rather than by `bin/deploy` — see
-   * planning/decisions/DECISIONS.md § *Three variants of deploy*. The server
+   * planning/decision/DECISIONS.md § *Three variants of deploy*. The server
    * serves whatever is on disk and knows nothing about which build that is.
    *
    * **The directories are `stable/` and `beta/`, not `app/`,** and that is not
@@ -2102,7 +2102,7 @@ export function buildApp(options: BuildOptions = {}): App {
             // silently runs an old bundle — which would falsify the premise
             // that the web app is always current, and that premise is what
             // excuses it from the build census. See
-            // planning/decisions/DECISIONS.md § *Three variants of deploy*.
+            // planning/decision/DECISIONS.md § *Three variants of deploy*.
             //
             // `index: false` means this should never see the shell, but it is
             // still named: a request for `/app/index.html` by hand is served
@@ -3010,7 +3010,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // know is a field it leaves alone, which is the behaviour a removed
     // setting wants. The tabs are at the top for those builds too, since the
     // server stops sending the value they draw from. See
-    // planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+    // planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
     if (body?.labs !== undefined) {
       if (typeof body.labs !== 'boolean') {
         return reply.code(400).send({ error: 'labs must be true or false.' });
@@ -3037,7 +3037,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // builds keep playing at whatever they last stored locally until they
     // update, which is the honest degradation — the chime has one loudness
     // again for everybody else. See
-    // planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+    // planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
 
     const settings = accounts.updateSettings(account.id, changes, now());
     if (!settings) return reply.code(404).send({ error: 'No such account.' });
@@ -3560,7 +3560,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * used to be `/i/<username>/<pin>`, six digits minted per press and spent by
    * the first taker. What that bought was a seat; what it cost was that the
    * link could not simply be *somebody's link*. See
-   * `decisions/2026-09-25-...`.
+   * `decision/2026-09-25-...`.
    *
    * **`name` is a convenience and is not evidence.** The page draws it so that
    * a reader is greeted by a person rather than by a handle, and it is put in
@@ -4802,7 +4802,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * response too, which is how a client learns it may ask.
    *
    * The bytes come off this box rather than out of S3 directly, which is the
-   * trade planning/decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md
+   * trade planning/decision/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md
    * argues: the accounting stays honest, the enclosure URL stays ours, and the
    * privacy story stays one sentence. Moving it later is a change of URL
    * rather than a change of design.

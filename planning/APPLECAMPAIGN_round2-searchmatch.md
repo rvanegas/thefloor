@@ -8,7 +8,7 @@ two: what is actually in Apple Ads, what was changed and when, and what is
 still outstanding.
 
 **Delete it when the campaign has been run and read**, with the other two and
-on the same terms — what survives moves into `decisions/`. It exists to be
+on the same terms — what survives moves into `decision/`. It exists to be
 read with the browser open.
 
 Round two is the Discovery campaign APPLECAMPAIGN.md § *The buy* defers to,

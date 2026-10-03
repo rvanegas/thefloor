@@ -374,7 +374,7 @@ describe('Channel, watching together', () => {
       before was not that there were two sets but that one of them did not
       work. These matter most on a device that is *not* showing the film,
       which has no bar to reach for and is most of a party most of the time.
-      See planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+      See planning/decision/2026-09-18-the-bar-is-the-transport.md.
     */
     showChannel(watching());
     const tree = open();
@@ -709,7 +709,7 @@ describe('Channel, watching together', () => {
    * nothing at all after it, on the grounds that fetching a name would be the
    * first request this application ever made to Google. The name now comes
    * from the player, which already has it — see
-   * `decisions/2026-09-20-the-film-says-what-it-is-called.md`.
+   * `decision/2026-09-20-the-film-says-what-it-is-called.md`.
    */
   it('draws the film name once a player has reported one', () => {
     showChannel(

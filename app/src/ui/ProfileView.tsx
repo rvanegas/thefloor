@@ -119,7 +119,7 @@ function imProblem(
  * it went on 2026-08-31, field, column and all. What is left is a person's
  * standing and how to reach them — availability, who brought them, the
  * channels you share, an address and three handles — which is what somebody
- * opening a profile was after. See decisions/DECISIONS.md.
+ * opening a profile was after. See decision/DECISIONS.md.
  *
  * **Edit mode does not say whose account this is.** It carried a "Signed in
  * as …" line under the name field, inherited from the settings screen and from

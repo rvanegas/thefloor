@@ -117,7 +117,7 @@ call.
 report exists because the SFU tells a withheld speaker about nobody but
 themselves. With no capture during an enforced run, **a withheld speaker cannot
 report itself for the length of the film** — the case
-`decisions/2026-09-13-a-withheld-speaker-reports-itself.md` was written for. The
+`decision/2026-09-13-a-withheld-speaker-reports-itself.md` was written for. The
 need shrinks with it, the condition now being categorical and said under the
 roster, but that is a decision narrowed by this one.
 

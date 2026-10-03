@@ -67,7 +67,7 @@ import { colors, spacing, type } from './theme';
  * the same day and took the shared list with it. Nothing outside this file
  * needs them now — the app plays at `CHIME_AMPLITUDE` and this is where any
  * other number is heard. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  *
  * **Geometric rather than even, because loudness is**: 0.18 to 0.35 is the
  * same step to an ear as 0.35 to 0.7. 0.18 is what the app shipped at before

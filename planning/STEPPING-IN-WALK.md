@@ -3,7 +3,7 @@
 **Temporary.** The device walk for the 2026-09-08 redesign, written the day it
 was built and before any of it had been heard. Delete it once the walk has been
 done, folding what it found into
-`decisions/2026-09-08-stepping-in-and-nearby.md` — which is the design, the
+`decision/2026-09-08-stepping-in-and-nearby.md` — which is the design, the
 reasoning and the nine lab readings, and is what to read first if any step here
 does not make sense.
 
@@ -12,21 +12,21 @@ brought up to each; where a step reads oddly it is usually because the thing it
 was written against is gone.
 
 - **Promotion was removed the same day** — a nearby phone offers a step in
-  rather than taking one, `decisions/2026-09-08-the-arrival-is-offered.md`.
+  rather than taking one, `decision/2026-09-08-the-arrival-is-offered.md`.
   What was the riskiest step here is now the cheapest and is not an audio test
   at all. Steps 5 to 7 are the arrival, and § *One thing you can barely
   test on a phone* is where the word *promotion* still means something else.
 - **Presence became the media connection**, same day again:
-  `decisions/2026-09-08-present-is-the-media-connection.md`. The roster is now
+  `decision/2026-09-08-present-is-the-media-connection.md`. The roster is now
   a claim about the room rather than about the socket, which is visible on a
   phone in exactly one place — step 13.
 - **Presence became three rungs on 2026-09-09**, with the controls to match:
-  `decisions/2026-09-09-presence-is-a-ladder.md`. *Step in nearby* and
+  `decision/2026-09-09-presence-is-a-ladder.md`. *Step in nearby* and
   *Nearby* are both **Be nearby** now, in the body and in a new footer slot,
   and *Nearby* has a way out for the first time. Step 12.
 - **The body's cards went on 2026-09-13**, and this is the one that most
   changes what you are looking at while you walk:
-  `decisions/2026-09-13-the-cards-a-footer-made-redundant.md`. There is no
+  `decision/2026-09-13-the-cards-a-footer-made-redundant.md`. There is no
   *Step in*, *Step out* or *Be nearby* card any longer, and no button by any
   of those names — **every step below that names one means the footer's rung**,
   which is labelled *In*, *Nearby* or *Out*. The rung you are standing on is
@@ -38,7 +38,7 @@ was written against is gone.
   change their words at all.
 
 - **And the arrival card went on 2026-09-15**, by the same argument one step
-  further: `decisions/2026-09-15-the-arrival-is-a-line.md`. **Step 5 no longer
+  further: `decision/2026-09-15-the-arrival-is-a-line.md`. **Step 5 no longer
   has a card or two buttons** — an arrival is one muted line under the roster,
   *Dana Chu just stepped in.*, and the way in is the *In* rung like every other
   act on the screen. There is nothing to dismiss, so the half of step 5 that
@@ -223,7 +223,7 @@ step in rather than taking one. So these three steps assert an *absence* where
 they were drafted to assert a claim: what is being checked is that no session
 is taken, no microphone opens and nothing another app is playing is disturbed,
 and that the only thing that happens is a card. See the header note and
-`decisions/2026-09-08-the-arrival-is-offered.md`.
+`decision/2026-09-08-the-arrival-is-offered.md`.
 
 ### 5. Nearby, and somebody arrives
 
@@ -410,8 +410,8 @@ begin by turning *Tap a channel to look, not step in* on and end by turning it
 off and repeating, because the rule was that the setting decided at both doors.
 The setting is gone and the looking half is the only half, so there is one
 arrangement to check rather than two. See
-`decisions/2026-09-21-a-tap-only-ever-looks.md`, and
-`decisions/2026-09-08-stepping-out-follows-the-tap.md`, which is where the
+`decision/2026-09-21-a-tap-only-ever-looks.md`, and
+`decision/2026-09-08-stepping-out-follows-the-tap.md`, which is where the
 footer and a card were two ways out that could disagree; there is one way out
 now, and the rule is what survived the pair.
 

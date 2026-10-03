@@ -10,7 +10,7 @@ The fix is to correct on a paused transport whatever the player was doing, and
 the ordering is the care it needs — correcting before pausing sends the player
 somewhere it is about to be stopped at.
 
-Noted 2026-08-29 while fixing the seek storm two lines away, decisions/ § *A
+Noted 2026-08-29 while fixing the seek storm two lines away, decision/ § *A
 rewind that ate itself*, and kept separate from it because a fix that is not what
 was reported is a fix nobody has watched. Re-read against the tree on 2026-09-15
 and still holds. `server/src/watch-page.ts`.

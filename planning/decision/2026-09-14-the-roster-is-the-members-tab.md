@@ -61,7 +61,7 @@ builds still agree, because neither ever told the other which tab was showing.
 ## What was deliberately not renamed
 
 - **The common noun.** Four hundred-odd comments and decision entries say *the
-  roster* for the list of people, and `planning/decisions/` is dated history
+  roster* for the list of people, and `planning/decision/` is dated history
   that is not rewritten. The proper noun moved; the English word did not.
 - **`segmented.test.tsx`'s fixture**, which models a tab bar generically and
   still carries *Invite links*, renamed 2026-09-13. It is arbitrary data for a

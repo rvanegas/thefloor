@@ -21,13 +21,13 @@ add it to `app.json` before it is granted.
 **Keep the fallback whatever happens.** The web has no device-name API at all,
 so a nameless device is described by its kind — *A browser*, *Another phone* —
 and that path has to stay: a made-up name in a list of real ones is worse than
-a gap. See decisions/2026-09-17-the-screen-is-the-app.md.
+a gap. See decision/2026-09-17-the-screen-is-the-app.md.
 
 ## The plan, written up 2026-09-25
 
 **First, settle whether it has already been asked for.** Two places in the tree
 say it has — `app/src/api/device.ts:63` and
-`decisions/2026-09-17-the-screen-is-the-app.md:181`, both reading "requested,
+`decision/2026-09-17-the-screen-is-the-app.md:181`, both reading "requested,
 not yet granted" — while this file's title says it has not, and nothing anywhere
 records a date or the text submitted. Apple's form has no status page; the only
 record of a pending request is the confirmation mail it sends. So the first step
@@ -98,4 +98,4 @@ like an oversight to somebody auditing the file later.
 **On a refusal**, a dated decision entry saying so and why, this file deleted,
 and `device.ts`'s comment amended from "requested, not yet granted" to refused —
 so that the next reader does not re-ask. A refusal is exactly the deliberately
-not built that `decisions/` is for.
+not built that `decision/` is for.

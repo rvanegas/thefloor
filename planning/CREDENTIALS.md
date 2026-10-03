@@ -203,7 +203,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   `timingSafeEqual`, never logged, and — since 2026-08-14 — **stripped from the
   payload before the payload is stored**, because the first implementation kept
   the request body verbatim and put the secret on every row. See
-  decisions/.
+  decision/.
 
   Rotating it is cheap and non-destructive: regenerate on Ko-fi, replace the
   line in `server/.env`, restart. Nothing already recorded depends on it, which
@@ -351,7 +351,7 @@ written down in clear.
 `server/src/log-url.ts` sanitises every address before pino writes it, installed
 as the `req` serializer where `app.ts` used to pass a bare `logger: true` —
 which gave Fastify's default serializer, which logs `request.url` verbatim.
-decisions/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md is the whole
+decision/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md is the whole
 account. **Read that before changing anything about logging**, and add to the
 allowlist in `log-url.ts` rather than around it.
 
@@ -382,7 +382,7 @@ credentials.
 **`redact` was the wrong instrument, and that part was always right.** Pino's
 `redact` replaces a whole value, so `redact: ['req.url']` takes `build`,
 `client`, `device` and `notify` with it — which the build census and
-decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
+decision/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
 both read off that same URL.
 
 **The back catalogue is untouched and is still a decision.** Every credential

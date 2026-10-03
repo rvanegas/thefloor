@@ -7,7 +7,7 @@ one day, stays exactly where it was.
 
 ## What it reverses
 
-`decisions/2026-09-13-the-checklist-has-a-second-exit.md` closes with a
+`decision/2026-09-13-the-checklist-has-a-second-exit.md` closes with a
 paragraph headed *Dismissals are not offered to accounts without `debug` as a
 reset*: the cross is for everybody, the reset stays behind the grant, "it is a
 lever with no screen behind it for ordinary accounts". This reverses that

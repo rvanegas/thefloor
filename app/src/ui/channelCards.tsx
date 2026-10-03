@@ -733,7 +733,7 @@ export function ParticipantCard({
       // one is at most the grace period, and a countdown of seconds under
       // somebody's name invites watching it rather than pinging them. If they
       // do not come back the row simply keeps the word and gains the number.
-      // See planning/decisions/2026-09-08-the-grace-is-not-a-presence.md.
+      // See planning/decision/2026-09-08-the-grace-is-not-a-presence.md.
       reconnecting
       ? t.nearby()
       : failing

@@ -8,7 +8,7 @@
  * deliberately what iOS does to a backgrounded app incidentally — and, like a
  * phone, only when it is not holding audio, which the caller decides.
  *
- * See planning/decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md.
+ * See planning/decision/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md.
  */
 
 const OPEN = 1;

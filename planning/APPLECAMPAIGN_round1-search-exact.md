@@ -7,7 +7,7 @@ the other half: what was actually typed into Apple Ads, which settings
 defaulted wrong, and what has to be true before it is taken off hold.
 
 **Delete it when the campaign has been run and read**, with APPLECAMPAIGN.md
-and on the same terms — what survives moves into `decisions/`. Two files
+and on the same terms — what survives moves into `decision/`. Two files
 rather than one because they answer different questions and are read at
 different moments: the plan is read before deciding, this is read with the
 browser open.

@@ -7,7 +7,7 @@
  * single-page catch-all serves `index.html` for every unknown path under its
  * prefix, and a catch-all at the root would have to enumerate every API route
  * to avoid swallowing one. It would be wrong again the next time a route was
- * added. See planning/decisions/DECISIONS.md § *Three variants of deploy*.
+ * added. See planning/decision/DECISIONS.md § *Three variants of deploy*.
  *
  * **Server-rendered, like `/privacy` and `/support`, rather than the web
  * bundle.** Shipping 400 KB of React to show a paragraph and three links to
@@ -18,7 +18,7 @@
  *
  * **The App Store is the primary call to action**, because the phone is the
  * referential install and the browser is a convenience —
- * planning/decisions/DECISIONS.md § *The web app is a secondary interface*. A
+ * planning/decision/DECISIONS.md § *The web app is a secondary interface*. A
  * stranger should be sent to the App Store, not into a web client they cannot
  * be notified through.
  *

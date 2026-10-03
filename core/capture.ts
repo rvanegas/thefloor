@@ -7,7 +7,7 @@
  * `publishTrack` succeeds, the SFU forwards — and there is no event anywhere
  * that says so. The only way to know is to listen to the track, which is what
  * `server/web/guest.ts` learnt on 2026-08-21 and paid for in a defect; see
- * decisions/archive/DECISIONS-2026-08-21-to-2026-08-23.md § *A granted
+ * decision/archive/DECISIONS-2026-08-21-to-2026-08-23.md § *A granted
  * microphone is not a working one, inside somebody else's browser*.
  *
  * What is here is the counting rule and nothing else. Reading the samples is

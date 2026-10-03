@@ -188,7 +188,7 @@ function tokenOf(url: string): string {
   All three are about a surface that no longer exists. A screen is an ordinary
   signed-in instance of the app now, so what used to be the scope's business is
   the account's: see *choosing which device shows a film* in ws.test.ts, and
-  planning/decisions/2026-09-17-the-screen-is-the-app.md for why the credential
+  planning/decision/2026-09-17-the-screen-is-the-app.md for why the credential
   went rather than being narrowed.
 */
 

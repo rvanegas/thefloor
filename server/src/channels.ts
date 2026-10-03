@@ -105,7 +105,7 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  *
  * It is a sampling rate, so it is also the accuracy: every mic and listen span
  * has edges good to within one interval, and a microphone opened and closed
- * inside one window is not recorded at all. See planning/decisions/DECISIONS.md § *The
+ * inside one window is not recorded at all. See planning/decision/DECISIONS.md § *The
  * meter is two tables and a script*.
  */
 export const USAGE_POLL_INTERVAL_MS = 15_000;
@@ -1469,7 +1469,7 @@ export class ChannelRegistry {
    * That moved on 2026-09-15 along with the last refusal below, and the two
    * are the same change: a gate on notifications applied at signup would
    * refuse everybody, nobody having been asked yet. See
-   * decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
+   * decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
    *
    * Returns null, and does nothing at all, when:
    * - **no host is configured** — which is the off switch, and is the state
@@ -3663,7 +3663,7 @@ export class ChannelRegistry {
      * since 2026-09-12 announces itself exactly as an arrival does: tapping
      * *Be nearby* is equivalent to stepping in and tapping it immediately
      * afterwards, so the people who are not there hear about it. See
-     * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+     * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
      *
      * **Asked of `declaredNearbyAt` rather than of `waiting`**, because
      * `waiting` holds two kinds of absence and only one of them is anybody's
@@ -3685,7 +3685,7 @@ export class ChannelRegistry {
      * stamp on somebody already in `waiting`: the edge is false, so nothing
      * rings. It is the right answer rather than a lucky one — the room was
      * told when they arrived on the rung, and they have not left it. See
-     * decisions/2026-09-13-tapping-nearby-restarts-the-wait.md.
+     * decision/2026-09-13-tapping-nearby-restarts-the-wait.md.
      */
     const declaredNearby = Object.keys(after.declaredNearbyAt).filter(
       (id) =>
@@ -4679,7 +4679,7 @@ export class ChannelRegistry {
    * step in, force quit, reopen, and open the channel — the new process sends
    * `watch.channel`, which used to report `CONNECTED` and cancel the grace,
    * pinning an account present for ever with no device in the room. See
-   * planning/decisions/2026-09-08-present-is-the-media-connection.md, and
+   * planning/decision/2026-09-08-present-is-the-media-connection.md, and
    * planning/GLOSSARY.md § *Present*, which defined it this way all along.
    *
    * Playback and egress are deliberately *not* polled. Those are published by

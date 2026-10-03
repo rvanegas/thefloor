@@ -2,7 +2,7 @@
 
 **Temporary**, in the sense DESCRIPTION.md and LISTING.md are temporary: this
 is copy argued before it is posted. Delete it once the posts are made, moving
-whatever the comments actually taught into `decisions/`.
+whatever the comments actually taught into `decision/`.
 
 **Written 2026-09-14**, as the fourth deliverable of the marketing work.
 planning/MARKETING.md is the argument this file executes — read § *Organic,

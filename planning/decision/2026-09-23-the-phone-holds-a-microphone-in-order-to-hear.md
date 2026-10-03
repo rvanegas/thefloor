@@ -204,6 +204,6 @@ written to the journal rather than a table — the route's own comment says why.
 | the server-side pump and its heartbeat | `server/src/playback.ts` |
 
 Related: `POSTMORTEM-echo.md` (the audio session's three writers), `STATES.md`
-disagreements 1, 4, 5, 8 and 11, and `decisions/` § *A channel that cannot be
+disagreements 1, 4, 5, 8 and 11, and `decision/` § *A channel that cannot be
 heard, and nothing that could tell* — the server-side half, which was a real
 defect and not this bug.

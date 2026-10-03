@@ -32,7 +32,7 @@ import { NO_NUDGE, step } from './nudge';
  * a sound: both reasons above are about a speaker who is already talking and
  * about a cue carrying one meaning, and neither holds for a pair of sounds
  * announcing which of two things happened to the room. See `chime.ts` and
- * `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+ * `decision/2026-09-14-the-room-says-who-came-and-went.md`.
  */
 export function useSilencedNudge(
   channel: ChannelState | null,

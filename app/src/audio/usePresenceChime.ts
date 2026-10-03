@@ -19,7 +19,7 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  * not have expressed the one rule the request is clearest about — *the person
  * arriving does not hear their own arrival*. Each device makes its own sound
  * about other people. See
- * `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+ * `decision/2026-09-14-the-room-says-who-came-and-went.md`.
  *
  * **Takes `live`**, the channel this device is present in, so "only the people
  * in the room hear it" needs no guard: `liveChannelHere` has already tested
@@ -30,7 +30,7 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  * heard all five as much the same; `warmChimes` and `chime` fall back to
  * `CHIME_AMPLITUDE` and the two agree by construction, which is what the
  * native renderer's per-peak cache needs. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  *
  * ## The rule, which is two clauses and replaced three loops
  *
@@ -68,7 +68,7 @@ import { chime, warmChimes, type ChimeKind } from './chime';
  * are the same people, and a conversation interrupted by news about somebody
  * who was not in it is a conversation interrupted for nothing. It stays on the
  * roster for anybody who looks. See
- * planning/decisions/2026-09-17-the-chime-follows-the-room.md.
+ * planning/decision/2026-09-17-the-chime-follows-the-room.md.
  *
  * **It also dissolved a problem rather than solving one.** `nearby→out` cannot
  * be told from a snapshot: `stepOut` clears a declaration identically whether

@@ -63,7 +63,7 @@
  * silent room read the same as a conversation here. That is the question it was
  * mistaken for on 2026-09-27, when its quiet was read as evidence that audio
  * was fine — it was evidence of nothing, and the ear was what settled that run.
- * See planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ * See planning/decision/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
  */
 
 /** How often the receiver is asked, in ms. Cheap, but not free. */

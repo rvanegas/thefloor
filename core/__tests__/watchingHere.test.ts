@@ -322,7 +322,7 @@ describe('enforcement is lifted when its premise goes', () => {
  * talk until somebody left the channel and came back. Build 296, and it did not
  * buy the second back either. Releasing and retaking the device is what brings
  * the engine up, so the expensive version is the one that works. See
- * decisions/2026-09-26-the-film-keeps-its-stereo.md.
+ * decision/2026-09-26-the-film-keeps-its-stereo.md.
  */
 describe('the screen gives its microphone up', () => {
   it('closes it for whoever is watching here while the film plays', () => {
@@ -419,7 +419,7 @@ describe('following the transport', () => {
     a seek to the position the room has *now* lands exactly that late. A player
     slower than `WATCH_DRIFT_MS` could therefore never arrive at all: every
     correction was stale by the same margin as the last, once per fuse, for
-    ever. See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md
+    ever. See planning/decision/2026-09-28-the-film-waits-for-the-audio-session.md
     and `drive.ts`, which measures the lead this takes.
   */
   it('leads the correction by what the player is known to cost', () => {

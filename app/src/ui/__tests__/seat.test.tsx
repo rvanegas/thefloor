@@ -27,7 +27,7 @@ jest.mock('../../state/AppProvider', () =>
  * everything here is written against that type alone, and a test that reached
  * for a `ChannelState` to set something up would be describing a screen this
  * one deliberately is not. See planning/GUEST-LADDER.md and
- * planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+ * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
  */
 
 const SEAT: GuestView = {

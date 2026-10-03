@@ -2,7 +2,7 @@
 
 Everything known and not done: work deliberately deferred, defects found and
 left, behaviour nobody has tested. Every entry here is outstanding — if it has
-shipped, it has moved to decisions/, and if it is about how to operate the
+shipped, it has moved to decision/, and if it is about how to operate the
 thing, it is in AGENTS.md.
 
 The neighbours worth knowing about. **task/** is the roadmap: features, audits
@@ -10,7 +10,7 @@ and open questions, at a paragraph each, which is a different question from work
 that is specified and pending. One of them large enough to need a design gets a
 file of its own in `planning/`, and that file is where it lives while it is
 being designed and built, until it ships and whatever survives moves to
-decisions/. **decisions/** holds what was built and why, including the choices
+decision/. **decision/** holds what was built and why, including the choices
 that were considered and declined — several of which read like missing features
 until you find the reasoning.
 
@@ -23,8 +23,8 @@ Nothing gated on `MIN_SUPPORTED_BUILD` belongs here any more.
 
 ## One item, one file
 
-Adopted 2026-09-14, the same split `planning/decisions/` made on 2026-09-07 and
-for the same reason; decisions/README.md § *One decision, one file* has the
+Adopted 2026-09-14, the same split `planning/decision/` made on 2026-09-07 and
+for the same reason; decision/README.md § *One decision, one file* has the
 argument, and `2026-09-14-one-task-one-file.md` has why it reached here.
 **The name is the title, slugified** — lowercased, every run of
 non-alphanumerics collapsed to a hyphen:

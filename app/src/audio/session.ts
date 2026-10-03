@@ -100,7 +100,7 @@ export const LISTENING: AppleAudioConfiguration = {
  * the voice processing, audibly, which is what it was for. So the log below is
  * a true record of build 296 and the sentence that used to introduce it was an
  * attribution rather than a reading. See
- * planning/decisions/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
+ * planning/decision/2026-09-27-a-configuration-write-does-not-stop-the-engine.md.
  *
  * Build 296, both phones, with the write landing promptly from JavaScript
  * rather than a second later from the native observer:
@@ -127,7 +127,7 @@ export const LISTENING: AppleAudioConfiguration = {
  * app was seen to cause read `rec=F` or both false. The flags walk down first,
  * then the engine goes; a stop with both still wanted is one imposed from
  * outside. See
- * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+ * planning/decision/2026-09-27-the-film-stops-the-engine.md.
  *
  * **So nothing restarted it because nothing released the category.** Holding the
  * microphone is exactly what removes the release and retake, and a pause
@@ -146,7 +146,7 @@ export const LISTENING: AppleAudioConfiguration = {
  * pressed it rather than by the conversation. `planning/task/` carries what a
  * resume that costs nothing would need, and why the obvious repair is
  * forbidden. See
- * planning/decisions/2026-09-26-the-film-keeps-its-stereo.md.
+ * planning/decision/2026-09-26-the-film-keeps-its-stereo.md.
  */
 
 /**

@@ -76,7 +76,7 @@ what listeners actually heard.
 
 **What it does for "Keep the transcript and let the audio go":** nothing is
 written to S3, so letting the audio go stops needing an unattended delete and
-`decisions/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`
+`decision/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`
 is never reopened. The audio still exists briefly at AssemblyAI while it is
 being transcribed, so the red indicator and the consent question stand exactly
 as that task says.

@@ -454,7 +454,7 @@ function channelOf(notification: Notifications.Notification): string | null {
  * 2026-09-04 on the grounds that a tap is not an instruction about which room
  * you meant. All four notifications name a room they are genuinely about, and
  * the person tapped one of them rather than a badge, so it is. See
- * decisions/2026-09-15-a-notification-names-the-room-it-is-about.md.
+ * decision/2026-09-15-a-notification-names-the-room-it-is-about.md.
  *
  * **What it hands up is a destination and not an entry.** Nothing here steps
  * anybody into anything: the caller opens the channel screen, which is

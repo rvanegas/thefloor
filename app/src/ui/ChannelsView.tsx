@@ -249,7 +249,7 @@ export function ChannelsView({
   const openChannel = (channelId: string) => {
     // **No `ENTER`.** Opening a channel and standing in it are two acts, and
     // this is only the first: the channel screen's footer is where the second
-    // one lives. See decisions/2026-09-21-a-tap-only-ever-looks.md.
+    // one lives. See decision/2026-09-21-a-tap-only-ever-looks.md.
     onEnterChannel(channelId);
   };
 
@@ -1008,7 +1008,7 @@ function ChannelCard({
    * `stepsIn` was here, saying whether this tap would arrive or only look. A
    * tap only ever looks now, so there is nothing for the row to choose between
    * and no preference to pass down. See
-   * decisions/2026-09-21-a-tap-only-ever-looks.md.
+   * decision/2026-09-21-a-tap-only-ever-looks.md.
    */
 }) {
   const live = isLive(card);

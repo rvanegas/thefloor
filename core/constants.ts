@@ -335,7 +335,7 @@ export const WATCH_COLD_NUDGE_MS = 4_000;
  * left behind for the length of the film, which on two phones in one room is
  * two phones disagreeing audibly. Alternating between the two, because a
  * corrected resume ends exactly in step and leaves the next one on the boundary.
- * See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
+ * See planning/decision/2026-09-28-the-film-waits-for-the-audio-session.md.
  *
  * So `watchPlay` banks a start that is *in the future* and the position holds
  * still until it arrives. Nothing is skipped and nothing needs correcting: a
@@ -460,7 +460,7 @@ export const MAX_PING_TEXT_LENGTH = 100;
  * number**, and was answered there: somebody inside the grace now reads
  * *Nearby* rather than *Present · reconnecting…*, which is what they are to
  * everybody else and is already pingable. See
- * planning/decisions/2026-09-08-the-grace-is-not-a-presence.md.
+ * planning/decision/2026-09-08-the-grace-is-not-a-presence.md.
  *
  * **And it is load-bearing well beyond somebody's dot on a roster**, which is
  * the other half of why it should not be shortened casually. When the grace
@@ -694,7 +694,7 @@ export const TRANSCRIPT_DELETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
  * false positive once showed "reconnecting…" for a moment and cleared; it now
  * also releases the floor, and the holder rejoins the queue rather than
  * resuming. That is a deliberate trade rather than an oversight — see
- * decisions/DECISIONS.md § *If you are going to claim the floor, be sure you
+ * decision/DECISIONS.md § *If you are going to claim the floor, be sure you
  * can hold it* — but it is the reason the budget is not cut further.
  */
 export const HEARTBEAT_INTERVAL_MS = 2_000;
@@ -740,7 +740,7 @@ export const HEARTBEAT_TIMEOUT_LEGACY_MS = 12_000;
  * builds have appeared, move it. The durable fix is for the client to declare
  * its cadence rather than have the server infer it from a version number, at
  * which point this constant and its whole class of mistake go away; see
- * decisions/DECISIONS.md § *If you are going to claim the floor*.
+ * decision/DECISIONS.md § *If you are going to claim the floor*.
  */
 export const FAST_HEARTBEAT_BUILD = 110;
 

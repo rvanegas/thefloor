@@ -20,7 +20,7 @@ somebody watching a screen rather than by anything automated:
 4. **A rewind killed the picture and the sound**, six days later, because a
    correction assumed the last one had landed: a seek into an unbuffered
    stretch takes longer than the tolerance it was correcting, so the next tick
-   seeked again and cancelled the fetch. decisions/ § *A rewind
+   seeked again and cancelled the fetch. decision/ § *A rewind
    that ate itself*.
 
 Each is a one-line fix and each was invisible to the suite. What would catch

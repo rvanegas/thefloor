@@ -210,7 +210,7 @@ describe('inviting an address with no account', () => {
     });
     await request(alice.token, 'other@example.com');
     // A username and the name to greet the reader with; no pin since
-    // 2026-09-25. See decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
+    // 2026-09-25. See decision/2026-09-25-the-invitation-asks-for-one-thing.md.
     expect(mailer.invited[1].link).toMatch(/\/i\/alice_k\?name=Alice$/);
     expect(mailer.invited[1].body).toContain(mailer.invited[1].link);
   });

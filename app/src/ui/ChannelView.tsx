@@ -717,7 +717,7 @@ export function ChannelView({
    * other device — so this state would be one nothing on this screen could
    * leave.
    *
-   * See `planning/decisions/2026-09-20-the-second-device-is-a-television.md`.
+   * See `planning/decision/2026-09-20-the-second-device-is-a-television.md`.
    */
   const secondDevice = screenIsHere && !steppedIn;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
@@ -1340,7 +1340,7 @@ export function ChannelView({
    * demonstrably doing nothing, which is the case the window exists for.
    * Making a party evidence for every member would hold somebody present
    * through a film they walked away from. See
-   * decisions/2026-09-17-the-screen-is-the-app.md.
+   * decision/2026-09-17-the-screen-is-the-app.md.
    */
   useEffect(() => {
     if (!screenIsHere || channel?.watch?.status !== 'playing') return;
@@ -1840,7 +1840,7 @@ export function ChannelView({
    * answers is real and the answer could change again; a `false` threaded
    * through `stepOutOfChannel` says which question is being answered where an
    * absent branch would not. See
-   * decisions/2026-09-21-a-tap-only-ever-looks.md.
+   * decision/2026-09-21-a-tap-only-ever-looks.md.
    *
    * The way off the screen is then the header's *Home*, which is where it
    * already was for anybody who arrived here without stepping in — the same
@@ -2523,7 +2523,7 @@ export function ChannelView({
         are gone: a second home for a set of controls is a second place to
         look for them, and the top is where the tabs have been since there
         were tabs. See
-        planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+        planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
       */}
       <View style={[styles.tabs, styles.tabsHeader]}>
         <Segmented options={tabs} value={tab} onChange={chooseTab} />
@@ -2605,7 +2605,7 @@ export function ChannelView({
         The ladder itself, one slot per rung, in its own order: in, nearby,
         out. **Three slots rather than two**, since 2026-09-09, replacing the
         pair of flipping words adopted earlier the same day. See
-        `planning/decisions/2026-09-09-presence-is-a-ladder.md`.
+        `planning/decision/2026-09-09-presence-is-a-ladder.md`.
 
         The pair satisfied the footer's standing rule — position never changes
         with state — by keeping two fixed slots and flipping the word in each.
@@ -3090,7 +3090,7 @@ export function ChannelView({
           **No *room* in it**, which is the one word it wanted and may not
           have: the interface never calls a channel that, the media layer's
           `Room` being LiveKit's noun for a LiveKit thing. See
-          `planning/decisions/README.md` § *On vocabulary*.
+          `planning/decision/README.md` § *On vocabulary*.
         */}
         <Text style={type.muted}>{t.filmIsOnThisDevice()}</Text>
       </Screen>
@@ -3357,7 +3357,7 @@ export function ChannelView({
             So the arrival is a claim about the room, like the two above it, and
             the answer is the rung — which is where every other act on this
             screen already lives. See
-            `decisions/2026-09-15-the-arrival-is-a-line.md`, and
+            `decision/2026-09-15-the-arrival-is-a-line.md`, and
             `2026-09-13-the-cards-a-footer-made-redundant.md`, which is the
             same argument made about the card this one sat beneath.
 
@@ -3396,7 +3396,7 @@ export function ChannelView({
             first days and for nobody else — the rule the section states is
             about the screen every reader sees for ever, and an instruction
             that goes away the moment it has been taken up is not that. See
-            `decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
+            `decision/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
 
             **Not while the room is held on another device**, where the
             sentence directly above already says what stepping in here does and
@@ -3643,7 +3643,7 @@ export function ChannelView({
           mute mode — and a browser has none of those. `useSessionAudio.web.ts`
           reports `asked` as permanently null by construction, so the panel
           would render a column of blanks and invite somebody to debug the
-          wrong layer. See planning/decisions/DECISIONS.md § *The web app is a
+          wrong layer. See planning/decision/DECISIONS.md § *The web app is a
           secondary interface*.
         */}
         {iAmPresent && app.debug && Platform.OS !== 'web' ? (

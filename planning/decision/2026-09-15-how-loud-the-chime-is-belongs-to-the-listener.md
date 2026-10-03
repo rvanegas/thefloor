@@ -63,4 +63,4 @@ it on mount, and a browser was throwing at that call.
 
 See GLOSSARY.md § *Chime*, STYLE.md § *Button* for why five rungs go down the
 page rather than across it, and
-`decisions/2026-09-14-the-room-says-who-came-and-went.md` for the cue itself.
+`decision/2026-09-14-the-room-says-who-came-and-went.md` for the cue itself.

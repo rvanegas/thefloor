@@ -253,7 +253,7 @@ describe('one clock per track', () => {
  * `froze` has to name a track exactly once per freeze, on the same poll that
  * writes the line. The whole of the bound on the repair rests on that: a
  * caller handed the *state* instead would rebind every two seconds for as long
- * as the fault lasted, which is the reconnect loop decisions/ § *The phone
+ * as the fault lasted, which is the reconnect loop decision/ § *The phone
  * holds a microphone in order to hear* forbids, wearing a different hat.
  */
 describe('naming the freeze that has just been reported', () => {

@@ -91,7 +91,7 @@ function mount(channel: ChannelState | null) {
  * 2026-09-15, when how loud a chime is was the listener's to choose; the
  * ladder went and the loudness is `CHIME_AMPLITUDE`, which nothing above
  * `chime.ts` passes or can change. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 const rising = ['in'];
 const falling = ['out'];

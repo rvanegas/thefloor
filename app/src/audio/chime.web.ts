@@ -83,7 +83,7 @@ const NOTE_SECONDS = 0.09;
  * `CHIME_AMPLITUDE` rather than a literal so a browser and a phone cannot
  * sound at different loudnesses — here it is a real gain on the media path,
  * where on a phone it is the peak the samples are rendered at. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 const PEAK = CHIME_AMPLITUDE;
 

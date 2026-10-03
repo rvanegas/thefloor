@@ -58,7 +58,7 @@ type Scope =
    *
    * A shape is what the next restriction will need, and turning this into a
    * bare interface would mean discovering that again. See
-   * planning/decisions/2026-09-17-the-screen-is-the-app.md.
+   * planning/decision/2026-09-17-the-screen-is-the-app.md.
    */
   { kind: 'session' };
 
@@ -675,7 +675,7 @@ export function registerWebsocket(deps: {
    * and were therefore the one pair of sessions this loop could never separate
    * — each invisible to the other, both live in the same room, competing for
    * the one voice the account has. See planning/TWO-DEVICES-WALK.md
-   * and planning/decisions/DECISIONS.md § *The web app is a
+   * and planning/decision/DECISIONS.md § *The web app is a
    * secondary interface*.
    *
    * Watch-scoped sockets are left alone. A follower page holds a watch token,
@@ -1154,7 +1154,7 @@ export function registerWebsocket(deps: {
    * disowned, a silence budget the client cannot meet, a proxy cutting an idle
    * stream — and the journal held the same evidence for all of them: a row of
    * `incoming request` lines and nothing else. See
-   * decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md.
+   * decision/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md.
    * The entry that asked for this line —
    * backlog/why-one-phone-could-not-hold-a-socket-is-diagnosed-not-observed.md,
    * where a mechanism that fit had to stand in for one that was seen — was
@@ -1356,7 +1356,7 @@ export function registerWebsocket(deps: {
   // any more — inviting somebody into an unnamed channel widens it in place —
   // so nothing can produce one. The message stays in `ServerMessage` and the
   // client keeps its handler; removing an inert path from installed builds is
-  // worth nothing and costs a release. See planning/decisions/DECISIONS.md.
+  // worth nothing and costs a release. See planning/decision/DECISIONS.md.
 
   // Any channel change can alter its participants' Home (an invite appears, a
   // rejoinable channel changes its order or its count), so both views refresh
@@ -1382,7 +1382,7 @@ export function registerWebsocket(deps: {
   // before this runs, and deleting empties it altogether — so the person
   // whose Home certainly changed was the one person guaranteed not to be told,
   // and their card sat there until something unrelated happened to push Home.
-  // The broadcast this replaced was hiding it. See planning/decisions/DECISIONS.md.
+  // The broadcast this replaced was hiding it. See planning/decision/DECISIONS.md.
   channels.onChange((changedIds, departed) => {
     for (const channelId of changedIds) {
       for (const connection of connections) {
@@ -1871,7 +1871,7 @@ export function registerWebsocket(deps: {
          * where anybody was. A screen is an ordinary session of the app now,
          * and a person watching the thing the room is attending to is
          * attending it. See
-         * planning/decisions/2026-09-17-the-screen-is-the-app.md.
+         * planning/decision/2026-09-17-the-screen-is-the-app.md.
          */
         case 'attentive': {
           // A client naming rooms, so the shape is checked before it is
@@ -2056,7 +2056,7 @@ export function registerWebsocket(deps: {
 
             A null to an instance showing nothing is ignored by it; a null to
             one that is showing something is the whole point. See
-            planning/decisions/2026-09-21-a-declaration-displaces-every-instance.md.
+            planning/decision/2026-09-21-a-declaration-displaces-every-instance.md.
           */
           const displacedFrom: (string | null)[] = [];
           if (message.channelId !== null) {

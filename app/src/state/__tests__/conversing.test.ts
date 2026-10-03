@@ -7,7 +7,7 @@ import { isConversing } from '../conversing';
  * The case worth guarding is the guest: it was not counted until 2026-09-13,
  * so somebody could hold a whole conversation through a guest link and be
  * told by the checklist that nobody had heard them — see
- * `decisions/2026-09-13-a-rung-says-what-ticks-it.md`.
+ * `decision/2026-09-13-a-rung-says-what-ticks-it.md`.
  */
 
 const ME = 'acct_me';

@@ -1,8 +1,8 @@
 # The television says *Other device*, and the film goes to the room
 
 Two changes to the press added in
-`decisions/2026-09-20-declining-to-be-the-second-device.md`, the same morning,
-plus the half of `decisions/2026-09-20-a-film-sent-to-a-device-opens-the-channel-on-it.md`
+`decision/2026-09-20-declining-to-be-the-second-device.md`, the same morning,
+plus the half of `decision/2026-09-20-a-film-sent-to-a-device-opens-the-channel-on-it.md`
 that the arrival did not finish.
 
 ## The word

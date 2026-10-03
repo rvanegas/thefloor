@@ -26,7 +26,7 @@ and the title:**
 
 `ls` is the index, the names sort chronologically, and `bin/note find "Some
 Title"` — or `grep -l` over the filenames — is the cheap way to locate an entry
-before reading one. `bin/note new decisions "..."` makes the file with today's
+before reading one. `bin/note new decision "..."` makes the file with today's
 date already on it.
 
 **The filename identifies; the heading is free.** The name is fixed when the
@@ -80,7 +80,7 @@ reasons kept gets an ordinary dated decision.
 `archive/` holds the eleven closed volumes, 2026-08-07 to 2026-09-06, in the
 shape they were written in. They are frozen: nothing is appended, and nothing
 is reformatted. Grep them the way AGENTS.md says to — headings first
-(`grep -n '^## ' planning/decisions/archive/*.md`), then the one section.
+(`grep -n '^## ' planning/decision/archive/*.md`), then the one section.
 
 **Resolving an old-style reference.** Comments in the code cite entries as
 `DECISIONS.md § *Some title*`, and always have — often naming `DECISIONS.md`

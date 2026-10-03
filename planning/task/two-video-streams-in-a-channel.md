@@ -4,7 +4,7 @@ A channel that can carry video, capped at **two publishers at once** — not six
 and not a per-person toggle that six people can happen to turn on. The cap is
 the feature, and the number two is chosen rather than incidental: see below.
 
-**Start by reading `decisions/` § *The Floor carries no video*.**
+**Start by reading `decision/` § *The Floor carries no video*.**
 That decision is deliberate and load-bearing, and AGENTS.md singles it out as
 the one people misread. This entry is not a claim it was wrong; it is a request
 to price what changing it would cost and to say plainly which parts of it still

@@ -2,7 +2,7 @@
 
 **The writing stopped on 2026-09-17** — `server/src/log-url.ts` sanitises every
 address before it is logged, and
-decisions/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md says what was
+decision/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md says what was
 found and why it is a serializer rather than `redact`. **What is left is the
 back catalogue**, which that change does nothing about, and which is a decision
 rather than a piece of work.
@@ -30,9 +30,9 @@ question in full and is independent of this one.
 
 **The choice, and it is genuinely unobvious.** Vacuuming the journal destroys
 the reconnect history that
-decisions/2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md
+decision/2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md
 and
-decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
+decision/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
 both rest on — the evidence a diagnosis was right, which is not recoverable once
 gone. The alternative keeps the journal and makes what is written in it
 worthless: revoke the sessions instead.

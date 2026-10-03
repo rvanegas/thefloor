@@ -23,6 +23,6 @@ either way. But **it is the measurement that would have stopped three weeks of
 work if it had come first** — if the release buys nothing audible on the route
 people actually wear, then `microphoneNeeded` subtracting the film is a cost paid
 for nothing, and the exception could go. See
-decisions/2026-09-26-the-film-keeps-its-stereo.md for what that exception is, and
-decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md for the
+decision/2026-09-26-the-film-keeps-its-stereo.md for what that exception is, and
+decision/2026-09-27-the-teardown-was-never-on-the-critical-path.md for the
 premise that has already fallen.

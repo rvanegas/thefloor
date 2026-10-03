@@ -591,7 +591,7 @@ describe('Contacts', () => {
 
     // Opens rather than arrives, the same tap Home's rows take — the two
     // lists answering differently is the one thing this has to avoid. See
-    // decisions/2026-09-21-a-tap-only-ever-looks.md.
+    // decision/2026-09-21-a-tap-only-ever-looks.md.
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_shared', {
       type: 'ENTER',
     });

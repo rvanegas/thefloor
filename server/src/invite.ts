@@ -10,7 +10,7 @@
  * which is what `core/username.ts` says there must not be.
  *
  * It used to check a pin and disclose a real display name to whoever held one;
- * see `decisions/2026-09-25-an-invite-link-is-a-standing-door.md` for why the
+ * see `decision/2026-09-25-an-invite-link-is-a-standing-door.md` for why the
  * address is the better answer, and `NAME_LIMIT` for what a name from a URL
  * costs.
  *

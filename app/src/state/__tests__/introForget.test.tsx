@@ -16,7 +16,7 @@ import { useIntroduction } from '../useIntroduction';
  * *invited* for anybody with a contact. And a rung somebody had read and
  * decided against had no way out at all, the ladder's only exit being to
  * finish it. See `useIntroduction` and
- * `decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
+ * `decision/2026-09-13-the-checklist-has-a-second-exit.md`.
  *
  * The pure half of the dismissal rules is `introduction.test.ts`; this is the
  * half that touches the keychain and the server.
@@ -236,7 +236,7 @@ describe('standing in a channel afterwards', () => {
     // as long as it held. Home is reachable from the live bar while you are
     // still in the room, and that reader is precisely who the four in-channel
     // rungs are written for. See
-    // `decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+    // `decision/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
     const card = await mount();
     await act(async () => card.forget());
     // The snapshot the `DELETE /me/tried` above brings down: the four are the

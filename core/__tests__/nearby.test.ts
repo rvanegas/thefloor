@@ -145,7 +145,7 @@ describe('stepping in nearby, from outside', () => {
  * Until then `stepOut` returned the state untouched for anybody who was not
  * present, so a declaration could only be ended by stepping in — or by the
  * fifteen-minute window ageing it out, which is not something anybody can
- * choose. See planning/decisions/2026-09-09-presence-is-a-ladder.md.
+ * choose. See planning/decision/2026-09-09-presence-is-a-ladder.md.
  */
 describe('stepping out of nearby', () => {
   const nearby = () => declare(alone(), B);

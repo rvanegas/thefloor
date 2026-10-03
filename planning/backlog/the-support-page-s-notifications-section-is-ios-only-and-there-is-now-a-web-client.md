@@ -6,7 +6,7 @@ That is the whole of the advice, and it is a public page that `/app` and
 `/beta` link to.
 
 The web app **deliberately has none** — the reasoning is
-decisions/ § *The web app is a secondary interface*, where a
+decision/ § *The web app is a secondary interface*, where a
 secondary interface has no business waking anybody and the phone is already
 there to do it. But nothing says so anywhere a browser user will look, so what
 that section currently does is send them hunting for a setting that does not

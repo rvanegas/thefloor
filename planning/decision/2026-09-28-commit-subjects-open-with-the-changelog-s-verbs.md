@@ -29,7 +29,7 @@ are not that. Of the 600 most recent commits, about 20% bump a build number and
 these — *Bump*, *Record*, *New Task* — so they are kept, in past tense:
 
 - **Bumped**: a build or version number.
-- **Recorded**: history, meaning a decision in `decisions/` or an entry in
+- **Recorded**: history, meaning a decision in `decision/` or an entry in
   `deploy-history.md`.
 - **Filed**: outstanding work, meaning a new item in `task/` or `backlog/`.
   Closing one is **Removed**.

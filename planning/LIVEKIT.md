@@ -5,7 +5,7 @@ from scratch next time, not a design and not a decision. It came out of a
 screenshot on build 183: a roster card reading *Nearby* for somebody whose
 LiveKit connection was, by every other sign, still alive. Delete this file when
 the question below is answered — whatever survives goes to
-`planning/decisions/` if anything is changed, and to STATES.md § *Audio
+`planning/decision/` if anything is changed, and to STATES.md § *Audio
 Connected* if the answer is that nothing should be.
 
 ---
@@ -42,7 +42,7 @@ an `ENTER` re-sent by the reconnecting client inside the minute takes the
 presence back (`app/src/api/socket.ts`, the `enteredLostAt` arm).
 
 That asymmetry is deliberate and is the whole of
-`planning/decisions/2026-09-08-the-socket-is-what-holds-a-place.md`, which
+`planning/decision/2026-09-08-the-socket-is-what-holds-a-place.md`, which
 narrowed `2026-09-08-present-is-the-media-connection.md`. Before it, a
 suspended phone whose WebRTC connection lingered in the SFU was reported
 `CONNECTED` on every poll, which cancelled the grace, which left somebody

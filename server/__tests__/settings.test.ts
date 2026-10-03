@@ -245,7 +245,7 @@ describe('the settings that follow the account', () => {
   /**
    * The chime's loudness, which was a setting for a day and is not one now —
    * the app plays at one peak, `CHIME_AMPLITUDE` in the audio-route module.
-   * See planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+   * See planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
    *
    * Ignored rather than refused, on the tab position's reasoning below: build
    * 211 and earlier have the ladder and send a peak the moment somebody taps a
@@ -266,7 +266,7 @@ describe('the settings that follow the account', () => {
   /**
    * The tab position, which was a setting for a day and is not one now — the
    * tabs are at the top of the channel screen for everybody. See
-   * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+   * planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
    *
    * Ignored rather than refused, which is the half worth a test: builds 193
    * and earlier still have the card and send this the moment somebody presses

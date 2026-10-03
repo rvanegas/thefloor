@@ -21,7 +21,7 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    does not say, so it was decided: every departure clears it, in `stepOut`
    itself rather than case by case, and `connectivity.test.ts` now asserts both
    that and the half that did not change — a mute survives a reconnection
-   inside the grace period. decisions/ § *Every departure clears
+   inside the grace period. decision/ § *Every departure clears
    the self-mute, and the microphone is not the reason why*.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.

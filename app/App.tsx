@@ -303,7 +303,7 @@ function Root() {
     // dropping the only remote subscription stops the engine, and the retake
     // restarts it in the state that renders nothing — the repair reconstructed
     // the fault. Left wired because it is the apparatus that produced the
-    // reading. See `audio/rebind.ts` and decisions/ § *The phone holds a
+    // reading. See `audio/rebind.ts` and decision/ § *The phone holds a
     // microphone in order to hear*.
     false,
     // **Both fixes, and both now on for everybody.** They answer the two ways
@@ -430,7 +430,7 @@ function Root() {
    *
    * **How loud is a constant**, `CHIME_AMPLITUDE` in the audio-route module.
    * It was the account's for one day and the peak came through here; see
-   * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+   * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
    */
   usePresenceChime(live, me);
 
@@ -483,7 +483,7 @@ function Root() {
    * the asymmetry is deliberate: `useAttention` ends a visit nobody is
    * attending, which is a departure the phone may take on somebody's behalf,
    * where arriving is not — see
-   * `planning/decisions/2026-09-08-the-arrival-is-offered.md`. What this
+   * `planning/decision/2026-09-08-the-arrival-is-offered.md`. What this
    * produces is `app.nearbyArrival`, which `ChannelView` draws as an offer.
    *
    * It reads the snapshots rather than `live`, because the whole point is that
@@ -540,7 +540,7 @@ function Root() {
    * conversation you meant. All four of them name a room they are genuinely
    * about — a ping is a sentence somebody aimed at one, an invitation is the
    * channel you were added to — and the person tapped that notification rather
-   * than the app icon. See decisions/2026-09-15-a-notification-names-the-room-
+   * than the app icon. See decision/2026-09-15-a-notification-names-the-room-
    * it-is-about.md, which supersedes the notification half of *An address
    * names a place and never an id* and leaves the rest standing: no URL
    * carries an id, and this is not a URL.
@@ -630,7 +630,7 @@ function Root() {
    * It never enters the channel. Opening is a screen; `ENTER` is a claim on
    * the phone's audio system, and a card that stepped somebody in from their
    * lock screen would be the one thing on this surface they could not have
-   * meant. See `decisions/2026-09-08-the-arrival-is-offered.md`.
+   * meant. See `decision/2026-09-08-the-arrival-is-offered.md`.
    */
   const { linked, clearLink } = useChannelLink();
   useEffect(() => {
@@ -650,7 +650,7 @@ function Root() {
    * — their first of each, often seconds after signing up. It used to appear in
    * *Your channels* with no mark and no line, on a list they had no reason to be
    * looking at. `AppProvider` redeems the invitation and publishes the id; this
-   * spends it. See `decisions/2026-09-24-accepting-a-request-opens-the-channel-it-makes.md`,
+   * spends it. See `decision/2026-09-24-accepting-a-request-opens-the-channel-it-makes.md`,
    * which built the same thing for a contact request.
    *
    * **It opens and does not step in**, which is the load-bearing half and is

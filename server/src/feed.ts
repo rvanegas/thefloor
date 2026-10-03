@@ -9,7 +9,7 @@
  * flag, the selection, the name, the description — the page needs too.
  *
  * **This is the unlisted half of the fork**, built first and deliberately; see
- * planning/decisions/ for 2026-09-21. The URL carries the channel id, which is
+ * planning/decision/ for 2026-09-21. The URL carries the channel id, which is
  * 72 random bits, so it is shared the way a guest link is shared: by being
  * handed to somebody.
  * That defers artwork, `itunes:category`, `itunes:author` and submission to

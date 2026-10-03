@@ -8,7 +8,7 @@ route*, and then the offer. Two phones, a podcast and a Bluetooth headset. Fold
 what it finds into the decision record and delete it.
 
 Promotion is no longer part of it: it was removed before the walk was run, and
-`decisions/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
+`decision/2026-09-08-the-arrival-is-offered.md` is why. Steps 5 and 7 are
 cheap now and step 6 no longer needs a third person.
 
 Two more changes landed on it before it was run, and the walk has been brought

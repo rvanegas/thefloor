@@ -90,5 +90,5 @@ ranking a person can reconstruct in their head.
 **Nothing asked of YouTube.** Unchanged, and worth saying because a history is
 exactly where a thumbnail would be argued for. Everything in an entry was
 reported by a player that already had the video open. See
-`decisions/2026-09-17-the-page-the-film-plays-in-may-not-claim-to-be-youtube.md`
-and `decisions/2026-09-20-the-film-says-what-it-is-called.md`.
+`decision/2026-09-17-the-page-the-film-plays-in-may-not-claim-to-be-youtube.md`
+and `decision/2026-09-20-the-film-says-what-it-is-called.md`.

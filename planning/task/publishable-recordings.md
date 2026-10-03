@@ -6,7 +6,7 @@ listen to recordings every participant has agreed to publish, plus a feed a
 podcast app can subscribe to. Every public channel is listed at
 thefloor.rvanegas.co/podcasts, so the page is findable rather than merely
 reachable — which was a change to what the app had promised, and
-`decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`
+`decision/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`
 is why it was made that way and what copy had to be corrected with it.
 
 Name and description show on both; members remain private, though they may be
@@ -16,7 +16,7 @@ directory — which is a different thing from `/podcasts` and is still not
 done.
 
 How and why is
-`decisions/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`,
+`decision/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`,
 which also carries what `PODCAST.md` argued before it was deleted.
 
 **Read that before touching any of this.** The consent model is the half that

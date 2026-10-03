@@ -180,7 +180,7 @@ describe('starting a party', () => {
    * **The second fact a player reports, and it obeys the first one's rule.**
    * Nothing here asks YouTube anything: the embed already holds the name of
    * the video it loaded, and says so in the report it was already making. See
-   * `learnTitle`, and decisions/2026-09-20-the-film-says-what-it-is-called.md.
+   * `learnTitle`, and decision/2026-09-20-the-film-says-what-it-is-called.md.
    */
   it('takes its name from the first player that can say', () => {
     const started = reduce(

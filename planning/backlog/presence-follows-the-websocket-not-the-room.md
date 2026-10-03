@@ -2,7 +2,7 @@
 
 **Status:** not started. This is what survives the 2026-08 backgrounding
 investigation, which is otherwise closed — see
-decisions/archive/DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how
+decision/archive/DECISIONS-2026-08-07-to-2026-08-13.md for what that settled and how
 to instrument a phone if it ever needs doing again.
 
 Presence is derived from the app's websocket; participation is what happens in

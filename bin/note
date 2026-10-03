@@ -6,7 +6,7 @@
 #   bin/task "Some Title"           a new task — the common case, its own script
 #   bin/note new task "..."        the same thing, spelled out
 #   bin/note new backlog "..."      a new backlog item
-#   bin/note new decisions "..."    a new decision, dated
+#   bin/note new decision "..."    a new decision, dated
 #   bin/note find "Some Title"      which file a quoted reference means
 #   bin/note list task             title and first sentence, one line each
 #   bin/note rename <file> "..."    retitle, and move the file to match
@@ -63,10 +63,10 @@ heading() {
 }
 
 # A decision's filename carries the date its title does not; strip it before
-# comparing. Only decisions/ is dated — see AGENTS.md.
+# comparing. Only decision/ is dated — see AGENTS.md.
 expected_slug() {
   local dir="$1" title="$2"
-  if [[ "$dir" == decisions ]]; then
+  if [[ "$dir" == decision ]]; then
     printf '%s-%s' "$(date +%F)" "$(slug "$title")"
   else
     slug "$title"
@@ -77,24 +77,24 @@ expected_slug() {
 # whatever date the file already carries rather than today's.
 stored_slug() {
   local dir="$1" base="$2" title="$3"
-  if [[ "$dir" == decisions && "$base" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
+  if [[ "$dir" == decision && "$base" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
     printf '%s-%s' "${BASH_REMATCH[1]}" "$(slug "$title")"
   else
     slug "$title"
   fi
 }
 
-dirs_with_entries() { echo "task backlog decisions"; }
+dirs_with_entries() { echo "task backlog decision"; }
 
 valid_dir() {
   case "$1" in
-    task|backlog|decisions) return 0 ;;
-    *) die "no such directory '$1' — one of task, backlog, decisions" ;;
+    task|backlog|decision) return 0 ;;
+    *) die "no such directory '$1' — one of task, backlog, decision" ;;
   esac
 }
 
 # Files that are entries. READMEs are the convention, not an item, and
-# decisions/ holds a running record that is edited in place and is not a dated
+# decision/ holds a running record that is edited in place and is not a dated
 # entry.
 entries() {
   local dir="$1" f base
@@ -110,7 +110,7 @@ entries() {
 
 cmd_new() {
   local dir="${1:-}" title="${2:-}"
-  [[ -n "$dir" && -n "$title" ]] || die "usage: bin/note new <task|backlog|decisions> \"Some Title\""
+  [[ -n "$dir" && -n "$title" ]] || die "usage: bin/note new <task|backlog|decision> \"Some Title\""
   valid_dir "$dir"
   local s path
   s="$(expected_slug "$dir" "$title")"
@@ -223,7 +223,7 @@ cmd_rename() {
 # to the filename, exactly — because both were created by the 2026-09-14 split
 # and have never been anything else.
 #
-# **decisions/ is held to having a date in its name and a heading, and nothing
+# **decision/ is held to having a date in its name and a heading, and nothing
 # more.** A decision's filename is what references resolve against and is
 # fixed when the file is made; its heading is the title in whatever form suits,
 # ordinarily bare and undated, which is what `cmd_new` above writes. The
@@ -232,7 +232,7 @@ cmd_rename() {
 # README moved to the practice rather than a hundred and sixty-eight historical
 # entries moving to the README — they are cited by title from thirty-odd
 # places, so retitling is the one edit that breaks a reference which currently
-# works. decisions/README.md § *One decision, one file* has it.
+# works. decision/README.md § *One decision, one file* has it.
 cmd_check() {
   local bad=0 seen=() f base title want dir
   for dir in $(dirs_with_entries); do
@@ -245,7 +245,7 @@ cmd_check() {
       if [[ -z "$title" ]]; then
         echo "no '# ' heading: planning/$dir/$base.md" >&2; bad=1; continue
       fi
-      if [[ "$dir" == decisions ]]; then
+      if [[ "$dir" == decision ]]; then
         [[ "$base" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]] \
           || { echo "a decision's filename starts with its date: planning/$dir/$base.md" >&2; bad=1; }
         continue

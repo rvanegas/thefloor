@@ -15,7 +15,7 @@ Two gaps, and one tool closes both:
   address lands with `account_id` and `matched_by` null. This is the *expected*
   case rather than a failure — deliberately, since the alternative was guessing
   from who last opened the app, which credits the wrong person undetectably
-  (see decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md).
+  (see decision/archive/DECISIONS-2026-08-13-to-2026-08-15.md).
 - **Deliveries missed entirely.** Rare enough not to engineer against on its
   own: the window is the few seconds of a deploy's restart, which at any
   plausible rate of donations and deploys is a fraction of a percent. It was

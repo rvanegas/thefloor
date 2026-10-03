@@ -23,7 +23,7 @@ import type { Strings } from './index';
  * take none. It was not being kept: `availability.lastSeen` below reads
  * *Visto*, which agrees, and is drawn under a name on every contact row. A
  * setting to feed it was built the day before and backed out. See
- * `decisions/2026-09-26-the-copy-uses-the-generic-masculine.md` before
+ * `decision/2026-09-26-the-copy-uses-the-generic-masculine.md` before
  * changing any of this, and note that the words the old rule chose — *Sin
  * entrar*, *Invitaciones* — are kept on their own merits.
  *
@@ -31,7 +31,7 @@ import type { Strings } from './index';
  * written**, term by term, not string by string. The one collision that
  * needed a new answer is *invitado*, which is both *guest* and *invited*:
  * *Invitado* is the guest, *Invitaciones* the pending seats
- * (`decisions/2026-09-22-the-members-tab-is-the-people-tab.md`), and a member
+ * (`decision/2026-09-22-the-members-tab-is-the-people-tab.md`), and a member
  * who has never come in is *Sin entrar*, which names the absence instead and
  * so collides with neither.
  */

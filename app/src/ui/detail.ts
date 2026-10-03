@@ -88,7 +88,7 @@ export const NO_DETAIL: Detail = { kind: 'none' };
  * channel list was the app's root and the contacts were a screen you opened
  * over it; nothing about the pair justified which way round that was. `'home'`
  * would name the tier that contains both, which is not what this chooses
- * between. See planning/decisions/DECISIONS.md § *The tier above both lists*.
+ * between. See planning/decision/DECISIONS.md § *The tier above both lists*.
  *
  * **`'support'` is the third, and it is not a list.** The name stayed because
  * what this type chooses between is which body the tier is showing, and that

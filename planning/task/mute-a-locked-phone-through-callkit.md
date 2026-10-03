@@ -3,7 +3,7 @@
 The card's Mute asks for Face ID or the passcode on a locked iOS 26 phone, and
 nothing the app declares changes that: iOS gates every third-party Live
 Activity button on the lock screen.
-`decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md` is
+`decision/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md` is
 the evidence. **A mute that works without authentication has to be on a
 surface iOS runs itself**, and two fit. This is the question of whether either
 is worth what it costs, and it is a decision before it is any work.

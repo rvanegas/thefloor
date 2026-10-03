@@ -49,8 +49,8 @@ jest project. Named for what it checks, so nobody looks for a server reason.
 
 ## What it found immediately
 
-Pointed at `decisions/`, the strict rule failed 52 of 73 files — and the
-directory is not the thing at fault. `decisions/README.md` states that the
+Pointed at `decision/`, the strict rule failed 52 of 73 files — and the
+directory is not the thing at fault. `decision/README.md` states that the
 heading is the full title with the date suffix; 9 files are written that way.
 41 lead with a bare title, 23 with the date first, and several differ in
 substance rather than shape.

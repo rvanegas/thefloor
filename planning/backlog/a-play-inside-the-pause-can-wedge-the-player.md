@@ -28,7 +28,7 @@ the picture would have stayed dark until somebody pressed something.
 
 **Ten seconds of it has since gone.** `WATCH_COLD_NUDGE_MS` now tells a player
 that never started to play again after four — see
-decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md — and a repeated
+decision/2026-09-28-a-correction-aims-where-the-room-will-be.md — and a repeated
 `play` cannot discard a buffer, so it needs none of the caution the long window is
 built from. **It does not unstick a wedged embed, and it made the wedge longer.**
 The 2026-10-01 run below told a wedged player `play` five times, four seconds
@@ -39,19 +39,19 @@ never went out, until 2026-10-01 (see the run below).
 
 **One mechanism was found in the code on 2026-09-29, and it fits this timing.**
 The two fixes that day,
-decisions/2026-09-29-the-film-handover-released-before-it-held.md and
-decisions/2026-09-29-the-film-waits-for-its-session.md, cover a Play after the
+decision/2026-09-29-the-film-handover-released-before-it-held.md and
+decision/2026-09-29-the-film-waits-for-its-session.md, cover a Play after the
 pause has finished. They did not cover this one. The Play's release ran beside
 the pause's unfinished capture, found no published track, and returned. iOS
 reported `Playback`, the player was told to play, and then the capture landed:
 the session went back to `PlayAndRecord` under it, and the microphone stayed
 open, because nothing took it back. A release now waits for the capture before
-it. See decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md.
+it. See decision/2026-09-29-a-release-waits-for-the-capture-before-it.md.
 **On a phone, the fix held for a press made on that phone.** See the run below.
 
 **The mechanism is a guess and the cheap test is not.** A pause restores
 `PlayAndRecord` and starts the engine (about 700ms, and it is ours — see
-decisions/2026-09-28-the-film-waits-for-the-audio-session.md), and a Play landing
+decision/2026-09-28-the-film-waits-for-the-audio-session.md), and a Play landing
 inside that window asks `WKWebView` to take a session that is mid-move. Whether the
 resume request is then dropped, or the media element left in a state no command
 reaches, is not knowable from these lines: what is missing is what the *page* was
@@ -100,7 +100,7 @@ account's phone sends its log.
 2026-10-01 a cold nudge has its own clock (`knocked` in `drive.ts`, `quietForMs`
 in `followInstructions`), so a wedge lasts at most `WATCH_STALL_MS` again, with
 the knocks inside it. A play from the room is now held for the session just as a
-press is (decisions/2026-10-01-the-room-s-play-waits-for-the-session-too.md). **The
+press is (decision/2026-10-01-the-room-s-play-waits-for-the-session-too.md). **The
 entry stays open until a run on a build with both fixes shows** that a play from
 the other phone waits (look for `watch start chiming (room played)` on the
 screening phone) and that a rapid press still does not wedge. If a wedge survives

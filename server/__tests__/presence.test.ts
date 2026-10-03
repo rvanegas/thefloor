@@ -415,7 +415,7 @@ describe('the attention clock', () => {
 
       Without it a two-hour film ends with everybody stepped out at the
       fifteen-minute mark, which is the room emptying itself while five people
-      watch it. See decisions/2026-09-17-the-screen-is-the-app.md.
+      watch it. See decision/2026-09-17-the-screen-is-the-app.md.
     */
     const { alice, bob, channelId } = await roomOfTwo();
     attends(bob.id, channelId);

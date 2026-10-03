@@ -16,7 +16,7 @@ whether this is a policy or just a setting:
 - **How briefly.** With batch transcription the stems sit in S3 until the job
   finishes. With streaming they need never be written at all. That question is
   its own task, "Transcribe as the conversation happens".
-- **Who deletes.** `decisions/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`
+- **Who deletes.** `decision/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`
   keeps `s3:DeleteObject` away from the server on purpose. Letting the audio go
   by default means either deleting unattended, which reopens that decision, or
   never writing the audio in the first place.

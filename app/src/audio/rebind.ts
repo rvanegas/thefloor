@@ -11,7 +11,7 @@
  * hypothesis is the part worth not re-deriving.
  *
  * **The recovery that is not a rebuild, and the distinction is the whole
- * point.** decisions/ § *The phone holds a microphone in order to hear*
+ * point.** decision/ § *The phone holds a microphone in order to hear*
  * records the standing rule that the freeze detector must never be wired to
  * any recovery that stops the engine, and the reason is that
  * rebuilding the room *is* the failing case: every rebuild reconnects into a

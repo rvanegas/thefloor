@@ -764,7 +764,7 @@ async function applyFor(want: SessionWant): Promise<void> {
  *                  them land on the same tick as the socket. **One of the two
  *                  fixes that closed this fault**, confirmed 2026-09-05 and on
  *                  for everybody since — see `takeSubscriptions`, and
- *                  decisions/ § *The phone holds a microphone in order to
+ *                  decision/ § *The phone holds a microphone in order to
  *                  hear*.
  * @param recoverPlayout whether a track the detector reports frozen should be
  *                  rebound automatically. **Retired, and passed a hard `false`
@@ -1112,7 +1112,7 @@ export function useSessionAudio(
     // stays lit and a Bluetooth headset stays in the mono hands-free profile.
     // Both true, and the second is the whole bug — stopping the track is what
     // hands the headset back to A2DP, so every self-mute and unmute cost a
-    // profile handover and a tone. See planning/decisions/DECISIONS.md.
+    // profile handover and a tone. See planning/decision/DECISIONS.md.
     const room = new Room({ publishDefaults: { stopMicTrackOnMute: false } });
     roomRef.current = room;
 
@@ -1542,7 +1542,7 @@ export function useSessionAudio(
         await AudioSession.startAudioSession();
         /**
          * **The experiment of 2026-09-05, asked for since build 92, and now
-         * one of the two fixes that closed this fault** — decisions/ § *The
+         * one of the two fixes that closed this fault** — decision/ § *The
          * phone holds a microphone in order to hear*.
          *
          * With `autoSubscribe` left alone the server subscribes this client to
@@ -1827,7 +1827,7 @@ export function useSessionAudio(
      * and an entry that works only when somebody is already looking at the
      * screen is one they can be offered instead. `state/useNearby.ts` notices
      * the arrival; the tap is theirs. See
-     * `planning/decisions/2026-09-08-the-arrival-is-offered.md`.
+     * `planning/decision/2026-09-08-the-arrival-is-offered.md`.
      */
     const inCall = appliedRef.current?.config === CALL;
     // `background` rather than `!foreground`, so that a promotion asked for
@@ -2028,7 +2028,7 @@ export function useSessionAudio(
     // 2026-09-26: it reaches this effect through `micNeeded`, which
     // `microphoneNeeded` subtracts it from. It was a dependency for a few hours
     // on 2026-09-26 while it was an input of its own — see
-    // decisions/2026-09-26-the-film-is-a-dependency.md, which is a correct rule
+    // decision/2026-09-26-the-film-is-a-dependency.md, which is a correct rule
     // about a parameter that no longer exists.
     state.status,
     state.othersAudible,
@@ -2162,7 +2162,7 @@ export function useSessionAudio(
      *
      * *Per track and per connection*, because a room that is genuinely dead
      * cannot be repaired by this and a repair that kept trying would be the
-     * reconnect loop decisions/ § *The phone holds a microphone in order to
+     * reconnect loop decision/ § *The phone holds a microphone in order to
      * hear* forbids, wearing a different hat. Three is
      * enough for the case this is for — every recovery in the 2026-09-04 log
      * arrived within about a second of one engine start — and small enough

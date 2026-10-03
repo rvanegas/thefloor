@@ -77,8 +77,8 @@ nothing on it: it arrived with the ladder and Floor Settings is settings, not
 documentation. What a chime is, that you never hear your own, and that it is in
 no recording are in GLOSSARY.md § *Chime*.
 
-See `decisions/2026-09-15-how-loud-the-chime-is-belongs-to-the-listener.md` for
-the setting this removes, `decisions/2026-09-15-a-loudness-you-can-hear-before-you-keep-it.md`
+See `decision/2026-09-15-how-loud-the-chime-is-belongs-to-the-listener.md` for
+the setting this removes, `decision/2026-09-15-a-loudness-you-can-hear-before-you-keep-it.md`
 for the tap that demonstrated a rung, and
-`decisions/2026-09-15-the-chime-is-too-quiet-to-notice.md` for the complaint
+`decision/2026-09-15-the-chime-is-too-quiet-to-notice.md` for the complaint
 that started it.

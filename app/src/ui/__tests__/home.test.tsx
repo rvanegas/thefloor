@@ -1773,7 +1773,7 @@ describe('a guest invitation', () => {
       It takes the seat and opens it. Which screen the channel then draws is
       the server's answer rather than this list's: a watch is answered with a
       seat where there is no membership, and `App.tsx` reads that. See
-      `SeatView` and planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+      `SeatView` and planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
     */
     mockApp.home = {
       invites: [invite({ guest: true })],

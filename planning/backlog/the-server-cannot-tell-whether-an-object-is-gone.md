@@ -14,7 +14,7 @@ row on a timeout, which is the failure the whole ordering exists to prevent.
 So the behaviour is correct and useless at the same time.
 
 This is a **read** permission and does not reopen the question settled in
-`planning/decisions/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`,
+`planning/decision/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`,
 which declined `s3:DeleteObject`. Reading is already this credential's
 privilege; listing is the part of it the bucket was never given. Granting it
 lets the server confirm what `bin/orphans` has cleared and drop the rows,

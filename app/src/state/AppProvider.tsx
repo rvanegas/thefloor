@@ -169,7 +169,7 @@ const LEGACY_CONTROL_CARDS_KEY = 'thefloor.controlCards';
  * too: `forgetSettings` below and `INSTALL_KEYS` in state/storage.ts, which
  * would otherwise leave a dead string on every phone that upgrades. The same
  * shape the two legacy keys above have. See
- * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+ * planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
  */
 const DEAD_TABS_AT_FOOT_KEY = 'thefloor.tabsAtFoot';
 
@@ -191,7 +191,7 @@ const LABS_KEY = 'thefloor.labs';
  * again, `CHIME_AMPLITUDE` in the audio-route module. Kept on
  * `DEAD_TABS_AT_FOOT_KEY`'s terms above: only so the two paths that empty this
  * install can empty it too. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 const DEAD_CHIME_AMPLITUDE_KEY = 'thefloor.chimeAmplitude';
 
@@ -253,7 +253,7 @@ interface AppState {
    * back to "Loading channel…" and, worse, the audio hung up, because the
    * connection follows the channel the snapshot says you are present in and
    * that snapshot was now about somewhere else. Two people idly moving between
-   * two channels is enough to produce it. See planning/decisions/DECISIONS.md.
+   * two channels is enough to produce it. See planning/decision/DECISIONS.md.
    */
   channelViews: Record<string, ChannelView>;
   /**
@@ -462,8 +462,8 @@ interface AppState {
    * this phone in by itself; it then put a *Step in* under the thumb, and
    * since 2026-09-15 it says one line under the roster and nothing more.
    * `state/nearby.ts` carries the rule,
-   * `decisions/2026-09-08-the-arrival-is-offered.md` the reversal and
-   * `decisions/2026-09-15-the-arrival-is-a-line.md` the card's deletion —
+   * `decision/2026-09-08-the-arrival-is-offered.md` the reversal and
+   * `decision/2026-09-15-the-arrival-is-a-line.md` the card's deletion —
    * every button on it was somewhere else on the same screen.
    *
    * **Keyed rather than single, for the reason `nearbyIn` is a set**: two
@@ -506,7 +506,7 @@ interface AppState {
    * `closed` several times a second while the client is retrying. This is the
    * sticky one: true from `OFFLINE_AFTER_MS` after the drop until an open
    * succeeds, and what `Root` renders the wall from. See socket.ts and
-   * planning/decisions/2026-09-16-being-offline-is-one-state.md.
+   * planning/decision/2026-09-16-being-offline-is-one-state.md.
    */
   offline: boolean;
   lastError: string | null;
@@ -810,7 +810,7 @@ interface AppValue extends AppState {
    * **A screen that records the action as done must check this.** `false`
    * means it was queued or deferred, so nothing has happened yet and may
    * never; the caller's own record of "saved" is what otherwise stops it ever
-   * being retried. See `ChannelSettingsView.persist` and planning/decisions/2026-09-16-being-offline-is-one-state.md.
+   * being retried. See `ChannelSettingsView.persist` and planning/decision/2026-09-16-being-offline-is-one-state.md.
    */
   act: (channelId: string, action: ClientAction) => boolean;
   /**
@@ -1141,7 +1141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * `tapToLook` was read here, cached against the gap between a cold start and
    * `hello`. It is not a setting any more — a tap only ever looks — so there
    * is no gap to cover and nothing to be wrong about for a second. See
-   * decisions/2026-09-21-a-tap-only-ever-looks.md.
+   * decision/2026-09-21-a-tap-only-ever-looks.md.
    */
   /** Read the same way, at the same moment, for the same second or so. */
   const [hideControlCards, setHideControlCardsState] = useState(

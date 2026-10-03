@@ -58,7 +58,7 @@ export function warmChimes(amplitude: number = CHIME_AMPLITUDE): void {
  * already solved, and a tone would have played over the very voice it was
  * announcing. Here there are two things to tell apart — somebody arrived,
  * somebody left — and no amount of vibration distinguishes them. See
- * `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+ * `decision/2026-09-14-the-room-says-who-came-and-went.md`.
  *
  * **Inverse on purpose.** The same two notes in the opposite order, so the
  * second sound is audibly the first one backwards and nobody has to be taught
@@ -84,7 +84,7 @@ export function warmChimes(amplitude: number = CHIME_AMPLITUDE): void {
  * the sound at its baked-in peak instead of not playing: see
  * `playFirstAccepted` in `../../modules/audio-route`, which is the one
  * behaviour that must not be "simplified" away. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 
 /** Somebody stepped in. */
@@ -229,7 +229,7 @@ const CHIME_STALE_MS = KINDS.reduce(
  * *at the same moment* is what two calls in one tick literally means. Callers
  * stay ignorant of it — they say what happened, in the order it should be
  * narrated, and are not made to care when the speaker is free. See
- * planning/decisions/2026-09-17-two-chimes-at-once-are-a-chord.md.
+ * planning/decision/2026-09-17-two-chimes-at-once-are-a-chord.md.
  *
  * **It returns which of those four things happened, and the hooks ignore it.**
  * The return exists for the lab, where the queue itself is what is being

@@ -1,6 +1,6 @@
 # A decision is named once and titled freely
 
-`decisions/README.md` § *One decision, one file* said the `#` heading inside a
+`decision/README.md` § *One decision, one file* said the `#` heading inside a
 decision was its filename's full title, date and all, and that this was "the
 whole convention". `task/decisions-do-not-obey-the-convention-they-document.md`
 had recorded on 2026-09-14 that 9 of the then 73 files were written that way,
@@ -13,7 +13,7 @@ and no date, 51 with the date, and 6 repeat the filename slug verbatim as a
 heading. The drift is not decay around a rule people are trying to follow; it
 is a different rule, followed.
 
-**The decisive fact was not the census.** `bin/note new decisions "..."` writes
+**The decisive fact was not the census.** `bin/note new decision "..."` writes
 `# <title>` — a bare title, no date — and has since the day it was written. The
 script that creates every decision in this directory has been contradicting the
 README for as long as both have existed, so the README was not describing the

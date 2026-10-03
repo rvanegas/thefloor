@@ -5,7 +5,7 @@ refusal about the day's budget, so a signed-in account can learn whether a
 username is held — twenty times a day, which is what `link_accepts` allows.
 
 Recorded 2026-09-25 with
-`decisions/2026-09-25-an-invite-link-is-a-standing-door.md`, which made the
+`decision/2026-09-25-an-invite-link-is-a-standing-door.md`, which made the
 page stop leaking and left this.
 
 ## Why it is small

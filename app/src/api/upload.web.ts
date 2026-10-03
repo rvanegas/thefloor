@@ -7,7 +7,7 @@ import { MAX_TRACK_BYTES } from '../../../core/constants';
  *
  * **This is a reason to open the browser rather than a port for
  * completeness.** The web app is a secondary interface and the phone is the
- * referential install — planning/decisions/DECISIONS.md § *The web app is a
+ * referential install — planning/decision/DECISIONS.md § *The web app is a
  * secondary interface* — but choosing a file is the one thing a laptop does
  * better than a phone, so this is among the things somebody opens a browser
  * *for*.

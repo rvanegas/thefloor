@@ -11,7 +11,7 @@ import { somebodyArrived, whoArrived } from './nearby';
  * What the report becomes is a sentence rather than a question, since
  * 2026-09-15: one muted line under that channel's roster. The card with *Step
  * in* and *Stay nearby* it fed for a week is
- * `decisions/2026-09-15-the-arrival-is-a-line.md`. Nothing here changed with
+ * `decision/2026-09-15-the-arrival-is-a-line.md`. Nothing here changed with
  * it — what is detected, and when, is the same either way.
  *
  * The rule and its reasoning are in `nearby.ts`; this is the wiring. Three

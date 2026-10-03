@@ -470,7 +470,7 @@ export function WatchPlayer({
 
         `drive.ts` writes down what it told the player and, a tick or more
         later, that it arrived — and between those two lines is the second and
-        a half that decisions/2026-10-01-the-transport-stays-quiet-while-the-film-starts.md
+        a half that decision/2026-10-01-the-transport-stays-quiet-while-the-film-starts.md
         is about, with nothing in it. So the number could be reported and never
         apportioned: `watch playing after 1463ms` is *the embed starting* plus
         *this application noticing*, and no reading of the code can say which

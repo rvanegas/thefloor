@@ -59,7 +59,7 @@ a broken demo account rather than a changed one. Unlikely, since it needs a
 mailbox they control and there is no reason to try it — but if sign-in with
 `REVIEW_IDENTIFIER` ever fails while the row is plainly still there, this is
 the first thing to check: `select identifier from accounts where id = '…'`.
-decisions/ § *Changing your address is a sign-in, not a save*.
+decision/ § *Changing your address is a sign-in, not a save*.
 
 **Both addresses are named in `server/.env`, and the second one only so that
 neither counts as a user.** `REVIEW_IDENTIFIER` gets the fixed code;
@@ -69,7 +69,7 @@ raised `MIN_SUPPORTED_BUILD` would strand. A phone at Apple running whatever
 was last under review is not that, and Sam — which has never reported a build
 number at all — would otherwise hold `silentBuilds` at 1 for the life of the
 app, which is the condition under which that whole reading is not to be
-trusted. decisions/ § *The build census counts users*.
+trusted. decision/ § *The build census counts users*.
 
 ---
 

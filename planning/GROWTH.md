@@ -14,7 +14,7 @@ row — § *How it is read back* says which reports. What should survive
 re-measurement is the ordering, and where it does not, that is the finding.
 
 **Delete it when the tracks below are done and read**, on APPLECAMPAIGN.md's
-terms; what survives moves into `decisions/`.
+terms; what survives moves into `decision/`.
 
 ## Contents
 

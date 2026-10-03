@@ -523,7 +523,7 @@ it('drops the tab-position column from a database that has one', () => {
   // which means the live database has one holding a coin toss. The same
   // reasoning as the bio above: nothing can read it back, so keeping it is a
   // column every later reader of this table has to ask about. See
-  // planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+  // planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
   const path = join(dir, 'tabs.db');
   const old = new DatabaseSync(path);
   old.exec(BEFORE_RENAME);

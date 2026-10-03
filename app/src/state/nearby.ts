@@ -5,7 +5,7 @@
  * step in. It does not step in.** Promotion — the automatic version, where the
  * arrival opened a microphone nobody had touched the phone for — was built on
  * 2026-09-08 and removed the same day, before it had been heard on a device.
- * `decisions/2026-09-08-the-arrival-is-offered.md` is why. What is left is the
+ * `decision/2026-09-08-the-arrival-is-offered.md` is why. What is left is the
  * detection, which was always the cheap half.
  *
  * **The trigger is the arrival, not the first word.** First words typically

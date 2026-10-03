@@ -55,7 +55,7 @@ export function answerableRequests(home: HomeViewData | null): Contact[] {
  * title and a *Home* button, and it covered the channel list, which is how a
  * pair of peers came to be navigated as a root and a child. It has neither now:
  * the switch above is the whole of how you get between the two, and the frame
- * around this is `HomeView`. See planning/decisions/DECISIONS.md § *The tier
+ * around this is `HomeView`. See planning/decision/DECISIONS.md § *The tier
  * above both lists*.
  *
  * The channel list used to carry this, and lost it when it became a list of

@@ -83,7 +83,7 @@ it stops being small, the move is a separate published-audio bucket with the
 enclosure URL pointing at it**, which is a change of URL rather than a change
 of design; a public path on the existing recordings bucket is not the answer,
 that one being `GetObject`-only precisely so a leak is bounded. See
-planning/decisions/ for 2026-09-21.
+planning/decision/ for 2026-09-21.
 
 ## Known rough edges
 
@@ -142,7 +142,7 @@ planning/decisions/ for 2026-09-21.
   `reconcileSilence` compares what was stated against what the room is actually
   carrying, once a tick, and restates the difference. **The transition is for
   latency and the reconciliation is for truth** — do not collapse one into the
-  other. planning/decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md carries the
+  other. planning/decision/archive/DECISIONS-2026-08-13-to-2026-08-15.md carries the
   logs.
 
 

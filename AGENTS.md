@@ -8,7 +8,7 @@ root because it is the one a fresh reader is pointed at; the rest are documents
 you go looking for, and a root directory that lists them all buries the code.
 
 Three of them answer a standing question each. **`planning/backlog/`** is what
-is known and not done; **`planning/decisions/`** is what was built and why,
+is known and not done; **`planning/decision/`** is what was built and why,
 including what was deliberately not built; **`planning/task/`** is the roadmap
 — features, audits, open questions, things to go and find out. All three are
 one file per item, a paragraph or so each, and `ls` indexes each directory.
@@ -33,7 +33,7 @@ rather than features.
 other two do not: a decision is dated history, a task is not. Writing one means
 adding a file and nothing else — no volume, no cap, no rollover. Each
 directory's `README.md` is its whole convention. The eleven closed decision
-volumes are frozen in `planning/decisions/archive/`.
+volumes are frozen in `planning/decision/archive/`.
 
 **It is archaeology, for the exceptional case, and is not consulted as a matter
 of course.** The collection is approaching a megabyte, and this file used to say
@@ -42,7 +42,7 @@ kilobytes and costs more than everything else a session reads put together.
 Enough to know it is there. Go in when a comment or a decision in the code is
 genuinely inexplicable and knowing why would change what you do; then match the
 filenames first, and the archive's headings
-(`grep -n '^## ' planning/decisions/archive/*.md`) second, rather than sweeping
+(`grep -n '^## ' planning/decision/archive/*.md`) second, rather than sweeping
 the prose.
 
 **Deploys are not in it.** `bin/deploy` and `bin/restart-services` record
@@ -71,7 +71,7 @@ names none of them, deliberately** — every such list it has kept was wrong
 within a fortnight, pointing at a design that had shipped or a file that had
 been deleted. `ls planning/` is the current list. Two kinds recur: a **design
 for unbuilt work**, deleted when the work ships with whatever survives moving to
-`decisions/`; and a **submission's own text**, written by `bin/set-review-notes`
+`decision/`; and a **submission's own text**, written by `bin/set-review-notes`
 and gone when that version is approved.
 
 **A shipped design's reasoning is not always what the task that asked for it
@@ -143,7 +143,7 @@ Read it before sizing, rebuilding or re-hosting the server, and before trusting
 any box that is not the live one.
 
 References inside `planning/` are by bare filename, since they are siblings —
-inside `planning/decisions/` too. From outside, a volume carries `decisions/`
+inside `planning/decision/` too. From outside, a volume carries `decision/`
 and a submission's text `submissions/`; code and this file carry `planning/`.
 
 ## Keeping this file small, which is a standing job
@@ -170,7 +170,7 @@ one of these:
   right now is `bin/health` rather than any sentence.
   This file kept the most recent deploy until 2026-08-23 and was wrong twice.
 - **Reasoning about unshipped work.** Belongs in
-  `planning/decisions/`, or in its own `planning/` design document
+  `planning/decision/`, or in its own `planning/` design document
   if it is still being decided.
 - **The story behind a rule.** Keep the rule and the cost of breaking it; move
   the account of the afternoon it cost, leaving a pointer.
@@ -214,7 +214,7 @@ So these rules are about what this file **points at**, not only what it holds:
   on its own, unsigned by anybody.
 - **A record that many sessions append to is one file per entry, not one file.**
   `DECISIONS` was one append-only volume rolled over at 2,000 lines and failed
-  in every way that scheme fails; `planning/decisions/README.md` has the
+  in every way that scheme fails; `planning/decision/README.md` has the
   account. **The 2,000-line read limit that drove its cap still exists** — a
   plain read stops there and drops the tail, which in an append-only file is
   the newest material — so it is a reason to prefer many files, not to police
@@ -280,7 +280,7 @@ record.
 ## Branches, tags, and what is actually in people's hands
 
 Adopted 2026-08-15, once there was a submitted build to be wrong about. The
-reasoning is in planning/decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md; these
+reasoning is in planning/decision/archive/DECISIONS-2026-08-13-to-2026-08-15.md; these
 are the rules.
 
 - **`master` is trunk and is the only thing deployed.** Work on short-lived

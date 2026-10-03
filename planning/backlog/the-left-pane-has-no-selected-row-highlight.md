@@ -7,7 +7,7 @@ where you are.
 
 Almost certainly worth doing, and what held it back is gone: it should follow
 rather than precede somebody actually looking at the split, and somebody did on
-2026-09-02 — decisions/ § *The split and the web app have both been
+2026-09-02 — decision/ § *The split and the web app have both been
 looked at*. What remains is only that it touches `ChannelsView`'s list
 rendering, which is the busiest surface in the app.
 

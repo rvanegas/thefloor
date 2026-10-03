@@ -14,7 +14,7 @@ The room is told nothing, their card having no way to say it.
 
 **The roster's *watching* suffix does not reach this**, though it retracts the
 neighbouring declaration for exactly this reason — see
-`decisions/2026-09-20-the-roster-says-who-is-watching.md`. That one withdraws
+`decision/2026-09-20-the-roster-says-who-is-watching.md`. That one withdraws
 `screens.showing`, which is connection state and a report about a screen;
 `WATCH_HERE` is a channel action about a person, on a different guard, and the
 two are deliberately separate. Since 2026-09-20 the roster is at least honest

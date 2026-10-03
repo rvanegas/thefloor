@@ -1,7 +1,7 @@
 # Why a playout-only engine renders nothing is not known
 
 **The one thing left over from the shared-playback investigation**, which closed
-on 2026-09-23 — `decisions/2026-09-23-the-phone-holds-a-microphone-in-order-to-hear.md`
+on 2026-09-23 — `decision/2026-09-23-the-phone-holds-a-microphone-in-order-to-hear.md`
 is the whole account, and this entry assumes it.
 
 `engine start play=T rec=F` says the audio device module believes playout is

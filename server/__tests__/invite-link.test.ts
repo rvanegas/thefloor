@@ -40,7 +40,7 @@ let clock = 1_700_000_000_000;
  *
  * An empty directory is the honest default: a box serving no train is an
  * ordinary box, and every test here bar one means that. See
- * `decisions/2026-09-27-a-test-may-not-read-an-untracked-build.md`.
+ * `decision/2026-09-27-a-test-may-not-read-an-untracked-build.md`.
  */
 let trainRoot: string;
 

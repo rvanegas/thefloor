@@ -10,7 +10,7 @@ What a browser user must do is reload. The screen needs a web variant, which is
 the smallest of the pieces here: the copy and the button, gated the way
 `AudioDebugPanel` already gates itself on the platform. It was named as
 required in WEB.md § *Required elsewhere* and did not get built before that
-file was retired into decisions/ § *The web app is a versioned
+file was retired into decision/ § *The web app is a versioned
 client*.
 
 The floor moved for the first time on 2026-09-13, 51 to 80, which is exactly

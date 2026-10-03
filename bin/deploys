@@ -14,7 +14,7 @@
 # `ok` is a time the box was left in a state somebody did not choose.
 #
 # It begins on 2026-10-01. What came before is the hand-kept
-# planning/decisions/archive/deploy-history.md, which says why a deploy was made
+# planning/decision/archive/deploy-history.md, which says why a deploy was made
 # where this says only that it was — and which has nothing at all between
 # 2026-09-14 and then.
 #

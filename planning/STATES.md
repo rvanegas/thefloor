@@ -109,7 +109,7 @@ during the grace period**, so a connection that flaps and returns inside
 traded away was bounded by `microphoneNeeded`, which kept the device shut until
 somebody else was present — a bound that left with the redesign of 2026-09-08,
 stepping in now being an open microphone whether or not anybody else is there.
-What still bounds it is that a departure clears the mute at all. See decisions/archive/DECISIONS-2026-08-20-to-2026-08-21.md §
+What still bounds it is that a departure clears the mute at all. See decision/archive/DECISIONS-2026-08-20-to-2026-08-21.md §
 *Every departure clears the self-mute, and the microphone is not the reason
 why*.
 
@@ -156,7 +156,7 @@ and they can differ for a window:
   track, which the old statement does not name and which is subscribed to by
   default. The transition is for latency and `reconcileSilence` is for truth;
   do not collapse one into the other. See AGENTS.md and
-  decisions/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
+  decision/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
 - The app's `mutedByServer` is an observation of an event, so it lags.
 - The word on screen is "silenced", which appears in neither layer.
 
@@ -317,7 +317,7 @@ about this state: a desktop client left open on a machine nobody was sitting at
 satisfied it for as long as the machine was awake. The socket is still half the
 answer, and the half that makes the claim revocable at once — closing the app
 stops it immediately, where a window has to run out. See
-`decisions/2026-09-25-in-the-app-now-counts-attention.md`.
+`decision/2026-09-25-in-the-app-now-counts-attention.md`.
 
 **A shim rides on the build.** A connected device below
 `ACCOUNT_ATTENTION_BUILD` vouches for its owner by existing, because it cannot
@@ -384,7 +384,7 @@ microphone. Somebody who was in the room stays in it. It is the client's
 because standing is a fact about *this device* and the server cannot know which
 of an account's sockets held the seat, which is the same reason `enterSeat`
 steps this device out at the other end of the walk.
-decisions/2026-09-27-a-seat-that-ends-upwards-keeps-the-room.md.
+decision/2026-09-27-a-seat-that-ends-upwards-keeps-the-room.md.
 
 **Where the sources disagree.** The request's list flattens three different
 things that this file keeps apart:
@@ -410,7 +410,7 @@ things that this file keeps apart:
   and must not hold anything that belongs to everybody else. A claimed floor is
   a lock on the room; a ping is the room's only way to call somebody back, and
   the minute it was withheld for was the exact minute it was for. See
-  decisions/ § *The grace period stops withholding the ping*.
+  decision/ § *The grace period stops withholding the ping*.
 
   **And Home's counts ask it, since 2026-10-01.** `presentCount` is
   `connectedCount` and `nearbyCount` is `othersNearby`, both in
@@ -437,7 +437,7 @@ things that this file keeps apart:
   guard that reads `isPresent` — the transport, the floor, a recording, a
   track — which is how it was found. Nothing changes for a reconnect that does
   re-assert `ENTER`, which is the case the grace exists for. See
-  decisions/2026-09-23-a-new-session-claims-its-rooms-or-loses-them.md.
+  decision/2026-09-23-a-new-session-claims-its-rooms-or-loses-them.md.
 
   **A seat takes it too, since 2026-09-22**, and that is the one addition to
   this paragraph the app holding seats makes. Walking into a seat is walking
@@ -465,13 +465,13 @@ things that this file keeps apart:
   the footer lights the **In** rung where it lights **Out** for somebody
   present. It was a Home setting — "Tap a channel to look, not step in" — from
   2026-08-22 until the setting and its column went; see
-  decisions/2026-09-21-a-tap-only-ever-looks.md. Both used to be cards saying
+  decision/2026-09-21-a-tap-only-ever-looks.md. Both used to be cards saying
   the act in full; they were deleted on 2026-09-13 for being the footer in
   longer words, and the ladder in the bar is now the whole of it. A
   notification tap used to land this way
   too; **since 2026-09-04 it lands on the channel list instead**, naming no
   room at all, so the only way into a channel screen is a tap on a row. See
-  decisions/ § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
+  decision/ § *An address names a place and never an id*. The microphone card and the knocks are hidden, because neither is true
   of somebody outside the room.
 
   **This said the screen's other controls needed no special case, on the
@@ -505,7 +505,7 @@ things that this file keeps apart:
 
   **All four ask presence now.** Playing a track is not tidying up after
   anything, and on build 261 it was done from outside an empty channel, into
-  it. decisions/2026-09-20-playing-is-not-tidying.md.
+  it. decision/2026-09-20-playing-is-not-tidying.md.
 
   **The watch party left that arrangement on 2026-09-20 and now asks presence
   for everything.** `canControlWatch` was `canControlPlayback`'s twin and is
@@ -516,15 +516,15 @@ things that this file keeps apart:
   still running to clear up after, and stepping into an empty channel
   interrupts nobody. Driving and starting a party therefore agree about
   presence, and playback's two halves joined them the same day.
-  decisions/2026-09-20-watching-is-something-you-are-in.md. There was a third combination, occupation without
+  decision/2026-09-20-watching-is-something-you-are-in.md. There was a third combination, occupation without
   the floor — `canOpenWatchScreen`, for a follower page that changed nothing —
   and it went on 2026-09-17 with the page: which of your own devices shows a
   film is not a question the channel answers.
-  decisions/ § *Starting is for whoever is in the room; driving is
+  decision/ § *Starting is for whoever is in the room; driving is
   for whoever the room belongs to*. `present` counts members only, so a guest
   never holds a room — though `settleEmpty` means a guest cannot be in an empty
   one either, and `canManageGuest` therefore gets no behaviour from the empty
-  half. The reasoning is decisions/ § *Nobody reaches into a
+  half. The reasoning is decision/ § *Nobody reaches into a
   conversation they are not in*.
 
 - **And each of the two asks whether the *other* is playing**, since
@@ -535,7 +535,7 @@ things that this file keeps apart:
   not drift: the guard in `core/channel.ts`, and the sentence under each card
   in `ChannelView` — which is why the card reads the same predicate rather
   than a `watch.status` of its own.
-  decisions/2026-09-20-two-transports-one-run.md.
+  decision/2026-09-20-two-transports-one-run.md.
 
 `lastActiveAt` says nothing about a channel that is occupied now — there is no
 write between an entry and an exit, so an hour of conversation moves it not at
@@ -591,7 +591,7 @@ drawing.
 push instead and lost every step-in that was suppressed or had nobody to notify.
 And it is **not** the reader's `lastPresentAt`, which the heartbeat refreshes and
 every route out re-stamps: that says when you were last here, this says when you
-arrived, and only the second outlives a departure. decisions/ § *Home
+arrived, and only the second outlives a departure. decision/ § *Home
 counts other people, and marks your own step-in separately*.
 
 ---
@@ -629,7 +629,7 @@ was *doubly* unreachable until 2026-09-14, the recording guard having also
 required a second occupant or media playing — that clause has gone, and this
 one is untouched by its going. The ordering is what matters and it still holds:
 audio first, recording on top of it. See
-decisions/2026-09-14-a-room-of-one-is-a-room.md.
+decision/2026-09-14-a-room-of-one-is-a-room.md.
 
 **Where the sources disagree.** **There are two senses of this state and they
 are both wanted.** `micOpen` decides whether *we publish*. `channelHasAudio`
@@ -648,7 +648,7 @@ says a track exists — the two are both right, about different questions.
 counts only the unmuted, so a `mic` span means transmitting rather than
 published. The floor's own reader, `reconcileSilence`, still takes every track
 including the held ones, because a mute belongs to the publisher and can be
-revoked in the time it takes to say a word. See `decisions/` § *The phone holds
+revoked in the time it takes to say a word. See `decision/` § *The phone holds
 a microphone in order to hear*, which is why a track is held at all.
 
 ---
@@ -790,7 +790,7 @@ starts a clock; what a socket may no longer do is assert that somebody is here.
 `MEDIA_JOIN_GRACE_MS` is the window a step-in is given to arrive in, and it
 exists because `disconnectedAt` is drawn on everybody's roster as
 *reconnecting*. See
-planning/decisions/2026-09-08-present-is-the-media-connection.md.
+planning/decision/2026-09-08-present-is-the-media-connection.md.
 
 **A third reading, since 2026-08-27: `SessionAudio.failing`.** The SFU's own
 continuous judgement of every participant's connection, from
@@ -838,7 +838,7 @@ dropping with media still flowing, and acting on it would say the room was gone
 to somebody who could hear it. The events are otherwise still log-only, and the
 distinction between the two is the load-bearing part — see the comment in
 `useSessionAudio.ts` and
-planning/decisions/2026-09-16-the-room-is-gone-before-livekit-says-so.md.
+planning/decision/2026-09-16-the-room-is-gone-before-livekit-says-so.md.
 
 ---
 
@@ -914,17 +914,17 @@ starting**: `useSessionAudio` runs each microphone transition after the one
 before it, since a release beside an unfinished `setMicrophoneEnabled(true)`
 found nothing to unpublish, and the capture then landed under the film. That is
 a Play within about 700ms of a Pause, bounded by `TRANSITION_WAIT_MS`. See
-`decisions/2026-09-29-a-release-waits-for-the-capture-before-it.md`. **A run
+`decision/2026-09-29-a-release-waits-for-the-capture-before-it.md`. **A run
 started from another device is held the same way, since 2026-10-01**: the
 snapshot's edge into `playing` starts the same three phases in a layout effect,
 which runs before the follower's own effect hears it. Until then the follower
 played on the snapshot and the release came after, and on build 327 that wedged a
 player for 23 seconds. See
-`decisions/2026-10-01-the-room-s-play-waits-for-the-session-too.md`. None of these is
+`decision/2026-10-01-the-room-s-play-waits-for-the-session-too.md`. None of these is
 redundant with another and none is a guard against a race. See
-`decisions/2026-09-29-the-film-waits-for-its-session.md`, which supersedes the
+`decision/2026-09-29-the-film-waits-for-its-session.md`, which supersedes the
 ordering in
-`decisions/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
+`decision/2026-09-28-the-film-chimes-wait-for-the-session-they-are-played-into.md`.
 
 **These are our names, not Apple's, and the two that are configurations are
 requests rather than states.** Each is an `AppleAudioConfiguration` bundling a
@@ -991,7 +991,7 @@ guessable from the code.
 microphone safe and neither generalises: a loaded party already refuses a
 recording, so the capture fed nothing, and a run with a screen in the room is
 enforced-muted, so it fed no subscription either. See
-decisions/2026-09-17-the-screen-is-the-app.md.
+decision/2026-09-17-the-screen-is-the-app.md.
 
 **What it costs is nothing, and the sentence that stood here for three weeks
 said a second.** Build 277 measured a press of Play leaving the application in
@@ -1003,7 +1003,7 @@ minus released is +85ms at t = 1.08, and the sign is the wrong way round. The
 audio session runs alongside the player rather than in front of it, and what
 spends the second and a half is the round trip plus the `WKWebView` starting
 playback. See
-decisions/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
+decision/2026-09-27-the-teardown-was-never-on-the-critical-path.md.
 
 A press of Pause, which takes a device rather than releasing one, moved category
 in 0.27 to 0.41 seconds on build 277, and the retake brings the engine up in
@@ -1040,8 +1040,8 @@ the only thing ever observed bringing the engine back is a **category** release
 and retake — which releasing the microphone for the film forces and holding it
 removes. That is why the shipped arrangement works, and it costs nothing, which
 is the part every earlier version of this section had wrong.
-decisions/2026-09-27-the-film-stops-the-engine.md is the account;
-decisions/2026-09-26-the-film-keeps-its-stereo.md is the entry it corrects, and
+decision/2026-09-27-the-film-stops-the-engine.md is the account;
+decision/2026-09-26-the-film-keeps-its-stereo.md is the entry it corrects, and
 carries a banner saying so.
 
 **The empty-channel row is the reversal, and it was made knowingly.**
@@ -1060,7 +1060,7 @@ under a non-voice mode let a podcast play at 48 kHz with an input tap running.
 **The category costs nothing; the mode does** — the voice modes assert
 `duckOthers` behind the caller's back. So the old reasoning was a
 misattribution, and what replaced it is a decision. The readings are in
-planning/decisions/2026-09-08-stepping-in-and-nearby.md.
+planning/decision/2026-09-08-stepping-in-and-nearby.md.
 
 **Self-mute is not an input to the audio session**, and the argument is now the
 shortest it has ever been: the session follows whether you are stepped in, and
@@ -1193,7 +1193,7 @@ and nothing was audible at the boundary — which is the echo path the option wa
 removed for. With the option gone the speaker is no longer eligible while
 capturing, so crossing the boundary *evicts* it to the phone's own loudspeaker,
 which is not subtle. **Verified on a device 2026-08-21**, as the first of the
-three checks in decisions/ § *No output that cannot also capture*.
+three checks in decision/ § *No output that cannot also capture*.
 
 **The silent version of this misled the author on 2026-08-20**, before the
 fix — alone on a Bluetooth speaker, a second person arrived, the audio stayed
@@ -1335,13 +1335,13 @@ argument was that being in the state is how somebody becomes a member of a
 room, so an offer that makes nobody a member has no business there, and
 `Guests.pendingIn` was the only thing that could name one. That reasoning was
 right about `participants` and wrong about the state as a whole — a separate
-field keeps everything it was protecting. `decisions/2026-09-22-an-invitation-holds-a-seat.md`
+field keeps everything it was protecting. `decision/2026-09-22-an-invitation-holds-a-seat.md`
 is the reversal in full.
 
 ## Motion to Remove
 
 Added 2026-09-26 with the feature —
-`decisions/2026-09-26-removing-a-member-takes-two.md`, and GLOSSARY.md §
+`decision/2026-09-26-removing-a-member-takes-two.md`, and GLOSSARY.md §
 *Motion to remove* for what the word means.
 
 **Name in source.** `ChannelState.removals[targetId]`, a `RemovalMotion`

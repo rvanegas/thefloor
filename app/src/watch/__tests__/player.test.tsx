@@ -181,7 +181,7 @@ describe('YouTube’s own controls', () => {
       trading a misread against a swallowed press. `controls: 0` removes the
       question rather than answering it; `disablekb` is the same surface
       reached by a key. See
-      planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
+      planning/decision/2026-09-18-the-picture-is-not-a-control.md.
     */
     const props = draw();
     const html = (props.source as { html: string }).html;

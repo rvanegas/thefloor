@@ -748,7 +748,7 @@ describe('a channel becoming active', () => {
    * announces itself through the same call, under the same per-recipient
    * window — and says *nearby* rather than *stepped in*, that being the true
    * half of the equivalence and the one the recipient's roster will agree
-   * with. See planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+   * with. See planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
    */
   describe('somebody declaring themselves nearby', () => {
     it('tells the people who are not in it', async () => {

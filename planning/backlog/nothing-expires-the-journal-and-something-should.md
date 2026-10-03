@@ -2,7 +2,7 @@
 
 Written 2026-09-17, alongside the serializer that stopped new credentials
 reaching the journal —
-decisions/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md. That fix is
+decision/2026-09-17-the-journal-stops-being-a-place-to-sign-in.md. That fix is
 about what gets written from now on. This is about everything already there and
 everything that will be, and the two are independent: a journal with no
 credentials in it is still a journal that nobody has decided the lifetime of.
@@ -32,9 +32,9 @@ design against.
 **What to decide, and none of it is obvious.** How long an operational log is
 useful for here, against how long it is a liability; whether that is one policy
 or two, since the reconnect evidence that
-decisions/2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md
+decision/2026-09-15-a-cadence-that-was-inferred-and-the-line-that-will-not-need-inferring.md
 and
-decisions/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
+decision/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
 rest on is exactly the material a short retention destroys, and it is not
 recoverable once gone; whether anything should be extracted and kept before a
 policy starts deleting; and whether the box is the right place for any of it to

@@ -63,7 +63,7 @@ survive the move.
 - **PushKit to wake a closed app, which requires CallKit.** Apple requires a
   VoIP push to be reported as an incoming call and terminates an app that takes
   one without doing so. CallKit was ruled out for background *audio* —
-  decisions/archive/DECISIONS-2026-08-07-to-2026-08-13.md § *Backgrounded audio
+  decision/archive/DECISIONS-2026-08-07-to-2026-08-13.md § *Backgrounded audio
   was ruled out, and CallKit with it* — and this is the other thing it is for,
   where it would be the right tool. That entry is the one to read before
   arguing with any of this.

@@ -29,7 +29,7 @@
 # Nothing in the server reads any of them — no endpoint, no field on
 # the wire, no screen — which is deliberate and is what keeps the meter
 # instrumentation rather than a feature. The reasoning is in
-# planning/decisions/DECISIONS.md § "The meter is two tables and a script".
+# planning/decision/DECISIONS.md § "The meter is two tables and a script".
 #
 # The `transcripts` report reads `transcripts` and `accounts` instead, which
 # the server very much does read. It is here rather than in bin/people or a

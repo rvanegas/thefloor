@@ -33,7 +33,7 @@ player ahead by its own latency failed `adrift`, which is judged against the
 un-led want, and the led target was then the position it already held.
 `followInstructions` declines that seek now, so the same case is one instruction
 and a settled picture. See
-decisions/2026-09-28-a-seek-to-where-the-player-already-is.md.
+decision/2026-09-28-a-seek-to-where-the-player-already-is.md.
 
 **What is left is this entry, undisturbed**, and it is now a number rather than a
 symptom: the player comes to rest 1.7s ahead of the room and stays there for the
@@ -54,5 +54,5 @@ a pause counts.
 
 Worth doing when a real player is seen to be slower than two seconds, or when the
 pause's own second is attacked — see
-decisions/2026-09-28-the-film-waits-for-the-audio-session.md, where 700ms of the
+decision/2026-09-28-the-film-waits-for-the-audio-session.md, where 700ms of the
 pause is this application retaking the microphone and is the half that *is* ours.

@@ -29,7 +29,7 @@ visible, but unexplained, and indistinguishable from having mistyped.
 
 The full fix is an acknowledgement for `channel.action`, which is a wire change
 and needs the two-step deploy. **The rest was built on 2026-09-16** —
-`decisions/2026-09-16-being-offline-is-one-state.md` treats it as one symptom
+`decision/2026-09-16-being-offline-is-one-state.md` treats it as one symptom
 of the app having no word for being offline, and the premature `saved.current`
 is gone, `send` now returning whether it wrote. What stays here is the
 acknowledgement, which is the only part that also catches an online refusal,

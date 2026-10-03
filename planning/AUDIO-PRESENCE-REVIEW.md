@@ -1,7 +1,7 @@
 # The audio-and-presence review, surveyed but not done
 
 > **Superseded in part, 2026-09-08, and the work is built.**
-> `decisions/2026-09-08-stepping-in-and-nearby.md` is the design that answers
+> `decision/2026-09-08-stepping-in-and-nearby.md` is the design that answers
 > it and carries the evidence — nine configurations measured on a device. The
 > two temporary files this banner used to name went with it, as they said they
 > would.
@@ -23,10 +23,10 @@
 
 **Temporary. A survey for unbuilt work**, written 2026-09-07 at the end of a
 session that changed the attention rules and deliberately changed no names.
-Delete it when the review ships; whatever survives moves to `decisions/`.
+Delete it when the review ships; whatever survives moves to `decision/`.
 
 What was *decided and built* that day is
-`decisions/2026-09-07-a-phone-alone-is-the-only-thing-worth-retiring.md`. This
+`decision/2026-09-07-a-phone-alone-is-the-only-thing-worth-retiring.md`. This
 file is the other half: what the session found while reading, agreed was
 confusing, and left alone. **Nothing here is a defect in behaviour.** It is all
 legibility, and one class of latent hazard.

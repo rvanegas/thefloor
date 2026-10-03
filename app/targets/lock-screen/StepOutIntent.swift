@@ -32,7 +32,7 @@ import AppIntents
  phone wants Face ID or the passcode before this runs, declaration or not —
  the build 320 run that seemed to show otherwise was a phone Face ID had
  already unlocked. See
- `planning/decisions/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
+ `planning/decision/2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
  It stays, and `ToggleMuteIntent` now says the same: the worst anybody holding
  somebody else's phone can do with this is take them out of a conversation the
  card already names, so asking is iOS's choice and not this app's.

@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
  * swapping the category to one without the button, so the control **vanishes**
  * and the card changes shape under somebody's thumb. ActivityKit is SwiftUI:
  * `.disabled(true)` greys it in place, same size, same position. See
- * planning/decisions/2026-09-17-the-lock-screen-carries-two-controls.md.
+ * planning/decision/2026-09-17-the-lock-screen-carries-two-controls.md.
  *
  * The second reason is permission. A Live Activity needs none, where a
  * notification needs the one this app treats as hard-won — so the notification

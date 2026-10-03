@@ -2,7 +2,7 @@
 
 **Built on 2026-08-30 and not yet landed.** It was a design for unbuilt work
 and is now the account of what was written; delete it when the work ships,
-moving whatever survives into `decisions/` — the three reversals
+moving whatever survives into `decision/` — the three reversals
 below are what that volume needs, the rest being description of code that
 exists.
 
@@ -375,7 +375,7 @@ into this channel.
   read: a seat can only exist in a browser, so a phone rendering this row would
   offer a place it cannot open. The app holds seats of its own now, for an
   account, and the row is drawn everywhere; an anonymous seat is still the
-  browser's. See `decisions/2026-09-22-a-seat-rides-the-member-socket.md`, and
+  browser's. See `decision/2026-09-22-a-seat-rides-the-member-socket.md`, and
   GUEST-LADDER.md § *The app holds seats too*, which gated this sentence's
   removal on exactly that work.
 
@@ -475,7 +475,7 @@ what everybody did before there was a button.
 
 **This is the one wire change that may be made in one step**, because the guest
 page is rebuilt by `bin/deploy` and is lockstep with the server —
-`decisions/` § *The web app is a versioned client* is explicit
+`decision/` § *The web app is a versioned client* is explicit
 that the two ends
 have opposite compatibility policies, and this is the end with none. The app's
 `ChannelView` is unaffected: it never rendered a floor control for a guest.

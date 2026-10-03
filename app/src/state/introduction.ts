@@ -225,7 +225,7 @@ export function introduction(state: {
 
   if (!loaded || !home || contactsBase === null) return { show: 'none' };
   // **`conversing` no longer blanks this**, reversed 2026-09-14 — see
-  // `decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+  // `decision/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
   // It was kept on the argument that a checklist on screen *during* the
   // conversation it asked for is actively silly, which is true of a screen
   // this card is not on: `HomeView` is its only reader, and the channel screen
@@ -236,7 +236,7 @@ export function introduction(state: {
   //
   // **Retired on the last rung, not the first conversation**, reversing
   // ONBOARDING.md § *Retirement* — see
-  // `decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
+  // `decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
   // The old rule was right about a ladder whose every rung came before
   // stepping in; with four that come after, retiring on the conversation would
   // mean they were never drawn at all.

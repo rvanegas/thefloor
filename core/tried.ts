@@ -17,7 +17,7 @@
  * keychain until 2026-09-13 — four `thefloor.intro.tried.*` keys, which meant
  * a second device started all four hollow for an account that had done all
  * four, and a reinstall did the same. See
- * `decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`.
+ * `decision/2026-09-13-the-tried-rungs-belong-to-the-account.md`.
  *
  * The shape lives here rather than in either end for `protocol.ts`' reason: it
  * is on the wire now, and two copies of a wire shape drift.

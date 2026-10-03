@@ -33,7 +33,7 @@ export interface PublicAccount {
  * **There is no bio.** There was one, from the beginning until 2026-08-31, and
  * the paragraph above was originally about it. What is left is a person's
  * standing and how to reach them, which is what this was actually being
- * opened for. See decisions/DECISIONS.md.
+ * opened for. See decision/DECISIONS.md.
  */
 export interface ProfileView {
   account: PublicAccount;
@@ -397,7 +397,7 @@ export interface InviteView {
    * *out* of the others: it leaves you nearby in them, that being the rung
    * the situation actually supports. The one pair that still cannot both hold
    * is presence and nearby in the **same** channel, `ENTER` clearing the wait.
-   * See planning/decisions/2026-09-12-moving-rooms-leaves-you-nearby.md.
+   * See planning/decision/2026-09-12-moving-rooms-leaves-you-nearby.md.
    *
    * The account's, not this device's. A wait declared on another phone is one
    * everybody else can see and ping into, so saying so here is the same claim
@@ -485,7 +485,7 @@ export interface RejoinableView {
    * *out* of the others: it leaves you nearby in them, that being the rung
    * the situation actually supports. The one pair that still cannot both hold
    * is presence and nearby in the **same** channel, `ENTER` clearing the wait.
-   * See planning/decisions/2026-09-12-moving-rooms-leaves-you-nearby.md.
+   * See planning/decision/2026-09-12-moving-rooms-leaves-you-nearby.md.
    *
    * The account's, not this device's. A wait declared on another phone is one
    * everybody else can see and ping into, so saying so here is the same claim
@@ -1538,7 +1538,7 @@ export type ClientAction =
    * sending this immediately afterwards. So it stamps `lastPresentAt`, and
    * from outside the room it announces itself to the people who are not there,
    * saying *nearby* rather than *stepped in*. See
-   * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+   * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
    */
   | { type: 'DECLARE_NEARBY' }
   /**
@@ -1684,7 +1684,7 @@ export type ClientAction =
    * **A server that predates it refuses it and nothing breaks**: the transport
    * falls back to the deadline the grace already is, which is why this could be
    * added without a shim. See
-   * planning/decisions/2026-09-28-the-rooms-clock-starts-when-a-player-does.md.
+   * planning/decision/2026-09-28-the-rooms-clock-starts-when-a-player-does.md.
    */
   | { type: 'WATCH_STARTED'; positionMs: number }
   /**
@@ -1812,7 +1812,7 @@ export type ClientMessage =
    * weaker of the two it holds, over a second socket, with a second heartbeat
    * and a second reconnect loop, in order to reach a room whose standing is
    * tracked on the first one. See
-   * planning/decisions/2026-09-22-a-seat-rides-the-member-socket.md.
+   * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
    *
    * `channelId` rather than a guest id: which seat is the server's to know,
    * and a client naming one would be naming a credential it has no business

@@ -7,11 +7,11 @@ now, held flat by its own 650-line rule the whole time.
 
 What had grown was everything it points at. `planning/` went from nine files
 and 237KB to forty-three and 1.65MB in three weeks — seven times over — and
-`decisions/` from two volumes to twelve, about a megabyte across 181 entries.
+`decision/` from two volumes to twelve, about a megabyte across 181 entries.
 
 **A fixed instruction costs whatever its target has grown to since somebody
 wrote it.** That is the whole finding. AGENTS.md said to grep
-`planning/decisions/DECISIONS*.md` rather than the live volume alone, which was
+`planning/decision/DECISIONS*.md` rather than the live volume alone, which was
 sound advice about a corpus a tenth the size; measured now, `grep channel`
 across the set returns 1,076 lines and 82KB — twenty thousand tokens in one
 tool result, more than the preamble and every other routine read put together.

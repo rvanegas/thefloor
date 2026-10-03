@@ -2,7 +2,7 @@
 
 **Built on 2026-09-10 and not yet landed.** It was a design for work not yet
 done, and is now the account of what was written; delete it when the work
-ships, moving whatever survives into `decisions/` — the reversals in the last
+ships, moving whatever survives into `decision/` — the reversals in the last
 section but one are what that record needs, the rest being description of code
 that exists.
 
@@ -21,7 +21,7 @@ campaign gaps, one of which is more urgent than any of this.
 first rung is measured against the contact count the ladder started from, so an
 invited account is asked for somebody of its own rather than congratulated on
 the one it arrived with. Every *invited arrival* / *alone arrival* split below
-is history — see `decisions/2026-09-13-a-rung-says-what-ticks-it.md`. *Step in*
+is history — see `decision/2026-09-13-a-rung-says-what-ticks-it.md`. *Step in*
 is called *Step in with somebody*, because what ticks it is a conversation.
 
 **Seven rungs since 2026-09-13, and this file describes two.** *Claim the
@@ -30,24 +30,24 @@ joined the ladder below *step in*; they are the only rungs the server had to be
 taught to record, nothing it already held saying whether any of them has been
 done, and they ride on the Home snapshot like every other rung. They also moved
 retirement — see § *Retirement* below. The account of all of it is
-`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, and
+`decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`, and
 this file is not corrected for them beyond these pointers.
 
 **They were per install for a day**, in four keychain keys, and the reasoning
 for that and against it is
-`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md` — which also
+`decision/2026-09-13-the-tried-rungs-belong-to-the-account.md` — which also
 carries the change that stops this card drawing all seven rungs at once: one
 rung in full, the done ones a title each, the rest behind *See more*. **The
 done ones went behind *See more* too on 2026-09-24**, and the card stopped
 being drawn at all while something is waiting to be answered — see
-`decisions/2026-09-24-the-ladder-waits-its-turn.md`.
+`decision/2026-09-24-the-ladder-waits-its-turn.md`.
 
 **The ladder reaches off Home once, since 2026-09-24**, and this file's rule
 against a guided walkthrough survives it. The channel screen draws a sentence
 under the roster saying to tap *In* to be heard, for as long as the `stepIn`
 rung is standing and unticked — no coach mark and nothing pointing at a
 control, just the screen where the rung is climbed saying how. See
-`decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md` and
+`decision/2026-09-24-the-channel-screen-says-how-to-be-heard.md` and
 `learningToStepIn` in `app/src/state/introduction.ts`.
 
 **A third rung exists in a browser since 2026-09-13** — *put The Floor on your
@@ -57,7 +57,7 @@ the invited card, it is never ticked because an installed browser reports
 itself and the rung is then not drawn at all, and it required making the web
 app installable in the first place. That half — the manifest, the icons, and
 the Apple tags the server injects per train — is
-`decisions/2026-09-13-the-web-app-can-be-installed.md`, and this file does not
+`decision/2026-09-13-the-web-app-can-be-installed.md`, and this file does not
 describe it.
 
 **The ladder is two rungs since 2026-09-13, and this file still describes
@@ -65,7 +65,7 @@ four.** *Say who you are* and *choose a username* went when both became
 derived at signup, and every rung carries a control now rather than the next
 one alone. The tables and the last section of this file are corrected where
 they would mislead, but
-`decisions/2026-09-13-the-checklist-is-two-rungs.md` is the account of that
+`decision/2026-09-13-the-checklist-is-two-rungs.md` is the account of that
 change and this one is not.
 
 ## What the convention is
@@ -264,9 +264,9 @@ retires when the last rung is done. The other half of the old condition —
 nothing drawn *during* a conversation — survived that day and was reversed in
 turn on 2026-09-14, having turned out to hide the card from the one reader the
 four new rungs are written for:
-`decisions/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
+`decision/2026-09-14-the-checklist-stays-while-you-are-in-the-room.md`.
 The account of the first reversal is
-`decisions/2026-09-13-the-checklist-outlives-the-first-conversation.md`, which
+`decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`, which
 also carries the cold-launch defect this was found alongside. What follows is
 kept as the reasoning that was right for the ladder it was written for.
 
@@ -306,7 +306,7 @@ unfinished ones, and it is drawn whether or not the card is currently on Home �
 a control that appeared only once the card was gone would be missing at exactly
 the moment somebody wanted it. *Forget this phone* stays behind `debug`, being
 the one of the pair that ends the session. See
-`decisions/2026-09-14-the-checklist-reset-is-for-everybody.md`.
+`decision/2026-09-14-the-checklist-reset-is-for-everybody.md`.
 
 **The paragraph that stood here was wrong, and was corrected on 2026-09-13.**
 It said the reset clears the keys, re-arms the latch, and lets the snapshot in
@@ -318,7 +318,7 @@ below `stepIn`, so what somebody saw after pressing it was one line about not
 having stepped in. It now **latches `alone`** and draws the whole ladder — five
 rungs hollow, *get somebody here* ticked, that being a standing fact rather
 than a task. See
-`decisions/2026-09-13-the-checklist-has-a-second-exit.md`.
+`decision/2026-09-13-the-checklist-has-a-second-exit.md`.
 
 The alert still says the thing that is not guessable — *step out of the channel
 first*, since `doneAt` is written off `conversing` and being in one with
@@ -378,7 +378,7 @@ link, the Listen tab for the audio, the roster for the two controls in the bar
 along the bottom. A list is the way to find a room; somebody in one does not
 need to find it. The card still acts on nobody's behalf, which is the rule that
 paragraph is really about. See
-`decisions/2026-09-13-a-rung-points-at-the-room-you-are-in.md`.
+`decision/2026-09-13-a-rung-points-at-the-room-you-are-in.md`.
 
 ## Growth is a different thing, and is not this
 
@@ -388,7 +388,7 @@ completes, so it cannot be a list that retires. One card in Home's pinned tier
 beside `InstallNotice` and `NotificationNotice` (`:303`, `:305`), showing the
 warmest prompt currently available and nothing else — one prompt, never four.
 
-Ordered by warmth, which is what `decisions/2026-09-10-an-island-is-not-a-tree.md`
+Ordered by warmth, which is what `decision/2026-09-10-an-island-is-not-a-tree.md`
 implies: outstanding requests *are not swept, so a bridge can sit there
 indefinitely*, meaning there is already a backlog of one-tap merges between
 islands. Asking somebody with two contacts to go recruit a third is strictly

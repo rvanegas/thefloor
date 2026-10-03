@@ -264,7 +264,7 @@ describe("Home settings", () => {
   channel screen instead, which is where it always was: see
   `a channel screen that does not repeat its footer` in channelPeople.test.tsx.
   The wire field and the column survive, unread — see
-  decisions/2026-09-13-the-cards-a-footer-made-redundant.md.
+  decision/2026-09-13-the-cards-a-footer-made-redundant.md.
 */
 
 /**
@@ -408,7 +408,7 @@ describe("the output picker", () => {
  * gain, so the app plays at one constant — `CHIME_AMPLITUDE` in the
  * audio-route module. This is the assertion that the screen went with it, and
  * that nothing on it makes a noise. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  */
 describe("how loud the chimes are", () => {
   it("offers no loudness and sounds nothing", async () => {
@@ -645,7 +645,7 @@ describe("showing every dab", () => {
  * 2026-08-31 until 2026-09-21, and behaviour came before appearance for its
  * sake. A tap only ever looks now, so there is no second arrangement for it to
  * choose between — see
- * decisions/2026-09-21-a-tap-only-ever-looks.md. Asserted rather than deleted,
+ * decision/2026-09-21-a-tap-only-ever-looks.md. Asserted rather than deleted,
  * because a control that quietly comes back is exactly what a removed setting
  * does when somebody restores a card from an old diff.
  */

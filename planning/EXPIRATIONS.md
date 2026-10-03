@@ -20,7 +20,7 @@ been shown to diverge.
 
 **`REMOVAL_MOTION_WINDOW_MS`**, `core/constants.ts`. How long an open *motion to
 remove* a member stands before it lapses — see GLOSSARY.md § *Motion to remove*,
-and `decisions/2026-09-26-removing-a-member-takes-two.md`.
+and `decision/2026-09-26-removing-a-member-takes-two.md`.
 
 **It is the one entry here that expires a decision rather than data.** Nothing is
 deleted when it runs out: the entry stays in the channel's state and simply stops

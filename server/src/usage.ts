@@ -35,7 +35,7 @@ const SEPARATOR = '\0';
  * eventually decide something with.
  *
  * The design and its stated bounds are in
- * planning/decisions/archive/DECISIONS-2026-08-16-to-2026-08-19.md § *The meter
+ * planning/decision/archive/DECISIONS-2026-08-16-to-2026-08-19.md § *The meter
  * is two tables and a script*, which is now four. `pings` was added here rather
  * than to ChannelRegistry because it is the same kind of thing — a row nothing
  * in the application reads, swept on the same horizon, cleared by the same
@@ -47,7 +47,7 @@ const SEPARATOR = '\0';
  * swept, not cleared by `forget`, and not a row per anything — it holds no
  * identity to need any of that, being a running total of which of four
  * controls a population reaches for. See `recordNav`, and
- * planning/decisions/2026-09-18-two-ways-out-and-two-ways-in.md.
+ * planning/decision/2026-09-18-two-ways-out-and-two-ways-in.md.
  *
  * **`episode_listens` is the fifth and keeps the fourth's rules rather than
  * the first three's**, for the same reason and one more of its own: it is the
@@ -55,7 +55,7 @@ const SEPARATOR = '\0';
  * counts starts of an episode on the public podcast page, per episode per
  * day, holding no address, no user agent and nobody. See `recordListen`,
  * `startsAnEpisode` for what a start is, and
- * planning/decisions/2026-09-25-counting-what-the-public-page-serves.md.
+ * planning/decision/2026-09-25-counting-what-the-public-page-serves.md.
  *
  * **Listening inside the app is not in it** — that is a `listen` span against
  * an account, above, and is a cost question rather than this one.

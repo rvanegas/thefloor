@@ -464,7 +464,7 @@ function connect(): void {
  * the wire and unable to prove it — every twenty seconds, for as long as the
  * tab is open. For a guest each of those closes is `pushGuest`'s *you are no
  * longer in this channel* path. See
- * planning/decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md.
+ * planning/decision/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md.
  *
  * **Two things are held rather than put down.** A guest in the room has audio
  * live in either direction — publishing if they were granted the microphone,

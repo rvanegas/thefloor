@@ -280,7 +280,7 @@ export function vibrate(): boolean {
  * type because it is the same renderer and the same alert path, and it is
  * three notes rather than two because it is not answering the question the
  * other three answer. See
- * planning/decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
+ * planning/decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
  *
  * **A phone whose native half predates it plays nothing**: `chimeNotes` in
  * `AudioRouteModule.swift` returns false for a kind it does not know, which is
@@ -339,7 +339,7 @@ export type ChimeCandidate =
  * here would not be louder, would not be a distinct sound, and would not
  * complain. Louder than this is not an amplitude question — it is the path
  * (`ChimePath`) or the waveform. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md, and
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md, and
  * `AudioLabView` for the sweep, which still varies this by hand.
  */
 export const CHIME_AMPLITUDE = 1;

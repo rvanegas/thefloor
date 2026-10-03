@@ -22,7 +22,7 @@
  * nothing. It does neither. The name rides in the address as `?name=`, so the
  * page greets a reader by name while this server still answers nobody's
  * question about who a username belongs to. See
- * `decisions/2026-09-25-an-invite-link-is-a-standing-door.md`.
+ * `decision/2026-09-25-an-invite-link-is-a-standing-door.md`.
  *
  * That strictness is why the link is legible at all: a name that is typed by
  * somebody who *heard* it has to survive being heard, and every character that

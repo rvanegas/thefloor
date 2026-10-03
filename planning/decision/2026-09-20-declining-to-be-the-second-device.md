@@ -1,6 +1,6 @@
 # Declining to be the second device
 
-The television — `decisions/2026-09-20-the-second-device-is-a-television.md` —
+The television — `decision/2026-09-20-the-second-device-is-a-television.md` —
 had three ways out and all three of them were rungs. *In* takes the presence,
 *Nearby* and *Out* leave the room. Somebody who simply did not want the film on
 this particular screen had to change their standing in the channel to say so,

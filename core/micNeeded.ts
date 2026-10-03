@@ -69,7 +69,7 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
     session, and it happens whoever holds it. **The pause is the half that is
     ours** — 417ms held against 1,113ms released, so about 700ms of every pause is
     the microphone being retaken, which is the beat this ordering chooses to pay.
-    See planning/decisions/2026-09-28-the-film-waits-for-the-audio-session.md.
+    See planning/decision/2026-09-28-the-film-waits-for-the-audio-session.md.
 
     **Holding the device and changing the configuration instead cost the room
     its conversation.** `SCREENING` was `playAndRecord` under `default`, and on
@@ -85,10 +85,10 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
     no release and retake to bring it back. So this exception is the repair
     rather than a concession, and it is why the second on Play is a second and
     not a silence. See
-    planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+    planning/decision/2026-09-27-the-film-stops-the-engine.md.
 
     So the second is paid and the film keeps its stereo. See
-    `planning/decisions/2026-09-26-the-film-keeps-its-stereo.md`, and
+    `planning/decision/2026-09-26-the-film-keeps-its-stereo.md`, and
     `planning/backlog/` for what a resume that costs nothing would need.
   */
   return !isScreening(channel, me);
@@ -161,7 +161,7 @@ export function hasMicrophone(
  * begins — three reproductions on build 303, including one with nothing
  * subscribed. And nothing restarts it because holding the microphone is what
  * removes the release and retake. See
- * planning/decisions/2026-09-27-the-film-stops-the-engine.md.
+ * planning/decision/2026-09-27-the-film-stops-the-engine.md.
  *
  * **So this exception stands on the second on Play**, which is build 277's
  * measurement and is untouched by any of that: releasing and retaking the

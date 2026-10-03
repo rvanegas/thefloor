@@ -4,7 +4,7 @@
 that had been rebuilt underneath it. The heading here first read "Nobody has
 watched anything", which stopped being true the first time somebody did; the
 verdict of that first pass was *mostly works*, and the one thing it found is in
-`decisions/archive/DECISIONS-2026-08-23-to-2026-08-24.md` § *A watch party leaks
+`decision/archive/DECISIONS-2026-08-23-to-2026-08-24.md` § *A watch party leaks
 into the channel through the microphone* — not a defect but a property of the
 design, said in the interface rather than fixed, because no code can fix it.
 The reasoning for the feature is the same volume § *The Floor carries no video,
@@ -13,7 +13,7 @@ and that is the whole watch party*.
 **Why it was rewritten rather than ticked off.** The walk as written described a
 follower page on a laptop and a microphone that closed itself, and neither
 exists. The player moved into the app on 2026-09-17
-(`decisions/2026-09-17-the-screen-is-the-app.md`), and then between 2026-09-20
+(`decision/2026-09-17-the-screen-is-the-app.md`), and then between 2026-09-20
 and 2026-09-23 the transport, the audio session, the device offer, the
 advert-detector and the card were all rebuilt — three of those from faults
 reported in a live room. **All three were in cases the old walk had no step
@@ -35,7 +35,7 @@ to what you came for.
 **Walk it on an account with the `debug` column set.** Since 2026-09-23 every
 press, instruction, arrival and refusal writes to `recordEvent`, interleaved
 with the audio session's own lines in one timeline — see
-`decisions/2026-09-23-the-watch-transport-answers-the-press.md`, where that
+`decision/2026-09-23-the-watch-transport-answers-the-press.md`, where that
 interleaving is what turned three arguments into measurements. Walking without
 it means reporting *it felt stuck* and having nothing to hand anybody.
 **Open the audio panel before you start the film**: `startDiagnosticRecording`
@@ -87,7 +87,7 @@ granted.
     room should go quiet as it starts and stay quiet — ***Unmute the room* goes
     off the card entirely rather than greying**, the sentence beneath saying
     why, and it is the only refusal on that card that is removed rather than
-    greyed (`decisions/2026-09-20-an-enforced-mute-has-no-button.md`). **Your
+    greyed (`decision/2026-09-20-an-enforced-mute-has-no-button.md`). **Your
     microphone stays open and the sound blooms to stereo anyway**: since
     2026-09-23 the device is held for the length of the party under `SCREENING`
     — `playAndRecord` with a non-voice mode and A2DP — rather than closed, and
@@ -97,7 +97,7 @@ granted.
     The handover this step used to be about has been measured — nineteen
     presses on build 278, resume median 597ms, no `engine stop` and no
     `categoryChange`, in
-    `decisions/2026-09-23-the-screen-keeps-its-microphone.md` — so it is no
+    `decision/2026-09-23-the-screen-keeps-its-microphone.md` — so it is no
     longer the open question. **The open question is the lit microphone
     indicator**, up for the whole film now that the device is held. It is
     already true of any self-muted member and it is new for somebody who is
@@ -136,7 +136,7 @@ granted.
 
 14. **A film with a pre-roll advert in front of it.** The most expensive fault
     this feature has had and there has never been a step for it —
-    `decisions/2026-09-23-the-advert-cannot-name-the-film-or-time-it.md`. Put
+    `decision/2026-09-23-the-advert-cannot-name-the-film-or-time-it.md`. Put
     on something that runs a spot. The scrubber must show the **film's** length
     and not the advert's, the card must name the film, and pressing Play must
     not run out thirty seconds later and restart. `showingTheFilm` answers on
@@ -165,7 +165,7 @@ granted.
 18. **Watched before.** Watch two films, stop both, and check the rows —
     newest first, behind one press on an idle card and open behind *Change
     video* on a loaded one
-    (`decisions/2026-09-22-the-channel-remembers-what-it-watched.md`). Press a
+    (`decision/2026-09-22-the-channel-remembers-what-it-watched.md`). Press a
     row: it should start the party the way the clipboard does, the stored URL
     going back through `parseYouTubeUrl`. **Then the case the design worried
     about**: start a film that is already in the list and stop it within

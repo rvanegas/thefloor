@@ -277,7 +277,7 @@ export interface RecordingState {
    * `START_RECORDING`, so a snapshot is all any device has to go on, and what
    * reads this is `useRecordingChime` — the audible notice that a run has
    * begun, which a hand-started run gets and an automatic one does not. See
-   * `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
+   * `decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
    *
    * False while idle, and set at the start of every run, so it can never
    * describe the run before last.
@@ -421,7 +421,7 @@ export interface WatchParty {
    * That distinction is the whole of why this exists, the card having gone
    * without a title since 2026-09-18 on the grounds that fetching one would
    * be the first request this project ever made to Google. It still is not
-   * one. See decisions/2026-09-20-the-film-says-what-it-is-called.md.
+   * one. See decision/2026-09-20-the-film-says-what-it-is-called.md.
    *
    * Null is the ordinary state for the first seconds of a party and for the
    * whole of one nobody is showing anywhere — a card with no title is what
@@ -686,7 +686,7 @@ export interface ChannelState {
    *
    * **It is here at all so that an invitation occupies what it promises.**
    * Until 2026-09-22 a pending invitation was a `guest_sessions` row and
-   * nothing else, by `decisions/2026-09-21-asking-somebody-in-as-a-guest.md`,
+   * nothing else, by `decision/2026-09-21-asking-somebody-in-as-a-guest.md`,
    * which kept it out of `participants` — the right outcome reached by a means
    * that also kept it out of every ceiling the reducer enforces. Forty
    * invitations and forty knocks admitted eighty claims on a forty-seat room,
@@ -963,7 +963,7 @@ export type ChannelAction =
    * until the invitee arrived and then moving everybody to the unnamed channel
    * for the wider set. That left every recording behind on a channel nobody was
    * looking at any more, which people reported as their recordings having
-   * disappeared. See planning/decisions/DECISIONS.md.
+   * disappeared. See planning/decision/DECISIONS.md.
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   /**
@@ -1400,7 +1400,7 @@ export type ChannelAction =
    * stop meaning that. A room of such phones reads as occupied, and
    * `announceActive` fires only on the empty-to-occupied edge — so an occupied
    * ghost room silently swallows every arrival notification anybody would have
-   * received. See planning/decisions.
+   * received. See planning/decision.
    */
   | { type: 'ATTENTION_EXPIRED'; userId: UserId }
   /**

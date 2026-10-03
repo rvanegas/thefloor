@@ -245,7 +245,7 @@ written for**, along with a cap of forty guests. What is built enforces it at
 the guest's *ask* — `canRequestSpeech` — which is this paragraph's reasoning
 applied to the door that exists today. So what remains unbuilt here is the open
 channel and the knock changing meaning, not the number. See
-`decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
+`decision/2026-09-21-asking-somebody-in-as-a-guest.md`.
 
 ## Growth, where the choice is narrower than it looks
 

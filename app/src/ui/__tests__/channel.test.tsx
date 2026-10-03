@@ -1416,7 +1416,7 @@ describe('Channel', () => {
    * has not stepped in, it is gone the moment the `stepIn` rung is ticked, and
    * it is never drawn to somebody already in the room. See
    * `state/introduction.ts`'s `learningToStepIn`, and
-   * `decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
+   * `decision/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
    */
   const learning = (done: boolean) => ({
     show: 'ladder' as const,
@@ -1651,7 +1651,7 @@ describe('Channel', () => {
     **Where the tabs are drawn, which is the top and is not a setting.** It
     was one between 2026-09-12 and 2026-09-13 — the switch could put them
     above the footer, and an account that had never said got a coin toss. See
-    planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+    planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
 
     Read as a position in the rendered tree rather than by looking for a
     header: `Screen` puts its `footer` below the scroll, so a switch drawn
@@ -2741,7 +2741,7 @@ describe('Channel', () => {
   it('leaves the screen open when stepping out', () => {
     // `mockApp.tapToLook = true` was here: this was the setting's half of the
     // pair, and it is now the only behaviour there is. See
-    // decisions/2026-09-21-a-tap-only-ever-looks.md.
+    // decision/2026-09-21-a-tap-only-ever-looks.md.
     showChannel(channelOf());
     const onExit = jest.fn();
     const tree = render(
@@ -3375,7 +3375,7 @@ describe('Channel', () => {
     // The user-visible half of 2026-09-14. Alone with an open microphone the
     // control is live; alone with nothing to capture it is not, and that is
     // now the only thing being alone decides. See
-    // planning/decisions/2026-09-14-a-room-of-one-is-a-room.md.
+    // planning/decision/2026-09-14-a-room-of-one-is-a-room.md.
     const solo = (mute: boolean) =>
       channelOf((s) => {
         const left = reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW);

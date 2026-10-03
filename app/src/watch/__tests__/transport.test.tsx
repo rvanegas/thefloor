@@ -51,7 +51,7 @@ const logged = (
  * off the player — a scrub, a play, a pause, an advert lying about all three —
  * and there is nothing to read any more: the picture's own controls are off
  * since 2026-09-18, so this player is only ever told things. See
- * planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
+ * planning/decision/2026-09-18-the-picture-is-not-a-control.md.
  */
 
 const A = 'user-a';
@@ -773,7 +773,7 @@ describe('a film that has run out', () => {
  * **Written 2026-09-27, because the number this application reports about
  * itself had never been apportioned.** `watch playing after 1463ms` — the
  * median of nineteen presses on build 303, and the wait that
- * decisions/2026-10-01-the-transport-stays-quiet-while-the-film-starts.md
+ * decision/2026-10-01-the-transport-stays-quiet-while-the-film-starts.md
  * leaves undrawn — had been read as
  * *the round trip plus the embed starting*, and it is neither of those on its
  * own: the round trip is over before the clock starts, and up to a

@@ -1,7 +1,7 @@
 # Payments Upgrade
 
 Voluntary donations shipped on 2026-08-14 — a Ko-fi link, external, unlocking
-nothing. See decisions/ for why it is not in-app purchase. What is
+nothing. See decision/ for why it is not in-app purchase. What is
 left:
 
 - **`bin/import-donations`**, reconciling a Ko-fi CSV export into the

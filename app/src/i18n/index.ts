@@ -24,7 +24,7 @@ import { es } from './es';
  * with somebody it takes the masculine, about everybody — so no message takes
  * a gender, and one that wants to has the rule wrong rather than a case this
  * shape does not cover. See
- * `decisions/2026-09-26-the-copy-uses-the-generic-masculine.md`.
+ * `decision/2026-09-26-the-copy-uses-the-generic-masculine.md`.
  *
  * **`Strings` is derived from the English catalogue rather than declared.**
  * `en.ts` is the source of truth for what messages exist and what each one

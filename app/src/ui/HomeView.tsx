@@ -56,7 +56,7 @@ import { colors, measure, radius, spacing, type } from "./theme";
  * on screen saying so. The fix proposed first was to draw the bar in the
  * contact list too, and it is wrong: a live room is not a contact and has no
  * business in that list. It belongs to whatever contains both lists, which is
- * this. See planning/decisions/DECISIONS.md § *The tier above both lists*.
+ * this. See planning/decision/DECISIONS.md § *The tier above both lists*.
  *
  * **Three things are pinned and one scrolls.** The title and Settings, the
  * room you are in if there is one, and the switch between the tier's four
@@ -1343,7 +1343,7 @@ function WaitingBar({
             takes nothing away from the list and accepts nothing on the way.
             The decision that the bar is a sentence rather than the card is
             about *Accept*, not about navigating: see
-            `decisions/2026-09-23-what-is-waiting-for-you-is-said-in-words.md`.
+            `decision/2026-09-23-what-is-waiting-for-you-is-said-in-words.md`.
 
             **Two cases keep the tab switch, because neither has a room to
             open.** A count names none — opening the first of several would be

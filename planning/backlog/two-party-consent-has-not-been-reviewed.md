@@ -26,7 +26,7 @@ it is cheaper to answer before there are recordings of other people than after.
   the ones nobody initiated; and the chime is local to each device rather than
   published into the media room, so it is **not** in the stem or the exported
   file and the artifact carries no evidence that notice was given. See
-  `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
+  `decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md`.
 - Either party may stop the recording at any time, except the silenced party
   during an active claim.
 - A silenced speaker is told explicitly that they are still being captured.

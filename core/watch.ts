@@ -424,7 +424,7 @@ export function parseYouTubeUrl(url: string): { videoId: string } | null {
  * reports a title and a length and no dimensions, and asking YouTube's oEmbed
  * — which does know, measured 2026-09-29 — would be the first request this
  * project ever made to Google, the line
- * decisions/2026-09-20-the-film-says-what-it-is-called.md holds. A Short's
+ * decision/2026-09-20-the-film-says-what-it-is-called.md holds. A Short's
  * own *Share* hands out `youtube.com/shorts/<id>`, so the link is the shape
  * whenever it came from where Shorts come from.
  *
@@ -659,7 +659,7 @@ export function followInstructions(
    * runs the whole time, so a seek to where the room is now lands exactly this
    * far behind it. Which is how a player came to be corrected to a position it
    * was already going to be late for: see
-   * planning/decisions/2026-09-28-a-correction-aims-where-the-room-will-be.md, where a
+   * planning/decision/2026-09-28-a-correction-aims-where-the-room-will-be.md, where a
    * player slower than `WATCH_DRIFT_MS` could never arrive at all.
    *
    * Measured rather than assumed, and it has to be: it is a property of one
@@ -880,7 +880,7 @@ export function followInstructions(
       then the buffer is not worth protecting. This is the earlier, gentler
       knock, one per `WATCH_COLD_NUDGE_MS` of `quietForMs`. It does not restart
       the stall clock, so the backstop still goes off on time. See
-      planning/decisions/2026-10-01-a-cold-nudge-does-not-restart-the-stall-clock.md.
+      planning/decision/2026-10-01-a-cold-nudge-does-not-restart-the-stall-clock.md.
     */
     if (
       settling &&
@@ -965,5 +965,5 @@ export function followInstructions(
  * a press *is* an action, and the player is only ever told things. One
  * direction, and a follower with nothing to decide.
  *
- * See planning/decisions/2026-09-18-the-picture-is-not-a-control.md.
+ * See planning/decision/2026-09-18-the-picture-is-not-a-control.md.
  */

@@ -191,7 +191,7 @@ export interface MediaServer {
    * room. An automatic run starting in that window put such a person in the
    * initial cohort, where a throw is fatal, and ended the whole recording
    * after one second. See
-   * planning/decisions/2026-09-12-a-missing-participant-is-not-a-failure.md.
+   * planning/decision/2026-09-12-a-missing-participant-is-not-a-failure.md.
    */
   startRecording(params: {
     room: string;

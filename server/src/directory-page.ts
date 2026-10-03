@@ -10,7 +10,7 @@ import { escapeHtml, page, socialCard } from './html';
  * the difference between unlisted and findable, and it applies to channels
  * that turned the switch on under the older wording. That was decided at the
  * prompt rather than assumed: see
- * `decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
+ * `decision/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
  * The copy in the app and on `/privacy` was corrected in the same commit, and
  * **anything that widens this audience again has the same obligation.**
  *

@@ -1530,7 +1530,7 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
  * deliberately: every other refusal on that card is about the reader and has
  * an action that lifts it, where this one is a condition of the run that
  * nothing on the screen can reach before the film is paused. See
- * planning/decisions/2026-09-20-an-enforced-mute-has-no-button.md and
+ * planning/decision/2026-09-20-an-enforced-mute-has-no-button.md and
  * STYLE.md § *Words on controls*.
  *
  * `enforced` rather than `anyScreenInTheRoom`, which is the sampling and is
@@ -2280,7 +2280,7 @@ function reduceAction(
      * change: *Stepped out* now ages from the tap rather than from whenever
      * they were last actually in the room, which for somebody who has never
      * been in it was nothing at all. See `Exit`, and
-     * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+     * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
      */
     case 'DECLARE_NEARBY': {
       if (isPresent(state, action.userId)) {
@@ -3072,7 +3072,7 @@ function tick(state: ChannelState, now: number): ChannelState {
  * — the roster said "Stepped out 2 hours ago · muted" about somebody who was
  * both absent and, apparently, doing something. A mute belongs to a
  * conversation; every way of leaving one ends it. See
- * planning/decisions/DECISIONS-2026-08-20-to-2026-08-21.md § *Every departure clears the
+ * planning/decision/DECISIONS-2026-08-20-to-2026-08-21.md § *Every departure clears the
  * self-mute, and the microphone is not the reason why*.
  */
 /**
@@ -3106,8 +3106,8 @@ function tick(state: ChannelState, now: number): ChannelState {
  * separate question *when were they last here*, which is the number *Stepped
  * out* shows once the wait has lapsed. See planning/GLOSSARY.md § *Nearby /
  * Stepped out*,
- * planning/decisions/2026-09-09-one-clock-ends-two-states-but-times-one.md, and
- * planning/decisions/2026-09-12-a-declaration-is-an-arrival.md.
+ * planning/decision/2026-09-09-one-clock-ends-two-states-but-times-one.md, and
+ * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
  *
  * **`inattentive` is why this stopped being a boolean.** It matches neither
  * existing row: nobody chose it, so stamping `lastPresentAt` would claim they

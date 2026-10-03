@@ -182,7 +182,7 @@ export function WatchTransport({
         alone was not enough: it is on the picture, so **a device that is not
         showing the film had no controls at all** — which is most of a party
         most of the time, since a screen is one device per person. See
-        planning/decisions/2026-09-18-the-bar-is-the-transport.md.
+        planning/decision/2026-09-18-the-bar-is-the-transport.md.
       */}
       <View style={styles.buttonRow}>
         <Button

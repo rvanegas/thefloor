@@ -23,6 +23,6 @@ dismissals, its *step in with somebody* tick and its starting line, the last
 of which hands it *get somebody here* hollow again. The *try* stamps survive,
 being the server's. Whether the fix is to move those three onto the account
 too, as the *try* rungs were on 2026-09-13, or to key them by account on the
-install, is the decision; `decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`
+install, is the decision; `decision/2026-09-13-the-tried-rungs-belong-to-the-account.md`
 is the precedent and `…-the-checklist-has-a-second-exit.md` is why dismissal
 was put on the install in the first place.

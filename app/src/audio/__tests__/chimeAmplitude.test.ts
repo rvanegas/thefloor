@@ -20,7 +20,7 @@ const { readFileSync } = require('fs') as {
  * as what the renderer bakes in for a call that carries no peak. There was a
  * third in `core/settings.ts` for one day, when how loud a chime is was an
  * account setting; the ladder went and the constant stayed. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  *
  * **The Swift is read as text rather than trusted to a comment**, which is the
  * one thing jest can do about a number that lives in a language it cannot

@@ -177,7 +177,7 @@ export function ChannelSettingsView({
    * and since the connection is usually back within a second or two, that
    * retry is what would have made the rename land. Leaving it stale costs an
    * extra `SET_NAME` when the first one did in fact arrive, which the reducer
-   * answers with the same state. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
+   * answers with the same state. See planning/decision/2026-09-16-being-offline-is-one-state.md.
    */
   const persist = () => {
     if (!mayEdit) return;
@@ -678,7 +678,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * with the address", which was true and is no longer. Every public channel is
  * now listed on a page anybody can read, and the confirmation says so before
  * the page is made rather than after. See
- * `planning/decisions/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
+ * `planning/decision/2026-09-22-a-public-channel-is-findable-rather-than-unlisted.md`.
  *
  * **An On/Off pair of buttons, not a checkbox**, since 2026-09-22 — the shape
  * the Recording card one above already uses, and STYLE.md § *Checkbox* gives

@@ -26,7 +26,7 @@
  * noise. The objection was that a tone would talk over the voice it was
  * announcing, which is true of a speaker who is already talking and false of
  * somebody walking into a room. See
- * `decisions/2026-09-14-the-room-says-who-came-and-went.md`.
+ * `decision/2026-09-14-the-room-says-who-came-and-went.md`.
  *
  * Nothing here needs a permission or a service worker. `navigator.setAppBadge`
  * would give a real badge, but it requires an installed PWA and does not exist

@@ -21,7 +21,7 @@ import { Platform } from 'react-native';
  * **`modules/keep-alive` was the iOS half and no longer exists**, deleted whole
  * on 2026-09-08 because it played silence when `hasAudio` was false and both
  * states that reached are now either a claim or deliberately suspended — see
- * `decisions/2026-09-08-stepping-in-and-nearby.md`. This comment went on
+ * `decision/2026-09-08-stepping-in-and-nearby.md`. This comment went on
  * pointing at it for nine days. There is no iOS counterpart to this service
  * today.
  *
@@ -73,7 +73,7 @@ const native = load();
  * it quietly in the commit that removed its justification would be making that
  * decision by accident. Either both surfaces name the channel or neither
  * should; see
- * `planning/decisions/2026-09-17-the-lock-screen-carries-two-controls.md`
+ * `planning/decision/2026-09-17-the-lock-screen-carries-two-controls.md`
  * § *What was left open*.
  */
 const TITLE = 'In a channel';

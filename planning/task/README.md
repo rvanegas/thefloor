@@ -5,14 +5,14 @@ to go and find out, at a paragraph each. This is where work is picked up from.
 
 **backlog/** is the neighbour: work that is specified and pending, defects found
 and left, behaviour nobody has tested. The difference is that an entry here is
-often a question rather than a job. **decisions/** is what was built and why,
+often a question rather than a job. **decision/** is what was built and why,
 and is history rather than work.
 
 ## One item, one file
 
-Adopted 2026-09-14, the same split `planning/decisions/` made on 2026-09-07 and
+Adopted 2026-09-14, the same split `planning/decision/` made on 2026-09-07 and
 for the same reason — two worktrees editing one file conflict in the same place
-every time. decisions/README.md § *One decision, one file* has the argument, and
+every time. decision/README.md § *One decision, one file* has the argument, and
 `2026-09-14-one-task-one-file.md` has why it reached here. **The name is the
 title, slugified** — lowercased, every run of non-alphanumerics collapsed to a
 hyphen:

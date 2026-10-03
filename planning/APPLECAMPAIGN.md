@@ -12,7 +12,7 @@ was actually typed into Apple Ads, read with the browser open. Both go when
 the campaign is read.
 
 **Delete it when the campaign has been run and read**,
-moving what survives into `decisions/` — which will be the answer to the one
+moving what survives into `decision/` — which will be the answer to the one
 question it exists to ask, and the kill rule's verdict, and nothing else.
 
 It was chosen under a constraint worth recording, because it excludes almost
@@ -293,7 +293,7 @@ the terms nobody here thought of.
    done in a browser rather than a terminal. Elaborated below.
 8. Four weeks of spend, then three to four weeks of silence.
 9. Read `bin/growth` — `classes`, `weeks`, `roots`. Write the verdict into
-   `decisions/` and delete this file. `notify` and `pings` are worth reading
+   `decision/` and delete this file. `notify` and `pings` are worth reading
    alongside, and are not the verdict: the kill rule is the three above.
 
 ## Step 7 in full, which is the only part done in a browser

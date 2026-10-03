@@ -41,7 +41,7 @@ export const HANDOVER_MS = spanMs('play');
  * **The cost is about 180ms added to a press of Play**, paid by whoever pressed
  * it. A resume is already around 1,304ms from press to picture and about 1,150
  * of that is `AVAudioSession` renegotiating — see
- * decisions/2026-09-28-the-film-waits-for-the-audio-session.md — so this is a
+ * decision/2026-09-28-the-film-waits-for-the-audio-session.md — so this is a
  * seventh of a wait that is not ours to shorten, spent on the one thing in that
  * second the room can actually hear.
  *

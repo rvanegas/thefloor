@@ -2,7 +2,7 @@
 
 **What is left of
 `a-web-client-cannot-promise-a-cadence-its-browser-will-not-keep`** once the
-fix in `decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md` landed. A
+fix in `decision/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md` landed. A
 hidden tab now closes its socket unless it is in a room; this entry is about
 the tabs that are exempted, which go on holding a socket they have to keep
 proving is alive.

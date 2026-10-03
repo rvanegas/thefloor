@@ -14,7 +14,7 @@ import { useNearby } from '../useNearby';
  *
  * Promotion — the automatic version — was built on 2026-09-08 and removed the
  * same day, before it had been heard on a device;
- * `decisions/2026-09-08-the-arrival-is-offered.md` is why. The detection
+ * `decision/2026-09-08-the-arrival-is-offered.md` is why. The detection
  * survived it unchanged, so what is testable here is still the *rule*: when it
  * reports, when it must not, and the three conditions each doing its own work.
  * That nothing enters the room is now itself one of the assertions.

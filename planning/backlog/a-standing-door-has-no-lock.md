@@ -1,7 +1,7 @@
 # A standing door has no lock
 
 **Nothing refuses a contact, and nothing can.** An invite link is
-`/i/<username>` and is permanent — `decisions/2026-09-25-an-invite-link-is-a-standing-door.md`
+`/i/<username>` and is permanent — `decision/2026-09-25-an-invite-link-is-a-standing-door.md`
 — so anybody who has the link, or who learns the username it is made of, can
 become that account's contact and stay one. `removeContact` is the only
 remedy: it is after the fact, and it is repeatable by the other person the

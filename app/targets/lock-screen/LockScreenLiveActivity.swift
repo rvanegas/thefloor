@@ -246,7 +246,7 @@ struct LockScreenCard: View {
 
      **The only way in since 2026-09-29.** An *Open* button spelled this tap
      out from 2026-09-17 and was taken off to give the controls back their
-     room; see `planning/decisions/2026-09-29-the-lock-screen-card-drops-open.md`.
+     room; see `planning/decision/2026-09-29-the-lock-screen-card-drops-open.md`.
      */
     .widgetURL(URL(string: "thefloor://channel/\(channelId)"))
   }

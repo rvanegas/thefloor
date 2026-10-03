@@ -552,7 +552,7 @@ export const en = {
      * A member who has never come into the channel.
      *
      * **This is the second of the three *invitado* collisions**, and the one
-     * `decisions/2026-09-22-the-members-tab-is-the-people-tab.md` left to the
+     * `decision/2026-09-22-the-members-tab-is-the-people-tab.md` left to the
      * extraction. In English *Invited* sits a word away from *Guest* and from
      * the *Invitations* group, and in Spanish all three want the same word —
      * which would make a member read as a guest, the one distinction this

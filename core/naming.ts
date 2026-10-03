@@ -85,7 +85,7 @@ export function describeChannel(
  * discussing the same thing by the same name.
  *
  * Decided when the run stops and stored, never recomputed. See
- * planning/decisions/DECISIONS*.md.
+ * planning/decision/DECISIONS*.md.
  *
  * **Which is also why it is not translated, and takes no `NamingWords`.** It
  * is written into the row once, in whatever language the machine that stopped

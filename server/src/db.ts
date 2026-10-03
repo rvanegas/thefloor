@@ -130,7 +130,7 @@ export interface AccountRow {
    * often enough to be worth labelling. Without this column the guess and the record
    * become the same value, and no later query can ask how many people were
    * actually *asked* here, which is the question `bin/growth` exists to
-   * answer. See planning/decisions/2026-09-23-credit-follows-the-first-contact.md.
+   * answer. See planning/decision/2026-09-23-credit-follows-the-first-contact.md.
    */
   invited_via: 'email' | 'link' | 'guest_ask' | 'inferred' | null;
   /**
@@ -2116,7 +2116,7 @@ function migrate(db: Db): void {
     that was not signed in. Screens are ordinary signed-in instances of the app
     now, so nothing mints one, nothing accepts one, and the route the links
     pointed at is gone — see
-    planning/decisions/2026-09-17-the-screen-is-the-app.md.
+    planning/decision/2026-09-17-the-screen-is-the-app.md.
 
     Dropped rather than left to expire, on the bio column's reasoning above:
     what is in it is credentials, and a credential nothing can check, revoke or
@@ -2185,7 +2185,7 @@ function migrate(db: Db): void {
   // from who somebody became contacts with first "would credit whoever
   // happened to be earliest in a table that was never keeping score", and
   // that reasoning is no longer the whole story — see
-  // planning/decisions/2026-09-23-credit-follows-the-first-contact.md, which
+  // planning/decision/2026-09-23-credit-follows-the-first-contact.md, which
   // supersedes it. What changed is that the reconstruction is no longer blind:
   // it is bounded to a newcomer's *first* contact inside a window of signing
   // up, refuses a pair who are both new to the graph, and records itself as
@@ -2269,7 +2269,7 @@ function migrate(db: Db): void {
     app/modules/audio-route/index.ts, the top rung of the ladder that was
     offered — so a peak stored here is a preference the application no longer
     has a word for, and nothing can read it back. See
-    planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+    planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
   */
   if (accountColumns.some((c) => c.name === 'chime_amplitude')) {
     db.exec('ALTER TABLE accounts DROP COLUMN chime_amplitude');
@@ -2283,7 +2283,7 @@ function migrate(db: Db): void {
     preference the application no longer has a word for. Nothing can read it
     back, so keeping it would only be a column every future reader of this
     table has to ask about. The tabs are at the top for everybody now — see
-    planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md — which
+    planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md — which
     is what null meant before the toss existed.
   */
   if (accountColumns.some((c) => c.name === 'tabs_at_foot')) {
@@ -2469,7 +2469,7 @@ function migrate(db: Db): void {
   // exist when they were built — so the population that can be silent here is
   // exactly the population that is native, and a default of "native" leaves
   // every existing number untouched. Web says what it is; nothing else has to
-  // be taught anything. See planning/decisions/DECISIONS.md § *The census
+  // be taught anything. See planning/decision/DECISIONS.md § *The census
   // counts native only*.
   //
   // Deliberately not inferred from `last_build` being null. Absence of a build

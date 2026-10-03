@@ -362,7 +362,7 @@ public class AudioRouteModule: Module {
      **Going nearby is *meant* to give somebody their podcast back**, and since
      2026-09-08 that is the only mechanism by which it happens: nearby holds no
      session at all, and only deactivating says so. See
-     planning/decisions/2026-09-08-stepping-in-and-nearby.md.
+     planning/decision/2026-09-08-stepping-in-and-nearby.md.
 
      Called on the connection's teardown, after the SDK has stopped its own
      session — so on a healthy path this is asserting a deactivation that has
@@ -674,7 +674,7 @@ public class AudioRouteModule: Module {
    change the other — `chimeInfo` is what a running binary reports, and the
    lab's *ships at* readout is how they are compared. Only the JavaScript copy
    is reachable from jest. See
-   `planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md`.
+   `planning/decision/2026-09-15-the-chime-has-one-loudness-again.md`.
 
    **It is the only lever there is.** `AudioServicesPlaySystemSound` takes no
    volume and obeys no per-app gain — it plays the file at whatever level the
@@ -736,7 +736,7 @@ public class AudioRouteModule: Module {
     // presence chimes are about who is in the room and this one is about what
     // the room is doing to everything said in it. A rising triad, so it is not
     // mistakable for `in` at the far end of a corridor. See
-    // planning/decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
+    // planning/decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md.
     "recording": [noteCS5, noteE5, noteA5],
     // **The film's pair, and it is the room's voice rather than the film's
     // transport that decides which way each one goes.** A run closes every
@@ -745,7 +745,7 @@ public class AudioRouteModule: Module {
     // *pause* is it arriving. That is the direction `out` and `in` already
     // mean, an octave down, and it is the half somebody would otherwise
     // "correct" to rising-for-play. See
-    // planning/decisions/2026-09-26-the-film-says-when-it-starts-and-stops.md.
+    // planning/decision/2026-09-26-the-film-says-when-it-starts-and-stops.md.
     "play": [noteA5, noteA4],
     "pause": [noteA4, noteA5],
     "nearby-a": [noteE5],

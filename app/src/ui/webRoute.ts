@@ -10,8 +10,8 @@
  * **No address carries an id.** Not an account, not a channel, not a
  * recording. An id reaches this app from a snapshot, from a handover in
  * `sessionStorage`, or from a tapped notification, and never from a URL. See
- * decisions/DECISIONS.md § *An address names a place and never an id*, and
- * decisions/2026-09-15-a-notification-names-the-room-it-is-about.md, which
+ * decision/DECISIONS.md § *An address names a place and never an id*, and
+ * decision/2026-09-15-a-notification-names-the-room-it-is-about.md, which
  * put the notification back on that list and left this rule untouched — a
  * notification is not an address, and none of what follows is about it.
  *

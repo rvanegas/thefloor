@@ -126,7 +126,7 @@ to be worth naming as marketing assets rather than as features.
 ### The cohort, which is scaffolding and not an asset
 
 *Early Cohorts* —
-`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md` is the argument
+`decision/2026-09-15-a-new-account-does-not-arrive-alone.md` is the argument
 and the ending. An account that arrives with nobody here is placed into one
 channel with up to three others who arrived around the same time and a
 **cohort host**. It is listed here because it changes the cold-start arithmetic
@@ -146,7 +146,7 @@ orders the switch rather than assuming it.**
 worth knowing before counting on it.** Since 2026-09-15 a seat goes only to
 somebody who has turned notifications on, and it is spent at the moment they
 do rather than at signup —
-`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`. The
+`decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`. The
 reasoning is the funnel's own: the channel's whole offer is that somebody may
 speak into it later, and a member who cannot be told that happened is a seat
 that can never answer. **For the arithmetic here it cuts both ways.** Fewer
@@ -673,7 +673,7 @@ This section named three gaps and gave a direction. Two of the three were
 built that day, on exactly the terms the direction set — first-party,
 server-side, no SDK, nothing leaving the box — and the third is not the same
 kind of thing. The decision is
-`decisions/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
+`decision/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
 
 **Levels 9 and 10 — the ping sent, and the ping answered — are the `pings`
 report.** A `pings` table, written by `UsageMeter` after `ChannelRegistry` has

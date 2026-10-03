@@ -72,7 +72,7 @@ export function canPauseOrStopRecording(
  * A run started by hand announces itself to everybody present; one the channel
  * started by itself does not. That is a decision about notice rather than
  * about recording, and the reasoning is in
- * `decisions/2026-09-17-a-recording-somebody-started-says-so-out-loud.md` —
+ * `decision/2026-09-17-a-recording-somebody-started-says-so-out-loud.md` —
  * what belongs here is only that the bit is set once, at the start, and read
  * from the snapshot rather than inferred. It defaults to false because by hand
  * is what a start is unless the server's latch says otherwise.

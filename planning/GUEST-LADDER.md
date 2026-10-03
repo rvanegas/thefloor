@@ -7,7 +7,7 @@ the three acts, the credit rule, the routes, the controls, and the *Open the
 app* button.
 
 **Written the same day, as a design.** When it ships, what
-survives moves to `decisions/` and this file goes — along with
+survives moves to `decision/` and this file goes — along with
 `GUEST-CONTACT.md`, which this supersedes in one place and leaves standing
 everywhere else. That file's floor reversal, its `Anon <n>` → `Guest <n>`
 rename, its account-carrying seat and its rejoinable-seat argument are all
@@ -161,7 +161,7 @@ authority on what a row of three looks like before any of them is drawn.
 
 **Built on 2026-09-22, with one of the bullets below reversed.** This section
 was the last unbuilt part of this file; what is here now is the account of what
-was decided, and `decisions/2026-09-22-a-seat-rides-the-member-socket.md` is the
+was decided, and `decision/2026-09-22-a-seat-rides-the-member-socket.md` is the
 account of what was written and why it differs. **Read that one first if the
 two disagree** — it is the later document and it argues the difference.
 

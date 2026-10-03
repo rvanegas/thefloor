@@ -193,7 +193,7 @@ const RECONNECT_MAX_MS = 10_000;
  *
  * Expiry is global rather than per-action, so crossing this is one event:
  * the queue is cleared, and the app is offline, and those are the same
- * sentence. See planning/decisions/2026-09-16-being-offline-is-one-state.md.
+ * sentence. See planning/decision/2026-09-16-being-offline-is-one-state.md.
  */
 export const OFFLINE_AFTER_MS = 10_000;
 
@@ -643,7 +643,7 @@ export class Realtime {
    * the tab reconnects, and the whole thing repeats every twenty seconds for
    * as long as the tab is open: the floor released and retaken, `inApp`
    * flapping, thousands of opens a day. See
-   * planning/decisions/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md
+   * planning/decision/2026-09-16-a-hidden-tab-is-a-backgrounded-app.md
    * and the measurements behind it.
    *
    * So the tab is made to do deliberately what the phone does incidentally.

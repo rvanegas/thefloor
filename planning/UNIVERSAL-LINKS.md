@@ -6,7 +6,7 @@ the decision that day was that guest links open the web app and nothing else,
 with an *Open in the app* button where one is appropriate. This is here so
 that whoever revisits it starts from the costs rather than from the idea.
 
-When it is built, what survives moves to `decisions/` and this file goes. If
+When it is built, what survives moves to `decision/` and this file goes. If
 the answer stays no for long enough that nobody is tempted, delete it anyway
 — an unbuilt design nobody is considering is a file that only costs reads.
 

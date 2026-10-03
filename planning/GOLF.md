@@ -1,7 +1,7 @@
 # Golf's Bluetooth echo, 2026-09-13
 
 **Temporary.** This is one unfinished investigation and it should be deleted
-once the question is settled — either into a `decisions/` entry if something is
+once the question is settled — either into a `decision/` entry if something is
 changed because of it, or outright if the next report contradicts it.
 
 Reported ~23:35 UTC on 2026-09-13: Golf, in a car on VW hands-free, echoed. He

@@ -93,7 +93,7 @@ export interface AccountSettings {
    * behaves: a tap opens a channel's screen and never puts you in the room.
    * It is not a setting any more, so there is nothing to store and nothing to
    * default. See
-   * `decisions/2026-09-21-a-tap-only-ever-looks.md`.
+   * `decision/2026-09-21-a-tap-only-ever-looks.md`.
    *
    * `settings-wire.ts` still *sends* the name, as a constant, because builds
    * already on phones read it — and a build that stopped hearing it would
@@ -114,7 +114,7 @@ export interface AccountSettings {
    * Every one of those cards has since been deleted outright or reduced to
    * the sentence a footer cannot carry, so there is no longer a screen for it
    * to switch between. The Home settings toggle went with them. See
-   * `planning/decisions/2026-09-13-the-cards-a-footer-made-redundant.md`.
+   * `planning/decision/2026-09-13-the-cards-a-footer-made-redundant.md`.
    *
    * **Retiring it is the wire two-step**, not a field deletion: the server
    * keeps accepting the name while any installed build still sends it, and
@@ -198,7 +198,7 @@ export interface AccountSettings {
  * a day — an account that had never said got a coin toss from the server
  * rather than a value from this object — and went on 2026-09-13 with the
  * choice it belonged to. See
- * planning/decisions/2026-09-13-the-channel-tabs-stay-at-the-top.md.
+ * planning/decision/2026-09-13-the-channel-tabs-stay-at-the-top.md.
  *
  * **The chime's loudness was the one value here that was not a boolean**, and
  * it went on 2026-09-15, the day after it arrived: every rung of the ladder
@@ -206,7 +206,7 @@ export interface AccountSettings {
  * words over one sound. It is a constant now — `CHIME_AMPLITUDE` in
  * `app/modules/audio-route/index.ts`, the top rung — and nothing about it
  * crosses this wire. See
- * planning/decisions/2026-09-15-the-chime-has-one-loudness-again.md.
+ * planning/decision/2026-09-15-the-chime-has-one-loudness-again.md.
  *
  * Labs defaults off because that is what the word means. Everything behind it
  * is unfinished by admission, and an experimental feature that arrives without

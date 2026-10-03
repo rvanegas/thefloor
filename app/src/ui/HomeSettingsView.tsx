@@ -222,7 +222,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             *Close* is true in both, which is what lets the handler be the same
             one word in both layouts with no `split` anywhere in it. Every
             attempt to make the wording pane-dependent puts that conditional
-            back. See planning/decisions/DECISIONS.md.
+            back. See planning/decision/DECISIONS.md.
 
             **It is a cross rather than the word, since 2026-09-02**, and every
             argument above survives that intact: the word is still there as the
@@ -256,7 +256,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         choose between, which is the same reason "Hide the repeated channel
         controls" left this card on 2026-09-13 — that one had lost the screen
         it switched, this one has lost the alternative. See
-        decisions/2026-09-21-a-tap-only-ever-looks.md.
+        decision/2026-09-21-a-tap-only-ever-looks.md.
 
         `hideControlCards` is still on the wire and still a column on
         `accounts`, read by nothing; see core/settings.ts.

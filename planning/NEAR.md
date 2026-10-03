@@ -1,5 +1,5 @@
 *Rodrigo's model for presence. What is built and what is not, as of
-2026-09-09 — see `decisions/2026-09-09-attention-is-one-clock.md`.*
+2026-09-09 — see `decision/2026-09-09-attention-is-one-clock.md`.*
 
 **Built:** the attention clock and everything that reads it — any activity in
 the app refreshes it, talking never does, one clock per person per channel held

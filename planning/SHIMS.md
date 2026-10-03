@@ -147,7 +147,7 @@ is the account of it.
 ## Gate 290 — the invite pin, in every layer that still reads one
 
 An invite link was `/i/<username>/<pin>` until 2026-09-25 and is
-`/i/<username>` now — `decisions/2026-09-25-...`. Nothing mints a pin any
+`/i/<username>` now — `decision/2026-09-25-...`. Nothing mints a pin any
 more; what is left reads the ones already minted.
 
 **Two populations, and only one of them is a build.** A client below 290 sends
@@ -197,7 +197,7 @@ reconstructable:
 
 Which of the introduction's four *try* rungs an account has behind it, moved
 off the phone and onto the account on 2026-09-13 —
-`decisions/2026-09-13-the-tried-rungs-belong-to-the-account.md`. Optional
+`decision/2026-09-13-the-tried-rungs-belong-to-the-account.md`. Optional
 because a server that predates it sends no such key, and the client reads
 absence as *none of them*, which is the ladder every build drew before the
 account held anything.
@@ -368,7 +368,7 @@ field is ignored here and refused elsewhere.
 `tapToStepIn` and `controlCards` became `tapToLook` and `hideControlCards` on
 2026-09-07, each the negation of what it replaced, so that every boolean
 account setting defaults to false — see
-`decisions/2026-09-07-every-boolean-setting-defaults-to-false.md`. Every build
+`decision/2026-09-07-every-boolean-setting-defaults-to-false.md`. Every build
 in anybody's hands at the time reads the old names, so the server sends both
 and accepts either: `server/src/settings-wire.ts` is that whole arrangement,
 and it is written to be deleted in one piece, along with the tests in
@@ -384,7 +384,7 @@ as false and go back to a tap that steps into the room. That is the exact
 behaviour being removed, so the assertion has to keep going out. Both names
 are read and dropped on the way in rather than refused, so an old build's
 toggle is inert instead of erroring. See
-`decisions/2026-09-21-a-tap-only-ever-looks.md`.
+`decision/2026-09-21-a-tap-only-ever-looks.md`.
 
 **What must not be deleted with the card half**: the two tap constants, until
 the floor passes 264. They are gated on a *later* build than the rest of this
@@ -404,7 +404,7 @@ be the same bug in a harder place to find.
 **One of the two settings is now dead, which makes half of this cheaper and
 none of it optional.** Nothing has read `hideControlCards` since 2026-09-13:
 the channel screen's repeated cards were deleted and the Home settings toggle
-with them — `decisions/2026-09-13-the-cards-a-footer-made-redundant.md`. The
+with them — `decision/2026-09-13-the-cards-a-footer-made-redundant.md`. The
 field is still on the wire, still a column, and still sent both ways, because
 builds below the floor are still reading the answer and a missing key is a
 different thing from a key nobody uses. So the gate does not move; what
@@ -444,7 +444,7 @@ left of **`nearbyMs`**, and of the `STILL_HERE` branch that refreshes
 two.** Where `attentiveAt` has no entry the *Nearby* line falls back to
 `nearbyMs` — the declaration, or the last sign of life. *Stepped out* is not
 part of this any more: it counts presence for everybody, fallback or not, since
-the correction of 2026-09-09 (`decisions/…-one-clock-ends-two-states-but-times-one.md`).
+the correction of 2026-09-09 (`decision/…-one-clock-ends-two-states-but-times-one.md`).
 So the mixed vocabulary during the transition is confined to one line and one
 number; it self-heals as installs update.
 
@@ -580,7 +580,7 @@ install still running has done the handover.
 When the newest answer to any of an account's help questions was written, added
 to Home's snapshot on 2026-09-15 so that the *Support* tab can wear a dab
 without the help view being fetched —
-`decisions/2026-09-15-the-two-dabs-are-not-symmetrical.md`. Optional because a
+`decision/2026-09-15-the-two-dabs-are-not-symmetrical.md`. Optional because a
 server that predates it sends no such key, which is what an installed build
 meets between its release and the deploy that follows.
 
@@ -643,7 +643,7 @@ it is a null check under test.
 Whether a *getting-started channel* is waiting on this account turning
 notifications on, added to Home's snapshot on 2026-09-15 alongside the
 placement gate —
-`decisions/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
+`decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
 Optional because a server that predates it sends no such key, which is what an
 installed build meets between its release and the deploy that follows.
 
@@ -667,7 +667,7 @@ ships in the next upload.
 ## Gate 272 — `ChannelState.guestInvites` optionality
 
 The seats a channel has promised and nobody has taken up, added 2026-09-22 —
-`decisions/2026-09-22-an-invitation-holds-a-seat.md`. Optional because a server
+`decision/2026-09-22-an-invitation-holds-a-seat.md`. Optional because a server
 that predates it sends no such key, and a channel from such a server has no
 invitations it knows about; a client reading absence as *none* is reading it
 correctly rather than defaulting.
@@ -690,7 +690,7 @@ Gate 272 because `build/271` is the build in `app.json` as this lands.
 
 `POST /channels/:id/seat/enter` answered with `{ guestId, view }` from the day
 it was written and now answers with a `secret` beside them, added 2026-09-22
-with the acceptance path — `decisions/2026-09-22-taking-up-a-seat.md`. The
+with the acceptance path — `decision/2026-09-22-taking-up-a-seat.md`. The
 credential exists for the *browser*: the guest page's socket authenticates
 with `guestId` and a secret and has no session to offer, where the app hands
 over its account token and needs none of this.
@@ -722,7 +722,7 @@ next upload is the first client that speaks the field.
 ## Gate 264 — `InviteView.guest` optionality
 
 Whether an invitation offers a *seat* or a *membership*, added 2026-09-21 with
-guest invitations — `decisions/2026-09-21-asking-somebody-in-as-a-guest.md`.
+guest invitations — `decision/2026-09-21-asking-somebody-in-as-a-guest.md`.
 Optional because a server that predates it sends no such key, and every
 invitation such a server can send is a membership; a client reading absence as
 `false` is therefore reading it correctly rather than defaulting.
@@ -746,7 +746,7 @@ ships in the next upload.
 ## Gate 264 — `tapToLook` / `tapToStepIn` sent as constants
 
 The tap setting went on 2026-09-21 and its behaviour became unconditional —
-`decisions/2026-09-21-a-tap-only-ever-looks.md`. The column went with it, so
+`decision/2026-09-21-a-tap-only-ever-looks.md`. The column went with it, so
 there is nothing left to store or translate.
 
 **But the field cannot simply stop being sent.** A build already on a phone
@@ -775,7 +775,7 @@ reads either name ships in the next upload.
 ## Gate 274 — `WatchState.history` optionality
 
 The films a channel has watched shipped on 2026-09-22 —
-`decisions/2026-09-22-the-channel-remembers-what-it-watched.md`. It is a new
+`decision/2026-09-22-the-channel-remembers-what-it-watched.md`. It is a new
 field on the watch state, which rides whole inside the channel snapshot, so
 the wire change is additive in the direction that matters: a build that has
 never heard of it ignores it.
@@ -819,7 +819,7 @@ migration that rewrites every row, which nothing here does.
 ## Gate 298 — `ChannelState.removals` optionality
 
 Removing a member shipped on 2026-09-26 —
-`decisions/2026-09-26-removing-a-member-takes-two.md`. The open motions are a
+`decision/2026-09-26-removing-a-member-takes-two.md`. The open motions are a
 new field on the channel state, which rides whole inside the channel snapshot,
 so the wire change is additive in the direction that matters: a build that has
 never heard of it ignores it, and such a build simply has no removal control.

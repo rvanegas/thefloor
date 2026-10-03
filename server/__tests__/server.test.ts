@@ -159,7 +159,7 @@ describe('one-time codes', () => {
     // invitation by link — and the email carries the link, so one invitation
     // resolved two ways depending on which half of it was acted on. Signing up
     // with the address somebody wrote to is the acceptance. See
-    // decisions/2026-09-25-the-invitation-asks-for-one-thing.md.
+    // decision/2026-09-25-the-invitation-asks-for-one-thing.md.
     const later = await signIn('later@example.com', 'Later');
     const theirs = app.accounts.contactsFor(later.account.id);
     expect(theirs).toEqual([

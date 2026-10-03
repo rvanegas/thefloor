@@ -24,7 +24,7 @@ import { drainEvents, resetDiagnostics } from '../diagnostics';
  * the audio engine, and nothing restarts it, so a pause put every microphone
  * back onto a dead engine. Releasing and retaking the device is what brings the
  * engine up — which is why the expensive version is the one that works. See
- * decisions/2026-09-26-the-film-keeps-its-stereo.md.
+ * decision/2026-09-26-the-film-keeps-its-stereo.md.
  *
  * **Every case enters a run rather than starting inside one.** Mounting
  * mid-film does the work on the *connect* path, and every fault in this story

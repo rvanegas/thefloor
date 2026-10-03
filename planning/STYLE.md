@@ -871,7 +871,7 @@ is left is the pair form above, where the weight separates the answer from
 the way out rather than ranking one card against another. The second is a sentence with no control at
 all — the cure is another browser, which no button here can perform. Both are
 constants on a phone and neither ever renders there; see
-`decisions/2026-09-17-the-web-app-grew-the-browser-s-two-obligations.md`.
+`decision/2026-09-17-the-web-app-grew-the-browser-s-two-obligations.md`.
 
 The surviving sentences are all under the roster rather than on a card,
 there being no card any of them could belong to: that the room is held on
@@ -890,7 +890,7 @@ that the room cannot hear them. **It is drawn only while the introduction's
 rule above: a screen that explains its own footer to somebody who has used it
 for a month is what that rule prevents, and this is gone the moment its reader
 has been in a room with another member. See
-`decisions/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
+`decision/2026-09-24-the-channel-screen-says-how-to-be-heard.md`.
 
 **The second of those replaced a card, and the replacement is the rule
 applied twice.** The arrival had a heading, a sentence, *Step in*, *Stay
@@ -898,7 +898,7 @@ nearby* and an explanation; the roster said the sentence, the `In` rung was
 *Step in*, the lit bell and your own row said the explanation, and *Stay
 nearby* only removed the card. What had no second home was one word — *just*
 — because a roster row carries a clock for you and none for anybody else.
-See `decisions/2026-09-15-the-arrival-is-a-line.md`. **A card whose only
+See `decision/2026-09-15-the-arrival-is-a-line.md`. **A card whose only
 irreducible part is an adverb is a sentence**, which is the general form of
 the test.
 
@@ -942,7 +942,7 @@ shape this section forbids a control from having, one screen up. It sits above
 the tab content rather than on a tab, since the question is the same whichever
 of the six somebody lands on, and it can be dismissed for good because it is
 an introduction rather than a state. See
-`decisions/2026-09-15-a-new-account-does-not-arrive-alone.md`.
+`decision/2026-09-15-a-new-account-does-not-arrive-alone.md`.
 
 **A fourth followed it on 2026-09-22, in the same place and the same shape**:
 the *public notice* — that this channel has a public page — drawn above the
@@ -954,7 +954,7 @@ consent card**, so it carries no pair of buttons and nothing coloured
 veto over the page that the next tap would fail to deliver. Its acknowledgement
 is stored on the server rather than on the install, unlike the card above it,
 because it records that a person was told rather than that a screen was read.
-See `decisions/2026-09-22-a-page-nobody-was-told-about.md`.
+See `decision/2026-09-22-a-page-nobody-was-told-about.md`.
 
 ---
 
@@ -1479,8 +1479,8 @@ them moving means both of them mounted.
 screen and coming back out travel the same way whether a thumb or a tap did it,
 because `Panes` animates on the pane changing hands rather than on the swipe.
 Nothing moves in a split, and nothing moves on the web. See
-`decisions/2026-09-18-a-screen-arrives-from-the-side-it-was-asked-for.md` and
-`decisions/2026-09-18-the-motion-belongs-to-the-journey.md`.
+`decision/2026-09-18-a-screen-arrives-from-the-side-it-was-asked-for.md` and
+`decision/2026-09-18-the-motion-belongs-to-the-journey.md`.
 
 **It is not a licence for the rest.** A transition that carries information is
 the case; a fade on a card, a spring on a button and a shimmer on a list are
@@ -1616,7 +1616,7 @@ Six rules that look like details and are not:
   makes a tap anywhere that is not a button open the app at the channel. An
   *Open* button made that legible from 2026-09-17 and was removed on
   2026-09-29, by instruction, to give the room back to the two glyphs — see
-  `decisions/2026-09-29-the-lock-screen-card-drops-open.md`. Do not put a word
+  `decision/2026-09-29-the-lock-screen-card-drops-open.md`. Do not put a word
   back to explain the tap without reading that first.
 - **The microphone button shows three states as two, in a glyph and not a
   word.** It strikes through on the same derivation the footer icon uses —

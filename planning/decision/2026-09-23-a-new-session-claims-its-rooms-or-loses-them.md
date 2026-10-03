@@ -44,7 +44,7 @@ A fresh session that has had its window and claimed nothing is not ambiguous. It
 is the process the grace was waiting for, saying where it is standing, and the
 answer is *not here*. That is better evidence than the timer it would otherwise
 sit out: the same argument
-decisions/archive — *the socket is what holds a place* — makes about the socket
+decision/archive — *the socket is what holds a place* — makes about the socket
 that left, applied to the one that arrived.
 
 ## The window, and why it is not a timer
