@@ -905,8 +905,9 @@ with recording, not for the category to read `playAndRecord`: the reading flips
 the moment it is written, about 480ms before the engine is back, and chimes
 fired on it were swallowed (build 312). And **the player is not told to play
 until the release has landed**: a press of Play on the device that will show the
-film chimes, holds the microphone 180ms, releases it, and waits for iOS to
-report `Playback` before the follower may play — `watch/filmStart.ts`, whose
+film chimes, holds the microphone 330ms (the chime and `CHIME_TAIL_MS`),
+releases it, and waits for iOS to report `Playback` before the follower may
+play — or, on a muted device already in `Playback`, for the engine to stop — `watch/filmStart.ts`, whose
 phase `App.tsx` reads *ahead of* `microphoneNeeded`, which still says paused
 until the snapshot. A category change landing under a starting player is what
 left it stuck in `buffering`. **That release also waits for a capture still

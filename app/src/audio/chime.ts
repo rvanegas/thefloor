@@ -133,9 +133,13 @@ export function chimeRecording(amplitude?: number): void {
  * person it is most for cannot see the transport at all — a phone in a pocket
  * during a watch party hears the room fall silent and, until this, was told
  * nothing about why.
+ *
+ * **Answers what the native side did with it**, for `watch/filmStart.ts`,
+ * which logs a refusal: false is a binary with no `chime`, or a player that
+ * would not start.
  */
-export function chimePlay(amplitude?: number): void {
-  playChime('play', amplitude);
+export function chimePlay(amplitude?: number): boolean {
+  return playChime('play', amplitude);
 }
 
 /** The party's film has stopped, and the room has its microphones back. */

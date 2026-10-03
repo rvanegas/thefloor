@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { HANDOVER_MS, useFilmHandover } from '../useFilmHandover';
+import { CHIME_TAIL_MS, HANDOVER_MS, useFilmHandover } from '../useFilmHandover';
 
 /**
  * The microphone is held for the length of the play chime, so the chime is
@@ -39,10 +39,11 @@ describe('useFilmHandover', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('is the length of the play chime', () => {
+  it('is the length of the play chime and its tail', () => {
     // Derived rather than chosen, which is the rule `CHIME_STALE_MS` states:
-    // two notes at 90ms each. Retuning the chime moves this with it.
-    expect(HANDOVER_MS).toBeCloseTo(180);
+    // two notes at 90ms each. Retuning the chime moves this with it. The tail
+    // is `play()` not being the sound leaving the speaker, since 2026-10-02.
+    expect(HANDOVER_MS).toBeCloseTo(180 + CHIME_TAIL_MS);
   });
 
   it('holds the microphone when a film starts, and lets it go', () => {

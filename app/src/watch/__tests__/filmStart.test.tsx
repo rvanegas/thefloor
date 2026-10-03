@@ -4,9 +4,12 @@ import { createChannel, reduce } from '../../../../core/channel';
 import type { ChannelState } from '../../../../core/types';
 import type { RouteSnapshot } from '../../../modules/audio-route';
 import { setFilmProbe } from '../../audio/probe';
-import { HANDOVER_MS } from '../../audio/useFilmHandover';
+import { spanMs } from '../../audio/chime';
+import type { EngineTransition } from '../../audio/engineState';
+import { CHIME_TAIL_MS, HANDOVER_MS } from '../../audio/useFilmHandover';
 import {
   announcePress,
+  describeChimePlayer,
   readStart,
   START_SETTLE_MS,
   startHolding,
@@ -71,11 +74,36 @@ function routes() {
 
 let tree: ReactTestRenderer | null = null;
 
-function mount(channel: ChannelState, takes = true) {
+/** The engine's transitions, sent by hand. */
+function engine() {
+  const listeners = new Set<(t: EngineTransition) => void>();
+  const listen = (listener: (t: EngineTransition) => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+  return Object.assign(listen, {
+    stop() {
+      for (const listener of [...listeners]) listener({ what: 'stop', play: false, rec: false });
+    },
+  });
+}
+
+/**
+ * `category` is what the session reads at the chime: `playAndRecord` for a
+ * device capturing, which is the ordinary start.
+ */
+function mount(
+  channel: ChannelState,
+  takes = true,
+  category = 'AVAudioSessionCategoryPlayAndRecord'
+) {
   const sound = jest.fn();
   const route = routes();
+  const engines = engine();
   function Probe({ live }: { live: ChannelState }) {
-    useFilmStart(live, ME, sound, route, takes);
+    useFilmStart(live, ME, sound, route, takes, () => category, engines);
     return null;
   }
   act(() => {
@@ -84,6 +112,7 @@ function mount(channel: ChannelState, takes = true) {
   return {
     sound,
     route,
+    engine: engines,
     update(next: ChannelState) {
       act(() => {
         tree!.update(<Probe live={next} />);
@@ -138,6 +167,84 @@ it('plays anyway when iOS never says so', () => {
   expect(readStart()).toBe('releasing');
   advance(1);
   expect(readStart()).toBe('ready');
+});
+
+/*
+  **A muted phone is already `Playback`, so no route notification is coming.**
+  On build 329 every such start waited out `START_SETTLE_MS`. The engine
+  stopping is the release landing, and nothing else is going to move.
+*/
+it('is ready when the engine stops, on a device already in Playback', () => {
+  const probe = mount(here(loaded(joined())), true, 'AVAudioSessionCategoryPlayback');
+  act(() => announcePress('playing'));
+  advance(HANDOVER_MS);
+  expect(readStart()).toBe('releasing');
+
+  act(() => probe.engine.stop());
+  // A macrotask later, out of the audio worker's callback.
+  expect(readStart()).toBe('releasing');
+  advance(0);
+  expect(readStart()).toBe('ready');
+});
+
+/*
+  **And not on one capturing**, where the engine stops about 190ms before the
+  session is `Playback`. Taking that for the release landing is playing under a
+  moving session, which is build 312's wedge.
+*/
+it('still waits for Playback when the engine stops on a capturing device', () => {
+  const probe = mount(here(loaded(joined())));
+  act(() => announcePress('playing'));
+  advance(HANDOVER_MS);
+  act(() => probe.engine.stop());
+  advance(0);
+  expect(readStart()).toBe('releasing');
+
+  act(() => probe.route.category('AVAudioSessionCategoryPlayback'));
+  expect(readStart()).toBe('ready');
+});
+
+it('holds the microphone past the chime by its tail', () => {
+  mount(here(loaded(joined())));
+  act(() => announcePress('playing'));
+  advance(spanMs('play'));
+  expect(readStart()).toBe('chiming');
+  advance(CHIME_TAIL_MS);
+  expect(readStart()).toBe('releasing');
+});
+
+describe('describeChimePlayer', () => {
+  const reading = {
+    present: true as const,
+    accepted: true,
+    playing: false,
+    positionMs: 0,
+    durationMs: 180,
+    sinceMs: 340,
+    decodeFailed: false,
+  };
+
+  it('says a chime ran out', () => {
+    expect(
+      describeChimePlayer({ ...reading, finishedAfterMs: 231.4, finishedCleanly: true })
+    ).toBe('finished after 231ms');
+  });
+
+  it('says a chime is still sounding', () => {
+    expect(describeChimePlayer({ ...reading, playing: true, positionMs: 92.6 })).toBe(
+      'playing at 93/180ms, 340ms after play'
+    );
+  });
+
+  it('says a chime was cut off', () => {
+    expect(describeChimePlayer({ ...reading, positionMs: 61 })).toBe(
+      'stopped at 61/180ms without finishing, 340ms after play'
+    );
+  });
+
+  it('says a chime never started', () => {
+    expect(describeChimePlayer({ ...reading, accepted: false })).toBe('refused by the player');
+  });
 });
 
 it('releases nothing and waits for nothing when the film probe keeps the microphone', () => {

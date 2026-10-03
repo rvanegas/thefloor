@@ -105,3 +105,14 @@ entry stays open until a run on a build with both fixes shows** that a play from
 the other phone waits (look for `watch start chiming (room played)` on the
 screening phone) and that a rapid press still does not wedge. If a wedge survives
 both, the page-side question above is what is left.
+
+## The run of 2026-10-02, build 329, two debug phones
+
+**Half of what this entry was waiting for.** The phone showing the film took 22
+plays from the other phone, and every one logged `watch start chiming (room
+played)` and waited for `Playback` before `watch tell play`. No player stayed in
+`buffering` for longer than about 0.6s. **The quick press was not exercised**,
+since the fastest pause-then-play was about 1.1s, so the other half is still
+open: ten presses of Play as fast as possible after a pause, on the phone
+showing the film. The chimes that run turned up are in
+decision/2026-10-02-the-play-chime-is-held-past-its-samples.md.

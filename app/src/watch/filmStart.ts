@@ -1,9 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { hasMicrophone, isScreening } from '../../../core/micNeeded';
 import type { ChannelState, UserId } from '../../../core/types';
-import { onRouteChange, type RouteSnapshot } from '../../modules/audio-route';
+import {
+  chimePlayer,
+  onRouteChange,
+  routeSnapshot,
+  type ChimePlayerReading,
+  type RouteSnapshot,
+} from '../../modules/audio-route';
 import { chimePlay } from '../audio/chime';
 import { recordEvent } from '../audio/diagnostics';
+import { onEngineTransition, type EngineTransition } from '../audio/engineState';
 import { filmProbeKeepsMicrophone } from '../audio/probe';
 import { HANDOVER_MS } from '../audio/useFilmHandover';
 
@@ -25,8 +32,8 @@ import { HANDOVER_MS } from '../audio/useFilmHandover';
  * in order, before anybody hears back from the server:
  *
  * 1. **`chiming`** — the play chime, into the session it can still be heard in,
- *    and the microphone held for its length. `useFilmHandover`'s hold, moved to
- *    the press.
+ *    and the microphone held for its length and `CHIME_TAIL_MS`.
+ *    `useFilmHandover`'s hold, moved to the press.
  * 2. **`releasing`** — the microphone let go, which `App.tsx` reads, and a wait
  *    for iOS to say the session is `Playback`. The route notification rather
  *    than a reading of the category, which flips the moment it is written and
@@ -74,6 +81,35 @@ export const START_SETTLE_MS = 2_000;
  * refused, or lost on the way.
  */
 export const UNCONFIRMED_MS = 5_000;
+
+const PLAYBACK = 'AVAudioSessionCategoryPlayback';
+
+/**
+ * One reading of the chime player, as the journal says it.
+ *
+ * **The last two words are the finding.** `finished` is a sound that ran out;
+ * `playing` at the release is one the session is about to move under; `stopped
+ * … without finishing` is one something ended early, which is a chime nobody
+ * heard all of. See `chimePlayer` in `AudioRouteModule.swift`.
+ */
+export function describeChimePlayer(reading: ChimePlayerReading): string {
+  if (!reading.accepted) return 'refused by the player';
+  if (reading.decodeFailed) return 'decode failed';
+  const since = `${Math.round(reading.sinceMs)}ms after play`;
+  if (reading.finishedAfterMs !== undefined) {
+    const how = reading.finishedCleanly ? 'finished' : 'finished badly';
+    return `${how} after ${Math.round(reading.finishedAfterMs)}ms`;
+  }
+  const at = `${Math.round(reading.positionMs)}/${Math.round(reading.durationMs)}ms`;
+  if (reading.playing) return `playing at ${at}, ${since}`;
+  return `stopped at ${at} without finishing, ${since}`;
+}
+
+/** Logs where the play chime has got to, where the binary can say. */
+function reportChime(when: string): void {
+  const reading = chimePlayer();
+  if (reading) recordEvent(`watch chime at ${when}: ${describeChimePlayer(reading)}`);
+}
 
 let phase: StartPhase | null = null;
 const phaseWatchers = new Set<() => void>();
@@ -159,7 +195,7 @@ export function wouldScreen(channel: ChannelState, me: UserId): boolean {
 export function useFilmStart(
   live: ChannelState | null,
   me: UserId,
-  sound: () => void = chimePlay,
+  sound: () => unknown = chimePlay,
   routes: (listener: (snapshot: RouteSnapshot) => void) => () => void = onRouteChange,
   /**
    * Whether the film would take this device's microphone at all, which is
@@ -167,7 +203,12 @@ export function useFilmStart(
    * from the room starts nothing unless it does, since there would be no
    * release to wait for.
    */
-  takes = true
+  takes = true,
+  /** The session's category as it reads now. See `alreadyPlayback`. */
+  category: () => string | null = () => routeSnapshot()?.category ?? null,
+  engine: (
+    listener: (transition: EngineTransition) => void
+  ) => () => void = onEngineTransition
 ): StartPhase | null {
   const [, bump] = useState(0);
   useEffect(() => subscribeStart(() => bump((n) => n + 1)), []);
@@ -180,10 +221,34 @@ export function useFilmStart(
   soundRef.current = sound;
   const routesRef = useRef(routes);
   routesRef.current = routes;
+  const categoryRef = useRef(category);
+  categoryRef.current = category;
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   /** When the press was, for `UNCONFIRMED_MS`. */
   const pressedAt = useRef(0);
   /** Whether the room has said `playing` since the press. */
   const confirmed = useRef(false);
+  /**
+   * Whether the session was already `Playback` when the chime sounded, in
+   * which case no route notification is coming to say it has become so.
+   *
+   * **A muted phone, since 2026-10-02.** Muting takes the microphone without
+   * rewriting the session, so a phone muted through a run is still `Playback`
+   * at the pause and at the next Play — and the start waited out all of
+   * `START_SETTLE_MS` for a change that had happened a run ago, fifteen times in
+   * one evening on build 329. Read at the chime rather than at the release,
+   * because the category flips the moment the release writes it, about 200ms
+   * ahead of the session: read there, an unmuted phone would look settled and
+   * play under a moving session, which is build 312's wedge.
+   */
+  const alreadyPlayback = useRef(false);
+
+  /** The chime, and what to wait for after it. Both starts begin here. */
+  const chime = () => {
+    alreadyPlayback.current = categoryRef.current() === PLAYBACK;
+    if (soundRef.current() === false) recordEvent('watch chime play refused');
+  };
 
   useEffect(() => {
     planner = (status) => {
@@ -195,7 +260,7 @@ export function useFilmStart(
       if (!channel || !wouldScreen(channel, me)) return;
       pressedAt.current = Date.now();
       confirmed.current = false;
-      soundRef.current();
+      chime();
       setPhase('chiming', 'play pressed');
     };
     return () => {
@@ -220,17 +285,43 @@ export function useFilmStart(
     if (phase !== 'releasing') return;
     const from = Date.now();
     const off = routesRef.current((snapshot) => {
-      if (snapshot.category !== 'AVAudioSessionCategoryPlayback') return;
+      if (snapshot.category !== PLAYBACK) return;
       setPhase('ready', `playback after ${Date.now() - from}ms`);
     });
+    /*
+      **Already `Playback`, so the engine stopping is the session settled.**
+      Nothing else moves: the release takes the microphone's engine down, about
+      80ms on build 329, and the category stays where it was. A macrotask later,
+      as `engineRestart` in `useWatchChime` does, because the listener runs
+      while the audio worker waits on it.
+    */
+    let settled: ReturnType<typeof setTimeout> | null = null;
+    const offEngine = alreadyPlayback.current
+      ? engineRef.current(({ what }) => {
+          if (what !== 'stop' || settled !== null) return;
+          settled = setTimeout(
+            () => setPhase('ready', `already playback, engine stop after ${Date.now() - from}ms`),
+            0
+          );
+        })
+      : () => {};
     const timer = setTimeout(
       () => setPhase('ready', `no playback after ${START_SETTLE_MS}ms, playing anyway`),
       START_SETTLE_MS
     );
     return () => {
       off();
+      offEngine();
       clearTimeout(timer);
+      if (settled !== null) clearTimeout(settled);
     };
+  }, [phase]);
+
+  // The chime player's side of the start, at the two moments that decide
+  // whether it was heard. See `describeChimePlayer`.
+  useEffect(() => {
+    if (phase === 'releasing') reportChime('release');
+    else if (phase === 'ready') reportChime('ready');
   }, [phase]);
 
   /*
@@ -264,7 +355,7 @@ export function useFilmStart(
     if (phase !== null || !screening || !takesRef.current) return;
     pressedAt.current = Date.now();
     confirmed.current = true;
-    soundRef.current();
+    chime();
     setPhase('chiming', 'room played');
   }, [channelId, status, screening]);
   useEffect(() => {

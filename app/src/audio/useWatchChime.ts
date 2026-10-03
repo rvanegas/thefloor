@@ -23,8 +23,18 @@ import { readStart } from '../watch/filmStart';
 const SETTLE_WAIT_MS = 2_000;
 
 /**
- * Calls `done` once the audio engine has confirmed it is starting with
- * recording on, and returns a way to stop waiting.
+ * Calls `done` once the audio engine has confirmed it is starting — with
+ * recording on, when `recording` says this device will capture — and returns a
+ * way to stop waiting.
+ *
+ * **Recording is not always coming back, since 2026-10-02.** A device muted
+ * across the pause takes its microphone without capturing, and its engine
+ * restarts playout-only, about 730ms after the pause: on build 329 the chime
+ * waited for a recording start that was never going to happen and was dropped,
+ * every time, twenty times across two phones. A device that will capture
+ * still waits for `rec`, because an unmuted retake can pass through a
+ * playout-only start on its way there — 22:52:12 on the same evening — and a
+ * chime fired on that would land under the second restart.
  *
  * **The engine's own report, because nothing else can confirm it safely.**
  * The session's category flips the moment it is written — about 200ms before
@@ -37,10 +47,10 @@ const SETTLE_WAIT_MS = 2_000;
  * thread, and waits on. `done` runs a macrotask later, once the handler has
  * returned and the start it was holding has gone ahead.
  */
-function engineRestart(done: () => void): () => void {
+function engineRestart(done: () => void, recording: boolean): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const off = onEngineTransition(({ what, rec }) => {
-    if (what !== 'start' || !rec || timer !== null) return;
+    if (what !== 'start' || (recording && !rec) || timer !== null) return;
     off();
     timer = setTimeout(done, 0);
   });
@@ -96,8 +106,9 @@ export function useWatchChime(
    * How to wait for the engine, or null where there is no engine to hear from
    * — Android and a browser, whose sessions do not move for a film.
    */
-  waitForEngine: ((done: () => void) => () => void) | null = Platform.OS ===
-  'ios'
+  waitForEngine:
+    | ((done: () => void, recording: boolean) => () => void)
+    | null = Platform.OS === 'ios'
     ? engineRestart
     : null,
   /**
@@ -151,6 +162,11 @@ export function useWatchChime(
   const channelId = channel?.id ?? null;
   const status = channel?.watch?.status ?? 'idle';
   const screening = released;
+  // Through a ref rather than a dependency: a mute toggled while the chime is
+  // held would otherwise re-run the effect, which sees no status edge and lets
+  // the wait go without a sound.
+  const muted = useRef(false);
+  muted.current = !!channel?.selfMuted[me];
 
   useEffect(() => {
     if (channelId === null) {
@@ -185,9 +201,9 @@ export function useWatchChime(
       /*
         **Fired at once, and never held.** The session is still `playAndRecord`
         at this instant even on the device about to show the film, because
-        `useFilmHandover` withholds the microphone release for exactly the
-        length of this sound — so the ordering is arranged over there and there
-        is nothing to wait for here.
+        `useFilmHandover` withholds the microphone release for the length of
+        this sound and its tail — so the ordering is arranged over there and
+        there is nothing to wait for here.
 
         And it must not be held in any case: a play chime that arrives late is
         announcing a film that is already running, which is the thing the
@@ -257,7 +273,7 @@ export function useWatchChime(
       clearTimeout(timer);
       recordEvent(`watch chime after engine start, ${Date.now() - from}ms`);
       fire('pause');
-    });
+    }, !muted.current);
     return () => {
       clearTimeout(timer);
       cancel?.();

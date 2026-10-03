@@ -109,6 +109,8 @@ interface NativeAudioRoute {
    * been reported as *still happening*.
    */
   chimeInfo?(): ChimeInfo;
+  /** Where the last `player` chime has got to, on a binary from 2026-10-02. */
+  chimePlayer?(): ChimePlayerReading | { present: false };
   /** Renders and loads a chime without playing it. */
   prepareChime?(kind: string, amplitude: number, lead: number): boolean;
   /**
@@ -640,6 +642,36 @@ export function chime(
  */
 export function chimeArity(): number | null {
   return acceptedArity;
+}
+
+/** The chime player's side of the last `player` chime. See `chimePlayer`. */
+export interface ChimePlayerReading {
+  present: true;
+  /** What `play()` answered. */
+  accepted: boolean;
+  playing: boolean;
+  positionMs: number;
+  durationMs: number;
+  /** Since `play()` was called. */
+  sinceMs: number;
+  decodeFailed: boolean;
+  /** Absent until the delegate says the sound ran out. */
+  finishedAfterMs?: number;
+  finishedCleanly?: boolean;
+}
+
+/**
+ * Where the last chime played through the player has got to, or null where
+ * nobody can say: no module, a binary from before 2026-10-02, no `player`
+ * chime yet. Never throws, being read on the way to releasing a microphone.
+ */
+export function chimePlayer(): ChimePlayerReading | null {
+  try {
+    const reading = native?.chimePlayer?.();
+    return reading && reading.present ? reading : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

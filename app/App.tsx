@@ -210,13 +210,13 @@ function Root() {
   // Whether this device should be capturing, which since 2026-09-08 is whether
   // it is stepped in — and, for a guest, whether they have been granted the
   // microphone.
-  // **The handover, which is about 180ms and is about being heard.** A film
+  // **The handover, which is about 330ms and is about being heard.** A film
   // starting takes this device's session from `playAndRecord` to `playback`,
   // and a chime is an `AVAudioPlayer` playing into the session this app holds —
   // so the play chime fired on that same edge would be lost. Holding the
-  // microphone for the length of the sound keeps the session where it can be
-  // heard until it has been. See `audio/useFilmHandover.ts`, which carries the
-  // whole argument and the cost.
+  // microphone for the length of the sound and its tail keeps the session
+  // where it can be heard until it has been. See `audio/useFilmHandover.ts`,
+  // which carries the whole argument and the cost.
   //
   // **And only while the app is in front**, which is the one qualification of
   // `isScreening` this device makes for itself. A film that is not being

@@ -62,26 +62,38 @@ const here = (channel: ChannelState, by = ME, at = NOW + 1_500) =>
  */
 function engine() {
   let waiting: (() => void) | null = null;
-  const wait = (done: () => void) => {
+  let recording: boolean | null = null;
+  const wait = (done: () => void, needsRecording: boolean) => {
     waiting = done;
+    recording = needsRecording;
     return () => {
       waiting = null;
     };
   };
-  // A getter on the function itself: `Object.assign` would copy its value once.
+  // Getters on the function itself: `Object.assign` would copy a value once.
   Object.defineProperty(wait, 'waiting', { get: () => waiting !== null });
-  return Object.assign(wait as typeof wait & { readonly waiting: boolean }, {
-    start: () => {
-      const done = waiting;
-      waiting = null;
-      done?.();
+  Object.defineProperty(wait, 'recording', { get: () => recording });
+  return Object.assign(
+    wait as typeof wait & {
+      readonly waiting: boolean;
+      /** Whether the wait was for a start with recording on. */
+      readonly recording: boolean | null;
     },
-  });
+    {
+      start: () => {
+        const done = waiting;
+        waiting = null;
+        done?.();
+      },
+    }
+  );
 }
 
 function mount(
   channel: ChannelState | null,
-  waitForEngine: ((done: () => void) => () => void) | null = null
+  waitForEngine:
+    | ((done: () => void, recording: boolean) => () => void)
+    | null = null
 ) {
   const fire = jest.fn();
   function Probe({ state }: { state: ChannelState | null }) {
@@ -229,6 +241,36 @@ describe('useWatchChime', () => {
 
       act(() => void jest.advanceTimersByTime(600));
       expect(probe.fire).not.toHaveBeenCalled();
+
+      act(() => restart.start());
+      expect(probe.fire.mock.calls).toEqual([['pause']]);
+    });
+
+    /*
+      **A capturing device waits for recording; a muted one does not.** An
+      unmuted retake can start the engine playout-only on its way to recording,
+      and a chime fired there lands under the second restart. A muted device
+      never records, and on build 329 waited for it until the chime was thrown
+      away, twenty times in one evening.
+    */
+    it('waits for a recording start on a device that will capture', () => {
+      const restart = engine();
+      const playing = play(screening());
+      const probe = mount(playing, restart);
+      probe.update(pause(playing));
+      expect(restart.recording).toBe(true);
+    });
+
+    it('waits for any start on a device that is muted', () => {
+      const restart = engine();
+      const playing = reduce(
+        play(screening()),
+        { type: 'SET_SELF_MUTE', userId: ME, muted: true },
+        NOW + 2_500
+      );
+      const probe = mount(playing, restart);
+      probe.update(pause(playing));
+      expect(restart.recording).toBe(false);
 
       act(() => restart.start());
       expect(probe.fire.mock.calls).toEqual([['pause']]);

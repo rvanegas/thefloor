@@ -2,8 +2,22 @@ import { useEffect, useState } from 'react';
 import { spanMs } from './chime';
 
 /**
- * How long the microphone is held past the moment a film starts: exactly the
- * length of the chime that announces it.
+ * How far past the end of its samples a chime may still be sounding.
+ *
+ * **Added 2026-10-02, when the hold had been exactly the samples' length and a
+ * play chime from the room was silent on the device showing the film**, every
+ * time, with the room's other three chimes heard. `play()` is not the sound
+ * leaving the speaker, and the release that followed the hold reached the
+ * engine about 315ms after the chime on the phone that lost it against 375ms on
+ * the one that did not. Half again the sound's length clears both, and is a
+ * guess until `chimePlayer` reports a position at the release — see
+ * decision/2026-10-02-the-play-chime-is-held-past-its-samples.md.
+ */
+export const CHIME_TAIL_MS = 150;
+
+/**
+ * How long the microphone is held past the moment a film starts: the length of
+ * the chime that announces it, and its tail.
  *
  * **Derived rather than chosen**, on the reasoning `CHIME_STALE_MS` in
  * `chime.ts` gives for the same move: a constant written beside the sound is a
@@ -11,11 +25,11 @@ import { spanMs } from './chime';
  * arrangement without anybody noticing. Retune the play chime and this follows
  * it.
  */
-export const HANDOVER_MS = spanMs('play');
+export const HANDOVER_MS = spanMs('play') + CHIME_TAIL_MS;
 
 /**
- * Holds this device's microphone open for the length of the play chime, so the
- * chime is heard.
+ * Holds this device's microphone open for the length of the play chime and its
+ * tail, so the chime is heard.
  *
  * **A chime is an `AVAudioPlayer` playing into the session this app holds** —
  * `CHIME_PATH` is `player`, and `playThroughPlayer` in `AudioRouteModule.swift`
@@ -38,11 +52,12 @@ export const HANDOVER_MS = spanMs('play');
  * somebody is not standing in, and never one for a guest with no speech grant.
  * A boolean here cannot know either, and is not asked to.
  *
- * **The cost is about 180ms added to a press of Play**, paid by whoever pressed
- * it. A resume is already around 1,304ms from press to picture and about 1,150
+ * **The cost is about 330ms added to a press of Play**, paid by whoever pressed
+ * it — the chime's 180ms and `CHIME_TAIL_MS`, since 2026-10-02. A resume is
+ * already around 1,304ms from press to picture and about 1,150
  * of that is `AVAudioSession` renegotiating — see
  * decision/2026-09-28-the-film-waits-for-the-audio-session.md — so this is a
- * seventh of a wait that is not ours to shorten, spent on the one thing in that
+ * quarter of a wait that is not ours to shorten, spent on the one thing in that
  * second the room can actually hear.
  *
  * **What it does not cover is a queued chime.** Two chimes in one tick are

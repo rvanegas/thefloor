@@ -91,6 +91,9 @@ public class AudioRouteModule: Module {
    */
   private var player: AVAudioPlayer?
 
+  /** What became of the sound `player` was last given. See `chimePlayer`. */
+  private let chimeWatch = ChimeWatch()
+
   public func definition() -> ModuleDefinition {
     Name("AudioRoute")
 
@@ -257,6 +260,28 @@ public class AudioRouteModule: Module {
         "sampleRate": Self.chimeSampleRate,
         "kinds": Self.chimeNotes.keys.sorted(),
       ]
+    }
+
+    /**
+     Where the last chime played through `player` has got to.
+
+     **Added 2026-10-02, because the journal could say a chime was asked for
+     and not whether it was heard.** The play chime on a device showing a film
+     started by the other phone was reported silent, every time, while the log
+     showed it fired on every one. Asking is the only thing JavaScript sees;
+     this is the player's side of it.
+
+     Read at the release and again once the session is `Playback`. A sound that
+     is still `playing` at the release has not finished when the session starts
+     to move. One that is neither playing nor finished by the second reading
+     was stopped under it — `AVAudioPlayer` calls the delegate for a sound that
+     runs out, and not for one an interruption or a session change ends.
+
+     `present` is false before any `player` chime, and on the system-sound path
+     there is no player to ask.
+     */
+    Function("chimePlayer") { () -> [String: Any] in
+      self.chimeWatch.reading(self.player)
     }
 
     /**
@@ -548,9 +573,13 @@ public class AudioRouteModule: Module {
     do {
       let player = try AVAudioPlayer(contentsOf: url)
       player.volume = 1.0
+      player.delegate = self.chimeWatch
       player.prepareToPlay()
       self.player = player
-      return player.play()
+      self.chimeWatch.began()
+      let accepted = player.play()
+      self.chimeWatch.accepted(accepted)
+      return accepted
     } catch {
       return false
     }
@@ -983,5 +1012,74 @@ public class AudioRouteModule: Module {
     case .routeConfigurationChange: return "routeConfigurationChange"
     @unknown default: return "raw(\(raw))"
     }
+  }
+}
+
+/**
+ The chime player's delegate, kept only to say whether the sound ran out.
+
+ **Its own object because `Module` is not an `NSObject`**, and the delegate has
+ to be one. It holds no player, only what happened to the last one, so a chime
+ that replaces another leaves nothing behind but the newer reading.
+
+ The delegate may be called off the JavaScript thread that reads it, hence the
+ lock. Nothing here is on an audio path; it is a few stamps.
+ */
+final class ChimeWatch: NSObject, AVAudioPlayerDelegate {
+  private let lock = NSLock()
+  private var startedAt: Date?
+  private var wasAccepted = false
+  private var finishedAt: Date?
+  private var finishedCleanly = false
+  private var decodeFailed = false
+
+  /** Called just before `play()`, so a finish can never land ahead of it. */
+  func began() {
+    lock.lock()
+    defer { lock.unlock() }
+    startedAt = Date()
+    wasAccepted = false
+    finishedAt = nil
+    finishedCleanly = false
+    decodeFailed = false
+  }
+
+  func accepted(_ accepted: Bool) {
+    lock.lock()
+    defer { lock.unlock() }
+    wasAccepted = accepted
+  }
+
+  func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    lock.lock()
+    defer { lock.unlock() }
+    finishedAt = Date()
+    finishedCleanly = flag
+  }
+
+  func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+    lock.lock()
+    defer { lock.unlock() }
+    decodeFailed = true
+  }
+
+  func reading(_ player: AVAudioPlayer?) -> [String: Any] {
+    lock.lock()
+    defer { lock.unlock() }
+    guard let player, let startedAt else { return ["present": false] }
+    var out: [String: Any] = [
+      "present": true,
+      "accepted": wasAccepted,
+      "playing": player.isPlaying,
+      "positionMs": player.currentTime * 1000,
+      "durationMs": player.duration * 1000,
+      "sinceMs": Date().timeIntervalSince(startedAt) * 1000,
+      "decodeFailed": decodeFailed,
+    ]
+    if let finishedAt {
+      out["finishedAfterMs"] = finishedAt.timeIntervalSince(startedAt) * 1000
+      out["finishedCleanly"] = finishedCleanly
+    }
+    return out
   }
 }
