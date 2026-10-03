@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+//
+// Sets each file in planning/task/ and planning/backlog/ back to the time its
+// content last really changed, as git records it.
+//
+//   bin/restore-mtimes            touch every file whose mtime disagrees
+//   bin/restore-mtimes --dry-run  print what it would set, newest first
+//
+// Written 2026-10-03, after a checkout in the main tree stamped seventy-one of
+// these files with the same minute on 2026-10-02. Their mtimes are how anybody
+// reads recency off `ls -lt`, and git does not keep mtimes — but it keeps when
+// the content changed, which is the same thing to within the minutes between
+// saving a file and committing it.
+//
+// **Three kinds of commit change a file without changing what it says**, and
+// each is passed over rather than counted as an edit:
+//
+// - a pure rename (R100), which `--follow` reports as a change;
+// - the commits in MECHANICAL below, which rewrote a path inside every file
+//   as part of renaming a directory — counting them would date thirty-six
+//   files to one evening;
+// - the split itself, SPLIT, where every item was born out of TASKS.md and
+//   BACKLOG.md at once. For a file whose newest real edit is the split, the
+//   time comes from blaming that item's own section of the old file, so the
+//   items older than one-file-per-item keep their order rather than tying.
+//   The blame passes over MECHANICAL too, which is why f2644877 is in it.
+//
+// A file with uncommitted changes is left alone: its mtime is the newer truth.
+// Add to MECHANICAL whenever a commit sweeps a rewrite across these directories.
+
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+const DIRS = ['planning/task', 'planning/backlog'];
+// tasks/→task/, decisions/→decision/, and DECISIONS.md→decisions/ inside the old files
+const MECHANICAL = ['05819e9e', 'f5b0244d', 'f2644877'];
+const SPLIT = '90614ea7';
+const OLD = { task: 'planning/TASKS.md', backlog: 'planning/BACKLOG.md' };
+const dryRun = process.argv.includes('--dry-run');
+
+const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 });
+const squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const dirty = new Set(
+  git('status', '--porcelain', '--', ...DIRS).split('\n').filter(Boolean).map((l) => l.slice(3)),
+);
+
+// The sections of the pre-split files, each with the newest blame time inside it.
+const oldSections = {};
+function sectionsOf(kind) {
+  if (oldSections[kind]) return oldSections[kind];
+  const file = OLD[kind];
+  const lines = git('show', `${SPLIT}^:${file}`).split('\n');
+  const heads = lines.flatMap((l, i) => (l.startsWith('## ') ? [i] : []));
+  return (oldSections[kind] = heads.map((i, j) => ({
+    title: squash(lines[i].slice(3)),
+    from: i + 1,
+    to: j + 1 < heads.length ? heads[j + 1] : lines.length,
+    file,
+  })));
+}
+function blameTime(kind, file) {
+  const key = squash(path.basename(file, '.md'));
+  const title = squash(fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n')[0].replace(/^#\s*/, ''));
+  const s = sectionsOf(kind).find((x) => x.title === key) || sectionsOf(kind).find((x) => x.title === title);
+  if (!s) return null;
+  const ignore = MECHANICAL.flatMap((sha) => ['--ignore-rev', sha]);
+  const out = git('blame', ...ignore, '--line-porcelain', '-L', `${s.from},${s.to}`, `${SPLIT}^`, '--', s.file);
+  return Math.max(...out.split('\n').filter((l) => l.startsWith('author-time ')).map((l) => +l.split(' ')[1]));
+}
+
+function contentTime(file) {
+  const log = git('log', '--follow', '-M', '--format=%x00%h %ct', '--name-status', '--', file);
+  for (const entry of log.split('\0').filter((e) => e.trim())) {
+    const [head, status] = entry.trim().split('\n').filter(Boolean);
+    const [sha, time] = head.split(' ');
+    if (MECHANICAL.includes(sha) || /^R100\b/.test(status || '')) continue;
+    if (sha === SPLIT) return blameTime(file.split('/')[1], file) || +time;
+    return +time;
+  }
+  return null;
+}
+
+const rows = [];
+for (const dir of DIRS) {
+  for (const name of fs.readdirSync(path.join(ROOT, dir)).filter((n) => n.endsWith('.md'))) {
+    const file = `${dir}/${name}`;
+    if (dirty.has(file)) continue;
+    const t = contentTime(file);
+    if (t == null) continue;
+    const abs = path.join(ROOT, file);
+    const was = Math.floor(fs.statSync(abs).mtimeMs / 1000);
+    rows.push({ file, t, was });
+    if (!dryRun && was !== t) fs.utimesSync(abs, new Date(), new Date(t * 1000));
+  }
+}
+
+const fmt = (t) => new Date(t * 1000).toLocaleString('sv-SE');
+for (const r of rows.sort((a, b) => b.t - a.t)) {
+  console.log(`${fmt(r.t)}  ${r.was === r.t ? ' ' : '*'} ${r.file}`);
+}
+const changed = rows.filter((r) => r.was !== r.t).length;
+console.log(`\n${changed} of ${rows.length} ${dryRun ? 'would change' : 'changed'} (* marks them)`);
