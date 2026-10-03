@@ -100,7 +100,7 @@ later, which is a far better second than a still frame. It has never been
 exercised in any form: `mutedAll` mutes the room's microphones and not the film, so
 no code path here has ever muted a player. One run decides it.
 
-**And the spinner** tasks/the-transport-says-nothing-while-the-film-starts.md asked
+**And the spinner** task/the-transport-says-nothing-while-the-film-starts.md asked
 for, if the probe comes back negative and the second turns out to be nobody's to
 remove.
 

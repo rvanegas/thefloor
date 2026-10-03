@@ -85,7 +85,7 @@ absolutely over everything, and taking the whole window is one more style — an
 the reason it was not is z-order: the transport that is drawn over an expanded
 picture belongs to the channel screen, which is underneath the picture's layer.
 Hoisting the chrome as well is a larger change than this one, and it collides
-with `planning/tasks/real-full-screen.md`, which is open and unwritten. So the
+with `planning/task/real-full-screen.md`, which is open and unwritten. So the
 picture simply stands down for as long as `FullScreen` is up — two players on
 one party would be two sets of audio — and the flag saying which of the two is
 showing moved into the picture's own context, since it now outlives the screen

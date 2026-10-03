@@ -120,7 +120,7 @@ a thing it allowed.
 
 ## What this does not do
 
-It does not build voice messages. `planning/tasks/add-voice-messages.md` is
+It does not build voice messages. `planning/task/add-voice-messages.md` is
 still the sixty-second, differently-presented thing, and *a note to yourself is
 a different feature* remains true of the interface — what has gone is the claim
 that the underlying run must be forbidden to make one possible.

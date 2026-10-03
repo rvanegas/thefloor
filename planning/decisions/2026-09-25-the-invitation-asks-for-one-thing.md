@@ -157,7 +157,7 @@ Three pieces, because they reach people on different days.
 2. **A build** — `useInviteLink`, the navigating effect, the widened client
    type.
 3. **The scheme line on the page**, which is *not* in step 1 and is
-   `tasks/the-invite-page-can-offer-open-in-the-app.md`.
+   `task/the-invite-page-can-offer-open-in-the-app.md`.
 
 **Step 3 is separate because the scheme is already registered.** `app.json`
 has carried `"scheme": "thefloor"` since 2026-09-16 and `released` is later,

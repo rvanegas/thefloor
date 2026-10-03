@@ -34,7 +34,7 @@ app said in exactly one place a user could see.
 
 **The reason it was actually chosen for was translation.** *Members* has an
 easy equivalent in other languages and *roster* does not, and
-`planning/tasks/internationalization.md`, done on 2026-09-23 — "First replace all text with
+`planning/task/internationalization.md`, done on 2026-09-23 — "First replace all text with
 functions. Then Spanish." — makes that a live constraint on naming rather than
 a someday concern. None of the three write-ups mentions it, so a session
 re-opening the question argues it from the two weaker reasons and reaches the

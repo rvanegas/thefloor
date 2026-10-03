@@ -58,7 +58,7 @@ fitted.
 
 ## The one thing this did not fix
 
-`planning/tasks/real-full-screen.md` is still open and still empty. This entry
+`planning/task/real-full-screen.md` is still open and still empty. This entry
 makes the picture as large as fitting it can make it, which is what the
 screenshot was about; whether *real* full screen meant something further —
 the system player, or the status bar and home indicator strips — is not

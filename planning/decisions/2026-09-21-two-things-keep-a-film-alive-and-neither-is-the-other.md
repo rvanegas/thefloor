@@ -1,7 +1,7 @@
 # 2026-09-21 — Two things keep a film alive, and neither is the other
 
 Written 2026-09-21, describing what shipped on 2026-09-17 in `589ba37` *The
-film plays in the app* and in `tasks/keep-alive-during-watch-party.md`. Nothing
+film plays in the app* and in `task/keep-alive-during-watch-party.md`. Nothing
 was built for it; it is here because the question *what keeps a watch party
 alive* has two answers that sound like one, and the session that finds only the
 first will conclude the second is missing.
@@ -88,7 +88,7 @@ evidence.** Read it as scoped to what it was describing: a locked phone in a
 channel with no film, where keeping the glass awake buys nothing and costs a
 battery. There is still no keep-awake there, and there should not be.
 
-See `tasks/keep-alive-during-watch-party.md`,
+See `task/keep-alive-during-watch-party.md`,
 `2026-09-17-the-screen-is-the-app.md`,
 `2026-09-09-attention-is-one-clock.md`, and
 `backlog/a-backgrounded-screen-keeps-the-microphone-it-gave-up.md`, which is

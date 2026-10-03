@@ -59,7 +59,7 @@ it is the behaviour that has now been seen. The first is more informative and
 the second is less to build; the second also silently loses the only evidence
 that capture failed, which is worth something if it starts happening often.
 
-`rec_ub4l1XLe6NCd` was a *different* defect and had its own entry in `tasks/`,
+`rec_ub4l1XLe6NCd` was a *different* defect and had its own entry in `task/`,
 deleted on 2026-09-26 once both its questions were answered: the stem was never
 uploaded rather than removed later, and `dropHollowStems` did not catch it
 because it did not exist until two days after the run. Commit a9fc51ee is that

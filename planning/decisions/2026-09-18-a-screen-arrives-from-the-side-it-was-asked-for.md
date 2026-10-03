@@ -8,7 +8,7 @@ here stands: the thresholds, the gates, the commit-on-release, and the motion
 argument. Read *left* as out and *right* as in below, and the other way round
 in the code.
 
-Swiping, from `tasks/swiping.md`: left from a channel goes to Home, right from
+Swiping, from `task/swiping.md`: left from a channel goes to Home, right from
 Home goes back into the channel you are standing in. Both were already one tap
 — the channel header names Home, and the tier's live bar has been a permanent
 statement of which room you are in since 2026-09-08. **The gesture is a second

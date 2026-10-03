@@ -143,7 +143,7 @@ export const LISTENING: AppleAudioConfiguration = {
  * configuration route that was believed to be impossible.
  *
  * **What it costs is a second on every press of Play**, paid once by whoever
- * pressed it rather than by the conversation. `planning/tasks/` carries what a
+ * pressed it rather than by the conversation. `planning/task/` carries what a
  * resume that costs nothing would need, and why the obvious repair is
  * forbidden. See
  * planning/decisions/2026-09-26-the-film-keeps-its-stereo.md.

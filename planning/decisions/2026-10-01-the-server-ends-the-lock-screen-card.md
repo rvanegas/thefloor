@@ -1,6 +1,6 @@
 # 2026-10-01 — The server ends the lock screen card
 
-Built from `tasks/live-activity-should-be-removed-before-forced-step-out.md`,
+Built from `task/live-activity-should-be-removed-before-forced-step-out.md`,
 which was its title and nothing else. Asked which failure it meant — a card
 that outlived the server stepping the device out, or one that should simply
 come down sooner — the answer was **both**, and they are two different

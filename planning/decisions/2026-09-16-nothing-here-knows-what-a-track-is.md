@@ -60,7 +60,7 @@ not-have until it happens. Nothing is built for it now, on the grounds that a
 procedure nobody has ever exercised is a procedure that will be wrong when it
 is.
 
-**Publishable recordings.** `tasks/publishable-recordings.md` would put a
+**Publishable recordings.** `task/publishable-recordings.md` would put a
 recording — containing whatever was played into it — in front of the world
 rather than in front of the two people who made it. That is the fact this
 entry's whole analysis rests on, and it is the one thing above that changes

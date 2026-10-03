@@ -31,7 +31,7 @@ these — *Bump*, *Record*, *New Task* — so they are kept, in past tense:
 - **Bumped**: a build or version number.
 - **Recorded**: history, meaning a decision in `decisions/` or an entry in
   `deploy-history.md`.
-- **Filed**: outstanding work, meaning a new item in `tasks/` or `backlog/`.
+- **Filed**: outstanding work, meaning a new item in `task/` or `backlog/`.
   Closing one is **Removed**.
 - **Documented**: standing guidance, such as AGENTS.md, STYLE.md, GLOSSARY.md
   or RELEASING.md.

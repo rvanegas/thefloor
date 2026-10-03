@@ -4,11 +4,11 @@
 # that are one file per item.
 #
 #   bin/task "Some Title"           a new task — the common case, its own script
-#   bin/note new tasks "..."        the same thing, spelled out
+#   bin/note new task "..."        the same thing, spelled out
 #   bin/note new backlog "..."      a new backlog item
 #   bin/note new decisions "..."    a new decision, dated
 #   bin/note find "Some Title"      which file a quoted reference means
-#   bin/note list tasks             title and first sentence, one line each
+#   bin/note list task             title and first sentence, one line each
 #   bin/note rename <file> "..."    retitle, and move the file to match
 #   bin/note check                  the invariants, for the test suite
 #
@@ -84,12 +84,12 @@ stored_slug() {
   fi
 }
 
-dirs_with_entries() { echo "tasks backlog decisions"; }
+dirs_with_entries() { echo "task backlog decisions"; }
 
 valid_dir() {
   case "$1" in
-    tasks|backlog|decisions) return 0 ;;
-    *) die "no such directory '$1' — one of tasks, backlog, decisions" ;;
+    task|backlog|decisions) return 0 ;;
+    *) die "no such directory '$1' — one of task, backlog, decisions" ;;
   esac
 }
 
@@ -110,7 +110,7 @@ entries() {
 
 cmd_new() {
   local dir="${1:-}" title="${2:-}"
-  [[ -n "$dir" && -n "$title" ]] || die "usage: bin/note new <tasks|backlog|decisions> \"Some Title\""
+  [[ -n "$dir" && -n "$title" ]] || die "usage: bin/note new <task|backlog|decisions> \"Some Title\""
   valid_dir "$dir"
   local s path
   s="$(expected_slug "$dir" "$title")"
@@ -169,7 +169,7 @@ cmd_find() {
 }
 
 cmd_list() {
-  local dir="${1:-tasks}" f title body
+  local dir="${1:-task}" f title body
   valid_dir "$dir"
   while read -r f; do
     [[ -n "$f" ]] || continue
@@ -219,7 +219,7 @@ cmd_rename() {
 # What is checked differs by directory, and the difference is the rule rather
 # than a compromise.
 #
-# **tasks/ and backlog/ are held to the strict rule** — the heading slugifies
+# **task/ and backlog/ are held to the strict rule** — the heading slugifies
 # to the filename, exactly — because both were created by the 2026-09-14 split
 # and have never been anything else.
 #
@@ -256,7 +256,7 @@ cmd_check() {
         bad=1
       fi
       for s in ${seen[@]+"${seen[@]}"}; do
-        [[ "$s" == "$base" ]] && { echo "slug used twice across tasks/ and backlog/: $base.md" >&2; bad=1; }
+        [[ "$s" == "$base" ]] && { echo "slug used twice across task/ and backlog/: $base.md" >&2; bad=1; }
       done
       seen+=("$base")
     done < <(entries "$dir")

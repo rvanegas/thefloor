@@ -5,7 +5,7 @@ left, behaviour nobody has tested. Every entry here is outstanding — if it has
 shipped, it has moved to decisions/, and if it is about how to operate the
 thing, it is in AGENTS.md.
 
-The neighbours worth knowing about. **tasks/** is the roadmap: features, audits
+The neighbours worth knowing about. **task/** is the roadmap: features, audits
 and open questions, at a paragraph each, which is a different question from work
 that is specified and pending. One of them large enough to need a design gets a
 file of its own in `planning/`, and that file is where it lives while it is

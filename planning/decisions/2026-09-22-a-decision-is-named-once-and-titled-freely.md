@@ -2,7 +2,7 @@
 
 `decisions/README.md` § *One decision, one file* said the `#` heading inside a
 decision was its filename's full title, date and all, and that this was "the
-whole convention". `tasks/decisions-do-not-obey-the-convention-they-document.md`
+whole convention". `task/decisions-do-not-obey-the-convention-they-document.md`
 had recorded on 2026-09-14 that 9 of the then 73 files were written that way,
 and left the question open: move the README to the practice, or move a hundred
 and fifty files to the README.
@@ -50,7 +50,7 @@ has a username, before anybody types one* — and that freedom is exactly what i
 being ratified. Enforcing it on new files would re-open the same gap in a year,
 with the added confusion of two eras.
 
-`tasks/` and `backlog/` keep the strict rule, where a filename is its heading's
+`task/` and `backlog/` keep the strict rule, where a filename is its heading's
 slug exactly. They were made by the 2026-09-14 split and have never been
 anything else, so there is no history to break; and a task is referred to by
 quoting its title, which is the case the strict rule exists to serve.

@@ -1,6 +1,6 @@
 # The two dabs are not symmetrical
 
-*2026-09-15.* The task — `tasks/red-badge-on-contacts-tab.md`, now deleted —
+*2026-09-15.* The task — `task/red-badge-on-contacts-tab.md`, now deleted —
 asked for two marks on Home's switch in two sentences: a red badge on *Contacts*
 if there are requests to answer, or one on *Support* if there are newly answered
 questions. They read as one feature with two inputs. They are two different

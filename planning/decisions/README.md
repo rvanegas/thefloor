@@ -40,7 +40,7 @@ it. `bin/note rename` puts the two back in step if you want them there, and is
 not worth running on an old entry.
 
 **So `bin/note check` asks of a decision that it be dated and that it have a
-heading, and nothing more** — and holds `tasks/` and `backlog/` to the strict
+heading, and nothing more** — and holds `task/` and `backlog/` to the strict
 rule, where the filename is the heading's slug exactly, because both were made
 by the 2026-09-14 split and have never been anything else. This section stated
 the strict rule here too until 2026-09-22, when it described nineteen of a

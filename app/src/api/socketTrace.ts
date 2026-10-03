@@ -1,5 +1,5 @@
 /**
- * TEMPORARY, for planning/tasks/a-lock-screen-tap-during-a-reconnect-looks-dead.md,
+ * TEMPORARY, for planning/task/a-lock-screen-tap-during-a-reconnect-looks-dead.md,
  * and goes with whatever that task builds.
  *
  * The control socket's life — connecting, open, closed, suspended, resumed,

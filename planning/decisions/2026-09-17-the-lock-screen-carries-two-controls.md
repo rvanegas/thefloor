@@ -1,6 +1,6 @@
 # 2026-09-17 — The lock screen carries two controls
 
-Built 2026-09-17, from `tasks/lock-screen.md` — *explore options in case screen
+Built 2026-09-17, from `task/lock-screen.md` — *explore options in case screen
 locks during a call* — which was a question rather than a specification until
 the answer narrowed it to this: while you are present in a channel, the lock
 screen offers **Mute/Unmute** and **open**, and nothing else.

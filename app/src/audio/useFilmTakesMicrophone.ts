@@ -25,7 +25,7 @@ import { AppState, Platform } from 'react-native';
  * suspended within about a second, the SFU dropped it, and a minute later the
  * account was *Nearby* — taking the film away from the second device too.
  * Capturing is the one thing a backgrounded app may go on doing, so `CALL` is
- * what keeps it running. See `tasks/keep-alive.md`.
+ * what keeps it running. See `task/keep-alive.md`.
  *
  * **The retake at `inactive` is a bet on timing, and the log settles it.**
  * `useSessionAudio` defers a promotion only once the app is in `background`,

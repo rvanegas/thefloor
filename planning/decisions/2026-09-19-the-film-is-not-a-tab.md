@@ -13,7 +13,7 @@ only thing on their screen that knew a party was running was a greyed-out
 *Claim* whose hint still read *Claim the floor*.
 
 The same thing happened to anybody already watching who tapped another tab.
-`planning/tasks/what-happens-when-one-selects-other-tab-during-watch.md` had
+`planning/task/what-happens-when-one-selects-other-tab-during-watch.md` had
 been open, with nothing in it but that title, since the tab shipped.
 
 **So the tab decides where the picture is, and no longer whether there is

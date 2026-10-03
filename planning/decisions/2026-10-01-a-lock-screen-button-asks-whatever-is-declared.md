@@ -8,7 +8,7 @@ already the answer if iOS starts honouring it.
 
 ## What was believed, and why it was wrong
 
-`tasks/unmute-without-unlock.md` reported that unmuting from the lock screen
+`task/unmute-without-unlock.md` reported that unmuting from the lock screen
 asked for a passcode. On 2026-09-30, `8f345118` closed it on a build 320 run in
 which a locked phone's Unmute reached JavaScript in 81ms and asked for nothing.
 **That phone was being held to its owner's face.** Face ID satisfied the
@@ -58,5 +58,5 @@ a mute that works while locked; repurposing the Now Playing controls would also
 work and was ruled out as a misuse that collides with the watch party. Whether
 a channel should be a call to iOS is its own decision, filed as a task.
 
-`tasks/a-lock-screen-tap-during-a-reconnect-looks-dead.md` stays open on its
+`task/a-lock-screen-tap-during-a-reconnect-looks-dead.md` stays open on its
 own merits: the nine seconds it chases is a reconnect, not authentication.

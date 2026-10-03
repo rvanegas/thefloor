@@ -250,7 +250,7 @@ export function useLockScreen(
        * minutes later.
        */
       const current = latest.current;
-      // TEMPORARY, for tasks/a-lock-screen-tap-during-a-reconnect-looks-dead.md:
+      // TEMPORARY, for task/a-lock-screen-tap-during-a-reconnect-looks-dead.md:
       // the tap, so the socket's `sent`/`queued` line after it can be told from
       // an in-app Mute. Goes with the fix, with the trace in socket.ts.
       recordEvent(

@@ -226,6 +226,6 @@ is not a coincidence — the constraints are what leave the recommender's own
 tooling as the highest-return work available.
 
 **One thing the tracks above do not carry: a task file each.** None of A1
-through E1 exists in `tasks/` as this is written. They are listed here as a
+through E1 exists in `task/` as this is written. They are listed here as a
 plan rather than promoted to the roadmap, and a session acting on one should
 make the file with `bin/task` at the moment it starts.

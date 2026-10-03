@@ -1,6 +1,6 @@
 # 2026-09-21 — Nothing is published until everybody in it has agreed
 
-Publishable recordings, built. This retires `tasks/publishable-recordings.md`
+Publishable recordings, built. This retires `task/publishable-recordings.md`
 down to what is genuinely left, and deletes `PODCAST.md`, whose design this
 implements and whose surviving reasoning is carried here.
 

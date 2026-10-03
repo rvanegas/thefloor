@@ -7,13 +7,13 @@ rather than description. **This is that third, lifted out and ordered** — the
 work the argument commits the app to, with what each piece would have to
 satisfy and how anybody would know it was done.
 
-**It is not tasks/, and it does not outrank it.** tasks/ is the roadmap:
+**It is not task/, and it does not outrank it.** task/ is the roadmap:
 everything known and wanted, features and audits and questions alike, and it is
 where work is picked up from. This file is narrower and differently sourced —
 only what the *proposition* obliges, which is a handful of things, ordered by
 the argument rather than by cost or by when somebody thought of them. Items
-here mostly have no file in tasks/ yet; **the way this file gets used is by
-opening one of these and writing the corresponding tasks/ file**, at which
+here mostly have no file in task/ yet; **the way this file gets used is by
+opening one of these and writing the corresponding task/ file**, at which
 point that file is the request and this stays as the reasoning behind it. Where
 one already exists it is named below.
 
@@ -315,7 +315,7 @@ what it refuses.
 
 ## What is not here, and why
 
-**Everything in tasks/ and backlog/ that the proposition is silent about**,
+**Everything in task/ and backlog/ that the proposition is silent about**,
 which is most of both files and includes nearly all of the engineering:
 Android, the audio-session investigations, the recording and transcript
 surface, payments, the watch party. Silence is not disapproval. **The

@@ -1,6 +1,6 @@
 # The lock screen carries a way out
 
-Built 2026-09-29 from `tasks/out-on-lock-screen.md` — *add button to lock
+Built 2026-09-29 from `task/out-on-lock-screen.md` — *add button to lock
 screen with the action to "step out" of room*. The card now reads: **channel
 name, *Open*, microphone, Out.**
 

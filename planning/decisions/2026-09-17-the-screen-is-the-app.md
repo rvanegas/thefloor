@@ -1,13 +1,13 @@
 # The screen is the app — 2026-09-17
 
-What was asked was `tasks/watch-party-on-one-device.md`: *explore options for
+What was asked was `task/watch-party-on-one-device.md`: *explore options for
 doing it without a second device.* What was built is larger and simpler than
 that — the film plays **inside the app**, on whichever device you choose, and
 one device and two stop being different features. The design was
 `planning/WATCH-IN-APP.md`, deleted with this entry, its surviving reasoning
 being here.
 
-It absorbs `tasks/app-as-watch-party-player.md` entire: a second session
+It absorbs `task/app-as-watch-party-player.md` entire: a second session
 becoming the player is one case of the rule below rather than a feature.
 
 ## The player moved, and nothing else about the feature did
@@ -154,7 +154,7 @@ person watching the thing the room is attending to is attending it.
 Somebody in the room on a browser who has chosen **no** screen is deliberately
 not covered. They are in a channel where a film is playing and are
 demonstrably doing nothing, which is the case the window exists for. That
-closes `tasks/keep-alive-during-watch-party.md`.
+closes `task/keep-alive-during-watch-party.md`.
 
 ## The picker, and the banner that is deliberately prose
 
@@ -199,7 +199,7 @@ build, only its buttons.** An old build has no in-app player, so it is in a
 party with no screen either way, and keeping the page alive would have preserved
 the very thing being replaced.
 
-**So this must land before `tasks/watch-leaves-labs.md`**, which removes the
+**So this must land before `task/watch-leaves-labs.md`**, which removes the
 shelter that makes the break cheap.
 
 The table is dropped rather than left to expire, on the bio column's reasoning
@@ -214,7 +214,7 @@ clock."* **The clause about showing a frame stops being true.** The argument
 survives — YouTube's own player, unmodified and unobscured, nothing extracted,
 recordings still refused — and the claim does not, so the paragraph is rewritten
 here and must be rewritten again in whatever version ships it.
-`tasks/watch-leaves-labs.md` is queued to rewrite the same section, and the two
+`task/watch-leaves-labs.md` is queued to rewrite the same section, and the two
 rewrites should be one.
 
 ## The part no test reaches

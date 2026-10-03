@@ -62,7 +62,7 @@ describe('sessionFor', () => {
  * it is what brings the engine back up, which is why the expensive arrangement
  * is the one that works. See
  * planning/decisions/2026-09-26-the-film-keeps-its-stereo.md, and
- * `planning/tasks/` for what a resume that costs nothing would need.
+ * `planning/task/` for what a resume that costs nothing would need.
  */
 describe('a film', () => {
   it('is served by one of the two configurations and not a third', () => {

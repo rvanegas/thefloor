@@ -1401,7 +1401,7 @@ remembers that somebody was removed rather than having left.
 
 ## Disagreements, numbered
 
-Each is phrased to lift into tasks/ or backlog/ as it stands. Those already
+Each is phrased to lift into task/ or backlog/ as it stands. Those already
 closed say so.
 
 **Seven are closed: 2, 5, 6, 8, 9, 10 and 12.** Everything else is open, but two of

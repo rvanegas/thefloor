@@ -9,12 +9,12 @@ you go looking for, and a root directory that lists them all buries the code.
 
 Three of them answer a standing question each. **`planning/backlog/`** is what
 is known and not done; **`planning/decisions/`** is what was built and why,
-including what was deliberately not built; **`planning/tasks/`** is the roadmap
+including what was deliberately not built; **`planning/task/`** is the roadmap
 — features, audits, open questions, things to go and find out. All three are
 one file per item, a paragraph or so each, and `ls` indexes each directory.
 
 **Any verb followed by a quoted string that slugifies to the name of a file in
-`planning/tasks/` or `planning/backlog/` is a reference to that file, and is not
+`planning/task/` or `planning/backlog/` is a reference to that file, and is not
 itself a description of the work.** `Do task "Track Usage"` and `Start on
 "track-usage"` mean the same thing. Go and read the file first; what is in it is
 the request, and everything the title leaves out is in it. Taking the title at
@@ -317,7 +317,7 @@ are the rules.
   and the error names neither the worktree nor which one. A session working
   inside a worktree has to leave it first, since the merge has to happen where
   `master` is checked out.
-- **Fold any pending edit to `planning/tasks/` into the landing commit.**
+- **Fold any pending edit to `planning/task/` into the landing commit.**
   Adopted 2026-08-24. A session that has just finished a task routinely finds
   the file for it already deleted or rewritten in the working tree, because
   the person at the prompt reached the same conclusion from the other end.

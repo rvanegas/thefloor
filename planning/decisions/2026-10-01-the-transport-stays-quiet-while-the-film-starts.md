@@ -1,6 +1,6 @@
 # The transport stays quiet while the film starts
 
-Closes tasks/the-transport-says-nothing-while-the-film-starts.md, which asked
+Closes task/the-transport-says-nothing-while-the-film-starts.md, which asked
 for a spinner, or an optimistic transport, to fill the wait between a press of
 Play and the picture. **Neither was built, and that is the decision.**
 

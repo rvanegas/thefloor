@@ -3827,7 +3827,7 @@ microphone, it was denied the voice as well.
 backgrounded app only while audio is actually flowing, and a deferral in a
 room that is *party-muted* has none — so a phone handing the film to a second
 device from a pocket can be suspended before it ever reaches the foreground.
-`tasks/keep-alive.md`.
+`task/keep-alive.md`.
 
 ## Protocol
 

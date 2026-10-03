@@ -1,6 +1,6 @@
 # The room says who came and went — 2026-09-14
 
-Closes `tasks/audio-announcement.md`: *"When member steps in or steps out,
+Closes `task/audio-announcement.md`: *"When member steps in or steps out,
 there ought to be an audible announcement, such as two inverse distinguishable
 subtle chimes."*
 

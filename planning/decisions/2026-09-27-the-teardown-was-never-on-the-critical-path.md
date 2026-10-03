@@ -11,7 +11,7 @@
 > See 2026-09-28-the-film-waits-for-the-audio-session.md.
 
 Measured 2026-09-27 on build 303, nineteen presses of Play, and it closes
-tasks/ § *A film in stereo needs no teardown* by removing its premise. **Giving
+task/ § *A film in stereo needs no teardown* by removing its premise. **Giving
 the microphone up for the film costs nothing measurable.** The task is deleted;
 the spinner and the headset reading survive it as entries of their own.
 
@@ -49,7 +49,7 @@ sessions — rest on that untested half.
 **The spinner**, which is now the only thing on that note with value. A second and
 a half of a screen saying nothing is a second and a half whatever is spending it,
 and `Transport.tsx` still has no pending state at all. It never depended on any
-of this. tasks/the-transport-says-nothing-while-the-film-starts.md.
+of this. task/the-transport-says-nothing-while-the-film-starts.md.
 
 **The headset reading**, which is the one measurement that says whether the
 *shipped* design earns what it does. Every reading in this whole argument is
