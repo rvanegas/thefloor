@@ -39,6 +39,7 @@ import {
   SUBSCRIBE_SETTLE_MS,
   takeSubscriptions,
 } from './rebind';
+import { NO_HEARING, readHearing, sameHearing, type Hearing } from './unheard';
 import {
   NO_RECOVERY,
   onRouteObserved,
@@ -142,6 +143,11 @@ export interface SessionAudio {
   mutedByServer: boolean;
   /** How many other participants are publishing audio we can hear. */
   othersAudible: number;
+  /**
+   * Who is publishing audio and which of them we are subscribed to — what
+   * `useUnheardReport` checks the channel against. See `Hearing`.
+   */
+  hearing: Hearing;
   /**
    * Who is audibly speaking right now, by account id — the same identity the
    * server issues join tokens under, so these index straight into a channel's
@@ -791,6 +797,7 @@ export function useSessionAudio(
     message: null,
     mutedByServer: false,
     othersAudible: 0,
+    hearing: NO_HEARING,
     speaking: [],
     failing: [],
     micOpen: false,
@@ -1119,6 +1126,13 @@ export function useSessionAudio(
     const update = (patch: Partial<SessionAudio>) => {
       if (!cancelled) setState((s) => ({ ...s, ...patch }));
     };
+    // Read off the room after anything that could change it, and written only
+    // when it has — most of the events that call it change nothing here.
+    const rehear = () => {
+      if (cancelled) return;
+      const next = readHearing(room);
+      setState((s) => (sameHearing(s.hearing, next) ? s : { ...s, hearing: next }));
+    };
 
     // The server mutes our publication to enforce a floor claim. Surfacing it
     // lets the UI tell the truth about whether the mic is actually live,
@@ -1346,7 +1360,12 @@ export function useSessionAudio(
         // Cleared for the reason `Disconnected` clears them: both are the
         // SFU's account of a moment that has passed, and a speaking indicator
         // frozen mid-sentence is its own small lie.
-        update({ status: 'reconnecting', speaking: [], failing: [] });
+        update({
+          status: 'reconnecting',
+          speaking: [],
+          failing: [],
+          hearing: NO_HEARING,
+        });
       })
       .on(RoomEvent.SignalReconnecting, () => recordEvent('room signal reconnecting'))
       .on(RoomEvent.Reconnected, () => {
@@ -1364,6 +1383,14 @@ export function useSessionAudio(
       .on(RoomEvent.TrackUnmuted, onUnmuted)
       .on(RoomEvent.TrackSubscribed, onSubscribed)
       .on(RoomEvent.TrackUnsubscribed, onUnsubscribed)
+      // Everything that can change who is publishing or who we hear.
+      .on(RoomEvent.TrackSubscribed, rehear)
+      .on(RoomEvent.TrackUnsubscribed, rehear)
+      .on(RoomEvent.TrackPublished, rehear)
+      .on(RoomEvent.TrackUnpublished, rehear)
+      .on(RoomEvent.ParticipantConnected, rehear)
+      .on(RoomEvent.ParticipantDisconnected, rehear)
+      .on(RoomEvent.Reconnected, rehear)
       .on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
       .on(RoomEvent.ParticipantDisconnected, onQuiet)
       // The early warning. Held as a set on the room rather than derived from
@@ -1458,13 +1485,23 @@ export function useSessionAudio(
         // foreground listener rebuilds from `idle`.
         if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
           recordEvent('displaced at the media plane; not rebuilding');
-          update({ status: 'displaced', speaking: [], failing: [] });
+          update({
+            status: 'displaced',
+            speaking: [],
+            failing: [],
+            hearing: NO_HEARING,
+          });
           return;
         }
         // `livekit-client` retries internally and only fires this once it has
         // given up, so reaching here means the connection is not coming back
         // by itself. Ours is the last word.
-        update({ status: 'reconnecting', speaking: [], failing: [] });
+        update({
+          status: 'reconnecting',
+          speaking: [],
+          failing: [],
+          hearing: NO_HEARING,
+        });
         scheduleReconnect();
       });
 
@@ -1600,6 +1637,7 @@ export function useSessionAudio(
           micOpen: intent === 'capturing',
           micPublished: micTrack(room) !== null,
         });
+        rehear();
 
         // The gap is the treatment, so it is a timer rather than an await: the
         // connection is finished and usable now, and what is being deferred is
@@ -1647,6 +1685,7 @@ export function useSessionAudio(
       room.disconnect().catch(() => {});
       AudioSession.stopAudioSession().catch(() => {});
       roomRef.current = null;
+      setState((s) => (s.hearing === NO_HEARING ? s : { ...s, hearing: NO_HEARING }));
       appliedRef.current = null;
       /**
        * **Leaving the room is leaving the audio system, and this is the only

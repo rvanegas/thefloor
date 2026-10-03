@@ -1114,6 +1114,18 @@ export class Realtime {
   }
 
   /**
+   * Says this device has gone `forMs` without hearing somebody it should —
+   * see `ClientMessage.channel.unheard`. Dropped rather than queued when there
+   * is no socket, on `speaking`'s reasoning: without a socket this device is
+   * reconnecting, which is not the fault being reported.
+   */
+  unheard(channelId: string, speaker: string, forMs: number): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.send({ type: 'channel.unheard', channelId, speaker, forMs });
+    return true;
+  }
+
+  /**
    * Says what this device's film player is steering on, or that it has
    * stopped — see `ClientMessage.watch.drift`.
    *

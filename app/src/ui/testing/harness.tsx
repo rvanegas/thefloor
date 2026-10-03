@@ -423,6 +423,7 @@ export const AUDIO = {
   message: null,
   mutedByServer: false,
   othersAudible: 0,
+  hearing: { publishing: [] as string[], heard: [] as string[] },
   speaking: [] as string[],
   failing: [] as string[],
   micOpen: true,

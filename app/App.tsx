@@ -16,6 +16,7 @@ import { useFilmTakesMicrophone } from './src/audio/useFilmTakesMicrophone';
 import { useWatchChime } from './src/audio/useWatchChime';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
+import { useUnheardReport } from './src/audio/useUnheardReport';
 import { AppProvider, useApp } from './src/state/AppProvider';
 import { useText } from './src/i18n';
 import { LanguageProvider } from './src/i18n/language';
@@ -366,6 +367,19 @@ function Root() {
    * road. See `useSpeakingReport`.
    */
   useSpeakingReport(live, me, audio.speaking, app.reportSpeaking);
+
+  /**
+   * And telling the server when somebody this device should hear, it cannot —
+   * the only check anywhere on whether a subscription the server stated was
+   * applied. Here for the same reason. See `useUnheardReport`.
+   */
+  useUnheardReport(
+    live,
+    me,
+    audio.status === 'connected',
+    audio.hearing,
+    app.reportUnheard
+  );
 
   /**
    * Told that somebody is at the door, which is a question waiting on an

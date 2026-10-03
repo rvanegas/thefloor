@@ -11,6 +11,7 @@ import {
 import { sample, startWatch } from '../../../core/capture';
 import { api } from '../api/http';
 import { rebindTracks } from './rebind';
+import { NO_HEARING, readHearing, sameHearing, type Hearing } from './unheard';
 
 /**
  * The browser's session audio, which is the native hook with the iOS half
@@ -83,6 +84,8 @@ export interface SessionAudio {
   message: string | null;
   mutedByServer: boolean;
   othersAudible: number;
+  /** See the native hook, and `Hearing`. */
+  hearing: Hearing;
   speaking: string[];
   failing: string[];
   micOpen: boolean;
@@ -196,6 +199,7 @@ export function useSessionAudio(
     message: null,
     mutedByServer: false,
     othersAudible: 0,
+    hearing: NO_HEARING,
     speaking: [],
     failing: [],
     micOpen: false,
@@ -301,6 +305,7 @@ export function useSessionAudio(
       patch({
         status: 'idle',
         message: null,
+        hearing: NO_HEARING,
         speaking: [],
         failing: [],
         playbackBlocked: false,
@@ -356,6 +361,27 @@ export function useSessionAudio(
 
     room.on(RoomEvent.ActiveSpeakersChanged, readSpeakers);
 
+    // Everything that can change who is publishing or who this tab hears,
+    // written only when it has. See the native hook.
+    const rehear = () => {
+      if (cancelled) return;
+      const next = readHearing(room);
+      setState((s) => (sameHearing(s.hearing, next) ? s : { ...s, hearing: next }));
+    };
+    room.on(RoomEvent.TrackSubscribed, rehear);
+    room.on(RoomEvent.TrackUnsubscribed, rehear);
+    room.on(RoomEvent.TrackPublished, rehear);
+    room.on(RoomEvent.TrackUnpublished, rehear);
+    room.on(RoomEvent.ParticipantConnected, rehear);
+    room.on(RoomEvent.ParticipantDisconnected, rehear);
+    room.on(RoomEvent.Reconnected, rehear);
+    // Nobody is heard on a connection being resumed, and that is not the fault
+    // `useUnheardReport` looks for — this tab keeps saying `connected` through
+    // a resume, so the hearing is what has to go quiet.
+    room.on(RoomEvent.Reconnecting, () => {
+      if (!cancelled) patch({ hearing: NO_HEARING });
+    });
+
     // The browser's own opinion about whether this page may make noise, which
     // it may change at any time — a tab restored from the background, a policy
     // that did not apply when the page loaded. Watched rather than asked once,
@@ -401,10 +427,10 @@ export function useSessionAudio(
       // native hook carries the full reasoning; the rule is that the evicted
       // side goes quiet instead of taking the room back.
       if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
-        patch({ status: 'displaced', speaking: [], failing: [] });
+        patch({ status: 'displaced', speaking: [], failing: [], hearing: NO_HEARING });
         return;
       }
-      patch({ status: 'reconnecting', speaking: [], failing: [] });
+      patch({ status: 'reconnecting', speaking: [], failing: [], hearing: NO_HEARING });
       const delay = Math.min(
         RECONNECT_BASE_MS * 2 ** attemptRef.current,
         RECONNECT_MAX_MS
@@ -430,6 +456,7 @@ export function useSessionAudio(
         if (cancelled) return;
         attemptRef.current = 0;
         patch({ status: 'connected', othersAudible: countAudible(room) });
+        rehear();
         // Autoplay: attempted immediately, and it may simply be refused. The
         // gesture that got somebody here — a tap on a channel — is several
         // seconds and a round trip ago, which may or may not still count, so

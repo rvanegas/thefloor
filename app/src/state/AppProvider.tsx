@@ -850,6 +850,11 @@ interface AppValue extends AppState {
    * plane cannot carry it.
    */
   reportSpeaking: (channelId: string, speaking: boolean) => void;
+  /**
+   * Says this device has not been hearing somebody it should be. See
+   * `useUnheardReport`.
+   */
+  reportUnheard: (channelId: string, speaker: string, forMs: number) => void;
   clearError: () => void;
   /**
    * A channel a notification asked to be opened, waiting to be navigated to.
@@ -3065,6 +3070,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       reportSpeaking: (channelId, speaking) => {
         realtime.speaking(channelId, speaking);
+      },
+
+      reportUnheard: (channelId, speaker, forMs) => {
+        realtime.unheard(channelId, speaker, forMs);
       },
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
