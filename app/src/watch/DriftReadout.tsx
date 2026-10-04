@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WATCH_DRIFT_MS } from '../../../core/constants';
+import { RUNG_NAMES, type Rest, type Rung } from '../../../core/watch';
 import { colors, spacing, type } from '../ui/theme';
 import {
   DRIFT_REPORT_MS,
@@ -87,7 +88,8 @@ export function DriftReadout({
           value={describeOther(other)}
           alert={
             outsideTolerance(other.reading.driftMs) ||
-            other.reading.seeksThisRun > 0
+            other.reading.seeksThisRun > 0 ||
+            struggling(other.reading.rung ?? null)
           }
         />
       ))}
@@ -109,6 +111,33 @@ function describeOther({ reading }: OtherDrift): string {
   if (reading.bufferingForMs > 0) {
     parts.push(`buf ${(reading.bufferingForMs / 1000).toFixed(2)}s`);
   }
+  // Only from a build that reports the ladder; an older one says nothing here.
+  if (reading.rung != null) parts.push(`rung ${reading.rung}`);
+  else if (reading.rest != null && reading.rest !== 'agreed') parts.push(reading.rest);
+  return parts.join(' · ');
+}
+
+/**
+ * Whether the ladder has had to go past telling the player twice, which is
+ * the colour's one use on that row: the rescue, the rebuild and giving up are
+ * each a player that has not done as it was told.
+ */
+function struggling(rung: Rung | null): boolean {
+  return rung !== null && rung >= 2;
+}
+
+/**
+ * The ladder on one line: the rung and how long it has been on it, or the
+ * rest the follower is in when it is not climbing.
+ */
+function describeLadder(
+  rung: Rung | null,
+  rest: Rest | null,
+  forMs: number
+): string {
+  if (rung === null) return rest === null ? 'acting' : rest;
+  const parts = [`${rung} ${RUNG_NAMES[rung]}`, `${(forMs / 1000).toFixed(1)}s`];
+  if (rest !== null) parts.push(rest);
   return parts.join(' · ');
 }
 
@@ -154,6 +183,18 @@ function OwnDrift({ reading }: { reading: DriftReading }): React.ReactElement {
       <Row
         label="player / want"
         value={`${reading.playerState} / ${reading.wantStatus}`}
+      />
+      {/*
+        **Where the follower is on its ladder**, since 2026-10-03: *agreed*
+        when it is at rest in agreement, otherwise the rung, how long it has
+        been on it, and what it is waiting out. A follower is never at rest any
+        other way, so a stuck player shows here as a rung rather than as a
+        number that has stopped moving. See `stepFollow` in core/watch.ts.
+      */}
+      <Row
+        label="ladder"
+        value={describeLadder(reading.rung, reading.rest, reading.rungForMs)}
+        alert={struggling(reading.rung)}
       />
       {/*
         The stall is the one case a recovered drift is not corrected out of, so

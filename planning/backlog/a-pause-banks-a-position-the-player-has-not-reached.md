@@ -31,8 +31,9 @@ instructions were six rather than nine when measured —
 a room at 9.7s — and they came from the *lead* rather than from this entry: a
 player ahead by its own latency failed `adrift`, which is judged against the
 un-led want, and the led target was then the position it already held.
-`followInstructions` declines that seek now, so the same case is one instruction
-and a settled picture. See
+That seek was declined from then, and since 2026-10-03 nothing corrects drift at
+all (decision/2026-10-03-nobody-corrects-drift.md), so the same case is one
+instruction and a settled picture. See
 decision/2026-09-28-a-seek-to-where-the-player-already-is.md.
 
 **What is left is this entry, undisturbed**, and it is now a number rather than a

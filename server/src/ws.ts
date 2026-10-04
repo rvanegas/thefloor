@@ -31,6 +31,7 @@ import {
   type ClientKind,
 } from './release';
 import { isPresent, withoutRemovalsAgainst } from '../../core/channel';
+import { RESTS, type Rest, type Rung } from '../../core/watch';
 import { sha256 } from './db';
 import { settingsForWire } from './settings-wire';
 
@@ -242,6 +243,8 @@ const PLAYER_STATES: ReadonlySet<string> = new Set([
   'ended',
 ]);
 
+const REST_NAMES: ReadonlySet<string> = new Set(RESTS);
+
 /**
  * A client's drift reading as something safe to relay, or null for a
  * withdrawal and for anything that is not a reading.
@@ -259,13 +262,26 @@ function sharedDrift(value: unknown): SharedDrift | null {
     return null;
   }
   if (!finite(v.bufferingForMs) || !finite(v.seeksThisRun)) return null;
-  return {
+  const shared: SharedDrift = {
     driftMs: v.driftMs as number | null,
     playerState: v.playerState as SharedDrift['playerState'],
     bufferingForMs: v.bufferingForMs,
     seeksThisRun: v.seeksThisRun,
     withheld: v.withheld === true,
   };
+  // The ladder, from build 330: carried only when it is one of the values the
+  // follower can be in, and left off otherwise, so an older readout and a
+  // malformed one are both a reading without it rather than a refused one.
+  if (
+    v.rung === null ||
+    (typeof v.rung === 'number' && Number.isInteger(v.rung) && v.rung >= 0 && v.rung <= 4)
+  ) {
+    shared.rung = v.rung as Rung | null;
+  }
+  if (v.rest === null || (typeof v.rest === 'string' && REST_NAMES.has(v.rest))) {
+    shared.rest = v.rest as Rest | null;
+  }
+  return shared;
 }
 
 /**

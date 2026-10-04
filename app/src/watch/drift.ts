@@ -1,5 +1,5 @@
 import type { SharedDrift } from '../../../core/protocol';
-import type { PlayerState } from '../../../core/watch';
+import type { PlayerState, Rest, Rung } from '../../../core/watch';
 
 /**
  * What the follower last saw, published so an instrument can read it.
@@ -57,6 +57,20 @@ export interface DriftReading {
    * previously legible only by reading the diagnostic journal the next day.
    */
   seeksThisRun: number;
+  /**
+   * Where the follower is on its ladder: null while it is not climbing, else
+   * the rung it last entered — see `Rung` in core/watch.ts.
+   *
+   * **The answer to *is this player stuck*, said before anybody has to ask.**
+   * Every stuck player before 2026-10-03 was a follower at rest believing it
+   * had nothing to do; on the ladder, a follower is either at rest in
+   * agreement or climbing, and this is which.
+   */
+  rung: Rung | null;
+  /** Why the follower said nothing on this tick, or null when it said something. */
+  rest: Rest | null;
+  /** How long it has been on that rung, 0 when it is on none. */
+  rungForMs: number;
   /** When the reading was taken, on the room's clock rather than the device's. */
   at: number;
 }

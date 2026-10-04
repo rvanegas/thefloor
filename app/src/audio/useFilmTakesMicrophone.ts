@@ -51,8 +51,13 @@ export function useFilmTakesMicrophone(screening: boolean): boolean {
  * **`inactive` counts as behind**, which is the point of reading it here: it
  * is the first sign of a lock or a swipe home, and the last moment iOS still
  * treats the app as in front for the purpose of a microphone.
+ *
+ * Exported for the film's follower, which stands down while the app is behind
+ * for the same reason: a backgrounded `WKWebView` has its JavaScript
+ * suspended, and a page that has stopped reporting for that reason is not one
+ * to rebuild. See `WatchPlayer`.
  */
-function useActive(): boolean {
+export function useActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) =>

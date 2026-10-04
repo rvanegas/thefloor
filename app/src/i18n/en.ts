@@ -247,6 +247,13 @@ export const en = {
       `YouTube refused this player (${code}) — the app is at fault, not the video.`,
     couldNotPlay: (code: number) =>
       `YouTube could not play this video (${code}).`,
+    /**
+     * The top of the follower's ladder: told twice, rescued, rebuilt, and
+     * still not doing what the room is. Any change the room makes starts the
+     * ladder again, which is why the way out is a pause and a play.
+     */
+    gaveUp: () =>
+      'The film stopped responding on this device. Pause and play to try again.',
   },
   /**
    * The three sentences `ui/availability.ts` chooses between, and why there

@@ -1,10 +1,16 @@
 import {
   MAX_FILM_TITLE,
   MAX_WATCH_HISTORY,
-  WATCH_COLD_NUDGE_MS,
+  WATCH_ADVERT_MARGIN_MS,
+  WATCH_ADVERT_MS,
   WATCH_DRIFT_MS,
+  WATCH_HANDOVER_WAIT_MS,
   WATCH_LENGTH_SLACK_MS,
+  WATCH_REBUILD_MS,
   WATCH_REPORT_SLACK_MS,
+  WATCH_RESCUE_MS,
+  WATCH_RUNG_MS,
+  WATCH_SILENT_MS,
   WATCH_STALL_MS,
   WATCH_STARTUP_GRACE_MS,
 } from './constants';
@@ -568,380 +574,445 @@ export function desiredFor(watch: WatchState, now: number): Desired | null {
 }
 
 /**
- * Whether a player has arrived where it was asked to be.
+ * Whether a player is where the room is, which is what makes it *placed*.
  *
- * **The question the whole follower now turns on.** A follower that has said
- * something to its player stays deaf until this is true, so a correction can
- * never be read back as somebody's thumb — which is the loop that produced
- * every flip-flop so far, three separate times. It is closed by *observing
- * the player arrive* rather than by a window elapsing, which is what makes it
- * a fact rather than a guess.
+ * **Placement is checked once per jump, and drift never.** A player arriving
+ * at a party, a rebuilt one, one back from an advert, and every player after a
+ * scrub or a replay owes one seek to the room's position; this is how
+ * `drive.ts` sees it paid, by observing the player there rather than by having
+ * sent the seek — a seek can be lost, and a new screen left at nought would be
+ * worse than one seeked twice. After that the player may drift as it likes:
+ * since 2026-10-03 nothing corrects it.
  *
- * `buffering` is on its way and has not arrived. `unstarted` has not begun.
- * `ended` has arrived at a stop, whatever it was asked for, because a player
- * at the end of a film cannot be made to be anywhere else without being
- * restarted — see `followInstructions`.
+ * `buffering` is on its way and not yet anywhere. `ended` is never placed,
+ * since the end of the film is the one position a replay is guaranteed to have
+ * left — counting it placed is how a replay was once told only `play`, which
+ * replays a finished film from its end, where it ends again.
  */
-export function hasArrived(player: PlayerReading, want: Desired): boolean {
-  if (player.state === 'ended') return true;
-  if (player.state === 'buffering' || player.state === 'unstarted') {
-    return false;
-  }
-  if (player.state !== want.status) return false;
+export function inPlace(player: PlayerReading, want: Desired): boolean {
+  if (player.state === 'buffering' || player.state === 'ended') return false;
   if (player.positionMs === null) return false;
   return Math.abs(player.positionMs - want.positionMs) <= WATCH_DRIFT_MS;
 }
 
 /**
- * One thing to do to a player. A tick may produce none, one or two.
+ * One thing to do to a player. A tick may produce none, one or several.
  */
 export type WatchInstruction =
-  /**
-   * `knock` marks the cold nudge — see `WATCH_COLD_NUDGE_MS` — so that
-   * `drive.ts` can leave the stall clock running under it. Nothing else reads it.
-   */
-  | { do: 'play'; knock?: true }
+  | { do: 'play' }
   | { do: 'pause' }
   | { do: 'seek'; positionMs: number };
 
 /**
- * What to tell this player to bring it where the channel wants it.
+ * Whether a player is doing what the room wants, which is the whole of what
+ * agreement is since 2026-10-03.
  *
- * **Only ever called about a player that has not arrived**, which is what
- * lets this be as blunt as it is: there is no tolerance to apply and no
- * decision about whether the gap is worth a stutter, because `hasArrived`
- * already asked both. Every instruction here is followed by a silence that
- * lasts until the player is where it was sent.
+ * **A state and not a place.** Nobody's drift is corrected — see
+ * planning/decision/2026-10-03-nobody-corrects-drift.md — so where a placed
+ * player is does not enter into it; where an unplaced one is, is `placed`'s
+ * business in `stepFollow`.
  *
- * Returned as a list rather than performed, because ordering is load-bearing
- * in both branches and is the kind of thing that gets quietly reversed by
- * somebody tidying. See the two comments below.
+ * `buffering` never agrees: it is on its way somewhere, which is a wait with a
+ * deadline rather than a rest. `unstarted` agrees with a pause, a cued player
+ * being a stopped one. `ended` agrees with a pause, and with a run only while
+ * the room agrees the film is over — the clause that keeps a replay working,
+ * since Play on a finished film moves the room back to nought while the player
+ * is still ended, and a flat *an ended player agrees* left every screen at
+ * Finished for ever.
  */
-export function followInstructions(
-  watch: WatchState,
-  player: PlayerReading,
-  now: number,
-  /**
-   * How long this player has been buffering without a break, or 0 when it is
-   * not. The clock is `drive.ts`'s, this being the file that owns clocks; what
-   * is decided here is what a number that large means.
-   */
-  bufferingForMs = 0,
-  /**
-   * Whether the room has just asked for something different.
-   *
-   * **Patience is owed to a player, not to a person, and this is the line
-   * between them.** The stall rule below leaves a buffering player alone
-   * because a seek would throw away the buffer it is filling — which is right
-   * while the follower is correcting drift of its own accord, and wrong the
-   * moment somebody presses Play. A press is new information: it is not a
-   * correction that can wait for a better time, it is the answer to *what
-   * should this be doing*, and it changed.
-   *
-   * Measured on build 277, which is what put this here. A film wedged in
-   * `buffering` was being told to pause once a fuse; each of those restarted
-   * the stall clock; and a press of Play then waited out the whole of
-   * `WATCH_STALL_MS` before the follower would say anything at all. Ten
-   * seconds of a dead transport, reported as *I pressed play and it took
-   * about five seconds* — the complaint this whole investigation started
-   * from, and not the audio session after all.
-   *
-   * `drive.ts` sets it, being the only thing that can see the want change.
-   */
-  urgent = false,
-  /**
-   * How long this player took to obey the last thing it was told, or 0 when
-   * nothing has been measured yet.
-   *
-   * **The correction below aims where the room *will* be, and this is how far
-   * ahead that is.** A seek is not instant — 400 to 700ms on a phone, and a
-   * play from a pause is 1.2 seconds — and the transport is a wall clock that
-   * runs the whole time, so a seek to where the room is now lands exactly this
-   * far behind it. Which is how a player came to be corrected to a position it
-   * was already going to be late for: see
-   * planning/decision/2026-09-28-a-correction-aims-where-the-room-will-be.md, where a
-   * player slower than `WATCH_DRIFT_MS` could never arrive at all.
-   *
-   * Measured rather than assumed, and it has to be: it is a property of one
-   * embed on one phone on one connection, and the same rule runs on three
-   * platforms. `drive.ts` keeps the reading, this decides what to do with it.
-   *
-   * **It is a lead on the seek and nothing else.** No tolerance is widened —
-   * every device plays the film's own audio, so two screens in a room a second
-   * apart is worse than one that jumps once and then agrees.
-   */
-  playerLagMs = 0,
-  /**
-   * Whether this player's buffering began from a standstill rather than
-   * mid-film.
-   *
-   * **The two are the same reading and not the same event.** A film that
-   * stalls while playing is filling a buffer it will finish filling, and the
-   * patience below is written for it. A player that was told to play, went to
-   * `buffering` and has stayed there never started at all — nothing is on its
-   * way, and ten seconds of waiting to find out is ten seconds of a still
-   * frame while the room watches the film. Seen on build 304: a Play pressed
-   * inside the pause before it wedged a player for 10.5 seconds until the
-   * stall rule rescued it, thirteen seconds of film behind the room. See
-   * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
-   */
-  fromStandstill = false,
-  /**
-   * How long since this buffering player was last told anything, which is what
-   * spaces the cold nudges. It equals `bufferingForMs` until the first one.
-   *
-   * **Kept apart from `bufferingForMs` because a nudge must not restart the
-   * stall clock.** Until 2026-10-01 a single clock served both, so a nudge every
-   * four seconds kept it from ever reaching `WATCH_STALL_MS`. A wedged player
-   * then got `play` again and again, and never the `seek+play` that is the only
-   * thing that has ever rescued one. On build 327 it sat for 23 seconds until
-   * somebody pressed Pause. See
-   * planning/backlog/a-play-inside-the-pause-can-wedge-the-player.md.
-   */
-  quietForMs = bufferingForMs
-): WatchInstruction[] {
-  const want = desiredFor(watch, now);
-  if (!want) return [];
-
-  /*
-    **An ended video is not a stopped one, and nothing here may restart it.**
-
-    `playVideo()` on an ended player starts it again from the beginning. A
-    transport still saying playing — which it is for at least one tick after
-    the end, and for ever when the duration was never learned — therefore
-    restarted the video; the correction then saw the player at zero against a
-    position at the end, called that drift, and seeked back to the end, which
-    ended it again. The whole loop is invisible except as the first second
-    stuttering endlessly, which is exactly how it was reported.
-
-    **Only while the channel agrees it is over**, and that clause is what keeps
-    replay working: pressing Play on a finished video moves the transport back
-    to zero while the player is still ended, so a flat "never touch an ended
-    player" would leave every screen at Finished for ever.
-  */
-  if (player.state === 'ended') {
-    const here = player.positionMs ?? want.positionMs;
-    if (want.positionMs >= here - WATCH_DRIFT_MS) return [];
+export function agrees(player: PlayerReading, want: Desired): boolean {
+  if (want.status === 'paused') {
+    return (
+      player.state === 'paused' ||
+      player.state === 'unstarted' ||
+      player.state === 'ended'
+    );
   }
+  if (player.state === 'playing') return true;
+  if (player.state !== 'ended') return false;
+  const here = player.positionMs ?? want.positionMs;
+  return want.positionMs >= here - WATCH_DRIFT_MS;
+}
 
-  const adrift =
-    player.positionMs !== null &&
-    Math.abs(player.positionMs - want.positionMs) > WATCH_DRIFT_MS;
-
-  /**
-   * Whether this player is on its way and should be left to get there.
-   *
-   * **Both directions since 2026-09-23, and it used to be one.** Only the
-   * playing branch consulted it, so a buffering player with a paused
-   * transport was told to pause on every fuse for as long as it stayed
-   * buffering — eighty identical instructions in two minutes, in the build
-   * 277 log, at 1.5s apart and with no end. The rule is the same whichever
-   * way the transport points: a player that is refilling has been told, and
-   * telling it again inside the same window achieves nothing.
-   *
-   * `urgent` is what a person overrides it with; see the parameter.
-   */
-  const settling =
-    !urgent &&
-    player.state === 'buffering' &&
-    bufferingForMs < WATCH_STALL_MS;
-
+/**
+ * What to tell a player that does not agree, the first time and the second.
+ *
+ * **Ordering is load-bearing in both branches**, which is why this returns a
+ * list rather than acting. Playing: the seek goes first and the play after, so
+ * a player is started where the room is. Paused: the pause first and the seek
+ * after, since seeking before stopping sends the player somewhere it is about
+ * to be stopped at — and then a second pause for a player that was cued or
+ * ended, because the IFrame API is explicit that a seek *starts* any player
+ * that was not paused: *"If the player is paused when the function is called,
+ * it will remain paused. If the function is called from another state
+ * (playing, video cued, etc.), the player will play the video."* That is how
+ * switching devices once turned a paused party into a playing one.
+ *
+ * A seek only while the player is unplaced: drift is not corrected.
+ *
+ * **A buffering player is told `play` unless it is refilling mid-film.** A
+ * play cannot discard a buffer, so telling one to a player that went to
+ * `buffering` from a standstill costs nothing and may be all it needed; and a
+ * press over a wedged player has to be answered at once — the build 277 log
+ * has Play waiting out a whole stall window for a player the rule was being
+ * patient with. Only a film that stalled while playing is left to finish, on
+ * the first rung's long window.
+ */
+export function baseInstructions(
+  want: Desired,
+  player: PlayerReading,
+  placed: boolean,
+  refilling = false
+): WatchInstruction[] {
+  const instructions: WatchInstruction[] = [];
   if (want.status === 'playing') {
-    const instructions: WatchInstruction[] = [];
-    /*
-      **A buffering player is told nothing at all, the seek included.**
-
-      The `play` half of this has been true since the first follower, on the
-      reasoning that a buffering player is already on its way. The seek beside
-      it was not, and that gap is the stutter: a seek does not merely fail to
-      help a player that is refilling, it **throws away what it has
-      collected** and starts fetching somewhere else.
-
-      A player that cannot keep up therefore never gets to finish. It stalls;
-      the transport is a wall clock and runs on without it; the drift passes
-      `WATCH_DRIFT_MS`; the follower seeks; the seek discards the part-filled
-      buffer and stalls it again. The freeze somebody sees is a second of
-      refilling, and the period is however long it takes the drift to come
-      back — which is no time at all, because the seek spent it. Three phones
-      on one party showed it at a second or two apart, each one on its own.
-
-      **Falling behind is not a fault and catching up is not urgent.** The
-      cure is to let the buffer fill: say nothing while it does, and correct
-      the drift on the far side, from a player that is playing and can answer.
-      That is one seek per stall rather than one per `WATCH_OBEDIENCE_MS`, and
-      it is the difference between a picture that recovers and one that never
-      gets the chance to.
-
-      `unstarted` and `ended` are deliberately not covered. Neither is on its
-      way anywhere and neither leaves by itself — a `cued` player is how a
-      screen arrives, and waiting for it to settle would be waiting for ever.
-      The exclusion is `buffering` alone, for the same reason the wait in
-      `drive.ts` is.
-    */
-    /*
-      **Patience, and it is bounded as of 2026-09-20.**
-
-      The paragraph above is why a buffering player is left alone, and it
-      stands: a seek discards a part-filled buffer, and a player that cannot
-      keep up must be allowed to finish filling. What it assumed is that every
-      stall ends. They mostly do, and the ones that do not were a frozen frame
-      and a spinner on one person's screen under a party playing perfectly
-      well for everybody else — with nothing in the application that would ever
-      speak to that player again. The only cures were a human pausing and
-      playing, which is the very pair of instructions this branch had stopped
-      issuing, or leaving full screen, which rebuilds the frame.
-
-      So a player that has been buffering for `WATCH_STALL_MS` stops counting
-      as *on its way* and is treated as any other player that is not where it
-      should be: seeked to where the room is and told to play. The seek throws
-      away its buffer, which is the whole point — a buffer ten seconds into
-      filling and still not filled is not one worth protecting.
-
-      **Once per window, not once per tick.** `drive.ts` restarts the clock
-      whenever it says something to a stalled player, so this is one nudge per
-      `WATCH_STALL_MS` rather than the storm the silence was written against.
-    */
-    /*
-      **A player being started is no longer positioned as well, and that is the
-      grace's doing.**
-
-      It was, for about an hour on 2026-09-28: the room's clock ran from the
-      press, so a player that took 1.3 seconds to come back began that far
-      behind and the seek went out with the play to put it where the room would
-      be. `WATCH_STARTUP_GRACE_MS` removes the premise — the clock does not run
-      until a player is running — so the banked position *is* where the room is,
-      a starting player is in step by construction, and a lead here would skip a
-      second of film to correct a drift that no longer exists.
-
-      What survives is the lead on the correction below, which is for a player
-      that has fallen behind while playing. That drift is real, and a seek to
-      where the room is now would still land late.
-    */
-    if (adrift && !settling) {
-      // **Ahead of the room by what this player takes to get there**, which is
-      // the whole of `playerLagMs`. Correcting to where the room is now is
-      // what left a slow player permanently behind and seeking once a fuse for
-      // ever; the lead is what makes one correction enough.
-      const target = want.positionMs + playerLagMs;
-      /*
-        **A seek to where the player already is throws its buffer away and
-        moves nothing**, and the lead is what made that reachable.
-
-        `adrift` is measured against the *un-led* want, so a player **ahead** of
-        the room by roughly its own latency fails it — and the led target is
-        then the position it is already at. The seek was issued anyway, once per
-        `WATCH_OBEDIENCE_MS`, discarding a part-filled buffer each time and
-        changing nothing: the storm the long comment above exists to prevent,
-        re-entered through the lead four days after it was written.
-
-        That coincidence is structural rather than bad luck. `watchPause` banks
-        what the clock said and the player runs on for its own latency, so every
-        resume begins with the player ahead by exactly the figure this leads by
-        — see planning/backlog/a-pause-banks-a-position-the-player-has-not-reached.md,
-        which is the cause this does not fix.
-
-        **What this buys is a stable error instead of a destructive one, and it
-        is not a repair.** The offset does *not* close by itself — players run at
-        1.0×, so a gap acquired at the start of a run is constant for the length
-        of the film — and a player left alone here stays where it is, ahead of
-        the room and inside `WATCH_REPORT_SLACK_MS`. What is removed is only the
-        seeking: an instruction that cannot reduce the drift it was issued for,
-        paid for in discarded buffer once per fuse. The cause is the pause
-        banking a position the player has not reached, and the repair for it is a
-        stop-side report, which is the backlog entry above and is not this.
-
-        A player genuinely *behind* is untouched — its led target is further from
-        it than the tolerance, so the correction goes out exactly as it did.
-      */
-      if (
-        player.positionMs === null ||
-        Math.abs(player.positionMs - target) > WATCH_DRIFT_MS
-      ) {
-        instructions.push({ do: 'seek', positionMs: target });
-      }
-    }
-    if (player.state !== 'playing' && !settling) {
+    if (!placed) instructions.push({ do: 'seek', positionMs: want.positionMs });
+    if (player.state !== 'playing' && !refilling) {
       instructions.push({ do: 'play' });
-    }
-    /*
-      **A player that never started is told again, and nothing is thrown away.**
-
-      `settling` is right about a buffering player and wrong about a wedged
-      one, and until the ten seconds are up the two are the same reading. So
-      this asks the one question that separates them — did it come from a
-      standstill — and answers it with the cheapest instruction there is: the
-      same `play` again, with no seek beside it. A repeated `play` cannot
-      discard a part-filled buffer, which is the only reason the long window
-      exists; if the player really was on its way it arrives regardless and
-      this cost a message.
-
-      **`WATCH_STALL_MS` is untouched and still the backstop.** A stall that
-      outlives that gets the seek it always got, buffer and all, because by
-      then the buffer is not worth protecting. This is the earlier, gentler
-      knock, one per `WATCH_COLD_NUDGE_MS` of `quietForMs`. It does not restart
-      the stall clock, so the backstop still goes off on time. See
-      planning/decision/2026-10-01-a-cold-nudge-does-not-restart-the-stall-clock.md.
-    */
-    if (
-      settling &&
-      fromStandstill &&
-      quietForMs >= WATCH_COLD_NUDGE_MS &&
-      instructions.length === 0
-    ) {
-      instructions.push({ do: 'play', knock: true });
     }
     return instructions;
   }
-
-  /*
-    **Paused, and this is where the ordering matters.**
-
-    The pause goes first and the correction second. Correcting before pausing
-    sends the player somewhere it is about to be stopped at, which is a seek
-    spent to land in the same wrong place.
-
-    **And a paused transport is corrected whatever the player was doing**,
-    which is the fix for BACKLOG.md § *A rewind while the watch party is paused
-    leaves the picture where it was*. The old shape only corrected inside the
-    branch that had just paused a playing player, so a seek arriving while
-    everything was already at rest moved the readout and not the picture: the
-    footer said one time, the frame showed another, and it stayed that way
-    until somebody pressed Play.
-  */
-  const instructions: WatchInstruction[] = [];
-  if (player.state === 'playing' || (player.state === 'buffering' && !settling)) {
+  if (player.state === 'playing' || player.state === 'buffering') {
     instructions.push({ do: 'pause' });
   }
-  if (adrift) instructions.push({ do: 'seek', positionMs: want.positionMs });
-  /*
-    **A seek starts a cued player, so a paused party has to stop it again.**
+  if (!placed) {
+    instructions.push({ do: 'seek', positionMs: want.positionMs });
+    if (player.state === 'unstarted' || player.state === 'ended') {
+      instructions.push({ do: 'pause' });
+    }
+  }
+  return instructions;
+}
 
-    The IFrame API is explicit about this and it is the opposite of the
-    intuition: *"If the player is paused when the function is called, it will
-    remain paused. If the function is called from another state (playing,
-    video cued, etc.), the player will play the video."* A player that has
-    just been built is `cued`, not paused — so the one seek that puts a fresh
-    screen where the party has got to is also the thing that starts it.
-
-    That is how **switching devices turned a paused party into a playing
-    one**: the new screen was positioned, began playing as a side effect, and
-    its own follower then read a playing player against a paused channel and
-    told the room somebody had pressed play. The follower cannot be blamed for
-    that — in `watching` it is right to believe its player — so the repair is
-    that the instruction is finished rather than that the reading is doubted.
-
-    Only for the states a seek actually starts, which is why this is not
-    simply *always pause last*. A player that was `playing` or `buffering`
-    was stopped by the pause above and stays stopped through the seek; one
-    that was already `paused` stays paused by the documented rule. What is
-    left is a player that has not begun — `cued`, which this calls
-    `unstarted` — and one that has run out, and those are exactly the two a
-    seek would set going.
-  */
-  if (adrift && (player.state === 'unstarted' || player.state === 'ended')) {
+/**
+ * The third rung: put the player where the room is and tell it again, whether
+ * or not it was placed.
+ *
+ * **The one instruction that has ever moved a wedged player** — builds 304 and
+ * 327, where a player told to play sat in `buffering` for 10 and 23 seconds
+ * until a `seek+play` reached it. It throws away whatever buffer the player
+ * has, which is the point: a buffer that has outlived two rungs is not one
+ * worth protecting.
+ */
+export function rescueInstructions(
+  want: Desired,
+  player: PlayerReading
+): WatchInstruction[] {
+  const seek: WatchInstruction = { do: 'seek', positionMs: want.positionMs };
+  if (want.status === 'playing') return [seek, { do: 'play' }];
+  const instructions: WatchInstruction[] = [{ do: 'pause' }, seek];
+  if (player.state === 'unstarted' || player.state === 'ended') {
     instructions.push({ do: 'pause' });
   }
   return instructions;
+}
+
+/**
+ * The rungs of the ladder a follower climbs while its player does not agree.
+ *
+ * Each is entered when the one below has run out of time, and its action is
+ * taken once, on entry:
+ *
+ * - **0, told** — `baseInstructions`: play or pause, and a seek if unplaced.
+ * - **1, told again** — the same, recomputed; a buffering player that wants to
+ *   play is told `play`, which costs it nothing.
+ * - **2, seek and play** — `rescueInstructions`.
+ * - **3, rebuilt** — the page is rebuilt, and the new player told once.
+ * - **4, given up** — nothing more is tried, and the device says so. The only
+ *   rest that is not agreement, and the only one that is visible.
+ *
+ * A change in what the room wants starts again from nothing, and agreement
+ * ends the climb wherever it is.
+ */
+export type Rung = 0 | 1 | 2 | 3 | 4;
+
+export const RUNG_NAMES: Record<Rung, string> = {
+  0: 'told',
+  1: 'told again',
+  2: 'seek and play',
+  3: 'rebuilt',
+  4: 'given up',
+};
+
+/**
+ * Why a follower is saying nothing this tick, when it is not.
+ *
+ * `agreed` is the only one without a deadline. The others are what the loop
+ * is waiting out: an instruction (`waiting`), a mid-film refill
+ * (`buffering`), this device's audio session changing hands (`handover`), an
+ * advert in the frame (`advert`), a page that has stopped reporting
+ * (`silent`), a rebuild coming back (`rebuilding`) — and `given up`, which is
+ * the end of the ladder.
+ */
+export const RESTS = [
+  'agreed',
+  'waiting',
+  'buffering',
+  'handover',
+  'advert',
+  'silent',
+  'rebuilding',
+  'given up',
+] as const;
+export type Rest = (typeof RESTS)[number];
+
+/**
+ * Everything a follower remembers between ticks about where it is on the
+ * ladder. Held by `drive.ts`, decided here: every clock in it is a moment on
+ * the room's clock, so this file stays without one of its own.
+ */
+export interface Follow {
+  /** What the ladder is climbing towards. A change starts it again. */
+  key: string | null;
+  /** Null while not climbing: in agreement, or nothing asked yet. */
+  rung: Rung | null;
+  /** When the rung was entered, which its deadline is measured from. */
+  since: number;
+  /** When the climb began, which the journal's *after Nms* is measured from. */
+  began: number;
+  /** A wait that is not a rung, and when it began. */
+  wait: { kind: 'silent' | 'advert' | 'handover'; since: number } | null;
+  /** When the player started buffering without a break, or null. */
+  bufferingSince: number | null;
+  /** Whether that buffering began from a standstill rather than mid-film. */
+  standstill: boolean;
+  /** The last state read, which is how `standstill` knows what came before. */
+  lastState: PlayerState | null;
+  /** On rung 3, whether the rebuilt player has been told yet. */
+  toldRebuilt: boolean;
+}
+
+export function initialFollow(): Follow {
+  return {
+    key: null,
+    rung: null,
+    since: 0,
+    began: 0,
+    wait: null,
+    bufferingSince: null,
+    standstill: false,
+    lastState: null,
+    toldRebuilt: false,
+  };
+}
+
+export interface FollowInput {
+  want: Desired;
+  /**
+   * What the room wants, as an identity: the status and how many times the
+   * room's position has jumped. `drive.ts` builds it, being the one that sees
+   * a jump; a press and the snapshot that confirms it share one, so the
+   * confirmation does not start the climb again.
+   */
+  key: string;
+  /** The player's reading, or null when it gave none fresh enough to use. */
+  reading: PlayerReading | null;
+  /** Whether the frame is showing something other than the film. */
+  advert: boolean;
+  /** Whether this player has been seen where the room is since it last jumped. */
+  placed: boolean;
+  /** Whether this device's audio session is changing hands for the film. */
+  holding: boolean;
+  /** Whether the page can be rebuilt at all. */
+  canRebuild: boolean;
+  now: number;
+}
+
+export interface FollowStep {
+  follow: Follow;
+  /** Why nothing is being said, or null when something is. */
+  rest: Rest | null;
+  instructions: WatchInstruction[];
+  /** Whether to rebuild the page now. */
+  rebuild: boolean;
+  /** A rung entered on this tick, and why, for the journal. */
+  climbed: { to: Rung; why: string } | null;
+  /** How long the climb took, when this tick ended one in agreement. */
+  agreedAfterMs: number | null;
+}
+
+/**
+ * One tick of the follower: given where it is and what it can see, what to do.
+ *
+ * **The whole of the rule that a follower may rest without limit only in
+ * agreement.** Every early answer below is either agreement or a wait with a
+ * deadline, and every deadline leads up the ladder, so no reading a player can
+ * give — silence, a frame that never leaves `buffering`, an advert that never
+ * ends, a state that contradicts every instruction — leaves the loop at rest
+ * for ever. It ends in agreement or on rung 4, and rung 4 is said out loud.
+ */
+export function stepFollow(previous: Follow, input: FollowInput): FollowStep {
+  const { want, reading, now } = input;
+  let follow: Follow = { ...previous };
+  const step = (
+    rest: Rest | null,
+    extra: Partial<Omit<FollowStep, 'follow' | 'rest'>> = {}
+  ): FollowStep => ({
+    follow,
+    rest,
+    instructions: [],
+    rebuild: false,
+    climbed: null,
+    agreedAfterMs: null,
+    ...extra,
+  });
+  const enter = (to: Rung, why: string) => {
+    const fresh = follow.rung === null;
+    follow = { ...follow, rung: to, since: now, toldRebuilt: false };
+    if (fresh) follow.began = now;
+    return { to, why };
+  };
+  const rebuildOrGiveUp = (why: string): FollowStep => {
+    if (input.canRebuild) {
+      return step('rebuilding', { rebuild: true, climbed: enter(3, why) });
+    }
+    return step('given up', { climbed: enter(4, `${why}, and no rebuild`) });
+  };
+
+  if (input.key !== follow.key) {
+    follow = { ...follow, key: input.key, rung: null, wait: null };
+  }
+
+  if (reading) {
+    if (reading.state !== 'buffering') {
+      follow.bufferingSince = null;
+    } else if (follow.bufferingSince === null) {
+      follow.bufferingSince = now;
+      follow.standstill = follow.lastState !== 'playing';
+    }
+    follow.lastState = reading.state;
+  }
+
+  // **No reading.** A page that cannot be read cannot be told anything, so
+  // the ladder goes straight to the rebuild once the silence outlasts its
+  // deadline — or waits out the rebuild already under way.
+  if (!reading) {
+    if (follow.rung === 4) return step('given up');
+    if (follow.rung === 3) {
+      if (now - follow.since < WATCH_REBUILD_MS) return step('rebuilding');
+      return step('given up', {
+        climbed: enter(4, 'the rebuilt page never answered'),
+      });
+    }
+    if (follow.wait?.kind !== 'silent') {
+      follow.wait = { kind: 'silent', since: now };
+    }
+    if (now - follow.wait.since < WATCH_SILENT_MS) return step('silent');
+    follow.wait = null;
+    return rebuildOrGiveUp('no reading');
+  }
+  if (follow.wait?.kind === 'silent') follow.wait = null;
+
+  // **An advert.** Its clock is not the film's, so nothing is said to it, and
+  // the climb it interrupted is abandoned: the film's return unplaces the
+  // player (`drive.ts`), which starts a fresh one with the seek it is owed.
+  if (input.advert) {
+    if (follow.rung === 4) return step('given up');
+    follow.rung = null;
+    if (follow.wait?.kind !== 'advert') {
+      follow.wait = { kind: 'advert', since: now };
+    }
+    const allowed =
+      reading.durationMs !== null
+        ? reading.durationMs + WATCH_ADVERT_MARGIN_MS
+        : WATCH_ADVERT_MS;
+    if (now - follow.wait.since < allowed) return step('advert');
+    follow.wait = null;
+    return step('given up', { climbed: enter(4, 'the advert never ended') });
+  }
+  if (follow.wait?.kind === 'advert') follow.wait = null;
+
+  // **Agreement**, the one rest without a deadline.
+  if (agrees(reading, want) && input.placed) {
+    const climbing = follow.rung !== null;
+    follow = { ...follow, rung: null, wait: null };
+    return step('agreed', {
+      agreedAfterMs: climbing ? now - follow.began : null,
+    });
+  }
+
+  if (follow.rung === 4) return step('given up');
+
+  // **This device's audio session changing hands.** A player started before
+  // iOS has said `Playback` sticks in `buffering` (build 312), so a Play waits
+  // for the handover — and for no longer than its own deadline.
+  if (input.holding && want.status === 'playing' && follow.rung === null) {
+    if (follow.wait?.kind !== 'handover') {
+      follow.wait = { kind: 'handover', since: now };
+    }
+    if (now - follow.wait.since < WATCH_HANDOVER_WAIT_MS) {
+      return step('handover');
+    }
+  }
+  if (follow.wait?.kind === 'handover') follow.wait = null;
+
+  const midFilmStall = reading.state === 'buffering' && !follow.standstill;
+
+  if (follow.rung === null) {
+    const climbed = enter(0, `${reading.state}, want ${want.status}`);
+    const instructions = baseInstructions(
+      want,
+      reading,
+      input.placed,
+      midFilmStall
+    );
+    return step(instructions.length ? null : restFor(follow, reading), {
+      instructions,
+      climbed,
+    });
+  }
+
+  // The long window once, on the first rung: a refill that has outlived it
+  // is not filling, and the rungs above are short whatever the reading says.
+  const deadline =
+    follow.rung === 2
+      ? WATCH_RESCUE_MS
+      : follow.rung === 3
+        ? WATCH_REBUILD_MS
+        : follow.rung === 0 && midFilmStall
+          ? WATCH_STALL_MS
+          : WATCH_RUNG_MS;
+
+  if (now - follow.since < deadline) {
+    if (follow.rung === 3 && !follow.toldRebuilt) {
+      follow.toldRebuilt = true;
+      const instructions = baseInstructions(want, reading, input.placed);
+      return step(instructions.length ? null : 'rebuilding', { instructions });
+    }
+    return step(restFor(follow, reading));
+  }
+
+  const why = `${reading.state} after ${now - follow.since}ms, want ${want.status}`;
+  if (follow.rung === 0) {
+    const climbed = enter(1, why);
+    let instructions = baseInstructions(want, reading, input.placed);
+    if (instructions.length === 0) {
+      instructions = [
+        want.status === 'playing' ? { do: 'play' } : { do: 'pause' },
+      ];
+    }
+    return step(null, { instructions, climbed });
+  }
+  if (follow.rung === 1) {
+    return step(null, {
+      instructions: rescueInstructions(want, reading),
+      climbed: enter(2, why),
+    });
+  }
+  if (follow.rung === 2) return rebuildOrGiveUp(why);
+  return step('given up', { climbed: enter(4, why) });
+}
+
+/** The rest a climbing follower is in between its rungs' actions. */
+function restFor(follow: Follow, reading: PlayerReading): Rest {
+  if (follow.rung === 3) return 'rebuilding';
+  if (reading.state === 'buffering') return 'buffering';
+  return 'waiting';
+}
+
+/** Rung 4, entered from outside: a rebuild that was asked for and refused. */
+export function giveUp(follow: Follow, now: number): Follow {
+  return { ...follow, rung: 4, since: now, toldRebuilt: false };
 }
 
 /**

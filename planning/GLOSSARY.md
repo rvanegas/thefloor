@@ -146,6 +146,7 @@ caused; the list carries the meaning.
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
+- **Follower** — The code on each device showing the film that keeps its YouTube player doing what the room is doing: `useFollow` in `watch/drive.ts` over `stepFollow` in `core/watch.ts`; it follows presses and the room's state, never the room's clock, since 2026-10-03
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
@@ -158,6 +159,7 @@ caused; the list carries the meaning.
 - **Intent (a watch party's)** — *Retired 2026-09-18.* The video's own bar was a second way to press the transport, read off the player because the IFrame API never says what caused a state change. Telling a thumb from the echo of the app's own command took four phases and seven constants and failed five times; `controls: 0` removed the surface instead. The transport is the app's own row, and a button press *is* an action
 - **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full — the next one — and every other rung, done or still to do, is behind *See more*, which since 2026-09-24 is where the ticks live too. Held back entirely while a *waiting bar* is up, an account that has not answered the person who brought it here having a shorter job to do first
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
+- **Ladder (the follower's)** — What a *follower* climbs while its player does not agree with the room — told, told again, seek and play, rebuilt, given up — each rung entered when the one below runs out of time; at rest only in agreement or at the top, which is said on the picture
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
 - **Media plane** — LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket recordings land in
 - **Mix** — The single file a finished recording becomes, made from its *stems*
@@ -170,6 +172,7 @@ caused; the list carries the meaning.
 - **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
+- **Placed** — A player seen where the room is since the room's position last jumped; owed one seek when it is not — arriving, rebuilt, back from an advert, after a scrub or a replay — and none after, drift being corrected by nobody
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
 - **Promotion (of the audio session)** — A stepped-in device going from `LISTENING` to `CALL`, taking a microphone it did not hold — the film leaving it, a guest granted speech. *Deferred* while the app is backgrounded, since iOS refuses a backgrounded app a new microphone: it stays on `LISTENING`, hears the room, and promotes at the next foreground. Not stepping in, and not a session already `CALL` going to the background, which keeps what it has
 - **Protocol** — `core/protocol.ts` — the wire
@@ -190,6 +193,7 @@ caused; the list carries the meaning.
 - **Stem** — One participant's isolated audio from a recording, uploaded by its own *egress* job
 - **Switchable set** — The developer's own accounts, by address in `SWITCH_ACCOUNT_IDENTIFIERS`, any of which may become another from *Floor Settings* without a code (`POST /auth/switch`); never a review account, whatever `.env` says. `server/src/switching.ts`
 - **Train** — A deployed build of the web app: `/app` (stable) and `/beta` (TestFlight)
+- **Transport** — Two things, kept apart: the row of play, pause, ±15s and the scrubber (`WatchTransport`, the only way to drive the film), and the room's playback state it drives (`WatchState`'s status, position and start), which every *follower* follows
 - **Unheard report** — A *listener's* device saying it has gone five seconds without a subscription to somebody in the room, publishing and not *withheld*; logged and changes nothing. Not a *speaking report*, which is the withheld speaker's own device
 - **Withheld** — `isWithheld` — the single answer to whether this person may be heard
 
@@ -3437,6 +3441,19 @@ screen and disconnects. The floor is enforced by the client, since 2026-08-17 �
 raising the number ends sessions on phones rather than merely licensing a
 deletion. See AGENTS.md, which carries the traps around builds 37 and 51.
 
+## Follower
+
+The code on each device that is showing the film and keeps that device's
+YouTube player doing what the room is doing. `useFollow` in
+`app/src/watch/drive.ts` owns the clock, the player and the press; `stepFollow`
+in `core/watch.ts` decides, each tick, whether to rest and what to say.
+
+**It follows, it does not correct.** Since 2026-10-03 it plays and pauses with
+the room and seeks only to *place* a player — never to close drift, which the
+`debug` readout reports and nothing acts on
+(`decision/2026-10-03-nobody-corrects-drift.md`). Not the *transport*, which is
+what it follows, and not the *screen*, which is which device it runs on.
+
 ## Growth classes — alone, first circle, onward
 
 The three cohorts `bin/growth` sorts every account into, by its depth in the
@@ -3686,6 +3703,21 @@ signup — when the invitation that brought somebody here is a pending row and
 nothing else. The two measures answer different questions and are both right
 about their own; see *reach*, and do not reconcile them.
 
+## Ladder (the follower's)
+
+What a *follower* climbs while its player does not agree with the room, since
+2026-10-03 (`decision/2026-10-03-the-follower-rests-only-on-agreement.md`):
+**0** told, **1** told again, **2** seek and play, **3** the page rebuilt,
+**4** given up. Each rung is entered when the one below has run out of time,
+and its action is taken once.
+
+**The contrast is with a rest.** A follower may rest without limit only in
+agreement; every other rest — an instruction outstanding, a refill, the audio
+handover, an advert, a silent page — has a deadline that leads up the ladder,
+and the top is the one rest that is not agreement. It is said on the picture
+(*The film stopped responding on this device*) and on a `debug` account's
+readout, never silently. Any change in what the room wants starts it again.
+
 ## Live channel
 
 `liveChannelView` — the channel this **account** is standing in, chosen from
@@ -3809,6 +3841,15 @@ after a connection that was fine.
 **Always false on a phone.** An installed app owns its own `AVAudioSession`
 and asks nobody's permission to play; the field exists on the native
 `SessionAudio` so that the shared view can read it without a platform test.
+
+## Placed
+
+A player seen where the room is since the room's position last jumped —
+`inPlace` in `core/watch.ts`, observed rather than assumed from a seek having
+been sent. A player that is not placed is owed one seek: a screen arriving at a
+party, a rebuilt page, the film back from an advert, every player after a scrub
+or a replay. **Not in step**, which would be a claim about drift: a placed
+player may drift as it likes, since nothing corrects drift.
 
 ## Playout
 
@@ -4122,6 +4163,18 @@ door that decides which a browser is sent to, from what that browser last used.
 Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
 box. See decision/ § *Three variants of deploy*.
+
+## Transport
+
+**Two things, and saying which is the whole of the entry.** The *row* —
+play/pause, ±15s and the scrubber, `WatchTransport` in
+`app/src/watch/Transport.tsx`, drawn in three places and the only way anybody
+drives the film since YouTube's own bar went on 2026-09-18 — and the room's
+*playback state* that the row drives: `WatchState`'s status, banked position
+and start, from which `watchPositionMs` derives where the room is. The row sends
+actions and holds no state; the state is the server's, and every *follower*
+follows it. *The two transports are exclusive* means the film's state and the
+shared track's.
 
 ## Unheard report
 

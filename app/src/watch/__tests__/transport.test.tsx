@@ -3,9 +3,10 @@ import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
 import {
-  WATCH_COLD_NUDGE_MS,
   WATCH_DRIFT_MS,
   WATCH_REPORT_SLACK_MS,
+  WATCH_RESCUE_MS,
+  WATCH_RUNG_MS,
   WATCH_STALL_MS,
 } from '../../../../core/constants';
 import type { ChannelState, WatchState } from '../../../../core/types';
@@ -80,6 +81,8 @@ const TRIP_MS = 300;
 function laggyPlayer(lag: number) {
   /** Set by `stuck`: commands are heard and recorded, and nothing happens. */
   let deaf = false;
+  /** Set by `freeze`: the page has stopped reporting, so nothing is read. */
+  let frozen = false;
   let state: PlayerState = 'unstarted';
   let positionMs = 0;
   let durationMs: number | null = LENGTH;
@@ -164,6 +167,25 @@ function laggyPlayer(lag: number) {
       pending = null;
       deaf = true;
     },
+    /**
+     * A page that has stopped reporting while its process lives on — a
+     * suspended JavaScript context that never woke, which iOS announces to
+     * nobody. Nothing can be read and nothing it is told does anything.
+     */
+    freeze() {
+      frozen = true;
+      deaf = true;
+      pending = null;
+    },
+    /** What a rebuild leaves: a fresh page, cued at nought and listening. */
+    rebuild() {
+      frozen = false;
+      deaf = false;
+      state = 'unstarted';
+      positionMs = 0;
+      want = null;
+      pending = null;
+    },
     step(now: number, ms: number) {
       if (state === 'playing') positionMs += ms;
       /*
@@ -186,15 +208,16 @@ function laggyPlayer(lag: number) {
       }
     },
     port: {
-      read: () => ({ state, positionMs, durationMs, videoId: showing }),
+      read: () =>
+        frozen ? null : { state, positionMs, durationMs, videoId: showing },
       play: () => {
         calls.push('play');
         if (deaf) return;
         /*
           **A seek already on its way is not abandoned by a play beside it.**
           `seek` below leaves a player that was not paused playing when it
-          lands, so the pair `followInstructions` issues together — seek,
-          then play — is one instruction twice over rather than two places
+          lands, so the pair the ladder issues together — seek, then play —
+          is one instruction twice over rather than two places
           to be. A player that dropped the position and played from where it
           was would be a player nothing could move.
         */
@@ -355,6 +378,13 @@ function run(
      */
     skew?: number;
     /**
+     * The page can be rebuilt, as a WebView or an iframe can: `recover` makes
+     * a fresh player and a fresh port, which is what the ladder's fourth rung
+     * asks for. Off by default, so the rest of this file meets the ladder
+     * without it and sees it give up a rung sooner.
+     */
+    rebuild?: boolean;
+    /**
      * This device shows the film, and runs the start that releases its
      * microphone before the player plays. See `filmStart.ts`.
      */
@@ -364,12 +394,31 @@ function run(
   } = {}
 ) {
   const player = laggyPlayer(opts.lag ?? LAG_MS);
+  /** How many rebuilds the follower asked for, and whether it gave up. */
+  const rebuilt = { count: 0 };
+  const gaveUp: boolean[] = [];
+  const makePort = (): PlayerPort =>
+    opts.rebuild
+      ? {
+          ...player.port,
+          recover: () => {
+            rebuilt.count += 1;
+            player.rebuild();
+            // A new page is a new port, which is how it is unplaced.
+            port = makePort();
+            return true;
+          },
+        }
+      : player.port;
+  let port = makePort();
   const skew = opts.skew ?? 0;
   /** What the room thinks the time is, which is what a device is handed. */
   const roomNow = () => Date.now() + skew;
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true, roomNow, CHANNEL);
+    useFollow(watch, port, true, roomNow, CHANNEL, (given) =>
+      gaveUp.push(given)
+    );
     return <Text>following</Text>;
   }
   function Start({ channel }: { channel: ChannelState }) {
@@ -388,6 +437,8 @@ function run(
   const STEP = 50;
   return {
     player,
+    rebuilt,
+    gaveUp,
     wire,
     /**
      * Move everything forward together, in steps small enough that the tick,
@@ -591,7 +642,7 @@ describe('a player that cannot keep up', () => {
   /*
     **The stutter three phones showed on one party**, and the reason it is
     tested here rather than in `core/`: the rule is one clause in
-    `followInstructions`, but what made it a stutter is this file's subject —
+    `stepFollow`, but what made it a stutter is this file's subject —
     a fuse, a tick and a latency arranged so that the cure kept re-arming the
     disease.
 
@@ -599,8 +650,8 @@ describe('a player that cannot keep up', () => {
     stops for a second is a second behind and can never win it back on its
     own; the only repair available is a forward seek. A seek **discards the
     buffer** and starts fetching somewhere else, so correcting a player that
-    is still refilling stalls it again — and `WATCH_OBEDIENCE_MS` brings the
-    follower back to do it once more. The picture never gets the second it
+    is still refilling stalls it again — and the obedience window, retired
+    on 2026-10-03, brought the follower back to do it once more. The picture never gets the second it
     needs, and somebody watching sees it stop and start every second or two.
   */
   it('is left alone while it refills, however far behind it falls', () => {
@@ -643,17 +694,20 @@ describe('a player that cannot keep up', () => {
     sim.advance(WATCH_STALL_MS - 1_000);
     expect(sim.player.calls).toEqual([]);
 
-    // Past it, and the pair a person would have pressed by hand.
+    // Past it: told again, with nothing thrown away — and, a rung later,
+    // the pair a person would have pressed by hand.
     sim.advance(2_000);
-    expect(sim.player.calls).toContain('play');
+    expect(sim.player.calls).toEqual(['play']);
+    sim.advance(WATCH_RUNG_MS);
     expect(sim.player.calls.some((c) => c.startsWith('seek'))).toBe(true);
 
-    // **And once per window, not once per tick**, which is the storm the
-    // silence was written against: two more windows is two more nudges, not
-    // forty. A tick is 500ms.
+    // **And once per rung, not once per tick**, which is the storm the
+    // silence was written against — and then nothing, this harness's player
+    // having no rebuild: the ladder gives up, and says so.
     sim.player.calls.length = 0;
     sim.advance(WATCH_STALL_MS * 2);
-    expect(sim.player.calls.filter((c) => c === 'play')).toHaveLength(2);
+    expect(sim.player.calls).toEqual([]);
+    expect(readDrift(CHANNEL)!.rung).toBe(4);
   });
 
   /*
@@ -703,11 +757,14 @@ describe('a player that cannot keep up', () => {
 
     sim.player.stuck();
     sim.player.calls.length = 0;
-    sim.advance(6_000);
+    sim.advance(30_000);
 
+    // One per rung — told, told again, the rescue's pause on either side of
+    // its seek — and then nothing, where the old rule sent eighty.
     expect(
       sim.player.calls.filter((c) => c === 'pause').length
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(4);
+    expect(readDrift(CHANNEL)!.rung).toBe(4);
   });
 
   /*
@@ -944,7 +1001,7 @@ describe('how long a press takes, and where it goes', () => {
       under a room at 9.7s — a picture that never settled. They came from the
       lead being spent on a player that was *ahead*: `adrift` is judged against
       the un-led want, so it fired, and the led target was then the position the
-      player already held. `followInstructions` declines that seek now. What is
+      player already held. Nothing corrects drift since 2026-10-03, so what is
       left is one instruction and a player 1.7s ahead of the room for the length
       of the film, which is the banked pause showing through and is the entry
       above.
@@ -972,7 +1029,7 @@ describe('how long a press takes, and where it goes', () => {
     **The ten-second window is for a buffer, and a wedged player has none.**
 
     `settling` is right about a player refilling and wrong about one that never
-    started, and until `WATCH_COLD_NUDGE_MS` the two were the same reading.
+    started, and until `WATCH_RUNG_MS` the two were the same reading.
     Seen on build 304: a Play pressed inside the pause before it left the
     player in `buffering` for 10.5 seconds until the stall rule rescued it with
     a seek, thirteen seconds of film behind the room.
@@ -985,7 +1042,7 @@ describe('how long a press takes, and where it goes', () => {
       // Wedged: it heard the play, went to buffering, and stays there.
       sim.player.stuck();
       sim.player.calls.length = 0;
-      sim.advance(WATCH_COLD_NUDGE_MS + 1_000);
+      sim.advance(WATCH_RUNG_MS + 1_000);
       // A play, because a play cannot discard the buffer a seek would.
       expect(sim.player.calls).toContain('play');
       expect(sim.player.calls.some((c) => c.startsWith('seek:'))).toBe(false);
@@ -1017,7 +1074,7 @@ describe('how long a press takes, and where it goes', () => {
       sim.advance(4_000);
       sim.player.stall(WATCH_STALL_MS * 2);
       sim.player.calls.length = 0;
-      sim.advance(WATCH_COLD_NUDGE_MS + 1_000);
+      sim.advance(WATCH_RUNG_MS + 1_000);
       expect(sim.player.calls).toEqual([]);
     });
   });
@@ -1292,5 +1349,73 @@ describe('a film started on the device showing it', () => {
     expect(sim.player.calls).toEqual(['play']);
     sim.advance(3_000);
     expect(sim.player.state).toBe('playing');
+  });
+});
+
+/*
+  **The ladder, through the driver.** Every stuck state before 2026-10-03 was a
+  follower at rest believing it had nothing to do. On the ladder it is either
+  at rest in agreement or climbing, every rung has a deadline, and the top is
+  said out loud. See
+  planning/decision/2026-10-03-the-follower-rests-only-on-agreement.md.
+*/
+describe('a page that stops answering', () => {
+  it('is rebuilt, placed where the room is, and agrees again', () => {
+    const sim = run({ rebuild: true });
+    sim.wire.press(play, Date.now());
+    sim.advance(4_000);
+    expect(inStep(sim.where())).toBe(true);
+
+    sim.player.freeze();
+    sim.advance(6_000);
+    expect(sim.rebuilt.count).toBe(1);
+    sim.advance(6_000);
+    expect(inStep(sim.where())).toBe(true);
+    expect(readDrift(CHANNEL)!.rung).toBeNull();
+    expect(readDrift(CHANNEL)!.rest).toBe('agreed');
+  });
+
+  it('gives up where it cannot be rebuilt, and says so', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(4_000);
+    sim.player.freeze();
+    sim.advance(6_000);
+    expect(sim.gaveUp).toEqual([true]);
+    expect(readDrift(CHANNEL)!.rung).toBe(4);
+  });
+});
+
+describe('a player that ignores what it is told', () => {
+  it('shows the ladder on the readout while it climbs', () => {
+    const sim = run();
+    sim.advance(1_000);
+    sim.player.latch();
+    sim.wire.press(play, Date.now());
+    sim.advance(1_000);
+    expect(readDrift(CHANNEL)!.rung).toBe(0);
+    sim.advance(WATCH_RUNG_MS);
+    expect(readDrift(CHANNEL)!.rung).toBe(1);
+    sim.advance(WATCH_RUNG_MS);
+    expect(readDrift(CHANNEL)!.rung).toBe(2);
+    expect(sim.player.calls.some((c) => c.startsWith('seek'))).toBe(true);
+    sim.advance(WATCH_RESCUE_MS);
+    expect(readDrift(CHANNEL)!.rung).toBe(4);
+    expect(sim.gaveUp).toEqual([true]);
+  });
+
+  it('starts again from nothing when somebody presses, and says it has', () => {
+    const sim = run();
+    sim.advance(1_000);
+    sim.player.latch();
+    sim.wire.press(play, Date.now());
+    sim.advance(WATCH_RUNG_MS * 2 + WATCH_RESCUE_MS + 1_000);
+    expect(readDrift(CHANNEL)!.rung).toBe(4);
+    // The room pausing is a new want: the climb is over, and the latched
+    // player, which reports paused, agrees with it.
+    sim.wire.press(pause, Date.now());
+    sim.advance(1_000);
+    expect(readDrift(CHANNEL)!.rung).toBeNull();
+    expect(sim.gaveUp).toEqual([true, false]);
   });
 });

@@ -246,83 +246,85 @@ export const WATCH_LENGTH_SLACK_MS = 5_000;
 export const WATCH_PATIENCE_MS = 4_000;
 
 /**
- * How long a player is given to do as it is told before it is listened to
- * again.
+ * **The deadlines of the follower's ladder**, since 2026-10-03 — see
+ * `stepFollow` in core/watch.ts and
+ * planning/decision/2026-10-03-the-follower-rests-only-on-agreement.md.
  *
- * **The channel's fuse is not the player's**, and sharing one cost a session:
- * a follower waiting on its player is *deaf*, so a person pressing something
- * while a correction was in flight went unheard for the whole of it. Four
- * seconds of that is the old complaint in a new dress.
+ * A follower may rest without limit only when its player agrees with the room.
+ * Every other rest is one of these, and when it runs out the follower climbs:
+ * tells the player again, then seeks and tells it, then rebuilds the page,
+ * then gives up and says so. They replace four windows that each answered one
+ * stuck state — the obedience fuse, the stall window's restart, the cold
+ * nudge, and `urgent` — and between them let a nudge starve a rescue (build
+ * 327, 23 seconds) and a finished film ignore Play for ever.
  *
- * So this is short — about what an embed takes to acknowledge, rather than
- * what it takes to fill a buffer, since arriving is observed directly and
- * this only has to cover a player that is never going to arrive at all.
- *
- * **What it costs when it fires early is bounded**, which is why a short one
- * is safe here and was not safe in any of the three timer arrangements this
- * replaced. A follower that starts listening while its own instruction is
- * still outstanding may read that instruction back as a press — and what it
- * then tells the channel is *what the player is actually doing*. The channel
- * follows, the player already agrees with it, nothing needs correcting, and
- * there is no second reading to produce a third instruction. It converges on
- * the player instead of fighting it.
+ * The values are first guesses against what has been measured, written down
+ * to be corrected: a play from a pause takes about 1.2 seconds on a phone, a
+ * seek 400 to 700ms, an honest cold start 563ms.
  */
-export const WATCH_OBEDIENCE_MS = 1_500;
 
 /**
- * How long a player may be buffering before it is treated as stuck rather
- * than as on its way.
+ * How long the first two rungs wait for a player that is not buffering: told,
+ * then told again. Comfortably past the 1.2 seconds a resume costs, short of
+ * anything a person would sit through twice.
+ */
+export const WATCH_RUNG_MS = 3_000;
+
+/**
+ * How long the first two rungs wait instead when the player is buffering
+ * **mid-film** — filling a buffer it will finish, where a seek would discard
+ * what it has. A player that went to `buffering` from a standstill has nothing
+ * on its way and gets `WATCH_RUNG_MS` like any other.
  *
- * **The one state a follower has no exit from, until this existed.** A
- * buffering player is told nothing at all — see `followInstructions`, where
- * that silence is the fix for the seek storm: a seek throws away a part-filled
- * buffer, so correcting a player that is refilling is what stops it ever
- * finishing. The silence assumed every stall ends by itself. Most do; the ones
- * that do not left a frozen frame and a spinner under a party that went on
- * playing for everybody else, recoverable only by a person pausing and
- * playing — which is precisely the pair of instructions the follower had
- * stopped issuing.
- *
- * So patience is bounded rather than absolute. Ten seconds is far past an
- * ordinary refill on a bad connection and far short of anything somebody would
- * sit through twice, and a buffer that has not filled in ten seconds is not
- * filling.
- *
- * **It is also the period of the nudge, not merely its delay.** The clock
- * restarts each time a stalled player is told something, so a player that is
- * genuinely unable to play is prodded once per window rather than once per
- * tick — which is the seek storm the silence was written against, and the
- * property that must survive this.
+ * Ten seconds is far past an ordinary refill on a bad connection, and a buffer
+ * that has not filled in ten is not filling.
  */
 export const WATCH_STALL_MS = 10_000;
 
+/** How long the third rung waits after its seek and its play or pause. */
+export const WATCH_RESCUE_MS = 5_000;
+
 /**
- * How long a player that never started may be buffering before it is told
- * again.
- *
- * **The earlier, gentler half of `WATCH_STALL_MS`, added 2026-09-28.** That
- * window is ten seconds because the instruction it releases is a seek, and a
- * seek discards a part-filled buffer; ten seconds is how long a refill deserves
- * before anybody gives up on it. But the same reading covers a second case it
- * was not written for — a player told to play that went to `buffering` and
- * never came out, having nothing on its way at all — and for that one, ten
- * seconds is ten seconds of a still frame while the room watches the film.
- * Measured on build 304: 10.5s, and thirteen seconds of film skipped when the
- * rescue finally came.
- *
- * So a player buffering **from a standstill** is told again after four seconds,
- * and told the one thing that cannot cost it anything: `play`, with no seek
- * beside it. Nothing is discarded, so this needs none of the caution the long
- * window is built from — and if the player was genuinely filling a buffer, a
- * second `play` changes nothing about when it finishes.
- *
- * **Four seconds rather than two**, because an honest cold start is 563ms on a
- * good connection and nobody has measured a bad one; a window that fires during
- * an ordinary first fetch would be a message per window for the length of every
- * slow party. And rather than eight, because the whole point is to be well
- * inside the ten.
+ * How long the fourth rung waits for a rebuilt page to come back and agree:
+ * a new `WebView`, a new page, YouTube's API loaded again and the player
+ * placed. Measured from the rebuild, which `REBUILD_COOLDOWN_MS` may delay.
  */
-export const WATCH_COLD_NUDGE_MS = 4_000;
+export const WATCH_REBUILD_MS = 15_000;
+
+/**
+ * How long a page may go without a reading before it is rebuilt. A reading is
+ * already refused once it is 1.5 seconds old (`READING_STALE_MS` in
+ * WatchPlayer.tsx), so this is that and as long again — and a page that is not
+ * talking cannot be told anything, so the ladder goes straight to the rebuild.
+ */
+export const WATCH_SILENT_MS = 3_000;
+
+/**
+ * How long a Play waits for this device's audio session to change hands before
+ * the player is told regardless. `START_SETTLE_MS` in watch/filmStart.ts is
+ * the handover's own deadline at two seconds; this is the follower's net under
+ * it, so a handover that never settles cannot hold a player for ever.
+ */
+export const WATCH_HANDOVER_WAIT_MS = 4_000;
+
+/**
+ * How long past an advert's own length the follower waits for the film to
+ * come back, and how long it waits in all when the advert's length cannot be
+ * read. An advert that outlives either is a frame that will not give the film
+ * back, and the follower gives up — nothing it can say to a player helps,
+ * rebuilding one only starts the advert again, and the frame does not take a
+ * finger.
+ */
+export const WATCH_ADVERT_MARGIN_MS = 10_000;
+export const WATCH_ADVERT_MS = 60_000;
+
+/**
+ * How long a press carried out on this device's own player is held against
+ * the room before the room's answer is followed instead. A round trip is a few
+ * hundred milliseconds; a press the server refused, or that was lost, is
+ * followed back after this.
+ */
+export const WATCH_PRESS_HOLD_MS = 3_000;
 
 /**
  * How long the transport waits, after a press of Play, before its clock runs.

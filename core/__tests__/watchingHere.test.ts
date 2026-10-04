@@ -13,20 +13,29 @@ import {
 } from '../channel';
 import { hasMicrophone, isScreening, microphoneNeeded } from '../micNeeded';
 import {
+  agrees,
+  baseInstructions,
   desiredFor,
-  followInstructions,
-  hasArrived,
+  inPlace,
+  initialFollow,
+  rescueInstructions,
   showingTheFilm,
+  stepFollow,
   watchPositionMs,
 } from '../watch';
 import {
-  WATCH_COLD_NUDGE_MS,
+  WATCH_ADVERT_MARGIN_MS,
   WATCH_DRIFT_MS,
+  WATCH_HANDOVER_WAIT_MS,
   WATCH_LENGTH_SLACK_MS,
+  WATCH_REBUILD_MS,
+  WATCH_RESCUE_MS,
+  WATCH_RUNG_MS,
+  WATCH_SILENT_MS,
   WATCH_STALL_MS,
 } from '../constants';
 import type { ChannelAction, ChannelState, WatchState } from '../types';
-import type { PlayerReading, PlayerState } from '../watch';
+import type { FollowInput, PlayerReading, PlayerState } from '../watch';
 
 const A = 'user-a';
 const B = 'user-b';
@@ -373,315 +382,305 @@ describe('the screen gives its microphone up', () => {
   });
 });
 
-describe('following the transport', () => {
+/**
+ * The follower's rule since 2026-10-03: agreement is a state, a seek is owed
+ * only to a player that is not placed, and every other rest has a deadline
+ * that leads up the ladder. See
+ * planning/decision/2026-10-03-the-follower-rests-only-on-agreement.md.
+ */
+describe('a player agreeing with the room', () => {
   const reading = (
     state: PlayerState,
-    positionMs: number | null,
-    durationMs: number | null = LENGTH
-  ): PlayerReading => ({ state, positionMs, durationMs, videoId: VIDEO });
+    positionMs: number | null = 60_000
+  ): PlayerReading => ({ state, positionMs, durationMs: LENGTH, videoId: VIDEO });
+  const run = { status: 'playing' as const, positionMs: 60_000 };
+  const rest = { status: 'paused' as const, positionMs: 60_000 };
 
-  /**
-   * A run under way, with a player having reported that it started.
-   *
-   * **The report matters as much as the press.** `watchPlay` banks a start
-   * `WATCH_STARTUP_GRACE_MS` in the future, because no player begins at the
-   * press — so a transport that has only been pressed is one whose clock has
-   * not started, and every drift measured against it would be measured against
-   * a position that is standing still. That is a real state and it has its own
-   * tests; it is not the state these are about.
-   */
-  const playing = (at = T0) => {
-    const pressed = apply(watching(at), [
-      [{ type: 'WATCH_PLAY', userId: A }, at],
-    ]);
-    return reduce(
-      pressed,
-      { type: 'WATCH_STARTED', userId: A, positionMs: pressed.watch.positionMs },
-      at
-    ).watch;
-  };
-
-  it('starts a player that is not playing', () => {
-    expect(
-      followInstructions(playing(), reading('paused', 0), T0)
-    ).toEqual([{ do: 'play' }]);
+  it('is the state alone, wherever the player is', () => {
+    expect(agrees(reading('playing', 60_000 + WATCH_DRIFT_MS * 10), run)).toBe(
+      true
+    );
+    expect(agrees(reading('paused', 0), rest)).toBe(true);
   });
 
-  it('says nothing to a player that is already in step', () => {
-    expect(followInstructions(playing(), reading('playing', 0), T0)).toEqual([]);
+  it('is never a player on its way', () => {
+    expect(agrees(reading('buffering'), run)).toBe(false);
+    expect(agrees(reading('buffering'), rest)).toBe(false);
   });
 
-  /*
-    **A correction aims where the room will be, not where it is.**
-
-    A seek is not instant — 400 to 700ms on a phone, and a play from a pause is
-    1.2 seconds — and the transport is a wall clock that runs the whole time, so
-    a seek to the position the room has *now* lands exactly that late. A player
-    slower than `WATCH_DRIFT_MS` could therefore never arrive at all: every
-    correction was stale by the same margin as the last, once per fuse, for
-    ever. See planning/decision/2026-09-28-the-film-waits-for-the-audio-session.md
-    and `drive.ts`, which measures the lead this takes.
-  */
-  it('leads the correction by what the player is known to cost', () => {
-    const at = T0 + 20_000;
-    const adrift = reading('playing', 0);
-    expect(followInstructions(playing(), adrift, at, 0, false, 0)).toEqual([
-      { do: 'seek', positionMs: 20_000 },
-    ]);
-    // The same drift, from a player that has been seen to take 700ms.
-    expect(followInstructions(playing(), adrift, at, 0, false, 700)).toEqual([
-      { do: 'seek', positionMs: 20_700 },
-    ]);
+  it('takes a cued player for a stopped one', () => {
+    expect(agrees(reading('unstarted'), rest)).toBe(true);
+    expect(agrees(reading('unstarted'), run)).toBe(false);
   });
 
-  /*
-    **A player being started needs no lead, and that is the grace's doing.**
-
-    For about an hour on 2026-09-28 it did: the room's clock ran from the press,
-    so a player that took 1.3 seconds to come back began that far behind and the
-    seek went out with the play. `WATCH_STARTUP_GRACE_MS` removes the premise —
-    the clock does not run until a player is running — so the banked position is
-    where the room is and a starting player is in step by construction.
-  */
-  it('says only play to a paused player, however slow it is known to be', () => {
-    expect(
-      followInstructions(playing(), reading('paused', 0), T0, 0, false, 1_150)
-    ).toEqual([{ do: 'play' }]);
-  });
-
-  it('still leads a correction, a player behind mid-film being really behind', () => {
-    // The drift that survives the grace: a player that fell behind while
-    // playing. A seek to where the room is *now* would land its own latency
-    // late, which is what left a slow player seeking once a fuse for ever.
-    const at = T0 + 30_000;
-    expect(
-      followInstructions(playing(), reading('playing', 0), at, 0, false, 700)
-    ).toEqual([{ do: 'seek', positionMs: 30_700 }]);
-  });
-
-  it('leads nothing when nothing has been measured', () => {
-    // The behaviour that shipped, which is what a follower that has never
-    // watched this player obey has to fall back to.
-    const at = T0 + 20_000;
-    expect(
-      followInstructions(playing(), reading('playing', 0), at)
-    ).toEqual([{ do: 'seek', positionMs: 20_000 }]);
-  });
-
-  /*
-    **The gentle knock, for a player that never started.** `WATCH_STALL_MS` is
-    ten seconds because the instruction it releases is a seek, and a seek
-    discards a part-filled buffer. A player that was told to play and went
-    straight to `buffering` has no buffer worth protecting and may have nothing
-    on its way at all — build 304 wedged one for 10.5 seconds — so it is told
-    again after `WATCH_COLD_NUDGE_MS`, and told the one thing that costs it
-    nothing.
-  */
-  it('tells a player that never started to play again, without a seek', () => {
-    expect(
-      followInstructions(
-        playing(),
-        reading('buffering', 0),
-        T0,
-        WATCH_COLD_NUDGE_MS,
-        false,
-        0,
-        true
-      )
-    ).toEqual([{ do: 'play', knock: true }]);
-  });
-
-  it('spaces the knocks by the time since the last one', () => {
-    // Long into the stall, but knocked a moment ago: nothing yet.
-    expect(
-      followInstructions(
-        playing(),
-        reading('buffering', 0),
-        T0,
-        WATCH_COLD_NUDGE_MS * 2,
-        false,
-        0,
-        true,
-        WATCH_COLD_NUDGE_MS - 1
-      )
-    ).toEqual([]);
-  });
-
-  it('still leaves a player that stalled mid-film alone', () => {
-    // The same reading and the same clock, from a player that was playing when
-    // the buffering began. Nothing is said: it is filling a buffer it will
-    // finish, and this is the case the long window was written for.
-    expect(
-      followInstructions(
-        playing(),
-        reading('buffering', 0),
-        T0,
-        WATCH_COLD_NUDGE_MS,
-        false,
-        0,
-        false
-      )
-    ).toEqual([]);
-  });
-
-  it('leaves a buffering player alone rather than restating play', () => {
-    expect(
-      followInstructions(playing(), reading('buffering', 0), T0)
-    ).toEqual([]);
-  });
-
-  /**
-   * **The stall that never ends, which is what patience cost until
-   * 2026-09-20.** A buffering player is told nothing so that a seek cannot
-   * throw away a buffer that is filling — and a player whose buffer never
-   * fills was then a frozen frame and a spinner under a party playing
-   * perfectly for everybody else, with nothing in the application that would
-   * ever speak to it again. Recovering it took a person pausing and playing,
-   * which is exactly the pair below.
-   */
-  it('nudges a player that has been buffering past all patience', () => {
-    const stuck = reading('buffering', 0);
-    // Still on its way, right up to the threshold.
-    expect(
-      followInstructions(playing(), stuck, T0 + WATCH_STALL_MS, WATCH_STALL_MS - 1)
-    ).toEqual([]);
-    // And past it, treated like any other player that is not where the room
-    // is: sent there, and told to play.
-    expect(
-      followInstructions(playing(), stuck, T0 + WATCH_STALL_MS, WATCH_STALL_MS)
-    ).toEqual([{ do: 'seek', positionMs: WATCH_STALL_MS }, { do: 'play' }]);
-  });
-
-  it('does not nudge a stalled player that is already where the room is', () => {
-    // Paused parties and a stall at the right position are not this defect:
-    // what is drawn is the right frame, and a seek would throw away a buffer
-    // to arrive where the player already is.
-    expect(
-      followInstructions(playing(), reading('buffering', 0), T0, WATCH_STALL_MS)
-    ).toEqual([{ do: 'play' }]);
-  });
-
-  it('seeks before playing when a player is behind', () => {
-    const drift = WATCH_DRIFT_MS + 5_000;
-    expect(
-      followInstructions(playing(), reading('paused', 0), T0 + drift)
-    ).toEqual([{ do: 'seek', positionMs: drift }, { do: 'play' }]);
-  });
-
-  it('says nothing to a player that is merely a little adrift', () => {
-    // The tolerance is `hasArrived`'s now rather than a second opinion held
-    // here: a correction is a visible stutter, so the gap has to be worth one.
-    expect(
-      followInstructions(playing(), reading('playing', 0), T0 + WATCH_DRIFT_MS)
-    ).toEqual([]);
-  });
-
-  it('leaves an ended player alone while the channel agrees it is over', () => {
-    const ended = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
-      // Reported, so the room's clock reaches the film's end when the film
-      // does rather than two seconds after it. See `WATCH_STARTUP_GRACE_MS`.
-      [{ type: 'WATCH_STARTED', userId: A, positionMs: 0 }, T0],
-    ]).watch;
-    const at = LENGTH;
-    expect(
-      followInstructions(ended, reading('ended', at), T0 + LENGTH)
-    ).toEqual([]);
-  });
-
-  it('restarts an ended player once the transport has gone back', () => {
-    const replayed = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
-      [{ type: 'WATCH_SEEK', userId: A, positionMs: 0 }, T0 + LENGTH],
-    ]).watch;
-    expect(
-      followInstructions(replayed, reading('ended', LENGTH), T0 + LENGTH)
-    ).toEqual([{ do: 'seek', positionMs: 0 }, { do: 'play' }]);
-  });
-
-  it('pauses first and corrects second', () => {
-    const pressed = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
-      [{ type: 'WATCH_STARTED', userId: A, positionMs: 0 }, T0],
-    ]);
-    const paused = reduce(
-      pressed,
-      { type: 'WATCH_PAUSE', userId: A },
-      T0 + 60_000
-    ).watch;
-    expect(
-      followInstructions(paused, reading('playing', 0), T0 + 60_000)
-    ).toEqual([{ do: 'pause' }, { do: 'seek', positionMs: 60_000 }]);
-  });
-
-  it('corrects a paused player that was already at rest', () => {
-    // BACKLOG.md § *A rewind while the watch party is paused leaves the
-    // picture where it was*: the old shape corrected only in the branch that
-    // had just paused a playing player, so this returned nothing and the
-    // frame stayed where it was until somebody pressed Play.
-    const rewound = apply(watching(), [
-      [{ type: 'WATCH_PLAY', userId: A }, T0],
-      [{ type: 'WATCH_PAUSE', userId: A }, T0 + 60_000],
-      [{ type: 'WATCH_SEEK', userId: A, positionMs: 0 }, T0 + 61_000],
-    ]).watch;
-    expect(
-      followInstructions(rewound, reading('paused', 60_000), T0 + 62_000)
-    ).toEqual([{ do: 'seek', positionMs: 0 }]);
+  it('takes a finished film for a run only while the room agrees it is over', () => {
+    expect(agrees(reading('ended', LENGTH), { ...run, positionMs: LENGTH })).toBe(
+      true
+    );
+    // A replay: the room has gone back to nought and the player is still at
+    // the end. Agreeing here is how every screen once stayed at Finished.
+    expect(agrees(reading('ended', LENGTH), { ...run, positionMs: 0 })).toBe(
+      false
+    );
   });
 });
 
-
-/**
- * Whether a player has arrived where it was sent.
- *
- * **The observation the whole follower now turns on.** A follower that has
- * said anything to its player stays deaf until this is true, so a correction
- * can never be read back as somebody's thumb — the loop that produced a
- * play-pause flip three separate times. What makes it a repair rather than a
- * fourth guess is that it is a fact about the player rather than a guess
- * about how long players take.
- */
-describe('a player asked whether it has arrived', () => {
-  const reading = (
-    state: PlayerState,
-    positionMs: number | null,
-    durationMs: number | null = LENGTH
-  ): PlayerReading => ({ state, positionMs, durationMs, videoId: VIDEO });
-
+describe('a player in place', () => {
   const want = { status: 'playing' as const, positionMs: 60_000 };
-
-  it('has, when it is doing the right thing in the right place', () => {
-    expect(hasArrived(reading('playing', 60_000), want)).toBe(true);
+  const at = (state: PlayerState, positionMs: number | null): PlayerReading => ({
+    state,
+    positionMs,
+    durationMs: LENGTH,
+    videoId: VIDEO,
   });
 
-  it('has, within the tolerance the shared clock is kept to', () => {
-    expect(hasArrived(reading('playing', 60_000 + WATCH_DRIFT_MS), want)).toBe(
-      true
+  it('is within the tolerance of where the room is', () => {
+    expect(inPlace(at('playing', 60_000 + WATCH_DRIFT_MS), want)).toBe(true);
+    expect(inPlace(at('paused', 60_000 + WATCH_DRIFT_MS + 1), want)).toBe(false);
+    expect(inPlace(at('unstarted', 60_000), want)).toBe(true);
+  });
+
+  it('is never a buffering player, a finished one, or one that cannot say', () => {
+    expect(inPlace(at('buffering', 60_000), want)).toBe(false);
+    expect(inPlace(at('ended', 60_000), want)).toBe(false);
+    expect(inPlace(at('playing', null), want)).toBe(false);
+  });
+});
+
+describe('what a player that does not agree is told', () => {
+  const at = (state: PlayerState): PlayerReading => ({
+    state,
+    positionMs: 0,
+    durationMs: LENGTH,
+    videoId: VIDEO,
+  });
+  const run = { status: 'playing' as const, positionMs: 30_000 };
+  const rest = { status: 'paused' as const, positionMs: 30_000 };
+
+  it('is play, and a seek first only when it is not placed', () => {
+    expect(baseInstructions(run, at('paused'), true)).toEqual([{ do: 'play' }]);
+    expect(baseInstructions(run, at('paused'), false)).toEqual([
+      { do: 'seek', positionMs: 30_000 },
+      { do: 'play' },
+    ]);
+  });
+
+  it('is play to a buffering player, unless it is refilling mid-film', () => {
+    expect(baseInstructions(run, at('buffering'), true)).toEqual([{ do: 'play' }]);
+    expect(baseInstructions(run, at('buffering'), true, true)).toEqual([]);
+  });
+
+  it('pauses first and seeks second, and stops a cued player the seek starts', () => {
+    expect(baseInstructions(rest, at('playing'), false)).toEqual([
+      { do: 'pause' },
+      { do: 'seek', positionMs: 30_000 },
+    ]);
+    expect(baseInstructions(rest, at('unstarted'), false)).toEqual([
+      { do: 'seek', positionMs: 30_000 },
+      { do: 'pause' },
+    ]);
+  });
+
+  it('is a seek and the state on the rescue, placed or not', () => {
+    expect(rescueInstructions(run, at('buffering'))).toEqual([
+      { do: 'seek', positionMs: 30_000 },
+      { do: 'play' },
+    ]);
+    expect(rescueInstructions(rest, at('ended'))).toEqual([
+      { do: 'pause' },
+      { do: 'seek', positionMs: 30_000 },
+      { do: 'pause' },
+    ]);
+  });
+});
+
+describe('the ladder', () => {
+  const run = { status: 'playing' as const, positionMs: 30_000 };
+  const at = (state: PlayerState, positionMs = 30_000): PlayerReading => ({
+    state,
+    positionMs,
+    durationMs: LENGTH,
+    videoId: VIDEO,
+  });
+  const input = (over: Partial<FollowInput> = {}): FollowInput => ({
+    want: run,
+    key: 'playing|0',
+    reading: at('paused'),
+    advert: false,
+    placed: true,
+    holding: false,
+    canRebuild: true,
+    now: T0,
+    ...over,
+  });
+
+  /** Steps the follower every half second for `ms`, with the same input. */
+  function climb(ms: number, over: Partial<FollowInput> = {}) {
+    let follow = initialFollow();
+    const steps = [];
+    for (let t = 0; t <= ms; t += 500) {
+      const step = stepFollow(follow, input({ ...over, now: T0 + t }));
+      follow = step.follow;
+      steps.push({ t, ...step });
+    }
+    return steps;
+  }
+  const rungs = (steps: ReturnType<typeof climb>) =>
+    steps.filter((s) => s.climbed).map((s) => [s.t, s.climbed!.to]);
+
+  it('rests without a deadline on agreement and says nothing', () => {
+    const steps = climb(60_000, { reading: at('playing') });
+    expect(steps.every((s) => s.rest === 'agreed')).toBe(true);
+    expect(steps.some((s) => s.instructions.length > 0)).toBe(false);
+  });
+
+  it('climbs every rung to the top for a player that ignores everything', () => {
+    const steps = climb(60_000);
+    expect(rungs(steps)).toEqual([
+      [0, 0],
+      [WATCH_RUNG_MS, 1],
+      [WATCH_RUNG_MS * 2, 2],
+      [WATCH_RUNG_MS * 2 + WATCH_RESCUE_MS, 3],
+      [WATCH_RUNG_MS * 2 + WATCH_RESCUE_MS + WATCH_REBUILD_MS, 4],
+    ]);
+    expect(steps.find((s) => s.climbed?.to === 2)!.instructions).toEqual(
+      rescueInstructions(run, at('paused'))
     );
+    expect(steps.find((s) => s.climbed?.to === 3)!.rebuild).toBe(true);
+    expect(steps[steps.length - 1].rest).toBe('given up');
+  });
+
+  it('gives up a rung sooner where the page cannot be rebuilt', () => {
+    const steps = climb(30_000, { canRebuild: false });
+    expect(rungs(steps).map(([, to]) => to)).toEqual([0, 1, 2, 4]);
+  });
+
+  it('gives a mid-film stall the long window, and a cold one the short', () => {
+    let follow = initialFollow();
+    follow = stepFollow(follow, input({ reading: at('playing') })).follow;
+    const mid = climb(WATCH_STALL_MS + 500, { reading: at('buffering') });
+    expect(rungs(mid)).toEqual([[0, 0], [WATCH_RUNG_MS, 1], [WATCH_RUNG_MS * 2, 2]]);
+    // From a standstill both rungs are short. Mid-film, which is the
+    // reading after a tick of playing, the first waits out the stall window.
+    let steps = [];
+    for (let t = 0; t <= WATCH_STALL_MS + 500; t += 500) {
+      const step = stepFollow(
+        follow,
+        input({ reading: at('buffering'), now: T0 + 500 + t })
+      );
+      follow = step.follow;
+      steps.push({ t, ...step });
+    }
+    expect(steps.filter((s) => s.climbed).map((s) => s.climbed!.to)).toEqual([0, 1]);
+    expect(steps.find((s) => s.climbed?.to === 1)!.t).toBe(WATCH_STALL_MS);
+    // The second rung's instruction to a buffering player is a play, which
+    // costs it nothing — never a seek.
+    expect(steps.find((s) => s.climbed?.to === 1)!.instructions).toEqual([
+      { do: 'play' },
+    ]);
+  });
+
+  it('starts again from nothing when the room asks for something else', () => {
+    let follow = initialFollow();
+    for (let t = 0; t <= WATCH_RUNG_MS * 2; t += 500) {
+      follow = stepFollow(follow, input({ now: T0 + t })).follow;
+    }
+    expect(follow.rung).toBe(2);
+    const step = stepFollow(
+      follow,
+      input({ key: 'paused|0', want: { ...run, status: 'paused' }, now: T0 + 7_000 })
+    );
+    expect(step.follow.rung).toBeNull();
+    expect(step.rest).toBe('agreed');
+  });
+
+  it('ends the climb on agreement and says how long it took', () => {
+    let follow = initialFollow();
+    for (let t = 0; t <= 4_000; t += 500) {
+      follow = stepFollow(follow, input({ now: T0 + t })).follow;
+    }
+    const step = stepFollow(follow, input({ reading: at('playing'), now: T0 + 4_500 }));
+    expect(step.rest).toBe('agreed');
+    expect(step.agreedAfterMs).toBe(4_500);
+    expect(step.follow.rung).toBeNull();
+  });
+
+  it('rebuilds a page that has gone silent, without telling it anything first', () => {
+    const steps = climb(WATCH_SILENT_MS + 500, { reading: null });
+    expect(steps.filter((s) => s.rest === 'silent').length).toBeGreaterThan(0);
+    expect(rungs(steps)).toEqual([[WATCH_SILENT_MS, 3]]);
+    expect(steps.some((s) => s.instructions.length > 0)).toBe(false);
+  });
+
+  it('gives up on a rebuilt page that never answers', () => {
+    const steps = climb(WATCH_SILENT_MS + WATCH_REBUILD_MS + 500, {
+      reading: null,
+    });
+    expect(rungs(steps).map(([, to]) => to)).toEqual([3, 4]);
+  });
+
+  it('tells a rebuilt page once, when it answers', () => {
+    let follow = initialFollow();
+    for (let t = 0; t <= WATCH_SILENT_MS; t += 500) {
+      follow = stepFollow(follow, input({ reading: null, now: T0 + t })).follow;
+    }
+    expect(follow.rung).toBe(3);
+    const first = stepFollow(
+      follow,
+      input({ reading: at('unstarted', 0), placed: false, now: T0 + 4_000 })
+    );
+    expect(first.instructions).toEqual([
+      { do: 'seek', positionMs: 30_000 },
+      { do: 'play' },
+    ]);
+    const second = stepFollow(
+      first.follow,
+      input({ reading: at('unstarted', 0), placed: false, now: T0 + 4_500 })
+    );
+    expect(second.instructions).toEqual([]);
+    expect(second.rest).toBe('rebuilding');
+  });
+
+  it('waits out an advert for its own length, and then gives up', () => {
+    const ad: PlayerReading = { ...at('playing', 1_000), durationMs: 30_000, videoId: 'ad' };
+    const steps = climb(30_000 + WATCH_ADVERT_MARGIN_MS + 500, {
+      reading: ad,
+      advert: true,
+    });
     expect(
-      hasArrived(reading('playing', 60_000 + WATCH_DRIFT_MS + 1), want)
-    ).toBe(false);
+      steps
+        .filter((s) => s.t < 30_000 + WATCH_ADVERT_MARGIN_MS)
+        .every((s) => s.rest === 'advert')
+    ).toBe(true);
+    expect(rungs(steps)).toEqual([[30_000 + WATCH_ADVERT_MARGIN_MS, 4]]);
   });
 
-  it('has not, while it is still on its way', () => {
-    // `buffering` is going somewhere and `unstarted` has not begun. Reading
-    // either as arrival is how a follower starts talking over itself.
-    expect(hasArrived(reading('buffering', 60_000), want)).toBe(false);
-    expect(hasArrived(reading('unstarted', 60_000), want)).toBe(false);
+  it('holds a play for the handover, and no longer than its deadline', () => {
+    const steps = climb(WATCH_HANDOVER_WAIT_MS + 500, { holding: true });
+    expect(steps[0].rest).toBe('handover');
+    expect(rungs(steps)).toEqual([[WATCH_HANDOVER_WAIT_MS, 0]]);
   });
 
-  it('has not, when it is doing the other thing', () => {
-    expect(hasArrived(reading('paused', 60_000), want)).toBe(false);
-  });
-
-  it('has, at the end of the film, whatever it was asked for', () => {
-    // A player at the end cannot be made to be anywhere else without being
-    // restarted, so waiting for it to arrive is waiting for ever.
-    expect(hasArrived(reading('ended', LENGTH), want)).toBe(true);
-  });
-
-  it('has not, while it cannot say where it is', () => {
-    expect(hasArrived(reading('playing', null), want)).toBe(false);
+  it('never rests without a deadline in anything but agreement', () => {
+    // The property the ladder exists for, over every reading a player can
+    // give: within a bounded time the follower agrees or has given up.
+    const readings: (PlayerReading | null)[] = [
+      null,
+      at('unstarted', 0),
+      at('buffering'),
+      at('paused'),
+      at('ended', LENGTH),
+    ];
+    const bound =
+      WATCH_SILENT_MS + WATCH_STALL_MS + WATCH_RUNG_MS + WATCH_RESCUE_MS +
+      WATCH_REBUILD_MS;
+    for (const reading of readings) {
+      for (const placed of [true, false]) {
+        const steps = climb(bound, { reading, placed });
+        const last = steps[steps.length - 1];
+        expect(['agreed', 'given up']).toContain(last.rest);
+      }
+    }
   });
 });
 

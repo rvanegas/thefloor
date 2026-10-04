@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { recordEvent } from '../audio/diagnostics';
 import { mutedStartEngaged } from '../audio/probe';
+import { useActive } from '../audio/useFilmTakesMicrophone';
 import type { WatchState } from '../../../core/types';
 import { showingTheFilm } from '../../../core/watch';
 import type { PlayerReading, PlayerState } from '../../../core/watch';
@@ -23,8 +24,7 @@ import { useKeepAwake } from './keepAwake';
  *
  * **The rule lives in core and the reading crosses a bridge.** The page inside
  * posts what the player is doing every quarter second and takes commands back;
- * `followInstructions` runs out here in TypeScript, where the web player and
- * the follower page run it too. Putting the decision inside the page would
+ * `stepFollow` runs out here in TypeScript, where the web player runs it too. Putting the decision inside the page would
  * have meant a third copy of the arithmetic with no way to share it, this
  * being a string rather than a module.
  *
@@ -190,8 +190,12 @@ function page(videoId: string): string {
       muted = null;
       volume = null;
     }
+    // **Stamped on the page's clock**, which is this device's: the app ages
+    // the reading by it rather than by when the message happened to cross,
+    // and moves a playing position on by the age. See \`read\` below.
     post({
       t: 'reading',
+      at: Date.now(),
       state: player.getPlayerState(),
       positionMs: typeof seconds === 'number' ? seconds * 1000 : null,
       durationMs: length > 0 ? Math.round(length * 1000) : null,
@@ -352,6 +356,8 @@ export function WatchPlayer({
   const told = useRef(false);
   const [ready, setReady] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
+  /** Whether the follower's ladder has reached its top. See `useFollow`. */
+  const [gaveUp, setGaveUp] = useState(false);
   const videoId = watch.party?.videoId ?? null;
   /**
    * How many times this film's player has been built, which is part of the
@@ -427,6 +433,8 @@ export function WatchPlayer({
         videoId?: string | null;
         muted?: boolean | null;
         volume?: number | null;
+        /** When the page took the reading, on this device's clock. */
+        at?: number;
       };
       try {
         payload = JSON.parse(event.nativeEvent.data);
@@ -486,7 +494,13 @@ export function WatchPlayer({
         keyframe, shows here as a jump and nowhere else.
       */
       const before = reading.current?.what.state ?? null;
-      reading.current = { at: Date.now(), what };
+      // The page's stamp where there is one. The page and this code share
+      // the device's clock, so the two are comparable as they stand; a
+      // message with no stamp is aged from its arrival, as all were before.
+      reading.current = {
+        at: typeof payload.at === 'number' ? payload.at : Date.now(),
+        what,
+      };
       if (what.state !== before) {
         // The room's clock starts from the first of these it hears. Sent from
         // beside the log line rather than from a second place that watches the
@@ -564,13 +578,18 @@ export function WatchPlayer({
    *
    * Stable across renders — it reads everything it needs off refs — so the
    * port it is handed to does not have to be rebuilt to carry it.
+   *
+   * **Answers whether it rebuilt**, since 2026-10-03: the follower's ladder
+   * asks for a rebuild on its fourth rung, and a refusal here is that ladder's
+   * cue to give up rather than to wait out a rebuild that is not coming.
    */
-  const recover = useCallback(() => {
-    if (refusedRef.current !== null) return;
+  const recover = useCallback((): boolean => {
+    if (refusedRef.current !== null) return false;
     const now = Date.now();
-    if (now - rebuiltAt.current < REBUILD_COOLDOWN_MS) return;
+    if (now - rebuiltAt.current < REBUILD_COOLDOWN_MS) return false;
     rebuiltAt.current = now;
     setGeneration((n) => n + 1);
+    return true;
   }, []);
 
   const port = useMemo<PlayerPort | null>(() => {
@@ -584,10 +603,24 @@ export function WatchPlayer({
         stopped talking — and it is an answer that could not be given while a
         reading had no age on it. See `READING_STALE_MS`.
       */
+      /*
+        **And aged by the page's own stamp**, since 2026-10-03. A reading is
+        posted four times a second and read twice, so it is up to a quarter of
+        a second old when the follower sees it, more if the bridge stalled; a
+        playing player has moved on by that much, and its position is moved
+        on with it rather than reported as drift that is only the reading's
+        age.
+      */
       read: () => {
         const last = reading.current;
         if (!last) return null;
-        return Date.now() - last.at > READING_STALE_MS ? null : last.what;
+        const age = Date.now() - last.at;
+        if (age > READING_STALE_MS) return null;
+        const { what } = last;
+        if (what.state !== 'playing' || what.positionMs === null || age <= 0) {
+          return what;
+        }
+        return { ...what, positionMs: what.positionMs + age };
       },
       /*
         **Muted when the probe says so, and the page does the rest.** Read at
@@ -604,7 +637,29 @@ export function WatchPlayer({
 
   // `channelId` so the published reading can be told from a stale one — see
   // `drift.ts`, and `DriftReadout`, which refuses to draw another room's number.
-  useFollow(watch, port, true, now, channelId);
+  /*
+    **Not while YouTube has refused the video**: the refusal is already the
+    visible end of this player, with YouTube's own words in the frame, and a
+    ladder climbing over it would only add a second notice to the first.
+
+    **Nor while the app is behind.** A backgrounded `WKWebView` has its
+    JavaScript suspended, so the page stops reporting — while this code may
+    well go on running, the microphone having been retaken on the way out
+    (`useFilmTakesMicrophone`). A ladder that went on climbing would rebuild a
+    page that is only asleep, find the rebuilt one asleep too, and greet the
+    return with a notice that the film had stopped responding. Standing down
+    starts it afresh when the app comes back, against a page that is talking
+    again.
+  */
+  const inFront = useActive();
+  useFollow(
+    watch,
+    port,
+    refused === null && inFront,
+    now,
+    channelId,
+    setGaveUp
+  );
 
   /*
     **Whether the frame answers a finger, said to the page rather than drawn
@@ -701,6 +756,12 @@ export function WatchPlayer({
         // and offers the way out. This says which of those two readings it is.
         <View style={styles.refusal}>
           <Text style={styles.refusalText}>{refused}</Text>
+        </View>
+      ) : gaveUp ? (
+        // The ladder's top, said in the refusal's own strip: the one rest a
+        // follower may reach that is not agreement, and never a silent one.
+        <View style={styles.refusal}>
+          <Text style={styles.refusalText}>{t.gaveUp()}</Text>
         </View>
       ) : null}
     </View>

@@ -187,10 +187,13 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
     0.6s is a healthy one.
 17. **Background the app mid-film and come back**, three ways.
     - **Showing it, and back within a minute.** A backgrounded `WKWebView` has
-      its JavaScript suspended. **Nothing should reload**: the silence watchdog
-      that rebuilt healthy players on exactly this was removed the day it was
-      written, and `onContentProcessDidTerminate` is all that remains. A fresh
-      `watch player ready` in the journal after a return is the regression.
+      its JavaScript suspended. **Nothing should reload**: since 2026-10-03 the
+      follower's ladder rebuilds a page that has gone silent, and it stands
+      down while the app is behind precisely so that a page that is only
+      asleep is not one of them
+      (`decision/2026-10-03-the-follower-rests-only-on-agreement.md`). A fresh
+      `watch player ready`, or a `watch rung 3` line, in the journal after a
+      return is the regression; so is the *stopped responding* notice.
     - **Showing it, into a pocket for five minutes.** Since `2e1d2145` a
       device that gave its microphone up for the film **retakes `CALL` on its
       way out of the front**, because a phone left on `LISTENING` with nothing
@@ -244,6 +247,24 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
     and the simulator did not. Copy a link in YouTube, come back, and the
     control should appear without anything else being touched
     (`decision/2026-09-30-an-empty-clipboard-gets-the-refused-button.md`).
+
+22. **The ladder, on the readout.** Since 2026-10-03 the follower may rest
+    only in agreement: every other rest has a deadline, and each deadline
+    climbs — told, told again, seek and play, the page rebuilt, given up
+    (`decision/2026-10-03-the-follower-rests-only-on-agreement.md`). A
+    `debug` account's readout has a *ladder* row for this device and a rung on
+    every other screen's line. **Through every step above it should read
+    *agreed* between presses**, a rung appearing only for the second or so a
+    press takes, and never reaching 2 on an ordinary evening. Anything that
+    reaches 2 is a player that ignored two instructions, and the `watch rung`
+    lines in the journal say which and why. Two cases worth provoking:
+    - **Wi-Fi off on the device showing the film for twenty seconds**, the
+      app in front. The page goes on reporting, so expect `buffering` and a
+      climb to at most 2 that ends in *agreed* when the network returns.
+    - **Rung 4, deliberately**, if you can find a way to wedge an embed: the
+      picture should say *The film stopped responding on this device. Pause
+      and play to try again.*, and a pause and a play should clear it and
+      start the climb again from nothing.
 
 ## Known-unknowns, worth watching for rather than testing
 

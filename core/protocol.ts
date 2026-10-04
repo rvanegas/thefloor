@@ -3,7 +3,7 @@ import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { Tried } from './tried';
 import type { ChannelState, Clip, UserId } from './types';
-import type { PlayerState } from './watch';
+import type { PlayerState, Rest, Rung } from './watch';
 
 /**
  * The wire contract between the app and the server. It lives in core for the
@@ -1749,6 +1749,14 @@ export interface SharedDrift {
    * nothing newer sends it. Still relayed for the readouts on those builds.
    */
   withheld?: boolean;
+  /**
+   * Where the follower is on its ladder, and why it is quiet — see
+   * `DriftReading.rung` and `.rest` in app/src/watch/drift.ts. Optional,
+   * since builds before 330 do not send them and a server older than the
+   * fields drops them.
+   */
+  rung?: Rung | null;
+  rest?: Rest | null;
 }
 
 export type ClientMessage =

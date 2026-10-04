@@ -47,9 +47,12 @@ jest.mock('react-native-webview', () => {
 
 /** The follower, replaced by a hand that keeps hold of the port. */
 const ports: (PlayerPort | null)[] = [];
+/** Whether the follower was asked to run, render by render. */
+const actives: boolean[] = [];
 jest.mock('../drive', () => ({
-  useFollow: (_watch: unknown, port: PlayerPort | null) => {
+  useFollow: (_watch: unknown, port: PlayerPort | null, active: boolean) => {
     ports.push(port);
+    actives.push(active);
   },
 }));
 
@@ -106,6 +109,7 @@ const port = () => ports[ports.length - 1];
 beforeEach(() => {
   mounts.length = 0;
   ports.length = 0;
+  actives.length = 0;
   jest.useFakeTimers({ now: 1_700_000_000_000, doNotFake: ['nextTick'] });
 });
 
@@ -150,5 +154,85 @@ describe('a reading nobody has refreshed', () => {
       jest.advanceTimersByTime(2_000);
     });
     expect(port()?.read()).toBeNull();
+  });
+});
+
+/*
+  **A reading is aged by the page's own stamp**, since 2026-10-03: the page
+  posts four times a second and the follower reads twice, so what it sees is
+  up to a quarter of a second old, more when the bridge stalled. A playing
+  position is moved on by that age rather than reported as drift that is only
+  the reading's.
+*/
+describe('a reading the page stamped', () => {
+  it('moves a playing position on by its age', () => {
+    draw();
+    say({ t: 'ready' });
+    say({
+      t: 'reading',
+      at: Date.now() - 200,
+      state: 1,
+      positionMs: 10_000,
+      durationMs: 600_000,
+    });
+    expect(port()?.read()?.positionMs).toBe(10_200);
+  });
+
+  it('leaves a paused one where it is', () => {
+    draw();
+    say({ t: 'ready' });
+    say({
+      t: 'reading',
+      at: Date.now() - 200,
+      state: 2,
+      positionMs: 10_000,
+      durationMs: 600_000,
+    });
+    expect(port()?.read()?.positionMs).toBe(10_000);
+  });
+
+  it('is too old to offer by its stamp, however recently it arrived', () => {
+    draw();
+    say({ t: 'ready' });
+    say({
+      t: 'reading',
+      at: Date.now() - 2_000,
+      state: 1,
+      positionMs: 10_000,
+      durationMs: 600_000,
+    });
+    expect(port()?.read()).toBeNull();
+  });
+});
+
+/*
+  **A backgrounded page is asleep, not dead.** iOS suspends a `WKWebView`'s
+  JavaScript behind the app while this code may go on running, so a follower
+  left climbing would rebuild a page that was only asleep and greet the return
+  with a notice that the film had stopped responding.
+*/
+describe('the app going behind', () => {
+  it('stands the follower down, and starts it again on the way back', () => {
+    const { AppState } = require('react-native');
+    const heard: ((next: string) => void)[] = [];
+    const spy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((...args: unknown[]) => {
+        heard.push(args[1] as (next: string) => void);
+        return { remove: () => {} };
+      });
+    try {
+      draw();
+      say({ t: 'ready' });
+      // The test environment does not start in front, so say it is.
+      act(() => heard.forEach((h) => h('active')));
+      expect(actives[actives.length - 1]).toBe(true);
+      act(() => heard.forEach((h) => h('background')));
+      expect(actives[actives.length - 1]).toBe(false);
+      act(() => heard.forEach((h) => h('active')));
+      expect(actives[actives.length - 1]).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

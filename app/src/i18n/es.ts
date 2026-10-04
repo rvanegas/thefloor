@@ -208,6 +208,8 @@ export const es: Strings = {
       `YouTube ha rechazado este reproductor (${code}); la culpa es de la app, no del v\u00eddeo.`,
     couldNotPlay: (code: number) =>
       `YouTube no ha podido reproducir este v\u00eddeo (${code}).`,
+    gaveUp: () =>
+      'La pel\u00edcula ha dejado de responder en este dispositivo. Pausa y vuelve a reproducir para intentarlo de nuevo.',
   },
   availability: {
     inTheAppNow: () => 'En la app ahora',

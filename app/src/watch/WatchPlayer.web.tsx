@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WatchState } from '../../../core/types';
 import type { PlayerState } from '../../../core/watch';
+import { useText } from '../i18n';
 import { useFollow, type PlayerPort } from './drive';
 import { useKeepAwake } from './keepAwake';
+
+/**
+ * The least time between one rebuild and the next, as on native — see
+ * `REBUILD_COOLDOWN_MS` in WatchPlayer.tsx for why a rebuild is rationed.
+ */
+const REBUILD_COOLDOWN_MS = 20_000;
 
 /**
  * The film, in the web app, in the tab the channel is already open in.
@@ -137,8 +144,32 @@ export function WatchPlayer({
 }): React.ReactElement {
   const mount = useRef<HTMLDivElement | null>(null);
   const player = useRef<YouTubePlayer | null>(null);
+  const t = useText().watch;
   const [port, setPort] = useState<PlayerPort | null>(null);
   const told = useRef(false);
+  /**
+   * How many times this film's player has been built, which is what a
+   * rebuild is: the effect below is keyed on it, and so is the node the
+   * player is mounted in, since `YT.Player` replaces that node with its
+   * iframe and a destroyed player is not trusted to put it back.
+   */
+  const [generation, setGeneration] = useState(0);
+  /** When the last rebuild was, so they can be rationed. */
+  const rebuiltAt = useRef(0);
+  /** Whether the follower's ladder has reached its top. See `useFollow`. */
+  const [gaveUp, setGaveUp] = useState(false);
+  /**
+   * The follower's fourth rung, which until 2026-10-03 only native had: a
+   * frame that has stopped answering is built again. Answers whether it
+   * did, so a rebuild refused by the cooldown is the ladder's cue to give up.
+   */
+  const recover = useCallback((): boolean => {
+    const at = Date.now();
+    if (at - rebuiltAt.current < REBUILD_COOLDOWN_MS) return false;
+    rebuiltAt.current = at;
+    setGeneration((n) => n + 1);
+    return true;
+  }, []);
   /**
    * Where the player's callbacks can reach it without the player being rebuilt.
    *
@@ -207,6 +238,7 @@ export function WatchPlayer({
               play: () => player.current?.playVideo(),
               pause: () => player.current?.pauseVideo(),
               seek: (ms) => player.current?.seekTo(ms / 1000, true),
+              recover,
             });
           },
           onStateChange: () => {
@@ -268,9 +300,9 @@ export function WatchPlayer({
     // `onFilm` deliberately absent: it is rebuilt on every render of the
     // screen above, and listing it would tear the player down mid-film.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [videoId, generation]);
 
-  useFollow(watch, port, true, now, channelId);
+  useFollow(watch, port, true, now, channelId, setGaveUp);
 
   return (
     <div
@@ -309,8 +341,31 @@ export function WatchPlayer({
           replaces the node it is given with its iframe, so anything styled
           on that node is gone the moment the player is built.
         */}
-        <div ref={mount} style={{ width: '100%', height: '100%' }} />
+        <div
+          key={generation}
+          ref={mount}
+          style={{ width: '100%', height: '100%' }}
+        />
       </div>
+      {gaveUp ? (
+        // The ladder's top, said over the picture as native says it: the one
+        // rest a follower may reach that is not agreement, never a silent one.
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.85)',
+            color: '#fff',
+            fontSize: 13,
+            lineHeight: '18px',
+          }}
+        >
+          {t.gaveUp()}
+        </div>
+      ) : null}
     </div>
   );
 }

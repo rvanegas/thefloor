@@ -2049,6 +2049,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         playerState: reading.playerState,
         bufferingForMs: reading.bufferingForMs,
         seeksThisRun: reading.seeksThisRun,
+        rung: reading.rung,
+        rest: reading.rest,
       });
       if (!sent) return;
       sentFor = reading.channelId;
