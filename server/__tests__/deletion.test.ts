@@ -621,6 +621,59 @@ describe('the sweep', () => {
     expect(store.keys()).toContain(keys[0]);
   });
 
+  /**
+   * Production, as it actually is: every delete refused and, without
+   * `s3:ListBucket`, every absence unconfirmable. The audio has gone and the
+   * sweep still cannot know it, so asking alone never drops a row.
+   */
+  it('holds the row when it cannot ask, even with the audio gone', async () => {
+    const { channelId, keys } = await deleted();
+    store.refuseDeleting(...keys);
+    store.refuseListing();
+    await store.forget(...keys);
+
+    clock += DELETED_RETENTION_MS;
+    const swept = await app.channels.sweepDeleted(clock);
+
+    expect(swept.recordings).toBe(0);
+    expect(rowsOf(channelId)).toHaveLength(1);
+  });
+
+  /**
+   * What closes it. `bin/orphans` clears the prefix on a person's credential,
+   * lists it again, and marks the row once nothing is left; the sweep takes
+   * the mark as the confirmation it cannot make itself.
+   */
+  it('drops the row on bin/orphans’ word, without asking the bucket', async () => {
+    const { channelId, keys } = await deleted();
+    store.refuseDeleting(...keys);
+    store.refuseListing();
+    await store.forget(...keys);
+
+    clock += DELETED_RETENTION_MS;
+    app.db
+      .prepare('UPDATE recordings SET objects_cleared_at = ? WHERE channel_id = ?')
+      .run(clock, channelId);
+    const swept = await app.channels.sweepDeleted(clock);
+
+    expect(swept.recordings).toBe(1);
+    expect(swept.channels).toBe(1);
+    expect(rowsOf(channelId)).toEqual([]);
+  });
+
+  it('does not act on the mark before the week is up', async () => {
+    // bin/orphans guards on the same week, but the sweep's own cutoff is the
+    // one that counts here, and a mark must not shorten it.
+    const { channelId } = await deleted();
+    app.db
+      .prepare('UPDATE recordings SET objects_cleared_at = ? WHERE channel_id = ?')
+      .run(clock, channelId);
+
+    clock += DELETED_RETENTION_MS - 1;
+    expect((await app.channels.sweepDeleted(clock)).recordings).toBe(0);
+    expect(rowsOf(channelId)).toHaveLength(1);
+  });
+
   it('reports the refusal rather than absorbing it', async () => {
     const { keys } = await deleted();
     store.refuseDeleting(keys[0]);

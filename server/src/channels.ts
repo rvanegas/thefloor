@@ -3505,9 +3505,14 @@ export class ChannelRegistry {
    * `thefloor-server` holds no `s3:DeleteObject`, by a decision recorded in
    * planning/CREDENTIALS.md and kept deliberately, so every delete it issues
    * is refused and the objects are cleared from a person's credential by
-   * `bin/orphans` instead. The server may read where it may not delete, so a
-   * refused key is followed by asking whether it is there at all; absent
-   * counts as emptied, and only a key still present holds the row.
+   * `bin/orphans` instead. See `objectsGone` for how the sweep asks, and why
+   * in production it cannot get an answer.
+   *
+   * **So `bin/orphans` answers for it.** Having cleared a deleted recording's
+   * prefix, it lists the prefix again on the same credential and, finding
+   * nothing, sets `objects_cleared_at`. A row carrying that mark is dropped
+   * without asking the bucket anything: the confirmation was made by somebody
+   * who could list, which is more than this server can do.
    */
   async sweepDeleted(
     now: number
@@ -3515,7 +3520,7 @@ export class ChannelRegistry {
     const cutoff = now - DELETED_RETENTION_MS;
     const due = this.db
       .prepare(
-        'SELECT id, channel_id, s3_key, segment_keys, stems FROM recordings WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
+        'SELECT id, channel_id, s3_key, segment_keys, stems, objects_cleared_at FROM recordings WHERE deleted_at IS NOT NULL AND deleted_at <= ?'
       )
       .all(cutoff) as unknown as Array<{
       id: string;
@@ -3523,6 +3528,7 @@ export class ChannelRegistry {
       s3_key: string;
       segment_keys: string | null;
       stems: string | null;
+      objects_cleared_at: number | null;
     }>;
 
     let recordings = 0;
@@ -3548,54 +3554,11 @@ export class ChannelRegistry {
         mixKeyFor(row.channel_id, row.id),
         publishedKeyFor(row.channel_id, row.id),
       ];
-      // Without a store configured there is nothing to empty and no way to
-      // know the objects are gone, so the row stays: a marked recording is
-      // already unreachable, and keeping it costs a row rather than an
-      // unidentifiable object.
-      if (!this.store) continue;
-      const store = this.store;
-      const outcomes = await Promise.allSettled(
-        keys.map((key) => store.delete(key))
-      );
-      // What the row needs is not that this server deleted the object — it is
-      // that the object is *gone*, by whatever hand. `thefloor-server` holds
-      // no `s3:DeleteObject` and deliberately keeps it that way, so the
-      // deleting is done from a person's credential by `bin/orphans`; a
-      // refusal here is therefore the expected case, and the question it
-      // raises is whether the key is still there.
-      //
-      // It may read even where it may not delete, so it can answer that. An
-      // absent key counts as emptied — including one that was never written,
-      // which the mix and the published episode usually are not.
-      let emptied = true;
-      let refusals = 0;
-      await Promise.all(
-        outcomes.map(async (outcome, i) => {
-          if (outcome.status !== 'rejected') return;
-          refusals += 1;
-          let present: boolean;
-          try {
-            present = await store.exists(keys[i]);
-          } catch {
-            // No answer is not an answer of no. Hold the row.
-            present = true;
-          }
-          if (!present) return;
-          emptied = false;
-          this.onMediaError(outcome.reason, `sweep ${keys[i]}`);
-        })
-      );
-      // Once per recording rather than per key, and only when nothing was
-      // actually left behind: the refusals are routine under the arrangement
-      // above, but silence about them is what let the original bug run for
-      // weeks, so they are never entirely quiet.
-      if (refusals > 0 && emptied) {
-        this.onMediaError(
-          new Error(`${refusals} deletes refused; every key already absent`),
-          `sweep ${row.id}`
-        );
+      // The mark first, and on its own: it is the only evidence available in
+      // production, and it holds without a store configured at all.
+      if (row.objects_cleared_at === null) {
+        if (!(await this.objectsGone(row.id, keys))) continue;
       }
-      if (!emptied) continue;
       // Before the row, because `recording_consents` has a real foreign key
       // to it — the same constraint that makes this whole sweep an ordering
       // problem rather than three deletes. A consent is a fact about a
@@ -3636,6 +3599,67 @@ export class ChannelRegistry {
       )
       .run(cutoff);
     return { recordings, channels: Number(gone.changes ?? 0) };
+  }
+
+  /**
+   * Whether every one of a deleted recording's objects is gone, asked of the
+   * bucket by the server itself.
+   *
+   * Without a store configured there is nothing to empty and no way to know
+   * the objects are gone, so the answer is no: a marked recording is already
+   * unreachable, and keeping it costs a row rather than an unidentifiable
+   * object.
+   *
+   * **In production this answers no, every time.** Every delete is refused,
+   * and `exists` needs `s3:ListBucket` to tell a missing key from one it will
+   * not discuss, which `thefloor-server` does not hold — so each refused key
+   * comes back unknown and holds the row. That is why the sweep accepts
+   * `objects_cleared_at` instead. This path is what the arrangement looks
+   * like on a credential that can delete or list, and is kept for that.
+   */
+  private async objectsGone(
+    recordingId: string,
+    keys: string[]
+  ): Promise<boolean> {
+    if (!this.store) return false;
+    const store = this.store;
+    const outcomes = await Promise.allSettled(
+      keys.map((key) => store.delete(key))
+    );
+    // What the row needs is not that this server deleted the object — it is
+    // that the object is *gone*, by whatever hand. A refusal is therefore the
+    // expected case, and the question it raises is whether the key is still
+    // there. An absent key counts as emptied — including one that was never
+    // written, which the mix and the published episode usually are not.
+    let emptied = true;
+    let refusals = 0;
+    await Promise.all(
+      outcomes.map(async (outcome, i) => {
+        if (outcome.status !== 'rejected') return;
+        refusals += 1;
+        let present: boolean;
+        try {
+          present = await store.exists(keys[i]);
+        } catch {
+          // No answer is not an answer of no. Hold the row.
+          present = true;
+        }
+        if (!present) return;
+        emptied = false;
+        this.onMediaError(outcome.reason, `sweep ${keys[i]}`);
+      })
+    );
+    // Once per recording rather than per key, and only when nothing was
+    // actually left behind: the refusals are routine under the arrangement
+    // above, but silence about them is what let the original bug run for
+    // weeks, so they are never entirely quiet.
+    if (refusals > 0 && emptied) {
+      this.onMediaError(
+        new Error(`${refusals} deletes refused; every key already absent`),
+        `sweep ${recordingId}`
+      );
+    }
+    return emptied;
   }
 
   // --- Persistence --------------------------------------------------------

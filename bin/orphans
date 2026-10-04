@@ -1,8 +1,9 @@
 #!/bin/bash
 #
-# Audio in the recordings bucket that no database row names.
+# Audio in the recordings bucket that nothing is keeping: audio no database
+# row names, and audio whose recording was deleted more than a week ago.
 #
-#   bin/orphans              what is orphaned, and what clearing it would take
+#   bin/orphans              what would be cleared, and what clearing it takes
 #   bin/orphans --keys       every key, rather than a prefix per line
 #   bin/orphans --delete     actually remove them, after printing and asking
 #
@@ -17,6 +18,17 @@
 # refused delete counted as an empty bucket and the row was dropped anyway.
 # See planning/decision/2026-09-23-the-sweep-now-knows-whether-it-deleted-anything.md
 # and planning/backlog/there-is-236mb-of-orphaned-audio-in-the-bucket.md.
+#
+# **This is also the only thing that deletes a deleted recording's audio.**
+# `thefloor-server` may neither delete objects nor list the bucket, so its
+# sweep can neither empty a prefix nor confirm one empty, and it holds the
+# row until somebody does both. Once a recording has been marked deleted for
+# `DELETED_RETENTION_MS` its prefix is cleared here with the orphans; then the
+# bucket is listed again and every such recording with nothing left under its
+# prefix gets `objects_cleared_at`, which the next hourly sweep takes as the
+# confirmation and drops the row on. Marked only after the second listing, so
+# a delete that failed leaves its row unmarked and held rather than claimed.
+# See planning/decision/2026-10-03-bin-orphans-clears-deleted-recordings-and-says-so.md.
 #
 # **The set is recomputed on every run and never cached.** A prefix that gains
 # a row between a listing and a deletion must not be touched, which is the same
@@ -39,6 +51,15 @@ set -euo pipefail
 BUCKET=${THEFLOOR_BUCKET:-thefloor-recordings}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Mirrors DELETED_RETENTION_MS in core/constants.ts, a week. The week is the
+# window in which a deletion is a mistake somebody can still undo by hand, and
+# clearing the audio is what ends it, so this must never be the shorter of
+# the two. The UPDATE below re-checks it against the box's own clock.
+RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))
+DUE="deleted_at IS NOT NULL
+  AND deleted_at <= CAST(strftime('%s', 'now') AS INTEGER) * 1000 - $RETENTION_MS
+  AND objects_cleared_at IS NULL"
+
 keys_mode=false
 do_delete=false
 for arg in "$@"; do
@@ -55,13 +76,29 @@ done
 
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 
+# `--output text` prints `None` for an empty bucket rather than nothing.
+list_bucket() {
+  aws s3api list-objects-v2 --bucket "$BUCKET" \
+    --query 'Contents[].[Key,Size]' --output text | grep -v '^None$' || true
+}
+
 echo "→ listing s3://$BUCKET"
-aws s3api list-objects-v2 --bucket "$BUCKET" \
-  --query 'Contents[].[Key,Size]' --output text > "$work/objects.tsv"
+list_bucket > "$work/objects.tsv"
 
 echo "→ reading recordings from the deployed database"
-"$HERE/db" "select channel_id || '/' || id from recordings" \
-  | tail -n +3 | sed 's/ *$//' | grep '^chan_' | sort -u > "$work/rows.txt"
+# The column is added by the server at startup, so a box not yet deployed
+# with it fails here — before anything is deleted — rather than after.
+if ! "$HERE/db" "select channel_id || '/' || id || ' ' ||
+    case when $DUE then 'due' else 'kept' end from recordings" \
+    > "$work/db.txt"; then
+  echo "bin/orphans: could not read recordings. If the error names" >&2
+  echo "objects_cleared_at, the server has not been deployed with it yet." >&2
+  exit 1
+fi
+tail -n +3 "$work/db.txt" | sed 's/ *$//' | grep '^chan_' | sort -u > "$work/rows.tsv" || true
+cut -d' ' -f1 "$work/rows.tsv" | sort -u > "$work/rows.txt"
+awk '$2 == "kept" { print $1 }' "$work/rows.tsv" | sort -u > "$work/kept.txt"
+awk '$2 == "due" { print $1 }' "$work/rows.tsv" | sort -u > "$work/due.txt"
 
 # The guard that matters. Every prefix looks orphaned when the row list is
 # empty, so a failed query, a broken ssh or an empty answer would otherwise
@@ -73,63 +110,108 @@ if [ ! -s "$work/rows.txt" ]; then
   exit 1
 fi
 
-grep -oE '^chan_[^/]+/rec_[^/]+' "$work/objects.tsv" | sort -u > "$work/prefixes.txt"
+grep -oE '^chan_[^/]+/rec_[^/]+' "$work/objects.tsv" | sort -u > "$work/prefixes.txt" || true
+# What goes is every prefix nothing is keeping; the two reasons are reported
+# apart because they mean different things.
+comm -13 "$work/kept.txt" "$work/prefixes.txt" > "$work/clear.txt"
 comm -13 "$work/rows.txt" "$work/prefixes.txt" > "$work/orphans.txt"
+comm -12 "$work/due.txt" "$work/prefixes.txt" > "$work/expired.txt"
+comm -23 "$work/due.txt" "$work/prefixes.txt" > "$work/empty.txt"
 
-awk -F'\t' 'NR==FNR { orphan[$0]=1; next }
+awk -F'\t' 'NR==FNR { clear[$0]=1; next }
   { n = split($1, part, "/")
     if (n < 3) next
     prefix = part[1] "/" part[2]
-    if (!(prefix in orphan)) next
+    if (!(prefix in clear)) next
     print $1
     bytes += $2
     count += 1 }
   END { printf "%d\t%d\n", count, bytes+0 > "/dev/stderr" }' \
-  "$work/orphans.txt" "$work/objects.tsv" > "$work/keys.txt" 2> "$work/tally.txt"
+  "$work/clear.txt" "$work/objects.tsv" > "$work/keys.txt" 2> "$work/tally.txt"
 
 read -r objects bytes < "$work/tally.txt"
-prefixes=$(wc -l < "$work/orphans.txt" | tr -d ' ')
 total_bytes=$(awk -F'\t' '{ b += $2 } END { print b+0 }' "$work/objects.tsv")
-rows=$(wc -l < "$work/rows.txt" | tr -d ' ')
+count() { wc -l < "$1" | tr -d ' '; }
 
 human() { awk -v b="$1" 'BEGIN { printf "%.1f MB", b/1048576 }'; }
 
 echo
-echo "bucket        $(wc -l < "$work/objects.tsv" | tr -d ' ') objects, $(human "$total_bytes")"
-echo "rows          $rows recordings in the database"
-echo "orphaned      $prefixes recordings, $objects objects, $(human "$bytes")"
+echo "bucket        $(count "$work/objects.tsv") objects, $(human "$total_bytes")"
+echo "rows          $(count "$work/rows.txt") recordings in the database"
+echo "orphaned      $(count "$work/orphans.txt") recordings no row names"
+echo "deleted       $(count "$work/expired.txt") recordings deleted over a week ago, with audio"
+echo "              $(count "$work/empty.txt") more with none left, waiting only to be marked"
+echo "to clear      $objects objects, $(human "$bytes")"
 
-if [ "$objects" -eq 0 ]; then
+if [ "$objects" -eq 0 ] && [ ! -s "$work/empty.txt" ]; then
   echo
   echo "Nothing to clear."
   exit 0
 fi
 
-echo
-if $keys_mode; then cat "$work/keys.txt"; else cat "$work/orphans.txt"; fi
+if [ "$objects" -gt 0 ]; then
+  echo
+  if $keys_mode; then cat "$work/keys.txt"; else cat "$work/clear.txt"; fi
+fi
 
 if ! $do_delete; then
   echo
-  echo "Nothing was deleted. Pass --delete to remove these."
+  echo "Nothing was deleted or marked. Pass --delete to do both."
   exit 0
 fi
 
-echo
-echo "This deletes $objects objects ($(human "$bytes")) and cannot be undone."
-read -r -p "Type the number of objects to confirm: " answer
-if [ "$answer" != "$objects" ]; then
-  echo "Not confirmed. Nothing was deleted."
-  exit 1
+if [ "$objects" -gt 0 ]; then
+  echo
+  echo "This deletes $objects objects ($(human "$bytes")) and cannot be undone."
+  read -r -p "Type the number of objects to confirm: " answer
+  if [ "$answer" != "$objects" ]; then
+    echo "Not confirmed. Nothing was deleted."
+    exit 1
+  fi
+
+  # One call per thousand keys, which is the API's limit per request. A key
+  # the bucket refuses comes back in `Errors` with a zero exit, so it is
+  # counted rather than taken on trust; the second listing below is what
+  # actually decides, but a refusal should still be said out loud.
+  echo "→ deleting"
+  split -l 1000 "$work/keys.txt" "$work/batch."
+  for batch in "$work"/batch.*; do
+    jq -R -s '{Objects: (split("\n") | map(select(length > 0) | {Key: .})), Quiet: true}' \
+      < "$batch" > "$batch.json"
+    refused=$(aws s3api delete-objects --bucket "$BUCKET" --delete "file://$batch.json" \
+      --query 'length(Errors || `[]`)' --output text)
+    if [ "$refused" = 0 ]; then
+      echo "  $(count "$batch") objects"
+    else
+      echo "  $(count "$batch") objects, $refused refused" >&2
+    fi
+  done
 fi
 
-# One call per thousand keys, which is the API's limit per request.
-echo "→ deleting"
-split -l 1000 "$work/keys.txt" "$work/batch."
-for batch in "$work"/batch.*; do
-  jq -R -s '{Objects: (split("\n") | map(select(length > 0) | {Key: .})), Quiet: true}' \
-    < "$batch" > "$batch.json"
-  aws s3api delete-objects --bucket "$BUCKET" --delete "file://$batch.json" >/dev/null
-  echo "  $(wc -l < "$batch" | tr -d ' ') objects"
-done
+# The confirmation the sweep cannot make for itself. Listed again rather than
+# inferred from what was just asked for, so a delete that did not happen
+# leaves its recording unmarked.
+cat "$work/expired.txt" "$work/empty.txt" | sort -u > "$work/candidates.txt"
+if [ -s "$work/candidates.txt" ]; then
+  echo "→ listing s3://$BUCKET again"
+  list_bucket | grep -oE '^chan_[^/]+/rec_[^/]+' | sort -u > "$work/remaining.txt" || true
+  comm -23 "$work/candidates.txt" "$work/remaining.txt" \
+    | grep -E '^chan_[A-Za-z0-9_-]+/rec_[A-Za-z0-9_-]+$' > "$work/confirmed.txt" || true
+  left=$(comm -12 "$work/candidates.txt" "$work/remaining.txt" | wc -l | tr -d ' ')
+
+  if [ -s "$work/confirmed.txt" ]; then
+    ids=$(cut -d/ -f2 "$work/confirmed.txt" | sed "s/.*/'&'/" | paste -sd, -)
+    # Guarded on the same week and on being deleted at all, so a row that is
+    # somehow not what the first query said it was is left alone.
+    marked=$("$HERE/db" --write "UPDATE recordings
+      SET objects_cleared_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+      WHERE id IN ($ids) AND $DUE;
+      SELECT changes();" | tail -n 1 | tr -d ' ')
+    echo "→ marked $marked deleted recordings cleared; the next sweep drops their rows"
+  fi
+  if [ "$left" -gt 0 ]; then
+    echo "  $left deleted recordings still have audio and were not marked." >&2
+  fi
+fi
 
 echo "done. Re-run bin/orphans to confirm the bucket and the database agree."

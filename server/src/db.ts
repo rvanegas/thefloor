@@ -460,6 +460,11 @@ export interface RecordingRow {
   aac_state: string | null;
   /** How long the published M4A is, in bytes. Null until it exists. */
   published_bytes: number | null;
+  /**
+   * When bin/orphans confirmed this deleted recording's objects gone, which
+   * the sweep accepts in place of asking the bucket. See the schema.
+   */
+  objects_cleared_at: number | null;
 }
 
 /**
@@ -1308,7 +1313,15 @@ CREATE TABLE IF NOT EXISTS recordings (
   -- carry a length and a HEAD per episode per poll is a request this box
   -- would serve for every subscriber for ever. Null until the transcode
   -- lands, which is what the feed reads to know it has nothing to offer yet.
-  published_bytes INTEGER
+  published_bytes INTEGER,
+  -- When somebody confirmed this deleted recording's prefix empty, or null.
+  --
+  -- Written by bin/orphans and by nothing in this server, which may not
+  -- delete objects and cannot list the bucket: a person clears the audio on
+  -- their own credential, lists the prefix again, and marks the row only if
+  -- nothing is left. The sweep takes the mark as the evidence it cannot
+  -- gather itself and drops the row. Never set on a row that is not deleted.
+  objects_cleared_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS recordings_participants
   ON recordings(initiator_id, invitee_id);
@@ -2671,6 +2684,11 @@ function migrate(db: Db): void {
   }
   if (!hasColumn(db, 'recordings', 'published_bytes')) {
     db.exec('ALTER TABLE recordings ADD COLUMN published_bytes INTEGER');
+  }
+  // Null on every row that exists, which is true: nobody had confirmed any
+  // prefix empty before bin/orphans could say so.
+  if (!hasColumn(db, 'recordings', 'objects_cleared_at')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN objects_cleared_at INTEGER');
   }
   // Null on every seat that exists, which is the only safe backfill: a guest
   // admitted before the question could be asked was never asked it.

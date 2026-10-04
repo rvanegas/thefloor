@@ -93,8 +93,10 @@ Deliberately separate, so no single leak is worse than it has to be:
   like it needed a write here, when the server has held a PutObject key all
   along — the one above, which `media.ts` already stores the playback stem
   with. Anything that seems to need this credential widened is worth checking
-  against that one first. The sweep's `DeleteObject` is a live question of the
-  same kind, and is in backlog/.
+  against that one first. The sweep's `DeleteObject` and `ListBucket` were
+  both questions of the same kind, and both were declined: a person deletes,
+  and confirms, from `bin/orphans` — see
+  decision/2026-10-03-bin-orphans-clears-deleted-recordings-and-says-so.md.
 
   It also needs the **configuration set** in its resource list, not only the
   identity. The rvanegas.co identity has `my-first-configuration-set` attached

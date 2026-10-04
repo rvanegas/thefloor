@@ -82,9 +82,14 @@ export interface RecordingStore {
    * were not. `mixes.ts` § `dropHollowStems` documents the same behaviour and
    * chooses to read every failure as absence, which is safe there and is not
    * safe here: absence drops a row, and a row is the only record of which keys
-   * belong to a recording. So this reports *unknown* by throwing, the sweep
-   * holds the row, and the arrangement waits on the grant rather than
-   * guessing.
+   * belong to a recording. So this reports *unknown* by throwing and the
+   * sweep holds the row rather than guessing.
+   *
+   * The grant was weighed and not made: `ListBucket` beside `GetObject` turns
+   * a leaked key from one that can fetch what it can name into one that can
+   * take the whole bucket. Absence is instead confirmed by `bin/orphans`, on
+   * a person's credential, as `recordings.objects_cleared_at` — which the
+   * sweep reads before it gets here.
    */
   exists(key: string): Promise<boolean>;
 }
@@ -214,8 +219,8 @@ export class S3RecordingStore implements RecordingStore {
       // `s3:ListBucket` the bucket refuses to say whether a key exists rather
       // than answering 404, so a missing object is indistinguishable from one
       // it will not discuss. Falling through to the throw is right — unknown
-      // is not absent — but it does mean the sweep can never confirm anything
-      // has gone until that permission is granted. See the interface note.
+      // is not absent — and it means this never confirms anything has gone;
+      // `bin/orphans` does that instead. See the interface note.
       const status = (error as { $metadata?: { httpStatusCode?: number } })
         .$metadata?.httpStatusCode;
       if (status === 404) return false;
@@ -233,11 +238,24 @@ export class MemoryRecordingStore implements RecordingStore {
    */
   private undeletable = new Set<string>();
 
+  /** Whether `exists` answers for a missing key or refuses, as production does. */
+  private unlistable = false;
+
   constructor(private objects: Map<string, Buffer> = new Map()) {}
 
   /** Makes `delete` reject for these keys, as a denied policy does. */
   refuseDeleting(...keys: string[]): void {
     for (const key of keys) this.undeletable.add(key);
+  }
+
+  /**
+   * Makes `exists` throw for a key that is not there, as the real bucket
+   * does for a caller without `s3:ListBucket` — 200 for a key that is, 403
+   * rather than 404 for one that is not. With this the sweep can never
+   * confirm an absence by asking, which is production exactly.
+   */
+  refuseListing(): void {
+    this.unlistable = true;
   }
 
   /**
@@ -280,7 +298,9 @@ export class MemoryRecordingStore implements RecordingStore {
   }
 
   async exists(key: string): Promise<boolean> {
-    return this.objects.has(key);
+    if (this.objects.has(key)) return true;
+    if (this.unlistable) throw new Error(`AccessDenied: ${key}`);
+    return false;
   }
 
   /** What the sweep left behind, for tests to assert on. */
