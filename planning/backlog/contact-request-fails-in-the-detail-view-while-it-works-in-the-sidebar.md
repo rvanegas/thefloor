@@ -2,21 +2,41 @@
 
 Reported 2026-10-02, in these words: *Contact request fails in detail view,
 while it works in sidebar.* "Sidebar" is the *list* pane and "detail view" the
-*detail (pane)*, in GLOSSARY.md's terms; which screen in the detail pane, and
-what the failure looked like — an error line, a 404, or nothing — was not said
-and is the first thing to find out.
+*detail (pane)*, in GLOSSARY.md's terms. Read as an *incoming* request being
+answered, which the code below bears out; not yet reproduced on a device.
 
-**The two surfaces do not share a route, which is the likeliest reason only one
-fails.** The list's Contacts form asks by name or address:
-`ContactsView` → `requestContact` → `POST /contacts/request`. A profile in the
-detail pane asks by account: `ProfileView`'s *Add contact* → `connectWith` →
-`requestContactById` → `POST /contacts/:id/request`. The second is gated on
-`channels.shareAChannel` and answers 404 *No such person.* to a pair with no
-channel in common — so a profile reachable from somewhere other than a shared
-room would offer a button whose request the server refuses. If that is it, the
-button and the gate disagree, and the fix is to make them agree rather than to
-loosen the gate by reflex: it is why asking by id cannot be used to probe who
-exists.
+**Diagnosed 2026-10-04, from the code.** Since *A waiting bar that names one
+thing goes to it* (2026-09-27), Home's bar for a single incoming request opens
+the requester's profile in the detail pane. Before that, a profile showing an
+incoming request was reachable only from a channel roster, so the two of you
+always shared a room. Someone who asked by address usually shares none, and
+both server routes that profile screen uses refuse that pair:
+
+- `GET /profiles/:id` admits yourself, a contact, or `shareAChannel`. A
+  pending requester is none of those, so the screen opens `refused` with only
+  the fallback name.
+- *Accept their request* is the incoming branch of the Contact card, and it
+  calls `ask()` → `connectWith` → `POST /contacts/:id/request`. That route is
+  gated on `shareAChannel` too and answers 404 *No such person.*, which is the
+  error line it shows. Unlike *Add contact*, the button is not disabled when
+  the profile was refused.
+
+The list's `RequestRow` *Accept* is `acceptContact` → `POST /contacts/:id/accept`,
+which needs only the pending request. So it works.
+
+**The fix is to accept on the accept route, not to loosen the by-id gate.**
+That gate is what keeps account ids from being a way to pester people. The
+incoming branch should call `acceptContact` and then go to the pair channel, as
+`RequestRow` does. Separately, `GET /profiles/:id` probably should admit
+somebody with a pending request *to you*, since they told you who they are. The
+bar's decision already assumes it does. That widens who can read whose profile,
+though, so it is a decision rather than a formality. Without it, the bar opens
+onto an empty profile with a working button.
+
+No test covers an incoming requester you share no channel with. The view test
+for this button, in `contacts.test.tsx`, asserts that it calls `connectWith`.
+That pins the faulty path, so it changes with the fix. `server/__tests__/profiles.test.ts`
+tests the crossed request by id only between channel members.
 
 The guest row's *Add contact* in `channelCards` is a third path, and was not
 part of the report.
