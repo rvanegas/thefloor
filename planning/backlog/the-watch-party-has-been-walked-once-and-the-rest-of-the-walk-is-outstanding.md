@@ -225,12 +225,18 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
     (`decision/2026-10-02-the-play-chime-is-held-past-its-samples.md`). So:
     presses on the device showing the film **and** on the other one, muted
     **and** unmuted, and on each phone listen for both. **The play chime on
-    the showing device is the one still argued about**: `CHIME_TAIL_MS` was
-    added on a theory, and `watch chime at …` says whether it held —
-    `finished after Nms` is a chime heard whole, `stopped at x/180ms` one cut
-    off. `watch chime dropped after …` is a pause chime that gave up waiting.
-    A muted phone must also start the film promptly; `no playback after 2000ms,
-    playing anyway` was fifteen times in one run.
+    the showing device is the one still argued about**, and since 2026-10-03
+    the microphone is released on the chime's own finish plus its tail rather
+    than on a timer from the request
+    (`decision/2026-10-03-the-play-chime-is-released-on-its-finish.md`):
+    `watch start releasing (chimed, finished after Nms)` is a chime heard
+    whole, `refused`, `no reading` and `deadline` the other three endings,
+    and `watch chime at …` still says where the player was. A held pause
+    chime now always ends in a line — `after engine start`, `dropped after
+    2000ms`, or `dropped … the room played again` for a pause and a play
+    inside the wait; `watch chime held (engine)` with nothing after it is the
+    regression. A muted phone must also start the film promptly; `no playback
+    after 2000ms, playing anyway` was fifteen times in one run.
 20. **The lock screen, mid-film.** Lock the phone while it shows the film and
     while it does not. The card reads channel name, *Open*, microphone, **Out**
     (`decision/2026-09-29-the-lock-screen-carries-a-way-out.md`). Press Out:

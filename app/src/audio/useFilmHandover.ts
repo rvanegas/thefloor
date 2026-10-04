@@ -12,6 +12,11 @@ import { spanMs } from './chime';
  * the one that did not. Half again the sound's length clears both, and is a
  * guess until `chimePlayer` reports a position at the release — see
  * decision/2026-10-02-the-play-chime-is-held-past-its-samples.md.
+ *
+ * **Since 2026-10-03 it is counted from the sound's finish**, where the chime
+ * player can report one (`waitForChime` in chimeFinish.ts), and so covers only
+ * what is still leaving the speaker after the last sample. `HANDOVER_MS` below
+ * is the fallback where it cannot, and this hook's own hold.
  */
 export const CHIME_TAIL_MS = 150;
 

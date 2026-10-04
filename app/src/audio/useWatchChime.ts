@@ -167,6 +167,34 @@ export function useWatchChime(
   // the wait go without a sound.
   const muted = useRef(false);
   muted.current = !!channel?.selfMuted[me];
+  /**
+   * The room's status as it stands now, for a held pause chime deciding at the
+   * moment it would sound whether it still has anything true to say.
+   */
+  const latestStatus = useRef(status);
+  latestStatus.current = status;
+  /**
+   * A pause chime waiting for the engine, as its cancel, or null.
+   *
+   * **Owned here rather than by the effect that started it**, since
+   * 2026-10-03. It was the effect's cleanup, so any re-run of that effect
+   * cancelled the wait — and a re-run is anything in its dependencies
+   * changing: the app leaving the front, a press, the next snapshot. The
+   * effect then saw no new edge and returned, and the chime was gone with no
+   * line in the journal at all, neither *after engine start* nor *dropped*.
+   * A wait now ends in one of three ways, each of them logged: the engine
+   * restarts and it sounds, `SETTLE_WAIT_MS` passes and it is dropped, or the
+   * room is playing again by the time it would sound and it is dropped for
+   * that. Leaving the channel, or this hook going, is the only cancel.
+   */
+  const heldPause = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      heldPause.current?.();
+      heldPause.current = null;
+    },
+    [channelId]
+  );
 
   useEffect(() => {
     if (channelId === null) {
@@ -257,11 +285,13 @@ export function useWatchChime(
       fire('pause');
       return;
     }
+    heldPause.current?.();
     const from = Date.now();
     recordEvent('watch chime held (engine)');
     let cancel: (() => void) | null = null;
     const timer = setTimeout(() => {
       cancel?.();
+      heldPause.current = null;
       // **Dropped rather than played late**, which is the rule `chime` already
       // applies to anything further behind than `CHIME_STALE_MS`: a notice
       // about the room getting its voices back, arriving seconds after they
@@ -271,12 +301,24 @@ export function useWatchChime(
     }, SETTLE_WAIT_MS);
     cancel = waitForEngine(() => {
       clearTimeout(timer);
+      heldPause.current = null;
+      // **The one collapse.** A pause and a play inside the wait leave the
+      // room quiet again, and a chime saying it has its voices back would be
+      // saying something no longer true — so it is dropped, and says so.
+      if (latestStatus.current === 'playing') {
+        recordEvent(
+          `watch chime dropped after engine start, ${Date.now() - from}ms: ` +
+            'the room played again'
+        );
+        return;
+      }
       recordEvent(`watch chime after engine start, ${Date.now() - from}ms`);
       fire('pause');
     }, !muted.current);
-    return () => {
+    heldPause.current = () => {
       clearTimeout(timer);
       cancel?.();
     };
+    // No cleanup: the wait is not this run's to cancel. See `heldPause`.
   }, [channelId, status, screening, fire, waitForEngine]);
 }

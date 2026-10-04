@@ -7,6 +7,7 @@ import { setFilmProbe } from '../../audio/probe';
 import { spanMs } from '../../audio/chime';
 import type { EngineTransition } from '../../audio/engineState';
 import { CHIME_TAIL_MS, HANDOVER_MS } from '../../audio/useFilmHandover';
+import { waitForChime } from '../../audio/chimeFinish';
 import {
   announcePress,
   describeChimePlayer,
@@ -97,13 +98,14 @@ function engine() {
 function mount(
   channel: ChannelState,
   takes = true,
-  category = 'AVAudioSessionCategoryPlayAndRecord'
+  category = 'AVAudioSessionCategoryPlayAndRecord',
+  heard?: Parameters<typeof useFilmStart>[7]
 ) {
   const sound = jest.fn();
   const route = routes();
   const engines = engine();
   function Probe({ live }: { live: ChannelState }) {
-    useFilmStart(live, ME, sound, route, takes, () => category, engines);
+    useFilmStart(live, ME, sound, route, takes, () => category, engines, heard);
     return null;
   }
   act(() => {
@@ -210,6 +212,42 @@ it('holds the microphone past the chime by its tail', () => {
   advance(spanMs('play'));
   expect(readStart()).toBe('chiming');
   advance(CHIME_TAIL_MS);
+  expect(readStart()).toBe('releasing');
+});
+
+/*
+  **The release waits for the sound, not for a guess at it**, since
+  2026-10-03. Build 329's showing device never heard its own play chime, and
+  the hold had been the sound's length from the moment it was asked for — so a
+  chime that began late lost its end to the release. Here the player is still
+  sounding when the old timer would have let go.
+*/
+it('holds the microphone until the chime player says it has finished', () => {
+  let finishedAt: number | null = null;
+  const started = Date.now();
+  const read = () => ({
+    present: true as const,
+    accepted: true,
+    playing: finishedAt === null,
+    positionMs: 0,
+    durationMs: 180,
+    sinceMs: Date.now() - started,
+    decodeFailed: false,
+    ...(finishedAt === null
+      ? {}
+      : { finishedAfterMs: finishedAt - started, finishedCleanly: true }),
+  });
+  mount(
+    here(loaded(joined())),
+    true,
+    'AVAudioSessionCategoryPlayAndRecord',
+    (done) => waitForChime(done, read)
+  );
+  act(() => announcePress('playing'));
+  advance(HANDOVER_MS + 100);
+  expect(readStart()).toBe('chiming');
+  finishedAt = Date.now();
+  advance(CHIME_TAIL_MS + 40);
   expect(readStart()).toBe('releasing');
 });
 

@@ -9,10 +9,10 @@ import {
   type RouteSnapshot,
 } from '../../modules/audio-route';
 import { chimePlay } from '../audio/chime';
+import { waitForChime } from '../audio/chimeFinish';
 import { recordEvent } from '../audio/diagnostics';
 import { onEngineTransition, type EngineTransition } from '../audio/engineState';
 import { filmProbeKeepsMicrophone } from '../audio/probe';
-import { HANDOVER_MS } from '../audio/useFilmHandover';
 
 /**
  * **A film started on this device gives up the microphone before it plays, not
@@ -208,7 +208,9 @@ export function useFilmStart(
   category: () => string | null = () => routeSnapshot()?.category ?? null,
   engine: (
     listener: (transition: EngineTransition) => void
-  ) => () => void = onEngineTransition
+  ) => () => void = onEngineTransition,
+  /** How the chime's finish is waited for. See `waitForChime`. */
+  chimeHeard: typeof waitForChime = waitForChime
 ): StartPhase | null {
   const [, bump] = useState(0);
   useEffect(() => subscribeStart(() => bump((n) => n + 1)), []);
@@ -225,6 +227,8 @@ export function useFilmStart(
   categoryRef.current = category;
   const engineRef = useRef(engine);
   engineRef.current = engine;
+  const waitForChimeRef = useRef(chimeHeard);
+  waitForChimeRef.current = chimeHeard;
   /** When the press was, for `UNCONFIRMED_MS`. */
   const pressedAt = useRef(0);
   /** Whether the room has said `playing` since the press. */
@@ -271,14 +275,21 @@ export function useFilmStart(
 
   // Chimed, so let the microphone go — unless the film probe is keeping it, in
   // which case nothing is released and there is nothing to wait for.
+  //
+  // **Once the chime has been heard out, rather than after a guess at how long
+  // that takes**, since 2026-10-03: `waitForChime` asks the chime player for
+  // its finish and adds the tail, so a chime that began late keeps its end.
+  // The reason it ended says which: `finished` is the sound heard whole.
   useEffect(() => {
     if (phase !== 'chiming') return;
-    const timer = setTimeout(() => {
+    return waitForChimeRef.current((end, heldMs) => {
       const channel = liveRef.current;
       const keeps = channel ? filmProbeKeepsMicrophone(channel, me) : false;
-      setPhase(keeps ? 'ready' : 'releasing', keeps ? 'microphone kept' : 'chimed');
-    }, HANDOVER_MS);
-    return () => clearTimeout(timer);
+      setPhase(
+        keeps ? 'ready' : 'releasing',
+        `${keeps ? 'microphone kept' : 'chimed'}, ${end} after ${heldMs}ms`
+      );
+    });
   }, [phase, me]);
 
   useEffect(() => {

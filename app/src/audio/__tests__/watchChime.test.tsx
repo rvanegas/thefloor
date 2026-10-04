@@ -301,6 +301,44 @@ describe('useWatchChime', () => {
       expect(probe.fire.mock.calls).toEqual([['play']]);
     });
 
+    /*
+      **A held pause chime is not the effect's to cancel**, since 2026-10-03.
+      It was, so anything that re-ran the effect mid-wait — the app leaving
+      the front, the next snapshot — cancelled it, and the effect, seeing no
+      new edge, returned: the chime gone with no line in the journal at all.
+    */
+    it('survives a re-render while it waits for the engine', () => {
+      const restart = engine();
+      const playing = play(screening());
+      const probe = mount(playing, restart);
+      const paused = pause(playing);
+      probe.update(paused);
+      // A later snapshot of the same paused room — a roster change, say.
+      probe.update(
+        reduce(paused, { type: 'SET_SELF_MUTE', userId: THEM, muted: true }, NOW + 3_200)
+      );
+      act(() => restart.start());
+      expect(probe.fire.mock.calls).toEqual([['pause']]);
+    });
+
+    /*
+      **The one collapse.** A pause and a play inside the wait leave the room
+      quiet again, so a chime saying it has its voices back would be untrue:
+      dropped, and said in the journal rather than silently.
+    */
+    it('is dropped, not played, when the room plays again before it sounds', () => {
+      const restart = engine();
+      const playing = play(screening());
+      const probe = mount(playing, restart);
+      const paused = pause(playing);
+      probe.update(paused);
+      const again = play(paused, ME, NOW + 3_300);
+      probe.update(again);
+      // The play chime is the replay's own; the pause chime never sounds.
+      act(() => restart.start());
+      expect(probe.fire.mock.calls.filter(([kind]) => kind === 'pause')).toEqual([]);
+    });
+
     it('stops waiting when the channel is left mid-hold', () => {
       const restart = engine();
       const playing = play(screening());
