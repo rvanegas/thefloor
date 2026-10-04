@@ -1690,8 +1690,9 @@ export function buildApp(options: BuildOptions = {}): App {
     // The same answer as a wrong pin, which hides a username for a link that
     // carries one. **For a pin-less link it hides nothing**: every answer a
     // held username gets differs from this one, and it is refused before the
-    // budget is consulted. Known and accepted — see planning/backlog/
-    // the-accept-route-says-whether-a-username-exists.md.
+    // budget is consulted. Known and accepted, and watched by the excess
+    // monitor instead — see planning/decision/2026-10-03-excess-is-watched-
+    // across-every-route-rather-than-budgeted-per-route.md.
     if (!owner) {
       return reply
         .code(400)

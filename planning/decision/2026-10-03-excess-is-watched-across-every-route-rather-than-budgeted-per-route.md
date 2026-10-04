@@ -3,8 +3,46 @@
 **One monitor counts every answer the server gives, against whoever asked, and
 writes a flag when somebody asks far more of one route than everybody else
 does. It refuses nothing; a person evaluates.** Built 2026-10-03 in
-`server/src/excess.ts`, out of reviewing
-`backlog/the-accept-route-says-whether-a-username-exists.md`.
+`server/src/excess.ts`, out of reviewing the accept route's username leak,
+which was a backlog entry of its own from 2026-09-25 until it was folded in
+here on 2026-10-04.
+
+## The leak it was built for
+
+`POST /contacts/invite/accept` refuses an unknown username differently from
+every answer it gives a held one, so a signed-in account can learn whether a
+username is held. It was left when
+`2026-09-25-an-invite-link-is-a-standing-door.md` made the page stop leaking;
+`GET /i/:username` reads nothing, so a real username and an invented one
+render identically. The route looks the username up and refuses an unknown one
+before `acceptInviteLink` runs, and `link_accepts` is spent only inside that:
+
+- **An unknown username costs nothing**, any number of times.
+- **A held one, under budget, is accepted** — the pair become contacts, the
+  owner is told, and the answer carries their display name. Loud, and the
+  standing door working as designed rather than a leak.
+- **Once the day's twenty are spent**, a held username answers `too_many` and
+  an unknown one `unknown`, free and without limit until the window lapses.
+  That is the oracle: twenty real acceptances buy a day of silent lookups.
+
+What it yields is thin — that a username is held, which `core/username.ts`'s
+rule about names being *looked up* does not quite reach. One walk of usernames
+is a run of `unknown`s from one account, which is what the monitor flags;
+`server/__tests__/excess.test.ts` § *the walk that asked for this* is that
+case. **The leak itself is still there**, known and accepted.
+
+**Making the refusals agree was rejected** as worse for the person who
+mistyped: answering an unknown username like a success tells them it worked,
+and answering it like the budget tells them to come back tomorrow.
+
+**The per-route fix comes back** — checking the budget before the lookup, so
+that an exhausted account is told `too_many` whatever it names — if either of
+these happens:
+
+- **A username becomes worth enumerating**, the same trigger as
+  `backlog/a-standing-door-has-no-lock.md`. A monitor only notices after.
+- **The flags turn out to be noise**, so that nobody reads them. Then the leak
+  is unwatched in practice, and the per-route fix is the cheap one.
 
 ## Why not another budget
 
