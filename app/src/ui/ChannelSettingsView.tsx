@@ -184,11 +184,11 @@ export function ChannelSettingsView({
     /**
      * **A public channel keeps its name**, and the field is put back rather
      * than the action sent. The server refuses this too — `SET_NAME` with an
-     * empty name on a public channel comes back `conflict` — but a refused
-     * action arrives as a socket error, which nothing on this screen renders,
-     * so the field would sit there empty looking saved until the next
-     * snapshot silently took it back. Restoring it is what makes the sentence
-     * under the field true at the moment somebody reads it.
+     * empty name on a public channel comes back `conflict` — but that refusal
+     * is said on the channel, after this screen has closed, and here the
+     * field would sit there empty looking saved until the next snapshot took
+     * it back. Restoring it is what makes the sentence under the field true at
+     * the moment somebody reads it.
      */
     if (isPublic && name.trim() === '') {
       setName(saved.current.name);
@@ -225,9 +225,9 @@ export function ChannelSettingsView({
    * with no error — a reducer guard returns the state unchanged — so there is
    * nothing to catch even when the send succeeded. Do not add an in-flight
    * state here to make the two screens match: there is no flight to be in
-   * until `channel.action` is acknowledged, which is the half of
-   * planning/backlog/ § *A channel action that never lands* that the offline
-   * work deliberately left there.
+   * unless `channel.action` is acknowledged, which was weighed and not built.
+   * What the registry refuses is said on the channel instead; see
+   * planning/decision/2026-10-03-a-refused-channel-action-is-said-on-the-channel.md.
    *
    * What a write that never *left* costs is now handled, in `persist`.
    */

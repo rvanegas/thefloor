@@ -885,6 +885,7 @@ export function resetHarness(): void {
   mockApp.channelViews = {};
   mockApp.seatViews = {};
   mockApp.goneChannels = [];
+  mockApp.refusals = {};
   mockApp.standingIn = null;
   mockApp.nearbyIn = [];
   mockApp.nearbyArrival = {};

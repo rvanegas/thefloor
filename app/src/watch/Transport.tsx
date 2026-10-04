@@ -203,8 +203,8 @@ export function WatchTransport({
               **The press, timestamped, and whether it left the device.**
 
               `app.act` already reports whether the socket wrote — see
-              `socket.send`, and backlog § *A channel action that never lands
-              says nothing* — and until now every caller dropped the answer.
+              `socket.send`, and decision/2026-09-16-being-offline-is-one-state.md
+              — and until now every caller dropped the answer.
               Written down here because this is the one control where a press
               that goes nowhere and a press that goes somewhere and is ignored
               look identical from the outside, and they are the two halves of

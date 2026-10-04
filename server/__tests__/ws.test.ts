@@ -926,7 +926,22 @@ describe('websocket', () => {
     });
     const error = await m.next('error');
     expect(error.message).toBe('Not your channel.');
+    // Which channel, so the app can say it there rather than nowhere. See the
+    // `error` frame in core/protocol.ts.
+    expect(error.channelId).toBe(channelId);
     expect(app.channels.get(channelId)!.status).toBe('active');
+    m.close();
+  });
+
+  it('names no channel on a refusal that is not about one', async () => {
+    const mallory = await signIn('user9999998@example.com', 'Mallory');
+    const m = new Client(mallory.token, baseUrl);
+    await m.open();
+
+    m.send({ type: 'no.such.thing' } as never);
+    const error = await m.next('error');
+    expect(error.message).toBe('Unknown message type.');
+    expect(error.channelId).toBeUndefined();
     m.close();
   });
 

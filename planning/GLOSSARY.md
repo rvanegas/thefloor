@@ -78,6 +78,7 @@ caused; the list carries the meaning.
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
+- **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
@@ -1498,6 +1499,29 @@ is a record of an answer to a question that recurs, this answers once, so
 and survives the channel itself being deleted afterwards: a card that vanished
 because the room did would leave the removal unexplained. `removal_notices` in
 db.ts, `RemovalNoticeView` in core/protocol.ts.
+
+## Refusal
+
+**The server's sentence for a channel action it would not take, said on the
+channel it was taken in.** A card at the top of the channel, above the tabs:
+*That did not go through*, the sentence, and *Got it*, which takes it away. A
+newer refusal in the same channel replaces it. Since 2026-10-03.
+
+**Against a greyed control.** The app greys or removes a control using the same
+rules the server applies, so most refusals never happen. A refusal is the case
+the greying lost: the room changed between drawing the button and pressing it,
+or an older build drew a control a newer rule forbids.
+
+**Against a *removal notice*.** That one is a row on the account, follows
+somebody across devices and outlives the channel. A refusal is held by the
+install that acted, in memory, and is gone on sign-out. It answers a press
+that was just made, not a decision somebody else took about you.
+
+**Only what the registry says out loud.** `dispatch` refusals reach the phone
+as an `error` frame carrying `channelId`. A reducer guard returns the state
+unchanged and says nothing on the wire, so it cannot be shown. The server's
+sentence is English. `refusals` in `AppProvider`;
+decision/2026-10-03-a-refused-channel-action-is-said-on-the-channel.md.
 
 ## Standing elsewhere
 
@@ -4339,6 +4363,8 @@ are settled:
                           *Retirar la propuesta* is standing down
     Removal notice        The card has no noun of its own in either catalogue:
                           it is a sentence, *Ya no estás en …*
+    Refusal               No noun either: the heading is *Eso no se hizo*,
+                          and the server's sentence under it stays English
     Public page           Página pública
     Username              Nombre de usuario
     Display name          Nombre visible

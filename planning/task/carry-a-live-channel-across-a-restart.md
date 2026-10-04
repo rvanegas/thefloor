@@ -254,9 +254,6 @@ a conversation, and no amount of draining will help.
   the moment stage 1 makes the boot log worth reading. `server/src/media.ts`.
 - **Add `PRAGMA busy_timeout`** in `server/src/db.ts`, before any second
   process exists. WAL is on, but two writers without it will throw.
-- **Stop `ChannelSettingsView.persist` recording a write before it lands.**
-  backlog/ § *A channel action that never lands says nothing*, the half that
-  needs no wire change.
 
 ---
 
