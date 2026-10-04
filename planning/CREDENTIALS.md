@@ -388,13 +388,15 @@ credentials.
 decision/2026-09-15-twenty-seconds-is-chrome-parking-a-timer-not-a-socket-dying.md
 both read off that same URL.
 
-**The back catalogue is untouched and is still a decision.** Every credential
-written before 2026-09-17 is still in the journal; the database stores only a
-`token_hash`, so that is the one place on the box the plaintext exists.
-Vacuuming destroys the reconnect history those diagnoses rest on. Revoking
-instead has no one-call form — `POST /auth/sign-out-others` is per-account and
-authenticates with the caller's own token — so it means `bin/db --write` over
-the `tokens` table. backlog/session-tokens-are-in-the-journal-in-plaintext.md
-is that choice, and
-backlog/nothing-expires-the-journal-and-something-should.md is the separate
-fact that nothing expires the journal at all.
+**The back catalogue is left to expire, not vacuumed.** Every credential
+written before 2026-09-17 is still in the journal, and for session tokens it is
+the one place on the box the plaintext exists. But `TOKEN_TTL_MS` is fixed at
+minting and nothing renews it, so the last one logged is refused from
+2026-12-28; guest secrets lapse after six idle hours; invitation pins no longer
+prove anything. Vacuuming would only destroy the reconnect history those
+diagnoses rest on. **This holds only while a token's expiry never slides** — make
+it sliding and a leaked token in use lives for ever. Revoking early has no
+one-call form — `POST /auth/sign-out-others` is per-account and authenticates
+with the caller's own token — so it would mean `bin/db --write` over the
+`tokens` table. backlog/nothing-expires-the-journal-and-something-should.md is
+the separate fact that nothing expires the journal at all.

@@ -54,9 +54,8 @@ live. `MaxRetentionSec` and `SystemMaxUse` in a drop-in are the mechanism
 whatever is decided, which is the easy half — an hour of work behind a question
 nobody has answered.
 
-**The back catalogue is a separate call again**, and the two interact in one
-direction only: a retention policy short enough to delete August 2026 would
-resolve the credential question by destroying the evidence, which is the
-outcome nobody wants. Decide that one first —
-backlog/session-tokens-are-in-the-journal-in-plaintext.md, which is now only
-about that choice.
+**The credentials in the back catalogue are not a reason to delete it.**
+Everything written before the 2026-09-17 sanitiser stops being honoured on its
+own: a session token's ninety days run from minting and nothing extends them, so
+the last one logged is dead by 2026-12-28, and guest secrets lapse after six
+idle hours. Retention can be decided on its own terms.
