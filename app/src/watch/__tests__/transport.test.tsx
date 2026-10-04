@@ -12,7 +12,7 @@ import type { ChannelState, WatchState } from '../../../../core/types';
 import type { PlayerState } from '../../../../core/watch';
 import { watchPositionMs } from '../../../../core/watch';
 import { FOLLOW_TICK_MS, useFollow, type PlayerPort } from '../drive';
-import { readDrift, requestCorrection } from '../drift';
+import { readDrift } from '../drift';
 import { announcePress, useFilmStart, wouldScreen } from '../filmStart';
 import type { RouteSnapshot } from '../../../modules/audio-route';
 
@@ -354,8 +354,6 @@ function run(
      * server's; the device's is that minus this.
      */
     skew?: number;
-    /** Drift corrected only when asked, as an account with `debug` has it. */
-    byHand?: boolean;
     /**
      * This device shows the film, and runs the start that releases its
      * microphone before the player plays. See `filmStart.ts`.
@@ -371,7 +369,7 @@ function run(
   const roomNow = () => Date.now() + skew;
   const wire = server((opts.already ?? ((c) => c))(party()), TRIP_MS);
   function Follower({ watch }: { watch: WatchState }) {
-    useFollow(watch, player.port, true, roomNow, CHANNEL, opts.byHand);
+    useFollow(watch, player.port, true, roomNow, CHANNEL);
     return <Text>following</Text>;
   }
   function Start({ channel }: { channel: ChannelState }) {
@@ -712,22 +710,24 @@ describe('a player that cannot keep up', () => {
     ).toBeLessThanOrEqual(1);
   });
 
-  it('corrects it once, on the far side, and comes back in step', () => {
+  /*
+    It was corrected once, on the far side, until 2026-10-03. Nobody's drift is
+    corrected since, so the stall's four seconds stay as drift — playing, and
+    behind the room, which the readout shows and nothing acts on.
+  */
+  it('is left behind on the far side rather than corrected', () => {
     const sim = run();
     sim.wire.press(play, Date.now());
     sim.advance(3_000);
     sim.player.calls.length = 0;
 
     sim.player.stall(4_000);
-    sim.advance(4_000);
-    // Playing again, and four seconds behind the channel's clock. *Now* the
-    // seek is owed, and one is enough.
-    sim.advance(3_000);
+    sim.advance(7_000);
 
-    expect(sim.player.calls.filter((c) => c.startsWith('seek'))).toHaveLength(
-      1
-    );
-    expect(inStep(sim.where())).toBe(true);
+    expect(sim.player.calls.filter((c) => c.startsWith('seek'))).toEqual([]);
+    const where = sim.where();
+    expect(where.player).toBe('playing');
+    expect(where.channelAt - where.playerAt).toBeGreaterThan(WATCH_DRIFT_MS);
   });
 });
 
@@ -1085,15 +1085,15 @@ describe('what the follower publishes', () => {
     );
   });
 
-  it('counts a seek when a recovered stall is corrected', () => {
+  it('shows a recovered stall as drift, with no seek behind it', () => {
     const sim = run();
     sim.wire.press(play, sim.now());
     sim.advance(4_000);
-    expect(readDrift(CHANNEL)!.seeksThisRun).toBe(0);
-    // Far enough behind that the correction is owed once it can answer.
     sim.player.stall(4_000);
     sim.advance(12_000);
-    expect(readDrift(CHANNEL)!.seeksThisRun).toBe(1);
+    const seen = readDrift(CHANNEL)!;
+    expect(seen.seeksThisRun).toBe(0);
+    expect(seen.driftMs).toBeLessThan(-WATCH_DRIFT_MS);
   });
 
   it('says nothing about another room', () => {
@@ -1124,57 +1124,29 @@ describe('what the follower publishes', () => {
 });
 
 /*
-  **Under `debug`, drift waits to be asked about.**
+  **Nobody's drift is corrected, since 2026-10-03.**
 
-  A film playing alone on one phone was found with four seeks in one run and
-  nobody to be in step with, so an account with `debug` set has the follower
-  hold its corrections back and a button that lets the next one through. What
-  it still does of its own accord is *position* a player — a screen arriving,
-  a scrub — since that is a press being obeyed and not a drift being corrected.
+  It was held back for a `debug` account alone, behind a button; now every
+  follower leaves a drifting player where it is and the readout only reports
+  it. What it still does of its own accord is *position* a player — a screen
+  arriving, a scrub — since that is a press being obeyed and not a drift being
+  corrected. See planning/decision/2026-10-03-nobody-corrects-drift.md.
 */
-describe('drift corrected by hand', () => {
+describe('drift left alone', () => {
   const seeks = (calls: string[]) => calls.filter((c) => c.startsWith('seek'));
 
-  it('holds back the correction a recovered stall would get', () => {
-    const sim = run({ byHand: true });
-    sim.wire.press(play, sim.now());
-    sim.advance(4_000);
-    sim.player.stall(4_000);
-    sim.advance(12_000);
-    const seen = readDrift(CHANNEL)!;
-    expect(seen.seeksThisRun).toBe(0);
-    expect(seen.withheld).toBe(true);
-    expect(seen.driftMs).toBeLessThan(-WATCH_DRIFT_MS);
-  });
-
-  it('makes it when asked, and the pair are back in step', () => {
-    const sim = run({ byHand: true });
-    sim.wire.press(play, sim.now());
-    sim.advance(4_000);
-    sim.player.stall(4_000);
-    sim.advance(12_000);
-    act(() => requestCorrection());
-    sim.advance(4_000);
-    const seen = readDrift(CHANNEL)!;
-    expect(seen.seeksThisRun).toBe(1);
-    expect(seen.withheld).toBe(false);
-    expect(inStep(sim.where())).toBe(true);
-  });
-
   it('still follows a scrub, which is a press and not a drift', () => {
-    const sim = run({ byHand: true });
+    const sim = run();
     sim.wire.press(play, sim.now());
     sim.advance(4_000);
     sim.wire.press(seekTo(300_000), sim.now());
     sim.advance(6_000);
     expect(seeks(sim.player.calls)).toHaveLength(1);
     expect(inStep(sim.where())).toBe(true);
-    expect(readDrift(CHANNEL)!.withheld).toBe(false);
   });
 
   it('still puts a screen arriving at a party where the party is', () => {
     const sim = run({
-      byHand: true,
       already: (c) => pause(started(0)(play(c, T0), T0), T0 + 60_000),
     });
     sim.advance(8_000);
@@ -1182,31 +1154,23 @@ describe('drift corrected by hand', () => {
       WATCH_DRIFT_MS
     );
   });
-
-  it('does nothing when asked with nothing held back', () => {
-    const sim = run({ byHand: true });
-    sim.wire.press(play, sim.now());
-    sim.advance(4_000);
-    act(() => requestCorrection());
-    sim.advance(2_000);
-    expect(seeks(sim.player.calls)).toEqual([]);
-  });
 });
 
 /*
-  **Under `debug`, a press reaches the player before it reaches the room.**
+  **A press reaches the player before it reaches the room**, for every account
+  since 2026-10-03 and for a `debug` one before that.
 
-  The rest of the time a press goes to the server and comes back as a snapshot
-  before this follower says anything, a round trip on top of whatever the embed
-  takes. The switch is there to feel the embed alone, so the press is carried
-  out on the spot and the follower is kept from undoing it while the room
-  catches up.
+  Otherwise a press goes to the server and comes back as a snapshot before this
+  follower says anything, a round trip on top of whatever the embed takes. So
+  the press is carried out on the spot and the follower is kept from undoing it
+  while the room catches up — the player that was pressed runs a round trip
+  ahead of the rest, which is the price of answering the finger at once.
 */
 describe('a press carried out at once', () => {
   const seeks = (calls: string[]) => calls.filter((c) => c.startsWith('seek'));
 
   it('plays the player before the room has answered', () => {
-    const sim = run({ byHand: true });
+    const sim = run();
     sim.advance(1_000);
     sim.player.calls.length = 0;
     act(() => announcePress('playing'));
@@ -1219,7 +1183,7 @@ describe('a press carried out at once', () => {
   });
 
   it('pauses and resumes where the player is, with no seek', () => {
-    const sim = run({ byHand: true, lag: 2_300 });
+    const sim = run({ lag: 2_300 });
     act(() => announcePress('playing'));
     sim.wire.press(play, sim.now());
     sim.advance(6_000);
@@ -1235,19 +1199,11 @@ describe('a press carried out at once', () => {
   });
 
   it('is followed back when the room never takes it up', () => {
-    const sim = run({ byHand: true });
+    const sim = run();
     sim.advance(1_000);
     act(() => announcePress('playing'));
     sim.advance(6_000);
     expect(sim.player.state).toBe('paused');
-  });
-
-  it('is left to the round trip without debug', () => {
-    const sim = run();
-    sim.advance(1_000);
-    sim.player.calls.length = 0;
-    act(() => announcePress('playing'));
-    expect(sim.player.calls).toEqual([]);
   });
 });
 
@@ -1288,32 +1244,29 @@ describe('a film started on the device showing it', () => {
   const watchingHere = (c: ChannelState, t: number) =>
     reduce(c, { type: 'WATCH_HERE', userId: A, watching: true }, t);
 
-  for (const byHand of [true, false]) {
-    it(`is not told to play until the session is Playback${byHand ? ' (debug)' : ''}`, () => {
-      const route = routes();
-      const sim = run({
-        byHand,
-        startHere: { routes: route },
-        already: (c) => watchingHere(c, T0),
-      });
-      expect(wouldScreen(sim.wire.channel, A)).toBe(true);
-      sim.advance(1_000);
-      sim.player.calls.length = 0;
-
-      act(() => announcePress('playing'));
-      sim.wire.press(play, sim.now());
-      // The room has answered by now, and the chime's hold is long over.
-      sim.advance(1_000);
-      expect(sim.player.calls).toEqual([]);
-
-      act(() => route.playback());
-      sim.advance(50);
-      expect(sim.player.calls).toEqual(['play']);
-      sim.advance(3_000);
-      expect(sim.player.state).toBe('playing');
-      expect(sim.player.calls).toEqual(['play']);
+  it('is not told to play until the session is Playback', () => {
+    const route = routes();
+    const sim = run({
+      startHere: { routes: route },
+      already: (c) => watchingHere(c, T0),
     });
-  }
+    expect(wouldScreen(sim.wire.channel, A)).toBe(true);
+    sim.advance(1_000);
+    sim.player.calls.length = 0;
+
+    act(() => announcePress('playing'));
+    sim.wire.press(play, sim.now());
+    // The room has answered by now, and the chime's hold is long over.
+    sim.advance(1_000);
+    expect(sim.player.calls).toEqual([]);
+
+    act(() => route.playback());
+    sim.advance(50);
+    expect(sim.player.calls).toEqual(['play']);
+    sim.advance(3_000);
+    expect(sim.player.state).toBe('playing');
+    expect(sim.player.calls).toEqual(['play']);
+  });
 
   /*
     Build 327, 2026-10-01: the press was on the other phone, so this one learnt

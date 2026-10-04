@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WATCH_DRIFT_MS } from '../../../core/constants';
-import { Button } from '../ui/components';
 import { colors, spacing, type } from '../ui/theme';
 import {
   DRIFT_REPORT_MS,
   readDrift,
   readOtherDrifts,
-  requestCorrection,
   subscribeDrift,
   type DriftReading,
   type OtherDrift,
@@ -33,11 +31,10 @@ import {
  * in three places from one definition and must not be re-rendered on a tick for
  * a readout that only one account can see.
  *
- * **And it carries the one control drift has.** Under `debug` the follower
- * corrects nothing of its own accord — see `useFollow`'s `byHand` — so a
- * correction it would have made waits here for somebody to press for it. Drawn
- * with the numbers it is judged by rather than in the transport, which is one
- * row in three places and has no business learning about an account flag.
+ * **It carries no control.** Nobody's follower corrects drift since
+ * 2026-10-03, and `debug` changes only what is drawn — the *Correct drift*
+ * button went with the switch that held corrections back for it. See
+ * planning/decision/2026-10-03-nobody-corrects-drift.md.
  *
  * **Then every other screen in the room, a line each**, as their own followers
  * reported them — see `ClientMessage.watch.drift`. Drift is a question about
@@ -112,7 +109,6 @@ function describeOther({ reading }: OtherDrift): string {
   if (reading.bufferingForMs > 0) {
     parts.push(`buf ${(reading.bufferingForMs / 1000).toFixed(2)}s`);
   }
-  if (reading.withheld) parts.push('withheld');
   return parts.join(' · ');
 }
 
@@ -126,14 +122,14 @@ function signed(drift: number | null): string {
     : `${drift >= 0 ? '+' : '−'}${(Math.abs(drift) / 1000).toFixed(2)}s`;
 }
 
-/** This device's own reading, in full, with the one control drift has. */
+/** This device's own reading, in full. */
 function OwnDrift({ reading }: { reading: DriftReading }): React.ReactElement {
   const drift = reading.driftMs;
   /*
     **Signed, and ahead is positive.** The sign is the whole reading on a resume:
     a player *ahead* of the room is the pause banking a position it had not
-    reached, which nothing corrects, and a player *behind* is drift a seek can
-    still close. Two decimals because the question is a boundary — whole seconds
+    reached, and a player *behind* is one that fell behind while playing —
+    neither of which anything corrects since 2026-10-03. Two decimals because the question is a boundary — whole seconds
     leave a drift anywhere between 100ms and 1.9s, which is why build 305's
     alternating corrections could not be explained from the log at all.
   */
@@ -180,18 +176,6 @@ function OwnDrift({ reading }: { reading: DriftReading }): React.ReactElement {
       <Row
         label="lag play / seek"
         value={`${ms(reading.lagPlayMs)} / ${ms(reading.lagSeekMs)}`}
-      />
-      {/*
-        Enabled by `withheld` rather than by the drift passing the tolerance:
-        the rule has more to say than the tolerance does — a player ahead by its
-        own lead is outside it and is left alone — and a button enabled on a
-        second opinion would be pressed and do nothing.
-      */}
-      <Button
-        label="Correct drift"
-        onPress={requestCorrection}
-        disabled={!reading.withheld}
-        style={styles.correct}
       />
     </>
   );
@@ -240,5 +224,4 @@ const styles = StyleSheet.create({
   */
   value: { ...type.mono, fontVariant: [...type.mono.fontVariant] },
   alert: { color: colors.danger },
-  correct: { marginTop: spacing(1) },
 });

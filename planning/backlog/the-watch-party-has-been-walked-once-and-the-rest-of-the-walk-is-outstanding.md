@@ -32,20 +32,17 @@ muted phone is also where three chime and start faults were found on
 2026-10-02. Then **use headphones**, or the microphone bleed above dominates
 everything and you will be listening to that rather than to what you came for.
 
-**`debug` is two things now, and the walk needs both and not on one device.**
-It turns on the journal — every press, instruction, arrival and refusal written
-by `recordEvent`, interleaved with the audio session's own lines, which is what
-turned three arguments into measurements in
+**Walk on a `debug` account, which since 2026-10-03 changes only what you
+see.** It turns on the journal — every press, instruction, arrival and refusal
+written by `recordEvent`, interleaved with the audio session's own lines, which
+is what turned three arguments into measurements in
 `decision/2026-09-23-the-watch-transport-answers-the-press.md` — and the drift
 readout under the transport, which since 2026-10-01 has a line for **every**
-screen, relayed only to `debug` sessions. But it also changes the follower:
-**a `debug` player corrects no drift on its own** and follows presses only, a
-held correction lighting *Correct drift* instead
-(`decision/2026-09-28-under-debug-drift-is-corrected-by-hand.md`,
-`decision/2026-09-28-under-debug-the-player-follows-presses-only.md`). So
-**judge steps 1, 8 and 16 on a screen whose account is not `debug`**, and read
-its drift off a `debug` device's readout, where it appears as a line of its own.
-Walking every step on `debug` measures a follower no user has.
+screen, relayed only to `debug` sessions. It no longer changes the follower:
+**nobody's player is corrected for drift, and every press acts on the pressing
+device's own player at once**
+(`decision/2026-10-03-nobody-corrects-drift.md`). The walk used to have to
+judge three steps on a phone that was not `debug`; any phone will do now.
 
 **Open the audio panel before you start the film**: `startDiagnosticRecording`
 installs the route observer when that panel first mounts and never before, so a
@@ -55,17 +52,17 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
 ## A. The transport and the clock
 
 1. Paste a link, Start, Play. Both screens should be within a second or two of
-   each other — `WATCH_DRIFT_MS` is 1500 — and **stay there for ten minutes
-   with no visible correction**, on the non-`debug` screen. The constant is
-   unchanged, but what is measured against it is not: since 2026-09-28 the
-   follower steers on `app.serverNow()` rather than the device's own clock, a
-   correction aims where the room will be rather than where it was, and the
-   room's clock starts when a player does
+   each other — `WATCH_DRIFT_MS` is 1500 — and **stay there for ten minutes**.
+   Since 2026-10-03 nothing corrects drift, so what is being judged is whether
+   the protocol keeps two players together on its own: the readout's drift
+   lines are the measurement, and its seek count should stay at nought. Since
+   2026-09-28 the follower reads the room on `app.serverNow()` rather than the
+   device's own clock, and the room's clock starts when a player does
    (`decision/2026-09-28-the-follower-steers-on-the-rooms-clock.md` and its
    two siblings that day). The old follower drove two screens apart by their
    clock skew, so **set one phone's clock a few seconds out by hand** and check
-   it still agrees. The readout's seek count is the number to report; a screen
-   that seeks with nobody pressing anything is a correction you could see.
+   it still agrees. A drift that grows over the ten minutes, rather than one
+   that sits still, is the number to report.
 2. Seek from one phone; both screens jump. **Then do it from the laptop by
    tapping the bar**: until `39760bdb` every tap on the web app's bar sent the
    whole room back to the start.
@@ -95,7 +92,7 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
    doing what its contract says. **Check the outgoing film lands in *Watched
    before* with its name and length**: `rememberFilm` runs on the swap as well
    as on the stop.
-8. **Click the video itself**, on the non-`debug` screen. It may pause
+8. **Click the video itself.** It may pause
    locally, and `useFollow` should undo that within a tick or two
    (`FOLLOW_TICK_MS` is 500) — nothing should reach the other screens.
 9. **Let a film run to its end.** It should stop there and say Finished, on
@@ -173,8 +170,8 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
     film keeps the phone upright on the card and in full screen alike, turning
     does nothing, and *Full screen* and *Exit full screen* are the only way in
     and out (`decision/2026-09-29-an-upright-film-keeps-the-phone-upright.md`).
-16. **Press play and pause twenty times, on the speaker and on a headset**, on
-    the non-`debug` screen, **and then twenty more from the other phone** while
+16. **Press play and pause twenty times, on the speaker and on a headset**,
+    **and then twenty more from the other phone** while
     this one shows the film. The first half is the original *flaky, gets stuck,
     rotating unsticks it* complaint, fixed by `urgent`. The second half is the
     room's play, which until 2026-10-01 told the player to play under a session

@@ -1743,8 +1743,12 @@ export interface SharedDrift {
   bufferingForMs: number;
   /** Seeks issued since this run began — the headline, and nought is success. */
   seeksThisRun: number;
-  /** Whether a correction is being held back, which only a debug account does. */
-  withheld: boolean;
+  /**
+   * Whether a correction is being held back, which only a `debug` account on a
+   * build before 2026-10-03 does: nobody's follower corrects drift since, so
+   * nothing newer sends it. Still relayed for the readouts on those builds.
+   */
+  withheld?: boolean;
 }
 
 export type ClientMessage =

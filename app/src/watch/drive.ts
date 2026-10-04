@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { recordEvent } from '../audio/diagnostics';
-import { forgetDrift, onCorrectionRequested, publishDrift } from './drift';
+import { forgetDrift, publishDrift } from './drift';
 import { onPress, startHolding, subscribeStart } from './filmStart';
 import {
   desiredFor,
@@ -13,7 +13,11 @@ import type {
   PlayerReading,
   WatchInstruction,
 } from '../../../core/watch';
-import { WATCH_DRIFT_MS, WATCH_OBEDIENCE_MS } from '../../../core/constants';
+import {
+  WATCH_DRIFT_MS,
+  WATCH_OBEDIENCE_MS,
+  WATCH_STALL_MS,
+} from '../../../core/constants';
 import type { WatchState } from '../../../core/types';
 
 /**
@@ -122,32 +126,28 @@ export function useFollow(
    * Which room this is, published with every reading so an instrument can tell
    * a stale one from a current one. Omitted where nothing is watching.
    */
-  channelId?: string,
-  /**
-   * Whether the player follows presses and nothing else, which is what an
-   * account with `debug` set gets.
-   *
-   * **The point is to feel the embed on its own.** Other apps' YouTube players
-   * start the instant they are pressed and never move under anybody; this one
-   * waits for a round trip and is then kept to the room's clock. Under this
-   * switch it is neither:
-   *
-   * - **A press on this device tells this player at once**, before the server
-   *   has heard of it — see `onPress` below, and the hold that stops the
-   *   follower undoing it while the room catches up.
-   * - **Nothing keeps it to the room's clock.** It is not seeked for drift,
-   *   for a stall, or for a pause that banked a position it had not reached.
-   *   It plays and pauses where it is. Arrival is judged by state alone.
-   *
-   * **What is still seeked is a seek somebody asked for** — a scrub, ±15s, a
-   * replay, which move the room's position rather than letting it run — **and
-   * a player that has never been placed**: one arriving at a party under way,
-   * or rebuilt, having no position of its own worth keeping. Each seek held
-   * back is published as `withheld`, and `requestCorrection` in `drift.ts` lets
-   * the next one through.
-   */
-  byHand = false
+  channelId?: string
 ): void {
+  /*
+    **Every player follows presses, and none is kept to the room's clock**,
+    since 2026-10-03 — what an account with `debug` alone had until then. See
+    planning/decision/2026-10-03-nobody-corrects-drift.md.
+
+    - **A press on this device tells this player at once**, before the server
+      has heard of it — see `onPress` below, and the hold that stops the
+      follower undoing it while the room catches up.
+    - **Nothing keeps it to the room's clock.** It is not seeked for drift, nor
+      for a pause that banked a position it had not reached. It plays and
+      pauses where it is, and arrival is judged by state alone. Drift is
+      published, for a `debug` account's readout, and acted on by nobody.
+
+    **What is still seeked is a seek somebody asked for** — a scrub, ±15s, a
+    replay, which move the room's position rather than letting it run — **a
+    player that has never been placed**, one arriving at a party under way or
+    rebuilt, **and a player rescued from a stall that has outlived
+    `WATCH_STALL_MS`**, that `seek+play` being the one thing that has ever
+    moved a wedged player.
+  */
   const doing = useRef<Doing>({ phase: 'watching' });
   /**
    * When this player started buffering and did not stop, or null.
@@ -236,13 +236,13 @@ export function useFollow(
   /**
    * The player that has been put where the room is, or null.
    *
-   * **What separates positioning a player from correcting one**, which is the
-   * whole of what `byHand` turns on. Cleared when the room's position jumps,
+   * **What separates positioning a player from correcting one**, the second
+   * being what nothing does any more. Cleared when the room's position jumps,
    * and set when a seek is sent or the player is seen in step — so a new
    * player, a rebuilt one or a scrub each get one seek, and nothing after it
    * does. One rather than *until it arrives*: a seek that lands a little off
-   * and is followed by another is exactly the second seek per press this
-   * switch exists to take away.
+   * and is followed by another is exactly the drift correction that was
+   * retired.
    */
   const placed = useRef<PlayerPort | null>(null);
   /**
@@ -255,10 +255,6 @@ export function useFollow(
     want: Desired;
     at: number;
   } | null>(null);
-  /** A correction somebody asked for and the next tick has not made yet. */
-  const release = useRef(false);
-  /** Whether a correction is being held back. See `DriftReading.withheld`. */
-  const withheld = useRef(false);
   /**
    * A press this device has already carried out on its own player, until the
    * room agrees with it.
@@ -273,8 +269,8 @@ export function useFollow(
   const pressed = useRef<{ status: Desired['status']; at: number } | null>(
     null
   );
-  const latest = useRef({ watch, port, clock, channelId, byHand });
-  latest.current = { watch, port, clock, channelId, byHand };
+  const latest = useRef({ watch, port, clock, channelId });
+  latest.current = { watch, port, clock, channelId };
   /** The running loop's own tick, so a press can ring it. See below. */
   const run = useRef<(() => void) | null>(null);
 
@@ -337,21 +333,25 @@ export function useFollow(
         }
       }
       previous.current = { key, want, at: now };
-      const byHand = latest.current.byHand;
       /*
-        **Arrival, which under `byHand` is a state and not a place.** A player
-        playing when the room plays has arrived, wherever it is — unless it has
-        never been placed, or the room has jumped since, in which case the one
-        seek owed to it is still to come.
+        **Arrival, which is a state and not a place.** A player playing when
+        the room plays has arrived, wherever it is — unless it has never been
+        placed, or the room has jumped since, in which case the one seek owed to
+        it is still to come.
       */
       const settled = (to: Desired) =>
-        byHand
-          ? reading.state === 'ended' ||
-            (reading.state === to.status && placed.current === player)
-          : hasArrived(reading, to);
-      if (hasArrived(reading, want)) {
+        reading.state === 'ended' ||
+        (reading.state === to.status && placed.current === player);
+      /*
+        **Seen in step is placed, except at the end of the film.** `hasArrived`
+        is true for an ended player whatever it was asked, and that is right
+        about waiting; read as *placed* it re-placed a finished player in the
+        very tick a replay had unplaced it, so the seek back to the start was
+        removed as a correction and the player was told only to play — which
+        replays it from its end, where it ends again, for ever.
+      */
+      if (reading.state !== 'ended' && hasArrived(reading, want)) {
         placed.current = player;
-        withheld.current = false;
       }
 
       /*
@@ -378,7 +378,6 @@ export function useFollow(
           lagPlayMs: lag.current.play,
           lagSeekMs: lag.current.seek,
           seeksThisRun: seeks.current,
-          withheld: withheld.current,
           at: now,
         });
       };
@@ -390,17 +389,18 @@ export function useFollow(
         so correcting it would seek the advert. They end by themselves. See
         `showingTheFilm`.
       */
+      /*
+        **And the film coming back is a player to be placed again**, since
+        2026-10-03. The room's clock ran through the advert and the film resumes
+        wherever it was, so a screen that sat through a pre-roll comes back that
+        far behind — which was drift, and corrected, until nothing corrected
+        drift. It is not drift: it is an interruption nobody in the room asked
+        for, the same as a rebuild, and is met the same way, with one seek.
+      */
       if (!showingTheFilm(current, reading)) {
-        release.current = false;
+        placed.current = null;
         return;
       }
-      /*
-        Taken here, once, so that a press is spent on this tick whatever it
-        decides — a correction asked for and made later, under a room that has
-        moved on, would be a seek nobody asked for.
-      */
-      const released = release.current;
-      release.current = false;
 
       /*
         A press this device has already acted on is not argued with while the
@@ -447,7 +447,8 @@ export function useFollow(
       // at the press, though: that instruction is the one everybody now wants.
       if (
         state.phase === 'sending' &&
-        (released || (urgent && state.want.status !== want.status))
+        urgent &&
+        state.want.status !== want.status
       ) {
         // Abandoned rather than waited out: what it was sent for is no longer
         // what anybody wants, so its arrival would prove nothing and its
@@ -528,10 +529,9 @@ export function useFollow(
         rule returns no instructions and the tick ends a line below.
       */
       /*
-        Where it is, not merely what it is doing, even under `byHand`: a
-        player in the right state and the wrong place goes on to the rule, whose
-        seek is then held back below and published as `withheld` — which is
-        what lights the readout's button.
+        Where it is, not merely what it is doing: a player in the right state
+        and the wrong place goes on to the rule, whose seek is then removed
+        below unless it is owed.
       */
       if (reading.state !== 'ended' && hasArrived(reading, want)) return;
 
@@ -554,15 +554,15 @@ export function useFollow(
           : now - Math.max(buffering.current, knocked.current ?? 0)
       );
       /*
-        **Held back rather than decided differently.** The rule is asked the
-        same question it always is, and only its seeks are removed, so what a
-        press on the readout lets through is exactly what the follower would
-        have done — the point of the switch being to watch that one step at a
-        time.
+        **Drift is not corrected, so a placed player's seeks are removed** —
+        unless it has been buffering past `WATCH_STALL_MS`, where the
+        `seek+play` is a rescue and not a correction: the one instruction that
+        has ever moved a wedged player (builds 304 and 327).
       */
+      const rescuing =
+        buffering.current !== null && now - buffering.current >= WATCH_STALL_MS;
       if (
-        byHand &&
-        !released &&
+        !rescuing &&
         placed.current === player &&
         instructions.some((i) => i.do === 'seek')
       ) {
@@ -581,11 +581,6 @@ export function useFollow(
               reading.state !== 'buffering'
             )
         );
-        if (!withheld.current) {
-          withheld.current = true;
-          recordEvent('watch withheld seek (debug)');
-          report();
-        }
       }
       if (instructions.length === 0) return;
       // The stall clock restarts with the instruction, so a player that is
@@ -648,7 +643,6 @@ export function useFollow(
           // player was actually told to make and not seeks that were decided on.
           seeks.current += 1;
           placed.current = player;
-          withheld.current = false;
           player.seek(instruction.positionMs);
         }
       }
@@ -659,18 +653,14 @@ export function useFollow(
     };
     run.current = tick;
     const timer = setInterval(tick, FOLLOW_TICK_MS);
-    const unasked = onCorrectionRequested(() => {
-      release.current = true;
-      tick();
-    });
     /*
       **A press on this device, carried out on this player before the round
-      trip**, under `byHand` only. The room still decides: this is the same
+      trip**, for every account since 2026-10-03. The room still decides: this is the same
       instruction the follower would give a round trip from now, given early,
       and `pressed` is what keeps the follower from contradicting it in the
       meantime.
     */
-    /** A play pressed here under `byHand`, waiting for the session. */
+    /** A play pressed here, waiting for the session. */
     let waitingToPlay = false;
     const carryOut = (status: 'playing' | 'paused') => {
       const { port: player, clock: roomNow } = latest.current;
@@ -696,11 +686,10 @@ export function useFollow(
       };
       recordEvent(
         `watch tell ${status === 'playing' ? 'play' : 'pause'} at the press ` +
-          `(player ${reading.state}, debug)`
+          `(player ${reading.state})`
       );
     };
     const unpressed = onPress((status) => {
-      if (!latest.current.byHand) return;
       waitingToPlay = false;
       /*
         The start has already been planned by the time this runs — see
@@ -711,7 +700,7 @@ export function useFollow(
       if (status === 'playing' && startHolding()) {
         waitingToPlay = true;
         pressed.current = { status, at: latest.current.clock() };
-        recordEvent('watch play waits for the session (debug)');
+        recordEvent('watch play waits for the session');
         return;
       }
       carryOut(status);
@@ -727,12 +716,10 @@ export function useFollow(
     tick();
     return () => {
       clearInterval(timer);
-      unasked();
       unpressed();
       unstarted();
       pressed.current = null;
       run.current = null;
-      withheld.current = false;
       // A reading nobody is producing any more must not go on being drawn: a
       // stale drift is indistinguishable from a settled one.
       forgetDrift();

@@ -100,7 +100,6 @@ export function WatchPlayer({
   onRefusal: _onRefusal,
   now,
   fill = false,
-  byHand = false,
 }: {
   watch: WatchState;
   channelId: string;
@@ -135,8 +134,6 @@ export function WatchPlayer({
   onRefusal?: (message: string | null) => void;
   /** Fill the space given rather than being a 16:9 card. See WatchPlayer.tsx. */
   fill?: boolean;
-  /** Correct drift only when asked. See WatchPlayer.tsx. */
-  byHand?: boolean;
 }): React.ReactElement {
   const mount = useRef<HTMLDivElement | null>(null);
   const player = useRef<YouTubePlayer | null>(null);
@@ -273,7 +270,7 @@ export function WatchPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  useFollow(watch, port, true, now, channelId, byHand);
+  useFollow(watch, port, true, now, channelId);
 
   return (
     <div

@@ -60,6 +60,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 298 | `ChannelState.removals` optionality | `core/types.ts`, `core/channel.ts`, `app/src/ui/ChannelView.tsx` |
 | 298 | `HomeView.removals` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | — | `ChannelState.removals` revived as empty | `server/src/channels.ts` |
+| 330 | `SharedDrift.withheld`, relayed for the readouts that still draw it | `core/protocol.ts`, `server/src/ws.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -874,3 +875,26 @@ rewritten until something in the channel changes — a channel nobody has opened
 since is one this reads for ever. `MIN_SUPPORTED_BUILD` says nothing about what
 is on disk, so the floor moving does not free it; this is the same kind of entry
 as `WatchState.history` revived as empty above.
+
+---
+
+## Gate 330 — `SharedDrift.withheld`, relayed for the readouts that still draw it
+
+Nobody's follower holds a drift correction back since 2026-10-03 —
+`decision/2026-10-03-nobody-corrects-drift.md` — so nothing from build 330 on
+sends `withheld`, and the readout no longer draws it. **Builds before 330
+still do both**: a `debug` account on one sends the flag with every reading,
+and its readout prints *withheld* on another screen's line when the flag is
+there. So the field stays on the wire, optional in `core/protocol.ts`, and
+`sharedDrift` in `server/src/ws.ts` goes on rebuilding it (`v.withheld ===
+true`, which is false for every newer sender).
+
+**What goes at 330**: the `withheld?` field on `SharedDrift` and the one line
+in `sharedDrift` that copies it. **What must not go with it**: the rest of
+`sharedDrift`, which is the relay itself and is not a compatibility case, and
+`seeksThisRun`, which looks like it belongs to the same retired machinery and
+does not — it still counts the seeks that are made (placement, a rescue, the
+film's return from an advert) and is the readout's headline.
+
+Gate 330 because `build/329` is tagged and `app.json` already reads 330: the
+client that stops sending it ships in the next upload.
