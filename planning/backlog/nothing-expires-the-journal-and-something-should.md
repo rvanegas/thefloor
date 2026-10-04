@@ -29,6 +29,18 @@ late 2027 before anything from August 2026 falls off the back on its own. So
 there is no clock running that resolves any of this, which is the thing to
 design against.
 
+**Code that assumed rotation deletes things.** `POST /diagnostics` and the
+silence notices went to the journal on exactly that premise, so a deleted
+account's lines outlived it; since 2026-10-03 they are in tables swept after a
+week —
+decision/2026-10-03-diagnostics-expire-on-the-server-s-clock-rather-than-the-journal-s.md
+— and are no longer part of this question. **One place still does it:** the
+`excess` warning (`server/src/app.ts`, beside `new Excess`) names the flagged
+account in the journal, while the privacy page promises that deleting the
+account deletes the flag. Dropping the subject from that line, keeping it in
+the row, is the small fix; anything else that writes an account id to the log
+is the same promise, and is worth a grep when this is decided.
+
 **What to decide, and none of it is obvious.** How long an operational log is
 useful for here, against how long it is a liability; whether that is one policy
 or two, since the reconnect evidence that

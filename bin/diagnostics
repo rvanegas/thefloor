@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //
 // The diagnostic lines phones have shipped to the deployed server, read back
-// out of its journal as one timeline.
+// out of its database as one timeline.
 //
 //   bin/diagnostics                               the last hour
 //   bin/diagnostics --since "2026-09-30 10:20"    from then (local time) to now
@@ -13,15 +13,9 @@
 // /diagnostics` refuses everybody else, so an empty answer for an ordinary
 // account is the gate rather than a quiet phone. What ships is the panel's
 // log — `recordEvent` in app/src/audio/diagnostics.ts — and every line keeps
-// the phone's own stamp, which is what this sorts by and prints, in this
-// machine's local time. The journal's stamp is only when a batch arrived, and
-// a phone with no signal sends a minute of lines at once.
-//
-// **The window is applied to the journal, so it is about arrival.** A batch
-// sent a little after the window closes holds lines from inside it and is
-// missed; widen `--until` by a minute when the tail matters. Times are read
-// here and handed to the box as epoch seconds, so the box's own timezone
-// never enters into it.
+// the phone's own stamp, which is what this windows, sorts by and prints, in
+// this machine's local time. Times are handed to the box as epoch
+// milliseconds, so the box's own timezone never enters into it.
 //
 // **The server's silence notices are laid on the same timeline**, marked
 // `server`: a restoration that missed and was put right, a room still not
@@ -29,16 +23,20 @@
 // somebody it should — see `SilenceNotice` in server/src/channels.ts. They are
 // shown whoever's account is asked about, since they are what the phones'
 // lines are evidence against; `--account` keeps those naming that account.
+// They carry the server's stamp, there being no phone to have one.
 //
-// The journal is the only copy. It rotates by size, so a run from weeks ago
-// may simply not be there any more — which is a reason to read a run on the
-// day it was made.
+// **Kept for a week, then swept** — DIAGNOSTICS_RETENTION_MS, in
+// server/src/diagnostics.ts, and at once when the account is deleted. Read a
+// run within the week it was made. Both went to the journal until 2026-10-03
+// and this read them there; a run from before that is still in the journal,
+// as `audio diagnostics` and `silence notice` lines, and is not read here.
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 
 const HOST = process.env.THEFLOOR_HOST || 'ubuntu@44.241.121.49';
 const KEY = process.env.THEFLOOR_KEY || `${process.env.HOME}/.ssh/lightsail-ubuntu`;
+const REMOTE_DB = '/home/ubuntu/thefloor-data/thefloor.db';
 
 function die(message) {
   process.stderr.write(`${message}\n`);
@@ -53,7 +51,7 @@ function help() {
   }
 }
 
-/** A local time as typed, to epoch seconds — the form journalctl takes as `@N`. */
+/** A local time as typed, to epoch seconds. */
 function seconds(text, flag) {
   const parsed = new Date(text.includes('T') ? text : text.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) die(`${flag}: not a time: ${text}`);
@@ -98,45 +96,45 @@ function main(argv) {
     else die(`Unknown option: ${argv[i]}`);
   }
 
-  // Filtered on the box, so that what crosses the wire is the diagnostics and
-  // not the whole service's journal for the window.
-  const remote =
-    `sudo journalctl -u thefloor --no-pager -o cat --since @${since}` +
-    (until === null ? '' : ` --until @${until}`) +
-    ` | grep -F -e '"msg":"audio diagnostics"' -e '"msg":"silence notice"' || true`;
-  const output = execFileSync('ssh', ['-i', KEY, '-o', 'BatchMode=yes', HOST, remote], {
-    encoding: 'utf8',
-    maxBuffer: 256 * 1024 * 1024,
-  });
+  // Filtered on the box, so that what crosses the wire is the window and not
+  // the table. Values are spliced in only after being checked as numbers or as
+  // an account id's characters, there being no binding over a shell.
+  if (account !== null && !/^[A-Za-z0-9_-]+$/.test(account)) die(`--account: not an id: ${account}`);
+  const fromMs = since * 1000;
+  const toMs = until === null ? null : until * 1000;
+  const window = (column) =>
+    `${column} >= ${fromMs}` + (toMs === null ? '' : ` AND ${column} <= ${toMs}`);
+  const sql =
+    `SELECT 'line' AS source, account_id AS accountId, build, at, text, NULL AS body ` +
+    `FROM diagnostic_lines WHERE ${window('at')}` +
+    (account === null ? '' : ` AND account_id = '${account}'`) +
+    ` UNION ALL ` +
+    `SELECT 'notice', NULL, NULL, at, NULL, body FROM silence_notices WHERE ${window('at')}` +
+    (account === null ? '' : ` AND instr(body, '${account}') > 0`) +
+    `;`;
+  const output = execFileSync(
+    'ssh',
+    ['-i', KEY, '-o', 'BatchMode=yes', HOST, `sqlite3 -readonly -json '${REMOTE_DB}'`],
+    { input: sql, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
+  );
 
   const seen = new Set();
   const rows = [];
-  for (const raw of output.split('\n')) {
-    if (!raw.trim()) continue;
-    let entry;
-    try {
-      entry = JSON.parse(raw);
-    } catch {
-      continue;
-    }
-    if (entry.msg === 'silence notice') {
-      const text = silenceText(entry);
-      if (account && !text.includes(account)) continue;
+  // sqlite3 prints nothing at all for no rows, rather than an empty array.
+  for (const entry of output.trim() ? JSON.parse(output) : []) {
+    if (entry.source === 'notice') {
+      const text = silenceText(JSON.parse(entry.body));
       if (pattern && !pattern.test(text)) continue;
-      rows.push({ at: entry.time, accountId: 'server', build: null, text });
+      rows.push({ at: entry.at, accountId: 'server', build: null, text });
       continue;
     }
-    if (account && entry.accountId !== account) continue;
-    for (const line of entry.lines ?? []) {
-      const at = typeof line.at === 'number' ? line.at : entry.time;
-      if (pattern && !pattern.test(line.text)) continue;
-      // A batch the phone could not confirm is sent again, so the same line
-      // can arrive twice; its stamp and text together are its identity.
-      const key = `${entry.accountId} ${at} ${line.text}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push({ at, accountId: entry.accountId, build: entry.build, text: line.text });
-    }
+    if (pattern && !pattern.test(entry.text)) continue;
+    // A batch the phone could not confirm is sent again, so the same line
+    // can arrive twice; its stamp and text together are its identity.
+    const key = `${entry.accountId} ${entry.at} ${entry.text}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ at: entry.at, accountId: entry.accountId, build: entry.build, text: entry.text });
   }
   rows.sort((a, b) => a.at - b.at);
 

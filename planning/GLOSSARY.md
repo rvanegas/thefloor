@@ -188,7 +188,7 @@ caused; the list carries the meaning.
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
 - **Session want — `call`, `listen`** — What this app is asking iOS for, decided in one place (`wantFor`): `call` captures, `listen` only hears — a guest without speech, a device *watching here*, a deferred *promotion*; being in no room asks for nothing
-- **Silence notice** — `SilenceNotice` — the server's log line when a restoration missed, when a room is still not restored ten seconds after a release, or when an *unheard report* arrives; read by `bin/diagnostics`
+- **Silence notice** — `SilenceNotice` — the server's record when a restoration missed, when a room is still not restored ten seconds after a release, or when an *unheard report* arrives; kept a week in `silence_notices`, read by `bin/diagnostics`
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
 - **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
@@ -4128,8 +4128,10 @@ in the path — and the two must agree or the last write wins. See STATES.md §
 
 ## Silence notice
 
-`SilenceNotice` in `server/src/channels.ts`, logged as `silence notice` and
-laid on the phones' timeline by `bin/diagnostics`. Three kinds:
+`SilenceNotice` in `server/src/channels.ts`, kept for a week in the
+`silence_notices` table (server/src/diagnostics.ts) and laid on the phones'
+timeline by `bin/diagnostics`; the journal gets only its kind and channel.
+Three kinds:
 `restoring` — after a release, a pair that was withheld found not yet heard and
 asked for again, meaning the first attempt missed; `unrestored` — a room still
 not seen restored ten seconds after the withholding ended, said once per

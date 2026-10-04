@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   COHORT_CHANNEL_NAME,
+  DIAGNOSTICS_RETENTION_MS,
   TRANSCRIPT_DELETED_RETENTION_MS,
   USAGE_RETENTION_MS,
 } from '../../core/constants';
@@ -101,6 +102,9 @@ describe('The privacy policy', () => {
     const transcriptDays =
       TRANSCRIPT_DELETED_RETENTION_MS / (24 * 60 * 60 * 1000);
     expect(page).toContain(`the text is removed about ${transcriptDays} days later`);
+    // And the diagnostics' week, which the sweep in diagnostics.ts keeps.
+    const diagnosticsDays = DIAGNOSTICS_RETENTION_MS / (24 * 60 * 60 * 1000);
+    expect(page).toContain(`Both are kept for ${diagnosticsDays} days and then deleted`);
     // Live conversation is not stored; only a deliberate recording is.
     expect(page).toContain('is not written anywhere');
     expect(page).toContain('Ko-fi');

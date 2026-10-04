@@ -37,7 +37,7 @@ import {
   type NotificationAlert,
   type NotificationLevel,
 } from '../../core/notifications';
-import { Accounts, UsernameTakenError } from './accounts';
+import { Accounts, SWEEP_INTERVAL_MS, UsernameTakenError } from './accounts';
 import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
 import { logSafeRequest } from './log-url';
@@ -103,6 +103,7 @@ import {
   type Pusher,
 } from './push';
 import type { RecordingStore } from './storage';
+import { Diagnostics } from './diagnostics';
 import { clientAddress, Excess, type ExcessSubject } from './excess';
 import { switchableSet, switchTargets } from './switching';
 import {
@@ -334,6 +335,8 @@ export interface App {
   donations: Donations;
   transcripts: Transcripts;
   help: Help;
+  /** What `bin/diagnostics` reads. Here so a test can see what was kept. */
+  diagnostics: Diagnostics;
   /**
    * Where a `RecordingView` is composed, and since the floor passed 21 the
    * only place: Home stopped carrying the flat list, so recordings reach a
@@ -472,6 +475,12 @@ export function buildApp(options: BuildOptions = {}): App {
    * reads, and a warning in the journal. Nothing else — no email, nothing on
    * `/healthz` — for the meter's reason in usage.ts. Nothing is refused.
    */
+  /**
+   * Phones' diagnostic lines and the server's silence notices, kept for a week
+   * and forgotten with the account. See diagnostics.ts.
+   */
+  const diagnostics = new Diagnostics(db);
+
   const excess = new Excess(
     db,
     (flag) => {
@@ -916,10 +925,17 @@ export function buildApp(options: BuildOptions = {}): App {
   channels.onGuestConsentChanged = (channelId, guestId, consented) =>
     publication.guestConsentChanged(channelId, guestId, consented);
 
-  // One message for all three kinds, so that `bin/diagnostics` finds them with
-  // one match and lays them on the phones' timeline. See `SilenceNotice`.
-  channels.onSilenceNotice = (notice) =>
-    fastify.log.warn(notice, 'silence notice');
+  // Kept where `bin/diagnostics` lays them on the phones' timeline, and where
+  // they expire — see diagnostics.ts. The journal still gets the kind and the
+  // channel, so somebody following it live sees one happen, and no account id:
+  // that is the part the journal would keep for ever.
+  channels.onSilenceNotice = (notice) => {
+    diagnostics.notice(notice, now());
+    fastify.log.warn(
+      { kind: notice.kind, channelId: notice.channelId },
+      'silence notice'
+    );
+  };
 
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
@@ -1008,6 +1024,9 @@ export function buildApp(options: BuildOptions = {}): App {
   // the app's own clock so it can never disagree with the rows it is judging.
   accounts.start(now);
   fastify.addHook('onClose', async () => accounts.stop());
+  // The same reasoning, for lines whose promise is a week. See diagnostics.ts.
+  diagnostics.start(now, SWEEP_INTERVAL_MS);
+  fastify.addHook('onClose', async () => diagnostics.stop());
 
   /** Resolves the bearer token to an account, or replies 401 and returns null. */
   function authenticate(request: FastifyRequest): AccountRow | null {
@@ -1377,15 +1396,14 @@ export function buildApp(options: BuildOptions = {}): App {
    * holds a microphone in order to hear*, the investigation this was built
    * for, which lists what the lines mean.
    *
-   * **To the journal rather than to a table**, which is a deliberate trade.
-   * A table would be queryable and would also need a migration, a sweep, and a
-   * line in `erase` so that deleting an account takes its diagnostics with it —
-   * three obligations for data whose whole value expires in a day or two.
-   * `journalctl` already rotates, and is already how every other question about
-   * this box is answered.
+   * **To a table, swept after a week**, since 2026-10-03. It went to the
+   * journal until then, to avoid the sweep and the line in `DELETE /me` that a
+   * table needs, on the premise that `journalctl` rotates. It does — by size,
+   * at a cap sixteen months away — so nothing was ever deleted, a deleted
+   * account's lines included. See diagnostics.ts.
    *
    * **Gated on the `debug` column**, so it is not an open log sink: any signed
-   * -in account could otherwise write unbounded text into this box's journal.
+   * -in account could otherwise write unbounded text onto this box's disk.
    * The same column gates the panel that produces these lines, so nothing is
    * lost by refusing everybody else — and a client that gets a refusal drops
    * the lines rather than retrying, which is what stops a rejected batch
@@ -1401,7 +1419,7 @@ export function buildApp(options: BuildOptions = {}): App {
       | undefined;
     const lines = (body?.lines ?? [])
       // Trimmed on arrival rather than trusted: this is free-text from a client
-      // being written into a system log, and the only thing standing between a
+      // being written to this box's disk, and the only thing standing between a
       // diagnostic and a way to fill a disk is a bound on both counts.
       .filter((line) => typeof line?.text === 'string')
       .slice(-500)
@@ -1411,10 +1429,8 @@ export function buildApp(options: BuildOptions = {}): App {
       }));
     if (lines.length === 0) return { ok: true, stored: 0 };
 
-    fastify.log.info(
-      { accountId: account.id, build: body?.build ?? null, lines },
-      'audio diagnostics'
-    );
+    const build = typeof body?.build === 'number' ? body.build : null;
+    diagnostics.record(account.id, build, lines, now());
     return { ok: true, stored: lines.length };
   });
 
@@ -3275,6 +3291,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // too rather than written a moment later.
     channels.usage.forget(account.id);
     excess.forget(account.id);
+    diagnostics.forget(account.id);
     accounts.erase(account.id);
     // Contacts lose a contact and the rest lose somebody from a channel; both
     // are looking at a Home that now says something untrue.
@@ -5578,6 +5595,7 @@ export function buildApp(options: BuildOptions = {}): App {
     donations,
     transcripts,
     help,
+    diagnostics,
     recordingsInChannel,
     recordingView: toRecordingView,
     publication,

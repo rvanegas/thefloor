@@ -666,6 +666,20 @@ export const USAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const TRANSCRIPT_DELETED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long a phone's diagnostic line or a server silence notice is kept before
+ * the sweep removes it. See server/src/diagnostics.ts.
+ *
+ * A week: the value of a line is in the day of the fault it was shipped
+ * during, and a week is what keeps a run made on a Friday readable on Monday.
+ * Its own constant rather than DELETED_RETENTION_MS, which happens to agree
+ * and means something else — a recovery window, where this is a horizon.
+ *
+ * **The privacy page states this number**, so changing it is a change to a
+ * published promise and PRIVACY_UPDATED moves with it.
+ */
+export const DIAGNOSTICS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * How often each side proves it is still there, and how long silence is
  * tolerated before the connection is treated as dead.
  *

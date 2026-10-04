@@ -1706,6 +1706,36 @@ CREATE TABLE IF NOT EXISTS excess_flags (
   typical      REAL NOT NULL
 );
 
+-- A line a debug account's phone shipped from its audio panel. See
+-- diagnostics.ts, which is also why this is a table and not the journal.
+--
+-- Swept at DIAGNOSTICS_RETENTION_MS by arrival, and an account's rows go with
+-- the account in DELETE /me — the privacy page names both. **No REFERENCES**,
+-- as on excess_flags: removed by Diagnostics.forget beside the other forgets.
+CREATE TABLE IF NOT EXISTS diagnostic_lines (
+  id          TEXT PRIMARY KEY,
+  account_id  TEXT NOT NULL,
+  build       INTEGER,
+  -- The phone's own stamp, or arrival when it sent none; what the timeline
+  -- sorts and windows by.
+  at          INTEGER NOT NULL,
+  received_at INTEGER NOT NULL,
+  text        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS diagnostic_lines_at ON diagnostic_lines (at);
+
+-- A silence notice from the registry, kept whole as JSON in body. Swept and
+-- forgotten with diagnostic_lines; an account is found inside body, since an
+-- unrestored notice names its accounts only in its pairs.
+CREATE TABLE IF NOT EXISTS silence_notices (
+  id         TEXT PRIMARY KEY,
+  at         INTEGER NOT NULL,
+  channel_id TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  body       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS silence_notices_at ON silence_notices (at);
+
 -- What a recording says, once somebody has paid to find out.
 --
 -- Three tables, all hanging off one recording and dying with it: a recording

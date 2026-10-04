@@ -59,6 +59,13 @@ const TRANSCRIPT_RETENTION_DAYS = 30;
  */
 const USAGE_RETENTION_DAYS = 30;
 
+/**
+ * How long a diagnostic line or a silence notice is kept. Mirrors
+ * DIAGNOSTICS_RETENTION_MS in core/constants.ts, restated on the reasoning
+ * above, and held to it by privacy.test.ts.
+ */
+const DIAGNOSTICS_RETENTION_DAYS = 7;
+
 export interface PolicyOptions {
   contactEmail?: string;
   /** Where this server is reachable, for the link preview. See socialCard. */
@@ -292,6 +299,15 @@ application collects little.</p>
   written back to them. They are read by a person in order to answer them, and
   they are shown to nobody else. Deleting your account deletes them, question
   and answer alike.</li>
+  <li><strong>That somebody could not hear somebody else.</strong> When a
+  person in a channel is not receiving the audio of somebody speaking — the
+  server sees it, or their phone says so — the server notes which two
+  accounts, which channel and when, so
+  that a fault in the audio can be found and fixed. On an account that has had
+  diagnostics turned on by hand, to help track down such a fault, the app also
+  sends its own log of what the audio did.
+  Both are kept for ${DIAGNOSTICS_RETENTION_DAYS} days and then deleted, and
+  deleting your account deletes them.</li>
   <li><strong>How much the server carried for you</strong>: how many minutes
   your microphone was open, how many you spent listening, playing something or
   recording, how many you shared a channel with each other person, and how many
