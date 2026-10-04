@@ -3662,6 +3662,26 @@ export class ChannelRegistry {
     return emptied;
   }
 
+  /**
+   * Deleted recordings past their week that nobody has confirmed emptied —
+   * each one audio still in the bucket and a row the sweep is holding.
+   *
+   * Only a person clears these, with `bin/orphans --delete`, and a person
+   * does it when reminded; so `/healthz` carries the count and `bin/health`
+   * prints it. A row that has been marked is dropped within the hour and is
+   * not counted.
+   */
+  awaitingOrphans(now: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM recordings
+          WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+            AND objects_cleared_at IS NULL`
+      )
+      .get(now - DELETED_RETENTION_MS) as { n: number };
+    return Number(row.n);
+  }
+
   // --- Persistence --------------------------------------------------------
 
   /**

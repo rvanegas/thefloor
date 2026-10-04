@@ -41,6 +41,13 @@ for it still describe real behaviour. In production it answers *no* every
 time, and the mark is read first so that it is never reached for a confirmed
 row.
 
+**What remains is remembering to run it.** A deleted recording's audio and
+row both outlive it until somebody runs `bin/orphans --delete`, which nothing
+schedules — that is the cost the 2026-09-23 decision accepted. So `/healthz`
+carries `awaitingOrphans`, the deleted recordings past their week with no
+mark, and `bin/health` prints it with the command when it is above zero. A
+marked row is the sweep's within the hour and is not counted.
+
 **The order on the box matters once.** The column is added by the server at
 startup, so `bin/orphans` refuses — before deleting anything — against a
 database that does not have it yet. Deploy first, then run it.

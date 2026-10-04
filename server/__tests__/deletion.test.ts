@@ -674,6 +674,32 @@ describe('the sweep', () => {
     expect(rowsOf(channelId)).toHaveLength(1);
   });
 
+  /**
+   * Nothing clears these but a person, so the count has to be somewhere a
+   * person looks: `/healthz`, which `bin/health` prints.
+   */
+  it('counts on /healthz what is waiting for bin/orphans', async () => {
+    const { channelId } = await deleted();
+    const awaiting = async () =>
+      (
+        (await app.fastify.inject({ method: 'GET', url: '/healthz' })).json() as {
+          awaitingOrphans: number;
+        }
+      ).awaitingOrphans;
+
+    clock += DELETED_RETENTION_MS - 1;
+    expect(await awaiting()).toBe(0);
+
+    clock += 1;
+    expect(await awaiting()).toBe(1);
+
+    // Marked, and so the sweep's next hour rather than anybody's errand.
+    app.db
+      .prepare('UPDATE recordings SET objects_cleared_at = ? WHERE channel_id = ?')
+      .run(clock, channelId);
+    expect(await awaiting()).toBe(0);
+  });
+
   it('reports the refusal rather than absorbing it', async () => {
     const { keys } = await deleted();
     store.refuseDeleting(keys[0]);

@@ -25,6 +25,10 @@
 #     and a shim must not be deleted on the strength of it. See
 #     server/src/release.ts.
 #
+#   * `awaitingOrphans` counts deleted recordings past their week whose
+#     audio is still in the bucket. Nothing clears it but a person running
+#     `bin/orphans --delete`, so anything above zero is that being due.
+#
 # Nothing here is authority over the media plane: `audio` says only that this
 # process was built with LiveKit configured, not that livekit-server is up.
 # `journalctl -u livekit-server` is that question.
@@ -115,6 +119,13 @@ printf '  %-13s %s\n' updateUrl "$(field updateUrl)"
 drops=$(field drops)
 printf '  %-13s %s (recovered %s, expired %s)\n' drops "$drops" \
   "$(field dropsRecovered)" "$(field dropsExpired)"
+
+# Deleted recordings whose week is up and whose audio is still in the bucket.
+# Only a person clears them — the server may neither delete nor list — so this
+# is the reminder. Empty on a server deployed before the field existed.
+awaiting=$(field awaitingOrphans)
+printf '  %-13s %s%s\n' awaitingOrphans "${awaiting:-unknown}" \
+  "$([ "${awaiting:-0}" = "0" ] || echo "  (run bin/orphans --delete)")"
 
 # The floor this checkout would deploy, against the one that is deployed.
 # Raising MIN_SUPPORTED_BUILD is the change whose blast radius is phones

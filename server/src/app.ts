@@ -5217,6 +5217,10 @@ export function buildApp(options: BuildOptions = {}): App {
       drops: connectivity.dropped,
       dropsRecovered: connectivity.recovered,
       dropsExpired: connectivity.expired,
+      // Deleted recordings past their week whose audio nobody has cleared:
+      // the number that says `bin/orphans --delete` is due, since nothing
+      // runs it but a person. See Channels.awaitingOrphans.
+      awaitingOrphans: channels.awaitingOrphans(now()),
       // Only ever read by a client that has just discovered it is below the
       // floor, and null far more often than not. See BuildOptions.updateUrl.
       updateUrl: options.updateUrl ?? null,
