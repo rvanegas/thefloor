@@ -549,6 +549,36 @@ describe('a button pressed in the room', () => {
     expect(sim.where().channel).toBe('playing');
     expect(inStep(sim.where())).toBe(true);
   });
+
+  /*
+    **A rewind with everything already at rest moves the picture too.** Until
+    2026-09-17 the follower only corrected a paused transport in the branch that
+    had just paused a playing player, so a seek arriving with the party paused
+    moved the footer and not the frame, and the two disagreed until somebody
+    pressed Play. Since 2026-10-03 it is a jump like any other: the player is
+    unplaced, and the one seek it is owed leaves a paused player paused.
+  */
+  it('moves a paused picture, and leaves it paused', () => {
+    const sim = run();
+    sim.wire.press(play, Date.now());
+    sim.advance(70_000);
+    sim.wire.press(pause, Date.now());
+    sim.advance(3_000);
+    expect(sim.player.state).toBe('paused');
+    sim.player.calls.length = 0;
+
+    const back = Math.round(sim.player.positionMs) - 60_000;
+    sim.wire.press(seekTo(back), Date.now());
+    sim.advance(4_000);
+
+    expect(sim.player.calls.filter((c) => c.startsWith('seek'))).toEqual([
+      `seek:${back}`,
+    ]);
+    expect(sim.player.calls).not.toContain('play');
+    expect(sim.player.state).toBe('paused');
+    expect(inStep(sim.where())).toBe(true);
+    expect(readDrift(CHANNEL)!.rest).toBe('agreed');
+  });
 });
 
 describe('a press', () => {
