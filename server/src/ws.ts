@@ -246,6 +246,16 @@ const PLAYER_STATES: ReadonlySet<string> = new Set([
 const REST_NAMES: ReadonlySet<string> = new Set(RESTS);
 
 /**
+ * The channel a refused action was taken in, for the `error` frame that says
+ * so — when the payload named one that is a string at all. Nothing upstream
+ * checks, and a frame that echoed back whatever arrived would carry a
+ * `channelId` its type does not allow.
+ */
+function refusedIn(channelId: unknown): { channelId?: string } {
+  return typeof channelId === 'string' ? { channelId } : {};
+}
+
+/**
  * A client's drift reading as something safe to relay, or null for a
  * withdrawal and for anything that is not a reading.
  *
@@ -2182,7 +2192,11 @@ export function registerWebsocket(deps: {
               waiting?.account ?? undefined
             );
             if (!answered.ok) {
-              send(connection, { type: 'error', message: answered.error });
+              send(connection, {
+                type: 'error',
+                message: answered.error,
+                ...refusedIn(message.channelId),
+              });
               return;
             }
             for (const guest of guestConnections) {
@@ -2229,8 +2243,16 @@ export function registerWebsocket(deps: {
             connection.userId,
             message.action
           );
+          // Carrying the channel, so the screen the act was taken on can say
+          // the sentence — see the `error` frame in core/protocol.ts. Every
+          // refusal from `dispatch` is written to be read by the person who
+          // acted, and until 2026-10-03 none of them was.
           if (!result.ok) {
-            send(connection, { type: 'error', message: result.error });
+            send(connection, {
+              type: 'error',
+              message: result.error,
+              ...refusedIn(message.channelId),
+            });
             return;
           }
           // After the dispatch, so nothing is displaced by an action the

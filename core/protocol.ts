@@ -2209,5 +2209,17 @@ export type ServerMessage =
    * not know where its owner is.
    */
   | { type: 'standingElsewhere'; channelIds: string[] }
-  | { type: 'error'; message: string; code?: string }
+  /**
+   * Something this connection sent was refused, in a sentence.
+   *
+   * **`channelId` is set when what was refused is a channel action in that
+   * channel**, and only then; added 2026-10-03. It is what lets the channel
+   * screen say the sentence where the act was taken, rather than everything
+   * landing in `lastError`, which only the sign-in screen renders — so the
+   * refusals the registry says out loud went unread, and a refused rename
+   * looked like a dead button. Optional, so a build that predates it ignores
+   * it, and a frame without one (a malformed message, a device that has gone)
+   * is not about a channel and goes where it always went.
+   */
+  | { type: 'error'; message: string; code?: string; channelId?: string }
   | { type: 'pong'; serverNow: number };

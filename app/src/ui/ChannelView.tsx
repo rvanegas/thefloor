@@ -3133,6 +3133,43 @@ export function ChannelView({
           changes when they do: it is an ordinary channel, they are an ordinary
           member of it, and the card was only ever the introduction.
         */}
+        {/*
+          That the last thing somebody did here was refused, in the server's
+          own sentence.
+
+          **Every refusal `dispatch` gives is written for the person who
+          acted** — the channel is full, the last member deletes rather than
+          leaves, removing somebody takes a third member — and until
+          2026-10-03 none of them was read. They went to `lastError`, which only
+          the sign-in screen draws, so a refused act looked like a dead button
+          and a refused rename like a typo. The app hides most of these
+          controls before they can be pressed, from the same rules, so what
+          reaches this card is a race: the room changed between drawing the
+          button and pressing it.
+
+          Here rather than on the screen that acted, because that screen is
+          usually gone — *Settings* sends the rename as it closes. And above the
+          tab content for the getting-started card's reason below: it is news
+          whichever tab somebody is on. A notice card in STYLE.md's sense, a
+          sentence and a way to put it away; nothing optimistic needs undoing,
+          since the screen only ever drew what the server said.
+
+          What this cannot say is a refusal by a reducer guard, which returns
+          the state unchanged and so is no refusal on the wire at all. See
+          planning/decision/2026-10-03-a-refused-channel-action-is-said-on-the-channel.md.
+        */}
+        {app.refusals[channelId] ? (
+          <Card style={styles.cohort}>
+            <Text style={type.body}>{t.refusedTitle()}</Text>
+            <Text style={type.muted}>{app.refusals[channelId]}</Text>
+            <View style={styles.cohortActions}>
+              <Button
+                label={t.gotIt()}
+                onPress={() => app.dismissRefusal(channelId)}
+              />
+            </View>
+          </Card>
+        ) : null}
         {cohortNotice.show && view.cohort ? (
           <Card style={styles.cohort}>
             <Text style={type.body}>{t.cohortTitle()}</Text>

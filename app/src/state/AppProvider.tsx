@@ -510,6 +510,18 @@ interface AppState {
    */
   offline: boolean;
   lastError: string | null;
+  /**
+   * The last channel action the server refused in each channel, as the
+   * sentence it gave, until somebody dismisses it.
+   *
+   * Kept here rather than on the screen that acted, because the screen that
+   * acted has usually gone by the time the answer comes: *Settings* sends the
+   * rename as it closes, so the refusal is said on the channel it was about.
+   * A newer refusal in the same channel replaces it. Never `lastError`, which
+   * only the sign-in screen renders. Since 2026-10-03; see the `error` frame
+   * in core/protocol.ts.
+   */
+  refusals: Record<string, string>;
 }
 
 interface AppValue extends AppState {
@@ -856,6 +868,8 @@ interface AppValue extends AppState {
    */
   reportUnheard: (channelId: string, speaker: string, forMs: number) => void;
   clearError: () => void;
+  /** Takes a channel's refusal away once it has been read. See `refusals`. */
+  dismissRefusal: (channelId: string) => void;
   /**
    * A channel a notification asked to be opened, waiting to be navigated to.
    *
@@ -1327,6 +1341,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     status: 'closed',
     offline: false,
     lastError: null,
+    refusals: {},
   });
 
   const realtime = useRef(new Realtime()).current;
@@ -1677,6 +1692,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         onOffline: (offline) =>
           setState((s) => (s.offline === offline ? s : { ...s, offline })),
         onError: (message) => setState((s) => ({ ...s, lastError: message })),
+        onRefused: (channelId, message) =>
+          setState((s) => ({
+            ...s,
+            refusals: { ...s.refusals, [channelId]: message },
+          })),
       });
       realtime.watchHome();
     },
@@ -2148,6 +2168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         offline: false,
         lastError:
           words.signedOut(),
+        refusals: {},
       });
     });
     return () => onSignedOut(null);
@@ -2498,6 +2519,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: 'closed',
           offline: false,
           lastError: null,
+          refusals: {},
         });
         // Best effort: the local channel is already gone either way. The
         // device travels with it so the server forgets where to reach this
@@ -2562,6 +2584,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: 'closed',
           offline: false,
           lastError: null,
+          refusals: {},
         });
       },
 
@@ -2608,6 +2631,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           status: 'closed',
           offline: false,
           lastError: null,
+          refusals: {},
         });
       },
 
@@ -3079,6 +3103,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       clearError: () => setState((s) => ({ ...s, lastError: null })),
+
+      dismissRefusal: (channelId) =>
+        setState((s) => {
+          if (!(channelId in s.refusals)) return s;
+          const { [channelId]: _read, ...rest } = s.refusals;
+          return { ...s, refusals: rest };
+        }),
     }),
     [
       state,

@@ -151,6 +151,12 @@ export interface RealtimeHandlers {
    */
   onOffline?: (offline: boolean) => void;
   onError?: (message: string) => void;
+  /**
+   * A channel action in `channelId` was refused, in a sentence written for
+   * the person who took it. Split from `onError` because that one is rendered
+   * only on the sign-in screen; see the `error` frame in core/protocol.ts.
+   */
+  onRefused?: (channelId: string, message: string) => void;
   /** Server time at the moment of the snapshot, for clock alignment. */
   onServerTime?: (serverNow: number) => void;
 }
@@ -551,7 +557,11 @@ export class Realtime {
           this.handlers.onDrift?.(message.channelId, message.userId, message.reading);
           break;
         case 'error':
-          this.handlers.onError?.(message.message);
+          if (message.channelId) {
+            this.handlers.onRefused?.(message.channelId, message.message);
+          } else {
+            this.handlers.onError?.(message.message);
+          }
           break;
       }
     };

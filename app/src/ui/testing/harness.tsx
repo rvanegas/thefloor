@@ -243,6 +243,7 @@ export const mockApp = {
   status: 'open' as 'open' | 'connecting' | 'closed',
   offline: false,
   lastError: null,
+  refusals: {} as Record<string, string>,
   serverNow: () => NOW,
   reportAttentive: jest.fn(),
   lookAt: jest.fn(),
@@ -356,6 +357,7 @@ export const mockApp = {
   // against. See `AppProvider.actAsSeat`.
   actAsSeat: jest.fn(() => true),
   clearError: jest.fn(),
+  dismissRefusal: jest.fn(),
   removeContact: jest.fn(async () => {}),
   setEmailShown: jest.fn(async () => {}),
   // Off, which is what every account is until somebody sets the column by

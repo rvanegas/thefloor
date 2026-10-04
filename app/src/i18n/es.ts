@@ -1045,6 +1045,7 @@ export const es: Strings = {
     filmIsOnThisDevice: () =>
       'La pel\u00edcula est\u00e1 en este dispositivo. Todo lo dem\u00e1s del canal —qui\u00e9n est\u00e1 aqu\u00ed, la palabra, tu micr\u00f3fono— est\u00e1 en el dispositivo desde el que entraste.',
     gotIt: () => 'Entendido',
+    refusedTitle: () => 'Eso no se hizo',
     cohortTitle: () => 'Tu canal de bienvenida',
     cohortWhy: () =>
       'The Floor sirve para hablar con gente que ya conoces, y no sirve de nada el primer d\u00eda, cuando todav\u00eda no hay nadie que conozcas. As\u00ed que te hemos presentado a unas cuantas personas que se unieron por las mismas fechas, y a alguien que lleva The Floor.',

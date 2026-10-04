@@ -1273,6 +1273,7 @@ export const en = {
     filmIsOnThisDevice: () =>
       'The film is on this device. Everything else about the channel — who is here, the floor, your microphone — is on the device you stepped in on.',
     gotIt: () => 'Got it',
+    refusedTitle: () => 'That did not go through',
     cohortTitle: () => 'Your getting-started channel',
     cohortWhy: () =>
       'The Floor is for talking with people you already know, and it is no use at all on the first day, when nobody you know is here yet. So you have been introduced to a few people who joined around the same time as you, and to somebody who runs The Floor.',
