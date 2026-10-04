@@ -1661,6 +1661,38 @@ CREATE TABLE IF NOT EXISTS episode_listens (
   PRIMARY KEY (channel_id, recording_id, day)
 );
 
+-- Somebody who did far more of something than anybody did, one row per time
+-- it was noticed. See excess.ts.
+--
+-- **The only thing the monitor writes, and read only by bin/usage excess.** Its counts live in memory and die
+-- with their hour, so an account that trips nothing has no row here and never
+-- had one; this holds the exceptions and nothing about the rule.
+--
+-- Swept at USAGE_RETENTION_MS like the usage tables, and an account's rows go
+-- with the account in DELETE /me — the privacy page names both.
+--
+-- (No backticks: this is a template literal, as the note on usage_spans says.)
+CREATE TABLE IF NOT EXISTS excess_flags (
+  id           TEXT PRIMARY KEY,
+  flagged_at   INTEGER NOT NULL,
+  -- The start of the hour the counting ran over.
+  window_start INTEGER NOT NULL,
+  -- 'account' | 'address'. An account id when the request was signed in, the
+  -- address Caddy saw when it was not. **No REFERENCES**: an address is not a
+  -- row anywhere, and an account's rows are removed by Excess.forget rather
+  -- than by a cascade, beside Usage.forget where the deletion route can see it.
+  subject_kind TEXT NOT NULL,
+  subject      TEXT NOT NULL,
+  -- The route's pattern, never the address requested — /i/:username, not
+  -- the username, for the reason log-url.ts exists.
+  route        TEXT NOT NULL,
+  -- 'refused' | 'total'
+  measure      TEXT NOT NULL,
+  count        INTEGER NOT NULL,
+  -- The median of everybody else on the route that hour.
+  typical      REAL NOT NULL
+);
+
 -- What a recording says, once somebody has paid to find out.
 --
 -- Three tables, all hanging off one recording and dying with it: a recording

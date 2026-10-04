@@ -31,6 +31,12 @@
 # instrumentation rather than a feature. The reasoning is in
 # planning/decision/DECISIONS.md § "The meter is two tables and a script".
 #
+# The `excess` report reads `excess_flags`, written by the excess monitor on
+# the same terms — nothing in the server reads it, and this report is the only
+# place a flag is ever surfaced. It is a notice rather than a cost, and lives
+# here so that it is seen by somebody already looking, rather than in a script
+# of its own that nobody remembers to run.
+#
 # The `transcripts` report reads `transcripts` and `accounts` instead, which
 # the server very much does read. It is here rather than in bin/people or a
 # script of its own because the question it answers is this one — what did the
@@ -536,7 +542,50 @@ SELECT day,
 SQL
 }
 
-report_names=(minutes pairs peak bytes transcripts nav listens defects)
+usage_excess() {
+  cat <<'SQL'
+.print ''
+.print '── Excess: who asked far more of one route than anybody ────────'
+.print ''
+-- **The one report here that is a notice rather than a measurement**, and last
+-- so that a bare `bin/usage` ends on it. Nothing else says a flag exists — no
+-- email, nothing on /healthz — so this is where one is found. See
+-- server/src/excess.ts and
+-- planning/decision/2026-10-03-excess-is-watched-across-every-route-rather-than-budgeted-per-route.md.
+--
+-- A row is written when one caller, in one hour, reached a floor (60 refusals
+-- or 3,600 requests on one route) and ten times the median of everybody else
+-- on it. `typical` is that median. **A flag is a question, never a verdict**:
+-- nothing was refused because of one, and an `address` is wherever a signed-out
+-- request came from, which strangers share. The counts behind it were thrown
+-- away with their hour; this is all that is kept, for thirty days, and an
+-- account's rows go with the account.
+--
+-- `refused` is the measure that matters most. A walk of usernames on
+-- /contacts/invite/accept is a run of `unknown`s from one account, and no
+-- honest person is refused sixty times in an hour on one route.
+SELECT COUNT(*) AS flags_last_7d,
+       COUNT(DISTINCT subject_kind || ':' || subject) AS callers
+  FROM excess_flags
+ WHERE flagged_at >= (unixepoch() - 7 * 86400) * 1000;
+
+.print ''
+SELECT datetime(f.flagged_at / 1000, 'unixepoch') AS flagged_utc,
+       f.subject_kind                             AS kind,
+       f.subject,
+       COALESCE(a.display_name, '')               AS who,
+       f.route,
+       f.measure,
+       f.count,
+       f.typical
+  FROM excess_flags f
+  LEFT JOIN accounts a ON f.subject_kind = 'account' AND a.id = f.subject
+ ORDER BY f.flagged_at DESC
+ LIMIT 100;
+SQL
+}
+
+report_names=(minutes pairs peak bytes transcripts nav listens defects excess)
 
 list_reports() {
   cat <<'TXT'
@@ -551,6 +600,8 @@ listens      starts of each published episode, by strangers on the public
              page — a count of starts and never an audience; read the header
 defects      fallback mic spans, leaked open spans, and what restarts erased
              from every other report above — read this before quoting those
+excess       callers who asked far more of one route than anybody that hour —
+             a notice for a person, never a refusal; last so a bare run ends on it
 TXT
 }
 

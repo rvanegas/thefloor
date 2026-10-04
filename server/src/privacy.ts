@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '25 September 2026';
+export const PRIVACY_UPDATED = '3 October 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -307,6 +307,18 @@ application collects little.</p>
   asking somebody to come is the thing this application is for, and whether it
   works is the one thing worth knowing about it. It is never shown to another
   user, and it changes nothing about what anybody sees.</li>
+  <li><strong>That you asked far more of the server than anybody else did, if
+  you ever do.</strong> For an hour at a time the server counts how many
+  requests each account makes of each part of it, and how many it turned down
+  — or, for somebody not signed in, each network address. Those counts are
+  held in memory and thrown away when the hour ends; nothing about them is
+  written down. Only when one is far beyond what everybody else did that hour
+  is a note kept: the account or address, which part of the server, the
+  count, and when — read by the person who runs The Floor and by nothing in
+  the application. It exists to notice somebody trying to find out who uses The Floor by asking
+  about names one at a time. It refuses nothing and changes nothing about what
+  you can do. It is kept for ${USAGE_RETENTION_DAYS} days and then deleted, and
+  deleting your account deletes it.</li>
 </ul>
 
 <h2>Live audio is not recorded</h2>
@@ -324,11 +336,12 @@ else’s purposes, and nothing is used to profile you or to decide what you are
 shown. Your address book is never read — the contacts in The Floor are people
 who have accepted a request inside it.</p>
 
-<p>What is measured is the three things listed above, all of them counted by
+<p>What is measured is the four things listed above, all of them counted by
 this server and sent nowhere: how much of its time and bandwidth went on each
-account, whether you have allowed notifications, and whether a ping brought
-somebody. The first and the last are kept for ${USAGE_RETENTION_DAYS} days and
-then deleted. All of it records durations, sizes and outcomes, never content —
+account, whether you have allowed notifications, whether a ping brought
+somebody, and whether anybody asked far more of the server than everybody
+else. All but the second are kept for ${USAGE_RETENTION_DAYS} days and then
+deleted. All of it records durations, sizes and outcomes, never content —
 not what was said, not what was played, not the words written with a ping, not
 what any recording contains. There is no record of which screens you opened or
 how long you spent looking at anything.</p>

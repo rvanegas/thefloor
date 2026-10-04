@@ -146,6 +146,7 @@ caused; the list carries the meaning.
 - **Displaced** — The message telling a session it is no longer the one standing, another device having entered
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
+- **Excess flag** — A row the excess monitor writes when one caller — an account, or an address when signed out — asked far more of one route in an hour than everybody else did: past a floor, and ten times the median. A question for a person, surfaced only by `bin/usage excess`; it never refuses anything
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Follower** — The code on each device showing the film that keeps its YouTube player doing what the room is doing: `useFollow` in `watch/drive.ts` over `stepFollow` in `core/watch.ts`; it follows presses and the room's state, never the room's clock, since 2026-10-03
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
@@ -3457,6 +3458,28 @@ the one holding an open microphone.
 LiveKit's recording jobs. One per participant, which is what makes a *stem* per
 person; `track_cpu_cost: 0.15` on the box caps it at roughly ten simultaneous
 recorded participants.
+
+## Excess flag
+
+What `server/src/excess.ts` writes, since 2026-10-03, when one caller asked far
+more of one route than everybody else did in the same hour. A *caller* is an
+account when the request was signed in and the address Caddy saw when it was
+not; a *route* is the pattern (`/i/:username`), never the address requested.
+*Far more* is two tests at once — past a floor, and ten times the median of
+everybody else on that route — and is measured separately for refusals (a
+4xx) and for requests of any kind.
+
+**A flag is a question, not a verdict.** Nothing is refused because of one,
+and *excess* is not a word for abuse: an address is shared by strangers, and a
+busy hour is busy for a reason. It is read by `bin/usage excess`, the last
+report of a bare `bin/usage`, and by nothing in the server — no email, nothing
+on `/healthz`. The counts behind it live in memory and die with their hour;
+only the flag is kept.
+
+Not a budget. A budget — `invite_guesses`, `link_accepts` — refuses in advance
+and is the right tool for a secret; this notices after the fact and is the
+tool for everything no budget was written for. (Nor a *guard*, which here means
+only a `can…` predicate in `core/`.)
 
 ## Expired (build)
 

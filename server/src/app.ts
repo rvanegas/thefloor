@@ -103,6 +103,7 @@ import {
   type Pusher,
 } from './push';
 import type { RecordingStore } from './storage';
+import { clientAddress, Excess, type ExcessSubject } from './excess';
 import { switchableSet, switchTargets } from './switching';
 import {
   createHomeNotifier,
@@ -462,6 +463,64 @@ export function buildApp(options: BuildOptions = {}): App {
     { parseAs: 'string' },
     (_request, body: string, done) => done(null, body)
   );
+
+  /**
+   * Every answer this server gives, counted against whoever asked, and a flag
+   * when somebody asks far more than anybody does. See excess.ts.
+   *
+   * **Where a flag goes:** the `excess_flags` table, which `bin/usage excess`
+   * reads, and a warning in the journal. Nothing else — no email, nothing on
+   * `/healthz` — for the meter's reason in usage.ts. Nothing is refused.
+   */
+  const excess = new Excess(
+    db,
+    (flag) => {
+      fastify.log.warn(
+        {
+          subjectKind: flag.subject.kind,
+          subject: flag.subject.id,
+          route: flag.route,
+          measure: flag.measure,
+          count: flag.count,
+          typical: flag.typical,
+        },
+        'excess'
+      );
+    },
+    () =>
+      fastify.log.warn(
+        'excess: too many callers this hour to track; new ones are uncounted'
+      )
+  );
+
+  /**
+   * Which account each request was signed in as, for the monitor.
+   *
+   * Set in `authenticate` because that is where every route that knows its
+   * caller finds out — and read in `onResponse`, after the handler, since
+   * `requireAccount` runs inside each handler and not before it. A WeakMap so
+   * that a request leaves nothing behind.
+   */
+  const signedInAs = new WeakMap<FastifyRequest, string>();
+
+  // After every answer, counted. **Only routes this server has**: an address
+  // that matched nothing reveals nothing, and the internet's scanners would
+  // otherwise be the whole of what this saw.
+  fastify.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!route) return;
+    const accountId = signedInAs.get(request);
+    const subject: ExcessSubject = accountId
+      ? { kind: 'account', id: accountId }
+      : {
+          kind: 'address',
+          id: clientAddress(
+            request.socket.remoteAddress,
+            request.headers['x-forwarded-for']
+          ),
+        };
+    excess.record(subject, route, reply.statusCode, now());
+  });
 
   if (switchRefused.length > 0) {
     fastify.log.warn(
@@ -954,7 +1013,9 @@ export function buildApp(options: BuildOptions = {}): App {
   function authenticate(request: FastifyRequest): AccountRow | null {
     const header = request.headers.authorization;
     if (!header?.startsWith('Bearer ')) return null;
-    return accounts.accountForToken(header.slice(7), now()) ?? null;
+    const account = accounts.accountForToken(header.slice(7), now()) ?? null;
+    if (account) signedInAs.set(request, account.id);
+    return account;
   }
 
   async function requireAccount(
@@ -3213,6 +3274,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // After `removeMember`, so the spans it closes on the way out are removed
     // too rather than written a moment later.
     channels.usage.forget(account.id);
+    excess.forget(account.id);
     accounts.erase(account.id);
     // Contacts lose a contact and the rest lose somebody from a channel; both
     // are looking at a Home that now says something untrue.

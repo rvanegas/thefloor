@@ -29,14 +29,16 @@ an invented one render identically.
 **What it yields is still thin**: that a username is held, which
 `core/username.ts`'s rule about names being *looked up* does not quite reach.
 
-## Why it is not guarded
+## Why it has no budget of its own
 
 **A per-route fix exists and was set aside on 2026-10-03** — checking the budget
 before the lookup, so that an exhausted account is told `too_many` whatever it
-names. It would work. The direction chosen instead is
-`task/watch-every-route-for-excess-instead-of-guarding-each-one.md`: one walk of
-usernames is a run of `unknown`s from one account, which a monitor over every
-route sees without this route having to know it leaks.
+names. It would work. What was built instead, the same day, is
+`decision/2026-10-03-excess-is-watched-across-every-route-rather-than-budgeted-per-route.md`:
+one walk of usernames is a run of `unknown`s from one account, which the
+excess monitor flags, for `bin/usage excess` to show, without this route
+having to know it leaks —
+`server/__tests__/excess.test.ts` § *the walk that asked for this*.
 
 **Making the refusals agree is still worse for the person who mistyped.**
 Answering an unknown username like a success tells them it worked; answering it
@@ -45,7 +47,7 @@ like the budget tells them to come back tomorrow.
 ## What would change the arithmetic
 
 - **A username becoming worth enumerating**, the same trigger as
-  `a-standing-door-has-no-lock.md`. Then the guard above is wanted whatever the
-  monitor says, since a monitor only notices after.
-- **The monitor not being built.** Then this is unwatched as well as unguarded,
-  and the per-route fix is the cheap one.
+  `a-standing-door-has-no-lock.md`. Then the per-route fix above is wanted
+  whatever the monitor says, since a monitor only notices after.
+- **The monitor's flags turning out to be noise**, so that nobody reads them.
+  Then this is unwatched in practice, and the per-route fix is the cheap one.
