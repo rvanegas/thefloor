@@ -146,7 +146,7 @@ caused; the list carries the meaning.
 - **Displaced** — The message telling a session it is no longer the one standing, another device having entered
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
-- **Excess flag** — A row the excess monitor writes when one caller — an account, or an address when signed out — asked far more of one route in an hour than everybody else did: past a floor, and ten times the median. A question for a person, surfaced only by `bin/usage excess`; it never refuses anything
+- **Excess flag** — A row the excess monitor writes when one caller — an account, or an address when signed out — asked far more of one route in an hour than everybody else did: past a floor, and ten times the median — or, as `unbudgeted`, made one lookup the accept route's spent budget let through free. A question for a person, surfaced only by `bin/usage excess`; it never refuses anything
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Follower** — The code on each device showing the film that keeps its YouTube player doing what the room is doing: `useFollow` in `watch/drive.ts` over `stepFollow` in `core/watch.ts`; it follows presses and the room's state, never the room's clock, since 2026-10-03
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
@@ -3468,6 +3468,11 @@ not; a *route* is the pattern (`/i/:username`), never the address requested.
 *Far more* is two tests at once — past a floor, and ten times the median of
 everybody else on that route — and is measured separately for refusals (a
 4xx) and for requests of any kind.
+
+**`unbudgeted` is the third measure and is not *far more* at all**, since
+2026-10-04: one `unknown` from the accept route to an account that has spent
+its day's `link_accepts`, which is the shape that route's username leak takes.
+No floor and no median, because a slow walk reaches neither.
 
 **A flag is a question, not a verdict.** Nothing is refused because of one,
 and *excess* is not a word for abuse: an address is shared by strangers, and a

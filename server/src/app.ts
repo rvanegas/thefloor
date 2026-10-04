@@ -1694,6 +1694,17 @@ export function buildApp(options: BuildOptions = {}): App {
     // monitor instead — see planning/decision/2026-10-03-excess-is-watched-
     // across-every-route-rather-than-budgeted-per-route.md.
     if (!owner) {
+      // **Past the day's budget, this answer is the leak**: a held username
+      // would get `too_many`, so each `unknown` is a lookup nothing counted.
+      // Flagged on the first, for `bin/usage excess`; the answer is unchanged.
+      // Not with a pin, whose wrong answer already reads the same as this.
+      if (!body.pin && accounts.linkAcceptsSpent(account.id, now())) {
+        excess.flagUnbudgeted(
+          { kind: 'account', id: account.id },
+          '/contacts/invite/accept',
+          now()
+        );
+      }
       return reply
         .code(400)
         .send({ error: inviteRefusalText('unknown'), code: 'unknown' });

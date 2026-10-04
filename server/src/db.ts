@@ -1699,7 +1699,7 @@ CREATE TABLE IF NOT EXISTS excess_flags (
   -- The route's pattern, never the address requested — /i/:username, not
   -- the username, for the reason log-url.ts exists.
   route        TEXT NOT NULL,
-  -- 'refused' | 'total'
+  -- 'refused' | 'total' | 'unbudgeted' — see ExcessMeasure
   measure      TEXT NOT NULL,
   count        INTEGER NOT NULL,
   -- The median of everybody else on the route that hour.

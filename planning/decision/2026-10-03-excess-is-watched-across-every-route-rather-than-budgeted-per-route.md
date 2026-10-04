@@ -31,6 +31,15 @@ is a run of `unknown`s from one account, which is what the monitor flags;
 `server/__tests__/excess.test.ts` § *the walk that asked for this* is that
 case. **The leak itself is still there**, known and accepted.
 
+**And since 2026-10-04 it has a measure of its own, `unbudgeted`.** The
+floor of sixty refusals an hour misses a walk paced below it, and the leak
+has an exact shape: an `unknown` to an account whose `link_accepts` are spent.
+So the route flags the first of those an hour, with no floor and no median,
+and `bin/usage excess` shows it beside the others. Still nothing is refused —
+this is the leak reported, not closed. The false alarm is an account that took
+up twenty links today and then mistyped a username, which is rare enough to
+read past.
+
 **Making the refusals agree was rejected** as worse for the person who
 mistyped: answering an unknown username like a success tells them it worked,
 and answering it like the budget tells them to come back tomorrow.
@@ -43,6 +52,8 @@ these happens:
   `backlog/a-standing-door-has-no-lock.md`. A monitor only notices after.
 - **The flags turn out to be noise**, so that nobody reads them. Then the leak
   is unwatched in practice, and the per-route fix is the cheap one.
+- **`unbudgeted` flags start appearing at all.** Each is somebody using the
+  oracle, or one rare mistype; a pattern of them is the case for closing it.
 
 ## Why not another budget
 

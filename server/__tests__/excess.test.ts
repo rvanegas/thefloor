@@ -1,4 +1,5 @@
 import { USAGE_RETENTION_MS } from '../../core/constants';
+import { LINK_MAX_ACCEPTS } from '../src/accounts';
 import { buildApp, type App } from '../src/app';
 import { openDb, type Db } from '../src/db';
 import {
@@ -153,6 +154,27 @@ describe('the address a request came from', () => {
   });
 });
 
+describe('an answer a budget should have covered', () => {
+  it('flags the first outright, once an hour', () => {
+    const { excess, flags } = monitor();
+    expect(excess.flagUnbudgeted(walker, ROUTE, HOUR)).toMatchObject({
+      measure: 'unbudgeted',
+      count: 1,
+      typical: 0,
+    });
+    expect(excess.flagUnbudgeted(walker, ROUTE, HOUR + 1)).toBeNull();
+    excess.flagUnbudgeted(walker, ROUTE, HOUR + EXCESS_WINDOW_MS);
+    expect(flags).toHaveLength(2);
+  });
+
+  it('leaves the ordinary measures to count as before', () => {
+    const { excess, flags } = monitor();
+    excess.flagUnbudgeted(walker, ROUTE, HOUR);
+    refuse(excess, EXCESS_REFUSED_FLOOR);
+    expect(flags.map((flag) => flag.measure)).toEqual(['unbudgeted', 'refused']);
+  });
+});
+
 describe('the walk that asked for this', () => {
   let app: App;
   const clock = HOUR;
@@ -200,6 +222,43 @@ describe('the walk that asked for this', () => {
     // The meter's rule: nothing on the wire says a flag exists.
     const health = await app.fastify.inject({ method: 'GET', url: '/healthz' });
     expect(health.body).not.toMatch(/excess/i);
+  });
+
+  // Spent directly rather than by taking up twenty links: what is under test
+  // is what the route does once the budget is gone, not how it goes.
+  const spendTheDay = (accountId: string) =>
+    app.db
+      .prepare(
+        'INSERT INTO link_accepts (taker_id, taken, window_start) VALUES (?, ?, ?)'
+      )
+      .run(accountId, LINK_MAX_ACCEPTS, clock);
+
+  const unbudgeted = () =>
+    app.db
+      .prepare(
+        "SELECT subject, route, count FROM excess_flags WHERE measure = 'unbudgeted'"
+      )
+      .all();
+
+  it('flags the first free lookup once the day’s accepts are spent', async () => {
+    const me = await signIn('walker@example.com');
+    spendTheDay(me.account.id);
+
+    for (let i = 0; i < 3; i++) {
+      const response = await accept(`nobody${i}`, me.token);
+      expect(response.json()).toMatchObject({ code: 'unknown' });
+    }
+
+    // Once, on the first, and well below the floor the other measures need.
+    expect(unbudgeted()).toEqual([
+      { subject: me.account.id, route: ROUTE, count: 1 },
+    ]);
+  });
+
+  it('says nothing of a mistyped username while the budget lasts', async () => {
+    const me = await signIn('walker@example.com');
+    await accept('nobody', me.token);
+    expect(unbudgeted()).toEqual([]);
   });
 
   it('counts a signed-out caller by the address Caddy forwarded', async () => {

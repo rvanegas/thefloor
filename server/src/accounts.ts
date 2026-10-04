@@ -2727,6 +2727,23 @@ export class Accounts {
   }
 
   /**
+   * Whether an account has spent its day's link acceptances, without spending
+   * anything — the condition under which the accept route's `unknown` becomes
+   * a free lookup. Read by that route for the excess monitor and by nothing
+   * that decides an answer.
+   */
+  linkAcceptsSpent(takerId: string, now: number): boolean {
+    const row = this.db
+      .prepare('SELECT * FROM link_accepts WHERE taker_id = ?')
+      .get(takerId) as { taken: number; window_start: number } | undefined;
+    return (
+      !!row &&
+      now - row.window_start < LINK_ACCEPT_WINDOW_MS &&
+      row.taken >= LINK_MAX_ACCEPTS
+    );
+  }
+
+  /**
    * Takes up an invite link, which makes its owner a contact.
    *
    * **The pin-less path, and the one every link minted since 2026-09-25

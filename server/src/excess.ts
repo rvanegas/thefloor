@@ -73,8 +73,12 @@ export interface ExcessSubject {
   id: string;
 }
 
-/** What was too much: answers that refused, or answers of any kind. */
-export type ExcessMeasure = 'refused' | 'total';
+/**
+ * What was too much: answers that refused, or answers of any kind — or, for
+ * `unbudgeted`, one answer that a route's budget should have covered and did
+ * not. See `flagUnbudgeted`.
+ */
+export type ExcessMeasure = 'refused' | 'total' | 'unbudgeted';
 
 export interface ExcessFlag {
   id: string;
@@ -85,7 +89,10 @@ export interface ExcessFlag {
   route: string;
   measure: ExcessMeasure;
   count: number;
-  /** The median of everybody else on that route this hour. */
+  /**
+   * The median of everybody else on that route this hour; 0 for
+   * `unbudgeted`, which compares with nobody.
+   */
   typical: number;
 }
 
@@ -125,6 +132,55 @@ export class Excess {
     status: number,
     now: number
   ): ExcessFlag | null {
+    const found = this.tally(subject, route, now);
+    if (!found) return null;
+    const { subjectKey, byRoute, tally } = found;
+
+    tally.total += 1;
+    if (status >= 400 && status < 500) tally.refused += 1;
+
+    return (
+      this.check(subject, subjectKey, route, byRoute, tally, 'refused', now) ??
+      this.check(subject, subjectKey, route, byRoute, tally, 'total', now)
+    );
+  }
+
+  /**
+   * Flags one answer outright, with no floor and no median: an answer a
+   * route's budget should have covered and did not.
+   *
+   * **The accept route's leak, watched for in the one shape it can be
+   * used.** Once an account has spent its day's `link_accepts`, a held
+   * username answers `too_many` and an unknown one `unknown`, and only the
+   * second is free — so every `unknown` past that point is a lookup nothing
+   * counted. The ordinary measures see a walk only once it is sixty an hour;
+   * this sees the first one, which is the point, since a slow walk is the one
+   * a floor never reaches. An honest person who has taken up twenty links
+   * today and then mistypes a username is the false alarm, and is rare enough
+   * to read past. Said once an hour per caller and route, as the others are.
+   */
+  flagUnbudgeted(
+    subject: ExcessSubject,
+    route: string,
+    now: number
+  ): ExcessFlag | null {
+    const found = this.tally(subject, route, now);
+    if (!found || found.tally.flagged.has('unbudgeted')) return null;
+    found.tally.flagged.add('unbudgeted');
+    return this.write(subject, route, 'unbudgeted', 1, 0, now);
+  }
+
+  /**
+   * This hour's tally for one caller on one route, made if need be — or
+   * nothing, once the hour is tracking as many callers as it may.
+   */
+  private tally(
+    subject: ExcessSubject,
+    route: string,
+    now: number
+  ):
+    | { subjectKey: string; byRoute: Map<string, Tally>; tally: Tally }
+    | null {
     this.roll(now);
 
     const subjectKey = key(subject);
@@ -149,14 +205,7 @@ export class Excess {
       tally = { total: 0, refused: 0, flagged: new Set() };
       byRoute.set(subjectKey, tally);
     }
-
-    tally.total += 1;
-    if (status >= 400 && status < 500) tally.refused += 1;
-
-    return (
-      this.check(subject, subjectKey, route, byRoute, tally, 'refused', now) ??
-      this.check(subject, subjectKey, route, byRoute, tally, 'total', now)
-    );
+    return { subjectKey, byRoute, tally };
   }
 
   /**
@@ -226,6 +275,17 @@ export class Excess {
     if (count < typical * EXCESS_MULTIPLE) return null;
 
     tally.flagged.add(measure);
+    return this.write(subject, route, measure, count, typical, now);
+  }
+
+  private write(
+    subject: ExcessSubject,
+    route: string,
+    measure: ExcessMeasure,
+    count: number,
+    typical: number,
+    now: number
+  ): ExcessFlag {
     const flag: ExcessFlag = {
       id: newId('xs'),
       flaggedAt: now,

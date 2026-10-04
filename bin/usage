@@ -564,6 +564,14 @@ usage_excess() {
 -- `refused` is the measure that matters most. A walk of usernames on
 -- /contacts/invite/accept is a run of `unknown`s from one account, and no
 -- honest person is refused sixty times in an hour on one route.
+--
+-- **`unbudgeted` is that route's leak, seen at the first lookup rather than
+-- the sixtieth**: an `unknown` to an account that has spent its day's twenty
+-- link acceptances, when a held username would have answered `too_many` — so
+-- each one is a lookup nothing counted. No floor and no median; `count` is 1
+-- and `typical` 0. A slow walk never reaches the floor, which is why it has a
+-- measure of its own. The false alarm is somebody who took up twenty links
+-- today and then mistyped one.
 SELECT COUNT(*) AS flags_last_7d,
        COUNT(DISTINCT subject_kind || ':' || subject) AS callers
   FROM excess_flags

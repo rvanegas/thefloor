@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '3 October 2026';
+export const PRIVACY_UPDATED = '4 October 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -331,7 +331,9 @@ application collects little.</p>
   written down. Only when one is far beyond what everybody else did that hour
   is a note kept: the account or address, which part of the server, the
   count, and when — read by the person who runs The Floor and by nothing in
-  the application. It exists to notice somebody trying to find out who uses The Floor by asking
+  the application. The same note is kept, the first time in an hour, when an
+  account that has already taken up its day's allowance of invite links asks
+  for a name nobody holds. It exists to notice somebody trying to find out who uses The Floor by asking
   about names one at a time. It refuses nothing and changes nothing about what
   you can do. It is kept for ${USAGE_RETENTION_DAYS} days and then deleted, and
   deleting your account deletes it.</li>
