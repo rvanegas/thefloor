@@ -65,7 +65,11 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
    that sits still, is the number to report.
 2. Seek from one phone; both screens jump. **Then do it from the laptop by
    tapping the bar**: until `39760bdb` every tap on the web app's bar sent the
-   whole room back to the start.
+   whole room back to the start. **Then pause, let it settle, and seek back a
+   minute from the other phone**: every picture must move and stay paused.
+   This was a backlog entry for weeks after the fix that made it untrue, and
+   `transport.test.tsx` now pins it, so a picture left where it was is a
+   device the test cannot see.
 3. **Claim the floor from one phone while the film plays: it is refused.**
    `canClaimFloor` asks `watchIsPlaying` (`core/channel.ts`,
    `decision/2026-09-24-the-floor-waits-on-the-film-not-the-party.md`), and the
@@ -94,7 +98,9 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
    as on the stop.
 8. **Click the video itself.** It may pause
    locally, and `useFollow` should undo that within a tick or two
-   (`FOLLOW_TICK_MS` is 500) — nothing should reach the other screens.
+   (`FOLLOW_TICK_MS` is 500) — nothing should reach the other screens. On the
+   readout that is rung 0, *told*, for a moment and then *agreed*; a climb to 2
+   is a player ignoring the play it was given.
 9. **Let a film run to its end.** It should stop there and say Finished, on
    every screen, and stay stopped. Then press Play: it should start again from
    the beginning on all of them. Fixed in `77834cb3`, so a re-walk: the failure
@@ -260,7 +266,9 @@ granted — and steps 10, 16, 17 and 19 are read off those lines.
     (`decision/2026-10-03-the-follower-rests-only-on-agreement.md`). A
     `debug` account's readout has a *ladder* row for this device and a rung on
     every other screen's line. **Through every step above it should read
-    *agreed* between presses**, a rung appearing only for the second or so a
+    *agreed* between presses** — on the *ladder* row; another screen's line
+    says nothing when it agrees, so there agreement is the absence of a rung
+    or a rest (`describeOther` in `DriftReadout.tsx`) — a rung appearing only for the second or so a
     press takes, and never reaching 2 on an ordinary evening. Anything that
     reaches 2 is a player that ignored two instructions, and the `watch rung`
     lines in the journal say which and why. Two cases worth provoking:
