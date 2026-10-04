@@ -264,14 +264,18 @@ cmd_check() {
 
   # A pointer to a file that no longer exists is a dead end rather than a
   # citation; the split left the titled ones alone deliberately, so only bare
-  # paths are a fault.
+  # paths are a fault. Two scripts are exempt because they name the old files
+  # as paths *in history* rather than as files to open: this one, and
+  # bin/restore-mtimes, which reads them at the commit before the split
+  # (`git show <split>^:planning/TASKS.md`) to date the items older than it.
   if grep -rn 'planning/TASKS\.md\|planning/BACKLOG\.md' "$root/bin" "$root/app/src" \
        "$root/server/src" "$root/core" 2>/dev/null | grep -v '§' \
-       | grep -v "^$root/bin/note:" | grep -q .; then
+       | grep -v "^$root/bin/note:" | grep -v "^$root/bin/restore-mtimes:" \
+       | grep -q .; then
     echo "a bare pointer to planning/TASKS.md or planning/BACKLOG.md survives in the code:" >&2
     grep -rn 'planning/TASKS\.md\|planning/BACKLOG\.md' "$root/bin" "$root/app/src" \
       "$root/server/src" "$root/core" 2>/dev/null | grep -v '§' \
-      | grep -v "^$root/bin/note:" >&2
+      | grep -v "^$root/bin/note:" | grep -v "^$root/bin/restore-mtimes:" >&2
     bad=1
   fi
 
