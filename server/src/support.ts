@@ -105,9 +105,11 @@ conversation is not recorded. Anyone in a channel can play, rename, export or
 delete any recording made in it — including one somebody else started.</p>
 
 <h2>Notifications</h2>
-<p>You are told when somebody asks you into a conversation. If they stop
-arriving, check that notifications are allowed for The Floor in the iOS
-Settings app; the app asks once, and iOS remembers a refusal.</p>
+<p>You are told when somebody asks you into a conversation — on your phone, by
+the app. If notifications stop arriving, check that they are allowed for The
+Floor in the iOS Settings app; the app asks once, and iOS remembers a refusal.
+The web app never notifies you, deliberately: it is somewhere to talk from, and
+the phone is what tells you somebody wants to.</p>
 
 <h2>Deleting your account</h2>
 <p>In the app, under Settings, at the bottom of the Account section. It takes
