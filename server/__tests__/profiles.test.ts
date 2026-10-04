@@ -385,6 +385,30 @@ describe('reading somebody else’s profile', () => {
     ).toBe('Carol Iwu');
   });
 
+  it('is allowed for somebody they asked, and not the other way round', async () => {
+    // The waiting bar opens the profile of whoever is asking, and somebody
+    // who asked by address usually shares no channel with you.
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/contacts/request',
+      headers: auth(alice.token),
+      payload: { identifier: 'bob@example.com' },
+    });
+
+    const response = await read(bob, alice.account.id);
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as Record<string, unknown>;
+    expect((body.account as { displayName: string }).displayName).toBe('Alice');
+    // A member's view rather than a contact's: no whereabouts.
+    expect(body).not.toHaveProperty('lastSeenAt');
+    expect(body).not.toHaveProperty('inApp');
+
+    // Asking somebody is not a way to read them.
+    expect((await read(alice, bob.account.id)).statusCode).toBe(404);
+  });
+
   /**
    * Where somebody is, which used to be a line on Home's contact rows and
    * moved here when Home became a list of channels. A profile has a wider

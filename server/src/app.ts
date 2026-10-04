@@ -3306,6 +3306,14 @@ export function buildApp(options: BuildOptions = {}): App {
    * by yourself. Not by an arbitrary id: a profile is prose a person wrote for
    * people they have some relationship with, and leaving it open would also
    * turn account ids into a directory anyone could walk.
+   *
+   * **And by somebody they have asked to be a contact**, since 2026-10-04.
+   * Asking is an act of theirs aimed at you, and they told you who they are
+   * in doing it; Home's waiting bar opens this screen on exactly that person,
+   * usually somebody who asked by address and shares no channel with you. It
+   * is their request that admits you, not yours: asking somebody yourself
+   * admits nothing, or a request would be a way to read anybody. What they
+   * get is what a channel member gets — the narrowing below is for contacts.
    */
   fastify.get('/profiles/:id', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -3313,8 +3321,13 @@ export function buildApp(options: BuildOptions = {}): App {
     const { id } = request.params as { id: string };
 
     const contact = accounts.areContacts(account.id, id);
+    const standing = accounts.contactState(account.id, id);
+    const askedYou = standing?.state === 'pending' && standing.requester === id;
     const allowed =
-      id === account.id || contact || channels.shareAChannel(account.id, id);
+      id === account.id ||
+      contact ||
+      askedYou ||
+      channels.shareAChannel(account.id, id);
     // Absent and not-allowed answer the same way, so this cannot be used to
     // discover which ids exist.
     const found = allowed ? accounts.profile(id, account.id) : null;
