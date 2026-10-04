@@ -595,6 +595,32 @@ export function ProfileView({
   };
 
   /**
+   * Answers their request, by the route the list's *Accept* takes.
+   *
+   * Not `ask`, which this was until 2026-10-04: asking by id is refused to
+   * anybody you share no channel with, and somebody who asked by address
+   * usually shares none — reachable here since the waiting bar opens the one
+   * person it names. The refusal is what keeps ids from being a way to pester
+   * people, and accepting needs none of it: their pending request is the whole
+   * of the permission.
+   *
+   * Then into the channel the acceptance makes, as `RequestRow` does, and
+   * nowhere if there is nowhere to go.
+   */
+  const accept = async () => {
+    setAsking(true);
+    setAskError(null);
+    try {
+      const channelId = await app.acceptContact(accountId);
+      if (channelId) onEnterChannel?.(channelId);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  /**
    * Ends the contact, after saying what that costs.
    *
    * Confirmed rather than done, and the confirmation names both consequences
@@ -1907,7 +1933,7 @@ export function ProfileView({
                   label={asking ? t.accepting() : t.acceptTheirRequest()}
                   variant="primary"
                   disabled={asking}
-                  onPress={() => void ask()}
+                  onPress={() => void accept()}
                 />
                 <Text style={type.muted}>{t.theyAskedYouFirst()}</Text>
               </>

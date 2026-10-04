@@ -1300,7 +1300,10 @@ describe('adding a contact you met in a channel', () => {
     const accept = findButton(tree, 'Accept their request');
     expect(accept).toBeDefined();
     await act(async () => accept!.props.onPress());
-    expect(mockApp.connectWith).toHaveBeenCalledWith(THEM);
+    // By the accept route, as the list's *Accept* is. Asking by id is refused
+    // to anybody you share no channel with, which a requester usually is.
+    expect(mockApp.acceptContact).toHaveBeenCalledWith(THEM);
+    expect(mockApp.connectWith).not.toHaveBeenCalled();
     act(() => tree.unmount());
   });
 });

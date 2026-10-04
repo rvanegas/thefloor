@@ -114,6 +114,29 @@ describe('The waiting bar', () => {
     act(() => tree.unmount());
   });
 
+  it('accepts from the profile it opens, and goes to the channel that makes', async () => {
+    // Reported 2026-10-02 as failing here while working in the list. The
+    // profile's button asked by id, which is refused to somebody who shares
+    // no channel with you — the ordinary case for a request made by address,
+    // and the person this bar names.
+    withWaiting({ contacts: [incoming('Pat Ito')] });
+    mockApp.acceptContact = jest.fn(async () => 'chan_pair');
+    const onEnterChannel = jest.fn();
+    const tree = render(
+      <HomeView {...homeNav} list="channels" onEnterChannel={onEnterChannel} />
+    );
+    await act(async () =>
+      findButton(tree, 'wants to be a contact')!.props.onPress()
+    );
+    await act(async () =>
+      findButton(tree, 'Accept their request')!.props.onPress()
+    );
+    expect(mockApp.acceptContact).toHaveBeenCalledWith('them');
+    expect(mockApp.connectWith).not.toHaveBeenCalled();
+    expect(onEnterChannel).toHaveBeenCalledWith('chan_pair');
+    act(() => tree.unmount());
+  });
+
   it('sends a count of requests to the list, naming nobody to open', () => {
     withWaiting({
       contacts: [incoming('Pat Ito', 'a'), incoming('Dana Chu', 'b')],
