@@ -24,10 +24,11 @@ import { takeInvite, type Invite } from '../ui/handover';
  * **`thefloor://i/<username>`, with an optional trailing pin, and no `https://`
  * form.** A universal link
  * would let the return tap land here without the second press, and is deferred
- * — planning/UNIVERSAL-LINKS.md, where a domain change is now the reason it
- * stays deferred. Until one exists, nothing can deliver an `https://` address
- * to this app, so matching one would be answering a string that never arrives.
- * Do not add it speculatively; add it in the commit that claims the domain.
+ * — planning/task/universal-links.md, where a domain change is now the reason
+ * it stays deferred. Until one exists, nothing can deliver an `https://`
+ * address to this app, so matching one would be answering a string that never
+ * arrives. Do not add it speculatively; add it in the commit that claims the
+ * domain.
  */
 
 /**

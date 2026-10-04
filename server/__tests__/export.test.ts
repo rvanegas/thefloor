@@ -115,10 +115,10 @@ describe('the filter graph', () => {
 
 describe('one speaker\u2019s branch of it', () => {
   /**
-   * The property phase 2 of planning/TRANSCRIPTS.md exists for: what a
-   * transcript is submitted is the same audio the export would have played, so
-   * there is no arrangement of inputs under which the two can disagree about
-   * what a silenced person said.
+   * The property phase 2 of planning/decision/2026-08-25-transcripts.md exists
+   * for: what a transcript is submitted is the same audio the export would have
+   * played, so there is no arrangement of inputs under which the two can
+   * disagree about what a silenced person said.
    *
    * Asserted twice, on purpose — once on the string, because "identical" is a
    * claim about the graph and a substring settles it exactly; and once on the

@@ -65,7 +65,7 @@ per hop, then `npx expo-doctor`, then a real build.
 entirely of prebuilds.
 
 **Android is untested ground and should not be discovered here.** See
-`backlog/android-has-never-been-built-or-run.md` — an SDK upgrade is the worst
+`bring-android-level-with-ios.md` — an SDK upgrade is the worst
 possible moment to find out whether that half builds, so either establish a
 baseline Android build first or decide explicitly that the upgrade is iOS-only
 and that the Android half stays unverified.

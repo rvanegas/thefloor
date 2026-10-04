@@ -5,7 +5,7 @@ part of this, and they say to decide CallKit together:
 `mute-a-locked-phone-through-callkit.md`, which wants a lock screen mute that
 needs no passcode, and `phone-calls-during-watch.md`, which wants other calls
 to get a busy signal. Doing it means rewriting the "there is no CallKit in it
-at all" position in `DESCRIPTION.md` § 2 and `LAUNCH.md`. Read STATES.md and
+at all" position in `apply-the-app-store-listing.md` and `post-to-the-launch-surfaces.md`. Read STATES.md and
 POSTMORTEM-echo.md first, because CallKit takes over activating the audio
 session.
 

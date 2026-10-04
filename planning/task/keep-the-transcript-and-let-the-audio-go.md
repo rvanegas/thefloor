@@ -24,7 +24,7 @@ whether this is a policy or just a setting:
   answered either way. Keeping the text and not the audio changes what is
   held, but not whether people were recorded.
 
-Read TRANSCRIPTS.md first. Its design assumes a recording exists and a
+Read decision/2026-08-25-transcripts.md first. Its design assumes a recording exists and a
 transcript is *attached to* it, and this proposal turns that around.
 
 Rodrigo restated this on the call with Erta, 2026-10-02: transcribe in real

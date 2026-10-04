@@ -390,7 +390,7 @@ async function applyConfiguration(
  * reason to fail a connection somebody is waiting on — and on Android there is
  * nothing to read it back *with*, since `app/modules/audio-route` is iOS-only.
  * `adb logcat` against `AudioManager` is the substitute, which is why
- * planning/ANDROID.md names it.
+ * planning/task/bring-android-level-with-ios.md names it.
  */
 async function applyAndroidConfiguration(want: SessionWant): Promise<void> {
   if (Platform.OS !== 'android') return;
@@ -1469,7 +1469,7 @@ export function useSessionAudio(
         // the conversation back and forth on a 500ms-doubling backoff for as
         // long as both screens were open. That is what "the two devices
         // competed for the audio" sounded like:
-        // planning/TWO-DEVICES-WALK.md.
+        // planning/backlog/two-devices-on-one-account-have-never-been-heard-in-a-channel.md.
         //
         // So the loser stops, and stops here rather than waiting to be told.
         // The server says the same thing over the socket — `displaced` sets

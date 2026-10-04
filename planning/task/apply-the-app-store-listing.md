@@ -1,13 +1,13 @@
-# The App Store listing
+# Apply the App Store listing
 
-**Temporary**, in the sense DESCRIPTION.md is temporary: nothing in the repo
+It was planning/LISTING.md until 2026-10-03. Nothing in the repo
 holds the listing, which lives in App Store Connect, so this is where the
 wording is argued about before somebody pastes it in. Delete it once the
 listing carries this text, moving whatever the argument settled into
 `decision/`.
 
 **Derived from PROPOSITION.md**, on 2026-09-03, along with MANUAL.md and
-ROADMAP.md — the same argument aimed at three audiences. This one is aimed at
+the roadmap — the same argument aimed at three audiences. This one is aimed at
 the narrowest of them, and the proposition says why: *the listing is not the
 top of the funnel, the guest page is*. A stranger reading a listing has to be
 persuaded; somebody following a friend's link is already hearing their friends.
@@ -15,7 +15,8 @@ So the job of this copy is **to be repeatable by a recommender** rather than
 persuasive to cold traffic, and every field below is written to be quotable
 rather than complete.
 
-**Its relationship to DESCRIPTION.md.** That file argued the description body
+**Its relationship to DESCRIPTION.md**, which was deleted on 2026-10-03 once
+the listing carried its text. That file argued the description body
 alone and argued it well, against the code rather than against a wish; its
 proposal is carried here almost unchanged, because replacing a checked draft
 with a fresh one to satisfy a task loses ground. What this file adds is
@@ -61,7 +62,11 @@ because it changes without a review and because it is the form the proposition
 predicts will actually travel: *"It's a group chat but voice, and it never
 rings you."* The rest is that sentence with its two consequences spelled out.
 
-## Description
+## Description — live
+
+**Applied.** The live listing carried this text word for word when it was read
+back on 2026-10-03, at version 1.8.1; what is outstanding is every field
+below it that the lookup API cannot show.
 
 > The Floor is for talking with people you already know. It waits for you.
 >
@@ -250,8 +255,8 @@ placement and the argument for it are unchanged.
 - **"One person speaks at a time."** It describes a different app. The floor is
   a claim somebody makes when they need to finish a thought, and conversation
   is open by default. This sentence is currently live in `support.ts`,
-  `landing.ts` and `privacy.ts`; ROADMAP.md § *Say the same thing everywhere*
-  is about that, and the listing must not join them.
+  `landing.ts` and `privacy.ts`; PROPOSITION.md § *What the proposition obliges, in order*
+  item 6 was about that, and the listing must not join them.
 - **Discord, or any other app by name.** It invites a 4.1 rejection and reads
   as positioning rather than describing. "Nothing rings" is the same sentence
   to the audience that would have understood the comparison.
@@ -288,9 +293,9 @@ all for some people.
 Nothing here names a competitor, which is the same 4.1 exposure as naming one
 in the body.
 
-## What's New (version 1.3.2)
+## What's New
 
-**Written, and it is not here.** `planning/submissions/whats-new-1.3.2.txt` is
+**Written per version, and it is not here.** `planning/submissions/whats-new-<version>.txt` is
 the text, composed from `released..master`, and `bin/submit-ios` is what
 sends it, finding it by `expo.version` — this file argues the standing copy
 and that one carries a train. Composing it stays a release-time decision, like the version string.
@@ -320,44 +325,14 @@ purity.
 
 **Added 2026-09-14.** Everything above argues the copy and it is argued well;
 what it never said is **which of it has actually been pasted in**. The answer
-is *most of the description and none of the rest*, and the gap had gone
+was *most of the description and none of the rest*, and the gap had gone
 unrecorded because the lookup API returns the description and nothing else.
+**By 2026-10-03 the description was fully live** (1.8.1); the four fields
+below are what the lookup still cannot show.
 
 Read back from `https://itunes.apple.com/lookup?id=6799628190` on 2026-09-14:
 **version 1.4.0, released 2026-09-08, primary Utilities, secondary Social
 Networking**, name *The Floor Uninterrupted*.
-
-### The description is one revision behind, and the gap is the invite link
-
-The live text is the 2026-09-03 draft, not the 2026-09-07 revision above.
-Seven differences, and **the fifth is the one that costs something**:
-
-1. **Second paragraph** loses *and its recordings* — live says the channel
-   keeps its name; the draft says it keeps its name and its recordings.
-2. **Fourth paragraph** loses the quarter-hour clause. That clause is the
-   reason to trust the paragraph it sits in, and the behaviour shipped.
-3. **Fifth paragraph** ends at *with the screen off*, without *and the phone
-   still in your pocket*.
-4. **Recording paragraph** loses *it is named once for everybody* and the whole
-   of *or delete it — anyone in the channel can, not only whoever started it*.
-5. **The mutual-agreement paragraph has no invite link in it.** Live: *they
-   accepted a request from you, you accepted theirs*. **The link that seats
-   exactly one person shipped in 1.4.0 and the listing does not mention it** —
-   which matters more than the other six together, because § *What changed on
-   2026-09-07* argues it is *the sentence the recommender needs, since what
-   they will actually do is send their link*. The listing is silent about the
-   app's own viral primitive.
-6. **The data paragraph is missing entirely** — *a conversation passes through
-   and is gone*, and the minutes-carried sentence.
-7. **The closing line** is *It is free, there is no advertising, but donations
-   are appreciated*, rather than *it is free, there is no advertising, and it
-   is the same app whether or not you ever chip in*. The live version makes
-   the donation an expectation; the revision makes it explicitly optional,
-   which is what `support.ts` implements.
-
-**So the description above is the one to paste, unchanged.** Nothing in it
-describes anything unshipped, which was checked against the 1.4.0 release notes
-rather than assumed.
 
 ### Four fields nobody outside App Store Connect can read
 
@@ -391,7 +366,7 @@ it can be live within the hour.
    are `no ring` and `intercom` — planning/MARKETING.md § *Paid* proposes
    buying the same terms on Apple Search Ads, where what converts feeds back
    into this field.
-4. **Description**, the full 2026-09-07 text above. Requires a submission.
+4. ~~**Description**, the full 2026-09-07 text above.~~ **Done** — live by 1.8.1.
 5. **The categories, which are in dispute and are the one item here that is
    not merely outstanding.** Live is primary **Utilities**, secondary **Social
    Networking**. Rodrigo decided the reverse on 2026-08-27 — primary Social

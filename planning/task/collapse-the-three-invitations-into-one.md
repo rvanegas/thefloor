@@ -33,4 +33,4 @@ Erta will look at how Luma keeps track of who invited whom. Rodrigo is not sure
 whether per-guest tracked links were backed out; check before designing
 around them. Read GLOSSARY.md (*invitation*, *invite link*, *guest link*) and
 `decision/2026-09-25-the-invitation-asks-for-one-thing.md` first, and
-UNIVERSAL-LINKS.md for why there are no universal links.
+task/universal-links.md for why there are no universal links.

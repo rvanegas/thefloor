@@ -1138,7 +1138,7 @@ rarely be needed — a nearby phone never starts an audio session at all. Two
 differences from iOS remain structural: there is **no second writer**, so
 `pushPolicy` stays iOS-only by design rather than by debt, and **nothing reads
 the result back**, `app/modules/audio-route` being iOS-only. `adb logcat` is
-the substitute. See planning/ANDROID.md.
+the substitute. See planning/task/bring-android-level-with-ios.md.
 
 Three settings carry all the behaviour:
 

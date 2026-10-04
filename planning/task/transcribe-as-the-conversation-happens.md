@@ -2,7 +2,7 @@
 
 Find out whether streaming transcription is viable. It came up on the call of
 2026-09-30. Todd says AssemblyAI does real time, and uses it in another app.
-TRANSCRIPTS.md chose **batch** on purpose, and in § *The provider is an
+decision/2026-08-25-transcripts.md chose **batch** on purpose, and in § *The provider is an
 interface* it warns off the realtime API's `speech_model` shape.
 
 It matters because of "Keep the transcript and let the audio go". If text can
@@ -35,7 +35,7 @@ now "Universal-3.6 Pro", where the prompt says 3.5.
 
 **Identity-by-stem survives, because the API forces it.** A realtime session
 is one WebSocket carrying one mono 16 kHz PCM stream (ASSEMBLY_PROMPT § 9), so
-it is one session per identity — the same one-job-per-stem shape TRANSCRIPTS.md
+it is one session per identity — the same one-job-per-stem shape decision/2026-08-25-transcripts.md
 chose. There is no multichannel option to be tempted by. Diarisation is
 optional (`speaker_labels=true`) and costs +$0.12/hr per stream there; it is
 worth paying on the `media` stem, the one where it was ever information, and
@@ -81,13 +81,13 @@ is never reopened. The audio still exists briefly at AssemblyAI while it is
 being transcribed, so the red indicator and the consent question stand exactly
 as that task says.
 
-**What it costs the design.** TRANSCRIPTS.md's model inverts: a transcript is
+**What it costs the design.** decision/2026-08-25-transcripts.md's model inverts: a transcript is
 no longer *attached to* a recording, it can exist without one. And streaming
 has to be set up before the call starts, so it cannot be a button pressed on
 a finished recording. That makes it a channel setting, which collides with the
 one-free-transcript-per-account rule, and gives up batch's restart recovery
 (the provider id in the row, polled on the tick) — a server restart mid-call
-loses whatever was in flight. TRANSCRIPTS.md's warning about `speech_model` is
+loses whatever was in flight. decision/2026-08-25-transcripts.md's warning about `speech_model` is
 about the parameter's shape (realtime takes a required singular string, batch
 the plural fallback array), not an argument against streaming.
 

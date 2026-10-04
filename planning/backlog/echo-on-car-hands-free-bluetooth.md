@@ -1,6 +1,6 @@
-# Golf's Bluetooth echo, 2026-09-13
+# Echo on car hands-free Bluetooth
 
-**Temporary.** This is one unfinished investigation and it should be deleted
+**One unfinished investigation**, planning/GOLF.md until 2026-10-03. Delete it
 once the question is settled — either into a `decision/` entry if something is
 changed because of it, or outright if the next report contradicts it.
 

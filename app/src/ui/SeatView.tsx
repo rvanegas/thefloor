@@ -32,7 +32,8 @@ import { useText, type Strings } from '../i18n';
  * Anonymous seats stay in the browser and that is unchanged: the app boots
  * into a sign-in, and a seat with nobody behind it has nothing to sign in as.
  * See planning/decision/2026-09-22-a-seat-rides-the-member-socket.md, and
- * GUEST-LADDER.md § *The app holds seats too* for the decision this executes.
+ * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md for the
+ * decision this executes.
  */
 
 /**

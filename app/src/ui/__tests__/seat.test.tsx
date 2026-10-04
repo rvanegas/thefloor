@@ -26,7 +26,8 @@ jest.mock('../../state/AppProvider', () =>
  * `GuestView` and nothing else — names, no ids, no recordings, no roster — so
  * everything here is written against that type alone, and a test that reached
  * for a `ChannelState` to set something up would be describing a screen this
- * one deliberately is not. See planning/GUEST-LADDER.md and
+ * one deliberately is not. See
+ * planning/decision/2026-09-16-three-asks-not-one.md and
  * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
  */
 

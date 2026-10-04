@@ -1,7 +1,8 @@
-# Universal links, and the file that admits the app
+# Universal links
 
 **Deferred on 2026-09-16, deliberately, and this file is the account of what
-was not built and what it would take.** It is not a design awaiting a review:
+was not built and what it would take.** It was
+planning/UNIVERSAL-LINKS.md until 2026-10-03. It is not a design awaiting a review:
 the decision that day was that guest links open the web app and nothing else,
 with an *Open in the app* button where one is appropriate. This is here so
 that whoever revisits it starts from the costs rather than from the idea.
@@ -182,7 +183,7 @@ is why the invite page's button was held back until a build carrying
 The same idea under a different name — App Links —
 `/.well-known/assetlinks.json`, which additionally carries the SHA-256
 fingerprints of the signing certificates, plus an intent filter marked
-`autoVerify`. `backlog/android-has-never-been-built-or-run.md` is why
+`autoVerify`. `bring-android-level-with-ios.md` is why
 that is not a cost today. The file is cheap to serve beside the other one when
 it is, and the fingerprints are the part that will not be guessable a year
 from now.

@@ -131,7 +131,8 @@ three.** It computes the day counts from `USAGE_RETENTION_MS` and
 either constant without the page fails the suite. The seven-day one is not
 guarded that way: the page says `7 days later` as a literal and the test
 asserts that same literal, so **`DELETED_RETENTION_MS` can be changed and the
-published promise will go on saying seven days with a green suite.** The client
+published promise will go on saying seven days with a green suite.** That is
+`backlog/the-seven-day-retention-promise-is-not-guarded-by-the-privacy-test.md`. The client
 copy is safe — `ChannelSettingsView` derives its wording from the constant — so
 the failure mode is specifically the app and the policy disagreeing.
 
@@ -158,6 +159,10 @@ held 206 objects and 271 MB:
   ordering `sweepDeleted`'s comments say it exists to prevent, and the sweep
   reports success either way.
 
-Neither is fixed. The decision is whether `thefloor-server` gains
-`s3:DeleteObject` or `delete` starts reporting failures rather than absorbing
-them; TASKS.md § *Review S3* is where that work is asked for.
+**Both were answered on 2026-09-23**, the other way from either option this
+paragraph used to offer: `thefloor-server` does not gain `s3:DeleteObject` and
+a person does the deleting —
+`decision/2026-09-23-the-server-may-not-delete-recordings-and-a-person-does-it-instead.md`
+— and the sweep now knows whether it deleted anything,
+`decision/2026-09-23-the-sweep-now-knows-whether-it-deleted-anything.md`.
+Whatever is left of S3 is `task/review-s3.md`.

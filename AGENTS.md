@@ -66,13 +66,12 @@ day: the nine credentials, where each lives, what it can do and what losing it
 costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 
-The rest are temporary and say so in their own first lines, and **this file
-names none of them, deliberately** — every such list it has kept was wrong
-within a fortnight, pointing at a design that had shipped or a file that had
-been deleted. `ls planning/` is the current list. Two kinds recur: a **design
-for unbuilt work**, deleted when the work ships with whatever survives moving to
-`decision/`; and a **submission's own text**, written by `bin/set-review-notes`
-and gone when that version is approved.
+**Since 2026-10-03 the top of `planning/` holds only standing documents**, and
+`planning/README.md` says what each is for. Nothing temporary goes there: a
+**design for unbuilt work** lives in the `task/` file that asks for it, an
+open investigation in `backlog/`, and when the work ships whatever survives
+moves to `decision/`. The one kind of transient text left is a **submission's
+own**, under `planning/submissions/`, written by `bin/set-review-notes`.
 
 **A shipped design's reasoning is not always what the task that asked for it
 appears to ask for** — the entry *The Floor carries no video* is the one that
@@ -110,9 +109,9 @@ and reading one the way English suggests is how somebody builds the adjacent
 thing, twice so far.
 
 **This one is worth reading routinely, and since 2026-09-07 it is cheap to.**
-Its § *Every term, in one line each* is the whole vocabulary, ninety terms
-at a clause apiece, front-loaded so that section alone is enough for
-ordinary work — seven kilobytes rather than forty-two. Read the list; go down
+Its § *Every term, in one line each* is the whole vocabulary at a clause
+apiece, front-loaded so that section alone is enough for ordinary work. Read
+the list; go down
 to an entry only when the one-liner will not settle the question, or when you
 are about to argue with it. These are the terms of communication, so a session that
 has skimmed the list and one that has not are not having the same conversation.
@@ -155,7 +154,7 @@ a paragraph here is paid for every time. That asymmetry is the whole reason for
 the split, and it decays quietly: the natural place to write down what just
 happened is the file already open, which is this one.
 
-**Keep it under 550 lines, and nearer 500.** It is 549 now. **Correct that
+**Keep it under 550 lines, and nearer 500.** It is 548 now. **Correct that
 figure in the same commit as any change to this file**, or the rule governs
 against a number nobody has checked — it was once 54 lines stale. Nothing
 displaces anything here any more, so the file has no reason to climb at all:

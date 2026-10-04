@@ -219,10 +219,11 @@ usage_transcripts() {
 .print '── Transcription spend, by month (all of it, not the 30-day window) ─'
 .print ''
 -- $0.15 per audio-hour on the standard model, which is the figure in
--- planning/TRANSCRIPTS.md and the one to re-check against AssemblyAI's pricing
--- page before quoting it at anybody. `billed_ms` is channel-milliseconds —
--- a recording's length times its number of stems — so the hours below are
--- what the provider charges for rather than how long the conversations were.
+-- planning/decision/2026-08-25-transcripts.md and the one to re-check against
+-- AssemblyAI's pricing page before quoting it at anybody. `billed_ms` is
+-- channel-milliseconds — a recording's length times its number of stems — so
+-- the hours below are what the provider charges for rather than how long the
+-- conversations were.
 --
 -- Deleted transcripts are counted, deliberately: the money went whatever
 -- happened to the text afterwards.

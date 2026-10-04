@@ -1,3 +1,9 @@
+# Stand by, and the two kinds of nearby
+
+The unbuilt half of the model below is the task: the *stand by* verb, the
+state names, the two nearby substates, and — argued first — *nearby auto* +
+foregrounding → present. It was planning/NEAR.md until 2026-10-03.
+
 *Rodrigo's model for presence. What is built and what is not, as of
 2026-09-09 — see `decision/2026-09-09-attention-is-one-clock.md`.*
 

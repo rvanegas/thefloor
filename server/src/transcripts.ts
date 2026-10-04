@@ -39,8 +39,8 @@ import type { UsageMeter } from './usage';
  * text lands, and again when the recording is swept. The first can fail and
  * nobody would notice.
  *
- * See planning/TRANSCRIPTS.md. Nothing routes to any of this yet — that is
- * phase 4.
+ * See planning/decision/2026-08-25-transcripts.md. Nothing routes to any of
+ * this yet — that is phase 4.
  */
 
 /** How long to wait before polling a job again, and the ceiling it climbs to. */

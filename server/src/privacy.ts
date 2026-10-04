@@ -81,7 +81,8 @@ export interface PolicyOptions {
    * what *leaves* and wrong for what is *kept* — text held here outlives the
    * provider being dropped, and a page that falls silent about it while it is
    * still on people's screens fails worse than the case this gate prevents.
-   * TRANSCRIPTS.md § *Order of work*, phase 5, specifies that split.
+   * Phase 5 of the transcripts design specified that split;
+   * planning/decision/2026-08-25-transcripts.md is what survives of it.
    */
   transcription?: string;
   /**

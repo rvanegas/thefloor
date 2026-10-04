@@ -42,7 +42,7 @@ import { useText, type Strings } from '../i18n';
  * rather than things laid over it, and the profile moved out of `ContactsView`
  * on the grounds that a list "is a body now and cannot cover anything". A card
  * at the top of the scroll takes its own height and hides nothing. See
- * planning/ONBOARDING.md.
+ * planning/decision/2026-09-10-the-onboarding-checklist.md.
  *
  * **In the tier rather than in either list**, for the reason `HomeView` gives
  * about the live bar: this spans getting somebody here and opening a channel,

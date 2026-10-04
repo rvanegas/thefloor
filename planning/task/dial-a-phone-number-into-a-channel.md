@@ -18,7 +18,7 @@ The Floor's. And it passes MARKETING.md's *no strangers*: the number is one the
 member types or picks with the system contact picker — no address-book upload,
 and **the dialled number is not stored** past the call.
 
-**The callee is a guest with no account** (GUEST-LADDER.md), arriving by phone
+**The callee is a guest with no account** (`decision/2026-09-16-three-asks-not-one.md`), arriving by phone
 instead of a guest link: one of the two guest microphones, an always-open line
 that any member can mute. The pitch is the first of *the three asks*: after the
 call, one tap opens the member's own Messages with their `/i/<username>` link

@@ -4,9 +4,9 @@
 last third is direction rather than description, and says so where it turns.
 One argument told twice: what the app claims, and what the claim obliges it to
 build next. Nothing here is a feature list, and a pitch that cannot also be
-read as a roadmap is not a proposition, only a slogan. DESCRIPTION.md is its
-sibling and holds the copy; this file holds the argument the copy is drawn
-from.
+read as a roadmap is not a proposition, only a slogan. The copy drawn from it
+is `task/apply-the-app-store-listing.md` and MANUAL.md; this file holds the
+argument they are drawn from.
 
 ## The thesis, in one sentence
 
@@ -304,3 +304,31 @@ thesis regardless of how well it tests.
   off its own argument.
 - **No administration inside a channel.** Six peers and a door. Every problem
   that looks like it wants a moderator should first be tried as a boundary.
+
+## What the proposition obliges, in order
+
+ROADMAP.md lifted the last third of this argument out and ordered it,
+on 2026-09-03; on 2026-10-03 its items went to `task/` and the ordering came
+back here, since it is the argument's and not a schedule. **First the thing
+without which the central loop does not close, then the cheapest correction to
+the worst observed failure, then the question whose answer decides how much of
+the rest is even shaped right.** Growth and the panel shape come after, because
+both are elaborations of a loop that has to work first.
+
+1. `task/make-the-notification-permission-survivable.md` — the loop does not
+   close without it.
+2. `task/teach-the-habit-at-the-empty-channel.md` — possibly dissolved by
+   stepping in nearby; the task says how to tell.
+3. `task/settle-whether-ping-is-enough-on-its-own.md` — a question, answered by
+   observation, and never by building chat.
+4. **A link that belongs to a person** — shipped as the invite link,
+   `decision/2026-09-25-an-invite-link-is-a-standing-door.md`, which is the
+   whole of the growth roadmap this proposition licenses.
+5. `task/a-channel-with-an-owner-that-anyone-with-its-link-can-join.md` — open
+   channels, and the knock that becomes a request to speak.
+6. **Say the same thing everywhere** — done 2026-09-14.
+
+**Everything else in `task/` and `backlog/` is work this argument is silent
+about** — most of the engineering — and silence is not disapproval. The
+constraints above decide anything not on this list.
+

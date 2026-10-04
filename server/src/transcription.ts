@@ -17,7 +17,7 @@
  * Diarisation *within* one stem is a different question, and is asked of every
  * one of them — see `TranscriptionOptions.diarize`. How many voices are inside
  * a single stem is a thing this system genuinely does not know. See
- * planning/TRANSCRIPTS.md.
+ * planning/decision/2026-08-25-transcripts.md.
  *
  * Nothing calls any of this yet. It is the first phase of that design: the
  * credential, the configuration, the disclosure on the privacy page, and the
@@ -201,8 +201,8 @@ const ASSEMBLYAI_BASE = 'https://api.assemblyai.com/v2';
  * languages natively and code-switches between them without configuration,
  * falling back to `universal-2` (99 languages) for anything outside that. So a
  * speaker who changes language mid-recording is handled rather than mislabelled
- * — which TRANSCRIPTS.md listed as a limit of per-file language detection, and
- * is not one on this model.
+ * — which planning/decision/2026-08-25-transcripts.md listed as a limit of
+ * per-file language detection, and is not one on this model.
  *
  * Note the singular `speech_model` is deprecated, and is a *different shape*
  * on the realtime API — a string rather than an array. We are batch-only, so

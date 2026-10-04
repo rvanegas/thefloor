@@ -4,13 +4,14 @@
  *
  * **These are the one place the ladder departs from being a view of a
  * snapshot**, which was the design's founding rule — every other rung is read
- * off Home, and `planning/ONBOARDING.md` argues at length that a checklist
- * carrying its own event stream is the thing a third-party module would have
- * sold us. The four here have no snapshot to be read off: nothing else the
- * server holds says whether this account has ever claimed the floor, declared
- * itself nearby, admitted a guest or played anything. `RejoinableView.nearby`
- * comes closest and answers a different question — whether you are nearby
- * *now* — which would untick itself fifteen minutes later.
+ * off Home, and `planning/decision/2026-09-10-the-onboarding-checklist.md`
+ * argues at length that a checklist carrying its own event stream is the thing
+ * a third-party module would have sold us. The four here have no snapshot to be
+ * read off: nothing else the server holds says whether this account has ever
+ * claimed the floor, declared itself nearby, admitted a guest or played
+ * anything. `RejoinableView.nearby` comes closest and answers a different
+ * question — whether you are nearby *now* — which would untick itself fifteen
+ * minutes later.
  *
  * **So the server keeps them, and they ride on the Home snapshot**, which
  * makes the ladder a view of one again. They were per install and in the

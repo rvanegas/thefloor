@@ -63,7 +63,8 @@ export function stemKeysFor(request: ExportRequest, identity: string): string[] 
  * anything else that wants one person's audio — a transcript is the first — asks
  * for it here rather than reaching for the ungated bytes in the bucket. If the
  * gating is ever changed, both change together, which is the property that
- * matters. See planning/TRANSCRIPTS.md § *What is sent is the gated stem*.
+ * matters. See planning/decision/2026-08-25-transcripts.md § *What is sent is
+ * the gated stem*.
  *
  * `label` names this branch's intermediate streams and must be unique within a
  * graph; the default suits a graph containing only this stem.

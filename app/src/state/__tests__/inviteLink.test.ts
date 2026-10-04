@@ -64,8 +64,8 @@ describe('inviteOfUrl', () => {
   /**
    * **Not a universal link, deliberately.** No AASA claims this domain, so
    * nothing can deliver an `https://` address to this app; matching one would
-   * be answering a string that never arrives. planning/UNIVERSAL-LINKS.md is
-   * why, and the commit that claims the domain is where this changes.
+   * be answering a string that never arrives. planning/task/universal-links.md
+   * is why, and the commit that claims the domain is where this changes.
    */
   it('does not answer the https form of the same address', () => {
     expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak')).toBeNull();

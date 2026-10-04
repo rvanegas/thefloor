@@ -63,8 +63,8 @@
 #
 # What this script deliberately does *not* do is ship anything. There is no
 # Android release path — no `eas.json`, no signing key, no `bin/upload-android`
-# — and `planning/ANDROID.md` says what each would cost. This is a development
-# loop and nothing more.
+# — and `planning/task/bring-android-level-with-ios.md` says what each would
+# cost. This is a development loop and nothing more.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -316,7 +316,7 @@ apk() {
   # for `release` too — see `signingConfigs` in android/app/build.gradle. That is
   # fine for sideloading and is *not* a Play-store artifact: Google will not
   # accept an apk signed with the shared debug key, and a real upload key is one
-  # of the things planning/ANDROID.md defers.
+  # of the things planning/task/bring-android-level-with-ios.md defers.
   #
   # `EXPO_PUBLIC_API_URL` is baked in from app/.env at bundle time, so whoever
   # installs this talks to whatever that file pointed at when it was built —

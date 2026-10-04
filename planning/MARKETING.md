@@ -1,8 +1,8 @@
 # How this app gets to people
 
-**Standing statement of the acquisition argument**, and a third sibling to
-PROPOSITION.md and LISTING.md. The proposition holds the argument about what
-the app is *for*; the listing and DESCRIPTION.md hold the copy; this file holds
+**Standing statement of the acquisition argument**, and a sibling to
+PROPOSITION.md. The proposition holds the argument about what the app is
+*for*; `task/apply-the-app-store-listing.md` holds the copy; this file holds
 the argument about how a stranger comes to be a user, and what may and may not
 be spent to make that happen.
 
@@ -118,7 +118,7 @@ to be worth naming as marketing assets rather than as features.
   distribution one.
 - **The landing page at `/`**, `server/src/landing.ts`, server-rendered rather
   than the web bundle.
-- **The store listing**, argued at length in LISTING.md and largely live as of
+- **The store listing**, argued at length in task/apply-the-app-store-listing.md and largely live as of
   1.4.0.
 - **The web app at `/open`**, which means "try it" does not require an install
   on a desktop.
@@ -202,7 +202,7 @@ comparison rather than a demo — § *The sequence* item 8.
 
 ## Who else is on the field
 
-LAUNCH.md names three competitors and concedes the fight in the right direction
+task/post-to-the-launch-surfaces.md names three competitors and concedes the fight in the right direction
 — *this app loses a feature comparison to Discord, Zello and the platform
 walkie-talkies, all of which have more of everything; it wins the argument
 about what the ring is for.* That judgement stands. What follows is who is
@@ -214,12 +214,12 @@ the app makes three and they are defended separately.
 
 **1. The room you drop into — contesting *nothing rings*.**
 
-- **Discord**, still the nearest true thing said, and LAUNCH.md § *The
+- **Discord**, still the nearest true thing said, and task/post-to-the-launch-surfaces.md § *The
   objections* already holds the answer: the difference is not features but who
   is in it. A server is a place you join; this has no directory, no search and
   no strangers, everybody agreed twice, and the floor is enforced on the audio
   because there are no moderators by design.
-- **WhatsApp group voice chats**, which are not in LAUNCH.md and are the entry
+- **WhatsApp group voice chats**, which are not in task/post-to-the-launch-surfaces.md and are the entry
   worth the most attention. WhatsApp shipped join-when-you-like group voice —
   no ring — into a surface that already contains every contact the target
   reader has. It concedes the exact affordance the thesis is built on, for
@@ -243,7 +243,7 @@ the app makes three and they are defended separately.
   many ordinary people have already given to this problem.
 
 **3. The floor mechanic — contesting *who speaks*.** Zello, Voxer, the Apple
-Watch walkie-talkie. LAUNCH.md objection 2 remains correct and remains the
+Watch walkie-talkie. task/post-to-the-launch-surfaces.md objection 2 remains correct and remains the
 answer: those are half-duplex by design, and the floor here is a claim for
 finishing a thought inside an open conversation rather than the standing mode.
 
@@ -266,14 +266,14 @@ answers only Discord and Zello is answering the objections of people who
 already agree**, which is a smaller audience than it feels like from inside the
 argument.
 
-**Nothing here changes the naming rule.** LISTING.md and DESCRIPTION.md both
-forbid naming any competitor in store copy — a 4.1 exposure, and positioning
+**Nothing here changes the naming rule.** The listing copy, in
+`task/apply-the-app-store-listing.md`, forbids naming any competitor in store copy — a 4.1 exposure, and positioning
 rather than describing — and § *What marketing may not do* forbids positioning
 against messengers at all. Naming one in a comment thread where somebody else
 raised it stays fine and expected. The place this section is spent is the
 objections, not the listing.
 
-**LAUNCH.md has an outstanding edit.** Its objections section predates WhatsApp
+**task/post-to-the-launch-surfaces.md has an outstanding edit.** Its objections section predates WhatsApp
 group voice being ubiquitous and predates Clubhouse's pivot, and has no
 paragraph for either. That is standing launch copy and changing it is a
 separate decision from recording this.
@@ -321,7 +321,7 @@ which are visible today and what it would take to see the rest.
 one.** Level 4, *heard it work*, belongs to the getting-started cohort and sits
 above the group half, so what some files call level 4 is 5 here, the conversion
 some call 10 is **11**, and the recommendation some call 12 is **13**. Anything
-in LAUNCH.md, a decision, a commit message or a comment in `bin/` is on the old
+in task/post-to-the-launch-surfaces.md, a decision, a commit message or a comment in `bin/` is on the old
 numbering unless it has been corrected; the archive is not corrected.
 
 **It forks at level 5.** Above that the unit is a person and the levels are the
@@ -512,7 +512,7 @@ paragraph rests on that sentence.
 
 **What is being spent if that changes.** Not privacy in the abstract — a
 specific claim, made publicly, to an audience selected for caring about it.
-LISTING.md argues that habitually declining notifications from a new app *is a
+task/apply-the-app-store-listing.md argues that habitually declining notifications from a new app *is a
 rational habit* and that the user this app is for is the one who learned that
 lesson well. That user reads `/privacy`. So the question is not whether
 analytics is acceptable; it is **which kind is worth the sentence it costs.**
@@ -739,7 +739,7 @@ yet know that anything answers it. This is the one paid channel that is fully
 on-thesis, for four separate reasons: intent is already present so no
 persuasion is being bought; attribution lives inside Apple's boundary so it
 needs nothing added to the app; the keyword list is already reasoned about in
-LISTING.md § *Keywords*, where `no ring` and `intercom` are named as the bets;
+task/apply-the-app-store-listing.md § *Keywords*, where `no ring` and `intercom` are named as the bets;
 and the spend is bounded by search volume, which for these terms is small —
 which is a feature, since it caps the amount that can evaporate. **It is also
 the only paid channel that improves the organic asset**, since what it teaches
@@ -768,7 +768,7 @@ funnel does not get fixed by putting more in at the top.
 
 ### The keyword list, in three tiers
 
-LISTING.md § *Keywords* holds the hundred-character store field; this is the
+task/apply-the-app-store-listing.md § *Keywords* holds the hundred-character store field; this is the
 buy, and the two are different instruments. The store field is a fixed budget
 of characters spent once; a campaign is priced per term, so a term that is too
 expensive to buy can still be worth a word in the field, and a term that
@@ -946,7 +946,7 @@ supplement to the organic work below rather than as the engine.
 - **No creative that promises an alarm**, or implies the app will fetch
   somebody. It is the opposite of the product and it sets the expectation the
   product exists to remove.
-- **No comparison by name** to any other app — the same 4.1 exposure LISTING.md
+- **No comparison by name** to any other app — the same 4.1 exposure task/apply-the-app-store-listing.md
   refuses in the listing body and keywords, and it reads as positioning rather
   than describing.
 - **Bidding on a competitor's name is a separate question and is open**, and
@@ -965,7 +965,7 @@ supplement to the organic work below rather than as the engine.
   against, so round one carries no competitor names.** That is a lean about
   one campaign rather than a rule added here, which is why this item still
   says the question is open — the standing answer is still *ask*, and the next
-  campaign gets to ask again. APPLECAMPAIGN.md § *The open question* holds the
+  campaign gets to ask again. task/run-the-first-apple-search-ads-campaign.md § *The open question* holds the
   reasoning and what would reopen it.
 - **No claim that is not checkable in the shipped build**, on the listing's own
   rule. Open channels and alarm-by-permission are not built and may not be
@@ -1086,7 +1086,7 @@ it is adopted is not settled here; what is settled is where it may go, because
 the obvious slot is the wrong one.
 
 **It does not go in the App Store subtitle.** That field is spent on
-*Group voice on your own time*, and LISTING.md § *Subtitle* argues why: it is
+*Group voice on your own time*, and task/apply-the-app-store-listing.md § *Subtitle* argues why: it is
 the one place a stranger learns what category the thing is in, and
 *Group voice* does the categorising in two words so nothing downstream has to.
 A tagline naming how the app *feels* assumes a reader who already knows what it
@@ -1114,7 +1114,7 @@ where the adjective describes the thing. The two-word form also survives being
 set small, which is where a tagline lives.
 
 **There is a second candidate for the same slot**, *Reinventing the phone
-call*, in LISTING.md § *Saying it forwards* — which is where the argument
+call*, in task/apply-the-app-store-listing.md § *Saying it forwards* — which is where the argument
 about the word *call* is. Only one of them can be adopted; neither is.
 
 ## What marketing may not do
@@ -1166,7 +1166,7 @@ file's subject:
   won't be alone*. Three reasons, and the first is sufficient: it sells an
   application nobody here wants to have built, and would bring the readers a
   directory would have brought. Second, it is scheduled to be switched off, and
-  copy outlives the feature it describes. Third, LISTING.md's rule that every
+  copy outlives the feature it describes. Third, task/apply-the-app-store-listing.md's rule that every
   claim be checkable in the shipped build cuts against advertising something
   gated on an environment variable that is empty today. **The cohort is what
   the app does when somebody arrives alone, not a reason given to them for
@@ -1198,7 +1198,7 @@ What to do, in order, and what each is waiting on.
    anybody*, which framed arriving as an interruption. The landing page now
    also says **why** the floor exists rather than only what it does.
    deploy-history.md has the deploys.
-2. **Close the listing.** LISTING.md's draft is argued and mostly live; what is
+2. **Close the listing.** task/apply-the-app-store-listing.md's draft is argued and mostly live; what is
    outstanding is the subtitle, promotional text and keywords, none of which
    can be read back from the public lookup API. Needs App Store Connect, not a
    deploy.

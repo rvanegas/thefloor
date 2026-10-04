@@ -1496,13 +1496,12 @@ describe('being asked in as a guest', () => {
 /**
  * A seat on the account's own socket, which is what lets the app draw one.
  *
- * **The departure from GUEST-LADDER.md § *The app holds seats too***, which
- * called for a second client speaking the guest protocol. What is here
- * instead: a watch on a channel the account is not a member of is answered
- * with the seat's own `GuestView`, a guest's acts are sent over the same
- * socket, and the media token route serves the seat's grant. The credential
- * throughout is the session — see
- * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
+ * **The departure from the guest-ladder design**, which called
+ * for a second client speaking the guest protocol. What is here instead: a
+ * watch on a channel the account is not a member of is answered with the seat's
+ * own `GuestView`, a guest's acts are sent over the same socket, and the media
+ * token route serves the seat's grant. The credential throughout is the session
+ * — see planning/decision/2026-09-22-a-seat-rides-the-member-socket.md.
  *
  * Every test here drives Dana's *member* socket. She is a member of nothing;
  * the socket is hers because the account is.

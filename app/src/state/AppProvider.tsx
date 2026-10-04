@@ -1039,7 +1039,8 @@ interface AppValue extends AppState {
    * Computed here rather than in `HomeView` for the reason `notifications` is:
    * it turns on `conversing`, which is read off every channel snapshot this
    * client is watching, and that map is deliberately not on this context. See
-   * `state/introduction.ts`, and planning/ONBOARDING.md for the shape.
+   * `state/introduction.ts`, and
+   * planning/decision/2026-09-10-the-onboarding-checklist.md for the shape.
    */
   introduction: Introduction;
   /**
@@ -2726,8 +2727,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           into one is walking into a conversation, and a phone holding two at
           once is two conversations in one pair of ears — which is exactly
           what opening another channel already steps out of. See
-          GUEST-LADDER.md § *The app holds seats too*, and STATES.md
-          § *Present-in-Channel*.
+          planning/decision/2026-09-22-a-seat-rides-the-member-socket.md, and
+          STATES.md § *Present-in-Channel*.
 
           **Before the seat rather than after it**, so there is never a moment
           where both are held; a failed entry has cost a step-out, which is

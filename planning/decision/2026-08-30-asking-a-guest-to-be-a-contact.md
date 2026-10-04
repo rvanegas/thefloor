@@ -1,12 +1,18 @@
 # Asking a guest to be a contact
 
-**Built on 2026-08-30 and not yet landed.** It was a design for unbuilt work
-and is now the account of what was written; delete it when the work ships,
-moving whatever survives into `decision/` — the three reversals
-below are what that volume needs, the rest being description of code that
-exists.
+Built 2026-08-30 from `TASKS.md` § *Add as Contact From Guest View*. This is what
+survives of `planning/GUEST-CONTACT.md`, the design, deleted on 2026-10-03: the
+gap, what was decided, and the three reversals of what had been true before it
+— a guest to the channel rather than to the app, an identified guest's way
+into the rest of the app, and the floor not being a guest's to take. The flow,
+the costs, where each piece went and the test plan described code that exists
+and were not kept.
 
-It answers `TASKS.md` § *Add as Contact From Guest View*.
+**One sentence of it was reversed on 2026-09-16** — *"Acceptance is what also
+puts them in the channel … Not a second decision and not a second tap."*
+`2026-09-16-three-asks-not-one.md` is that change; everything else here still
+describes what is built. The browser walk it called for is in
+`backlog/untested-behaviour.md`.
 
 ## The gap
 
@@ -50,135 +56,6 @@ the channel or watching it in another window.
 `'refused'` apart from `'none'` because "one is a question nobody has answered
 and the other is a question that was answered no". The same argument holds
 here, and it is the same shape of record, so it is the same shape of field.
-
-## The flow
-
-1. **A member taps *Add contact*** on a guest's card in `ChannelView`. A
-   channel action; the reducer writes `asks[memberId] = 'asking'` on that
-   guest. The card reads *Asked*.
-2. **The guest page shows it**: "Alice would like to add you as a contact",
-   with *Accept* and *No thanks*.
-3. ***No thanks*** is a guest action; `asks[memberId] = 'refused'`; the
-   member's card reads *They said no*. The guest stays a guest and nothing
-   else happens.
-4. ***Accept*, for a seat that carries an account — the ordinary case — is the
-   whole of it.** The server already knows who he is, so there is nothing to
-   ask: one tap, no address, no code, no inbox.
-5. **For an anonymous seat, *Accept* first identifies it**, inline on the guest
-   page: an address, then the code that arrives by email, then optionally a
-   name. The same two routes `AuthView` uses, `POST /auth/request-code` and
-   `POST /auth/verify`, which is also what makes the account — `establish`
-   creates one on first sight of an address. **Through all of it he is still in
-   the room**, connected, hearing everybody, and audible if a member has given
-   him the microphone. The token is kept under the app's own `thefloor.token`
-   key and the seat gains its `account_id`; from there step 4 applies
-   unchanged.
-6. **The server** writes the `contacts` row the asker's request always meant,
-   accepts it, calls `ensurePairChannel` as every accept path does, and
-   dispatches `INVITE` on the asker's behalf — which re-checks `areContacts`
-   and `canInvite` for free rather than restating them. **Silently**, which is
-   the one place `INVITE` does not wake a phone: the person being invited is
-   holding the page that sent the acceptance and is about to be shown the room,
-   and telling them by push that they have been invited somewhere they are
-   already walking into is the app inventing an event.
-7. **The page navigates the tab to the address the server hands back.** One
-   hop, at the end, with the decision already made and the membership already
-   real. He arrives as himself, and the handover's own `enter` puts him back
-   in the room — which since 2026-09-21 is the only thing in the app that
-   arrives anywhere, every other route having stopped stepping in.
-
-   **The microphone is handed back before the hop, explicitly.** Disconnecting
-   the room drops the connection and a browser is entitled to leave an open
-   capture running, so a page that merely went away could still hold the device
-   when the app asked for it a second later — which is what two tabs competing
-   for a microphone sounds like. `setMicrophone(false)` unpublishes and stops
-   the track, awaited, and the navigation is a `replace`: the seat is closed,
-   so Back would return to a room that is gone.
-
-   **And it arrives stepped in.** The intent travels in this tab's
-   `sessionStorage`, written by this page and taken once by the app — it was
-   `?enter=1` on the address until 2026-09-04, when the ids and the query left
-   the addresses together; see `app/src/ui/handover.ts`. This is the one arrival
-   that still enters a room: a tap on a list is as likely to be curiosity as
-   intent and no longer enters anything, and somebody who was audible in this
-   room a second ago is not curious about it.
-
-   **Which train that is, is the server's answer.** The page pointed at `/app`
-   unconditionally for one afternoon, and the first person to try it was on a
-   box serving `/beta` — so a phone browser was handed the 503's JSON body and
-   offered to save it as a file, at the moment of tapping Accept. Stable first
-   and beta second, asked per request; null when there is no web app at all,
-   which the page says rather than navigates into. No `STEP_OUT` either: the
-   server has already taken the seat out of the room by the time this answers.
-8. **If the channel has ended, or the asker has left the room**, the invitation
-   half is refused by guards that already exist and the acceptance stands as a
-   plain contact. Said on the page rather than swallowed, and the tab goes to
-   the app's home rather than to a channel he is not in.
-
-## The asker is credited with the arrival, when there is one
-
-Added after the rest was written. `invited_by` is set at sign-up, out of a
-`pending_invites` row keyed on the address somebody wrote to — and nobody
-wrote to this person. He followed a link, made an account in the room to
-answer Alice's ask, and the walk behind `invitedCount` stops at him: the one
-arrival that is most plainly a member's doing is the one that counted for
-nothing.
-
-So `acceptGuestAsk` names the asker as his inviter. **The asker rather than
-whoever minted the link**, on the same reading the rest of this file makes —
-the ask is the act that brought him in as a person rather than as a seat, and
-the link may have reached him third-hand.
-
-**Only for an account made inside the visit**, and that is read off the clock
-rather than trusted to the flow: `created_at` has to be later than the seat's
-`admitted_at`. A signed-in member who opens a guest link is the ordinary case
-here, and crediting the asker with *him* would make the standings a claim
-about who happened to tap Add contact. The two cannot collide by accident —
-signing up needs a code out of an inbox, so an account made before the knock
-cannot share a millisecond with it.
-
-`Accounts.creditInviter` owns the rest: it refuses an account that already has
-an inviter, so a second ask from a second member cannot reassign the credit,
-and it walks the inviter's own ancestry to refuse an edge that would close a
-loop. Every other edge in that forest is acyclic by construction — an inviter
-exists before the account naming them — and this one is written long after
-both accounts do, which is the one case that argument does not cover.
-
-## What this costs, and what it does not
-
-**It does not cost the room, which was the point.** The only interruption is
-step 7 — a page load and a rejoin under the account's identity, a few seconds
-of silence at the moment he has finished deciding rather than at the moment he
-started. Everything slow happens while he can still hear.
-
-**It costs a sign-in form written twice.** `AuthView` is React Native and the
-guest page is a framework-free bundle that cannot import it, so the two-step
-address-then-code exchange is restated in about thirty lines of DOM. That is
-the real price of this design and it is worth naming rather than discovering.
-What is *not* duplicated is any judgement: throttling, the code's validity, the
-one 401 for every failure mode and the account's creation all stay on the
-server, which is the rule the guest page's own header sets out.
-
-**It widens what the guest page holds.** Today that is a seat secret in
-`sessionStorage`, deliberately, because "a secret left in a browser for a week
-is a credential nobody remembers holding". After this it can also write a
-ninety-day token to `localStorage` — but only ever as the outcome of somebody
-typing their own address and a code from their own inbox, which is signing in,
-and is the same act on the same origin against the same server the app does it
-with. The key is `thefloor.token`, named in `landing.ts` for the same reason
-and repeated rather than imported, since nothing in `server/` may import from
-`app/`.
-
-**Abandoning costs nothing.** Stop before the code and he is still a guest with
-`asks` still reading `'asking'` and nothing written anywhere. The acceptance
-is posted in the same breath as `verify` returns, so there is no state between
-"has an account" and "is a member" for somebody to walk away from.
-
-**And there is no claim to expire, revoke or sweep.** An earlier draft carried
-a single-use token in a URL because the acceptance had to survive a journey to
-another page. It does not make that journey any more, so the table, its
-expiry, its sweep and the `/claim/:token` route are all gone. The only
-credentials involved are two that already exist.
 
 ## A guest to the channel, not to the app — which is a change
 
@@ -491,84 +368,3 @@ gains by accepting is no longer only a name on the roster: it is the floor, the
 shared track, the watch party and the recording — everything the channel does
 together. Being asked to be a contact is being asked to become one of the
 people the channel belongs to.
-
-## Where each piece goes
-
-**`core/`.** `Guest` gains `asks?: Record<UserId, 'asking' | 'refused'>`,
-optional and read as `guest.asks ?? {}` for the reason the whole `guests` key
-is optional: the two ends deploy apart. There is no `'accepted'` — acceptance
-takes the guest out of `guests` and puts the account into `participants`, so
-the card is gone rather than relabelled. Two actions: `ASK_GUEST_CONTACT`,
-guarded by the existing `canManageGuest` — membership, `hasTheRoom`, `isGuest`
-— which is the same entitlement rather than a new one worth a second predicate
-to drift from; and `REFUSE_CONTACT`, in `GUEST_ACTIONS`, writing `'refused'`
-for one asker. **Acceptance is not a reducer action.** It needs an account,
-which core has never heard of.
-
-**`GuestView`** gains `asks: Array<{ from: string; askerId: string }>` — display
-names, as `others` carries, plus the one id a refusal has to name.
-
-**The route.** One, beside the contacts section:
-`POST /contacts/guest-ask/accept`, with a bearer token and a body naming the
-seat and the asker. It authenticates **three ways, and all three are cheap**:
-`requireAccount` for the account; the seat's own secret checked as
-`Guests.reconnect` checks it, against ejection and expiry as well as the hash;
-and `account_id` on that seat, which must *match* the caller when it is set and
-is **claimed by them when it is not** — an unidentified guest who signs in from
-inside the room has by then proved both halves, and there is nobody else the
-seat could belong to. Then it confirms `asks[askerId]` is `'asking'` in the
-live channel, and does the four things in order: `acceptContact`,
-`ensurePairChannel`, `dispatch(INVITE)` on the asker's behalf, and the seat,
-which is `Guests.close` — **not `eject`**, which would shut a door other people
-are holding. Answers `{ channelId | null }`, the null being the case where the
-channel would not have him and only the contact stands.
-
-**Two smaller things the building of it added.** `GUEST_ENTERED` now carries
-the asks forward from the entry it replaces: the action is built from a
-database row that has no column for them, so a straight replacement erased a
-member's ask every time a page stumbled — and a guest page reconnects on any
-blip and on every deploy. And `GET /g/c/:channelId` serves the guest page at an
-address with no link in it, since a seat outlives the link that made it; it
-hands out nothing, the way back into the room being the seat in that tab's own
-`sessionStorage`, which survives the walk to `/app` and back.
-
-**One column, no new table.** `guest_sessions.account_id`, nullable, added to
-the schema the way every other column here has been. The credentials involved
-already exist.
-
-**The guest page** grows the ask, the two-step sign-in, and the hand-over; it
-decides nothing. Nothing in this repository can test that file, so every
-judgement stays on the server, which is the rule its own header sets out. It
-sends `STEP_OUT` before navigating, so the seat closes cleanly rather than
-lingering through `DISCONNECT_GRACE_MS` as a second copy of the same person.
-
-**The app** needs one control and one row: a third button in `GuestCard`'s
-existing action row, labelled from `asks[me]` and disabled by the same
-`manageable` its siblings are, so a control and its guard cannot disagree; and
-the seat's card on Home, drawn only on web and opening `/g/c/:id` rather than
-the channel screen. **Nothing else** — no route, no screen, no pending state
-through sign-in. The address the guest page hands over to, `/c/:id`, is one
-every train already knows.
-
-## The ordering
-
-Additive fields satisfy the rule about never shipping a wire change to a server
-before the client can speak it, and the guest page ships with the server. The
-`/app` train needs nothing new, so there is no train dependency left — the
-hand-over target is a URL that has worked since the web app landed. Deploy the
-server, and the guest page comes with it.
-
-## What to test
-
-The reducer's guards in `core/__tests__/guests.test.ts`, including a snapshot
-with no `asks` key at all, and the floor refusal that replaces two tests
-asserting the opposite. The whole round trip in
-`server/__tests__/guest-flow.test.ts` — ask, accept with a seat and a fresh
-address, account created, pending row, accepted, participant — plus an ejected
-or expired seat, a seat that does not match the account's channel, an ask that
-was never made, an asker who has left the room, a pair who were already
-contacts, and the asker signing in as himself.
-
-**And then a browser**, which is the half nothing here reaches: a guest link in
-one, the asking member in another, and the sign-in walked with a fresh address
-so the account creation and the hand-over are both real.

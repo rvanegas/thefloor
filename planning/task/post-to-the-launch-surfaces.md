@@ -1,11 +1,13 @@
-# The launch surfaces, and what to say on each
+# Post to the launch surfaces
 
-**Temporary**, in the sense DESCRIPTION.md and LISTING.md are temporary: this
-is copy argued before it is posted. Delete it once the posts are made, moving
-whatever the comments actually taught into `decision/`.
+Copy argued before it is posted, as `apply-the-app-store-listing.md` is, and
+planning/LAUNCH.md until 2026-10-03. It is track D3 of
+`drive-growth-from-what-the-numbers-say.md`, and gated as that says on the
+composed imagery. Delete it once the posts are made, moving whatever the
+comments actually taught into `decision/`.
 
 **Written 2026-09-14**, as the fourth deliverable of the marketing work.
-planning/MARKETING.md is the argument this file executes — read § *Organic,
+planning/MARKETING.md is the argument this task executes — read § *Organic,
 ranked* item 3 before changing anything here, since it says what these
 surfaces are *for*, which is not what they appear to be for.
 
@@ -140,7 +142,7 @@ Show HN's — and the format is image-first in a way the others are not.
 > Group voice that waits for you. Nothing ever rings.
 
 Fifty-one characters. **It is the listing's subtitle plus the pillar**, and the
-second sentence is the negation that LISTING.md § *Saying it forwards* would
+second sentence is the negation that task/apply-the-app-store-listing.md § *Saying it forwards* would
 normally turn around. It is kept here and not there because a tagline gets one
 line and no second chance, and on this surface the reader is scanning past
 forty other products — the pain has to be named, not implied.
@@ -260,7 +262,7 @@ features, it is who is in it: Discord is a server you join and this has no
 directory, no search and no strangers — everybody in it agreed twice. And the
 floor is enforced on the audio rather than being a moderator's job, because
 there are no moderators here by design. *Never name Discord in store copy*
-(LISTING.md: 4.1 exposure); naming it in a comment thread where somebody else
+(task/apply-the-app-store-listing.md: 4.1 exposure); naming it in a comment thread where somebody else
 raised it is fine and expected.
 
 **2. "This is just a walkie-talkie app / Zello / push-to-talk."** Those are

@@ -26,10 +26,12 @@
  * It said the app is one where *one person speaks at a time* — which describes
  * a different application. Conversation here is open by default and the floor
  * is a claim somebody makes when they need to finish a thought;
- * planning/PROPOSITION.md says so in terms, planning/LISTING.md lists the
- * sentence among the things the listing must not say, and
- * planning/ROADMAP.md § *Say the same thing everywhere* is the entry that
- * found it on this page and in support.ts. Both are corrected.
+ * planning/PROPOSITION.md says so in terms,
+ * planning/task/apply-the-app-store-listing.md lists the sentence among the
+ * things the listing must not say, and the roadmap item *Say the same thing
+ * everywhere* — planning/PROPOSITION.md § *What the proposition obliges, in
+ * order*, item 6 — is the entry that found it on this page and in support.ts.
+ * Both are corrected.
  *
  * **And nothing outside the store listing said that nothing rings** — the one
  * claim that separates this from every other voice app and the one a person
@@ -47,8 +49,9 @@
  * signed in, and must not be the first thing a stranger reads. `webAppReady`
  * still gates it, for the reason it always did.
  *
- * **The copy's source of truth is planning/LISTING.md**, not this file: the
- * headings are that document's argument in the order it makes it.
+ * **The copy's source of truth is
+ * planning/task/apply-the-app-store-listing.md**, not this file: the headings
+ * are that document's argument in the order it makes it.
  *
  * **The first two paragraphs are that document's two openers, and their order
  * was wrong until 2026-09-14.** The promotional text led and the description's
@@ -185,8 +188,9 @@ when you are not looking at it.</p>`
     standfirst: 'Group voice on your own time',
     social: socialCard(options.origin, {
       title: 'The Floor',
-      // The promotional text, which planning/LISTING.md writes to be
-      // *repeatable by a recommender* — exactly the job a chat preview does.
+      // The promotional text, which
+      // planning/task/apply-the-app-store-listing.md writes to be *repeatable
+      // by a recommender* — exactly the job a chat preview does.
       description:
         'It’s a group chat, but voice. A channel is a place you drop into ' +
         'rather than a call you answer: you arrive when it suits you, and ' +

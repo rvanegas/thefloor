@@ -51,8 +51,8 @@ They come from § *Loudness is the recipient's property*:
 **Time Sensitive is not this and must not be smuggled in as a first step.** The
 `com.apple.developer.usernotifications.time-sensitive` entitlement lets a
 notification pierce a Focus mode, and it is precisely the sender-declared
-escalation the first constraint forbids — ROADMAP.md § *1. Make the
-notification permission survivable* says so outright, calling its presence in a
+escalation the first constraint forbids — `make-the-notification-permission-survivable.md`
+says so outright, calling its presence in a
 backlog as a smaller thing left on the table *the pressure this document exists
 to resist*. It was listed as a smaller thing left on the table in
 It was listed as one in the entry this file replaces, and that listing does not
@@ -80,7 +80,7 @@ survive the move.
   that predated the FCM split and is no longer the right shape.
 - **Android has no equivalent and will need its own answer.** FCM high-priority
   delivery plus a full-screen intent is the rough counterpart, and it is not a
-  port of the iOS design. ANDROID.md is where that goes.
+  port of the iOS design. task/bring-android-level-with-ios.md is where that goes.
 
 None of the alert path is undone by any of this — the same server-side events
 would drive both, and a recipient who has granted nobody the permission sees

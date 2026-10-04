@@ -419,7 +419,7 @@ export function nameOf(config: AppleAudioConfiguration): string {
  * this platform never verified is mixing it never did**, and the note that
  * used to stand here calling that an unverified risk describes nothing now.
  * Nothing in this app mixes any more, so there is no behaviour left for it to
- * be wrong about. See planning/ANDROID.md.
+ * be wrong about. See planning/task/bring-android-level-with-ios.md.
  */
 export const ANDROID_LISTENING: AndroidAudioTypeOptions =
   AndroidAudioTypePresets.media;
@@ -473,7 +473,8 @@ export const ANDROID_CALL: AndroidAudioTypeOptions =
  * `'bluetooth'` here is a preference among what the platform already considers
  * usable, not a claim that an output-only device can capture. Whether Android
  * makes the same mistake by another route is unverified; a mic-less Bluetooth
- * speaker is on the list in planning/ANDROID.md of what needs real hardware.
+ * speaker is on the list in planning/task/bring-android-level-with-ios.md of
+ * what needs real hardware.
  */
 export const ANDROID_OUTPUTS = [
   'bluetooth',

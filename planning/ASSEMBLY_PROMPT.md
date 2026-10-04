@@ -2,8 +2,8 @@
 
 **Standing, and not ours.** This is AssemblyAI's own guidance for coding
 agents, kept verbatim as a reference about their API. It is not a design and
-not a plan: TRANSCRIPTS.md is the design, and where the two differ about what
-this project is doing, TRANSCRIPTS.md wins.
+not a plan: decision/2026-08-25-transcripts.md is the design, and where the two differ about what
+this project is doing, decision/2026-08-25-transcripts.md wins.
 
 It earns its place because memory is not evidence about this API. It corrected
 two things in phase 1 that had type-checked and read fine and would have failed
@@ -15,7 +15,7 @@ and § *15. Quick-Reference Gotchas* before touching
 
 Two cautions about reading it. Its § *0. Operating Rules* describe a
 discovery-and-approval workflow for a project that has not decided anything
-yet; this one has, in TRANSCRIPTS.md, so those rules do not apply here. And it
+yet; this one has, in decision/2026-08-25-transcripts.md, so those rules do not apply here. And it
 is a snapshot of a moving API — `https://www.assemblyai.com/docs/llms.txt` is
 the live version and the thing to fetch when it matters.
 

@@ -45,7 +45,7 @@
  *
  * **It is two taps and the copy says so rather than hiding it.** A universal
  * link would make the return land in the app on its own; that is deferred, and
- * planning/UNIVERSAL-LINKS.md now carries the domain move as the reason it
+ * planning/task/universal-links.md now carries the domain move as the reason it
  * stays deferred. So the second tap is the mechanism rather than a fallback,
  * and is written as the second step of the one call to action.
  *
@@ -64,7 +64,7 @@
  * **The browser is demoted and not removed, and the route still works.** One
  * quiet line, and it is load-bearing for four populations this page cannot tell
  * apart: a desktop visitor, an Android phone (never built — see
- * `backlog/android-has-never-been-built-or-run.md`), a box with no
+ * `planning/task/bring-android-level-with-ios.md`), a box with no
  * `APP_STORE_URL`, and anybody who has told iOS to keep this domain in Safari,
  * which it remembers. Accepting that way is unchanged: `acceptScript` hands the
  * pin to the tab and the app spends it after the sign-in, the same walk by the
@@ -72,11 +72,12 @@
  *
  * **The prose budget is one sentence on each body, and it is a rule rather than
  * a result.** This page has accreted twice. The sentence is the promotional
- * text, whose source of truth is planning/LISTING.md — change it there first,
- * or this page and the store listing drift and the listing's copy is the one
- * under review. There is now no claim here at all about what a browser cannot
- * do, which is the cheapest possible way to keep landing.ts's rule that any
- * such claim must be checkable against the shipped web app.
+ * text, whose source of truth is planning/task/apply-the-app-store-listing.md —
+ * change it there first, or this page and the store listing drift and the
+ * listing's copy is the one under review. There is now no claim here at all
+ * about what a browser cannot do, which is the cheapest possible way to keep
+ * landing.ts's rule that any such claim must be checkable against the shipped
+ * web app.
  */
 
 import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
@@ -90,12 +91,13 @@ import type { InviteRefusal } from './accounts';
  * altogether, since conversation is open by default and the floor is a claim
  * somebody makes to finish a thought.
  *
- * **planning/ROADMAP.md § *Say the same thing everywhere* named landing.ts and
- * support.ts and stopped there.** It missed this file, in two places — which
- * matters more than either of the two it found: planning/MARKETING.md argues
- * that the invite page is the *top of the funnel*, since somebody opening one
- * has been asked by name, where a listing has to persuade from cold. The
- * wrongest copy was on the most-converting page.
+ * **The 2026-09-14 roadmap item *Say the same thing everywhere* — planning/
+ * PROPOSITION.md § *What the proposition obliges, in order*, item 6 — named
+ * landing.ts and support.ts and stopped there.** It missed this file, in two
+ * places — which matters more than either of the two it found:
+ * planning/MARKETING.md argues that the invite page is the *top of the funnel*,
+ * since somebody opening one has been asked by name, where a listing has to
+ * persuade from cold. The wrongest copy was on the most-converting page.
  *
  * **The lesson is about how the list was made, not about this file.** It was
  * assembled by grepping for a phrase somebody remembered; two of four hits
@@ -325,9 +327,9 @@ export function invitePage(options: InvitePageOptions): string {
   // link has no installs to open, and the aside above is what points here.
   // `thefloor://` rather than an `https://` link, permanently — a universal
   // link does not fire from a page on its own domain, so it would only reload
-  // this tab; planning/UNIVERSAL-LINKS.md § *The button is a custom scheme*.
-  // Somebody who taps it before installing gets Safari's error and the store
-  // button above it, which is why it says *once you have it*.
+  // this tab; planning/task/universal-links.md § *The button is a custom
+  // scheme*. Somebody who taps it before installing gets Safari's error and the
+  // store button above it, which is why it says *once you have it*.
   const openInApp = options.appStoreUrl
     ? `<p class="app"><a href="thefloor://i/${escapeHtml(options.username)}">Open in the app</a>
 — once you have it.</p>`
@@ -360,9 +362,10 @@ you are here.</p>`
     social: socialCard(options.origin, CARD),
     head: REFERRER,
     style: STYLE,
-    // One sentence, and it is planning/LISTING.md's promotional text. Change it
-    // there first: it is the field the store reviews, and two copies of the
-    // same claim drift towards the one nobody is checking.
+    // One sentence, and it is planning/task/apply-the-app-store-listing.md's
+    // promotional text. Change it there first: it is the field the store
+    // reviews, and two copies of the same claim drift towards the one nobody is
+    // checking.
     body: `${MARK}
 
 <p class="lede">It’s a group chat, but voice. A channel is a place you drop

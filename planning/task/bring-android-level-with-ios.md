@@ -1,21 +1,25 @@
-# Android
+# Bring Android level with iOS
 
-**Partly built, mostly not, and the split is the point of this file.** TASKS.md
-§ *Build for Android* asked for two things — evaluate the relevant differences,
-and establish a dev simulator on the Mac. Both were done on 2026-09-01, along
-with the one piece of code that could not be deferred without shipping a known
-defect — the audio session — and the foreground service followed on 2026-09-03,
-once hardware had shown the defect it fixes. **Push followed on 2026-09-04**,
-and is the first item here built entirely ahead of the thing it needs: it is
-complete and inert until a Firebase project exists. Everything else this file
-describes is unbuilt, and each item says what it would cost. When Android
-ships, what survives moves to
-`decision/` and this file goes.
+**There is an Android build; it is maintained less closely than the iOS one,
+and this task is closing that gap.** It was planning/ANDROID.md until
+2026-10-03, a design for the port, and the history below is that file's.
 
-**Three of the sections below now describe built work rather than gaps**, and
+TASKS.md § *Build for Android* asked for two things — evaluate the relevant
+differences, and establish a dev simulator on the Mac. Both were done on
+2026-09-01, along with the one piece of code that could not be deferred without
+shipping a known defect — the audio session — and the foreground service
+followed on 2026-09-03, once hardware had shown the defect it fixes. **Push
+followed on 2026-09-04**, and is the first item here built entirely ahead of
+the thing it needs: it is complete and inert until a Firebase project exists.
+Everything else below is unbuilt, and each item says what it would cost. When
+Android is level, what survives moves to `decision/` and this file goes.
+
+**Three of the sections below describe built work rather than gaps**, and
 each says so in its first line. Read the first line before the section.
+**§ *What is true now* is as of 2026-09-04** — check it against `bin/android`
+and the tree before trusting it.
 
-It replaces BACKLOG.md § *Android has never been built or run*, whose factual
+It replaced BACKLOG.md § *Android has never been built or run*, whose factual
 claims had gone stale — there is an `android/`, and a build has been attempted.
 
 ---

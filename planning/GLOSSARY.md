@@ -3553,7 +3553,7 @@ See planning/decision/2026-09-18-the-picture-is-not-a-control.md.
 
 What a new account is shown above both of Home's lists, until every rung of it
 is done or dismissed. `state/introduction.ts` decides it and
-`ui/Introduction.tsx` draws it; planning/ONBOARDING.md is the design.
+`ui/Introduction.tsx` draws it; planning/decision/2026-09-10-the-onboarding-checklist.md is the design.
 
 One shape, for everybody: a ladder — get somebody here, step in with somebody,
 and then four things to try inside a channel — each rung carrying an

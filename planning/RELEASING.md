@@ -184,7 +184,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   regenerated manifest stops pinning portrait. **Confirmed 2026-09-01** rather
   than predicted: the generated manifest carries
   `android:screenOrientation="unspecified"`, where the copy generated before the
-  iPad work said `portrait`. Android now builds — see planning/ANDROID.md — so
+  iPad work said `portrait`. Android now builds — see planning/task/bring-android-level-with-ios.md — so
   this is a real rotation on a real device rather than a note, and it has not
   been looked at.
 
@@ -238,7 +238,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   facts now, and only the second one is about releasing. `bin/android` builds
   and installs to an emulator, or produces an APK to sideload, and reaches
   nobody through a store — there is no upload key, no Play listing and no
-  `eas.json`. See planning/ANDROID.md.
+  `eas.json`. See planning/task/bring-android-level-with-ios.md.
 
 - **The build number is one stream across both platforms**, adopted
   2026-09-01. `bin/upload-ios` bumps `ios.buildNumber` and

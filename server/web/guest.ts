@@ -695,7 +695,7 @@ function render(next: GuestView): void {
   // The same first condition and not the second: whether this box serves a web
   // app says nothing about whether this phone has the native one. What no
   // condition can cover is whether the app is installed at all, iOS giving a
-  // page no way to ask — see the markup, and planning/UNIVERSAL-LINKS.md.
+  // page no way to ask — see the markup, and planning/task/universal-links.md.
   $('app-link').hidden = !next.you.accountId;
 
   // Seeded rather than bound: retyping over somebody mid-edit is the one way

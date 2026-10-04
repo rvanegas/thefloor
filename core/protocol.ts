@@ -1802,8 +1802,9 @@ export type ClientMessage =
    * socket.
    *
    * **A seat over the member socket is the whole of the 2026-09-22 change**,
-   * and it is a departure from GUEST-LADDER.md § *The app holds seats too*,
-   * which called for a second client speaking `GuestClientMessage` against
+   * and it is a departure from the guest-ladder design — recorded in
+   * planning/decision/2026-09-22-a-seat-rides-the-member-socket.md — which
+   * called for a second client speaking `GuestClientMessage` against
    * `/gws`. That protocol authenticates with a guest id and a secret because
    * a browser has nothing better — the seat secret exists precisely for
    * somebody with no session. An app holding a seat *does* have a session, by

@@ -1,4 +1,4 @@
-# Driving growth, from what the numbers say
+# Drive growth from what the numbers say
 
 **Written 2026-09-23, against a measurement taken that morning.** MARKETING.md
 is the standing argument — why the unit of acquisition is a group, what the
@@ -13,8 +13,12 @@ month should re-take the measurement with `bin/growth` before trusting a single
 row — § *How it is read back* says which reports. What should survive
 re-measurement is the ordering, and where it does not, that is the finding.
 
-**Delete it when the tracks below are done and read**, on APPLECAMPAIGN.md's
-terms; what survives moves into `decision/`.
+**Delete it when the tracks below are done and read**, on the same terms as
+`task/run-the-first-apple-search-ads-campaign.md`; what survives moves into
+`decision/`. It was planning/GROWTH.md until 2026-10-03.
+
+**Track E1 is overtaken as written:** the campaign it says to stop is still
+running, by choice, as of 2026-10-03.
 
 ## Contents
 
@@ -80,8 +84,8 @@ in them, and `came_back` is empty. Level 4 has no result either way.
 Four places where it contradicts, or reorders, what the standing documents
 assume.
 
-**1. The warmest growth prompt has nothing to show.** ONBOARDING.md §
-*Growth is a different thing* ranks four prompts by warmth and rests tier 1 on
+**1. The warmest growth prompt has nothing to show.** §
+*The growth card, which is A1's design* below ranks four prompts by warmth and rests tier 1 on
 *outstanding requests are not swept, so a bridge can sit there indefinitely* —
 an existing backlog of one-tap merges. **That backlog is empty: zero pending,
 zero bridges.** Tier 3, the outgoing half, is empty for the same reason. So the
@@ -91,13 +95,13 @@ exists.**
 
 **2. Paid ran ahead of its own gate, and the gate is still shut.**
 MARKETING.md § *The sequence* item 6 says Apple Search Ads is "genuinely
-waiting on 2 and 5". Item 2 is closing the listing, and LISTING.md §
-*The description is one revision behind* records that the live description is
+waiting on 2 and 5". Item 2 is closing the listing, and the listing
+recorded on 2026-09-14 that the live description was
 the 2026-09-03 draft, whose fifth gap is that **it never mentions the invite
 link** — the app's own viral primitive, shipped in 1.4.0. Item 5 is the
 cohorts, which have one untested day. **Both rounds of spending therefore
 bought traffic onto a page that does not carry the sentence the recommender
-needs.** APPLECAMPAIGN_round2-searchmatch.md has the campaign's own state.
+needs.** `task/run-the-first-apple-search-ads-campaign.md` § *round2-searchmatch, as built* has the campaign's own state.
 
 **3. The funnel's healthy half should be watched for regression, not
 improved.** 51% and 49% are good numbers to hold, and effort spent raising them
@@ -120,7 +124,7 @@ measured numbers rather than in principle.
 
 Where 48% of the population is stuck.
 
-- **A1. Build the standing growth card**, to ONBOARDING.md's design: one card
+- **A1. Build the standing growth card**, to § *The growth card, which is A1's design* below: one card
   in Home's pinned tier beside `InstallNotice` and `NotificationNotice`, the
   warmest available prompt and nothing else, at most one showing a day, the day
   spent when the card appears. **Build tier 2 first and tier 4 second**, per §
@@ -132,7 +136,7 @@ Where 48% of the population is stuck.
   guest is still in the room.
 - **A2. `ContactsView` card ordering** — the invite link belongs above the
   address field when `contacts.length === 0`, rather than being worked around
-  in checklist copy. ONBOARDING.md § *Three things the campaign exposes*
+  in checklist copy. § *Three things the campaign exposes* below,
   item 3.
 - **A3. Make the guest link outlive an empty channel.** *Send a link, they will
   join later* is the mental model people actually have, and the link dies the
@@ -148,7 +152,7 @@ Where 48% of the population is stuck.
   contact row appears only when the other person opens it. So the most likely
   first act of an arrival with nobody leaves no trace in all three signals, the
   pitch never fires, and that account cannot be told their friend has just
-  signed up. ONBOARDING.md calls this "the serious one" and the measurement
+  signed up. § *Three things the campaign exposes* below calls this "the serious one" and the measurement
   does not contradict it.
 - **B2. Re-read `bin/growth notify` no earlier than 2026-10-07**, once builds
   have rolled, and before concluding anything from it. See the reachability
@@ -156,7 +160,7 @@ Where 48% of the population is stuck.
 
 ### Track C — the listing, which is the cheapest item here
 
-LISTING.md § *The checklist, in order of what it costs* is the procedure; this
+`task/apply-the-app-store-listing.md` § *The checklist, in order of what it costs* is the procedure; this
 is the priority against it.
 
 - **C1. Promotional text.** No review, live within the hour, and it is the
@@ -182,7 +186,7 @@ MARKETING.md § *Organic, ranked* items 2 through 5, in its order, gated as its
   credibility than paid, and the targeting logic transfers. **Arrive as a
   participant**; every one of these communities punishes the reverse.
 - **D3. The launch surfaces** — Show HN, Product Hunt, the subreddits where the
-  complaint is native. **Post the thesis, not the feature list**: this app loses
+  complaint is native. The copy is `task/post-to-the-launch-surfaces.md`. **Post the thesis, not the feature list**: this app loses
   a feature comparison and wins the argument, and the value is
   disproportionately in the comments.
 - **D4. Write the argument down in public.** PROPOSITION.md stripped of its
@@ -210,7 +214,7 @@ left to judgement.**
 | C, D | `bin/growth classes` | `alone` swelling with nothing under it is the scattered-install failure, made visible |
 | — | `pings`, `groups` | **Watched for regression, not for improvement** |
 
-**Expect the first two reads to be ambiguous**, on APPLECAMPAIGN.md § *The kill
+**Expect the first two reads to be ambiguous**, on `task/run-the-first-apple-search-ads-campaign.md` § *The kill
 rule, written before the money*'s reasoning and for the same cause: the volumes
 are small enough that ordinary variation swamps the effect. Direction, not
 magnitude.
@@ -229,3 +233,70 @@ tooling as the highest-return work available.
 through E1 exists in `task/` as this is written. They are listed here as a
 plan rather than promoted to the roadmap, and a session acting on one should
 make the file with `bin/task` at the moment it starts.
+
+---
+
+The two sections below were planning/ONBOARDING.md's, and are carried here
+because tracks A and B are built from them; the checklist they sat beside has
+shipped and is `decision/2026-09-10-the-onboarding-checklist.md`. Line numbers
+in them are as of 2026-09-10 — grep, do not trust.
+
+## The growth card, which is A1's design
+
+Asked to prioritise growth to more contacts for virality, the answer is a
+**standing prompt, not a checklist, and not part of this feature**. It never
+completes, so it cannot be a list that retires. One card in Home's pinned tier
+beside `InstallNotice` and `NotificationNotice` (`:303`, `:305`), showing the
+warmest prompt currently available and nothing else — one prompt, never four.
+
+Ordered by warmth, which is what `decision/2026-09-10-an-island-is-not-a-tree.md`
+implies: outstanding requests *are not swept, so a bridge can sit there
+indefinitely*, meaning there is already a backlog of one-tap merges between
+islands. Asking somebody with two contacts to go recruit a third is strictly
+worse than asking them to answer what is in front of them.
+
+| Tier | Prompt | Why it is warmest | State |
+|---|---|---|---|
+| 1 | **Accept the request waiting for you** | The other side has already agreed; one tap merges two islands | incoming pending in `home.contacts` |
+| 2 | **Add the guest who was just in your channel** | They have already had a conversation here, in a browser, without installing anything | `ASK_GUEST_CONTACT` (`core/channel.ts:1544`), wired at `ChannelView.tsx:1359` |
+| 3 | **Your request to X is still waiting** | The un-swept backlog; nudge out of band | outgoing pending |
+| 4 | **Invite somebody** | Cold, and the only one needing a username | invite link |
+
+**Tier 2 is the one to build first.** The action is already coded and nothing
+prompts for it at the moment it would land, which is while the guest is still
+in the room.
+
+**Cadence** borrowed from `askDue`: at most one showing a day, and the day is
+spent when the card appears rather than when it is answered — a prompt that
+returned until formally dismissed would punish ignoring it. Exempt tier 1,
+since an unanswered request is a person waiting rather than a growth nag. Soften
+off above about five accepted contacts; the real measure is island
+connectivity, which the client cannot see, so count is the available proxy.
+
+**Said once and not belaboured:** every piece of UI reasoning in this codebase
+resists urgency — *available rather than urgent*, Chip in at the foot, the
+notification cadence. A standing growth prompt cuts against that grain. The
+one-card, one-a-day shape above is the attempt to get the priority without the
+app starting to nag.
+
+## Three things the campaign exposes, which are A2, A3 and B1
+
+**1. The alone cohort can never be asked about notifications, and this is the
+serious one.** `worthAsking` stands on `somebody` — a contact, a rejoinable
+channel, or an invitation. Minting and sharing an invite link creates none of
+those: the contact row appears only when the other person opens it. So the most
+likely first action of a campaign install leaves no trace in all three signals,
+the pitch never fires, and that account is unreachable to be told their friend
+has just signed up. **That is the one cohort where a push decides whether there
+is ever a second session, and it is the cohort the current policy cannot ask.**
+It is a change to `notificationAsk.ts`, not to any of this, and if the campaign
+has a date it should go first.
+
+**2. The guest link's lifetime contradicts the obvious mental model.** *Send a
+link, they will join later* is what people will do, and it dies the moment the
+channel is empty of members. Either the checklist copy has to say *stay here*,
+or the link needs to outlive an empty channel.
+
+**3. `ContactsView`'s card ordering.** The invite link belongs above the address
+field when `contacts.length === 0`, rather than being worked around in
+checklist copy.

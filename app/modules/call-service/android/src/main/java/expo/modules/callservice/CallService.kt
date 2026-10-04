@@ -23,7 +23,8 @@ import android.os.IBinder
  * suppressed — it is the thing that buys the process its life.
  *
  * Confirmed on hardware on 2026-09-01, before this existed: an Android call
- * dies when the app is backgrounded. See planning/ANDROID.md.
+ * dies when the app is backgrounded. See
+ * planning/task/bring-android-level-with-ios.md.
  *
  * Three things about the shape of this that are not guessable from the code:
  *
@@ -40,7 +41,8 @@ import android.os.IBinder
  *   An exception there is therefore invisible to that catch and is a crash.
  *   That is not hypothetical — it took the app down on every entry to a
  *   channel, for every Android 14 user who had not yet granted `RECORD_AUDIO`,
- *   from 2026-09-03 until this was written. See planning/ANDROID.md.
+ *   from 2026-09-03 until this was written. See
+ *   planning/task/bring-android-level-with-ios.md.
  * - **`stopSelf` on that path, and only that path.** A service that could not
  *   go foreground is a started service with no notification, which Android
  *   will kill on its own schedule and complain about first; stopping it is
@@ -88,9 +90,9 @@ class CallService : Service() {
    * dismissing it would not stop the service, only hide why the microphone is
    * on. The tap target is the app's own launcher intent rather than a deep
    * link: this app has exactly one deep link and it belongs to a notification
-   * that does not exist yet (see planning/ANDROID.md, push), and a launcher
-   * intent returns to whatever screen was left, which for somebody who
-   * backgrounded a live channel is the channel.
+   * that does not exist yet (see planning/task/bring-android-level-with-ios.md,
+   * push), and a launcher intent returns to whatever screen was left, which for
+   * somebody who backgrounded a live channel is the channel.
    *
    * The small icon is a system drawable on purpose. A notification's small icon
    * is drawn as a silhouette, and this app's launcher icon is a full-colour

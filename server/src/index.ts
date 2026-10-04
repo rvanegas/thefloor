@@ -335,7 +335,7 @@ const app = buildApp({
 });
 app.channels.start();
 // Resumes any job the last process left open and polls whatever is running.
-// A no-op without a key, which is what it is until phase 5 of TRANSCRIPTS.md.
+// A no-op without a key — see planning/decision/2026-08-25-transcripts.md.
 app.transcripts.start();
 
 app.fastify

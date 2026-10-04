@@ -17,7 +17,7 @@ that the population does not yet make it urgent.
 The door is only worth walking through if there is something behind it. On a
 base this size, somebody who wanted to reach a user could as easily reach them
 anywhere else, and every account here arrived through somebody it already
-knows — `bin/growth` walks that forest and planning/GROWTH.md has the numbers.
+knows — `bin/growth` walks that forest and planning/task/drive-growth-from-what-the-numbers-say.md has the numbers.
 
 **Revisit when growth picks up**, which was the stated trigger. The specific
 things to watch, none of which is a count of accounts on its own:

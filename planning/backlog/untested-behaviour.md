@@ -25,3 +25,14 @@ No assertions exist for these. Ordered by how likely they are to be wrong.
    the self-mute, and the microphone is not the reason why*.
 7. **`END` dispatched twice**, or `LEAVE` after `END`. Should be inert — the
    reducer returns early on non-active channels — but untested.
+8. **The guest page has never been walked in a browser.** Nothing in any
+   package loads `server/web/guest.ts`, so both asks — *be my contact* and
+   *join this channel* — the inline sign-in, the two accept routes and the
+   `joined` hand-over have been exercised at the server and not through the
+   page that calls them. A guest link in one browser, the asking member in
+   another, and the sign-in walked with a fresh address so the account
+   creation and the hand-over are both real. Added 2026-10-03 from the two
+   guest designs, `decision/2026-08-30-asking-a-guest-to-be-a-contact.md` and
+   `decision/2026-09-16-three-asks-not-one.md`, each of which asked for it.
+   Placed last for numbering's sake; it is likelier to be wrong than any of
+   the reducer cases above.

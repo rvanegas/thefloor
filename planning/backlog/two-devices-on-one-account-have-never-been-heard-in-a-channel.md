@@ -1,11 +1,11 @@
-# Two devices in one channel
+# Two devices on one account have never been heard in a channel
 
-**Temporary.** This is the account of one sighting, the two mechanisms that
+**Untested behaviour, with its walk.** This is the account of one sighting, the two mechanisms that
 were closed in response to it, and the device walk that would settle whether
 either of them was the thing anybody actually heard. Delete it once the walk
 has been done, moving what survives into `decision/`. It was
-TASKS.md § *Two Devices In One Channel* until 2026-09-02, when the entry there
-narrowed to a line pointing here.
+TASKS.md § *Two Devices In One Channel* until 2026-09-02, and
+planning/TWO-DEVICES-WALK.md until 2026-10-03.
 
 **Both candidates are built and neither is confirmed.** The suite is green on
 the code below and that is evidence about the reducer and the socket. It is no

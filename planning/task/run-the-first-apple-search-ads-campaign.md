@@ -1,4 +1,4 @@
-# The first Apple Search Ads campaign
+# Run the first Apple Search Ads campaign
 
 **A campaign rather than a standing document, written 2026-09-15, and
 temporary by construction.** MARKETING.md holds the argument about what may be
@@ -6,12 +6,12 @@ spent and why; it names campaigns as downstream of itself, in § *The sequence*
 item 6. This is that item, specified to the point where somebody can open
 Apple Ads and type.
 
-**`APPLECAMPAIGN_round1-search-exact.md` is its sibling and the other half**:
-this file is the plan and the argument, read before deciding; that one is what
-was actually typed into Apple Ads, read with the browser open. Both go when
-the campaign is read.
+**The plan and the argument come first**, read before deciding; § *round1-search-exact,
+as built* and § *round2-searchmatch, as built* at the end are what was actually
+typed into Apple Ads, read with the browser open. They were three files under
+`planning/` until 2026-10-03, and the campaign is still running.
 
-**Delete it when the campaign has been run and read**,
+**Delete this when the campaign has been run and read**,
 moving what survives into `decision/` — which will be the answer to the one
 question it exists to ask, and the kill rule's verdict, and nothing else.
 
@@ -118,14 +118,15 @@ not the same kind of thing, and the difference decides what to do about each.
 
 Every tap lands on the App Store product page. **The live description is still
 the 2026-09-03 draft, and it does not mention the invite link** —
-LISTING.md § *The description is one revision behind* has the seven
-differences and names this as the fifth. That link is the app's own viral
+`task/apply-the-app-store-listing.md` recorded the seven
+differences on 2026-09-14 and named this as the fifth; the description has
+been fully live since 1.8.1. That link is the app's own viral
 primitive and the sentence that decides whether a bought install ever recruits
 a second person. **Buying traffic against that page is paying to hide the
 mechanism the traffic is being bought for.**
 
 Promotional text needs no review and can be live within the hour. Subtitle,
-keywords and description ride the next submission. LISTING.md § *The checklist*
+keywords and description ride the next submission. task/apply-the-app-store-listing.md § *The checklist*
 is the order.
 
 **The category dispute should be settled in the same sitting.** Live is primary
@@ -579,3 +580,289 @@ when there is a Discovery campaign beside it.
   read taken the week the money ends is taken before the only number that
   matters has moved.
 
+
+---
+
+## round1-search-exact, as built
+
+**The as-built record of round one, written 2026-09-15 while it was being
+created.** Everything above is the plan and the argument — why this channel,
+what may be spent, what the kill rule is. This is the other half: what was
+actually typed into Apple Ads, which settings defaulted wrong, and what has to
+be true before it is taken off hold. It is read with the browser open.
+
+### What exists in Apple Ads
+
+| | |
+| --- | --- |
+| Campaign | `round1-search-exact` |
+| Campaign ID | 2144685544 |
+| Status | **On hold** — start date Sep 19 2026, nothing serving |
+| Placement | Search Results |
+| Storefront | United States, one region |
+| Bid strategy | Manage Bids |
+| Ad groups | Group A (Tier 1), Group B (Tier 2) |
+| Default Max CPT | $0.64 on both, Apple's suggestion, applied unchanged |
+
+**It is on hold rather than saved as a draft, because Apple Ads Advanced has
+no draft.** The creation flow is complete-or-cancel, so the campaign was
+created with a start date past the release and left on hold. Everything
+entered is preserved; nothing can spend. That is the draft.
+
+### The keywords, as entered
+
+**Ad group A — Tier 1, the complaint terms, 22 exact.** The twenty from
+MARKETING.md § *The keyword list, in three tiers* plus the two brand-defence
+terms, which live here rather than in B.
+
+    intercom app              voice chat with friends
+    home intercom app         voice channel app
+    phone intercom            audio room app
+    walkie talkie app         drop in audio
+    walkie talkie phone       talk without calling
+    push to talk              call without ringing
+    push to talk app          no ring call
+    ptt app                   silent call app
+    voice chat app            hands free talk app
+    group voice chat          always on voice chat
+    the floor uninterrupted   the floor voice chat
+
+**Ad group B — Tier 2, the group affinities, 12 exact.**
+
+    family voice chat         gaming voice chat
+    family group call         voice chat for gaming
+    group audio chat          dnd voice chat
+    small group chat app      band practice app
+    long distance voice chat  book club app
+                              talk to friends app
+                              keep in touch with friends app
+
+**Two ad groups rather than one is the whole reason this is readable.** Pooled,
+thirty-four terms return one number and Tier 2 converting well reads as Tier 1
+working — and *do the complaint terms convert* is the only question round one
+answers. See § *The buy* above.
+
+### The negatives, 25 at campaign level, broad
+
+    ring doorbell, ring camera, ring alarm, ring app, ring login, video doorbell,
+    intercom support, live chat, helpdesk, door intercom, doorbell, baby monitor,
+    radio, frs, gmrs, ham, toy, kids, long range,
+    flooring, floor plan, laminate, tile, carpet, hardwood
+
+Four optional additions Tier 2 brings, this file's rather than MARKETING.md's:
+`do not disturb` (against `dnd voice chat`, which is Do Not Disturb to half the
+people typing it), and `ebook`, `audiobook`, `reading list` (against
+`book club app`, whose close variants lean toward reading apps).
+
+**Campaign level, so both ad groups inherit them.** Nothing in the pollution is
+specific to a tier, and one list cannot drift from itself.
+
+#### `floor` is the one that must never be shortened
+
+Broad negatives are the sharper instrument and can silently kill terms you are
+paying for. All 25 were checked against all 34 positives and none collides —
+`live chat` needs both words and no positive has *live*; `long range` needs
+both and only `long distance voice chat` has *long*; `radio`, `kids`, `toy`,
+`ham` and `doorbell` appear in nothing bought.
+
+**The near-miss is `floor`.** The brand-defence terms are
+`the floor uninterrupted` and `the floor voice chat`. The flooring negatives
+are `flooring` — a different token — and `floor plan`, which broad-matches
+only when *both* words are present. **A bare `floor` broad negative would kill
+the brand defence outright**, and it is the obvious thing for somebody tidying
+the list to write.
+
+### The four settings that default wrong
+
+Every one of these was found by creating the campaign rather than by planning
+it, which is why this file exists.
+
+1. **Bid strategy — Maximize Conversions requires Search Match.** Its own
+   description says so. Choosing the friendlier-looking box turns Search Match
+   on with no separate switch to turn it off, which undoes the campaign's
+   central decision without presenting it as one. **Manage Bids.**
+2. **Search Match defaults ON, per ad group**, and re-defaults there even when
+   the campaign is set to Manage Bids. It is a toggle in Ad Group Settings.
+3. **Keywords default to broad; negatives default to exact.** The inverse of
+   what this campaign wants, and not an accident — Apple's defaults maximise
+   volume and spend, where this campaign buys a readable answer. **Match type
+   is fixed at creation**: changing it means adding the keyword again with the
+   right type and pausing or deleting the original.
+4. **End date is optional and starts at one day.** Four weeks is the plan;
+   Sep 19 + 28 days. An end date makes step 8 enforce itself rather than be
+   remembered.
+
+**And a fifth that is not a setting: there is no account-level negative
+keyword.** MARKETING.md says the flooring set goes in at account level and no
+such level exists — campaign and ad group only. So that set is a standing
+obligation on every campaign this account ever runs, and it matters more in
+round two's Discovery campaign, where Search Match is on by design.
+
+### Outstanding before it comes off hold
+
+- [ ] **Search Match off** on Group A and Group B. It read `On` for both in
+      the ad-group table as of 2026-09-15 and is the one item here that makes
+      everything else moot.
+- [ ] **Match type confirmed exact** on all 34 keywords — check the Match Type
+      column under *All Keywords*, adding it via *Edit Columns* if hidden.
+- [ ] **End date set** four weeks past the start.
+- [ ] **build/213 released**, which is step 5 of § *The order, in one list* and carries both
+      the cohort card and the level 3 header.
+- [ ] **A cohort host named** in `COHORT_HOST_IDENTIFIERS`, and the daily cap
+      sized to what that one person can answer — $20, not $25, until a second
+      host exists.
+- [ ] **The listing metadata shipped with 213.** Apple assembles the ad from
+      store assets, so **the listing is the creative** — there is no ad copy to
+      write, and the subtitle and description riding that submission are what
+      the ad will say. The invite-link sentence is the one that decides whether
+      a bought install ever recruits a second person.
+
+### The open question this file cannot answer
+
+**Whether a one-day smoke test runs first.** It was raised, then deferred to
+wait for the release, and never settled either way. A day at $20 would replace
+the uncosted ~$1-a-tap assumption in MARKETING.md § *What a tap costs* with a
+measurement — Apple's suggested bid of $0.64 already hints the budget stretches
+further than planned — and would prove the machinery serves at all. It tells
+you nothing the kill rule reads.
+
+**Decide it before unpausing**, because it changes what the first read means
+and when the four weeks start.
+
+### What this campaign can and cannot tell you
+
+**Can:** whether thirty-four exact terms serve at all; what a tap actually
+costs; whether the negatives are blocking something bought; whether Tier 1 and
+Tier 2 differ, which is the thing the two ad groups exist to separate.
+
+**Cannot:** anything in the kill rule, for three to four weeks after the spend
+stops. Every paid arrival lands in **alone**, indistinguishable from word of
+mouth and a passed-on link, so *alone* rising proves nothing. What counts is
+first circle and onward in `bin/growth`'s `classes`, `weeks` and `roots`.
+Installs will look fine throughout and mean nothing.
+
+---
+
+## round2-searchmatch, as built
+
+**The as-built record of the second campaign, written 2026-09-21 while
+diagnosing why it was serving nothing.**
+The plan above is the argument; § *round1-search-exact, as built* is the same
+kind of record for round one. This is the other half for round two: what is
+actually in Apple Ads, what was changed and when, and what is still
+outstanding. It is read with the browser open.
+
+Round two is the Discovery campaign § *The buy* above defers to,
+where **Search Match is on by design** — the inverse of round one's central
+decision. Everything in round one's section about keeping Search Match off is
+about round one and does not transfer, which is the single most confusing
+thing about holding both in mind at once.
+
+### What exists in Apple Ads
+
+| | |
+| --- | --- |
+| Campaign | `round2-searchmatch` |
+| Campaign ID | 2144714298 |
+| Status | **Running** — start Sep 20 2026 12:00 AM PT, **no end date** |
+| Placement | Search Results |
+| Storefront | United States, one region |
+| Bid strategy | Manage Bids |
+| Daily budget | $20.00 |
+| Promoted app | The Floor Uninterrupted |
+| Ad groups | `discovery`, one only |
+
+And the ad group:
+
+| | |
+| --- | --- |
+| Ad group | `discovery` |
+| Ad group ID | 2151236743 |
+| Status | Running, **Search Match ON** |
+| Default Max CPT | **$1.00** since 2026-09-21; **$0.40** as created |
+| CPA cap | none |
+| Schedule | not scheduled |
+| Audience | Reach All Eligible Users — no narrowing |
+| Ads | `Default Ad`, Active, Default Product Page |
+
+**No keywords, by design** — a Search Match ad group has none, and the
+*Keywords* tab reading empty is correct rather than a symptom. It is the one
+screen that looks broken and is not.
+
+### The zero-impressions diagnosis, 2026-09-21
+
+The campaign served nothing at all in its first day and a half: 0 impressions,
+0 taps, $0.00. Everything structural was checked and every one of it was
+already right — not on hold, Search Match on, ad active against the default
+product page, no CPA cap, no ad-group schedule, no audience narrowing, budget
+and storefront as intended, and Apple offering no recommendations.
+
+**Round one is the control that made the answer legible**, being the same app,
+storefront, product page and account:
+
+| | round1 Group A | round1 Group B | round2 `discovery` |
+| --- | --- | --- | --- |
+| Ran | Sep 18 10:00 → Sep 20 10:15 PT | same | Sep 20 → |
+| Bid cap | $0.64 | $0.64 | $0.40 |
+| Impressions | 555 | 0 | 0 |
+| Taps | 7 | 0 | 0 |
+| Avg CPT paid | **$0.38** | — | — |
+
+Group A ran at roughly 275 impressions a day. Round two had comparable time and
+produced nothing, so the shortfall is not low volume — **the bid was the only
+material difference**, and it was raised $0.40 → $1.00 on 2026-09-21.
+
+**The reasoning is that Search Match does not buy round one's keywords.** It
+generates broad head queries, where the competition is funded messaging and
+voice apps rather than the obscure complaint terms round one won at $0.38. A
+cap that clears a niche exact auction can lose every broad one, and losing
+every auction reads as zero rather than as few — which is why zero did not
+mean a misconfiguration here.
+
+**The cap is a ceiling and not a price**, which is what makes the raise cheap:
+round one capped at $0.64 and paid $0.38. Nothing is spent unless it wins, and
+the $20 daily budget bounds the day either way.
+
+#### It also answered round one's question, in the negative
+
+**Group B took 0 impressions in two days at the same $0.64 cap that won Group A
+555.** Tier 2 — the group affinities — appears to have no search volume at all.
+That is round one's result rather than round two's, and belongs in round one's
+write-up when it is read; it is recorded here because this is the session that
+measured it.
+
+### Outstanding
+
+- [ ] **Negative keywords: there are none.** Not one, at either level. Round
+      one's file calls the flooring set a standing obligation on every campaign
+      this account ever runs and says it matters *more* here, because Search
+      Match finds the pollution before it finds the term. With the bid now able
+      to win, that exposure is live rather than theoretical. The list to add is
+      round one's 25 plus its four Tier 2 additions — `do not disturb`,
+      `ebook`, `audiobook`, `reading list` — broad, at campaign level.
+      **`floor` stays out of it**: a bare `floor` broad negative kills the
+      brand-defence terms outright, and it is the obvious thing for somebody
+      tidying the list to write.
+- [ ] **No end date.** The plan wants four weeks, and an end date is
+      what makes that enforce itself rather than be remembered. Round one set
+      one; round two did not.
+- [ ] **Read the bid raise before reading anything else.** Reporting lags up to
+      three hours and the campaign timezone is America/Los_Angeles while
+      reporting is UTC, so give it a full day before concluding the raise
+      worked or did not.
+
+### The trap that costs ten minutes
+
+**Deep links into Apple Ads do not hold.** Navigating straight to a campaign or
+ad group URL redirects to whatever the console last had, which during this
+session repeatedly landed on *round one's* settings while the intent was round
+two's — close enough to edit the wrong campaign without noticing. Click through
+from *All Campaigns* instead, and confirm the campaign name in the breadcrumb
+before touching a field. The ad group settings page prints
+`CAMPAIGN NAME: round2-searchmatch` above the ad group name, which is the check
+worth making.
+
+**The page also renders its controls late.** Search Match and Audience read as
+plain unselected boxes for a second or two before the toggle and the blue
+selection border appear, so a screenshot taken too early says a setting is off
+when it is on.

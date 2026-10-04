@@ -12,7 +12,7 @@ is worth what it costs, and it is a decision before it is any work.
 `CXStartCallAction` on entering, ended on stepping out — and the system call
 screen carries a mute that works while locked. This is **not** ringing: no
 VoIP push and no incoming-call UI are involved. But it collides with a stated
-position — `DESCRIPTION.md` § 2 and `LAUNCH.md`, the latter in what App Review
+position — `apply-the-app-store-listing.md` and `post-to-the-launch-surfaces.md`, the latter in what App Review
 was told, both say *there is no CallKit in it at all*. Those sentences are about
 not ringing and not piercing a Focus, which this would not do, but they say
 CallKit by name and would need rewriting, and a reviewer may ask. It is also

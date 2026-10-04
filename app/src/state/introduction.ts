@@ -7,8 +7,8 @@
  * points at a control: every item is a thing the app can already see is done
  * or not done, read off the Home snapshot, and the list is a view of that
  * state rather than a script somebody is walked through. See
- * planning/ONBOARDING.md for what was decided against, which is most of the
- * pattern as it is usually built.
+ * planning/decision/2026-09-10-the-onboarding-checklist.md for what was decided
+ * against, which is most of the pattern as it is usually built.
  *
  * Pure, and separated from the hook for the reason `notificationAsk.ts` gives
  * about itself: this is where the policy lives, it has more cases than it
@@ -46,11 +46,13 @@ import type { Strings } from '../i18n';
  * had to be taught to record at all.
  *
  * **They say *try this*, where the three above say *this is true of you*.**
- * That is a real departure — `planning/ONBOARDING.md` § *What is deliberately
- * left out* rules out "a checklist that lists everything the app does" on the
- * grounds that it stops being an activation ladder. These four are bounded to
- * the four controls somebody would otherwise never find, rather than to the
- * feature list, and they retire for good the moment they are behind somebody.
+ * That is a real departure —
+ * `planning/decision/2026-09-10-the-onboarding-checklist.md` § *What is
+ * deliberately left out* rules out "a checklist that lists everything the app
+ * does" on the grounds that it stops being an activation ladder. These four are
+ * bounded to the four controls somebody would otherwise never find, rather than
+ * to the feature list, and they retire for good the moment they are behind
+ * somebody.
  */
 export type StepId =
   | 'somebody'
@@ -235,8 +237,8 @@ export function introduction(state: {
   // `ui/Introduction.tsx` can point anywhere.
   //
   // **Retired on the last rung, not the first conversation**, reversing
-  // ONBOARDING.md § *Retirement* — see
-  // `decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
+  // planning/decision/2026-09-10-the-onboarding-checklist.md § *Retirement* —
+  // see `decision/2026-09-13-the-checklist-outlives-the-first-conversation.md`.
   // The old rule was right about a ladder whose every rung came before
   // stepping in; with four that come after, retiring on the conversation would
   // mean they were never drawn at all.
@@ -347,7 +349,8 @@ function tryingSteps(tried: Tried, words: Strings['introduction']): Step[] {
       // **The lifetime is the note and not a footnote.** The glossary is
       // explicit that a guest link stops working once the channel is empty of
       // members, and *send a link, they will join later* is what everybody
-      // assumes. ONBOARDING.md § *Three things the campaign exposes* names
+      // assumes. planning/task/drive-growth-from-what-the-numbers-say.md
+      // § *Three things the campaign exposes* names
       // this as something the copy has to say; this is the copy saying it.
       note: words.guestNote(),
       done: tried.guest,
@@ -400,10 +403,11 @@ function installStep(
  *
  * **The one place the ladder reaches off Home**, and it is deliberately not a
  * rung of its own: the card is drawn above the two lists and nothing in it
- * points at a control, which is what `planning/ONBOARDING.md` settled against
- * a guided walkthrough. What this answers is narrower — somebody is standing
- * in a channel they have not stepped into, while the ladder on the screen they
- * came from is telling them to go and have a conversation. The screen they are
+ * points at a control, which is what
+ * `planning/decision/2026-09-10-the-onboarding-checklist.md` settled against a
+ * guided walkthrough. What this answers is narrower — somebody is standing in a
+ * channel they have not stepped into, while the ladder on the screen they came
+ * from is telling them to go and have a conversation. The screen they are
  * actually looking at owes them the sentence that says how.
  *
  * **It is true of exactly the people the rung is true of.** `stepIn` is ticked

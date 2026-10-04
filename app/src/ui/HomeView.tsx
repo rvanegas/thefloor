@@ -725,7 +725,8 @@ export function HomeView({
             *Add contact* sits on the other tab. It is bounded — this is gone the
             moment somebody has had a conversation, and the two rungs point at
             those two rows rather than competing with them — but it does
-            contradict a dated decision. See planning/ONBOARDING.md.
+            contradict a dated decision. See
+            planning/decision/2026-09-10-the-onboarding-checklist.md.
           */}
           {/*
             The checklist is told which channel this person is standing in,

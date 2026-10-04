@@ -14,7 +14,7 @@ strictly about wording:
    most this page may say without naming that window.
 2. **Whether it covers the uploaded audio or only the transcript row.** These
    are separate objects at their end and one call is meant to take both — which
-   is the whole argument for uploading rather than presigning, TRANSCRIPTS.md §
+   is the whole argument for uploading rather than presigning, decision/2026-08-25-transcripts.md §
    *The provider is an interface*. If it does not, the audio needs deleting by
    some other means, and the design's deletion story loses its teeth.
 3. **What their own retention is for data we never delete** — a job that fails

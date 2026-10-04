@@ -1,11 +1,11 @@
-# The room and the socket, and the gap between them
+# Find out whether Nearby can hide a live room
 
-**Temporary.** This is an open question written down so it is not re-derived
-from scratch next time, not a design and not a decision. It came out of a
+**An open question**, written down so it is not re-derived from scratch next
+time, and planning/LIVEKIT.md until 2026-10-03. It came out of a
 screenshot on build 183: a roster card reading *Nearby* for somebody whose
 LiveKit connection was, by every other sign, still alive. Delete this file when
 the question below is answered — whatever survives goes to
-`planning/decision/` if anything is changed, and to STATES.md § *Audio
+`decision/` if anything is changed, and to STATES.md § *Audio
 Connected* if the answer is that nothing should be.
 
 ---

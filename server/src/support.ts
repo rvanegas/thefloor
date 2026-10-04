@@ -30,8 +30,10 @@ import { escapeHtml, page, socialCard } from './html';
  * from an opening sentence.
  *
  * **The opening is the store listing's first line now, on every served page.**
- * planning/ROADMAP.md § *Say the same thing everywhere* is the entry that asks
- * for that, and planning/LISTING.md is the source of truth for the wording. If
+ * the roadmap item *Say the same thing everywhere* — planning/PROPOSITION.md §
+ * *What the proposition obliges, in order*, item 6 — is the entry that asked
+ * for that, and planning/task/apply-the-app-store-listing.md is the source of
+ * truth for the wording. If
  * modesty needs saying, say it as behaviour — nothing runs in the background,
  * nothing asks for your attention — which is checkable where an adjective is
  * not.

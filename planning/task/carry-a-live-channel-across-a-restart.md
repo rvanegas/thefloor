@@ -1,7 +1,12 @@
-# Carrying a live channel across a restart
+# Carry a live channel across a restart
 
-A design for work not yet done, specified 2026-08-18. Nothing here is built —
-when it is, what survives moves to decision/ and this file goes.
+A design for work not yet done, specified 2026-08-18, and planning/HANDOVER.md
+until 2026-10-03. Nothing here is built — when it is, what survives moves to
+decision/ and this file goes.
+
+**Re-read § *What a restart costs today* against the code before starting.**
+It is as of 2026-08-18, and room restoration and the silence notices
+(2026-10-02/03) may have changed what a restart loses.
 
 Two stages that are worth having separately. **Stage 1 hands a conversation
 from a dying process to its successor through a file on disk.** **Stage 2 runs

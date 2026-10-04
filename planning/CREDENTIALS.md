@@ -216,7 +216,8 @@ Deliberately separate, so no single leak is worse than it has to be:
 
 - **AssemblyAI** — `ASSEMBLYAI_API_KEY`, from
   [assemblyai.com/dashboard/api-keys](https://www.assemblyai.com/dashboard/api-keys).
-  The eighth, added 2026-08-24 with the first phase of TRANSCRIPTS.md.
+  The eighth, added 2026-08-24 with the first phase of transcripts —
+  decision/2026-08-25-transcripts.md.
 
   **It is the only credential here that spends money per use**, which makes it
   the only one whose leak has a running cost rather than a one-off one: $0.15

@@ -5,13 +5,15 @@ thing to point an existing user at when they ask how something works. Not
 temporary: it is a deliverable rather than a design, and it is revised as the
 app changes rather than deleted when something ships.
 
-**Derived from PROPOSITION.md** on 2026-09-03, with LISTING.md and ROADMAP.md.
-The listing has to fit in a store field and be repeatable by a recommender;
+**Derived from PROPOSITION.md** on 2026-09-03, with the listing copy — now
+`task/apply-the-app-store-listing.md` — and the roadmap that became
+PROPOSITION.md § *What the proposition obliges, in order*. The listing has to
+fit in a store field and be repeatable by a recommender;
 this has neither constraint and one obligation the listing does not have — **it
 is the only place the habit gets taught.** The proposition names an observed
 failure that is not a bug in anything: somebody pings and then puts the phone
 away as though a call were coming. Nothing in the app currently says otherwise,
-and until it does (ROADMAP.md § *Teach the habit at the empty channel*), this
+and until it does (`task/teach-the-habit-at-the-empty-channel.md`), this
 email is the correction.
 
 **Vocabulary is GLOSSARY.md's**, Part One only. Every noun below — *channel*,
