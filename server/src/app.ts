@@ -1610,10 +1610,11 @@ export function buildApp(options: BuildOptions = {}): App {
     }
 
     const owner = accounts.byUsername(body.username);
-    // Deliberately the same answer as a wrong pin, and the only place this
-    // route is coy. A username that exists and one that does not must look
-    // alike, or this becomes the directory `core/username.ts` says there is
-    // not — and unlike a pin, a username is guessable by design.
+    // The same answer as a wrong pin, which hides a username for a link that
+    // carries one. **For a pin-less link it hides nothing**: every answer a
+    // held username gets differs from this one, and it is refused before the
+    // budget is consulted. Known and accepted — see planning/backlog/
+    // the-accept-route-says-whether-a-username-exists.md.
     if (!owner) {
       return reply
         .code(400)

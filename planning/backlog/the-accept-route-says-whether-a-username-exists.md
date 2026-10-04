@@ -1,43 +1,51 @@
 # The accept route says whether a username exists
 
-`POST /contacts/invite/accept` refuses an unknown username differently from a
-refusal about the day's budget, so a signed-in account can learn whether a
-username is held — twenty times a day, which is what `link_accepts` allows.
+`POST /contacts/invite/accept` refuses an unknown username differently from
+every answer it gives a held one, so a signed-in account can learn whether a
+username is held.
 
 Recorded 2026-09-25 with
 `decision/2026-09-25-an-invite-link-is-a-standing-door.md`, which made the
-page stop leaking and left this.
+page stop leaking and left this. Corrected 2026-10-03, when a review found the
+budget did not bound it.
 
-## Why it is small
+## How much it gives away
 
-**The page is where it mattered and the page is clean.** `GET /i/:username`
-reads nothing at all: a real username and an invented one render identically,
-so the address is not an oracle and never was walked for free. This one is
-behind a session and a daily budget, so what it offers is twenty guesses a day
-from an account somebody had to create.
+**The budget does not bound it, contrary to what this said until 2026-10-03.**
+The route looks the username up and refuses an unknown one before
+`acceptInviteLink` runs, and `link_accepts` is spent only inside that. So:
 
-**And what it yields is thin.** That a username is held, not who holds it — the
-display name is not disclosed by any of this, which was the part worth
-protecting. `core/username.ts` is the standing rule and it is about names being
-*looked up*; a refusal is a weaker thing than a lookup.
+- **An unknown username costs nothing**, any number of times.
+- **A held one, under budget, is accepted** — the pair become contacts, the
+  owner is told, and the answer carries their display name. Loud, and the
+  standing door working as designed rather than a leak.
+- **Once the day's twenty are spent**, a held username answers `too_many` and
+  an unknown one `unknown`, free and without limit until the window lapses.
+  That is the oracle: twenty real acceptances buy a day of silent lookups.
 
-## Why it was not closed
+**The page is clean.** `GET /i/:username` reads nothing, so a real username and
+an invented one render identically.
 
-**The obvious fix is worse for the person who mistyped.** Answering an unknown
-username identically to a successful acceptance means somebody who fat-fingered
-a link is told it worked, and then finds no contact and nothing to explain it.
-Answering it identically to the budget refusal tells them to come back
-tomorrow, which is a lie that costs them a day.
+**What it yields is still thin**: that a username is held, which
+`core/username.ts`'s rule about names being *looked up* does not quite reach.
 
-`redeemInvitePin`'s own coyness was affordable because the *pin* carried the
-secret and an unknown username could be answered exactly like a wrong pin. With
-no pin there is no second thing to hide behind.
+## Why it is not guarded
+
+**A per-route fix exists and was set aside on 2026-10-03** — checking the budget
+before the lookup, so that an exhausted account is told `too_many` whatever it
+names. It would work. The direction chosen instead is
+`task/watch-every-route-for-excess-instead-of-guarding-each-one.md`: one walk of
+usernames is a run of `unknown`s from one account, which a monitor over every
+route sees without this route having to know it leaks.
+
+**Making the refusals agree is still worse for the person who mistyped.**
+Answering an unknown username like a success tells them it worked; answering it
+like the budget tells them to come back tomorrow.
 
 ## What would change the arithmetic
 
-- **A username becoming worth enumerating**, which is the same trigger as
-  `a-standing-door-has-no-lock.md` and probably the same conversation. A list
-  of held usernames is only useful if holding one exposes you to something.
-- **Rate limiting getting cheaper to tighten.** The budget exists and is twenty;
-  a lower number costs honest users nothing and shrinks this proportionally,
-  which is a smaller change than making the refusals agree.
+- **A username becoming worth enumerating**, the same trigger as
+  `a-standing-door-has-no-lock.md`. Then the guard above is wanted whatever the
+  monitor says, since a monitor only notices after.
+- **The monitor not being built.** Then this is unwatched as well as unguarded,
+  and the per-route fix is the cheap one.
