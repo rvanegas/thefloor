@@ -334,6 +334,107 @@ describe('a stem key with no object behind it', () => {
   }, 60_000);
 });
 
+describe('a stem that goes missing after the mix', () => {
+  function rebuild(mixWaitMs: number) {
+    app.channels.stop();
+    media = new MemoryMediaServer();
+    store = new MemoryRecordingStore();
+    app = buildApp({
+      dbPath: ':memory:',
+      mailer: new MemoryMailer(),
+      media,
+      mediaUrl: 'wss://example.livekit.cloud',
+      store,
+      mixWaitMs,
+      now: () => clock,
+      roomCloseGraceMs: 0,
+    });
+  }
+
+  /**
+   * A recording that mixed, then lost its mix and its stems. The export is
+   * refused — it cannot wait, so it cannot conclude anything — and the repair
+   * behind it, which can, takes the keys back. Before this, nothing ever
+   * looked at a `'ready'` row again, and the refusal was permanent.
+   */
+  it('is taken back by the repair behind a refused export', async () => {
+    await app.fastify.close();
+    rebuild(1);
+
+    const { alice, channelId } = await record({ uploaded: true });
+    await app.channels.mixesSettled();
+    const [recording] = app.channels.recordingsFor(alice.account.id);
+    expect(stateOf(recording.id)).toBe('ready');
+
+    await store.forget(
+      mixKeyFor(channelId, recording.id),
+      ...media.recordings.map(({ key }) => key)
+    );
+
+    const refused = await app.fastify.inject({
+      method: 'GET',
+      url: `/recordings/${recording.id}/export`,
+      headers: auth(alice.token),
+    });
+    expect(refused.statusCode).toBe(500);
+    await app.channels.mixesSettled();
+
+    const row = app.db
+      .prepare('SELECT stems, s3_key, failure, mix_state FROM recordings WHERE id = ?')
+      .get(recording.id) as {
+      stems: string;
+      s3_key: string;
+      failure: string | null;
+      mix_state: string;
+    };
+    expect(JSON.parse(row.stems)).toEqual({});
+    expect(row.s3_key).toBe('');
+    expect(row.failure).toBe('Nothing was captured — no audio was being published.');
+    // `'ready'` promised a stored mix, and there is none.
+    expect(row.mix_state).toBe('unmixed');
+  }, 60_000);
+
+  /**
+   * The case the wait exists for. The bucket fails to answer for a stem, as
+   * it does in an outage — indistinguishable, without `s3:ListBucket`, from
+   * the stem being gone — and answers again before the repair stops waiting.
+   * The export that found it missing must not have cost the recording its
+   * stems; the repair remakes the mix instead.
+   */
+  it('is kept when it comes back before the repair stops waiting', async () => {
+    await app.fastify.close();
+    rebuild(10_000);
+
+    const { alice, channelId } = await record({ uploaded: true });
+    await app.channels.mixesSettled();
+    const [recording] = app.channels.recordingsFor(alice.account.id);
+    const stems = media.recordings.map(({ key }) => key);
+    const saved = await Promise.all(stems.map((key) => store.get(key)));
+
+    await store.forget(mixKeyFor(channelId, recording.id), ...stems);
+    const refused = await app.fastify.inject({
+      method: 'GET',
+      url: `/recordings/${recording.id}/export`,
+      headers: auth(alice.token),
+    });
+    expect(refused.statusCode).toBe(500);
+
+    // Long enough that the repair's first fetch has failed and it is waiting,
+    // which is the point: a fetch that has not happened yet proves nothing.
+    await new Promise((r) => setTimeout(r, 200));
+    stems.forEach((key, i) => store.put(key, saved[i]));
+    await app.channels.mixesSettled();
+
+    const row = app.db
+      .prepare('SELECT stems, failure, mix_state FROM recordings WHERE id = ?')
+      .get(recording.id) as { stems: string; failure: string | null; mix_state: string };
+    expect(Object.keys(JSON.parse(row.stems))).not.toHaveLength(0);
+    expect(row.failure).toBeNull();
+    expect(row.mix_state).toBe('ready');
+    await expect(store.get(mixKeyFor(channelId, recording.id))).resolves.toBeDefined();
+  }, 60_000);
+});
+
 describe('recordings made before mixes existed', () => {
   it('are shown, and mix themselves the first time they are asked for', async () => {
     // A row whose mix_state is null is what every recording in the database

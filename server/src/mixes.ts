@@ -52,6 +52,40 @@ export class Mixer {
    * rather than a conversation nobody can reach.
    */
   startMix(recordingId: string, channelId: string): void {
+    this.mixInBackground(recordingId, channelId, 'pending');
+  }
+
+  /**
+   * Remakes a recording's mix behind a request that could not, with the wait
+   * that request could not afford — so that a stem gone missing after the run
+   * is eventually taken back rather than refused on every export for ever.
+   *
+   * The request itself fetches with no wait, because somebody is holding it
+   * open, and a fetch with no wait is no evidence that an object is not
+   * coming: an outage looks exactly like absence from here (see
+   * `dropHollowStems`). So the request only answers, and the conclusion is
+   * left to this, which waits as long as a fresh run's mix does before it
+   * believes anything. A repair already running is not started twice.
+   *
+   * It leaves `'ready'` for `'unmixed'` when it fails, because `'ready'`
+   * promises a stored mix and the request that started this has just found
+   * there is none.
+   */
+  private repairInBackground(recordingId: string, channelId: string): void {
+    if (this.mixing.has(recordingId)) return;
+    this.mixInBackground(recordingId, channelId, 'ready');
+  }
+
+  /**
+   * `startMix` and `repairInBackground`, which differ only in the state a
+   * failure leaves: each moves the row to `'unmixed'` from the one state it
+   * was started to settle, and from no other.
+   */
+  private mixInBackground(
+    recordingId: string,
+    channelId: string,
+    from: 'pending' | 'ready'
+  ): void {
     // Not through `this.run`, which reports a failure in a continuation of a
     // promise it has already handed back. Everything that decides whether this
     // recording is visible has to have happened by the time the tracked
@@ -69,9 +103,9 @@ export class Mixer {
         this.db
           .prepare(
             `UPDATE recordings SET mix_state = 'unmixed'
-             WHERE id = ? AND mix_state = 'pending'`
+             WHERE id = ? AND mix_state = ?`
           )
-          .run(recordingId);
+          .run(recordingId, from);
       } finally {
         this.mixing.delete(recordingId);
         // Both paths emit: one has a recording to show and the other has a
@@ -107,6 +141,12 @@ export class Mixer {
    * dropped: `mixWaitMs: 0` is a harness saying *do not wait*, and a stem that
    * arrives a moment later is the transient failure `__tests__/mixing.test.ts`
    * pins the recovery from.
+   *
+   * That guard reads the configuration, not the fetch, so it does not protect
+   * a caller that fetched without waiting — **so every caller is a mix that
+   * waited**: `startMix` after a run, and `repairInBackground` behind a
+   * request that could not wait. Calling this from the request path itself
+   * would drop keys on every export made during an outage.
    *
    * **Every failure counts as absent, and it has to.** Without
    * `s3:ListBucket` the bucket answers a missing key with `AccessDenied`
@@ -281,7 +321,16 @@ export class Mixer {
         this.onMediaError(error, `mix missing ${recordingId}`);
       }
     }
-    return this.mix(recordingId, { wait: false });
+    try {
+      return await this.mix(recordingId, { wait: false });
+    } catch (error) {
+      // This caller cannot wait, so it cannot tell a stem that is gone from a
+      // bucket that is briefly not answering. The repair can. Without it a
+      // stem lost after the mix is the same refusal on every request, since
+      // nothing else ever looks at this row again.
+      this.repairInBackground(row.id, row.channel_id);
+      throw error;
+    }
   }
 }
 

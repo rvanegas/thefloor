@@ -64,6 +64,6 @@ deleted on 2026-09-26 once both its questions were answered: the stem was never
 uploaded rather than removed later, and `dropHollowStems` did not catch it
 because it did not exist until two days after the run. Commit a9fc51ee is that
 account, and `mixes.ts` § `dropHollowStems` and `mixing.test.ts` § *a stem key
-with no object behind it* carry the rest. What did not go with it is
-`a-stem-that-goes-missing-after-the-mix-cannot-be-taken-back.md`, which is the
-part of that row's shape no shipped code path would repair.
+with no object behind it* carry the rest. A stem lost *after* the mix is now
+taken back too, by the repair a refused export starts; see
+`decision/2026-10-03-a-refused-export-starts-a-repair-that-waits.md`.
