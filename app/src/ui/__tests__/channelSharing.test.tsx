@@ -13,7 +13,7 @@ import { WholeWindowContext } from '../layout';
 import { Picture } from '../../watch/Picture';
 import { WatchPlayer } from '../../watch/WatchPlayer';
 import { resetDiagnostics } from '../../audio/diagnostics';
-import { Share } from 'react-native';
+import { AppState, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as clipboard from '../../clipboard';
 import {
@@ -321,6 +321,41 @@ describe('Channel, watching together', () => {
       url: URL,
     });
     act(() => tree.unmount());
+    available.mockRestore();
+  });
+
+  it('draws a new system paste control when the app comes back to the front', async () => {
+    // A control that has been to the background can come back hidden for
+    // good, text on the clipboard or not, until the app is killed. So the
+    // one that went is never the one shown on return.
+    const available = jest
+      .spyOn(clipboard, 'systemPasteAvailable')
+      .mockReturnValue(true);
+    // React Native's own mock; read its calls rather than spying, since
+    // restoring a spy on a `jest.fn` strips the implementation it had.
+    const listen = jest.mocked(AppState.addEventListener);
+    const already = listen.mock.calls.length;
+    jest.mocked(Clipboard.hasStringAsync).mockResolvedValue(true);
+    showChannel(channelOf());
+    const tree = open();
+    await act(async () => {});
+    const control = () =>
+      tree.root.findAll((node) => node.type === 'ClipboardPasteButton');
+    const [before] = control();
+    if (!before) throw new Error('no ClipboardPasteButton rendered');
+
+    const fronted = listen.mock.calls
+      .slice(already)
+      .map(([, handler]) => handler);
+    await act(async () => {
+      for (const handler of fronted) handler('active');
+    });
+
+    const [after] = control();
+    expect(after).toBeDefined();
+    expect(after).not.toBe(before);
+    act(() => tree.unmount());
+    jest.mocked(Clipboard.hasStringAsync).mockResolvedValue(false);
     available.mockRestore();
   });
 

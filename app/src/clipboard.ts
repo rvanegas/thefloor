@@ -90,12 +90,25 @@ export function systemPasteAvailable(): boolean {
  *
  * Asked again whenever the clipboard changes in this app and whenever the app
  * comes back to the front, which is when a link copied elsewhere arrives.
- * Null until the first answer, which a caller treats as *yes*: the control is
- * what it would have drawn anyway. Only runs where `enabled`, which is where
- * the control exists at all.
+ * `pasteable` is null until the first answer, which a caller treats as *yes*:
+ * the control is what it would have drawn anyway. Only runs where `enabled`,
+ * which is where the control exists at all.
+ *
+ * **`asked` counts the answers, and `PasteButton` keys the control on it**, so
+ * every answer draws a new `UIPasteControl` rather than trusting the old one.
+ * A control that has been through the background can come back drawing
+ * nothing however full the pasteboard is — it decides for itself that it
+ * lacks room and hides, and never undecides — so this answer said *yes* above
+ * an empty slot until the app was killed. Apple's forum thread 756627 is the
+ * same report, unfixed; a control made afresh lays itself out afresh.
  */
-export function useClipboardHasPasteable(enabled: boolean): boolean | null {
-  const [has, setHas] = useState<boolean | null>(null);
+export function useClipboardHasPasteable(enabled: boolean): {
+  pasteable: boolean | null;
+  asked: number;
+} {
+  const [state, setState] = useState<{ pasteable: boolean | null; asked: number }>(
+    { pasteable: null, asked: 0 }
+  );
   useEffect(() => {
     if (!enabled) return;
     let live = true;
@@ -104,7 +117,8 @@ export function useClipboardHasPasteable(enabled: boolean): boolean | null {
         Clipboard.hasStringAsync().catch(() => true),
         Clipboard.hasUrlAsync().catch(() => true),
       ]).then(([text, url]) => {
-        if (live) setHas(text || url);
+        if (live)
+          setState((prev) => ({ pasteable: text || url, asked: prev.asked + 1 }));
       });
     };
     ask();
@@ -118,5 +132,5 @@ export function useClipboardHasPasteable(enabled: boolean): boolean | null {
       front.remove();
     };
   }, [enabled]);
-  return has;
+  return state;
 }

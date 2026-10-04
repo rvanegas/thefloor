@@ -51,6 +51,11 @@ import { colors, spacing, type } from './theme';
  * with `emptySublabel`, which says what to go and do rather than what the
  * press would have done.
  *
+ * **And it is drawn afresh whenever the clipboard is asked again**, since
+ * 2026-10-03: a control that has been to the background can come back drawing
+ * nothing with text on the clipboard, until the app is killed. See
+ * `useClipboardHasPasteable`.
+ *
  * Either way the caller is handed the text, or null for nothing. An empty
  * clipboard is null through the fallback and cannot happen through the
  * control, which is not drawn for one.
@@ -76,7 +81,8 @@ export function PasteButton({
 }) {
   const shared = useText().shared;
   const system = systemPasteAvailable();
-  const empty = useClipboardHasPasteable(system && !disabled) === false;
+  const { pasteable, asked } = useClipboardHasPasteable(system && !disabled);
+  const empty = pasteable === false;
   if (disabled || !system || empty) {
     return (
       <Button
@@ -97,6 +103,10 @@ export function PasteButton({
   return (
     <View style={[styles.stack, style]}>
       <ClipboardPasteButton
+        // A new control at every answer, never the one that went to the
+        // background: that one can come back hidden for good. See
+        // `useClipboardHasPasteable`.
+        key={asked}
         // Text and links only: a link copied from YouTube's share sheet is a
         // URL on the pasteboard rather than a string, and the control stays
         // grey for anything it does not accept. Images are nothing any
