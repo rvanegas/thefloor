@@ -9,5 +9,6 @@ number.
 
 On the call with Erta, 2026-10-02, Rodrigo said it is mature enough now to
 support both: register with either an email address or a phone number, and
-*Add a contact* should take either
-(`backlog/add-a-contact-says-search-when-it-means-invite.md`).
+*Add a contact* should take either — its field then reads *Email address or
+phone number* (`emailAddress` in `app/src/i18n/en.ts` and `es.ts`, and the
+placeholder `contacts.test.tsx` finds it by).

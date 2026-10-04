@@ -382,7 +382,7 @@ describe('Contacts', () => {
     const tree = open();
     const field = () =>
       tree.root.findAll(
-        (n) => n.props?.placeholder === 'Search by email address'
+        (n) => n.props?.placeholder === 'Email address'
       )[0];
 
     // A line, not a form: reading the list is what somebody came for.
@@ -415,7 +415,7 @@ describe('Contacts', () => {
     const tree = open();
     act(() => findButton(tree, 'Add a contact')!.props.onPress());
     const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Search by email address'
+      (n) => n.props?.placeholder === 'Email address'
     )[0];
     act(() => field.props.onChangeText('someone@example.com'));
     await act(async () => findButton(tree, 'Send request')!.props.onPress());
@@ -424,7 +424,7 @@ describe('Contacts', () => {
     act(() => findButton(tree, 'Cancel')!.props.onPress());
     expect(
       tree.root.findAll(
-        (n) => n.props?.placeholder === 'Search by email address'
+        (n) => n.props?.placeholder === 'Email address'
       )[0]
     ).toBeUndefined();
     act(() => tree.unmount());

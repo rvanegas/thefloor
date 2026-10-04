@@ -512,7 +512,7 @@ function AddContact({
       <Field
         value={query}
         onChangeText={setQuery}
-        placeholder={t.searchByEmail()}
+        placeholder={t.emailAddress()}
         keyboardType="email-address"
         autoFocus
         onSubmit={query.trim() && !busy ? send : undefined}
