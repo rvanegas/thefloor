@@ -1,0 +1,11 @@
+Communities. A channel you are alone in can become a community, from "Make channel into a community" in its Settings. Anybody with its link can join, up to twenty members, without becoming anybody's contact, and what is said and recorded in it stays with its members. You own it: you alone invite people, decide what plays and what is recorded, name it, remove people and delete it. The community link opens a page with its name, its description and how to join; Reset link, or a new name, stops the old one working.
+
+A channel with a public page is now a podcast: "This channel is a podcast" in Settings. A podcast's and a community's Settings have Open page, and the channel's header says which it is.
+
+When something you do in a channel does not go through, the channel says so, and why.
+
+In a watch party, every press acts at once for everybody. The watch card has Open in YouTube, in place of Copy video link.
+
+The paste button stays put after the app has been in the background.
+
+Add a contact's field says Email address.
