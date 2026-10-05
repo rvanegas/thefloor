@@ -2,7 +2,7 @@
   "expo": {
     "name": "The Floor",
     "slug": "thefloor",
-    "version": "1.8.2",
+    "version": "1.9.0",
     "scheme": "thefloor",
     "orientation": "default",
     "icon": "./assets/icon.png",
