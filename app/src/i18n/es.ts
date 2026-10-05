@@ -781,6 +781,8 @@ export const es: Strings = {
       'Entra para cambiar el nombre de este canal. Hay alguien dentro, y el nombre es c\u00f3mo llama al sitio en el que est\u00e1.',
     renamePublic: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
+    renameCommunity: () =>
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo, y cambiarlo restablece el enlace de la comunidad: el anterior deja de funcionar para todos los que lo tengan.',
     renamePrivate: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
     description: () => 'Descripci\u00f3n',
@@ -814,7 +816,8 @@ export const es: Strings = {
     makeCommunity: () => 'Convertir el canal en una comunidad',
     makeCommunityNote: (members: number) =>
       `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable, podr\u00edas expulsar a gente por tu cuenta y borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
-    communityNamePlaceholder: () => 'C\u00f3mo se llama',
+    communityNeedsName: () =>
+      'Una comunidad necesita un nombre, porque su p\u00e1gina y su enlace se leen de \u00e9l. Este pasa a ser el nombre del canal.',
     makeIt: () => 'Convertirlo',
     making: () => 'Convirtiendo\u2026',
     couldNotMakeCommunity: () => 'No se ha podido convertir en comunidad.',

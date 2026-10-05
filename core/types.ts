@@ -996,7 +996,7 @@ export type ChannelAction =
   | { type: 'JOIN'; userId: UserId }
   /**
    * Makes the channel a *community* owned by `userId`, its only member — see
-   * `canMakeCommunity` — under `name`, or the name it has when `name` is blank.
+   * `canMakeCommunity` — under the name it has, or `name` when it has none.
    * Refused with neither, since a community's page and link are read from it.
    *
    * Not in the server's `CLIENT_ACTIONS`: the link has to be minted alongside,

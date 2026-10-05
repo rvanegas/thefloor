@@ -54,6 +54,17 @@ describe('a community is a channel made into one by its only member', () => {
     expect(s.name).toBe('Already named');
   });
 
+  it('keeps the name the channel has even when another is given', () => {
+    const base = reduce(
+      createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0 }),
+      { type: 'SET_NAME', userId: OWNER, name: 'Already named' },
+      T0
+    );
+    const s = make(base, OWNER, 'Something else');
+    expect(s.owner).toBe(OWNER);
+    expect(s.name).toBe('Already named');
+  });
+
   it('is refused without any name, its page and link being read from one', () => {
     const s = createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0 });
     expect(canMakeCommunity(s, OWNER)).toBe(true);

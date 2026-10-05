@@ -976,6 +976,8 @@ export const en = {
       'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.',
     renamePublic: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel is a podcast or a community — each is found by its name, and an unnamed channel is listed by who is in it.',
+    renameCommunity: () =>
+      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied, and changing it resets the community link: the old one stops working for everybody who has it.',
     renamePrivate: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
     /**
@@ -1020,7 +1022,9 @@ export const en = {
     makeCommunity: () => 'Make channel into a community',
     makeCommunityNote: (members: number) =>
       `A community is a channel anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact; what is said and recorded in it stays with its members. You are alone here, so you can make this one: you would own it, remove people on your own, and delete it for everybody, and you could not leave it. It cannot be made an ordinary channel again.`,
-    communityNamePlaceholder: () => 'What it is called',
+    /** Under the field *Make channel into a community* offers an unnamed channel. */
+    communityNeedsName: () =>
+      'A community needs a name, since its page and its link are read from it. This becomes the channel\u2019s name.',
     makeIt: () => 'Make it a community',
     making: () => 'Making\u2026',
     couldNotMakeCommunity: () => 'Could not make it a community.',

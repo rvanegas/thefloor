@@ -2717,10 +2717,12 @@ function reduceAction(
 
     case 'MAKE_COMMUNITY': {
       if (!canMakeCommunity(state, action.userId)) return state;
-      // The name `SET_NAME` would make of the same input, falling back to the
-      // one it has: a community keeps a name, and cannot become one without.
+      // The name it has, and only for an unnamed channel the one given — made
+      // as `SET_NAME` would make it. Making a community is not a rename: the
+      // screen offers no name field to a named channel, and renaming is
+      // `SET_NAME`'s. A community keeps a name, and cannot become one without.
       const trimmed = action.name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH);
-      const name = trimmed === '' ? state.name : trimmed;
+      const name = state.name ?? (trimmed === '' ? null : trimmed);
       if (name === null) return state;
       return { ...state, name, owner: action.userId };
     }

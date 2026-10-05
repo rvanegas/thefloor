@@ -2419,6 +2419,7 @@ export class ChannelRegistry {
     }
     if (next !== channel) {
       this.commit(channel, next);
+      this.renameJoinCode(channel, next);
       // The only path that can change who belongs to a channel, which is why
       // it is the only one that carries departures. Read from the pair rather
       // than from the action: `LEAVE_CHANNEL` and `DELETE_CHANNEL` are the two
@@ -2430,6 +2431,25 @@ export class ChannelRegistry {
       );
     }
     return { ok: true, channel: this.channels.get(channelId) ?? next };
+  }
+
+  /**
+   * **Renaming a community revokes its link**: a fresh code is minted from the
+   * new name, so the old one stops opening anything — as *Reset link* does.
+   * The link is read from the name, and a link carrying a name the community
+   * no longer has would be a second name for it. A link that is off stays off.
+   *
+   * Keyed on the transition, like the departures below it, and only for a
+   * channel that was a community already: becoming one mints its first code
+   * in `makeCommunity`.
+   */
+  private renameJoinCode(before: ChannelState, after: ChannelState): void {
+    if (before.owner === undefined || after.owner === undefined) return;
+    if (before.name === after.name || after.name === null) return;
+    if (this.joinCodeOf(after.id) === null) return;
+    this.db
+      .prepare('UPDATE channels SET join_code = ? WHERE id = ?')
+      .run(mintJoinCode(after.name), after.id);
   }
 
   /**
@@ -7976,8 +7996,8 @@ function parseJson<T>(raw: string | null): T | null {
 /**
  * A join code: the community's name as a slug, for whoever reads the link, and
  * a random suffix, which is the lock. Revoking mints a new suffix; the slug
- * alone could not be revoked without renaming the channel. Renaming does not
- * change a code already minted.
+ * alone could not be revoked without renaming the channel. Renaming a
+ * community mints a new one, and so revokes the old — see `renameJoinCode`.
  *
  * Eight characters from a 31-letter alphabet is about forty bits, which is
  * what makes an unknown code uninteresting to guess rather than a rate limit

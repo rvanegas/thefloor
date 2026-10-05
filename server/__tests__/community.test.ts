@@ -21,7 +21,8 @@ import { MemoryPusher } from '../src/push';
  *   Home, the owner told.
  * - The owner's powers are refused to everybody else out loud, and the owner
  *   cannot leave.
- * - Resetting the link revokes the old one; turning it off stops it.
+ * - Resetting the link revokes the old one, as renaming does; turning it off
+ *   stops it.
  * - The owner survives a restart, which is the one place a field of the state
  *   can be lost without any test of the rules noticing.
  */
@@ -142,6 +143,16 @@ describe('making one', () => {
     app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Mine' } as never);
     expect((await makeCommunity(erta, channelId)).statusCode).toBe(200);
     expect(app.channels.get(channelId)?.name).toBe('Mine');
+  });
+
+  it('keeps the name a channel already has whatever name is sent', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const channelId = await channelOfOne(erta);
+    app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Mine' } as never);
+    const reply = await makeCommunity(erta, channelId, 'Something else');
+    expect(reply.statusCode).toBe(200);
+    expect(app.channels.get(channelId)?.name).toBe('Mine');
+    expect((reply.json() as { joinCode: string }).joinCode).toMatch(/^mine-/);
   });
 
   it('is refused with anybody else in the channel, and to a non-member', async () => {
@@ -349,6 +360,33 @@ describe('the owner', () => {
     const late = await signIn('late@example.com', 'Late');
     expect((await join(late, joinCode)).statusCode).toBe(400);
     expect((await join(late, fresh)).statusCode).toBe(200);
+  });
+
+  it('loses the link to any rename, which mints one from the new name', async () => {
+    const { erta, channelId, joinCode } = await three();
+    const renamed = app.channels.dispatch(channelId, erta.account.id, {
+      type: 'SET_NAME',
+      name: 'Cafe',
+    } as never);
+    expect(renamed.ok).toBe(true);
+    const fresh = app.channels.joinCodeOf(channelId)!;
+    expect(fresh).toMatch(/^cafe-[a-z2-9]{8}$/);
+    const late = await signIn('late@example.com', 'Late');
+    expect((await join(late, joinCode)).statusCode).toBe(400);
+    expect((await join(late, fresh)).statusCode).toBe(200);
+  });
+
+  it('keeps the link through a rename that changes nothing, and off stays off', async () => {
+    const { erta, channelId, joinCode } = await three();
+    app.channels.dispatch(channelId, erta.account.id, {
+      type: 'SET_NAME',
+      name: '  Cafe Products ',
+    } as never);
+    expect(app.channels.joinCodeOf(channelId)).toBe(joinCode);
+
+    app.channels.setJoinCode(channelId, erta.account.id, false);
+    app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Cafe' } as never);
+    expect(app.channels.joinCodeOf(channelId)).toBeNull();
   });
 
   it('takes the community with their account', async () => {

@@ -182,6 +182,21 @@ export function ChannelSettingsView({
   });
 
   /**
+   * **The field follows a name that changed elsewhere** — somebody else's
+   * rename, the server's trim, or a channel named by becoming a *community* —
+   * unless somebody is halfway through typing over it here. It used to be read
+   * once, so a channel named by *Make it a community* went on showing the old
+   * name under the new link until the screen was left.
+   */
+  useEffect(() => {
+    const now = channel.name ?? '';
+    const was = saved.current.name;
+    if (now === was) return;
+    saved.current.name = now;
+    setName((field) => (field === was ? now : field));
+  }, [channel.name]);
+
+  /**
    * Writes the name, if it has actually changed.
    *
    * There were two Save buttons here and each of them closed the screen, so
@@ -394,9 +409,11 @@ export function ChannelSettingsView({
         <Text style={type.muted}>
           {!mayEdit
             ? t.renameStepIn()
-            : facesOut
-              ? t.renamePublic()
-              : t.renamePrivate()}
+            : community
+              ? t.renameCommunity()
+              : facesOut
+                ? t.renamePublic()
+                : t.renamePrivate()}
         </Text>
       </Card>
 
@@ -583,7 +600,11 @@ export function ChannelSettingsView({
             <>
               <SectionLabel>{t.communityLink()}</SectionLabel>
               <Card style={styles.stack}>
-                <CommunityLink channelId={channel.id} capacity={capacityOf(channel)} />
+                <CommunityLink
+                  channelId={channel.id}
+                  name={channel.name}
+                  capacity={capacityOf(channel)}
+                />
               </Card>
             </>
           ) : null}
@@ -1168,7 +1189,16 @@ function GuestLinks({
  * Both destructive controls confirm, since what they break is a link that is
  * already in other people's hands and cannot be taken back out of them.
  */
-function CommunityLink({ channelId, capacity }: { channelId: string; capacity: number }) {
+function CommunityLink({
+  channelId,
+  name,
+  capacity,
+}: {
+  channelId: string;
+  /** Read again when it changes, since a rename mints a new link. */
+  name: string | null;
+  capacity: number;
+}) {
   const t = useText().channelSettings;
   const linkWords = useText().links;
   const app = useApp();
@@ -1180,7 +1210,7 @@ function CommunityLink({ channelId, capacity }: { channelId: string; capacity: n
       .communityLink(channelId)
       .then(setUrl)
       .catch(() => setError(t.couldNotReadLink()));
-  }, [app, channelId]);
+  }, [app, channelId, name]);
 
   const change = (open: boolean) =>
     void app
@@ -1251,11 +1281,15 @@ function CommunityLink({ channelId, capacity }: { channelId: string; capacity: n
  * *Start a community* on Home, which sat under *Start a channel* and read as
  * though a community were something other than a channel.
  *
- * A button that opens into the name field rather than a field from the
- * start: a community cannot exist without the name its link is read from,
- * and the channel's own is the default. One step and no second dialog, the
- * card itself saying what it costs before the press — nobody else is in the
- * channel to be affected by it.
+ * A button that opens into the choice rather than the choice from the start,
+ * the card itself saying what it costs before the press; no second dialog,
+ * nobody else being in the channel to be affected by it.
+ *
+ * **A name field only for an unnamed channel**, since 2026-10-05. A community
+ * cannot exist without the name its link is read from, and a named channel
+ * already has one: offering a field there read as a second name, and what it
+ * did was rename the channel. The reducer keeps a name the channel has
+ * whatever is sent, so this is the only place one can be given.
  *
  * Nothing to do on success: the snapshot carrying `owner` redraws this
  * screen as a community's, link and all.
@@ -1264,7 +1298,8 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
   const t = useText().channelSettings;
   const app = useApp();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState(channel.name ?? '');
+  const named = channel.name !== null;
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1272,7 +1307,7 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
     setBusy(true);
     setError(null);
     try {
-      await app.makeCommunity(channel.id, name.trim());
+      await app.makeCommunity(channel.id, named ? '' : name.trim());
       setOpen(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t.couldNotMakeCommunity());
@@ -1286,28 +1321,34 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
       <Text style={type.muted}>{t.makeCommunityNote(MAX_COMMUNITY_MEMBERS)}</Text>
       {open ? (
         <>
-          <Field
-            value={name}
-            onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
-            placeholder={t.communityNamePlaceholder()}
-            autoFocus
-            onSubmit={name.trim() && !busy ? () => void make() : undefined}
-            submitLabel="done"
-          />
+          {named ? null : (
+            <>
+              <Field
+                value={name}
+                onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
+                placeholder={t.channelName()}
+                autoCapitalize="words"
+                autoFocus
+                onSubmit={name.trim() && !busy ? () => void make() : undefined}
+                submitLabel="done"
+              />
+              <Text style={type.muted}>{t.communityNeedsName()}</Text>
+            </>
+          )}
           <View style={styles.choices}>
             <Button
               style={styles.choice}
               label={t.cancel()}
               onPress={() => {
                 setOpen(false);
-                setName(channel.name ?? '');
+                setName('');
               }}
             />
             <Button
               style={styles.choice}
               label={busy ? t.making() : t.makeIt()}
               variant="primary"
-              disabled={!name.trim() || busy}
+              disabled={(!named && !name.trim()) || busy}
               onPress={() => void make()}
             />
           </View>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking } from 'react-native';
+import { Linking, TextInput } from 'react-native';
 import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { ChannelSettingsView } from '../ChannelSettingsView';
 import { createChannel, reduce } from '../../../../core/channel';
@@ -48,22 +48,26 @@ function community(owner: string, member: string): ChannelState {
   return reduce(made, { type: 'JOIN', userId: member }, NOW);
 }
 
+const screen = (channel: ChannelState, publicAt: number | null = null) => (
+  <ChannelSettingsView
+    publicAt={publicAt}
+    channel={channel}
+    derivedTitle="Cafe Products"
+    onBack={jest.fn()}
+    onLeft={jest.fn()}
+  />
+);
+
 async function open(channel: ChannelState, publicAt: number | null = null) {
   mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
   (mockApp.communityLink as jest.Mock).mockResolvedValue(
     'https://example.com/j/cafe-products-k3x9abcd'
   );
-  tree = render(
-    <ChannelSettingsView
-      publicAt={publicAt}
-      channel={channel}
-      derivedTitle="Cafe Products"
-      onBack={jest.fn()}
-      onLeft={jest.fn()}
-    />
-  );
+  tree = render(screen(channel, publicAt));
   await act(async () => {});
 }
+
+const fields = () => tree.root.findAll((node) => node.type === TextInput);
 
 it('gives the owner the link, and Delete where Leave would be', async () => {
   await open(community(ME, THEM));
@@ -93,7 +97,7 @@ it('says what a community is, and offers it no podcast', async () => {
   expect(text).not.toContain('A podcast has a page on the web');
 });
 
-it('offers a channel of one to become a community, under its own name', async () => {
+it('offers a named channel of one to become a community, asking no name', async () => {
   const alone = reduce(
     createChannel({ id: 'sess_a', initiator: ME, invitees: [], now: NOW }),
     { type: 'SET_NAME', userId: ME, name: 'Mine' },
@@ -102,9 +106,38 @@ it('offers a channel of one to become a community, under its own name', async ()
   (mockApp.makeCommunity as jest.Mock).mockResolvedValue('https://example.com/j/mine-k3x9abcd');
   await open(alone);
   expect(textOf(tree)).toContain('This channel is a podcast');
+  const before = fields().length;
   await act(async () => findButton(tree, 'Make channel into a community')!.props.onPress());
+  expect(fields()).toHaveLength(before);
+  expect(textOf(tree)).not.toContain('A community needs a name');
   await act(async () => findButton(tree, 'Make it a community')!.props.onPress());
-  expect(mockApp.makeCommunity).toHaveBeenCalledWith('sess_a', 'Mine');
+  expect(mockApp.makeCommunity).toHaveBeenCalledWith('sess_a', '');
+});
+
+it('asks an unnamed channel of one for the name it will have', async () => {
+  (mockApp.makeCommunity as jest.Mock).mockResolvedValue('https://example.com/j/cafe-k3x9abcd');
+  await open(createChannel({ id: 'sess_u', initiator: ME, invitees: [], now: NOW }));
+  const before = fields().length;
+  await act(async () => findButton(tree, 'Make channel into a community')!.props.onPress());
+  expect(fields()).toHaveLength(before + 1);
+  expect(textOf(tree)).toContain('This becomes the channel\u2019s name');
+  expect(findButton(tree, 'Make it a community')!.props.disabled).toBe(true);
+  await act(async () => fields()[before].props.onChangeText('Cafe'));
+  await act(async () => findButton(tree, 'Make it a community')!.props.onPress());
+  expect(mockApp.makeCommunity).toHaveBeenCalledWith('sess_u', 'Cafe');
+});
+
+it('shows a name given elsewhere in the name field, and reads the link again', async () => {
+  const before = community(ME, THEM);
+  await open(before);
+  expect(fields()[0].props.value).toBe('Cafe Products');
+  expect(mockApp.communityLink).toHaveBeenCalledTimes(1);
+
+  const renamed = reduce(before, { type: 'SET_NAME', userId: ME, name: 'Cafe' }, NOW);
+  await act(async () => tree.update(screen(renamed)));
+  expect(fields()[0].props.value).toBe('Cafe');
+  expect(mockApp.communityLink).toHaveBeenCalledTimes(2);
+  expect(textOf(tree)).toContain('changing it resets the community link');
 });
 
 it('offers it to nobody in a channel with anybody else in it', async () => {

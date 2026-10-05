@@ -49,7 +49,7 @@ caused; the list carries the meaning.
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
-- **Community link** — A community's `/j/<code>`, which opens its *community page* and makes nobody anything by being opened; reset by its owner to revoke it
+- **Community link** — A community's `/j/<code>`, which opens its *community page* and makes nobody anything by being opened; reset by its owner to revoke it, and by any rename, being read from the name
 - **Community page** — What a community link opens: the community's name, description and member count, the App Store, the *join link* and the web app, and no member's name
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
@@ -657,7 +657,9 @@ describes the community — its name, description and member count, never a
 member's name — and carries the App Store, the *join link* and the web app. The
 *join link*, `thefloor://j/<code>`, makes whoever follows it a member once they
 are signed in. Both are one code, a slug of the name and a random suffix, so
-resetting the link revokes both at once.
+resetting the link revokes both at once — **and so does renaming the
+community**, which mints a code from the new name rather than leave a link
+carrying one the community no longer has. A link that is off stays off.
 
 **Not an *invite link*** — that makes a *contact* and nothing else; this makes a
 *member* and nothing else. **Not a *guest link*** — that opens a room to a
@@ -665,7 +667,8 @@ visitor until it empties; this opens a membership that lasts. A community link
 never expires and is not spent by use.
 
 See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md
-and planning/decision/2026-10-04-a-community-is-made-from-a-channel-of-one.md.
+and planning/decision/2026-10-04-a-community-is-made-from-a-channel-of-one.md,
+and planning/decision/2026-10-05-a-community-has-one-name-and-renaming-revokes-its-link.md.
 
 ## Contact
 
