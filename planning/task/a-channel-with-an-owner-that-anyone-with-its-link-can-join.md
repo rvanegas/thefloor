@@ -82,3 +82,150 @@ stops working once the channel is empty of members. An open channel is still a
 channel and inherits that, which is right — but it means an announced talk
 cannot have its link circulated in advance any more than a private one can.
 That was the gap ROADMAP.md's item 4 was about, since answered by the invite link.
+
+---
+
+## The plan
+
+Written 2026-10-04 from a read of the code, against the agreement above. Five
+questions at the end are the prompt's to answer before building; everything
+else follows from the call and is proposed as settled.
+
+### What it is called
+
+*Public* is the podcast page and *open channel* is item 5's audience sense
+above, which may still be built; *host* is the *cohort host*; *invite link* is
+`/i/<username>`. Proposed: **a community** — Erta's own word for it, and
+*comunidad* in Spanish with no collision — whose **owner** started it, joined
+through its **community link**, which opens its **community page**. *Owner*
+has no gender-neutral Spanish noun (*dueño/dueña*); the Spanish half wants
+settling when the glossary entry is written. GLOSSARY.md gets *Community*,
+*Owner*, *Community link* and *Community page* in the commit that introduces
+them, list and entries both, and *Member* notes that a community's members are
+not one another's contacts.
+
+### The model
+
+- **`ChannelState.owner?: UserId`**, in `core/types.ts`. In the state blob
+  rather than a column, because every rule below is a guard in `core/` and
+  `core/` sees only `ChannelState`. Absent on every channel that exists today.
+- **`channels.join_code TEXT`**, unique where not null: the whole last path
+  segment, `cafe-products-k3x9` — a slug of the name for the reader and a
+  random suffix for the lock. **Revoking mints a new suffix**; turning the door
+  off sets it null. The slug alone cannot be revoked without renaming the
+  channel, which is why the agreement's "built from a slug" and "revoke and
+  reissue" need both halves. Renaming the channel does not change the code.
+- **A community is a channel with an owner**, and the owner is set **only
+  while one member holds the channel**: *Start a community* from Home, or
+  *Make this a community* in a channel of one. That keeps the bend in the
+  no-admin rule from ever landing on somebody who joined a flat channel —
+  nobody becomes subject to an owner they did not walk in under.
+
+### The rules, in `core/`
+
+- **`capacityOf(state)`** — `MAX_COMMUNITY_MEMBERS` (20, new, beside
+  `MAX_CHANNEL_PARTICIPANTS` in `constants.ts`) with an owner, six without.
+  It replaces the bare constant at `core/channel.ts:116` and `:1083`,
+  `server/src/channels.ts:1266`, `:1921` and `:7356`, and
+  `app/src/ui/channelCards.tsx:1018`, `:1126` and `:1277`. The constant's
+  comment, which says beyond four everybody ties at zero and races, gets the
+  sentence saying a community accepts that race.
+- **`JOIN`** — `{ type: 'JOIN'; userId }`, guarded by `canJoin`: active, has an
+  owner, not already a member, under capacity. Whether the code is right is the
+  server's to check before dispatching, as contacts are for `INVITE`. Writes no
+  `invitedBy`: nobody asked them.
+- **The owner removes in one move.** `MOVE_TO_REMOVE` by the owner carries at
+  once, so the removal notice, the card and the server path at
+  `channels.ts:2104` are reused untouched. Motions among other members keep
+  needing two, as everywhere. **Nobody may move against the owner.**
+- **`canDeleteChannel`** — the owner at any roster size, besides the last
+  member as now. The confirmation names what goes: every recording, for every
+  member.
+- **The owner cannot leave**, only delete. Leaving would leave twenty people
+  in a channel whose cap is six and whose rules assume nobody is in charge.
+- **The door belongs to the owner**: `canSetJoinCode` is the owner alone.
+
+### The server
+
+- **`GET /j/:code`**, unauthenticated, rendered like `invite.ts`'s page: the
+  channel's name, description and cover art if it has one, how many members it
+  has, and **Join** opening `thefloor://j/<code>`, with the App Store beneath
+  it. **No member is named** — the same boundary the directory page's tests
+  assert, and asserted the same way. An unknown or revoked code gets the same
+  page as each other. Not listed on `/podcasts`, which is for contents.
+- **`POST /channels/join { code }`** → `JOIN`, answering `{ channelId }`.
+  Refusals: `unknown` (also revoked), `full`, `already`. An unknown answer is
+  a code lookup, so it goes through `excess.flagUnbudgeted` as
+  `/contacts/invite/accept` does; the random suffix is what makes guessing it
+  uninteresting.
+- **`POST /channels/:id/join-code`** mints or rotates, **`DELETE`** turns the
+  door off; owner only, refused out loud.
+- **`invitesFor` must skip a member who came by the door.** It treats any
+  member who has never stepped in as invited and credits whoever entered
+  first, so without this a joiner's Home says *invitation from* a stranger.
+  The test: no `invitedBy` entry, and the channel has an owner.
+- **Joining does not make anybody a contact.** Sharing a channel already
+  opens the narrowed profile at `GET /profiles/:id`, and pings already
+  require a contact; both are right as they stand for twenty strangers.
+- **`tellTheInviter`'s counterpart**: the owner gets a push when somebody
+  joins, at their notification level for the channel.
+
+### The app
+
+- **`thefloor://j/<code>`** handled where `i/` is, held across sign-in the same
+  way, then `POST /channels/join` and straight into the channel. The install
+  gap is the invite link's and is `collapse-the-three-invitations-into-one.md`'s
+  to solve; **this inherits whatever that does**, which is the argument for
+  doing that first.
+- **Channel settings, owner only**: the link, *Share*, *Reset link* (with the
+  sentence that the old one stops working), *Turn off the link*.
+- **People tab**: *Owner* beside one name; the owner's remove on a member row
+  is a single confirmation rather than a motion; nobody else sees remove on
+  the owner's row.
+- **Capacity copy** in `channelCards.tsx` reads from `capacityOf`.
+
+### Compatibility
+
+Additive on the wire — `owner` on the snapshot, `JOIN`, a channel past six — so
+the server may go first and nothing needs a shim. **An older build is wrong
+but harmless**: it computes *full* at six, so it hides invite controls in a
+community past that, and it ignores `thefloor://j/`. Erta's arrivals are new
+installs and get the build that has it. Server and build ship together for
+that reason, and the page should not be handed out until both are out.
+
+### Order
+
+1. `core/`: `owner`, `capacityOf`, `JOIN`, the owner's guards, with tests
+   beside the removal and delete tests they amend.
+2. Server: `join_code` column, the three routes, `invitesFor`, the page, with
+   the page's privacy tests.
+3. App: the deep link, settings, the People tab, the copy; GLOSSARY.md and
+   STYLE.md in the same commits.
+4. A decision file when it ships, carrying why the no-admin rule bends here
+   and only here.
+
+### What it deliberately does not do
+
+No approval step, no one-use links, no listing, no second owner, no handing
+ownership over — each is a later answer to a problem a real community will
+have shown. And it does nothing for item 5's audience above: a community's
+door makes members, not listeners.
+
+### For the prompt, before building
+
+1. **The name** — *community* and *owner*, or something else?
+2. **Twenty members can mean twenty open microphones.** A microphone is open
+   for everybody stepped in, and each recorded one is its own egress job
+   against a box ceiling of about ten — INFRASTRUCTURE.md § *What the box can
+   carry*. Accept it and watch `bin/usage peak`, cap how many may be *present*
+   in a community, or refuse a recording past ten present? Proposed: accept
+   and watch, since an event crowd is the case and Erta's first is not one.
+3. **Notifications for twenty strangers.** An arrival pushes to every member at
+   *medium*. Proposed: a member who joined by the link starts at *low* for
+   that channel.
+4. **Ownership only at birth** (proposed), or may an existing flat channel be
+   turned into a community by agreement?
+5. **Order against `collapse-the-three-invitations-into-one.md`**, which the
+   call said wants to feel right first and which this inherits its install gap
+   from. Proposed: that first, or at least its decision of shape, since Erta
+   sends her first invites the week of 2026-10-05.
