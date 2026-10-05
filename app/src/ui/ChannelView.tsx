@@ -2373,7 +2373,19 @@ export function ChannelView({
             title having gone. Its counterpart there says *Contact*; see
             ProfileView, which carries the reasoning for both.
           */}
-          <Text style={styles.headerKind}>{t.headerKindChannel()}</Text>
+          {/*
+            And which kind of outward-facing channel it is, since 2026-10-05:
+            a community and a podcast run on different rules, and the header
+            is the one place every tab shares. Never both — `setPublic` and
+            `makeCommunity` each refuse the other.
+          */}
+          <Text style={styles.headerKind}>
+            {channel.owner !== undefined
+              ? t.headerKindCommunity()
+              : (view?.publicAt ?? null) !== null
+                ? t.headerKindPodcast()
+                : t.headerKindChannel()}
+          </Text>
           {/* One style, named or not. The italic that marked a derived title
               is gone; see the note on Home's channel rows for why. */}
           <Text style={styles.otherName} numberOfLines={1}>

@@ -199,6 +199,32 @@ describe('Channel', () => {
    * Asserted on the wrapper rather than on `Screen` itself, because what has to
    * hold is the behaviour rather than which component supplies it.
    */
+  it('says in its header whether it is a podcast or a community', () => {
+    const kind = () => {
+      const tree = render(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />);
+      const lines = textOf(tree);
+      act(() => tree.unmount());
+      return lines;
+    };
+    showChannel(channelOf());
+    expect(kind()).toContain('Channel');
+    expect(kind()).not.toContain('Channel \u00b7');
+
+    showChannel(channelOf((s) => reduce(s, { type: 'SET_NAME', userId: ME, name: 'On air' }, NOW)), [], {
+      publicAt: NOW,
+    });
+    expect(kind()).toContain('Channel \u00b7 Podcast');
+
+    const alone = createChannel({ id: 'sess_1', initiator: ME, invitees: [], now: NOW });
+    showChannel(reduce(alone, { type: 'MAKE_COMMUNITY', userId: ME, name: 'Cafe' }, NOW));
+    expect(kind()).toContain('Channel \u00b7 Community');
+  });
+
   it('keeps its scroll view inside a keyboard-avoiding wrapper', () => {
     showChannel(channelOf());
     const tree = render(<ChannelView

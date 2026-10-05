@@ -1249,6 +1249,8 @@ export const es: Strings = {
     stepInToMakeALink: () =>
       'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
     headerKindChannel: () => 'Canal',
+    headerKindPodcast: () => 'Canal \u00b7 Podcast',
+    headerKindCommunity: () => 'Canal \u00b7 Comunidad',
     headerKindWatching: () => 'Viendo',
     members: () => 'Miembros',
     partyMuted: () =>

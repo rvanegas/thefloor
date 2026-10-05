@@ -1493,6 +1493,8 @@ export const en = {
     stepInToMakeALink: () =>
       'Step in to make a link. Who can get into a conversation is for the people having it.',
     headerKindChannel: () => 'Channel',
+    headerKindPodcast: () => 'Channel \u00b7 Podcast',
+    headerKindCommunity: () => 'Channel \u00b7 Community',
     headerKindWatching: () => 'Watching',
     members: () => 'Members',
     partyMuted: () => 'Party-muted — nobody is heard while the video plays.',

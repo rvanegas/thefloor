@@ -798,6 +798,8 @@ export function showChannel(
     watching?: string[];
     /** Whether this reader has yet to be told the channel has a page. */
     publicNotice?: boolean;
+    /** When the channel became a podcast, or null while it is not one. */
+    publicAt?: number | null;
   } = {}
 ) {
   const names: Record<string, string> = {
