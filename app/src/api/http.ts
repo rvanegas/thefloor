@@ -552,6 +552,40 @@ export const api = {
       token,
     }),
 
+  /** Starts a *community*, owned by the caller, with its link minted. */
+  startCommunity: (token: string, name: string) =>
+    request<{ channelId: string; joinCode: string; url: string }>(
+      '/channels/community',
+      { method: 'POST', body: { name }, token }
+    ),
+
+  /**
+   * Takes up a *join link*: membership of the community its code opens, and
+   * nothing else. `already` is true when the caller was a member before.
+   */
+  joinCommunity: (token: string, code: string) =>
+    request<{ ok: true; channelId: string; name: string | null; already: boolean }>(
+      '/channels/join',
+      { method: 'POST', body: { code }, token }
+    ),
+
+  /** A community's link, for its owner; `url` is null while it is off. */
+  communityLink: (token: string, channelId: string) =>
+    request<{ joinCode: string | null; url: string | null }>(
+      `/channels/${channelId}/join-code`,
+      { token }
+    ),
+
+  /**
+   * Resets a community's link, which revokes the old one, or turns it off.
+   * Owner only; resetting is also how a link that is off comes back on.
+   */
+  setCommunityLink: (token: string, channelId: string, open: boolean) =>
+    request<{ joinCode: string | null; url: string | null }>(
+      `/channels/${channelId}/join-code`,
+      { method: open ? 'POST' : 'DELETE', token }
+    ),
+
   /**
    * Asks one absent participant to come to a channel, in the sender's words.
    *

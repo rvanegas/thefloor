@@ -57,6 +57,8 @@ import {
   canManageGuest,
   removalMotion,
   removalMovesWanted,
+  canMoveToRemove,
+  ownerRemoves,
   canWithdrawGuestInvite,
   hasTheRoom,
   isPresent,
@@ -1597,6 +1599,14 @@ export function ChannelView({
           viewing.id === me
             ? null
             : (() => {
+                // A community's owner removes in one move, which no count of
+                // agreements describes — and in a community of two, where
+                // `removalMovesWanted` answers null, it is still possible.
+                if (ownerRemoves(channel, me)) {
+                  return canMoveToRemove(channel, me, viewing.id, now)
+                    ? { wanted: 1, iHaveMoved: false, byOwner: true }
+                    : null;
+                }
                 const wanted = removalMovesWanted(channel, viewing.id, now);
                 if (wanted === null) return null;
                 return {

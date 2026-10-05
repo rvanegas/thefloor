@@ -5,7 +5,12 @@ import {
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
 } from '../../../core/constants';
-import { canEditChannel, hasTheRoom } from '../../../core/channel';
+import {
+  canEditChannel,
+  capacityOf,
+  hasTheRoom,
+  isOwner,
+} from '../../../core/channel';
 import {
   DEFAULT_NOTIFICATION_LEVEL,
   NOTIFICATION_LEVELS,
@@ -16,6 +21,7 @@ import { type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
+import { shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -107,6 +113,13 @@ export function ChannelSettingsView({
   // Alone, the same tap destroys the channel rather than merely removing you
   // from it. Nothing else on screen would say so.
   const lastMember = channel.participants.length === 1;
+  /**
+   * A community's owner, who has *Delete* where everybody else has *Leave*,
+   * and alone holds its link — see `ChannelState.owner`.
+   */
+  const owner = isOwner(channel, app.me?.id ?? '');
+  /** Whether the tap at the foot of the screen destroys rather than leaves. */
+  const deletes = lastMember || owner;
   /**
    * Whether the name is yours to change — `hasTheRoom`, so either you are in
    * the channel or nobody is. What it protects against is a member who is
@@ -282,7 +295,14 @@ export function ChannelSettingsView({
   const confirmDelete = () =>
     Alert.alert(
       t.deleteAsk(),
-      t.deleteBody(recordingCount === 0 ? null : t.countOf(recordingCount)),
+      // An owner deleting a community with people in it is ending it for
+      // them too, which the last member's sentence would not say.
+      owner && !lastMember
+        ? t.communityDeleteBody(
+            channel.participants.length,
+            recordingCount === 0 ? null : t.countOf(recordingCount)
+          )
+        : t.deleteBody(recordingCount === 0 ? null : t.countOf(recordingCount)),
       [
         { text: t.cancel(), style: 'cancel' },
         {
@@ -503,6 +523,15 @@ export function ChannelSettingsView({
         </>
       ) : null}
 
+      {owner ? (
+        <>
+          <SectionLabel>{t.communityLink()}</SectionLabel>
+          <Card style={styles.stack}>
+            <CommunityLink channelId={channel.id} capacity={capacityOf(channel)} />
+          </Card>
+        </>
+      ) : null}
+
       <SectionLabel>{t.guestLinks()}</SectionLabel>
       <Card style={styles.stack}>
         {/*
@@ -524,24 +553,26 @@ export function ChannelSettingsView({
         action. The exception is being the last member, where the tap really
         does destroy something, and the colour is then telling the truth.
       */}
-      <SectionLabel>{lastMember ? t.deleting() : t.leaving()}</SectionLabel>
+      <SectionLabel>{deletes ? t.deleting() : t.leaving()}</SectionLabel>
       <Card style={styles.stack}>
         <Button
-          label={lastMember ? t.deleteChannel() : t.leaveChannel()}
+          label={deletes ? t.deleteChannel() : t.leaveChannel()}
           sublabel={
             lastMember
               ? recordingCount === 0
                 ? t.lastMemberNoRecordings()
                 : t.lastMemberWithRecordings(t.countOf(recordingCount))
-              : recordingCount === 0
-                ? t.removesFromHome()
-                : t.removesFromHomeWith(t.countOf(recordingCount))
+              : owner
+                ? undefined
+                : recordingCount === 0
+                  ? t.removesFromHome()
+                  : t.removesFromHomeWith(t.countOf(recordingCount))
           }
-          variant={lastMember ? 'danger' : 'default'}
-          onPress={() => (lastMember ? confirmDelete() : confirmLeave())}
+          variant={deletes ? 'danger' : 'default'}
+          onPress={() => (deletes ? confirmDelete() : confirmLeave())}
         />
         <Text style={type.muted}>
-          {t.steppingOutInstead()}
+          {owner && !lastMember ? t.ownerCannotLeave() : t.steppingOutInstead()}
         </Text>
       </Card>
     </Screen>
@@ -1050,6 +1081,77 @@ function GuestLinks({
       <Text style={type.muted}>
         {mayRevoke ? t.revokeNote() : t.revokeStepIn()}
       </Text>
+    </>
+  );
+}
+
+/**
+ * A community's link, for its owner: what it is, sharing it, resetting it —
+ * which revokes the old one — and turning it off.
+ *
+ * **No presence asked**, unlike the guest links above. A guest link opens a
+ * room that is in use, so shutting it is a decision about a conversation; the
+ * community link is a door to the membership, and it is the owner's alone.
+ *
+ * Both destructive controls confirm, since what they break is a link that is
+ * already in other people's hands and cannot be taken back out of them.
+ */
+function CommunityLink({ channelId, capacity }: { channelId: string; capacity: number }) {
+  const t = useText().channelSettings;
+  const app = useApp();
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    app
+      .communityLink(channelId)
+      .then(setUrl)
+      .catch(() => setError(t.couldNotReadLink()));
+  }, [app, channelId]);
+
+  const change = (open: boolean) =>
+    void app
+      .setCommunityLink(channelId, open)
+      .then(setUrl)
+      .catch(() => setError(t.thatDidNotWork()));
+
+  const confirm = (title: string, body: string, label: string, open: boolean) =>
+    Alert.alert(title, body, [
+      { text: t.cancel(), style: 'cancel' },
+      { text: label, style: 'destructive', onPress: () => change(open) },
+    ]);
+
+  if (error) return <Text style={styles.warning}>{error}</Text>;
+  if (url === undefined) return <Text style={type.muted}>{t.reading()}</Text>;
+  if (url === null) {
+    return (
+      <>
+        <Text style={type.muted}>{t.communityLinkOff()}</Text>
+        <Button label={t.turnOnLink()} onPress={() => change(true)} />
+      </>
+    );
+  }
+  return (
+    <>
+      <Text style={type.body} numberOfLines={1}>
+        {url.replace(/^https?:\/\//, '')}
+      </Text>
+      <Text style={type.muted}>{t.communityLinkNote(capacity)}</Text>
+      <Button label={t.shareLink()} onPress={() => void shareLink(url)} />
+      <View style={styles.choices}>
+        <Button
+          style={styles.choice}
+          label={t.resetLink()}
+          onPress={() => confirm(t.resetLinkAsk(), t.resetLinkBody(), t.resetLink(), true)}
+        />
+        <Button
+          style={styles.choice}
+          label={t.turnOffLink()}
+          onPress={() =>
+            confirm(t.turnOffLinkAsk(), t.turnOffLinkBody(), t.turnOffLink(), false)
+          }
+        />
+      </View>
     </>
   );
 }

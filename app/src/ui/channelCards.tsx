@@ -15,9 +15,9 @@
 
 import React, { useState } from 'react';
 import { Pressable, Text, View, type ColorValue } from 'react-native';
-import { MAX_CHANNEL_PARTICIPANTS } from '../../../core/constants';
 import {
   canInvite,
+  capacityOf,
   idleMs,
   isPresent,
   isWaiting,
@@ -817,6 +817,9 @@ export function ParticipantCard({
             text to a screen reader and to anything else reading the tree. */}
         <Text style={styles.cardName} numberOfLines={1}>
           {self ? t.you(participant.displayName) : participant.displayName}
+          {/* A community's owner, on the name rather than the status line:
+              it is who they are here, not what they are doing. */}
+          {channel.owner === participant.id ? t.ownerSuffix() : ''}
         </Text>
         {/*
           **The tone follows the word, not the flag it came from.** `failing`
@@ -1015,7 +1018,10 @@ export function InviteList({
       entry.status === 'accepted' &&
       !channel.participants.includes(entry.account.id)
   );
-  const full = channel.participants.length >= MAX_CHANNEL_PARTICIPANTS;
+  // `capacityOf`, so a community's twenty and a channel's six are told apart
+  // by the same rule the server refuses with.
+  const capacity = capacityOf(channel);
+  const full = channel.participants.length >= capacity;
   /**
    * The accounts already sitting in this room as guests.
    *
@@ -1104,6 +1110,7 @@ export function InviteList({
             {!quiet && open === entry.account.id ? (
               <InviteOffer
                 full={full}
+                capacity={capacity}
                 mayBeMember={canInvite(channel, me, entry.account.id)}
                 onGuest={() => {
                   setOpen(null);
@@ -1123,7 +1130,7 @@ export function InviteList({
         {!mayInvite
           ? t.stepInToAskAnybodyIn()
           : full
-            ? t.memberOrGuestFull(MAX_CHANNEL_PARTICIPANTS)
+            ? t.memberOrGuestFull(capacity)
             : t.memberOrGuest()}
       </Text>
     </>
@@ -1251,12 +1258,15 @@ function InviteMark({
  */
 function InviteOffer({
   full,
+  capacity,
   mayBeMember,
   onGuest,
   onMember,
 }: {
   /** The membership is spent, which is a thing to say rather than to imply. */
   full: boolean;
+  /** What full means here: `capacityOf` the channel. */
+  capacity: number;
   mayBeMember: boolean;
   onGuest: () => void;
   onMember: () => void;
@@ -1274,7 +1284,7 @@ function InviteOffer({
         {mayBeMember
           ? t.memberOrGuest()
           : full
-            ? t.guestOnlyFull(MAX_CHANNEL_PARTICIPANTS)
+            ? t.guestOnlyFull(capacity)
             : t.guestOnly()}
       </Text>
       <View style={styles.buttonRow}>

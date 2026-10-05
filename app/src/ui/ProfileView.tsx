@@ -292,6 +292,12 @@ export function ProfileView({
      * this is the only thing that distinguishes what a press means.
      */
     iHaveMoved: boolean;
+    /**
+     * The viewer owns this community, so their move is the whole removal —
+     * `ownerRemoves` in core. One confirmation and no motion, and the card
+     * says so rather than describing a second member who is never wanted.
+     */
+    byOwner?: boolean;
   } | null;
   /**
    * Moves that this person be removed, or agrees to a motion already open. One
@@ -1979,7 +1985,30 @@ export function ProfileView({
         <>
           <SectionLabel>{t.removingThem()}</SectionLabel>
           <Card style={styles.stack}>
-            {removal.iHaveMoved ? (
+            {removal.byOwner ? (
+              <>
+                <Text style={type.muted}>{t.ownerRemoves()}</Text>
+                <Button
+                  label={t.removeThem()}
+                  onPress={() =>
+                    Alert.alert(
+                      t.ownerRemoveTitle(
+                        profile?.account.displayName ?? fallbackName
+                      ),
+                      t.ownerRemoveBody(),
+                      [
+                        { text: t.cancel(), style: 'cancel' },
+                        {
+                          text: t.removeThem(),
+                          style: 'destructive',
+                          onPress: onMoveToRemove,
+                        },
+                      ]
+                    )
+                  }
+                />
+              </>
+            ) : removal.iHaveMoved ? (
               <>
                 {/*
                   Your own move, and the one control is standing down. There is

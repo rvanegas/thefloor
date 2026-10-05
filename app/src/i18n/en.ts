@@ -355,6 +355,14 @@ export const en = {
     reconnecting: () => 'Reconnecting\u2026',
     notConnected: () => 'Not connected — invites and channels will not update.',
     startAChannel: () => 'Start a channel',
+    /** A *community*: see GLOSSARY.md. Opens into a field for its name. */
+    startACommunity: () => 'Start a community',
+    communityNamePlaceholder: () => 'What it is called',
+    communityNote: () =>
+      'Anyone with its link can join, up to twenty people, without being anybody\u2019s contact. You own it: you can remove people and delete it, and you cannot leave it.',
+    startIt: () => 'Start it',
+    starting: () => 'Starting\u2026',
+    couldNotStartCommunity: () => 'Could not start the community',
     declineInvite: () => 'Decline invite',
     /** What an unnamed channel is called on a seat's card. */
     aChannel: () => 'A channel',
@@ -570,6 +578,8 @@ export const en = {
     you: (name: string) => `${name} (you)`,
     muted: () => ' · muted',
     hasTheFloorSuffix: () => ' · has the floor',
+    /** On the name line rather than the status, being a standing fact. */
+    ownerSuffix: () => ' · owner',
     watching: () => ' · watching',
     /**
      * Said of a member in the room while a film is playing and no device of
@@ -1001,6 +1011,29 @@ export const en = {
     notifications: () => 'Notifications',
     publicPage: () => 'Public page',
     guestLinks: () => 'Guest links',
+    communityLink: () => 'Community link',
+    communityLinkNote: (members: number) =>
+      `Anyone with this link can join, up to ${members} members, and nobody becomes anybody\u2019s contact by it. Resetting it stops the old one working for everybody who has it.`,
+    communityLinkOff: () =>
+      'Off. Nobody can join, and the old link stays dead even if you turn it back on.',
+    shareLink: () => 'Share link',
+    resetLink: () => 'Reset link',
+    resetLinkAsk: () => 'Reset the link?',
+    resetLinkBody: () =>
+      'The current link stops working at once, for everybody who has it. People who already joined stay.',
+    turnOffLink: () => 'Turn off link',
+    turnOffLinkAsk: () => 'Turn off the link?',
+    turnOffLinkBody: () =>
+      'Nobody can join until you turn it back on, which makes a new link. People who already joined stay.',
+    turnOnLink: () => 'Turn on with a new link',
+    couldNotReadLink: () => 'Could not read the link.',
+    /** Under *Delete channel*, for the owner, who has no *Leave*. */
+    ownerCannotLeave: () =>
+      'You own this community, so you cannot leave it. Deleting it ends it for everybody in it.',
+    communityDeleteBody: (members: number, recordings: string | null) =>
+      recordings === null
+        ? `This ends it for all ${members} members, and nobody else is asked. It cannot be undone.`
+        : `This ends it for all ${members} members and deletes ${recordings} made in it, and nobody else is asked. It cannot be undone.`,
     deleting: () => 'Deleting',
     leaving: () => 'Leaving',
     deleteChannel: () => 'Delete channel',
@@ -1206,6 +1239,13 @@ export const en = {
     confirmRemovalTitle: (name: string) => `Remove ${name}?`,
     confirmRemovalBody: () =>
       'They lose this channel and its recordings. Anybody can invite them back afterwards.',
+    /** A community's owner removes in one move; see `ownerRemoves`. */
+    ownerRemoves: () =>
+      'You own this community, so removing them takes only you. They are told it happened, and not who decided.',
+    removeThem: () => 'Remove them',
+    ownerRemoveTitle: (name: string) => `Remove ${name}?`,
+    ownerRemoveBody: () =>
+      'They lose this community and its recordings. They can join again if they still have a link that works.',
   },
   channel: {
     uploading: () => 'Uploading\u2026',

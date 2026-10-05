@@ -191,6 +191,40 @@ export function leaveHandover(handover: Handover): void {
  * answers for both. Which is why nothing was added here — a native hold in this
  * module could not tell React it had arrived; the argument is in that file.
  */
+/**
+ * The key the community page leaves a join code under — `JOIN_KEY` in
+ * `server/src/community-page.ts`, repeated rather than imported for the reason
+ * `INVITE_KEY` is.
+ */
+const JOIN_KEY = 'thefloor.join';
+
+/** A *join link*'s code, as it crosses from the community page to this tab. */
+export interface Join {
+  code: string;
+}
+
+/**
+ * The join code this tab was handed by the community page, taken rather than
+ * read — one-shot, on `takeInvite`'s reasoning. Null everywhere but a browser.
+ */
+export function takeJoin(): Join | null {
+  let raw: string | null = null;
+  try {
+    raw = globalThis.sessionStorage?.getItem(JOIN_KEY) ?? null;
+    globalThis.sessionStorage?.removeItem(JOIN_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<Join>;
+    if (typeof parsed?.code !== 'string' || !parsed.code) return null;
+    return { code: parsed.code };
+  } catch {
+    return null;
+  }
+}
+
 export function takeInvite(): Invite | null {
   let raw: string | null = null;
   try {

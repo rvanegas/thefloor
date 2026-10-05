@@ -65,6 +65,7 @@ import {
   type ColorSchemePreference,
 } from '../ui/appearance';
 import { useInviteLink } from './useInviteLink';
+import { useJoinLink } from './useJoinLink';
 import { inviteRefusalMessage } from './inviteRefusal';
 import { useText } from '../i18n';
 import { useLanguagePreference } from '../i18n/language';
@@ -778,6 +779,12 @@ interface AppValue extends AppState {
     code: string
   ) => Promise<ProfileView>;
   startChannel: (contactIds: string[]) => Promise<string>;
+  /** Starts a *community* owned by you and enters it; resolves to its id. */
+  startCommunity: (name: string) => Promise<string>;
+  /** A community's link, for its owner; null while it is turned off. */
+  communityLink: (channelId: string) => Promise<string | null>;
+  /** Resets a community's link (revoking the old one), or turns it off. */
+  setCommunityLink: (channelId: string, open: boolean) => Promise<string | null>;
   watchChannel: (channelId: string) => void;
   /** Asks the server which of this account's instances could show a film. */
   listScreens: () => void;
@@ -1825,6 +1832,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [state.token, invite]);
+
+  /**
+   * The *join link* this launch arrived on, by either of its two roads — see
+   * `useJoinLink`.
+   */
+  const { join, clearJoin } = useJoinLink();
+
+  /**
+   * Spends a join link once there is a session: membership of the community,
+   * then the channel opened, on exactly the invitation effect's walk above —
+   * the snapshot fetched before the id is published, and `landedChannel`
+   * opening it without stepping in.
+   *
+   * **Not a contact.** This is the second of the community page's two links,
+   * and it asks for membership and nothing else; it never touches the invite
+   * route, so nobody becomes the owner's contact by it.
+   */
+  useEffect(() => {
+    if (!state.token || !join) return;
+    const token = state.token;
+    clearJoin();
+    let cancelled = false;
+    void api
+      .joinCommunity(token, join.code)
+      .then(async ({ channelId }) => {
+        if (cancelled) return;
+        realtime.watchChannel(channelId);
+        const home = await api.home(token).catch(() => null);
+        if (cancelled) return;
+        setState((s) => ({
+          ...s,
+          ...(home ? { home } : {}),
+          landedChannel: channelId,
+        }));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState((s) => ({
+          ...s,
+          lastError: error instanceof Error ? error.message : String(error),
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.token, join]);
 
   /**
    * Registered on every sign-in and every restored launch, not once ever: iOS
@@ -2888,6 +2941,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // itself. See `Realtime.standIn`.
         realtime.standIn(channelId);
         return channelId;
+      },
+
+      startCommunity: async (name) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        const { channelId } = await api.startCommunity(state.token, name);
+        realtime.watchChannel(channelId);
+        // The same standing-in `startChannel` does, for the same reason: a
+        // community is created with its owner present.
+        realtime.standIn(channelId);
+        return channelId;
+      },
+
+      communityLink: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return (await api.communityLink(state.token, channelId)).url;
+      },
+
+      setCommunityLink: async (channelId, open) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return (await api.setCommunityLink(state.token, channelId, open)).url;
       },
 
       /**

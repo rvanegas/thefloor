@@ -267,6 +267,9 @@ export const mockApp = {
   declineContact: jest.fn(),
   withdrawContact: jest.fn(async () => {}),
   startChannel: jest.fn(),
+  startCommunity: jest.fn(),
+  communityLink: jest.fn(async () => null),
+  setCommunityLink: jest.fn(async () => null),
   // Answers for whoever is asked about, as the server does — a mock that
   // returns one person regardless would hide a component reading the wrong id.
   // Typed as the protocol shape rather than inferred from this one answer, so

@@ -86,6 +86,7 @@ export const INSTALL_KEYS: readonly string[] = [
   // A signed-out install holds nobody's seat.
   'thefloor.seat',
   'thefloor.invite',
+  'thefloor.join',
   'thefloor.train',
 ];
 

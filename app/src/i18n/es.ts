@@ -276,6 +276,13 @@ export const es: Strings = {
     notConnected: () =>
       'Sin conexi\u00f3n: las invitaciones y los canales no se actualizar\u00e1n.',
     startAChannel: () => 'Crear un canal',
+    startACommunity: () => 'Crear una comunidad',
+    communityNamePlaceholder: () => 'C\u00f3mo se llama',
+    communityNote: () =>
+      'Cualquiera con su enlace puede unirse, hasta veinte personas, sin ser contacto de nadie. Es tuya: puedes expulsar a gente y borrarla, y no puedes salir de ella.',
+    startIt: () => 'Crearla',
+    starting: () => 'Creando\u2026',
+    couldNotStartCommunity: () => 'No se ha podido crear la comunidad',
     declineInvite: () => 'Rechazar la invitaci\u00f3n',
     aChannel: () => 'Un canal',
     askedYouInAsGuest: (from: string) => `${from} te ha invitado como invitado`,
@@ -439,6 +446,11 @@ export const es: Strings = {
     you: (name: string) => `${name} (t\u00fa)`,
     muted: () => ' · silenciado',
     hasTheFloorSuffix: () => ' · tiene la palabra',
+    /**
+     * *Responsable* rather than *due\u00f1o* or *propietario*, which are
+     * gendered; *el/la responsable* is one word for anybody. See GLOSSARY.md.
+     */
+    ownerSuffix: () => ' · responsable',
     watching: () => ' · viendo',
     // *Sin ver* rather than *no está viendo*, on `invited`'s reasoning a few
     // lines up: naming the absence is what keeps a suffix a suffix in Spanish,
@@ -797,6 +809,28 @@ export const es: Strings = {
     notifications: () => 'Notificaciones',
     publicPage: () => 'P\u00e1gina p\u00fablica',
     guestLinks: () => 'Enlaces de invitado',
+    communityLink: () => 'Enlace de la comunidad',
+    communityLinkNote: (members: number) =>
+      `Cualquiera con este enlace puede unirse, hasta ${members} miembros, y nadie se convierte en contacto de nadie por ello. Si lo restableces, el anterior deja de funcionar para todos los que lo tengan.`,
+    communityLinkOff: () =>
+      'Desactivado. Nadie puede unirse, y el enlace anterior no vuelve a funcionar aunque lo actives de nuevo.',
+    shareLink: () => 'Compartir enlace',
+    resetLink: () => 'Restablecer enlace',
+    resetLinkAsk: () => '\u00bfRestablecer el enlace?',
+    resetLinkBody: () =>
+      'El enlace actual deja de funcionar enseguida, para todos los que lo tengan. Quien ya se haya unido se queda.',
+    turnOffLink: () => 'Desactivar enlace',
+    turnOffLinkAsk: () => '\u00bfDesactivar el enlace?',
+    turnOffLinkBody: () =>
+      'Nadie puede unirse hasta que lo vuelvas a activar, lo que crea un enlace nuevo. Quien ya se haya unido se queda.',
+    turnOnLink: () => 'Activar con un enlace nuevo',
+    couldNotReadLink: () => 'No se ha podido leer el enlace.',
+    ownerCannotLeave: () =>
+      'Eres responsable de esta comunidad, as\u00ed que no puedes salir de ella. Si la borras, se acaba para todos.',
+    communityDeleteBody: (members: number, recordings: string | null) =>
+      recordings === null
+        ? `Se acaba para sus ${members} miembros, y no se le pregunta a nadie m\u00e1s. No se puede deshacer.`
+        : `Se acaba para sus ${members} miembros y se borran ${recordings}, y no se le pregunta a nadie m\u00e1s. No se puede deshacer.`,
     deleting: () => 'Borrar',
     leaving: () => 'Salir',
     deleteChannel: () => 'Borrar el canal',
@@ -982,6 +1016,12 @@ export const es: Strings = {
     confirmRemovalTitle: (name: string) => `\u00bfExpulsar a ${name}?`,
     confirmRemovalBody: () =>
       'Pierde este canal y sus grabaciones. Cualquiera puede volver a invitarle despu\u00e9s.',
+    ownerRemoves: () =>
+      'Eres responsable de esta comunidad, as\u00ed que basta contigo para expulsarle. Se le dir\u00e1 que ha pasado, pero no qui\u00e9n lo decidi\u00f3.',
+    removeThem: () => 'Expulsarle',
+    ownerRemoveTitle: (name: string) => `\u00bfExpulsar a ${name}?`,
+    ownerRemoveBody: () =>
+      'Pierde esta comunidad y sus grabaciones. Puede volver a unirse si todav\u00eda tiene un enlace que funcione.',
   },
   channel: {
     uploading: () => 'Subiendo\u2026',
