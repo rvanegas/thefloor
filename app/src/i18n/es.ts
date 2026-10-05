@@ -1192,7 +1192,7 @@ export const es: Strings = {
     noOtherDeviceLead: () => 'No hay ning\u00fan otro dispositivo con la sesi\u00f3n iniciada.',
     noOtherDeviceRest: () =>
       ' Abre The Floor en un port\u00e1til o una tableta y entra ah\u00ed, y aparecer\u00e1 aqu\u00ed como un sitio donde ver.',
-    copyVideoLink: () => 'Copiar el enlace del v\u00eddeo',
+    openInYouTube: () => 'Abrir en YouTube',
     watchSomethingTogether: () => 'Ver algo juntos',
     watchSomethingTogetherSub: () => 'Un enlace de YouTube de tu portapapeles',
     copyAYouTubeLinkFirst: () => 'Copia primero un enlace de YouTube',

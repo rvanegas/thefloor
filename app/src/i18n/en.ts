@@ -1428,7 +1428,7 @@ export const en = {
     noOtherDeviceLead: () => 'No other device is signed in.',
     noOtherDeviceRest: () =>
       ' Open The Floor on a laptop or tablet and sign in there, and it will show up here as somewhere to watch.',
-    copyVideoLink: () => 'Copy video link',
+    openInYouTube: () => 'Open in YouTube',
     watchSomethingTogether: () => 'Watch something together',
     watchSomethingTogetherSub: () => 'A YouTube link on your clipboard',
     copyAYouTubeLinkFirst: () => 'Copy a YouTube link first',

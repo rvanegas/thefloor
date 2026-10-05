@@ -13,7 +13,7 @@ import { WholeWindowContext } from '../layout';
 import { Picture } from '../../watch/Picture';
 import { WatchPlayer } from '../../watch/WatchPlayer';
 import { resetDiagnostics } from '../../audio/diagnostics';
-import { AppState, Share } from 'react-native';
+import { AppState, Linking, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as clipboard from '../../clipboard';
 import {
@@ -1612,42 +1612,39 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('copies the video link, which is the public one', async () => {
-    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+  it('opens the film in YouTube, at its start rather than the party\'s second', async () => {
+    // A `youtube.com` link is what iOS routes to the YouTube app, and to the
+    // browser where it is not installed. No `t=`: a player outside this app
+    // cannot be kept in step, so it is not started as though it would be.
+    const openURL = jest
+      .spyOn(Linking, 'openURL')
+      .mockImplementation(async () => true);
     showChannel(watching());
     const tree = open();
-    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
+    await act(async () => findButton(tree, 'Open in YouTube')!.props.onPress());
 
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(URL);
-    expect(textOf(tree)).toContain('✓ copied');
+    expect(openURL).toHaveBeenCalledWith(
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    );
+    openURL.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('says so when the clipboard declines, rather than claiming a copy', async () => {
-    // `copyText` returns whether it landed precisely so that a refusal is not
-    // announced as a success — discovered otherwise at the paste, by somebody
-    // who has already moved on.
-    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
-    showChannel(watching());
-    const tree = open();
-    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
-
-    expect(textOf(tree)).toContain('✗ copy failed');
-    act(() => tree.unmount());
-  });
-
-  it('leaves the screen buttons alone when the link is copied', async () => {
-    (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => true);
+  it('leaves the screen buttons alone when the film is opened in YouTube', async () => {
+    const openURL = jest
+      .spyOn(Linking, 'openURL')
+      .mockImplementation(async () => true);
     // The film is on this device, which is what gives the card an offer to
     // leave alone — the default a stepped-in device applies for itself.
     mockApp.screenFor = 'sess_1';
     showChannel(watching());
     const tree = open();
-    await act(async () => findButton(tree, 'Copy video link')!.props.onPress());
+    await act(async () => findButton(tree, 'Open in YouTube')!.props.onPress());
 
-    // The copied state belongs to one button. Where the film is shown is a
-    // different question, and its offer must go on being made.
+    // Opening the film elsewhere is not moving it: where the party is shown is
+    // a different question, and its offer must go on being made.
     expect(sendOffer(tree)).toBeDefined();
+    openURL.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -1809,12 +1806,12 @@ describe('Channel, watching together', () => {
   });
 
   /**
-   * The link is on the clipboard's button and nowhere on the card.
+   * The link is behind *Open in YouTube* and nowhere on the card.
    *
    * It was the card's heading until 2026-09-18, truncated after
    * `https://www.youtube.com/watc…` — machine text claiming to be the
-   * subject of the card while naming nothing. *Copy video link* is the whole
-   * of how a URL leaves this screen now, which is why this asserts the
+   * subject of the card while naming nothing. *Open in YouTube* is the whole
+   * of how the film leaves this screen now, which is why this asserts the
    * button is still there: a link nobody can reach is a different change
    * from a link nobody is shown.
    */
@@ -1823,7 +1820,7 @@ describe('Channel, watching together', () => {
     const tree = open();
     expect(textOf(tree)).not.toContain(URL);
     expect(textOf(tree)).not.toContain('youtube.com');
-    expect(findButton(tree, 'Copy video link')).toBeDefined();
+    expect(findButton(tree, 'Open in YouTube')).toBeDefined();
     act(() => tree.unmount());
   });
 

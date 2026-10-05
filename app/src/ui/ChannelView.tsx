@@ -566,15 +566,6 @@ export function ChannelView({
   const [watchError, setWatchError] = useState<string | null>(null);
   const [watchNote, setWatchNote] = useState<string | null>(null);
   /**
-   * Which of the watch card's two copy buttons last landed, and whether it did.
-   *
-   * One piece of state for two buttons rather than two, because only one of
-   * them can have been pressed most recently and a shape that allowed both to
-   * read "copied" at once would be describing something that cannot happen.
-   * `ok` is carried rather than assumed — `copyText` returns whether it landed
-   * precisely so a refusal is not announced as a success.
-   */
-  /**
    * Whether somebody is part-way through choosing where to watch.
    *
    * Local and transient: the list of devices is asked for at the moment the
@@ -582,10 +573,6 @@ export function ChannelView({
    * attention is one they will ask for again.
    */
   const [choosing, setChoosing] = useState(false);
-  const [watchCopied, setWatchCopied] = useState<{
-    which: 'video' | 'screen';
-    ok: boolean;
-  } | null>(null);
   const [viewing, setViewing] = useState<{
     id: string;
     displayName: string;
@@ -598,15 +585,6 @@ export function ChannelView({
     const timer = setTimeout(() => setCopied('idle'), 2_500);
     return () => clearTimeout(timer);
   }, [copied]);
-
-  // The same 2.5s the clipboard card uses, for the same reason: long enough to
-  // read, short enough that a second copy is not mistaken for the first one's
-  // acknowledgement.
-  useEffect(() => {
-    if (!watchCopied) return;
-    const timer = setTimeout(() => setWatchCopied(null), 2_500);
-    return () => clearTimeout(timer);
-  }, [watchCopied]);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -2231,16 +2209,22 @@ export function ChannelView({
    * the ordinary order of doing this.
    */
   /**
-   * The video's link, as it was pasted.
+   * Hands the film to YouTube itself: the app where it is installed, the
+   * browser where it is not.
    *
-   * Straight onto the clipboard rather than through the share sheet, which is
-   * the difference from the button below it: sharing is for sending to
-   * somebody, copying is for putting somewhere — a note, a browser, the other
-   * half of a conversation happening elsewhere.
+   * Built from `videoId` rather than the URL as pasted, so that what reaches
+   * the OS is always a `youtube.com` link — the one iOS routes to the YouTube
+   * app as a universal link, and falls back to Safari for. No `t=`, which is
+   * the difference from "Open on this phone", retired 2026-08-23: that one
+   * started at the party's second and so implied it would stay there. This
+   * opens the film, not the party.
    */
-  const copyVideoLink = async () => {
+  const openInYouTube = () => {
     if (!party) return;
-    setWatchCopied({ which: 'video', ok: await copyText(party.url) });
+    void openUrl(
+      `https://www.youtube.com/watch?v=${encodeURIComponent(party.videoId)}`,
+      linkWords
+    );
   };
 
   /**
@@ -2253,14 +2237,6 @@ export function ChannelView({
    */
   const screenLabel = (screen: ScreenDevice) =>
     screen.name ?? (screen.client === 'web' ? t.aBrowser() : t.anotherPhone());
-
-  /** What the copy button says, once it has been pressed. */
-  const copyLabel = (which: 'video', idle: string) =>
-    watchCopied?.which !== which
-      ? idle
-      : watchCopied.ok
-        ? t.copied()
-        : t.copyFailed();
 
   // `?? null` for the same reason `recordings` has its `?? []`: a server that
   // predates this field sends snapshots without it, which is what this build
@@ -4255,7 +4231,7 @@ export function ChannelView({
                   holds the name of what it loaded, so there was a third way
                   and nothing is asked of anybody. `WatchParty.url` is still
                   never drawn: it is kept so the interface can hand back what
-                  was pasted, which is *Copy video link*, below.
+                  was pasted. *Open in YouTube*, below, builds its own from `videoId`.
 
                   What says a film is on is the transport, the *Watch on*
                   switch and the picture itself. A follower device has all
@@ -4573,10 +4549,7 @@ export function ChannelView({
                   </Text>
                 ) : null}
 
-                <Button
-                  label={copyLabel('video', t.copyVideoLink())}
-                  onPress={() => void copyVideoLink()}
-                />
+                <Button label={t.openInYouTube()} onPress={openInYouTube} />
 
                 {/*
                   "Open on this phone" was here and is gone as of 2026-08-23. It
@@ -4586,10 +4559,12 @@ export function ChannelView({
                   from the moment it started. It was the one control here that
                   did not follow the channel.
 
-                  What replaced it is "Copy video link" above: the same link, on
-                  the clipboard, for whoever actually wants to open it somewhere
-                  else. That is the honest version of the same act — it does not
-                  imply the party goes with it.
+                  What replaced it was "Copy video link": the same link, on the
+                  clipboard, for whoever actually wants to open it somewhere
+                  else. That in turn became "Open in YouTube" on 2026-10-04,
+                  asked for directly — the copy was a step everybody followed
+                  with the same paste. It opens the film without its second, so
+                  it still does not imply the party goes with it.
                 */}
               </>
             ) : (
