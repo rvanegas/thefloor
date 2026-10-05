@@ -20,7 +20,8 @@ import { MemoryPusher } from '../src/push';
  * - Joining makes a member and nothing else: no contact, no invitation on
  *   Home, the owner told.
  * - The owner's powers are refused to everybody else out loud, and the owner
- *   cannot leave.
+ *   cannot leave. Every control but a member's own microphone, the floor, the
+ *   clipboard and pinging is the owner's alone, and refused by name.
  * - Resetting the link revokes the old one, as renaming does; turning it off
  *   stops it.
  * - The owner survives a restart, which is the one place a field of the state
@@ -387,6 +388,47 @@ describe('the owner', () => {
     app.channels.setJoinCode(channelId, erta.account.id, false);
     app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Cafe' } as never);
     expect(app.channels.joinCodeOf(channelId)).toBeNull();
+  });
+
+  it('alone holds the controls, and a member is told so', async () => {
+    const { erta, zed, channelId } = await three();
+    app.channels.dispatch(channelId, zed.account.id, { type: 'ENTER' } as never);
+    for (const action of [
+      { type: 'SET_NAME', name: 'Zed’s now' },
+      { type: 'SET_DESCRIPTION', description: 'Zed’s' },
+      { type: 'SET_AUTO_RECORD', autoRecord: true },
+      { type: 'START_RECORDING' },
+      { type: 'START_WATCH', url: 'https://youtu.be/dQw4w9WgXcQ' },
+      { type: 'SET_SELF_MUTE', muted: true, target: erta.account.id },
+    ]) {
+      const refused = app.channels.dispatch(channelId, zed.account.id, action as never);
+      expect(refused).toEqual({
+        ok: false,
+        error: 'Only the community’s owner can do that.',
+        code: 'forbidden',
+      });
+    }
+    expect(app.channels.mintGuestLink(channelId, zed.account.id).ok).toBe(false);
+    expect(app.channels.get(channelId)?.name).toBe('Cafe Products');
+    expect(
+      app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Cafe' } as never)
+        .ok
+    ).toBe(true);
+  });
+
+  it('leaves a member their own microphone, the floor and the clipboard', async () => {
+    const { zed, channelId } = await three();
+    app.channels.dispatch(channelId, zed.account.id, { type: 'ENTER' } as never);
+    for (const action of [
+      { type: 'SET_SELF_MUTE', muted: true },
+      { type: 'SET_SELF_MUTE', muted: false },
+      { type: 'CLAIM_FLOOR' },
+      { type: 'PASTE_CLIP', text: 'hello' },
+    ]) {
+      expect(app.channels.dispatch(channelId, zed.account.id, action as never).ok).toBe(true);
+    }
+    expect(app.channels.get(channelId)?.floor.holder).toBe(zed.account.id);
+    expect(app.channels.get(channelId)?.clip?.authorId).toBe(zed.account.id);
   });
 
   it('takes the community with their account', async () => {

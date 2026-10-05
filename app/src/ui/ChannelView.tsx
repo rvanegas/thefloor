@@ -61,6 +61,7 @@ import {
   ownerRemoves,
   canWithdrawGuestInvite,
   hasTheRoom,
+  holdsTheControls,
   isPresent,
   canPing,
 } from '../../../core/channel';
@@ -1585,6 +1586,9 @@ export function ChannelView({
                     ? { wanted: 1, iHaveMoved: false, byOwner: true }
                     : null;
                 }
+                // And nobody else in a community moves at all: removal is one
+                // of the controls `holdsTheControls` keeps for the owner.
+                if (!holdsTheControls(channel, me)) return null;
                 const wanted = removalMovesWanted(channel, viewing.id, now);
                 if (wanted === null) return null;
                 return {
@@ -1940,6 +1944,13 @@ export function ChannelView({
    * sentence explaining it can say "step in", and they all do.
    */
   const iHaveTheRoom = hasTheRoom(channel, me);
+  /**
+   * Whether this is a *community* whose controls are somebody else's — see
+   * `holdsTheControls`. The guards already grey what it covers; this is read
+   * for the sentence that says why, which would otherwise say *step in* to a
+   * member who is standing in the room.
+   */
+  const ownersAlone = !holdsTheControls(channel, me);
   const iHoldFloor = channel.floor.holder === me;
   const theyHoldFloor = channel.floor.holder !== null && !iHoldFloor;
   const holderName = nameOf(channel.floor.holder);
@@ -1983,7 +1994,7 @@ export function ChannelView({
       <TranscriptView
         recording={transcriptRow}
         onBack={() => setTranscriptFor(null)}
-        manageable={iHaveTheRoom}
+        manageable={iHaveTheRoom && !ownersAlone}
         // Offered only while this recording is what is loaded and the floor is
         // yours to drive: a line's times are positions in *this* recording, so
         // they mean nothing against another track, and a seek moves playback
@@ -3937,6 +3948,8 @@ export function ChannelView({
                 // that lifts this is on another tab, and a reader who is not told
                 // which one goes looking for it here. See `watchIsPlaying`.
                 t.filmIsPlaying()
+              : ownersAlone
+                ? t.ownerDecidesWhatPlays()
               : theyHoldFloor
                 ? // The point of the mechanic, stated where it bites: the track
                   // does not stop, but it stops being yours to change.
@@ -4153,11 +4166,13 @@ export function ChannelView({
                 playable
                 playDisabled={!mayControlPlayback}
                 playDisabledReason={
-                  channel.floor.holder
-                    ? t.floorDecidesWhatPlays()
-                    : t.stepInToPlayShort()
+                  ownersAlone
+                    ? t.ownerDecidesWhatPlaysShort()
+                    : channel.floor.holder
+                      ? t.floorDecidesWhatPlays()
+                      : t.stepInToPlayShort()
                 }
-                manageable={iHaveTheRoom}
+                manageable={iHaveTheRoom && !ownersAlone}
                 onOpenTranscript={() => setTranscriptFor(r.id)}
               />
             ))}
@@ -4701,6 +4716,8 @@ export function ChannelView({
                   // every control here, and the way out is a control on
                   // another tab. See `trackIsPlaying`.
                   t.somethingOnListen()
+                : ownersAlone
+                  ? t.ownerRunsTheFilm()
                 : !mayControlWatch
                   ? // Next, because it outranks the rest: somebody who is not in
                     // the room has no use for being told whose floor it is or that
@@ -4768,7 +4785,8 @@ export function ChannelView({
           <InviteList
             channel={channel}
             me={me}
-            mayInvite={iHaveTheRoom}
+            mayInvite={iHaveTheRoom && !ownersAlone}
+            ownersAlone={ownersAlone}
             states={askedIn}
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}
             onGuest={async (contactId) => {
@@ -4834,7 +4852,9 @@ export function ChannelView({
             }}
           />
           {canInviteGuest(channel, me) ? null : (
-            <Text style={type.muted}>{t.stepInToMakeALink()}</Text>
+            <Text style={type.muted}>
+              {ownersAlone ? t.ownerInvites() : t.stepInToMakeALink()}
+            </Text>
           )}
           {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
           {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}

@@ -85,7 +85,7 @@ caused; the list carries the meaning.
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
-- **Owner** — Whoever made a channel into a *community*: may remove a member in one move, delete it at any size, and alone holds its link; cannot leave it or be moved against. No other channel has one
+- **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, use the clipboard and ping. Cannot leave or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Podcast** — What a *public channel* is called on screen, since 2026-10-04: *This channel is a podcast* on *Channel Settings*, where it was *Public page*. Never a *community* too. `public` in the code
@@ -640,10 +640,16 @@ may join.** Contents private, door open — the other kind of public, beside the
 It holds up to twenty members where a channel holds six (`capacityOf`), and
 nobody in it need be anybody's contact.
 
-**The owner is the one bend in the no-admin rule.** They may remove a member in
-one move rather than by a *motion to remove*, delete the community at any size
-rather than only as its last member, and alone reset or turn off its link.
-Every other member has every other privilege. The owner cannot leave — deleting
+**The owner is the one bend in the no-admin rule, and since 2026-10-05 it is a
+wide one: the owner alone holds the controls** (`holdsTheControls`). Who gets
+in — inviting, guest links, answering a knock, managing guests — and who goes,
+removing a member in one move with no *motion to remove*; what plays, the film,
+and recording, including *Record automatically* and changing a recording;
+muting anybody else; the name and the description; the link; and deleting the
+community at any size. **Every other member mutes themselves, claims and
+releases the floor, uses the clipboard and pings a contact**, and nothing else
+of the channel's. A recording the owner set to start by itself still starts
+whoever walks in. The owner cannot leave — deleting
 is their way out — and nobody may move against them. **An owner exists only by
 *Make channel into a community***, pressed by a channel's one member while
 nobody else belongs to it, so nobody is ever subject to an owner they did not
@@ -668,7 +674,8 @@ never expires and is not spent by use.
 
 See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md
 and planning/decision/2026-10-04-a-community-is-made-from-a-channel-of-one.md,
-and planning/decision/2026-10-05-a-community-has-one-name-and-renaming-revokes-its-link.md.
+and planning/decision/2026-10-05-a-community-has-one-name-and-renaming-revokes-its-link.md,
+and planning/decision/2026-10-05-a-community-s-controls-are-its-owner-s.md.
 
 ## Contact
 

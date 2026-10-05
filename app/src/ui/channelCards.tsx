@@ -999,6 +999,7 @@ export function InviteList({
   channel,
   me,
   mayInvite,
+  ownersAlone = false,
   states,
   onInvite,
   onGuest,
@@ -1006,6 +1007,8 @@ export function InviteList({
   channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
   me: string;
   mayInvite: boolean;
+  /** A community whose controls are somebody else's: see `holdsTheControls`. */
+  ownersAlone?: boolean;
   /** Per contact: `'asking'`, `'asked'`, or the sentence the server refused with. */
   states: Record<string, 'asking' | 'asked' | string>;
   onInvite: (contactId: string) => void;
@@ -1127,7 +1130,9 @@ export function InviteList({
         );
       })}
       <Text style={type.muted}>
-        {!mayInvite
+        {ownersAlone
+          ? t.ownerAsksPeopleIn()
+          : !mayInvite
           ? t.stepInToAskAnybodyIn()
           : full
             ? t.memberOrGuestFull(capacity)

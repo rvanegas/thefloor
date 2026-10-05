@@ -179,6 +179,60 @@ export function isOwner(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * Whether `userId` holds the channel's controls: invitations, guests,
+ * removal, media, muting somebody else, the name and the description.
+ * **Every member of a flat channel, and only the owner of a *community***,
+ * since 2026-10-05. A member of a community mutes themselves and claims the
+ * floor, and keeps the clipboard and pinging a contact. Everything else is
+ * the owner's.
+ *
+ * One clause, ANDed into each guard it governs rather than standing in front
+ * of them, so a control that greys out and an action the reducer refuses
+ * cannot disagree. `COMMUNITY_OWNER_ACTIONS` lists the actions those guards
+ * cover, for the server to refuse out loud.
+ */
+export function holdsTheControls(state: ChannelState, userId: UserId): boolean {
+  return state.owner === undefined || state.owner === userId;
+}
+
+/**
+ * The actions only a community's owner may take — those whose guards ask
+ * `holdsTheControls`. The server refuses them by name before the reducer's
+ * silent no, so a member pressing a control an older build still offers is
+ * told why. `core/__tests__/community.test.ts` holds this list against the
+ * guards.
+ */
+export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set<
+  ChannelAction['type']
+>([
+  'INVITE',
+  'MOVE_TO_REMOVE',
+  'SET_NAME',
+  'SET_DESCRIPTION',
+  'SET_AUTO_RECORD',
+  'START_RECORDING',
+  'PAUSE_RECORDING',
+  'RESUME_RECORDING',
+  'STOP_RECORDING',
+  'CLEAR_TRACK',
+  'PLAY',
+  'PAUSE',
+  'SEEK',
+  'SET_VOLUME',
+  'START_WATCH',
+  'STOP_WATCH',
+  'WATCH_PLAY',
+  'WATCH_PAUSE',
+  'WATCH_SEEK',
+  'SET_WATCH_MUTE',
+  'ANSWER_KNOCK',
+  'SET_GUEST_SPEECH',
+  'EJECT_GUEST',
+  'ASK_GUEST_CONTACT',
+  'ASK_GUEST_JOIN',
+]);
+
+/**
  * Whether `userId` may make this channel into a *community* that they own:
  * they are its only member, and it is not one already.
  *
@@ -613,6 +667,7 @@ export function canEditChannel(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
     hasTheRoom(state, userId)
   );
 }
@@ -798,6 +853,7 @@ export function canMuteOther(
   // left to infer it from a name.
   if (!muted) return false;
   if (isGuest(state, actorId)) return false;
+  if (!holdsTheControls(state, actorId)) return false;
   if (!isPresent(state, actorId) || !inRoom(state, targetId)) return false;
   // Everything they may not do to their own microphone, nobody may do to it.
   if (!canSetSelfMute(state, targetId, muted)) return false;
@@ -890,6 +946,16 @@ export function canStartRecording(
   state: ChannelState,
   userId: UserId
 ): boolean {
+  return holdsTheControls(state, userId) && recordingStartable(state, userId);
+}
+
+/**
+ * `canStartRecording` without asking whose controls they are. What
+ * `autoRecordStarter` asks: the owner of a community turns *Record
+ * automatically* on, and the run starts by itself whoever of its members
+ * walks in, the setting being the owner's choice already made.
+ */
+function recordingStartable(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
@@ -940,7 +1006,7 @@ export function canStartRecording(
  */
 export function autoRecordStarter(state: ChannelState): UserId | null {
   if (!state.autoRecord) return null;
-  return state.present.find((id) => canStartRecording(state, id)) ?? null;
+  return state.present.find((id) => recordingStartable(state, id)) ?? null;
 }
 
 /**
@@ -1039,6 +1105,7 @@ export function canMoveToRemove(
     isParticipant(state, userId) &&
     isParticipant(state, targetId) &&
     userId !== targetId &&
+    holdsTheControls(state, userId) &&
     // Nobody moves against a community's owner: see `ChannelState.owner`.
     !isOwner(state, targetId) &&
     // The owner's move is the whole removal, so a community of two is not too
@@ -1138,6 +1205,7 @@ export function canInvite(
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
     hasTheRoom(state, userId) &&
     !isParticipant(state, inviteeId) &&
     state.participants.length < capacityOf(state)
@@ -1193,6 +1261,7 @@ export function canPauseRecording(
     state.status === 'active' &&
     state.recording.status === 'recording' &&
     isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
     canPauseOrStopRecording(state.floor, userId)
   );
 }
@@ -1225,7 +1294,8 @@ export function canResumeRecording(
     state.status === 'active' &&
     state.recording.status === 'paused' &&
     state.watch.party === null &&
-    isPresent(state, userId)
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId)
   );
 }
 
@@ -1235,6 +1305,7 @@ export function canStopRecording(state: ChannelState, userId: UserId): boolean {
     state.status === 'active' &&
     isRecordingActive(state.recording) &&
     isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
     canPauseOrStopRecording(state.floor, userId)
   );
 }
@@ -1427,7 +1498,11 @@ function floorPermits(state: ChannelState, userId: UserId): boolean {
  * `hasTheRoom` is not written in terms of `roomOccupants`.
  */
 function mayPutSomethingOn(state: ChannelState, userId: UserId): boolean {
-  return holdsSharedControl(state, userId) && isPresent(state, userId);
+  return (
+    holdsSharedControl(state, userId) &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId)
+  );
 }
 
 /**
@@ -1509,7 +1584,11 @@ export function canControlWatch(
   // escaped by pausing it rather than by being refused outright — the mirror
   // of what `canControlPlayback` asks of the film. See `trackIsPlaying`.
   if (trackIsPlaying(state)) return false;
-  return isParticipant(state, userId) && isPresent(state, userId);
+  return (
+    isParticipant(state, userId) &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId)
+  );
 }
 
 /**
@@ -1782,6 +1861,7 @@ export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
     hasTheRoom(state, userId)
   );
 }
@@ -1810,6 +1890,7 @@ export function canAnswerKnock(
   return (
     state.status === 'active' &&
     isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
     guestsPromised(state, now) < MAX_CHANNEL_GUESTS
   );
 }
@@ -1876,6 +1957,7 @@ export function canWithdrawGuestInvite(
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
     hasTheRoom(state, userId) &&
     !!invited &&
     invited.expiresAt > now
@@ -1895,6 +1977,7 @@ export function canManageGuest(
     // It is also what `hasTheRoom` cannot say on its own, a guest being in the
     // room by definition.
     isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
     hasTheRoom(state, userId) &&
     isGuest(state, guestId)
   );

@@ -613,6 +613,7 @@ export const en = {
       }${
         watching === null ? '' : watching ? ' Watching.' : ' Not watching.'
       }${speaking ? ' Speaking.' : ''}${openable ? ' View profile.' : ''}`,
+    ownerAsksPeopleIn: () => 'Only the community\u2019s owner can ask people in.',
     stepInToAskAnybodyIn: () =>
       'Step in to ask anybody in. An invitation lands in whatever is being said, so it belongs to whoever is saying it.',
     memberOrGuestFull: (cap: number) =>
@@ -977,7 +978,9 @@ export const en = {
     renamePublic: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel is a podcast or a community — each is found by its name, and an unnamed channel is listed by who is in it.',
     renameCommunity: () =>
-      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied, and changing it resets the community link: the old one stops working for everybody who has it.',
+      'Everyone in the channel sees this name, and only you can change it. It cannot be emptied, and changing it resets the community link: the old one stops working for everybody who has it.',
+    /** Under a control a community's member sees greyed: see `holdsTheControls`. */
+    ownerOnly: () => 'Only the community\u2019s owner can change this.',
     renamePrivate: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
     /**
@@ -992,7 +995,7 @@ export const en = {
       'Shown under the name on this podcast\u2019s page, and in the feed a podcast app reads. Anyone in the room can change it.',
     /** The same field on a *community*, whose page is the one its link opens. */
     communityDescriptionNote: () =>
-      'Shown under the name on the page its link opens, to anybody who has the link. Anyone in the room can change it.',
+      'Shown under the name on the page its link opens, to anybody who has the link. Only you can change it.',
     descriptionStepIn: () =>
       'Step in to change this. It is what the channel tells people who have never been in it.',
     recording: () => 'Recording',
@@ -1014,14 +1017,14 @@ export const en = {
     isACommunity: () => 'This channel is a community',
     /** What a community is, said to its owner. */
     communityOwnerWhat: (members: number) =>
-      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. You own it: only you hold the link, you can remove a member on your own, and you can delete it for everybody. You cannot leave it.`,
+      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. You own it: only you invite people, decide what plays and what is recorded, name and describe it, hold the link, remove a member, and delete it for everybody. You cannot leave it.`,
     /** What a community is, said to anybody in it but its owner. */
     communityMemberWhat: (members: number) =>
-      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. Its owner holds the link, can remove a member without anybody else agreeing, and can delete it for everybody.`,
+      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. Its owner alone invites people, decides what plays and what is recorded, names and describes it, holds the link, removes members and can delete it for everybody. Everybody else can claim the floor, mute themselves, use the clipboard and ping a contact.`,
     /** On a channel of one: see `canMakeCommunity`. */
     makeCommunity: () => 'Make channel into a community',
     makeCommunityNote: (members: number) =>
-      `A community is a channel anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact; what is said and recorded in it stays with its members. You are alone here, so you can make this one: you would own it, remove people on your own, and delete it for everybody, and you could not leave it. It cannot be made an ordinary channel again.`,
+      `A community is a channel anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact; what is said and recorded in it stays with its members. You are alone here, so you can make this one: you would own it, alone invite people, decide what plays and what is recorded, name it, remove people and delete it for everybody, and you could not leave it. It cannot be made an ordinary channel again.`,
     /** Under the field *Make channel into a community* offers an unnamed channel. */
     communityNeedsName: () =>
       'A community needs a name, since its page and its link are read from it. This becomes the channel\u2019s name.',
@@ -1482,6 +1485,11 @@ export const en = {
     copyAGuestLink: () => 'Copy a guest link',
     linkCopied: () => 'Link copied. Paste it wherever you like.',
     linkWouldNotCopy: () => 'The link would not copy. Try again.',
+    /** In place of a *step in* sentence, for a community's member: see `holdsTheControls`. */
+    ownerDecidesWhatPlays: () => 'The community\u2019s owner decides what plays.',
+    ownerDecidesWhatPlaysShort: () => 'the owner decides what plays',
+    ownerRunsTheFilm: () => 'The community\u2019s owner runs the film.',
+    ownerInvites: () => 'Only the community\u2019s owner can let people in.',
     stepInToMakeALink: () =>
       'Step in to make a link. Who can get into a conversation is for the people having it.',
     headerKindChannel: () => 'Channel',

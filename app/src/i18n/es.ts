@@ -468,6 +468,7 @@ export const es: Strings = {
       }${
         watching === null ? '' : watching ? ' Viendo.' : ' Sin ver.'
       }${speaking ? ' Hablando.' : ''}${openable ? ' Ver perfil.' : ''}`,
+    ownerAsksPeopleIn: () => 'Solo quien es responsable de la comunidad puede invitar a gente.',
     stepInToAskAnybodyIn: () =>
       'Entra para invitar a alguien. Una invitaci\u00f3n cae en medio de lo que se est\u00e9 diciendo, as\u00ed que es de quien lo est\u00e9 diciendo.',
     memberOrGuestFull: (cap: number) =>
@@ -782,7 +783,8 @@ export const es: Strings = {
     renamePublic: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
     renameCommunity: () =>
-      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo, y cambiarlo restablece el enlace de la comunidad: el anterior deja de funcionar para todos los que lo tengan.',
+      'Todos los del canal ven este nombre, y solo t\u00fa puedes cambiarlo. No se puede dejar vac\u00edo, y cambiarlo restablece el enlace de la comunidad: el anterior deja de funcionar para todos los que lo tengan.',
+    ownerOnly: () => 'Esto solo lo cambia quien es responsable de la comunidad.',
     renamePrivate: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
     description: () => 'Descripci\u00f3n',
@@ -790,7 +792,7 @@ export const es: Strings = {
     descriptionNote: () =>
       'Se muestra bajo el nombre en la p\u00e1gina de este podcast, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 en la sala puede cambiarla.',
     communityDescriptionNote: () =>
-      'Se muestra bajo el nombre en la p\u00e1gina que abre su enlace, a cualquiera que lo tenga. Cualquiera que est\u00e9 en la sala puede cambiarla.',
+      'Se muestra bajo el nombre en la p\u00e1gina que abre su enlace, a cualquiera que lo tenga. Solo t\u00fa puedes cambiarla.',
     descriptionStepIn: () =>
       'Entra para cambiar esto. Es lo que el canal le cuenta a quien nunca ha estado dentro.',
     recording: () => 'Grabaci\u00f3n',
@@ -810,12 +812,12 @@ export const es: Strings = {
     communityLink: () => 'Enlace de la comunidad',
     isACommunity: () => 'Este canal es una comunidad',
     communityOwnerWhat: (members: number) =>
-      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres responsable de ella: solo t\u00fa tienes el enlace, puedes expulsar a un miembro por tu cuenta y puedes borrarla para todos. No puedes salir de ella.`,
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres responsable de ella: solo t\u00fa invitas a gente, decides qu\u00e9 suena y qu\u00e9 se graba, le pones nombre y descripci\u00f3n, tienes el enlace, expulsas a un miembro y puedes borrarla para todos. No puedes salir de ella.`,
     communityMemberWhat: (members: number) =>
-      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Quien es responsable tiene el enlace, puede expulsar a un miembro sin que nadie m\u00e1s est\u00e9 de acuerdo, y puede borrarla para todos.`,
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Solo quien es responsable invita a gente, decide qu\u00e9 suena y qu\u00e9 se graba, le pone nombre y descripci\u00f3n, tiene el enlace, expulsa a miembros y puede borrarla para todos. Los dem\u00e1s pueden pedir la palabra, silenciarse, usar el portapapeles y avisar a un contacto.`,
     makeCommunity: () => 'Convertir el canal en una comunidad',
     makeCommunityNote: (members: number) =>
-      `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable, podr\u00edas expulsar a gente por tu cuenta y borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
+      `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable: solo t\u00fa invitar\u00edas a gente, decidir\u00edas qu\u00e9 suena y qu\u00e9 se graba, le pondr\u00edas nombre, expulsar\u00edas a gente y podr\u00edas borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
     communityNeedsName: () =>
       'Una comunidad necesita un nombre, porque su p\u00e1gina y su enlace se leen de \u00e9l. Este pasa a ser el nombre del canal.',
     makeIt: () => 'Convertirlo',
@@ -1240,6 +1242,10 @@ export const es: Strings = {
     copyAGuestLink: () => 'Copiar un enlace de invitado',
     linkCopied: () => 'Enlace copiado. P\u00e9galo donde quieras.',
     linkWouldNotCopy: () => 'El enlace no se ha podido copiar. Int\u00e9ntalo otra vez.',
+    ownerDecidesWhatPlays: () => 'Quien es responsable de la comunidad decide qu\u00e9 suena.',
+    ownerDecidesWhatPlaysShort: () => 'decide quien es responsable',
+    ownerRunsTheFilm: () => 'Quien es responsable de la comunidad lleva la pel\u00edcula.',
+    ownerInvites: () => 'Solo quien es responsable de la comunidad puede dejar entrar a gente.',
     stepInToMakeALink: () =>
       'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
     headerKindChannel: () => 'Canal',

@@ -33,6 +33,8 @@ import {
   capacityOf,
   isOwner,
   hasTheRoom,
+  holdsTheControls,
+  COMMUNITY_OWNER_ACTIONS,
   GUEST_ACTIONS,
   createChannel,
   isNamed,
@@ -540,6 +542,17 @@ export interface Refused {
   error: string;
   code: RefusalCode;
 }
+
+/**
+ * The refusal of a community's controls to a member who is not its owner —
+ * see `holdsTheControls`. One sentence for every control, since the rule is
+ * one rule and the person has just pressed the thing it names.
+ */
+const OWNERS_ALONE: Refused = {
+  ok: false,
+  error: 'Only the community’s owner can do that.',
+  code: 'forbidden',
+};
 
 /**
  * Told that channels changed, and who left them on the way.
@@ -2069,6 +2082,18 @@ export class ChannelRegistry {
     if (!CLIENT_ACTIONS.has(action.type)) {
       return { ok: false, error: 'Not an action.', code: 'invalid' };
     }
+    // A community's controls are its owner's, and refused here by name rather
+    // than left to the reducer's silence, since an older build still offers a
+    // member some of them. Muting somebody else is `SET_SELF_MUTE` with a
+    // target, so it is asked by its target rather than its type.
+    if (!holdsTheControls(channel, userId)) {
+      const target = (action as { target?: unknown }).target;
+      const mutesSomebodyElse =
+        action.type === 'SET_SELF_MUTE' && target !== undefined && target !== userId;
+      if (COMMUNITY_OWNER_ACTIONS.has(action.type) || mutesSomebodyElse) {
+        return OWNERS_ALONE;
+      }
+    }
 
     // The wire form of START_WATCH carries the URL as typed; the reducer's
     // carries a parsed id beside it. The parse is made here for the same
@@ -2486,6 +2511,7 @@ export class ChannelRegistry {
     // two differ on the empty channel, which is the case this route used to
     // allow — see `mayPutSomethingOn` in core, and the watch party's
     // `canStartWatch`, which is the same rule for the same reason.
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
     if (!canLoadTrack(channel, userId)) {
       return channel.floor.holder
         ? {
@@ -3552,6 +3578,15 @@ export class ChannelRegistry {
   }
 
   /**
+   * `holdsTheControls`, asked the same way: changing a recording is a
+   * community owner's alone, a recording being media.
+   */
+  private holdsTheControlsIn(channelId: string, userId: string): boolean {
+    const channel = this.channels.get(channelId);
+    return !channel || holdsTheControls(channel, userId);
+  }
+
+  /**
    * Whether this person may make a change to one recording that everybody in
    * its channel will see.
    *
@@ -3578,6 +3613,7 @@ export class ChannelRegistry {
     if (!row) {
       return { ok: false, error: 'No such recording.', code: 'not_found' };
     }
+    if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
     if (!this.hasTheRoomIn(row.channel_id, userId)) {
       return {
         ok: false,
@@ -3629,6 +3665,7 @@ export class ChannelRegistry {
     // Deleting takes the recording out of everybody's list, including the
     // lists of the people who are in the channel talking right now. See
     // `hasTheRoomIn`.
+    if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
     if (!this.hasTheRoomIn(row.channel_id, userId)) {
       return {
         ok: false,
@@ -3680,6 +3717,7 @@ export class ChannelRegistry {
     // The name is shared — this doc comment says so two paragraphs up — so a
     // rename changes what everybody in the channel is looking at, and the same
     // rule governs it as governs deleting.
+    if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
     if (!this.hasTheRoomIn(row.channel_id, userId)) {
       return {
         ok: false,
@@ -6181,6 +6219,7 @@ export class ChannelRegistry {
     // a member whose channel it plainly is. `canInviteGuest` is both halves;
     // what is wanted here is which half refused, and the two are a 403 and a
     // 409 because only one of them is worth waiting out.
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
     if (!hasTheRoom(channel, userId)) {
       return {
         ok: false,
@@ -6223,6 +6262,7 @@ export class ChannelRegistry {
     if (!isParticipant(channel, userId) || channel.status !== 'active') {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
     if (!hasTheRoom(channel, userId)) {
       return {
         ok: false,
@@ -6322,6 +6362,7 @@ export class ChannelRegistry {
     ) {
       return { ok: false, error: 'No such invitation.', code: 'not_found' };
     }
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
     if (!hasTheRoom(channel, userId)) {
       return {
         ok: false,
@@ -6360,6 +6401,7 @@ export class ChannelRegistry {
     // one, and `mintGuestLink` asks the same question through `canInviteGuest`.
     // Asked after the link is found so that a revoke of something that was
     // never there still reads as not-found rather than as a busy channel.
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
     if (!hasTheRoom(channel, userId)) {
       return {
         ok: false,
@@ -6479,6 +6521,9 @@ export class ChannelRegistry {
   ): { ok: true; admitted: AdmittedGuest | null } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (isParticipant(channel, userId) && !holdsTheControls(channel, userId)) {
+      return OWNERS_ALONE;
+    }
     if (!canAnswerKnock(channel, userId, this.now())) {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }

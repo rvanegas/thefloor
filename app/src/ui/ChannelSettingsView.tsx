@@ -8,9 +8,9 @@ import {
 } from '../../../core/constants';
 import {
   canEditChannel,
+  canInviteGuest,
   canMakeCommunity,
   capacityOf,
-  hasTheRoom,
   isOwner,
 } from '../../../core/channel';
 import {
@@ -408,7 +408,9 @@ export function ChannelSettingsView({
         />
         <Text style={type.muted}>
           {!mayEdit
-            ? t.renameStepIn()
+            ? community && !owner
+              ? t.ownerOnly()
+              : t.renameStepIn()
             : community
               ? t.renameCommunity()
               : facesOut
@@ -453,7 +455,11 @@ export function ChannelSettingsView({
         </View>
         <Text style={type.muted}>{t.autoRecordNote()}</Text>
         <Text style={type.muted}>
-          {mayEdit ? t.autoRecordHow() : t.autoRecordStepIn()}
+          {mayEdit
+            ? t.autoRecordHow()
+            : community && !owner
+              ? t.ownerOnly()
+              : t.autoRecordStepIn()}
         </Text>
       </Card>
 
@@ -560,7 +566,9 @@ export function ChannelSettingsView({
                   ? community
                     ? t.communityDescriptionNote()
                     : t.descriptionNote()
-                  : t.descriptionStepIn()}
+                  : community && !owner
+                    ? t.ownerOnly()
+                    : t.descriptionStepIn()}
               </Text>
               <Text style={styles.count}>
                 {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
@@ -622,7 +630,8 @@ export function ChannelSettingsView({
         */}
         <GuestLinks
           channelId={channel.id}
-          mayRevoke={hasTheRoom(channel, app.me?.id ?? '')}
+          mayRevoke={canInviteGuest(channel, app.me?.id ?? '')}
+          ownersAlone={community && !owner}
         />
       </Card>
 
@@ -1110,10 +1119,13 @@ function Declarations({
 function GuestLinks({
   channelId,
   mayRevoke,
+  ownersAlone,
 }: {
   channelId: string;
-  /** `hasTheRoom`, which the server asks again in `revokeGuestLink`. */
+  /** `canInviteGuest`, which the server asks again in `revokeGuestLink`. */
   mayRevoke: boolean;
+  /** A community whose controls are somebody else's: see `holdsTheControls`. */
+  ownersAlone: boolean;
 }) {
   const t = useText().channelSettings;
   const app = useApp();
@@ -1172,7 +1184,7 @@ function GuestLinks({
         </View>
       ))}
       <Text style={type.muted}>
-        {mayRevoke ? t.revokeNote() : t.revokeStepIn()}
+        {mayRevoke ? t.revokeNote() : ownersAlone ? t.ownerOnly() : t.revokeStepIn()}
       </Text>
     </>
   );

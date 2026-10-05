@@ -89,6 +89,18 @@ it('gives a member neither the link nor Delete', async () => {
   expect(findButton(tree, 'Delete channel')).toBeUndefined();
 });
 
+it('leaves the name and the recording setting to the owner, and says so', async () => {
+  await open(community(THEM, ME));
+  expect(fields()[0].props.editable).toBe(false);
+  expect(textOf(tree)).toContain('Only the community\u2019s owner can change this.');
+  expect(textOf(tree)).not.toContain('Step in to rename');
+  tree.unmount();
+
+  await open(community(ME, THEM));
+  expect(fields()[0].props.editable).toBe(true);
+  expect(textOf(tree)).toContain('only you can change it');
+});
+
 it('says what a community is, and offers it no podcast', async () => {
   await open(community(THEM, ME));
   const text = textOf(tree);

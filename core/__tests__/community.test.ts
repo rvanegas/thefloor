@@ -1,6 +1,17 @@
 import { MAX_CHANNEL_PARTICIPANTS, MAX_COMMUNITY_MEMBERS } from '../constants';
 import {
+  COMMUNITY_OWNER_ACTIONS,
+  autoRecordStarter,
+  canClaimFloor,
+  canControlWatch,
   canDeleteChannel,
+  canEditChannel,
+  canInviteGuest,
+  canMuteOther,
+  canPasteClip,
+  canSetSelfMute,
+  canStartRecording,
+  canStartWatch,
   canInvite,
   canJoin,
   canLeaveChannel,
@@ -137,11 +148,12 @@ describe('what the owner may do that nobody else may', () => {
     expect(removalMotion(after, member(1), T0)).toBeNull();
   });
 
-  it('leaves everybody else needing two', () => {
+  it('is the only one who may move to remove anybody', () => {
     const s = communityOf(4);
-    const after = reduce(s, { type: 'MOVE_TO_REMOVE', userId: member(1), targetId: member(2) }, T0);
-    expect(isParticipant(after, member(2))).toBe(true);
-    expect(removalMotion(after, member(2), T0)?.movedBy).toEqual([member(1)]);
+    expect(canMoveToRemove(s, member(1), member(2), T0)).toBe(false);
+    expect(
+      reduce(s, { type: 'MOVE_TO_REMOVE', userId: member(1), targetId: member(2) }, T0)
+    ).toBe(s);
   });
 
   it('cannot be moved against', () => {
@@ -173,5 +185,86 @@ describe('a community keeps a name', () => {
     s = reduce(s, { type: 'SET_NAME', userId: OWNER, name: 'Cafe' }, T0);
     expect(s.name).toBe('Cafe');
     expect(reduce(s, { type: 'SET_NAME', userId: OWNER, name: '  ' }, T0)).toBe(s);
+  });
+});
+
+describe('a member of a community, who is not its owner', () => {
+  /** The owner and two members, all three in the room. */
+  function inTheRoom(): ChannelState {
+    let s = communityOf(3);
+    for (const id of [OWNER, member(1), member(2)]) {
+      s = reduce(s, { type: 'ENTER', userId: id }, T0);
+    }
+    return s;
+  }
+
+  it('mutes themselves, claims the floor, pastes and clears the clipboard', () => {
+    const s = inTheRoom();
+    expect(canSetSelfMute(s, member(1), true)).toBe(true);
+    expect(canClaimFloor(s, member(1), T0)).toBe(true);
+    expect(canPasteClip(s, member(1))).toBe(true);
+    const claimed = reduce(s, { type: 'CLAIM_FLOOR', userId: member(1) }, T0);
+    expect(claimed.floor.holder).toBe(member(1));
+  });
+
+  it('cannot rename, describe, invite, record, play, watch or mute anybody else', () => {
+    const s = inTheRoom();
+    expect(canEditChannel(s, member(1))).toBe(false);
+    expect(canInvite(s, member(1), 'usr_new')).toBe(false);
+    expect(canInviteGuest(s, member(1))).toBe(false);
+    expect(canStartRecording(s, member(1))).toBe(false);
+    expect(canStartWatch(s, member(1))).toBe(false);
+    expect(canControlWatch(s, member(1))).toBe(false);
+    expect(canMuteOther(s, member(1), member(2), true, T0)).toBe(false);
+    expect(reduce(s, { type: 'SET_NAME', userId: member(1), name: 'Mine now' }, T0)).toBe(s);
+    expect(
+      reduce(s, { type: 'SET_DESCRIPTION', userId: member(1), description: 'Mine' }, T0)
+    ).toBe(s);
+    expect(reduce(s, { type: 'SET_AUTO_RECORD', userId: member(1), autoRecord: true }, T0)).toBe(
+      s
+    );
+  });
+
+  it('leaves the owner every one of those', () => {
+    const s = inTheRoom();
+    expect(canEditChannel(s, OWNER)).toBe(true);
+    expect(canInvite(s, OWNER, 'usr_new')).toBe(true);
+    expect(canInviteGuest(s, OWNER)).toBe(true);
+    expect(canStartRecording(s, OWNER)).toBe(true);
+    expect(canStartWatch(s, OWNER)).toBe(true);
+    expect(canMuteOther(s, OWNER, member(2), true, T0)).toBe(true);
+  });
+
+  it('is recorded automatically all the same, the owner having turned it on', () => {
+    let s = communityOf(2);
+    s = reduce(s, { type: 'SET_AUTO_RECORD', userId: OWNER, autoRecord: true }, T0);
+    s = reduce(s, { type: 'STEP_OUT', userId: OWNER }, T0);
+    s = reduce(s, { type: 'ENTER', userId: member(1) }, T0);
+    expect(s.present).toEqual([member(1)]);
+    expect(autoRecordStarter(s)).toBe(member(1));
+  });
+
+  it('leaves a flat channel as it was: everybody holds the controls', () => {
+    let s = createChannel({ id: 'f1', initiator: member(1), invitees: [member(2)], now: T0 });
+    s = reduce(s, { type: 'ENTER', userId: member(1) }, T0);
+    s = reduce(s, { type: 'ENTER', userId: member(2) }, T0);
+    expect(canEditChannel(s, member(2))).toBe(true);
+    expect(canStartRecording(s, member(2))).toBe(true);
+    expect(canInviteGuest(s, member(2))).toBe(true);
+  });
+
+  it('is never refused by name the floor, a self-mute, the clipboard or leaving', () => {
+    for (const type of [
+      'CLAIM_FLOOR',
+      'RELEASE_FLOOR',
+      'SET_SELF_MUTE',
+      'PASTE_CLIP',
+      'CLEAR_CLIP',
+      'ENTER',
+      'STEP_OUT',
+      'LEAVE_CHANNEL',
+    ] as const) {
+      expect(COMMUNITY_OWNER_ACTIONS.has(type)).toBe(false);
+    }
   });
 });
