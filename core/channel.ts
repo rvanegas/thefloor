@@ -6,6 +6,7 @@ import {
   MAX_CHANNEL_GUESTS,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
+  MAX_COMMUNITY_MEMBERS,
   MAX_SPEAKING_GUESTS,
   MIN_PARTICIPANTS_TO_REMOVE,
   REMOVAL_MOTION_WINDOW_MS,
@@ -99,8 +100,18 @@ export function createChannel(params: {
    * conversation began with.
    */
   present?: UserId[];
+  /**
+   * Makes this a *community*, owned by its initiator — and only possible here,
+   * at birth, with nobody else in it. That is the whole of the rule that keeps
+   * an owner from ever landing on people who joined a flat channel: there is
+   * no action that adds one later. See `ChannelState.owner`.
+   */
+  owner?: boolean;
 }): ChannelState {
   const { id, initiator, invitees, now } = params;
+  if (params.owner && invitees.length > 0) {
+    throw new Error('A community starts with its owner alone.');
+  }
   const participants = [initiator, ...invitees];
   // Structural violations, not policy ones: the caller was supposed to have
   // validated the roster, so a bad one here is a bug worth failing loudly on.
@@ -128,6 +139,7 @@ export function createChannel(params: {
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
+    ...(params.owner ? { owner: initiator } : {}),
     createdAt: now,
     lastActiveAt: now,
     status: 'active',
@@ -170,6 +182,22 @@ export function createChannel(params: {
 
 export function isParticipant(state: ChannelState, userId: UserId): boolean {
   return state.participants.includes(userId);
+}
+
+/** Whether `userId` owns this channel, which only a *community* has. */
+export function isOwner(state: ChannelState, userId: UserId): boolean {
+  return state.owner !== undefined && state.owner === userId;
+}
+
+/**
+ * The most members this channel may hold: `MAX_COMMUNITY_MEMBERS` for a
+ * *community*, `MAX_CHANNEL_PARTICIPANTS` for every other.
+ *
+ * The only way either constant is read as a limit, so that a guard, a
+ * server refusal and a greyed-out control cannot disagree about which applies.
+ */
+export function capacityOf(state: ChannelState): number {
+  return state.owner !== undefined ? MAX_COMMUNITY_MEMBERS : MAX_CHANNEL_PARTICIPANTS;
 }
 
 /**
@@ -918,7 +946,11 @@ export function canLeaveChannel(state: ChannelState, userId: UserId): boolean {
     // What that tap does is destroy the channel and everything recorded in it,
     // so it is a different action with a different name, and the interface says
     // so in the same place rather than hiding the difference behind one word.
-    state.participants.length > 1
+    state.participants.length > 1 &&
+    // Nor may a community's owner. Leaving would leave up to twenty people in
+    // a channel whose cap is six and whose rules assume nobody is in charge,
+    // and nothing hands ownership over; deleting it is the owner's way out.
+    !isOwner(state, userId)
   );
 }
 
@@ -969,6 +1001,7 @@ export function removalMovesWanted(
 ): number | null {
   if (state.status !== 'active') return null;
   if (!isParticipant(state, targetId)) return null;
+  if (isOwner(state, targetId)) return null;
   if (state.participants.length < MIN_PARTICIPANTS_TO_REMOVE) return null;
   const moved = removalMotion(state, targetId, now)?.movedBy.length ?? 0;
   return Math.max(0, REMOVAL_MOVES_REQUIRED - moved);
@@ -997,7 +1030,13 @@ export function canMoveToRemove(
     isParticipant(state, userId) &&
     isParticipant(state, targetId) &&
     userId !== targetId &&
-    state.participants.length >= MIN_PARTICIPANTS_TO_REMOVE &&
+    // Nobody moves against a community's owner: see `ChannelState.owner`.
+    !isOwner(state, targetId) &&
+    // The owner's move is the whole removal, so a community of two is not too
+    // small for it — the second agreement the minimum exists to make room for
+    // is never wanted. See `ownerRemoves`.
+    (isOwner(state, userId) ||
+      state.participants.length >= MIN_PARTICIPANTS_TO_REMOVE) &&
     !(removalMotion(state, targetId, now)?.movedBy.includes(userId) ?? false)
   );
 }
@@ -1055,8 +1094,20 @@ export function canDeleteChannel(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     isParticipant(state, userId) &&
-    state.participants.length === 1
+    // Or a community's owner at any size — the other half of the one bend in
+    // the no-admin rule. It takes every member's recordings with it, which is
+    // what the confirmation says before anybody presses it.
+    (state.participants.length === 1 || isOwner(state, userId))
   );
+}
+
+/**
+ * Whether a removal `userId` moves is carried by that move alone: true exactly
+ * for a community's owner. What the screen asks before it offers the one-step
+ * confirmation rather than a motion.
+ */
+export function ownerRemoves(state: ChannelState, userId: UserId): boolean {
+  return isOwner(state, userId);
 }
 
 /**
@@ -1080,7 +1131,24 @@ export function canInvite(
     isParticipant(state, userId) &&
     hasTheRoom(state, userId) &&
     !isParticipant(state, inviteeId) &&
-    state.participants.length < MAX_CHANNEL_PARTICIPANTS
+    state.participants.length < capacityOf(state)
+  );
+}
+
+/**
+ * Whether `userId` may make themselves a member through a *community*'s join
+ * link: it is a community, they are not in it already, and it is not full.
+ *
+ * No presence clause, unlike `canInvite`: nobody in the room is being asked
+ * anything, and the door is the owner's standing answer. Whether the code
+ * they hold is the live one is the server's to check — core has no codes.
+ */
+export function canJoin(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    state.owner !== undefined &&
+    !isParticipant(state, userId) &&
+    state.participants.length < capacityOf(state)
   );
 }
 
@@ -2168,6 +2236,20 @@ function reduceAction(
     return guestGone(state, action.userId, now);
   }
 
+  // Above the wall below, because it is the one action whose actor is by
+  // definition not a member yet. A guest's id is never an account's, so a seat
+  // cannot become a membership this way — that is *add to channel*.
+  if (action.type === 'JOIN') {
+    if (isGuest(state, action.userId) || !canJoin(state, action.userId)) {
+      return state;
+    }
+    return {
+      ...state,
+      participants: [...state.participants, action.userId],
+      selfMuted: { ...state.selfMuted, [action.userId]: false },
+    };
+  }
+
   // The wall every prohibition in the guest design rests on. A guest is not a
   // participant, so this refuses them everything — including every action
   // written after this line, which is the property the design was chosen for.
@@ -2544,8 +2626,12 @@ function reduceAction(
 
       // Not yet. The motion stands with one more name on it, and the target's
       // membership is untouched — which is the ordinary outcome of this action,
-      // the second half happening only once somebody else agrees.
-      if (movedBy.length < REMOVAL_MOVES_REQUIRED) {
+      // the second half happening only once somebody else agrees. Except from a
+      // community's owner, whose move is the removal: see `ownerRemoves`.
+      if (
+        movedBy.length < REMOVAL_MOVES_REQUIRED &&
+        !ownerRemoves(state, action.userId)
+      ) {
         return {
           ...state,
           removals: {
@@ -2563,7 +2649,8 @@ function reduceAction(
       // other map keyed by them, so nothing here has to remember to.
       //
       // The channel cannot end this way: `MIN_PARTICIPANTS_TO_REMOVE` means
-      // there were at least three, so at least two remain. That is why there is
+      // there were at least three, so at least two remain — or, for a
+      // community's owner, at least two, of whom the owner is one who stays. That is why there is
       // no `endChannel` branch here and why there must never need to be — a
       // rule that let a majority dissolve a channel and its recordings would be
       // `DELETE_CHANNEL` by another name, and that one is the last member's

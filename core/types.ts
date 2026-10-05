@@ -613,8 +613,9 @@ export interface ChannelState {
   initiator: UserId;
   /**
    * Everyone who belongs to this channel — the initiator first, then the rest
-   * in the order they were invited. Grows on INVITE and shrinks only on
-   * LEAVE_CHANNEL. Capped at MAX_CHANNEL_PARTICIPANTS.
+   * in the order they were invited. Grows on INVITE and JOIN and shrinks only
+   * on LEAVE_CHANNEL and removal. Capped at `capacityOf`: six, or twenty for a
+   * *community*.
    *
    * Membership is not presence. Stepping out empties your place in `present`
    * and leaves this untouched; only leaving the channel outright removes you
@@ -627,6 +628,23 @@ export interface ChannelState {
    * whoever actually asked, not whoever happened to create the channel.
    */
   invitedBy: Record<UserId, UserId>;
+  /**
+   * The *owner*, present exactly when this channel is a *community*: one made
+   * to be joined through its *community link* by people nobody here knows.
+   *
+   * **The one bend in the no-admin rule, and it is set only at birth** — by
+   * `createChannel` with `owner: true`, while the initiator is the only member
+   * — so nobody is ever subject to an owner they did not walk in under. The
+   * owner may remove a member in one move, may delete the channel at any size,
+   * and alone holds its link; every other member has every other privilege.
+   * The owner cannot leave or be moved against, since a community without one
+   * would be twenty people under rules written for six. See
+   * planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md.
+   *
+   * Absent on every channel made before 2026-10-04 and on every channel since
+   * that is not a community, which is how an older snapshot reads too.
+   */
+  owner?: UserId;
   createdAt: number;
   /**
    * The last time anybody entered or left the channel — set on creation, on
@@ -967,8 +985,19 @@ export type ChannelAction =
    */
   | { type: 'INVITE'; userId: UserId; inviteeId: UserId }
   /**
+   * Makes `userId` a member of a *community* on their own say-so, through its
+   * *join link* — see `canJoin`. Whether they hold the right code is the
+   * server's to check before dispatching this, as contacts are for `INVITE`.
+   *
+   * **Writes no `invitedBy`**, because nobody asked them: they came by the
+   * door. That absence is what keeps the channel off their Home as an
+   * invitation — see `invitesFor` in the server.
+   */
+  | { type: 'JOIN'; userId: UserId }
+  /**
    * Destroy the channel and everything recorded in it. Only its last member
-   * may, there being nobody left to disagree — see `canDeleteChannel`.
+   * may, there being nobody left to disagree — or a community's owner, at any
+   * size — see `canDeleteChannel`.
    *
    * The rows are marked rather than removed: `recordings.channel_id` is a real
    * foreign key, and a sweep a week later is what actually deletes them and

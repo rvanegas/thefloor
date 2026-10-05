@@ -48,6 +48,23 @@ export const FLOOR_CLAIM_DELAY_MAX_STEPS = 2;
 export const MAX_CHANNEL_PARTICIPANTS = 6;
 
 /**
+ * The most members a *community* may hold, counting its owner.
+ *
+ * A community is joined by link by people who met its owner somewhere, so six
+ * is too few for what it is for; twenty is the ceiling agreed on 2026-10-02
+ * "so that it doesn't get crazy". **It accepts the race
+ * `MAX_CHANNEL_PARTICIPANTS` warns about**: past four, everybody outside the
+ * two most recent speakers claims at zero delay, which is a cost a community
+ * pays knowingly. Read through `capacityOf`, never directly.
+ *
+ * Members, not microphones: twenty present could mean twenty recorded stems,
+ * against a box-wide egress budget of about ten. That ceiling is a declared
+ * cost rather than a measured one — planning/INFRASTRUCTURE.md § *What the
+ * box can carry*.
+ */
+export const MAX_COMMUNITY_MEMBERS = 20;
+
+/**
  * How many members have to agree before one of them is removed.
  *
  * Two, and it is the whole of the rule: removing somebody is the one act here

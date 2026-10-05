@@ -1,0 +1,121 @@
+import { MAX_CHANNEL_PARTICIPANTS, MAX_COMMUNITY_MEMBERS } from '../constants';
+import {
+  canDeleteChannel,
+  canInvite,
+  canJoin,
+  canLeaveChannel,
+  canMoveToRemove,
+  capacityOf,
+  createChannel,
+  isOwner,
+  isParticipant,
+  reduce,
+  removalMotion,
+  removalMovesWanted,
+} from '../channel';
+import type { ChannelState } from '../types';
+
+const OWNER = 'usr_owner';
+const T0 = 1_000_000;
+const member = (n: number) => `usr_${n}`;
+
+function community(): ChannelState {
+  return createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0, owner: true });
+}
+
+const join = (s: ChannelState, userId: string) => reduce(s, { type: 'JOIN', userId }, T0);
+
+function communityOf(n: number): ChannelState {
+  let s = community();
+  for (let i = 1; i < n; i++) s = join(s, member(i));
+  return s;
+}
+
+describe('a community is a channel with an owner, set only at birth', () => {
+  it('is owned by whoever started it', () => {
+    const s = community();
+    expect(s.owner).toBe(OWNER);
+    expect(isOwner(s, OWNER)).toBe(true);
+  });
+
+  it('cannot be started with anybody else in it', () => {
+    expect(() =>
+      createChannel({ id: 'c1', initiator: OWNER, invitees: ['usr_x'], now: T0, owner: true })
+    ).toThrow();
+  });
+
+  it('is absent from every other channel, which nothing can add later', () => {
+    const s = createChannel({ id: 'c2', initiator: OWNER, invitees: [], now: T0 });
+    expect(s.owner).toBeUndefined();
+    expect(capacityOf(s)).toBe(MAX_CHANNEL_PARTICIPANTS);
+    expect(canJoin(s, 'usr_x')).toBe(false);
+    expect(join(s, 'usr_x')).toBe(s);
+  });
+});
+
+describe('joining by the link', () => {
+  it('makes a member with nobody named as having asked', () => {
+    const s = join(community(), member(1));
+    expect(isParticipant(s, member(1))).toBe(true);
+    expect(s.invitedBy[member(1)]).toBeUndefined();
+    expect(s.selfMuted[member(1)]).toBe(false);
+  });
+
+  it('is refused to somebody already in it', () => {
+    const s = join(community(), member(1));
+    expect(join(s, member(1))).toBe(s);
+  });
+
+  it('runs to twenty, not six, and stops there', () => {
+    expect(capacityOf(community())).toBe(MAX_COMMUNITY_MEMBERS);
+    const full = communityOf(MAX_COMMUNITY_MEMBERS);
+    expect(full.participants).toHaveLength(MAX_COMMUNITY_MEMBERS);
+    expect(canJoin(full, 'usr_late')).toBe(false);
+    expect(join(full, 'usr_late')).toBe(full);
+  });
+
+  it('lifts the cap for invitations too', () => {
+    const s = communityOf(MAX_CHANNEL_PARTICIPANTS);
+    expect(canInvite(s, OWNER, 'usr_x')).toBe(true);
+    expect(canInvite(communityOf(MAX_COMMUNITY_MEMBERS), OWNER, 'usr_x')).toBe(false);
+  });
+});
+
+describe('what the owner may do that nobody else may', () => {
+  it('removes in one move, even in a community of two', () => {
+    const s = communityOf(2);
+    expect(canMoveToRemove(s, OWNER, member(1), T0)).toBe(true);
+    const after = reduce(s, { type: 'MOVE_TO_REMOVE', userId: OWNER, targetId: member(1) }, T0);
+    expect(isParticipant(after, member(1))).toBe(false);
+    expect(removalMotion(after, member(1), T0)).toBeNull();
+  });
+
+  it('leaves everybody else needing two', () => {
+    const s = communityOf(4);
+    const after = reduce(s, { type: 'MOVE_TO_REMOVE', userId: member(1), targetId: member(2) }, T0);
+    expect(isParticipant(after, member(2))).toBe(true);
+    expect(removalMotion(after, member(2), T0)?.movedBy).toEqual([member(1)]);
+  });
+
+  it('cannot be moved against', () => {
+    const s = communityOf(4);
+    expect(canMoveToRemove(s, member(1), OWNER, T0)).toBe(false);
+    expect(removalMovesWanted(s, OWNER, T0)).toBeNull();
+    expect(reduce(s, { type: 'MOVE_TO_REMOVE', userId: member(1), targetId: OWNER }, T0)).toBe(s);
+  });
+
+  it('deletes at any size, which nobody else may', () => {
+    const s = communityOf(5);
+    expect(canDeleteChannel(s, member(1))).toBe(false);
+    expect(canDeleteChannel(s, OWNER)).toBe(true);
+    const after = reduce(s, { type: 'DELETE_CHANNEL', userId: OWNER }, T0);
+    expect(after.status).toBe('ended');
+  });
+
+  it('cannot leave, which everybody else may', () => {
+    const s = communityOf(3);
+    expect(canLeaveChannel(s, OWNER)).toBe(false);
+    expect(canLeaveChannel(s, member(1))).toBe(true);
+    expect(reduce(s, { type: 'LEAVE_CHANNEL', userId: OWNER }, T0)).toBe(s);
+  });
+});
