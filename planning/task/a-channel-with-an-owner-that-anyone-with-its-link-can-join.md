@@ -88,8 +88,8 @@ That was the gap ROADMAP.md's item 4 was about, since answered by the invite lin
 ## The plan
 
 Written 2026-10-04 from a read of the code, against the agreement above, and
-revised the same day with Rodrigo's answers at the prompt — the name, *low*
-notifications for whoever joins by the link, ownership only at birth, and the
+revised the same day with Rodrigo's answers at the prompt — the name, the
+default notification level for everybody, ownership only at birth, and the
 two links. What is left open is at the end.
 
 ### What it is called
@@ -189,10 +189,16 @@ contacts.
   require a contact; both are right as they stand for twenty strangers.
 - **`tellTheInviter`'s counterpart**: the owner gets a push when somebody
   joins, at their notification level for the channel.
-- **Whoever joins by the link starts at *low*** for that channel — settled at
-  the prompt. An arrival otherwise pushes to every member at *medium*, which
-  for twenty people who met once at an event is noise from strangers. The
-  owner keeps the default; anybody may raise their own.
+- **Everybody keeps the default level, *medium***, whoever joins by the link
+  included — settled at the prompt, after *low* had been proposed for them.
+  Levels change how a notification arrives, never whether it is sent, and
+  *low* would make every one passive: a joiner would not see the community go
+  live, which is the one thing they joined to hear. The flood it was meant to
+  stop is already bounded — an arrival reaches only members who are not in the
+  room, at most once per channel per five minutes (`ANNOUNCE_INTERVAL_MS`),
+  and silently at *medium* — and the ping it would have quietened needs a
+  contact, which joining does not make. If arrivals in a big community ever
+  are a nuisance, that window is the lever, not the level.
 
 ### The app
 
