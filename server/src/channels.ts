@@ -5278,6 +5278,29 @@ export class ChannelRegistry {
       run.retryAt.set(identity, this.now() + 5_000);
     };
 
+    /**
+     * What LiveKit said to this ask, written once. The span is still open,
+     * so the stem counts itself among those it was asked alongside — a
+     * refusal is then recorded at the concurrency that did not fit.
+     */
+    let answered = false;
+    // A silent participant is asked again every five seconds for as long as
+    // the run lasts, and a row each time would be noise about nothing; the
+    // first says it happened. Refusals are kept on every retry — they are
+    // what this is for.
+    const retry = run.retryAt.has(identity);
+    const answer = (outcome: 'started' | 'no-track' | 'error', error?: unknown) => {
+      if (answered) return;
+      answered = true;
+      if (outcome === 'no-track' && retry) return;
+      this.usage.recordEgressStart({
+        recordingId: state.recording.runId,
+        outcome,
+        error,
+        scrub: [state.mediaRoom, identity],
+      });
+    };
+
     this.run(
       async () => {
         const handle = await this.media!.startRecording({
@@ -5285,6 +5308,7 @@ export class ChannelRegistry {
           identity,
           key,
         });
+        answer(handle === null ? 'no-track' : 'started');
         // No track to record yet — a microphone that has not opened, a
         // permission not granted, a connection still coming back. Nobody has
         // failed at anything, so the run carries on without them and this
@@ -5315,6 +5339,10 @@ export class ChannelRegistry {
       },
       `startRecording ${key}`,
       (error) => {
+        // Before either branch closes the span, so the count includes it.
+        // A stopRecording failing after a start already answered is not a
+        // refusal, which is what `answered` guards.
+        answer('error', error);
         // A genuine failure of the recording apparatus, which is a different
         // thing from a participant with nothing to record.
         if (fatal) {

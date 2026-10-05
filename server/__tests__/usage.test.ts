@@ -1,7 +1,7 @@
 import { USAGE_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { mixKeyFor } from '../src/mixes';
-import type { UsageSpanRow, UsageBytesRow } from '../src/db';
+import type { EgressStartRow, UsageSpanRow, UsageBytesRow } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { MemoryRecordingStore } from '../src/storage';
@@ -62,6 +62,11 @@ const bytes = (): UsageBytesRow[] =>
   app.db
     .prepare('SELECT * FROM usage_bytes ORDER BY at, id')
     .all() as unknown as UsageBytesRow[];
+
+const egressStarts = (): EgressStartRow[] =>
+  app.db
+    .prepare('SELECT * FROM egress_starts ORDER BY at, id')
+    .all() as unknown as EgressStartRow[];
 
 /** Total metered milliseconds of a kind, counting an open span as open. */
 function minutesOf(kind: string, accountId?: string): number {
@@ -451,6 +456,54 @@ describe('recording minutes', () => {
     const hers = spans('egress').find((s) => s.peer_id === alice.id)!;
     expect(hers.ended_at! - hers.started_at).toBe(20_000);
     expect(spans('egress').find((s) => s.peer_id === bob.id)!.ended_at).toBeNull();
+  });
+});
+
+/**
+ * Every ask for a stem, so that when LiveKit refuses one there is something
+ * to blame: how many were being asked for, and what it said.
+ */
+describe('egress starts', () => {
+  it('count every stem asked for at once, each one included', async () => {
+    const { bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'START_RECORDING' });
+    await settle();
+
+    const rows = egressStarts();
+    expect(rows.map((r) => r.outcome)).toEqual(['started', 'started']);
+    // Both were asked for before either answered, so each saw two.
+    expect(rows.map((r) => r.concurrent)).toEqual([2, 2]);
+    expect(new Set(rows.map((r) => r.recording_id)).size).toBe(1);
+    for (const row of rows) {
+      expect(row.cpus).toBeGreaterThan(0);
+      expect(row.load_1m).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('record a refusal at the concurrency that did not fit, naming nobody', async () => {
+    const { bob, channelId } = await channelOfTwo();
+    media.failStart = {
+      reason: `no egress available for participant ${bob.id}`,
+      identity: bob.id,
+    };
+    app.channels.dispatch(channelId, bob.id, { type: 'START_RECORDING' });
+    await settle();
+
+    const refused = egressStarts().find((r) => r.outcome === 'error')!;
+    expect(refused.concurrent).toBe(2);
+    expect(refused.error).toContain('no egress available');
+    expect(refused.error).not.toContain(bob.id);
+  });
+
+  it('are swept on the usage horizon', async () => {
+    const { bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, bob.id, { type: 'START_RECORDING' });
+    await settle();
+    expect(egressStarts()).toHaveLength(2);
+
+    const swept = app.channels.usage.sweep(clock + USAGE_RETENTION_MS + 1);
+    expect(swept.egressStarts).toBe(2);
+    expect(egressStarts()).toHaveLength(0);
   });
 });
 

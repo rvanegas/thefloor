@@ -66,7 +66,9 @@ The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
 participants**, every stem being its own egress job. That is a chosen figure and
 raising it is the first move if it ever bites, not a hardware limit —
-`bin/usage peak` says how close it has ever come.
+`bin/usage peak` says how close it has ever come, and **`bin/usage egress`
+says what to blame for a refusal**: the stem count, or egress measuring its
+own jobs above 0.15, or something that is not capacity at all.
 
 **Since 2026-09-21 there is a second load on this box that nobody controls.**
 A published recording's audio is served from here — `/c/<id>/e/<id>.m4a`,

@@ -550,6 +550,32 @@ export interface UsageBytesRow {
 }
 
 /**
+ * One request for a recording stem, and what LiveKit said to it.
+ *
+ * The egress spans say how many stems ran at once; they cannot say how many
+ * the box would have run, because a refused stem never opens a span that
+ * survives. This is the other half: every ask, with the load it was made
+ * under, so real recordings trace the curve a load test would have drawn.
+ */
+export interface EgressStartRow {
+  id: string;
+  at: number;
+  recording_id: string | null;
+  /** `'started' | 'no-track' | 'error'` */
+  outcome: string;
+  /** Stems asked for at that moment, this one included. */
+  concurrent: number;
+  /**
+   * The host's one-minute load average. Context only: egress admits against
+   * its own processes' CPU, so nothing else on the box refuses a stem.
+   */
+  load_1m: number;
+  cpus: number;
+  /** `'error'` only: LiveKit's message, with the room and identity removed. */
+  error: string | null;
+}
+
+/**
  * One ping, and whether it worked.
  *
  * The third of the meter's tables and the only one that is about an
@@ -1501,6 +1527,35 @@ CREATE TABLE IF NOT EXISTS usage_bytes (
   at           INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
+
+-- Every request for a recording stem, what came of it, and how loaded the box
+-- was when it was made. See EgressStartRow and UsageMeter.recordEgressStart.
+--
+-- Written so that a refusal can be blamed. Egress admits a stem while
+-- cores x 0.8 (max_cpu_utilization) exceeds what its own jobs cost, each the
+-- larger of its measured CPU and track_cpu_cost (0.15) — ten stems on two
+-- cores. So a refusal at ten or more is the stem count; one below it is egress
+-- measuring its jobs above 0.15, or not capacity at all, which the error text
+-- says. Until this table a refusal reached the server log and nowhere else.
+-- Read by bin/usage egress.
+--
+-- **Nobody in it**: no account, no identity, no channel — the recording id is
+-- the only link, and the error text has the room and identity cut out before
+-- it is written. So it is swept at USAGE_RETENTION_MS like its neighbours and
+-- needs no forget.
+CREATE TABLE IF NOT EXISTS egress_starts (
+  id           TEXT PRIMARY KEY,
+  at           INTEGER NOT NULL,
+  recording_id TEXT,
+  -- 'started' | 'no-track' | 'error'
+  outcome      TEXT NOT NULL,
+  concurrent   INTEGER NOT NULL,
+  -- Context, not blame: egress counts only its own processes. See hostLoad.
+  load_1m      REAL NOT NULL,
+  cpus         INTEGER NOT NULL,
+  error        TEXT
+);
+CREATE INDEX IF NOT EXISTS egress_starts_at ON egress_starts(at);
 
 -- Every ping sent, and whether going to the room was the answer to it.
 --

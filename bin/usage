@@ -205,6 +205,55 @@ ORDER BY i.d DESC;
 SQL
 }
 
+usage_egress() {
+  cat <<'SQL'
+.print ''
+.print '── Recording stems: what to blame when egress says no ──────────'
+.print ''
+-- Every ask for a stem, written at the moment LiveKit answered. See
+-- egress_starts in server/src/db.ts.
+--
+-- Egress admits a stem while cores x 0.8 (max_cpu_utilization, the default)
+-- exceeds what its *own* jobs cost, each the larger of its measured CPU and
+-- track_cpu_cost (0.15). Nothing else on the box counts — an export's ffmpeg
+-- cannot refuse a stem. On two cores that is 1.6 CPUs, ten stems. So:
+--
+--   `stem count`  — refused with concurrent x 0.15 past the ceiling. The
+--                   configured cap was reached; lower track_cpu_cost or buy
+--                   cores (xlarge_3_0 is the first with more than two).
+--   `below cap`   — refused with room to spare by the configured figure, so
+--                   either egress measured its jobs above 0.15 each, or it
+--                   is not capacity at all. The error says which: anything
+--                   not about CPU or capacity is egress down, S3, or a bug.
+--
+-- `no-track` is somebody with no microphone open yet and is never a refusal.
+-- load_1m is the box's run queue, for whether it was struggling generally.
+SELECT concurrent,
+       COUNT(*)                                       AS asks,
+       SUM(outcome = 'started')                       AS started,
+       SUM(outcome = 'no-track')                      AS no_track,
+       SUM(outcome = 'error')                         AS refused,
+       ROUND(100 * 0.15 * concurrent / (0.8 * MAX(cpus)), 0)
+                                                      AS pct_of_cap,
+       ROUND(AVG(load_1m), 2)                         AS load_1m
+  FROM egress_starts
+ GROUP BY concurrent
+ ORDER BY concurrent;
+
+.print ''
+SELECT datetime(at / 1000, 'unixepoch')              AS at_utc,
+       concurrent,
+       CASE WHEN 0.15 * concurrent > 0.8 * cpus
+            THEN 'stem count' ELSE 'below cap' END   AS blame,
+       ROUND(load_1m, 2)                              AS load_1m,
+       error
+  FROM egress_starts
+ WHERE outcome = 'error'
+ ORDER BY at DESC
+ LIMIT 20;
+SQL
+}
+
 usage_bytes() {
   cat <<'SQL'
 .print ''
@@ -593,13 +642,15 @@ SELECT datetime(f.flagged_at / 1000, 'unixepoch') AS flagged_utc,
 SQL
 }
 
-report_names=(minutes pairs peak bytes transcripts nav listens defects excess)
+report_names=(minutes pairs peak egress bytes transcripts nav listens defects excess)
 
 list_reports() {
   cat <<'TXT'
 minutes      minutes per account, mic+listen+egress totalled, by display name
 pairs        minutes each pair of people spent in a channel together
 peak         per day: most connections and most recording jobs at once
+egress       every stem asked for, by concurrency, and each refusal with
+             what LiveKit said and whether the stem count is to blame
 bytes        recording bytes this server served, by kind
 transcripts  what transcription cost, who spent it, and where the free uses went
 nav          which of the four ways in and out of a channel people take —

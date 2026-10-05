@@ -1,3 +1,4 @@
+import { cpus, loadavg } from 'node:os';
 import { USAGE_RETENTION_MS } from '../../core/constants';
 import { newId, pairKey, type Db } from './db';
 
@@ -17,6 +18,25 @@ import { newId, pairKey, type Db } from './db';
  * three separators nobody can see.
  */
 const SEPARATOR = '\0';
+
+/** What the box is doing right now, as `egress_starts` records it. */
+export type HostLoad = () => { load1m: number; cpus: number };
+
+/**
+ * The host's run queue, for context and not for blame. Egress admits a job
+ * against `cores × max_cpu_utilization (0.8)` less what *its own* processes
+ * cost — each the larger of its measured CPU and track_cpu_cost — so nothing
+ * else on the box can refuse a stem, and a precise whole-box utilisation
+ * would not say who to blame. The load average says whether the box was
+ * struggling at the time, which is all a refusal needs from it.
+ */
+const hostLoad: HostLoad = () => ({
+  load1m: loadavg()[0],
+  cpus: cpus().length,
+});
+
+/** Long enough for any LiveKit message; short enough that none is a payload. */
+const ERROR_LIMIT = 300;
 
 /**
  * What this box carried, for the last thirty days and no longer — and, since
@@ -93,8 +113,18 @@ export class UsageMeter {
 
   constructor(
     private db: Db,
-    private now: () => number = Date.now
+    private now: () => number = Date.now,
+    private load: HostLoad = hostLoad
   ) {}
+
+  /** How many spans of a kind are open, across every channel. */
+  openCount(kind: string): number {
+    let count = 0;
+    for (const key of this.open.keys()) {
+      if (key.split(SEPARATOR)[0] === kind) count++;
+    }
+    return count;
+  }
 
   /**
    * The key an open span is remembered under. Everything that identifies the
@@ -241,6 +271,56 @@ export class UsageMeter {
         transfer.recordingId ?? null,
         transfer.bytes,
         this.now()
+      );
+  }
+
+  /**
+   * Records one request for a stem and what came of it, under the load it was
+   * made in. See `egress_starts`.
+   *
+   * **Called while the stem's own span is still open**, so `concurrent` counts
+   * it: the figure is how many the box was being asked to run, which on a
+   * refusal is the one that did not fit. Every open egress span counts,
+   * including one whose request is still in flight — it has been asked for.
+   *
+   * The error text loses `scrub` before it is written. LiveKit names the room
+   * and the participant in some of its messages, and a participant is an
+   * account id; the table is meant to hold nobody, and a message is the one
+   * column where somebody could arrive by accident.
+   */
+  recordEgressStart(start: {
+    recordingId: string | null;
+    outcome: 'started' | 'no-track' | 'error';
+    error?: unknown;
+    scrub?: string[];
+  }): void {
+    let error: string | null = null;
+    if (start.outcome === 'error') {
+      error =
+        start.error instanceof Error
+          ? start.error.message
+          : String(start.error);
+      for (const word of start.scrub ?? []) {
+        if (word) error = error.split(word).join('…');
+      }
+      error = error.slice(0, ERROR_LIMIT);
+    }
+    const { load1m, cpus } = this.load();
+    this.db
+      .prepare(
+        `INSERT INTO egress_starts
+           (id, at, recording_id, outcome, concurrent, load_1m, cpus, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        newId('egs'),
+        this.now(),
+        start.recordingId,
+        start.outcome,
+        this.openCount('egress'),
+        load1m,
+        cpus,
+        error
       );
   }
 
@@ -421,7 +501,12 @@ export class UsageMeter {
    * sweeping it would hide the leak rather than the row. It shows up as an
    * ancient null `ended_at`, which is exactly what somebody should trip over.
    */
-  sweep(now: number): { spans: number; bytes: number; pings: number } {
+  sweep(now: number): {
+    spans: number;
+    bytes: number;
+    pings: number;
+    egressStarts: number;
+  } {
     const cutoff = now - USAGE_RETENTION_MS;
     const spans = this.db
       .prepare(
@@ -438,10 +523,14 @@ export class UsageMeter {
     const pings = this.db
       .prepare('DELETE FROM pings WHERE sent_at < ?')
       .run(cutoff);
+    const egressStarts = this.db
+      .prepare('DELETE FROM egress_starts WHERE at < ?')
+      .run(cutoff);
     return {
       spans: Number(spans.changes),
       bytes: Number(bytes.changes),
       pings: Number(pings.changes),
+      egressStarts: Number(egressStarts.changes),
     };
   }
 
