@@ -552,10 +552,13 @@ export const api = {
       token,
     }),
 
-  /** Starts a *community*, owned by the caller, with its link minted. */
-  startCommunity: (token: string, name: string) =>
+  /**
+   * Makes a channel of one into a *community* the caller owns, with its link
+   * minted. A blank `name` keeps the channel's own.
+   */
+  makeCommunity: (token: string, channelId: string, name: string) =>
     request<{ channelId: string; joinCode: string; url: string }>(
-      '/channels/community',
+      `/channels/${channelId}/community`,
       { method: 'POST', body: { name }, token }
     ),
 

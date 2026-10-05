@@ -11,6 +11,8 @@ import { MemoryPusher } from '../src/push';
  *
  * What is asserted, in the order it runs:
  *
+ * - Only a channel of one becomes one, named, and never one that is also a
+ *   podcast.
  * - The page names nobody, owner included, with the real display names in the
  *   database — the directory page's boundary, which is the one that matters
  *   for a link meant to be pasted somewhere public.
@@ -75,13 +77,26 @@ async function registerDevice(user: User, deviceToken: string) {
   });
 }
 
-async function start(owner: User, name = 'Cafe Products') {
-  const reply = await app.fastify.inject({
+async function channelOfOne(owner: User) {
+  const created = await app.fastify.inject({
     method: 'POST',
-    url: '/channels/community',
+    url: '/channels',
     headers: auth(owner.token),
-    payload: { name },
+    payload: { contactIds: [] },
   });
+  return (created.json() as { channelId: string }).channelId;
+}
+
+const makeCommunity = (owner: User, channelId: string, name?: string) =>
+  app.fastify.inject({
+    method: 'POST',
+    url: `/channels/${channelId}/community`,
+    headers: auth(owner.token),
+    payload: name === undefined ? {} : { name },
+  });
+
+async function start(owner: User, name = 'Cafe Products') {
+  const reply = await makeCommunity(owner, await channelOfOne(owner), name);
   expect(reply.statusCode).toBe(200);
   return reply.json() as { channelId: string; joinCode: string; url: string };
 }
@@ -104,9 +119,69 @@ const home = async (user: User) =>
     rejoinable: Array<{ channelId: string }>;
   };
 
-describe('starting one', () => {
+describe('making one', () => {
   it('wants a name, and mints a link read from it', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
+    const channelId = await channelOfOne(erta);
+    const nameless = await makeCommunity(erta, channelId, '  ');
+    expect(nameless.statusCode).toBe(400);
+    expect(app.channels.get(channelId)?.owner).toBeUndefined();
+
+    const reply = await makeCommunity(erta, channelId, 'Cafe Products');
+    expect(reply.statusCode).toBe(200);
+    const { joinCode, url } = reply.json() as { joinCode: string; url: string };
+    expect(joinCode).toMatch(/^cafe-products-[a-z2-9]{8}$/);
+    expect(url).toMatch(new RegExp(`/j/${joinCode}$`));
+    expect(app.channels.get(channelId)?.owner).toBe(erta.account.id);
+    expect(app.channels.get(channelId)?.name).toBe('Cafe Products');
+  });
+
+  it('keeps the name a channel already has', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const channelId = await channelOfOne(erta);
+    app.channels.dispatch(channelId, erta.account.id, { type: 'SET_NAME', name: 'Mine' } as never);
+    expect((await makeCommunity(erta, channelId)).statusCode).toBe(200);
+    expect(app.channels.get(channelId)?.name).toBe('Mine');
+  });
+
+  it('is refused with anybody else in the channel, and to a non-member', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const zed = await signIn('zed@example.com', 'Zed Zebedee');
+    const { channelId: theirs } = await start(erta);
+    expect((await makeCommunity(zed, theirs, 'Taken')).statusCode).toBe(400);
+    expect((await makeCommunity(erta, theirs, 'Again')).statusCode).toBe(409);
+
+    const { channelId: pair } = app.channels.ensurePairChannel(erta.account.id, zed.account.id)!;
+    expect((await makeCommunity(erta, pair, 'Ours')).statusCode).toBe(409);
+  });
+
+  it('is never a podcast too, in either order', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const podcast = await channelOfOne(erta);
+    app.channels.dispatch(podcast, erta.account.id, { type: 'SET_NAME', name: 'On air' } as never);
+    const on = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${podcast}/public`,
+      headers: auth(erta.token),
+      payload: { public: true },
+    });
+    expect(on.statusCode).toBe(200);
+    expect((await makeCommunity(erta, podcast)).statusCode).toBe(409);
+
+    const { channelId } = await start(erta);
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/public`,
+      headers: auth(erta.token),
+      payload: { public: true },
+    });
+    expect(refused.statusCode).toBe(409);
+    expect(app.channels.publicAtOf(channelId)).toBeNull();
+  });
+
+  it('still starts one from nothing for build 335 — SHIMS.md, gate 336', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const mine = await channelOfOne(erta);
     const nameless = await app.fastify.inject({
       method: 'POST',
       url: '/channels/community',
@@ -114,11 +189,18 @@ describe('starting one', () => {
       payload: { name: '  ' },
     });
     expect(nameless.statusCode).toBe(400);
-
-    const { channelId, joinCode, url } = await start(erta);
-    expect(joinCode).toMatch(/^cafe-products-[a-z2-9]{8}$/);
-    expect(url).toMatch(new RegExp(`/j/${joinCode}$`));
+    const reply = await app.fastify.inject({
+      method: 'POST',
+      url: '/channels/community',
+      headers: auth(erta.token),
+      payload: { name: 'Cafe Products' },
+    });
+    expect(reply.statusCode).toBe(200);
+    const { channelId } = reply.json() as { channelId: string };
+    // A new channel, never the channel of one the caller already had.
+    expect(channelId).not.toBe(mine);
     expect(app.channels.get(channelId)?.owner).toBe(erta.account.id);
+    expect(app.channels.get(mine)?.owner).toBeUndefined();
   });
 
   it('slugs a name that has nothing to slug as community', () => {

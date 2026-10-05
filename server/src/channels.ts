@@ -29,6 +29,7 @@ import {
   canClaimFloor,
   canDeleteChannel,
   canLoadTrack,
+  canMakeCommunity,
   capacityOf,
   isOwner,
   hasTheRoom,
@@ -1368,44 +1369,88 @@ export class ChannelRegistry {
   }
 
   /**
-   * Starts a *community*: a named channel owned by whoever starts it, holding
-   * them alone, with its link already minted.
+   * Makes a channel into a *community* owned by `userId`, its only member,
+   * and mints its link — see `canMakeCommunity`, which is the whole of who may.
    *
-   * The only way an owner comes to exist — see `ChannelState.owner` — so the
-   * rule that one is set only at birth is this method's shape rather than a
-   * check anybody has to remember. A name is required because the page is
-   * titled with it and the link is read from it.
+   * A blank `name` keeps the one the channel has. A name is required because
+   * the page is titled with it and the link is read from it, so a channel with
+   * none and none given is refused here rather than silently in the reducer.
+   */
+  makeCommunity(
+    channelId: string,
+    userId: string,
+    name: unknown
+  ): { ok: true; channel: ChannelState; joinCode: string } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active' || !isParticipant(channel, userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.owner !== undefined) {
+      return { ok: false, error: 'This is a community already.', code: 'conflict' };
+    }
+    if (!canMakeCommunity(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Only a channel with nobody else in it can become a community.',
+        code: 'conflict',
+      };
+    }
+    // Nor a podcast — see `setPublic`, which refuses the other direction.
+    if (this.publicAtOf(channelId) !== null) {
+      return {
+        ok: false,
+        error: 'A podcast cannot also be a community. Turn its podcast off first.',
+        code: 'conflict',
+      };
+    }
+    const given = typeof name === 'string' ? name : '';
+    if (!given.trim() && !isNamed(channel)) {
+      return { ok: false, error: 'A community needs a name.', code: 'invalid' };
+    }
+    const made = this.apply(channelId, userId, {
+      type: 'MAKE_COMMUNITY',
+      name: given,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!made.ok) return made;
+    if (!isOwner(made.channel, userId)) {
+      return { ok: false, error: 'Could not make it a community.', code: 'conflict' };
+    }
+    const joinCode = mintJoinCode(made.channel.name ?? '');
+    this.db.prepare('UPDATE channels SET join_code = ? WHERE id = ?').run(joinCode, channelId);
+    return { ok: true, channel: made.channel, joinCode };
+  }
+
+  /**
+   * Starts a *community* from nothing: a new channel, then `makeCommunity`.
+   *
+   * **A shim, for build 335**, which offered *Start a community* on Home before
+   * the control moved to a channel of one's settings — SHIMS.md, gate 336.
+   * Never `create`, which would hand back the caller's existing channel of one
+   * and make *that* the community.
    */
   createCommunity(
     owner: string,
     name: unknown
   ): { ok: true; channel: ChannelState; joinCode: string } | Refused {
-    const trimmed =
-      typeof name === 'string' ? name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH) : '';
-    if (!trimmed) {
+    if (typeof name !== 'string' || !name.trim()) {
       return { ok: false, error: 'A community needs a name.', code: 'invalid' };
     }
     const createdAt = this.now();
-    const joinCode = mintJoinCode(trimmed);
     const id = insertWithUniqueKey(
       () => newId('chan'),
       (candidate) =>
         this.db
           .prepare(
-            `INSERT INTO channels
-               (id, initiator_id, invitee_id, created_at, participants, name, join_code)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+             VALUES (?, ?, ?, ?, ?)`
           )
-          .run(candidate, owner, owner, createdAt, JSON.stringify([owner]), trimmed, joinCode)
+          .run(candidate, owner, owner, createdAt, JSON.stringify([owner]))
     );
-    const channel: ChannelState = {
-      ...createChannel({ id, initiator: owner, invitees: [], now: createdAt, owner: true }),
-      name: trimmed,
-    };
+    const channel = createChannel({ id, initiator: owner, invitees: [], now: createdAt });
     this.channels.set(channel.id, channel);
     this.persistChannel(channel);
     this.emit([channel.id]);
-    return { ok: true, channel, joinCode };
+    return this.makeCommunity(channel.id, owner, name);
   }
 
   /**

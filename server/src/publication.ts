@@ -122,6 +122,16 @@ export class Publication {
   ): { ok: true; publicAt: number | null } | Refusal {
     const channel = this.channelFor(channelId, userId);
     if (!channel) return refuse('No such channel.', 'not_found');
+    // A podcast and a community are the two ways a channel faces outward,
+    // and a channel is at most one of them: a community's contents are its
+    // members', and a podcast's are anybody's. `makeCommunity` in channels.ts
+    // is the other direction.
+    if (wanted && channel.owner !== null) {
+      return refuse(
+        'A community cannot also be a podcast. Its recordings are for its members.',
+        'conflict'
+      );
+    }
     if (wanted && channel.name === null) {
       return refuse(
         'Name this channel before giving it a public page. An unnamed channel is listed by who is in it, and a public page never names a member.',
@@ -672,16 +682,24 @@ export class Publication {
   private channelFor(
     channelId: string,
     userId: string
-  ): { id: string; name: string | null; public_at: number | null } | null {
+  ): {
+    id: string;
+    name: string | null;
+    public_at: number | null;
+    owner: string | null;
+  } | null {
     const row = this.db
       .prepare(
-        `SELECT id, name, public_at FROM channels
+        // `owner` from the durable blob, which carries it for a restart's sake
+        // and is the only place a row records that it is a community.
+        `SELECT id, name, public_at, json_extract(state, '$.owner') AS owner
+           FROM channels
           WHERE id = ? AND deleted_at IS NULL
             AND EXISTS (SELECT 1 FROM json_each(channels.participants)
                          WHERE json_each.value = ?)`
       )
       .get(channelId, userId) as
-      | { id: string; name: string | null; public_at: number | null }
+      | { id: string; name: string | null; public_at: number | null; owner: string | null }
       | undefined;
     return row ?? null;
   }

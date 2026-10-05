@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Alert,
   Platform,
@@ -19,14 +19,7 @@ import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { leaveSeat, leaveSeatChannel } from './handover';
-import {
-  Button,
-  Card,
-  Empty,
-  Field,
-  Reveal,
-  SectionLabel,
-} from './components';
+import { Button, Card, Empty, SectionLabel } from './components';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -464,7 +457,6 @@ export function ChannelsView({
       ))}
 
       <StartChannelRow onPress={startAlone} />
-      <StartCommunity onStarted={onEnterChannel} />
 
       {live.length > 0 ? (
         <>
@@ -1240,97 +1232,7 @@ function StartChannelRow({ onPress }: { onPress: () => void }) {
   );
 }
 
-/**
- * Starting a *community*, folded away until it is wanted — Contacts'
- * `AddContact` shape, a row that opens into a card holding a field, because a
- * community cannot exist without the name its link is read from.
- *
- * Under *Start a channel* rather than beside it, and in the same row shape: it
- * is the same kind of offer and the rarer one. It enters the community it
- * makes, for `startAlone`'s reason — a room you have just made that you are
- * not standing in is a strange thing to have produced.
- */
-function StartCommunity({ onStarted }: { onStarted: (id: string) => void }) {
-  const app = useApp();
-  const t = useText().channels;
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function start() {
-    setBusy(true);
-    try {
-      const id = await app.startCommunity(name.trim());
-      setOpen(false);
-      setName('');
-      onStarted(id);
-    } catch (e) {
-      Alert.alert(t.couldNotStartCommunity(), e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.startACommunity()}
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => pressed && styles.rowPressed}
-      >
-        <Card style={styles.startRow}>
-          <View style={styles.startMark}>
-            <Text style={styles.startMarkGlyph}>+</Text>
-          </View>
-          <Text style={styles.startLabel}>{t.startACommunity()}</Text>
-        </Card>
-      </Pressable>
-    );
-  }
-
-  return (
-    <Reveal when={open}>
-      <Card style={styles.startCommunity}>
-        <Text style={styles.startLabel}>{t.startACommunity()}</Text>
-        <Field
-          value={name}
-          onChangeText={setName}
-          placeholder={t.communityNamePlaceholder()}
-          autoFocus
-          onSubmit={name.trim() && !busy ? start : undefined}
-          submitLabel="done"
-        />
-        <Text style={type.muted}>{t.communityNote()}</Text>
-        <View style={styles.startActions}>
-          <Button
-            label={t.cancel()}
-            onPress={() => {
-              setOpen(false);
-              setName('');
-            }}
-          />
-          <Button
-            label={busy ? t.starting() : t.startIt()}
-            onPress={() => void start()}
-            disabled={!name.trim() || busy}
-          />
-        </View>
-      </Card>
-    </Reveal>
-  );
-}
-
 const styles = StyleSheet.create({
-  /** Contacts' `addContact`, being the same card. */
-  startCommunity: { gap: spacing(1), marginBottom: spacing(1.5) },
-  /** Contacts' `addActionsSpread`, for the same reason. */
-  startActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing(0.5),
-  },
   /**
    * The removal notice's own stack. `gap` rather than margins, as every other
    * card in the app does it, and the same value `stack` carries on the channel

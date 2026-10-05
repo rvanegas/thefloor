@@ -191,6 +191,7 @@ describe('the two languages', () => {
       'channel.audio',
       'channel.no',
       'home.podcasts',
+      'channelSettings.podcast',
       'transcript.data',
       // The two language names, which are each written in their own language
       // in both catalogues: the person who cannot read the language the screen

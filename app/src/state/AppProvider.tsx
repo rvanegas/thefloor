@@ -779,8 +779,11 @@ interface AppValue extends AppState {
     code: string
   ) => Promise<ProfileView>;
   startChannel: (contactIds: string[]) => Promise<string>;
-  /** Starts a *community* owned by you and enters it; resolves to its id. */
-  startCommunity: (name: string) => Promise<string>;
+  /**
+   * Makes a channel you are alone in into a *community* you own; resolves to
+   * its link. A blank `name` keeps the channel's own.
+   */
+  makeCommunity: (channelId: string, name: string) => Promise<string>;
   /** A community's link, for its owner; null while it is turned off. */
   communityLink: (channelId: string) => Promise<string | null>;
   /** Resets a community's link (revoking the old one), or turns it off. */
@@ -2943,14 +2946,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return channelId;
       },
 
-      startCommunity: async (name) => {
+      makeCommunity: async (channelId, name) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        const { channelId } = await api.startCommunity(state.token, name);
-        realtime.watchChannel(channelId);
-        // The same standing-in `startChannel` does, for the same reason: a
-        // community is created with its owner present.
-        realtime.standIn(channelId);
-        return channelId;
+        return (await api.makeCommunity(state.token, channelId, name)).url;
       },
 
       communityLink: async (channelId) => {

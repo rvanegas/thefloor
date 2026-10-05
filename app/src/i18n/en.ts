@@ -355,14 +355,6 @@ export const en = {
     reconnecting: () => 'Reconnecting\u2026',
     notConnected: () => 'Not connected — invites and channels will not update.',
     startAChannel: () => 'Start a channel',
-    /** A *community*: see GLOSSARY.md. Opens into a field for its name. */
-    startACommunity: () => 'Start a community',
-    communityNamePlaceholder: () => 'What it is called',
-    communityNote: () =>
-      'Anyone with its link can join, up to twenty people, without being anybody\u2019s contact. You own it: you can remove people and delete it, and you cannot leave it.',
-    startIt: () => 'Start it',
-    starting: () => 'Starting\u2026',
-    couldNotStartCommunity: () => 'Could not start the community',
     declineInvite: () => 'Decline invite',
     /** What an unnamed channel is called on a seat's card. */
     aChannel: () => 'A channel',
@@ -983,7 +975,7 @@ export const en = {
     renameStepIn: () =>
       'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.',
     renamePublic: () =>
-      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel has a public page — the page is found by its name, and an unnamed channel is listed by who is in it.',
+      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel is a podcast or a community — each is found by its name, and an unnamed channel is listed by who is in it.',
     renamePrivate: () =>
       'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
     /**
@@ -995,7 +987,10 @@ export const en = {
     description: () => 'Description',
     descriptionPlaceholder: () => 'What this channel is, in a line or two…',
     descriptionNote: () =>
-      'Shown under the name on this channel’s public page, and in the feed a podcast app reads. Anyone in the room can change it.',
+      'Shown under the name on this podcast\u2019s page, and in the feed a podcast app reads. Anyone in the room can change it.',
+    /** The same field on a *community*, whose page is the one its link opens. */
+    communityDescriptionNote: () =>
+      'Shown under the name on the page its link opens, to anybody who has the link. Anyone in the room can change it.',
     descriptionStepIn: () =>
       'Step in to change this. It is what the channel tells people who have never been in it.',
     recording: () => 'Recording',
@@ -1009,9 +1004,29 @@ export const en = {
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
     notifications: () => 'Notifications',
-    publicPage: () => 'Public page',
+    /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
+    podcast: () => 'Podcast',
     guestLinks: () => 'Guest links',
+    community: () => 'Community',
     communityLink: () => 'Community link',
+    isACommunity: () => 'This channel is a community',
+    /** What a community is, said to its owner. */
+    communityOwnerWhat: (members: number) =>
+      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. You own it: only you hold the link, you can remove a member on your own, and you can delete it for everybody. You cannot leave it.`,
+    /** What a community is, said to anybody in it but its owner. */
+    communityMemberWhat: (members: number) =>
+      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. Its owner holds the link, can remove a member without anybody else agreeing, and can delete it for everybody.`,
+    /** On a channel of one: see `canMakeCommunity`. */
+    makeCommunity: () => 'Make channel into a community',
+    makeCommunityNote: (members: number) =>
+      `A community is a channel anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact; what is said and recorded in it stays with its members. You are alone here, so you can make this one: you would own it, remove people on your own, and delete it for everybody, and you could not leave it. It cannot be made an ordinary channel again.`,
+    communityNamePlaceholder: () => 'What it is called',
+    makeIt: () => 'Make it a community',
+    making: () => 'Making\u2026',
+    couldNotMakeCommunity: () => 'Could not make it a community.',
+    /** Why a podcast is offered no *Make channel into a community*. */
+    podcastNotCommunity: () =>
+      'A podcast cannot also be a community. Turn the podcast off first, and this channel can become one.',
     communityLinkNote: (members: number) =>
       `Anyone with this link can join, up to ${members} members, and nobody becomes anybody\u2019s contact by it. Resetting it stops the old one working for everybody who has it.`,
     communityLinkOff: () =>
@@ -1049,26 +1064,29 @@ export const en = {
       'Stepping out is on the channel screen and is probably what you want: it keeps your place here.',
     couldNotChange: () => 'Could not change that just now.',
     thatDidNotWork: () => 'That did not work.',
-    hasAPublicPage: () => 'This channel has a public page',
-    publishAsk: () => 'Give this channel a public page?',
+    isAPodcast: () => 'This channel is a podcast',
+    /** Why a community is offered no On for the podcast. */
+    communityNotPodcast: () =>
+      'A community cannot also be a podcast: what is said in a community is for its members, and a podcast is for anybody.',
+    publishAsk: () => 'Make this channel a podcast?',
     publishBody: () =>
-      'The page shows the channel\u2019s name and description to anyone, and the channel is listed publicly where it can be found by people you have never met. Members are not named.\n\nNo recording appears on it until everybody who was in that recording has agreed to publish it, one at a time, from its card on the channel screen.',
+      'It gets a page on the web and a feed podcast apps can subscribe to. The page shows the channel\u2019s name and description to anyone, and the channel is listed publicly where it can be found by people you have never met. Members are not named.\n\nNo recording appears on it until everybody who was in that recording has agreed to publish it, one at a time, from its card on the channel screen.',
     notNow: () => 'Not now',
-    createThePage: () => 'Create the page',
-    unpublishAsk: () => 'Take this page down?',
+    createThePage: () => 'Make it a podcast',
+    unpublishAsk: () => 'Turn the podcast off?',
     unpublishBody: () =>
       'The page and the feed stop answering at once, and the channel leaves the public list. Anybody who subscribed in a podcast app stops receiving it, and copies already downloaded are not reached.\n\nNobody\u2019s agreement is taken back, so turning it on again puts the same recordings at the same address.',
-    keepThePage: () => 'Keep the page',
-    takeItDown: () => 'Take it down',
+    keepThePage: () => 'Keep it on',
+    takeItDown: () => 'Turn it off',
     saving: () => 'Saving\u2026',
     pageNote: () =>
       'Nothing is on the page until everybody in a recording agrees to publish it. Each recording is asked about separately, on its own card. The channel itself is listed publicly as soon as this is on.',
     directoryNeedsThese: () =>
       'To be listed in a podcast directory, a feed also needs these.',
     publicOffNote: () =>
-      'Off, which is how every channel starts. There is no page and no feed, and nothing here is reachable by anybody outside it.',
+      'Off, which is how every channel starts. A podcast has a page on the web and a feed podcast apps subscribe to: its name and description are public, it is listed where anybody can find it, no member is ever named, and a recording goes on it only once everybody in that recording agrees. Off, there is no page and no feed, and nothing here is reachable by anybody outside it.',
     nameItFirst: () =>
-      'Name this channel first, at the top of this screen. A public page is found by its name, and this channel has none — it is listed by who is in it, and a public page never names a member.',
+      'Name this channel first, at the top of this screen. A podcast is found by its name, and this channel has none — it is listed by who is in it, and a podcast never names a member.',
     coverSetAt: (width: number, height: number) =>
       `Cover set — ${width}×${height}.`,
     coverSet: () => 'Cover set.',
@@ -1319,9 +1337,9 @@ export const en = {
       'The Floor is for talking with people you already know, and it is no use at all on the first day, when nobody you know is here yet. So you have been introduced to a few people who joined around the same time as you, and to somebody who runs The Floor.',
     cohortWho: () =>
       'Nobody here is one of your contacts, and nobody can see your email address. Step in and say something, or leave whenever you like — Channel Settings, at the top, has Leave this channel.',
-    publicNoticeTitle: () => 'This channel has a public page',
+    publicNoticeTitle: () => 'This channel is a podcast',
     publicNoticeWhat: () =>
-      'Somebody in this channel has given it a page on the web, showing its name and its description to anybody, and it is listed publicly where it can be found by people you have never met. No member is named on it, ever.',
+      'Somebody in this channel has made it a podcast: a page on the web showing its name and its description to anybody, and a feed podcast apps can subscribe to. It is listed publicly where it can be found by people you have never met. No member is named on it, ever.',
     publicNoticeRecordings: () =>
       'No recording of yours goes on it unless you agree to that recording yourself, on its own card under Recordings, and everybody else in it agrees too. Any one of you can take that back afterwards.',
     elsewhereTaken: () =>

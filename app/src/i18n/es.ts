@@ -276,13 +276,6 @@ export const es: Strings = {
     notConnected: () =>
       'Sin conexi\u00f3n: las invitaciones y los canales no se actualizar\u00e1n.',
     startAChannel: () => 'Crear un canal',
-    startACommunity: () => 'Crear una comunidad',
-    communityNamePlaceholder: () => 'C\u00f3mo se llama',
-    communityNote: () =>
-      'Cualquiera con su enlace puede unirse, hasta veinte personas, sin ser contacto de nadie. Es tuya: puedes expulsar a gente y borrarla, y no puedes salir de ella.',
-    startIt: () => 'Crearla',
-    starting: () => 'Creando\u2026',
-    couldNotStartCommunity: () => 'No se ha podido crear la comunidad',
     declineInvite: () => 'Rechazar la invitaci\u00f3n',
     aChannel: () => 'Un canal',
     askedYouInAsGuest: (from: string) => `${from} te ha invitado como invitado`,
@@ -787,13 +780,15 @@ export const es: Strings = {
     renameStepIn: () =>
       'Entra para cambiar el nombre de este canal. Hay alguien dentro, y el nombre es c\u00f3mo llama al sitio en el que est\u00e1.',
     renamePublic: () =>
-      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal tenga p\u00e1gina p\u00fablica: la p\u00e1gina se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
     renamePrivate: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
     description: () => 'Descripci\u00f3n',
     descriptionPlaceholder: () => 'Qu\u00e9 es este canal, en una l\u00ednea o dos\u2026',
     descriptionNote: () =>
-      'Se muestra bajo el nombre en la p\u00e1gina p\u00fablica del canal, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 en la sala puede cambiarla.',
+      'Se muestra bajo el nombre en la p\u00e1gina de este podcast, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 en la sala puede cambiarla.',
+    communityDescriptionNote: () =>
+      'Se muestra bajo el nombre en la p\u00e1gina que abre su enlace, a cualquiera que lo tenga. Cualquiera que est\u00e9 en la sala puede cambiarla.',
     descriptionStepIn: () =>
       'Entra para cambiar esto. Es lo que el canal le cuenta a quien nunca ha estado dentro.',
     recording: () => 'Grabaci\u00f3n',
@@ -807,9 +802,24 @@ export const es: Strings = {
     autoRecordStepIn: () =>
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
     notifications: () => 'Notificaciones',
-    publicPage: () => 'P\u00e1gina p\u00fablica',
+    podcast: () => 'Podcast',
     guestLinks: () => 'Enlaces de invitado',
+    community: () => 'Comunidad',
     communityLink: () => 'Enlace de la comunidad',
+    isACommunity: () => 'Este canal es una comunidad',
+    communityOwnerWhat: (members: number) =>
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres responsable de ella: solo t\u00fa tienes el enlace, puedes expulsar a un miembro por tu cuenta y puedes borrarla para todos. No puedes salir de ella.`,
+    communityMemberWhat: (members: number) =>
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Quien es responsable tiene el enlace, puede expulsar a un miembro sin que nadie m\u00e1s est\u00e9 de acuerdo, y puede borrarla para todos.`,
+    makeCommunity: () => 'Convertir el canal en una comunidad',
+    makeCommunityNote: (members: number) =>
+      `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable, podr\u00edas expulsar a gente por tu cuenta y borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
+    communityNamePlaceholder: () => 'C\u00f3mo se llama',
+    makeIt: () => 'Convertirlo',
+    making: () => 'Convirtiendo\u2026',
+    couldNotMakeCommunity: () => 'No se ha podido convertir en comunidad.',
+    podcastNotCommunity: () =>
+      'Un podcast no puede ser tambi\u00e9n una comunidad. Desactiva antes el podcast, y este canal podr\u00e1 serlo.',
     communityLinkNote: (members: number) =>
       `Cualquiera con este enlace puede unirse, hasta ${members} miembros, y nadie se convierte en contacto de nadie por ello. Si lo restableces, el anterior deja de funcionar para todos los que lo tengan.`,
     communityLinkOff: () =>
@@ -846,26 +856,28 @@ export const es: Strings = {
       'Salir de la sala est\u00e1 en la pantalla del canal y es seguramente lo que quieres: conserva tu sitio aqu\u00ed.',
     couldNotChange: () => 'Ahora mismo no se ha podido cambiar eso.',
     thatDidNotWork: () => 'Eso no ha funcionado.',
-    hasAPublicPage: () => 'Este canal tiene p\u00e1gina p\u00fablica',
-    publishAsk: () => '\u00bfDarle a este canal una p\u00e1gina p\u00fablica?',
+    isAPodcast: () => 'Este canal es un podcast',
+    communityNotPodcast: () =>
+      'Una comunidad no puede ser tambi\u00e9n un podcast: lo que se dice en una comunidad es para sus miembros, y un podcast es para cualquiera.',
+    publishAsk: () => '\u00bfConvertir este canal en un podcast?',
     publishBody: () =>
-      'La p\u00e1gina muestra el nombre y la descripci\u00f3n del canal a cualquiera, y el canal aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. Los miembros no se nombran.\n\nNinguna grabaci\u00f3n aparece en ella hasta que todos los que estaban en esa grabaci\u00f3n acepten publicarla, uno a uno, desde su tarjeta en la pantalla del canal.',
+      'Tendr\u00e1 una p\u00e1gina en la web y un feed al que pueden suscribirse las apps de podcasts. La p\u00e1gina muestra el nombre y la descripci\u00f3n del canal a cualquiera, y el canal aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. Los miembros no se nombran.\n\nNinguna grabaci\u00f3n aparece en ella hasta que todos los que estaban en esa grabaci\u00f3n acepten publicarla, uno a uno, desde su tarjeta en la pantalla del canal.',
     notNow: () => 'Ahora no',
-    createThePage: () => 'Crear la p\u00e1gina',
-    unpublishAsk: () => '\u00bfRetirar esta p\u00e1gina?',
+    createThePage: () => 'Convertirlo en podcast',
+    unpublishAsk: () => '\u00bfDesactivar el podcast?',
     unpublishBody: () =>
       'La p\u00e1gina y el feed dejan de responder al instante, y el canal sale de la lista p\u00fablica. Quien se hubiera suscrito en una app de podcasts deja de recibirlo, y las copias ya descargadas no se pueden alcanzar.\n\nNo se retira el permiso de nadie, as\u00ed que volver a activarlo pone las mismas grabaciones en la misma direcci\u00f3n.',
-    keepThePage: () => 'Conservar la p\u00e1gina',
-    takeItDown: () => 'Retirarla',
+    keepThePage: () => 'Mantenerlo',
+    takeItDown: () => 'Desactivarlo',
     saving: () => 'Guardando\u2026',
     pageNote: () =>
       'No hay nada en la p\u00e1gina hasta que todos los de una grabaci\u00f3n acepten publicarla. Se pregunta por cada grabaci\u00f3n por separado, en su propia tarjeta. El canal en s\u00ed aparece en la lista p\u00fablica en cuanto esto est\u00e1 activado.',
     directoryNeedsThese: () =>
       'Para aparecer en un directorio de podcasts, un feed necesita adem\u00e1s esto.',
     publicOffNote: () =>
-      'No, que es como empieza todo canal. No hay p\u00e1gina ni feed, y nada de aqu\u00ed es accesible desde fuera.',
+      'No, que es como empieza todo canal. Un podcast tiene una p\u00e1gina en la web y un feed al que se suscriben las apps de podcasts: su nombre y su descripci\u00f3n son p\u00fablicos, aparece en una lista donde cualquiera puede encontrarlo, nunca se nombra a ning\u00fan miembro, y una grabaci\u00f3n solo aparece en \u00e9l cuando todos los de esa grabaci\u00f3n lo aceptan. Desactivado, no hay p\u00e1gina ni feed, y nada de aqu\u00ed es accesible desde fuera.',
     nameItFirst: () =>
-      'Ponle antes un nombre a este canal, arriba en esta pantalla. Una p\u00e1gina p\u00fablica se encuentra por su nombre, y este canal no tiene: se lista por qui\u00e9n est\u00e1 dentro, y una p\u00e1gina p\u00fablica nunca nombra a un miembro.',
+      'Ponle antes un nombre a este canal, arriba en esta pantalla. Un podcast se encuentra por su nombre, y este canal no tiene: se lista por qui\u00e9n est\u00e1 dentro, y un podcast nunca nombra a un miembro.',
     coverSetAt: (width: number, height: number) =>
       `Portada puesta — ${width}×${height}.`,
     coverSet: () => 'Portada puesta.',
@@ -1091,9 +1103,9 @@ export const es: Strings = {
       'The Floor sirve para hablar con gente que ya conoces, y no sirve de nada el primer d\u00eda, cuando todav\u00eda no hay nadie que conozcas. As\u00ed que te hemos presentado a unas cuantas personas que se unieron por las mismas fechas, y a alguien que lleva The Floor.',
     cohortWho: () =>
       'Nadie de aqu\u00ed es contacto tuyo, y nadie puede ver tu direcci\u00f3n de correo. Entra y di algo, o sal cuando quieras: en Ajustes del canal, arriba, est\u00e1 Salir de este canal.',
-    publicNoticeTitle: () => 'Este canal tiene p\u00e1gina p\u00fablica',
+    publicNoticeTitle: () => 'Este canal es un podcast',
     publicNoticeWhat: () =>
-      'Alguien de este canal le ha dado una p\u00e1gina en la web, que muestra su nombre y su descripci\u00f3n a cualquiera, y aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. En ella no se nombra nunca a ning\u00fan miembro.',
+      'Alguien de este canal lo ha convertido en un podcast: una p\u00e1gina en la web que muestra su nombre y su descripci\u00f3n a cualquiera, y un feed al que pueden suscribirse las apps de podcasts. Aparece en una lista p\u00fablica donde puede encontrarlo gente que no conoces. En \u00e9l no se nombra nunca a ning\u00fan miembro.',
     publicNoticeRecordings: () =>
       'Ninguna grabaci\u00f3n tuya aparece ah\u00ed salvo que lo aceptes t\u00fa, en su propia tarjeta bajo Grabaciones, y que lo acepten tambi\u00e9n todos los dem\u00e1s. Cualquiera de vosotros puede retirarlo despu\u00e9s.',
     elsewhereTaken: () =>

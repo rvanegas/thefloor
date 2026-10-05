@@ -100,18 +100,8 @@ export function createChannel(params: {
    * conversation began with.
    */
   present?: UserId[];
-  /**
-   * Makes this a *community*, owned by its initiator — and only possible here,
-   * at birth, with nobody else in it. That is the whole of the rule that keeps
-   * an owner from ever landing on people who joined a flat channel: there is
-   * no action that adds one later. See `ChannelState.owner`.
-   */
-  owner?: boolean;
 }): ChannelState {
   const { id, initiator, invitees, now } = params;
-  if (params.owner && invitees.length > 0) {
-    throw new Error('A community starts with its owner alone.');
-  }
   const participants = [initiator, ...invitees];
   // Structural violations, not policy ones: the caller was supposed to have
   // validated the roster, so a bad one here is a bug worth failing loudly on.
@@ -139,7 +129,6 @@ export function createChannel(params: {
     initiator,
     participants,
     invitedBy: Object.fromEntries(invitees.map((i) => [i, initiator])),
-    ...(params.owner ? { owner: initiator } : {}),
     createdAt: now,
     lastActiveAt: now,
     status: 'active',
@@ -187,6 +176,26 @@ export function isParticipant(state: ChannelState, userId: UserId): boolean {
 /** Whether `userId` owns this channel, which only a *community* has. */
 export function isOwner(state: ChannelState, userId: UserId): boolean {
   return state.owner !== undefined && state.owner === userId;
+}
+
+/**
+ * Whether `userId` may make this channel into a *community* that they own:
+ * they are its only member, and it is not one already.
+ *
+ * **Alone is the whole of the rule** that keeps an owner from landing on
+ * anybody who joined a flat channel. Nobody else belongs, so nobody is made
+ * subject to an owner; whoever comes in afterwards, by an invitation or the
+ * join link, walks in under one knowingly. Whether a name comes with it is
+ * the reducer's to check, since the action carries one — see
+ * `MAKE_COMMUNITY`.
+ */
+export function canMakeCommunity(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    state.owner === undefined &&
+    state.participants.length === 1 &&
+    isParticipant(state, userId)
+  );
 }
 
 /**
@@ -2704,6 +2713,16 @@ function reduceAction(
       // read from it, and a roster of up to twenty strangers is no description.
       if (name === null && state.owner !== undefined) return state;
       return { ...state, name };
+    }
+
+    case 'MAKE_COMMUNITY': {
+      if (!canMakeCommunity(state, action.userId)) return state;
+      // The name `SET_NAME` would make of the same input, falling back to the
+      // one it has: a community keeps a name, and cannot become one without.
+      const trimmed = action.name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH);
+      const name = trimmed === '' ? state.name : trimmed;
+      if (name === null) return state;
+      return { ...state, name, owner: action.userId };
     }
 
     case 'SET_DESCRIPTION': {

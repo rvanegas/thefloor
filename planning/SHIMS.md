@@ -61,6 +61,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 298 | `HomeView.removals` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | — | `ChannelState.removals` revived as empty | `server/src/channels.ts` |
 | 330 | `SharedDrift.withheld`, relayed for the readouts that still draw it | `core/protocol.ts`, `server/src/ws.ts` |
+| 336 | `POST /channels/community`, starting a community from nothing | `server/src/app.ts`, `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -877,6 +878,26 @@ is on disk, so the floor moving does not free it; this is the same kind of entry
 as `WatchState.history` revived as empty above.
 
 ---
+
+## Gate 336 — `POST /channels/community`, starting a community from nothing
+
+Build 335 offered *Start a community* on Home, which made a new channel and a
+community of it in one call. From 2026-10-04 a community is made instead by
+*Make channel into a community* on a channel of one's settings —
+`POST /channels/:id/community` — and Home has no such row. **Build 335 still
+sends the old call**, so the route stays, rebuilt as a new channel followed by
+`makeCommunity`.
+
+**What goes at 336**: the route in `app.ts` and `ChannelRegistry.createCommunity`
+in `channels.ts`, and the shim test at the end of *making one* in
+`server/__tests__/community.test.ts`. **What must not go with it**:
+`makeCommunity`, which is the only way a community comes to exist and looks
+like half of the same thing, and `mintJoinCode`, which both use.
+`createCommunity` must never be "simplified" into `create` then
+`makeCommunity`: `create` hands back the caller's existing channel of one, and
+would make *that* the community.
+
+Gate 336 because `build/335` is tagged and is the one build that sends it.
 
 ## Gate 330 — `SharedDrift.withheld`, relayed for the readouts that still draw it
 

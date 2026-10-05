@@ -632,9 +632,9 @@ export interface ChannelState {
    * The *owner*, present exactly when this channel is a *community*: one made
    * to be joined through its *community link* by people nobody here knows.
    *
-   * **The one bend in the no-admin rule, and it is set only at birth** — by
-   * `createChannel` with `owner: true`, while the initiator is the only member
-   * — so nobody is ever subject to an owner they did not walk in under. The
+   * **The one bend in the no-admin rule, and it is set only while its one
+   * member is alone** — by `MAKE_COMMUNITY`, see `canMakeCommunity` — so
+   * nobody is ever subject to an owner they did not walk in under. The
    * owner may remove a member in one move, may delete the channel at any size,
    * and alone holds its link; every other member has every other privilege.
    * The owner cannot leave or be moved against, since a community without one
@@ -994,6 +994,15 @@ export type ChannelAction =
    * invitation — see `invitesFor` in the server.
    */
   | { type: 'JOIN'; userId: UserId }
+  /**
+   * Makes the channel a *community* owned by `userId`, its only member — see
+   * `canMakeCommunity` — under `name`, or the name it has when `name` is blank.
+   * Refused with neither, since a community's page and link are read from it.
+   *
+   * Not in the server's `CLIENT_ACTIONS`: the link has to be minted alongside,
+   * which is `ChannelRegistry.makeCommunity`'s, so it arrives by its own route.
+   */
+  | { type: 'MAKE_COMMUNITY'; userId: UserId; name: string }
   /**
    * Destroy the channel and everything recorded in it. Only its last member
    * may, there being nobody left to disagree — or a community's owner, at any

@@ -4,9 +4,11 @@ import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
+  MAX_COMMUNITY_MEMBERS,
 } from '../../../core/constants';
 import {
   canEditChannel,
+  canMakeCommunity,
   capacityOf,
   hasTheRoom,
   isOwner,
@@ -42,8 +44,9 @@ import { colors, spacing, type } from './theme';
  * roster-derived header ("3 people"), how it records itself, and the ways a
  * membership ends.
  *
- * **The description is here, and only for a public channel** — restored
- * 2026-09-27, under *Public page* rather than under the name.
+ * **The description is here, and only for a podcast or a community** —
+ * restored 2026-09-27 under *Podcast* (then *Public page*), and offered to a
+ * community since 2026-10-04, whose page its link opens shows it too.
  *
  * It was the section under the name until 2026-09-12, when it left for the
  * channel screen's clipboard tab as the *notepad*: a sheet you may read but
@@ -118,6 +121,14 @@ export function ChannelSettingsView({
    * and alone holds its link — see `ChannelState.owner`.
    */
   const owner = isOwner(channel, app.me?.id ?? '');
+  /** Whether this is a *community* at all, which a channel is for good. */
+  const community = channel.owner !== undefined;
+  /**
+   * The two ways a channel faces outward, of which it is at most one: each
+   * has a page found by its name and showing its description, so both keep a
+   * name and both are offered the description.
+   */
+  const facesOut = isPublic || community;
   /** Whether the tap at the foot of the screen destroys rather than leaves. */
   const deletes = lastMember || owner;
   /**
@@ -203,7 +214,7 @@ export function ChannelSettingsView({
      * it back. Restoring it is what makes the sentence under the field true at
      * the moment somebody reads it.
      */
-    if (isPublic && name.trim() === '') {
+    if (facesOut && name.trim() === '') {
       setName(saved.current.name);
       return;
     }
@@ -381,7 +392,7 @@ export function ChannelSettingsView({
         <Text style={type.muted}>
           {!mayEdit
             ? t.renameStepIn()
-            : isPublic
+            : facesOut
               ? t.renamePublic()
               : t.renamePrivate()}
         </Text>
@@ -458,15 +469,28 @@ export function ChannelSettingsView({
         two ways anything here leaves the channel — and the bigger one is read
         first.
       */}
-      <SectionLabel>{t.publicPage()}</SectionLabel>
+      <SectionLabel>{t.podcast()}</SectionLabel>
       <Card style={styles.stack}>
-        <Publishing
-          channelId={channel.id}
-          isPublic={isPublic}
-          named={channel.name !== null}
-          settings={publication}
-          onChanged={(next) => setIsPublic(next)}
-        />
+        {/*
+          A community is never a podcast too — the server refuses it in both
+          directions — so it is told why rather than shown a switch that would
+          only be refused. Still drawn, since the screen is where somebody
+          learns there are two ways a channel faces outward.
+        */}
+        {community ? (
+          <>
+            <Text style={type.heading}>{t.isAPodcast()}</Text>
+            <Text style={type.muted}>{t.communityNotPodcast()}</Text>
+          </>
+        ) : (
+          <Publishing
+            channelId={channel.id}
+            isPublic={isPublic}
+            named={channel.name !== null}
+            settings={publication}
+            onChanged={(next) => setIsPublic(next)}
+          />
+        )}
       </Card>
 
       {/*
@@ -475,7 +499,7 @@ export function ChannelSettingsView({
         answer is held locally as well as on the snapshot: the card appears on
         the press that turns the page on rather than a round trip later.
 
-        Under the Public page card rather than above it, and outside it rather
+        Under the Podcast card rather than above it, and outside it rather
         than inside `Publishing`: what to write depends on there being a page,
         so the page comes first, and the field is this screen's to persist on
         the same terms as the name — `Publishing` owns a pair of buttons and an
@@ -485,7 +509,7 @@ export function ChannelSettingsView({
         2026-09-13 went with the words; the cap is kept, that being the
         server's rule rather than a flourish.
       */}
-      {isPublic ? (
+      {facesOut ? (
         <>
           {/*
             Brought into view when the keyboard opens over it, label and all:
@@ -513,7 +537,11 @@ export function ChannelSettingsView({
                 }}
               />
               <Text style={type.muted}>
-                {mayEdit ? t.descriptionNote() : t.descriptionStepIn()}
+                {mayEdit
+                  ? community
+                    ? t.communityDescriptionNote()
+                    : t.descriptionNote()
+                  : t.descriptionStepIn()}
               </Text>
               <Text style={styles.count}>
                 {description.length} / {MAX_CHANNEL_DESCRIPTION_LENGTH}
@@ -523,12 +551,40 @@ export function ChannelSettingsView({
         </>
       ) : null}
 
-      {owner ? (
+      {/*
+        The other way a channel faces outward, after the podcast: a door to
+        the membership rather than a page for anybody. Offered to make only to
+        a channel of one — `canMakeCommunity` — and otherwise not drawn on a
+        channel that is not one, since nothing anybody could do here would
+        change that.
+      */}
+      {community || canMakeCommunity(channel, app.me?.id ?? '') ? (
         <>
-          <SectionLabel>{t.communityLink()}</SectionLabel>
+          <SectionLabel>{t.community()}</SectionLabel>
           <Card style={styles.stack}>
-            <CommunityLink channelId={channel.id} capacity={capacityOf(channel)} />
+            {community ? (
+              <>
+                <Text style={type.heading}>{t.isACommunity()}</Text>
+                <Text style={type.muted}>
+                  {owner
+                    ? t.communityOwnerWhat(capacityOf(channel))
+                    : t.communityMemberWhat(capacityOf(channel))}
+                </Text>
+              </>
+            ) : isPublic ? (
+              <Text style={type.muted}>{t.podcastNotCommunity()}</Text>
+            ) : (
+              <MakeCommunity channel={channel} />
+            )}
           </Card>
+          {owner ? (
+            <>
+              <SectionLabel>{t.communityLink()}</SectionLabel>
+              <Card style={styles.stack}>
+                <CommunityLink channelId={channel.id} capacity={capacityOf(channel)} />
+              </Card>
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -692,7 +748,7 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * somebody revoked it, or the channel emptied and the rule did.
  */
 /**
- * Whether this channel has a public page, and where it is.
+ * Whether this channel is a podcast — has a public page — and where it is.
  *
  * **Two decisions, and this is only the first of them.** Turning it on makes
  * a page exist; it puts nothing on that page. Every recording is agreed to
@@ -780,7 +836,7 @@ function Publishing({
 
   return (
     <>
-      <Text style={type.heading}>{t.hasAPublicPage()}</Text>
+      <Text style={type.heading}>{t.isAPodcast()}</Text>
       <View style={styles.choices}>
         <Button
           label={t.on()}
@@ -1152,6 +1208,81 @@ function CommunityLink({ channelId, capacity }: { channelId: string; capacity: n
           }
         />
       </View>
+    </>
+  );
+}
+
+/**
+ * *Make channel into a community*, on a channel its viewer is alone in —
+ * the only way a community comes to exist, since 2026-10-04. It replaced
+ * *Start a community* on Home, which sat under *Start a channel* and read as
+ * though a community were something other than a channel.
+ *
+ * A button that opens into the name field rather than a field from the
+ * start: a community cannot exist without the name its link is read from,
+ * and the channel's own is the default. One step and no second dialog, the
+ * card itself saying what it costs before the press — nobody else is in the
+ * channel to be affected by it.
+ *
+ * Nothing to do on success: the snapshot carrying `owner` redraws this
+ * screen as a community's, link and all.
+ */
+function MakeCommunity({ channel }: { channel: ChannelState }) {
+  const t = useText().channelSettings;
+  const app = useApp();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(channel.name ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const make = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await app.makeCommunity(channel.id, name.trim());
+      setOpen(false);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t.couldNotMakeCommunity());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Text style={type.muted}>{t.makeCommunityNote(MAX_COMMUNITY_MEMBERS)}</Text>
+      {open ? (
+        <>
+          <Field
+            value={name}
+            onChangeText={(v) => setName(v.slice(0, MAX_CHANNEL_NAME_LENGTH))}
+            placeholder={t.communityNamePlaceholder()}
+            autoFocus
+            onSubmit={name.trim() && !busy ? () => void make() : undefined}
+            submitLabel="done"
+          />
+          <View style={styles.choices}>
+            <Button
+              style={styles.choice}
+              label={t.cancel()}
+              onPress={() => {
+                setOpen(false);
+                setName(channel.name ?? '');
+              }}
+            />
+            <Button
+              style={styles.choice}
+              label={busy ? t.making() : t.makeIt()}
+              variant="primary"
+              disabled={!name.trim() || busy}
+              onPress={() => void make()}
+            />
+          </View>
+        </>
+      ) : (
+        <Button label={t.makeCommunity()} onPress={() => setOpen(true)} />
+      )}
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
     </>
   );
 }

@@ -4,6 +4,7 @@ import {
   canInvite,
   canJoin,
   canLeaveChannel,
+  canMakeCommunity,
   canMoveToRemove,
   capacityOf,
   createChannel,
@@ -19,8 +20,11 @@ const OWNER = 'usr_owner';
 const T0 = 1_000_000;
 const member = (n: number) => `usr_${n}`;
 
+const make = (s: ChannelState, userId: string, name: string) =>
+  reduce(s, { type: 'MAKE_COMMUNITY', userId, name }, T0);
+
 function community(): ChannelState {
-  return createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0, owner: true });
+  return make(createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0 }), OWNER, 'Cafe Products');
 }
 
 const join = (s: ChannelState, userId: string) => reduce(s, { type: 'JOIN', userId }, T0);
@@ -31,20 +35,52 @@ function communityOf(n: number): ChannelState {
   return s;
 }
 
-describe('a community is a channel with an owner, set only at birth', () => {
-  it('is owned by whoever started it', () => {
+describe('a community is a channel made into one by its only member', () => {
+  it('is owned by whoever made it, under the name they gave', () => {
     const s = community();
     expect(s.owner).toBe(OWNER);
+    expect(s.name).toBe('Cafe Products');
     expect(isOwner(s, OWNER)).toBe(true);
   });
 
-  it('cannot be started with anybody else in it', () => {
-    expect(() =>
-      createChannel({ id: 'c1', initiator: OWNER, invitees: ['usr_x'], now: T0, owner: true })
-    ).toThrow();
+  it('keeps the name the channel has when none is given', () => {
+    const base = reduce(
+      createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0 }),
+      { type: 'SET_NAME', userId: OWNER, name: 'Already named' },
+      T0
+    );
+    const s = make(base, OWNER, '  ');
+    expect(s.owner).toBe(OWNER);
+    expect(s.name).toBe('Already named');
   });
 
-  it('is absent from every other channel, which nothing can add later', () => {
+  it('is refused without any name, its page and link being read from one', () => {
+    const s = createChannel({ id: 'c1', initiator: OWNER, invitees: [], now: T0 });
+    expect(canMakeCommunity(s, OWNER)).toBe(true);
+    expect(make(s, OWNER, '')).toBe(s);
+  });
+
+  it('cannot be made of a channel with anybody else in it', () => {
+    const s = createChannel({ id: 'c1', initiator: OWNER, invitees: ['usr_x'], now: T0 });
+    expect(canMakeCommunity(s, OWNER)).toBe(false);
+    expect(make(s, OWNER, 'Mine')).toBe(s);
+  });
+
+  it('can be made once everybody else has left', () => {
+    const two = createChannel({ id: 'c1', initiator: OWNER, invitees: ['usr_x'], now: T0 });
+    const alone = reduce(two, { type: 'LEAVE_CHANNEL', userId: 'usr_x' }, T0);
+    expect(make(alone, OWNER, 'Mine').owner).toBe(OWNER);
+  });
+
+  it('cannot be made twice, nor by somebody outside it', () => {
+    const s = community();
+    expect(canMakeCommunity(s, OWNER)).toBe(false);
+    expect(make(s, OWNER, 'Again')).toBe(s);
+    const plain = createChannel({ id: 'c2', initiator: OWNER, invitees: [], now: T0 });
+    expect(make(plain, 'usr_x', 'Theirs')).toBe(plain);
+  });
+
+  it('is absent from every other channel', () => {
     const s = createChannel({ id: 'c2', initiator: OWNER, invitees: [], now: T0 });
     expect(s.owner).toBeUndefined();
     expect(capacityOf(s)).toBe(MAX_CHANNEL_PARTICIPANTS);

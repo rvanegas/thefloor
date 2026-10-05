@@ -25,6 +25,8 @@ jest.mock('../../state/AppProvider', () =>
 /**
  * Channel Settings for a *community*: the owner has the link and *Delete*,
  * and has no *Leave*; a member sees neither the link nor the owner's controls.
+ * A channel of one is offered *Make channel into a community*, unless it is a
+ * podcast; a community is offered no podcast.
  */
 
 let tree: ReactTestRenderer;
@@ -36,18 +38,19 @@ afterEach(async () => {
 });
 
 function community(owner: string, member: string): ChannelState {
-  const base = createChannel({ id: 'sess_c', initiator: owner, invitees: [], now: NOW, owner: true });
-  return reduce({ ...base, name: 'Cafe Products' }, { type: 'JOIN', userId: member }, NOW);
+  const base = createChannel({ id: 'sess_c', initiator: owner, invitees: [], now: NOW });
+  const made = reduce(base, { type: 'MAKE_COMMUNITY', userId: owner, name: 'Cafe Products' }, NOW);
+  return reduce(made, { type: 'JOIN', userId: member }, NOW);
 }
 
-async function open(channel: ChannelState) {
+async function open(channel: ChannelState, publicAt: number | null = null) {
   mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
   (mockApp.communityLink as jest.Mock).mockResolvedValue(
     'https://example.com/j/cafe-products-k3x9abcd'
   );
   tree = render(
     <ChannelSettingsView
-      publicAt={null}
+      publicAt={publicAt}
       channel={channel}
       derivedTitle="Cafe Products"
       onBack={jest.fn()}
@@ -75,4 +78,43 @@ it('gives a member neither the link nor Delete', async () => {
   expect(mockApp.communityLink).not.toHaveBeenCalled();
   expect(findButton(tree, 'Leave channel')).toBeDefined();
   expect(findButton(tree, 'Delete channel')).toBeUndefined();
+});
+
+it('says what a community is, and offers it no podcast', async () => {
+  await open(community(THEM, ME));
+  const text = textOf(tree);
+  expect(text).toContain('This channel is a community');
+  expect(text).toContain('A community cannot also be a podcast');
+  expect(text).not.toContain('A podcast has a page on the web');
+});
+
+it('offers a channel of one to become a community, under its own name', async () => {
+  const alone = reduce(
+    createChannel({ id: 'sess_a', initiator: ME, invitees: [], now: NOW }),
+    { type: 'SET_NAME', userId: ME, name: 'Mine' },
+    NOW
+  );
+  (mockApp.makeCommunity as jest.Mock).mockResolvedValue('https://example.com/j/mine-k3x9abcd');
+  await open(alone);
+  expect(textOf(tree)).toContain('This channel is a podcast');
+  await act(async () => findButton(tree, 'Make channel into a community')!.props.onPress());
+  await act(async () => findButton(tree, 'Make it a community')!.props.onPress());
+  expect(mockApp.makeCommunity).toHaveBeenCalledWith('sess_a', 'Mine');
+});
+
+it('offers it to nobody in a channel with anybody else in it', async () => {
+  await open(createChannel({ id: 'sess_b', initiator: ME, invitees: [THEM], now: NOW }));
+  expect(textOf(tree)).not.toContain('Community');
+  expect(findButton(tree, 'Make channel into a community')).toBeUndefined();
+});
+
+it('says why a podcast cannot become one', async () => {
+  const alone = reduce(
+    createChannel({ id: 'sess_p', initiator: ME, invitees: [], now: NOW }),
+    { type: 'SET_NAME', userId: ME, name: 'On air' },
+    NOW
+  );
+  await open(alone, NOW);
+  expect(textOf(tree)).toContain('A podcast cannot also be a community');
+  expect(findButton(tree, 'Make channel into a community')).toBeUndefined();
 });

@@ -3753,8 +3753,29 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * Starts a *community* — a named channel its starter owns, with its link
-   * already minted. See `ChannelRegistry.createCommunity`.
+   * Makes a channel of one into a *community* its only member owns, with its
+   * link minted. See `ChannelRegistry.makeCommunity`.
+   */
+  fastify.post('/channels/:id/community', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { name?: unknown } | undefined;
+    const result = channels.makeCommunity(id, account.id, body?.name);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    homeNotifier.notify([account.id]);
+    return {
+      channelId: result.channel.id,
+      joinCode: result.joinCode,
+      url: communityLinkUrl(request, result.joinCode),
+    };
+  });
+
+  /**
+   * Starts a *community* from nothing. **A shim for build 335**, the only one
+   * with *Start a community* on Home — SHIMS.md, gate 336.
    */
   fastify.post('/channels/community', async (request, reply) => {
     const account = await requireAccount(request, reply);

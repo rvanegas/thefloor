@@ -48,13 +48,13 @@ caused; the list carries the meaning.
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
-- **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Start a community*, and the one place the no-admin rule bends
+- **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, which opens its *community page* and makes nobody anything by being opened; reset by its owner to revoke it
 - **Community page** — What a community link opens: the community's name, description and member count, the App Store, the *join link* and the web app, and no member's name
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
-- **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel*, whose *public page* and *feed* are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
+- **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
@@ -85,10 +85,11 @@ caused; the list carries the meaning.
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
-- **Owner** — Whoever started a *community*: may remove a member in one move, delete it at any size, and alone holds its link; cannot leave it or be moved against. No other channel has one
+- **Owner** — Whoever made a channel into a *community*: may remove a member in one move, delete it at any size, and alone holds its link; cannot leave it or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
-- **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
+- **Podcast** — What a *public channel* is called on screen, since 2026-10-04: *This channel is a podcast* on *Channel Settings*, where it was *Public page*. Never a *community* too. `public` in the code
+- **Public channel** — A channel that has given itself a *public page* — a *podcast*, on screen; any member may, a channel must be named first, it cannot be a *community*, and it puts nothing on that page by itself
 - **Public page** — A channel's page on the web, at an address carrying its id: its name, its *description* and its *published* recordings, readable by anybody and naming no *member*
 - **Directory page** — `/podcasts`: every *public channel*, in one list a stranger can read. Not a *podcast directory*, which is Apple's or Spotify's and is somewhere this project has never submitted anything
 - **Podcasts tab** — Home's third tab: the *directory page* itself, in a frame. The app shows the server's document rather than a second rendering of the same list, so the two cannot disagree. Drawn in Home's body on a phone and in the pane beside it on a wide screen, a document being the wrong shape for a 360pt column
@@ -643,10 +644,11 @@ nobody in it need be anybody's contact.
 one move rather than by a *motion to remove*, delete the community at any size
 rather than only as its last member, and alone reset or turn off its link.
 Every other member has every other privilege. The owner cannot leave — deleting
-is their way out — and nobody may move against them. **An owner exists only from
-birth**: *Start a community* makes one with its starter alone in it, and no
-channel that has ever held a second member can become one, so nobody is ever
-subject to an owner they did not walk in under. Not a *cohort host*, who has no
+is their way out — and nobody may move against them. **An owner exists only by
+*Make channel into a community***, pressed by a channel's one member while
+nobody else belongs to it, so nobody is ever subject to an owner they did not
+walk in under; it cannot be undone. **A community is never a *podcast***: its
+contents are its members', and a podcast's are anybody's. Not a *cohort host*, who has no
 powers and is in the channel by configuration.
 
 **Two links, and only the second does anything.** The *community link*,
@@ -662,7 +664,8 @@ resetting the link revokes both at once.
 visitor until it empties; this opens a membership that lasts. A community link
 never expires and is not spent by use.
 
-See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md.
+See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md
+and planning/decision/2026-10-04-a-community-is-made-from-a-channel-of-one.md.
 
 ## Contact
 
@@ -2037,7 +2040,9 @@ process to infer an absence from — see *Attention*.
 
 A channel that has declared itself public has a page on the web, at an
 address carrying the channel's id. Any member may make one, and going back is
-one tap.
+one tap. **On screen it is a *podcast*** since 2026-10-04 — *This channel is
+a podcast* — once a *community* made *public* ambiguous; the code still says
+`public`, and a channel is never both.
 
 **Making the page is not publishing anything**, and that separation is the
 whole shape of the feature. The page exists; what is on it is every recording
@@ -4384,6 +4389,7 @@ are settled:
     Community             Comunidad
     Owner                 Responsable
     Community link        Enlace de la comunidad
+    Podcast               Podcast
     At the door           En la puerta
     Guests                Invitados
     Invitations           Invitaciones

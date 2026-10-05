@@ -68,7 +68,7 @@ async function show(publicNotice: boolean) {
 type Screen = Awaited<ReturnType<typeof show>>['tree'];
 
 const drawn = (tree: Screen) =>
-  textOf(tree).includes('This channel has a public page');
+  textOf(tree).includes('This channel is a podcast');
 
 describe('the public-page card', () => {
   it('is not drawn for a member who has been told', async () => {

@@ -107,7 +107,7 @@ function open(
 function publicPage(): { on: ReactTestInstance; off: ReactTestInstance } {
   const all = tree.root.findAll(() => true);
   const heading = all.findIndex(
-    (node) => node.props?.children === 'This channel has a public page'
+    (node) => node.props?.children === 'This channel is a podcast'
   );
   expect(heading).toBeGreaterThan(-1);
   const buttons = all
@@ -275,7 +275,7 @@ describe('the public page confirms in both directions', () => {
     expect(Alert.alert).toHaveBeenCalled();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
 
-    confirmAlert('Create the page');
+    confirmAlert('Make it a podcast');
     expect(mockApp.setChannelPublic).toHaveBeenCalledWith(channel.id, true);
     // The call settles into `busy` and the new address after the body has
     // finished; flushed here so the state lands inside an `act` rather than
@@ -290,7 +290,7 @@ describe('the public page confirms in both directions', () => {
     expect(Alert.alert).toHaveBeenCalled();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
 
-    confirmAlert('Take it down');
+    confirmAlert('Turn it off');
     expect(mockApp.setChannelPublic).toHaveBeenCalledWith(channel.id, false);
     await act(async () => {});
   });
