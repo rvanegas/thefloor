@@ -324,8 +324,10 @@ both are elaborations of a loop that has to work first.
 4. **A link that belongs to a person** — shipped as the invite link,
    `decision/2026-09-25-an-invite-link-is-a-standing-door.md`, which is the
    whole of the growth roadmap this proposition licenses.
-5. `task/a-channel-with-an-owner-that-anyone-with-its-link-can-join.md` — open
-   channels, and the knock that becomes a request to speak.
+5. `task/open-channels-and-the-knock-that-becomes-a-request-to-speak.md` —
+   open channels, and the knock that becomes a request to speak. Its door for
+   *members* shipped first, as the community:
+   `decision/2026-10-04-a-community-is-a-channel-with-an-owner.md`.
 6. **Say the same thing everywhere** — done 2026-09-14.
 
 **Everything else in `task/` and `backlog/` is work this argument is silent

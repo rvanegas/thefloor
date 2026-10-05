@@ -429,7 +429,19 @@ to you. Deleting your account disconnects any donation from it; the record of
 the payment itself stays, with Ko-fi and here, because it is money that changed
 hands rather than something about you.</p>
 
-${cohortSection}<h2>Who else can see any of it</h2>
+${cohortSection}<h2>Communities</h2>
+<p>A community is a channel its owner opens to anybody holding its link. The
+page that link opens shows the community's name, its description and how many
+members it has, to whoever has the address. It names nobody, its owner
+included, and it is not listed anywhere.</p>
+<p>Joining one shows your display name to its other members, who may be people
+you have never met — the same as any channel. <strong>None of them become your
+contacts</strong>, and joining does not make you the owner's. Its owner can
+remove you, and can delete the community and everything recorded in it, without
+asking anybody; you can leave it whenever you like, from its settings
+screen.</p>
+
+<h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
 and Google deliver notifications, each to their own phones. Ko-fi handles
 donations.${

@@ -692,6 +692,9 @@ construction.
 **A notice card is news rather than a row, and it sits above the list it is
 about.** One wearer so far — the *removal notice*, added 2026-09-26, at the top
 of Home's Channels list above every section label and above *Start a channel*.
+(*Start a community*, added 2026-10-04, is the row under that one in the same
+mark-and-label shape, and opens into a card holding a field the way *Add a
+contact* does — the same offer, the rarer one second.)
 Plain `Card`, no tint and no border hue: it is not a state anybody is in, and
 spending one of the seven hues on a sentence that goes when it is read would be
 the first rule's failure mode.

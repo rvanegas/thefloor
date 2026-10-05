@@ -48,6 +48,9 @@ caused; the list carries the meaning.
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
+- **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Start a community*, and the one place the no-admin rule bends
+- **Community link** — A community's `/j/<code>`, which opens its *community page* and makes nobody anything by being opened; reset by its owner to revoke it
+- **Community page** — What a community link opens: the community's name, description and member count, the App Store, the *join link* and the web app, and no member's name
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
@@ -68,6 +71,7 @@ caused; the list carries the meaning.
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time, and the page it opens asks them to install the app
 - **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
+- **Join link** — `thefloor://j/<code>`, drawn on the community page: what makes whoever follows it a member of the community once signed in. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
@@ -75,12 +79,13 @@ caused; the list carries the meaning.
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
 - **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it* — ended by the server, by push, when it steps this device out — carrying the channel's name, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
-- **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*
+- **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*. A *community*'s members are not one another's contacts
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
+- **Owner** — Whoever started a *community*: may remove a member in one move, delete it at any size, and alone holds its link; cannot leave it or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Public channel** — A channel that has given itself a *public page*; any member may, a channel must be named first, and it puts nothing on that page by itself
@@ -625,6 +630,39 @@ the act is the only thing true of both.
 
 Distinct from *Home*, which is the place this one names, and from *Step out*,
 which gives up presence rather than closing anything.
+
+## Community, owner, community link, community page, join link
+
+**A *community* is a channel with an *owner*, which anybody holding its link
+may join.** Contents private, door open — the other kind of public, beside the
+*public channel*'s podcast sense, which is why it could not be called that.
+It holds up to twenty members where a channel holds six (`capacityOf`), and
+nobody in it need be anybody's contact.
+
+**The owner is the one bend in the no-admin rule.** They may remove a member in
+one move rather than by a *motion to remove*, delete the community at any size
+rather than only as its last member, and alone reset or turn off its link.
+Every other member has every other privilege. The owner cannot leave — deleting
+is their way out — and nobody may move against them. **An owner exists only from
+birth**: *Start a community* makes one with its starter alone in it, and no
+channel that has ever held a second member can become one, so nobody is ever
+subject to an owner they did not walk in under. Not a *cohort host*, who has no
+powers and is in the channel by configuration.
+
+**Two links, and only the second does anything.** The *community link*,
+`/j/<code>`, is what the owner hands out; it opens the *community page*, which
+describes the community — its name, description and member count, never a
+member's name — and carries the App Store, the *join link* and the web app. The
+*join link*, `thefloor://j/<code>`, makes whoever follows it a member once they
+are signed in. Both are one code, a slug of the name and a random suffix, so
+resetting the link revokes both at once.
+
+**Not an *invite link*** — that makes a *contact* and nothing else; this makes a
+*member* and nothing else. **Not a *guest link*** — that opens a room to a
+visitor until it empties; this opens a membership that lasts. A community link
+never expires and is not spent by use.
+
+See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md.
 
 ## Contact
 
@@ -4343,6 +4381,9 @@ are settled:
     Contacts              Contactos
     People (the tab)      Gente
     Members               Miembros
+    Community             Comunidad
+    Owner                 Responsable
+    Community link        Enlace de la comunidad
     At the door           En la puerta
     Guests                Invitados
     Invitations           Invitaciones
