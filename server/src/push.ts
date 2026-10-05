@@ -576,6 +576,31 @@ export const notifications = {
       reachesInApp: false,
     };
   },
+
+  /**
+   * Somebody joined your *community* through its link — to its owner alone.
+   *
+   * `accepted`'s kind, on that entry's own reasoning: somebody took up a thing
+   * you handed out, which is a fact that stays true, and the owner handed it
+   * out days ago and is not watching. Titled with the person and naming the
+   * community in the body, because an owner may have more than one and this
+   * one has a name by construction.
+   */
+  joined(who: string, community: string, channelId: string): PushMessage {
+    return {
+      kind: 'accepted',
+      title: who,
+      body: `Joined ${community}.`,
+      channelId,
+      // None, rather than the channel's membership key: twenty people
+      // arriving over a week are twenty facts, and any shared key would have
+      // each replace the last on the lock screen.
+      collapseKey: null,
+      threadId: ASKING_THREAD,
+      lifetimeMs: PARTICIPATION_LIFETIME_MS,
+      reachesInApp: false,
+    };
+  },
 };
 
 /** What one address's send did, for the caller to log. */

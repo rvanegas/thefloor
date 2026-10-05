@@ -119,3 +119,12 @@ describe('what the owner may do that nobody else may', () => {
     expect(reduce(s, { type: 'LEAVE_CHANNEL', userId: OWNER }, T0)).toBe(s);
   });
 });
+
+describe('a community keeps a name', () => {
+  it('may be renamed but not cleared', () => {
+    let s = reduce(community(), { type: 'SET_NAME', userId: OWNER, name: 'Cafe Products' }, T0);
+    s = reduce(s, { type: 'SET_NAME', userId: OWNER, name: 'Cafe' }, T0);
+    expect(s.name).toBe('Cafe');
+    expect(reduce(s, { type: 'SET_NAME', userId: OWNER, name: '  ' }, T0)).toBe(s);
+  });
+});

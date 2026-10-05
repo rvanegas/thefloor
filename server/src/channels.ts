@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,6 +12,7 @@ import {
   DELETED_RETENTION_MS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_CHANNEL_GUESTS,
+  MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
   MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
@@ -27,6 +29,8 @@ import {
   canClaimFloor,
   canDeleteChannel,
   canLoadTrack,
+  capacityOf,
+  isOwner,
   hasTheRoom,
   GUEST_ACTIONS,
   createChannel,
@@ -1233,6 +1237,9 @@ export class ChannelRegistry {
       (channel) =>
         channel.status === 'active' &&
         !isNamed(channel) &&
+        // Never a community, which is not the place the set of you happens to
+        // have; it is somebody's project that happens to hold you.
+        channel.owner === undefined &&
         channel.participants.length === want.size &&
         channel.participants.every((id) => want.has(id))
     );
@@ -1358,6 +1365,140 @@ export class ChannelRegistry {
       );
     }
     return { ok: true, channel };
+  }
+
+  /**
+   * Starts a *community*: a named channel owned by whoever starts it, holding
+   * them alone, with its link already minted.
+   *
+   * The only way an owner comes to exist — see `ChannelState.owner` — so the
+   * rule that one is set only at birth is this method's shape rather than a
+   * check anybody has to remember. A name is required because the page is
+   * titled with it and the link is read from it.
+   */
+  createCommunity(
+    owner: string,
+    name: unknown
+  ): { ok: true; channel: ChannelState; joinCode: string } | Refused {
+    const trimmed =
+      typeof name === 'string' ? name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH) : '';
+    if (!trimmed) {
+      return { ok: false, error: 'A community needs a name.', code: 'invalid' };
+    }
+    const createdAt = this.now();
+    const joinCode = mintJoinCode(trimmed);
+    const id = insertWithUniqueKey(
+      () => newId('chan'),
+      (candidate) =>
+        this.db
+          .prepare(
+            `INSERT INTO channels
+               (id, initiator_id, invitee_id, created_at, participants, name, join_code)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(candidate, owner, owner, createdAt, JSON.stringify([owner]), trimmed, joinCode)
+    );
+    const channel: ChannelState = {
+      ...createChannel({ id, initiator: owner, invitees: [], now: createdAt, owner: true }),
+      name: trimmed,
+    };
+    this.channels.set(channel.id, channel);
+    this.persistChannel(channel);
+    this.emit([channel.id]);
+    return { ok: true, channel, joinCode };
+  }
+
+  /**
+   * The live community a join code opens, or undefined for a code that is
+   * unknown, revoked, or belongs to a channel that has gone. One answer for all
+   * three, so that the page and the route cannot be used to tell them apart.
+   */
+  communityByCode(code: unknown): ChannelState | undefined {
+    if (typeof code !== 'string' || !code) return undefined;
+    const row = this.db
+      .prepare('SELECT id FROM channels WHERE join_code = ? AND deleted_at IS NULL')
+      .get(code) as { id: string } | undefined;
+    const channel = row ? this.channels.get(row.id) : undefined;
+    if (!channel || channel.status !== 'active' || channel.owner === undefined) {
+      return undefined;
+    }
+    return channel;
+  }
+
+  /** A community's current join code, or null when its door is off. */
+  joinCodeOf(channelId: string): string | null {
+    const row = this.db
+      .prepare('SELECT join_code FROM channels WHERE id = ?')
+      .get(channelId) as { join_code: string | null } | undefined;
+    return row?.join_code ?? null;
+  }
+
+  /**
+   * Mints a fresh code for a community — which revokes the old one, both links
+   * being one code — or, with `open` false, turns the door off. The owner's
+   * alone, the door being the one control the call agreed it needs.
+   */
+  setJoinCode(
+    channelId: string,
+    userId: string,
+    open: boolean
+  ): { ok: true; joinCode: string | null } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.owner === undefined) {
+      return { ok: false, error: 'Only a community has a link.', code: 'conflict' };
+    }
+    if (!isOwner(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Only the community’s owner can change its link.',
+        code: 'forbidden',
+      };
+    }
+    const joinCode = open ? mintJoinCode(channel.name ?? '') : null;
+    this.db.prepare('UPDATE channels SET join_code = ? WHERE id = ?').run(joinCode, channelId);
+    return { ok: true, joinCode };
+  }
+
+  /**
+   * Makes `userId` a member of the community `code` opens — membership and
+   * nothing else: nobody becomes anybody's contact by it.
+   *
+   * Already being a member is an answer rather than a refusal, so a second tap
+   * on the same link opens the channel instead of failing. The owner is told,
+   * which is the community's counterpart of `tellTheInviter`.
+   */
+  joinByCode(
+    code: unknown,
+    userId: string
+  ): { ok: true; channel: ChannelState; already: boolean } | Refused {
+    const channel = this.communityByCode(code);
+    if (!channel) {
+      return { ok: false, error: 'That link no longer opens anything.', code: 'not_found' };
+    }
+    if (isParticipant(channel, userId)) return { ok: true, channel, already: true };
+    if (channel.participants.length >= capacityOf(channel)) {
+      return {
+        ok: false,
+        error: `${channel.name ?? 'This community'} is full.`,
+        code: 'conflict',
+      };
+    }
+    const joined = this.apply(channel.id, userId, { type: 'JOIN' } as Omit<
+      ChannelAction,
+      'userId'
+    > & { type: ChannelAction['type'] });
+    if (!joined.ok) return joined;
+    if (!isParticipant(joined.channel, userId)) {
+      return { ok: false, error: 'Could not join.', code: 'conflict' };
+    }
+    this.push.notify(
+      [channel.owner!],
+      notifications.joined(this.displayName(userId), joined.channel.name ?? '', channel.id)
+    );
+    return { ok: true, channel: joined.channel, already: false };
   }
 
   /**
@@ -1918,10 +2059,13 @@ export class ChannelRegistry {
       if (isParticipant(channel, contactId)) {
         return { ok: false, error: 'Already in this channel.', code: 'conflict' };
       }
-      if (channel.participants.length >= MAX_CHANNEL_PARTICIPANTS) {
+      if (channel.participants.length >= capacityOf(channel)) {
         return {
           ok: false,
-          error: `Channels hold up to ${MAX_CHANNEL_PARTICIPANTS} people.`,
+          error:
+            channel.owner !== undefined
+              ? `A community holds up to ${capacityOf(channel)} people.`
+              : `Channels hold up to ${capacityOf(channel)} people.`,
           code: 'conflict',
         };
       }
@@ -1969,7 +2113,18 @@ export class ChannelRegistry {
     if (action.type === 'DELETE_CHANNEL' && !canDeleteChannel(channel, userId)) {
       return {
         ok: false,
-        error: 'Only a channel’s last member can delete it.',
+        error:
+          channel.owner !== undefined
+            ? 'Only the community’s owner can delete it.'
+            : 'Only a channel’s last member can delete it.',
+        code: 'forbidden',
+      };
+    }
+    if (action.type === 'LEAVE_CHANNEL' && isOwner(channel, userId)) {
+      return {
+        ok: false,
+        error:
+          'You own this community, so you cannot leave it. Delete it instead, which ends it for everybody.',
         code: 'forbidden',
       };
     }
@@ -2117,10 +2272,19 @@ export class ChannelRegistry {
       // move that did nothing and said nothing reads as a dead button. The
       // sentence names the rule, because the rule is the answer — there is
       // nobody in a channel of two to be the second agreement.
+      if (action.type === 'MOVE_TO_REMOVE' && isOwner(channel, targetId)) {
+        return {
+          ok: false,
+          error: 'Nobody can remove a community’s owner.',
+          code: 'forbidden',
+        };
+      }
       if (
         action.type === 'MOVE_TO_REMOVE' &&
         channel.participants.length < MIN_PARTICIPANTS_TO_REMOVE &&
-        isParticipant(channel, userId)
+        isParticipant(channel, userId) &&
+        // The owner's move is the whole removal; see `ownerRemoves`.
+        !isOwner(channel, userId)
       ) {
         return {
           ok: false,
@@ -2723,8 +2887,14 @@ export class ChannelRegistry {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
       for (const id of otherParticipants(channel, userId)) others.add(id);
+      // An owner cannot leave, and a community cannot outlive its owner — see
+      // `ChannelState.owner` — so deleting the account deletes the community,
+      // which the owner could have done at any moment anyway.
       this.apply(channel.id, userId, {
-        type: channel.participants.length === 1 ? 'DELETE_CHANNEL' : 'LEAVE_CHANNEL',
+        type:
+          channel.participants.length === 1 || isOwner(channel, userId)
+            ? 'DELETE_CHANNEL'
+            : 'LEAVE_CHANNEL',
       } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     }
     // Defensive rather than expected: `otherParticipants` already excludes the
@@ -2958,6 +3128,11 @@ export class ChannelRegistry {
       if (channel.status !== 'active') continue;
       if (!isParticipant(channel, userId)) continue;
       if (channel.everPresent.includes(userId)) continue;
+      // Came by a community's door, so nobody asked them and there is nobody
+      // to name as having asked: crediting whoever walked in first would put a
+      // stranger's name on an invitation that stranger never made. The channel
+      // reaches their Home as a place, through `rejoinableFor`, like any other.
+      if (channel.owner !== undefined && !channel.invitedBy[userId]) continue;
       // Nobody has ever been in it, so nobody is asking you anywhere: this is
       // the standing one-to-one channel a pair get for being contacts, and it
       // is a place rather than a summons. Without this every new contact would
@@ -3084,7 +3259,16 @@ export class ChannelRegistry {
       // exactly this condition, so without the alternative here it would appear
       // on nobody's screen at all. The two lists share one rule read from
       // opposite ends; changing either without the other loses a channel.
-      if (!channel.everPresent.includes(userId) && channel.everPresent.length > 0) {
+      //
+      // **And a third, for whoever came by a community's door**, which is the
+      // same pairing again: `invitesFor` skips them because nobody asked them,
+      // so this has to take them or the community they just joined would be on
+      // neither list.
+      if (
+        !channel.everPresent.includes(userId) &&
+        channel.everPresent.length > 0 &&
+        !(channel.owner !== undefined && !channel.invitedBy[userId])
+      ) {
         continue;
       }
 
@@ -6992,6 +7176,10 @@ export class ChannelRegistry {
       // and it changes only when somebody moves or withdraws.
       removals: channel.removals ?? {},
       initiator: channel.initiator,
+      // Durable for the reason the name is, and more so: a community that came
+      // back from a deploy without its owner would be twenty people in a
+      // channel whose cap is six. Absent for every channel that is not one.
+      ...(channel.owner !== undefined ? { owner: channel.owner } : {}),
       participants: channel.participants,
       invitedBy: channel.invitedBy,
       // Outlives the process because it is a fact about the channel rather
@@ -7344,6 +7532,7 @@ export class ChannelRegistry {
       description?: string | null;
       autoRecord?: boolean;
       initiator?: string;
+      owner?: string;
       participants?: string[];
       invitedBy?: Record<string, string>;
       invited?: Record<string, string>;
@@ -7397,6 +7586,7 @@ export class ChannelRegistry {
       // channels did.
       autoRecord: durable.autoRecord ?? false,
       initiator: durable.initiator ?? row.initiator_id,
+      ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       participants,
       invitedBy,
       createdAt: row.created_at,
@@ -7736,4 +7926,29 @@ function parseJson<T>(raw: string | null): T | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A join code: the community's name as a slug, for whoever reads the link, and
+ * a random suffix, which is the lock. Revoking mints a new suffix; the slug
+ * alone could not be revoked without renaming the channel. Renaming does not
+ * change a code already minted.
+ *
+ * Eight characters from a 31-letter alphabet is about forty bits, which is
+ * what makes an unknown code uninteresting to guess rather than a rate limit
+ * having to.
+ */
+export function mintJoinCode(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let suffix = '';
+  for (const byte of randomBytes(8)) suffix += alphabet[byte % alphabet.length];
+  return `${slug || 'community'}-${suffix}`;
 }

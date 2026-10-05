@@ -2700,6 +2700,9 @@ function reduceAction(
       const trimmed = action.name.trim().slice(0, MAX_CHANNEL_NAME_LENGTH);
       const name = trimmed === '' ? null : trimmed;
       if (name === state.name) return state;
+      // A community keeps a name: its page is titled with it and its link was
+      // read from it, and a roster of up to twenty strangers is no description.
+      if (name === null && state.owner !== undefined) return state;
       return { ...state, name };
     }
 

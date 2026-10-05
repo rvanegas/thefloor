@@ -2753,6 +2753,24 @@ function migrate(db: Db): void {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} INTEGER`);
     }
   }
+
+  /*
+    A *community*'s door, 2026-10-04: the whole last segment of its community
+    link and its join link, `cafe-products-k3x9` — a slug of the name and a
+    random suffix. Null on every channel that is not a community, and on a
+    community whose owner has turned its link off. Resetting the link writes a
+    new value, which is what revokes the old one.
+
+    A column rather than a field of `state`, because it is looked up by value
+    from an unauthenticated page, and because it is not a rule: core never
+    sees it. Who owns the channel is in `state`, where the guards can read it.
+  */
+  if (!hasColumn(db, 'channels', 'join_code')) {
+    db.exec('ALTER TABLE channels ADD COLUMN join_code TEXT');
+  }
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS channels_join_code ON channels(join_code) WHERE join_code IS NOT NULL'
+  );
   for (const column of ['language', 'image_type', 'category']) {
     if (!hasColumn(db, 'channels', column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);

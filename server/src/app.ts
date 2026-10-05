@@ -21,6 +21,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
+import { capacityOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
@@ -57,6 +58,7 @@ import { probeDurationMs, UnreadableAudioError } from './playback';
 import { startsAnEpisode } from './usage';
 import { escapeHtml, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
+import { communityPage } from './community-page';
 import { invitePage, inviteRefusalText } from './invite';
 import { openPage } from './open';
 import { privacyPage } from './privacy';
@@ -2388,6 +2390,36 @@ export function buildApp(options: BuildOptions = {}): App {
     return invitePageFor(request, reply, username);
   });
 
+  /**
+   * The page a *community link* opens — see community-page.ts, which owns the
+   * prose and the reasoning. Unauthenticated, and one page for every code that
+   * opens nothing.
+   */
+  fastify.get('/j/:code', async (request, reply) => {
+    const { code } = request.params as { code: string };
+    availableTrainsCount = (await availableTrains()).length;
+    reply.type('text/html; charset=utf-8');
+    // Never cached: a reset link must stop describing the community at once,
+    // and a shared cache answering for the old code would be the link still
+    // working in the one way that matters to a reader.
+    reply.header('cache-control', 'no-store');
+    const community = channels.communityByCode(code);
+    return communityPage({
+      code,
+      community: community
+        ? {
+            name: community.name ?? '',
+            description: community.description,
+            members: community.participants.length,
+            full: community.participants.length >= capacityOf(community),
+          }
+        : null,
+      appStoreUrl: options.updateUrl,
+      webAppReady: availableTrainsCount > 0,
+      origin: origin(request),
+    });
+  });
+
   // --- The guest page -------------------------------------------------------
 
   /**
@@ -3658,6 +3690,10 @@ export function buildApp(options: BuildOptions = {}): App {
   const guestLinkUrl = (request: FastifyRequest, token: string): string =>
     `${origin(request)}/g/${token}`;
 
+  /** A *community link*: the page, never the join link it carries. */
+  const communityLinkUrl = (request: FastifyRequest, code: string): string =>
+    `${origin(request)}/j/${encodeURIComponent(code)}`;
+
   /**
    * An invite link: a username, and the name to greet its reader with.
    *
@@ -3714,6 +3750,93 @@ export function buildApp(options: BuildOptions = {}): App {
       url: guestLinkUrl(request, result.link.token),
       createdAt: result.link.created_at,
     };
+  });
+
+  /**
+   * Starts a *community* — a named channel its starter owns, with its link
+   * already minted. See `ChannelRegistry.createCommunity`.
+   */
+  fastify.post('/channels/community', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as { name?: unknown } | undefined;
+    const result = channels.createCommunity(account.id, body?.name);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return {
+      channelId: result.channel.id,
+      joinCode: result.joinCode,
+      url: communityLinkUrl(request, result.joinCode),
+    };
+  });
+
+  /**
+   * Takes up a *join link*: membership of the community its code opens, and
+   * nothing else. What `thefloor://j/<code>` and the web app's `takeJoin`
+   * both send once there is a session.
+   *
+   * No budget of its own: an unknown code is a 404, and the excess monitor's
+   * `onResponse` hook already counts refusals per caller, which is the shape a
+   * walk over codes takes. Forty bits of suffix is what makes the walk dull.
+   */
+  fastify.post('/channels/join', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as { code?: unknown } | undefined;
+    const result = channels.joinByCode(body?.code, account.id);
+    if (!result.ok) {
+      return reply
+        .code(statusFor(result.code))
+        .send({ error: result.error, code: result.code });
+    }
+    homeNotifier.notify([account.id]);
+    return {
+      ok: true,
+      channelId: result.channel.id,
+      name: result.channel.name,
+      already: result.already,
+    };
+  });
+
+  /** A community's link, for its owner's settings; null while it is off. */
+  fastify.get('/channels/:id/join-code', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const channel = channels.get(id);
+    if (!channel || !channel.owner || channel.owner !== account.id) {
+      return reply.code(404).send({ error: 'No such community.' });
+    }
+    const joinCode = channels.joinCodeOf(id);
+    return { joinCode, url: joinCode ? communityLinkUrl(request, joinCode) : null };
+  });
+
+  /** Resets a community's link, which revokes the old one; owner only. */
+  fastify.post('/channels/:id/join-code', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = channels.setJoinCode(id, account.id, true);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return {
+      joinCode: result.joinCode,
+      url: result.joinCode ? communityLinkUrl(request, result.joinCode) : null,
+    };
+  });
+
+  /** Turns a community's link off; owner only. Resetting turns it back on. */
+  fastify.delete('/channels/:id/join-code', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = channels.setJoinCode(id, account.id, false);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { joinCode: null, url: null };
   });
 
   /** Every link this channel has, live or revoked, for channel settings. */
