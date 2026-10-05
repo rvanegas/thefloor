@@ -87,22 +87,24 @@ That was the gap ROADMAP.md's item 4 was about, since answered by the invite lin
 
 ## The plan
 
-Written 2026-10-04 from a read of the code, against the agreement above. Five
-questions at the end are the prompt's to answer before building; everything
-else follows from the call and is proposed as settled.
+Written 2026-10-04 from a read of the code, against the agreement above, and
+revised the same day with Rodrigo's answers at the prompt — the name, *low*
+notifications for whoever joins by the link, ownership only at birth, and the
+two links. What is left open is at the end.
 
 ### What it is called
 
 *Public* is the podcast page and *open channel* is item 5's audience sense
 above, which may still be built; *host* is the *cohort host*; *invite link* is
-`/i/<username>`. Proposed: **a community** — Erta's own word for it, and
+`/i/<username>`. Settled: **a community** — Erta's own word for it, and
 *comunidad* in Spanish with no collision — whose **owner** started it, joined
-through its **community link**, which opens its **community page**. *Owner*
-has no gender-neutral Spanish noun (*dueño/dueña*); the Spanish half wants
-settling when the glossary entry is written. GLOSSARY.md gets *Community*,
-*Owner*, *Community link* and *Community page* in the commit that introduces
-them, list and entries both, and *Member* notes that a community's members are
-not one another's contacts.
+through its **community link**, which opens its **community page**, from which
+its **join link** makes you a member. *Owner* has no gender-neutral Spanish
+noun (*dueño/dueña*); the Spanish half wants settling when the glossary entry
+is written. GLOSSARY.md gets *Community*, *Owner*, *Community link*, *Community
+page* and *Join link* in the commit that introduces them, list and entries
+both, and *Member* notes that a community's members are not one another's
+contacts.
 
 ### The model
 
@@ -115,9 +117,10 @@ not one another's contacts.
   off sets it null. The slug alone cannot be revoked without renaming the
   channel, which is why the agreement's "built from a slug" and "revoke and
   reissue" need both halves. Renaming the channel does not change the code.
-- **A community is a channel with an owner**, and the owner is set **only
-  while one member holds the channel**: *Start a community* from Home, or
-  *Make this a community* in a channel of one. That keeps the bend in the
+- **A community is a channel with an owner**, and the owner is set **only at
+  creation, while the creator is still its only member** — settled at the
+  prompt. *Start a community* from Home makes one; a channel that has ever
+  held a second member can never become one. That keeps the bend in the
   no-admin rule from ever landing on somebody who joined a flat channel —
   nobody becomes subject to an owner they did not walk in under.
 
@@ -147,12 +150,29 @@ not one another's contacts.
 
 ### The server
 
-- **`GET /j/:code`**, unauthenticated, rendered like `invite.ts`'s page: the
-  channel's name, description and cover art if it has one, how many members it
-  has, and **Join** opening `thefloor://j/<code>`, with the App Store beneath
-  it. **No member is named** — the same boundary the directory page's tests
-  assert, and asserted the same way. An unknown or revoked code gets the same
-  page as each other. Not listed on `/podcasts`, which is for contents.
+- **Two links, settled at the prompt**, and the second is the one that does
+  anything:
+  - **The community link**, `https://…/j/<code>` — what the owner hands out
+    and Substack carries. It opens the **community page**, which is
+    instructional and accepts nothing by being opened.
+  - **The join link**, `thefloor://j/<code>` — drawn on that page, and what
+    makes whoever follows it a member once they are signed in. **Membership
+    only, never a contact**: nobody is asked to be the owner's contact, or
+    anybody's.
+- **`GET /j/:code`**, the community page, unauthenticated, built on
+  `invite.ts`'s page, whose shape is already this one: the channel's name,
+  description and cover art if it has one, how many members it has; the App
+  Store listing; the join link, with the sentence that says to come back and
+  tap it once the app is installed; and **the web app as the alternative**,
+  through `/open` with the code written into the tab the way `acceptScript`
+  writes the invitation, so a browser that signs in is joined too. **No member
+  is named** — the same boundary the directory page's tests assert, and
+  asserted the same way. An unknown or revoked code gets the same page as each
+  other. Not listed on `/podcasts`, which is for contents.
+- **This is how the install gap is crossed**, and it does not wait on
+  `collapse-the-three-invitations-into-one.md` — settled at the prompt. It is
+  the gap the invite link already crosses the same way, and whatever that task
+  settles can later be applied to both.
 - **`POST /channels/join { code }`** → `JOIN`, answering `{ channelId }`.
   Refusals: `unknown` (also revoked), `full`, `already`. An unknown answer is
   a code lookup, so it goes through `excess.flagUnbudgeted` as
@@ -169,16 +189,20 @@ not one another's contacts.
   require a contact; both are right as they stand for twenty strangers.
 - **`tellTheInviter`'s counterpart**: the owner gets a push when somebody
   joins, at their notification level for the channel.
+- **Whoever joins by the link starts at *low*** for that channel — settled at
+  the prompt. An arrival otherwise pushes to every member at *medium*, which
+  for twenty people who met once at an event is noise from strangers. The
+  owner keeps the default; anybody may raise their own.
 
 ### The app
 
-- **`thefloor://j/<code>`** handled where `i/` is, held across sign-in the same
-  way, then `POST /channels/join` and straight into the channel. The install
-  gap is the invite link's and is `collapse-the-three-invitations-into-one.md`'s
-  to solve; **this inherits whatever that does**, which is the argument for
-  doing that first.
-- **Channel settings, owner only**: the link, *Share*, *Reset link* (with the
-  sentence that the old one stops working), *Turn off the link*.
+- **The join link** handled where `thefloor://i/` is (`useInviteLink.ts`),
+  held across sign-in the same way, then `POST /channels/join` and straight
+  into the channel. The web app takes the code up from the tab the same way.
+- **Channel settings, owner only**: the community link (never the join link,
+  which is the page's to offer), *Share*, *Reset link* (with the sentence that
+  the old one stops working — both links, being one code), *Turn off the
+  link*.
 - **People tab**: *Owner* beside one name; the owner's remove on a member row
   is a single confirmation rather than a motion; nobody else sees remove on
   the owner's row.
@@ -211,21 +235,33 @@ ownership over — each is a later answer to a problem a real community will
 have shown. And it does nothing for item 5's audience above: a community's
 door makes members, not listeners.
 
-### For the prompt, before building
+### Recording twenty, which is a setting rather than a wall
 
-1. **The name** — *community* and *owner*, or something else?
-2. **Twenty members can mean twenty open microphones.** A microphone is open
-   for everybody stepped in, and each recorded one is its own egress job
-   against a box ceiling of about ten — INFRASTRUCTURE.md § *What the box can
-   carry*. Accept it and watch `bin/usage peak`, cap how many may be *present*
-   in a community, or refuse a recording past ten present? Proposed: accept
-   and watch, since an event crowd is the case and Erta's first is not one.
-3. **Notifications for twenty strangers.** An arrival pushes to every member at
-   *medium*. Proposed: a member who joined by the link starts at *low* for
-   that channel.
-4. **Ownership only at birth** (proposed), or may an existing flat channel be
-   turned into a community by agreement?
-5. **Order against `collapse-the-three-invitations-into-one.md`**, which the
-   call said wants to feel right first and which this inherits its install gap
-   from. Proposed: that first, or at least its decision of shape, since Erta
-   sends her first invites the week of 2026-10-05.
+A microphone is open for everybody stepped in, and a recording makes one
+egress job per open microphone. **Egress rations itself by bookkeeping, not by
+measurement**: each job declares a CPU cost, and a job is refused once the
+declared costs would pass what egress believes the box's two vCPUs offer.
+`track_cpu_cost: 0.15`, set in `bin/provision-livekit`, is where the *about
+ten* comes from. The default of 1 assumes a job rendering video in a headless
+browser; ours copies Opus that is already published into a file, with no
+transcode, so its real cost has never been measured and is very likely well
+under what is declared. The ceiling is also **the whole box's**, across every
+channel, not one channel's.
+
+So the first move if a community ever records more than ten people at once is
+lowering that figure, which INFRASTRUCTURE.md already names as the first move.
+MIGRATION.md has why a bigger box would not help: the budget is set by the
+declared costs, not by memory. **Nothing in this plan caps presence or refuses
+a recording for it**; `bin/usage peak` counts concurrent egress jobs and is
+what will say when it is close. What is unknown is what a refused job looks
+like to the people in the room — whether the run fails out loud or silently
+records fewer stems. That is worth finding out before a twenty-member room
+records, and is cheap to find out by lowering the budget on a test box.
+
+### Still open
+
+- **Who may reset the link** — proposed the owner alone, as a control on the
+  door like removal; the call said only that one is needed.
+- **The owner cannot leave, only delete**, and nothing hands ownership over.
+  Proposed as above; it is the one rule here Erta will meet if she ever wants
+  to step back.
