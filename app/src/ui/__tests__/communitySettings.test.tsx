@@ -1,4 +1,5 @@
 import React from 'react';
+import { Linking } from 'react-native';
 import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { ChannelSettingsView } from '../ChannelSettingsView';
 import { createChannel, reduce } from '../../../../core/channel';
@@ -18,6 +19,10 @@ jest.mock('../../api/download', () =>
   require('../testing/harness').downloadMock()
 );
 jest.mock('../../api/upload', () => require('../testing/harness').uploadMock());
+jest.mock('../../api/config', () => ({
+  ...jest.requireActual('../../api/config'),
+  API_URL: 'https://example.com',
+}));
 jest.mock('../../state/AppProvider', () =>
   require('../testing/harness').appProviderMock()
 );
@@ -117,4 +122,26 @@ it('says why a podcast cannot become one', async () => {
   await open(alone, NOW);
   expect(textOf(tree)).toContain('A podcast cannot also be a community');
   expect(findButton(tree, 'Make channel into a community')).toBeUndefined();
+});
+
+it('opens the community page outside the app, for its owner', async () => {
+  const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  await open(community(ME, THEM));
+  await act(async () => findButton(tree, 'Open page')!.props.onPress());
+  expect(opened).toHaveBeenCalledWith('https://example.com/j/cafe-products-k3x9abcd');
+  opened.mockRestore();
+});
+
+it('shows a podcast its page and opens it outside the app', async () => {
+  const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  const alone = reduce(
+    createChannel({ id: 'sess_p', initiator: ME, invitees: [], now: NOW }),
+    { type: 'SET_NAME', userId: ME, name: 'On air' },
+    NOW
+  );
+  await open(alone, NOW);
+  expect(textOf(tree)).toContain('example.com/c/sess_p');
+  await act(async () => findButton(tree, 'Open page')!.props.onPress());
+  expect(opened).toHaveBeenCalledWith('https://example.com/c/sess_p');
+  opened.mockRestore();
 });

@@ -1031,6 +1031,8 @@ export const en = {
       `Anyone with this link can join, up to ${members} members, and nobody becomes anybody\u2019s contact by it. Resetting it stops the old one working for everybody who has it.`,
     communityLinkOff: () =>
       'Off. Nobody can join, and the old link stays dead even if you turn it back on.',
+    /** Opens the podcast's or the community's page outside the app. */
+    openPage: () => 'Open page',
     shareLink: () => 'Share link',
     resetLink: () => 'Reset link',
     resetLinkAsk: () => 'Reset the link?',

@@ -824,6 +824,7 @@ export const es: Strings = {
       `Cualquiera con este enlace puede unirse, hasta ${members} miembros, y nadie se convierte en contacto de nadie por ello. Si lo restableces, el anterior deja de funcionar para todos los que lo tengan.`,
     communityLinkOff: () =>
       'Desactivado. Nadie puede unirse, y el enlace anterior no vuelve a funcionar aunque lo actives de nuevo.',
+    openPage: () => 'Abrir la p\u00e1gina',
     shareLink: () => 'Compartir enlace',
     resetLink: () => 'Restablecer enlace',
     resetLinkAsk: () => '\u00bfRestablecer el enlace?',

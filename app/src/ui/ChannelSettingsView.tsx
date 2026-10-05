@@ -19,11 +19,13 @@ import {
   type NotificationLevel,
 } from '../../../core/notifications';
 import type { ChannelState } from '../../../core/types';
+import { API_URL } from '../api/config';
 import { type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
 import { shareLink } from '../share';
+import { openUrl } from './links';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -816,6 +818,14 @@ function Publishing({
   const app = useApp();
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const linkWords = useText().links;
+  /**
+   * The page's address: what the switch answered with, or else the one the
+   * server builds — `/c/<id>` on its own origin — so a channel that was
+   * already a podcast when this screen opened shows its page too, rather
+   * than only after somebody presses the switch again.
+   */
+  const pageUrl = url ?? (API_URL ? `${API_URL}/c/${channelId}` : null);
   const [error, setError] = useState<string | null>(null);
 
   const set = async (next: boolean) => {
@@ -889,10 +899,16 @@ function Publishing({
       {error ? <Text style={styles.warning}>{error}</Text> : null}
       {isPublic ? (
         <>
-          {url ? (
-            <Text style={type.body} numberOfLines={1}>
-              {url.replace(/^https?:\/\//, '')}
-            </Text>
+          {pageUrl ? (
+            <>
+              <Text style={type.body} numberOfLines={1}>
+                {pageUrl.replace(/^https?:\/\//, '')}
+              </Text>
+              <Button
+                label={t.openPage()}
+                onPress={() => void openUrl(pageUrl, linkWords)}
+              />
+            </>
           ) : null}
           <Text style={type.muted}>{t.pageNote()}</Text>
           {/*
@@ -1154,6 +1170,7 @@ function GuestLinks({
  */
 function CommunityLink({ channelId, capacity }: { channelId: string; capacity: number }) {
   const t = useText().channelSettings;
+  const linkWords = useText().links;
   const app = useApp();
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -1193,7 +1210,23 @@ function CommunityLink({ channelId, capacity }: { channelId: string; capacity: n
         {url.replace(/^https?:\/\//, '')}
       </Text>
       <Text style={type.muted}>{t.communityLinkNote(capacity)}</Text>
-      <Button label={t.shareLink()} onPress={() => void shareLink(url)} />
+      {/*
+        Out of the app to the page itself, which is what somebody given the
+        link will see: a new tab on the web, the system browser on a phone —
+        `Linking.openURL` does both, and `openUrl` says so if the OS refuses.
+      */}
+      <View style={styles.choices}>
+        <Button
+          style={styles.choice}
+          label={t.shareLink()}
+          onPress={() => void shareLink(url)}
+        />
+        <Button
+          style={styles.choice}
+          label={t.openPage()}
+          onPress={() => void openUrl(url, linkWords)}
+        />
+      </View>
       <View style={styles.choices}>
         <Button
           style={styles.choice}
