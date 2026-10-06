@@ -1021,11 +1021,9 @@ export class Accounts {
    * is a name this reader would recognise — see `invitedByFor` — and whether
    * the reader is entitled to the messaging handles.
    *
-   * The handles are settled here rather than in the route, unlike the email
-   * beside them on the same screen, because the test is the reader's standing
-   * and this class is what knows it. The email's test is an act by the person
-   * the address belongs to, aimed at a named reader, which is a different
-   * question and stays where the other per-reader decisions are.
+   * Contacts only, and yourself. The email beside them on the same screen
+   * has had the same audience since 2026-10-06 and is settled by
+   * `emailShownTo`, which the route asks.
    */
   profile(id: string, viewerId: string): ProfileView | null {
     const row = this.byId(id);
