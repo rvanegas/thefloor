@@ -148,52 +148,35 @@ export interface ProfileView {
    */
   sharedChannels?: SharedChannelView[];
   /**
-   * Their sign-in address, when they have chosen to show it to this reader.
+   * Their sign-in address, for a contact and for nobody else.
    *
-   * **Never sent on the strength of the reader's own standing.** Every other
-   * field here is decided by who is asking — a contact gets availability, a
-   * channel-sharer gets the count. This one is decided by an act of the person
-   * it belongs to, aimed at one named reader, and being their contact is not
-   * that act. An address is how somebody reaches you outside this application for
-   * ever, and it is the only part of a person here that the app will not hand
-   * out on a relationship alone.
+   * **Given on the reader's standing since 2026-10-06**, as availability and
+   * messaging handles are. It used to wait on a separate act of its owner,
+   * aimed at one contact at a time; most people never made it, and a
+   * contact's profile then had nothing on it to reach them by outside the
+   * app. Being a contact is mutual and accepted at both ends, which is the
+   * narrowest standing there is here — a stranger sharing a channel gets
+   * none of it.
    *
-   * **Your own is the exception and is always sent**, since 2026-08-31. On
-   * your own profile this is not a disclosure but the address you sign in
-   * with, read off your own row rather than through the showing decision —
-   * which would say no, you not being a contact of yours. `myEmailShown` is
-   * absent there for the matching reason: there is no reader to show it to.
+   * **Your own is sent too**, since 2026-08-31, as the address you sign in
+   * with.
    *
-   * Absent means it is not being shown, which is also what an older server
-   * sends and what somebody who is not a contact gets. The client draws no
-   * address for all three, there being nothing to draw.
+   * Absent for a non-contact and for an erased account, and the client draws
+   * no address for either, there being nothing to draw.
    */
   email?: string;
   /**
-   * Whether **you** are showing **your** address to them — the state of your
-   * own button, on their screen.
-   *
-   * The one field here that is not about the person whose profile this is, and
-   * it is named to say so. It belongs on this response rather than on some
-   * settings screen because the decision is per person: there is no global
-   * "show my email", there is only showing it to somebody, and the place that
-   * is true of is their profile.
-   *
-   * Absent for a non-contact and for an older server, which the client reads as
-   * "no such choice to offer here" rather than as false. Offering it and having
-   * the server refuse would be the dead affordance this screen avoids
-   * everywhere else.
+   * **Shim, gate 339** — see planning/SHIMS.md. Builds up to 338 draw a
+   * show/stop button off this; the server sends `true` to every contact,
+   * which is now simply the case. Nothing current reads it.
    */
   myEmailShown?: boolean;
   /**
    * Where they can be reached in the messaging apps they already use, when
    * they have said and when this reader is a contact.
    *
-   * **Given on the strength of the reader's standing, unlike the address
-   * above, and the difference is where the consent lives.** The server holds
-   * an email whether or not its owner ever meant it to be seen — it is the
-   * thing they sign in with — so showing it has to be a separate act, aimed at
-   * one person. A messaging handle is in this database only because somebody
+   * **Given on the strength of the reader's standing**, as the address
+   * above is. A messaging handle is in this database only because somebody
    * typed it into a field on their own profile, and there is nothing else it
    * could be for: typing it *is* the act. What is left to decide is the
    * audience, and that is contacts — the narrowest standing there is here,

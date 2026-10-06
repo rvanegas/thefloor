@@ -362,7 +362,6 @@ export const mockApp = {
   clearError: jest.fn(),
   dismissRefusal: jest.fn(),
   removeContact: jest.fn(async () => {}),
-  setEmailShown: jest.fn(async () => {}),
   // Off, which is what every account is until somebody sets the column by
   // hand. The panel's own tests are the only ones that turn it on.
   debug: false,

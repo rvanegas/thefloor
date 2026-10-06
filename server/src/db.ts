@@ -837,25 +837,6 @@ CREATE TABLE IF NOT EXISTS contacts (
   PRIMARY KEY (a_id, b_id)
 );
 
--- One person letting one other person see their sign-in address.
---
--- Directional, unlike the contacts row, and that is the point: an address is
--- yours to hand out and being somebody's contact is not consent to have it.
--- So the pair is stored as it was meant rather than canonicalised — owner_id
--- gave it, viewer_id may read it, and the reverse row is a separate decision
--- somebody else has to make.
---
--- Nothing outlives the relationship: the pair's rows go both ways when the
--- contact ends, and with the account when it is deleted. What it cannot undo
--- is a reader who has already copied it down, which is what the screen says
--- before anybody taps.
-CREATE TABLE IF NOT EXISTS email_reveals (
-  owner_id   TEXT NOT NULL REFERENCES accounts(id),
-  viewer_id  TEXT NOT NULL REFERENCES accounts(id),
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (owner_id, viewer_id)
-);
-
 -- A contact request sent to an address with no account yet.
 --
 -- Requests must be storable whether or not the recipient exists, or the
@@ -2255,6 +2236,15 @@ function migrate(db: Db): void {
     the longest-lived had six hours to run.
   */
   db.exec('DROP TABLE IF EXISTS watch_tokens');
+  /*
+    email_reveals held one person's decision to let one contact see their
+    sign-in address. Since 2026-10-06 every contact sees it and nobody else
+    does, so there is no decision left to store — see
+    planning/decision/2026-10-06-a-contact-always-sees-your-email.md. Dropped
+    rather than left, since a table nothing reads is a table somebody later
+    trusts.
+  */
+  db.exec('DROP TABLE IF EXISTS email_reveals');
   // Null for everyone, which is the only value that could be right: a handle
   // exists here because somebody typed it, and there is nowhere else on this
   // box one could be inferred from.

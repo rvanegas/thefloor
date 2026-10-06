@@ -1198,7 +1198,7 @@ export const en = {
     copyFailed: () => '\u2717 copy failed',
     copy: () => 'Copy',
     howYouSignIn: () =>
-      'How you sign in. Nobody else sees it unless you show it to them, which is done one contact at a time, from their profile.',
+      'How you sign in. Your contacts see it on your profile, and nobody else does.',
     differentAddress: () => 'A different address',
     codeOnItsWay: (address: string) =>
       `A code is on its way to ${address}. It signs you in there, which is what makes it yours.`,
@@ -1206,15 +1206,7 @@ export const en = {
     changing: () => 'Changing\u2026',
     changeMyAddress: () => 'Change my address',
     sendACode: () => 'Send a code',
-    notShowingTheirEmail: () => 'They are not showing you their email.',
-    theyCanSeeYourEmail: () => 'They can see your email.',
-    hiding: () => 'Hiding\u2026',
-    stopShowingMyEmail: () => 'Stop showing my email',
-    stoppingIsNotRecall: () =>
-      'They will not be able to see it again — though they may already have it written down somewhere.',
     showing: () => 'Showing\u2026',
-    showMyEmail: () => 'Show my email',
-    showMyEmailNote: () => 'Show my email to this contact.',
     messaging: () => 'Messaging',
     open: () => 'Open',
     contactsSeeThese: () => 'Your contacts see these on your profile.',

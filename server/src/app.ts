@@ -3407,32 +3407,17 @@ export function buildApp(options: BuildOptions = {}): App {
     // Your own profile is not a contact of yours and so is not exempted here.
     // Nothing is lost: you are the one person whose whereabouts you know.
     //
-    // The address is the exception, and it is not the same field it is
-    // everywhere else on this route. Sent to a contact, `email` is a
-    // disclosure — one person's standing decision about one reader, which is
-    // why `emailShownTo` is asked rather than assumed. Sent to you about you
-    // it is a reminder of what you sign in with, and there is no decision
-    // involved: the question "has its owner aimed it at this reader" does not
-    // arise when the reader is the owner. So it is read straight off the row
-    // rather than through `emailShownTo`, which would answer null — you are
-    // not showing your address to yourself and never will be.
-    //
-    // `myEmailShown` stays absent, because there is no button: showing your
-    // address is per contact and is decided on that contact's screen.
+    // The address is read off your own row when the profile is yours, and is
+    // what you sign in with rather than anything shown to anybody.
     if (id === account.id) return { ...profile, email: account.identifier };
     if (!contact) return profile;
     // `inApp` is composed at this point rather than in the query, for the
     // reason `homeFor` gives: whether somebody holds a socket is a fact about
     // this process and not a column.
     //
-    // The address is the odd one out among these and is meant to be. Everything
-    // else here is released by the reader's standing — being a contact is the
-    // whole of what earns it. An address is released by an act of the person it
-    // belongs to, aimed at one reader, so `emailShownTo` is asked rather than
-    // told, and being a contact only decides whether the question arises.
-    // `myEmailShown` is the same question turned round: the state of the
-    // reader's own button, which lives on this screen because the choice is per
-    // person and there is nowhere else it would be true of.
+    // The address goes with the rest, on the same standing, since 2026-10-06:
+    // a contact sees it and nobody else does. `emailShownTo` asks the contact
+    // question again on its own, so no caller holds the address before it has.
     const email = accounts.emailShownTo(id, account.id);
     // Both halves of availability from the one clock, since 2026-09-25: the
     // boolean is attention inside the window and the timestamp is the same
@@ -3445,33 +3430,24 @@ export function buildApp(options: BuildOptions = {}): App {
       inApp: reachability.inApp(id, attendedAt),
       lastSeenAt: accounts.lastAttendedAt(id),
       ...(email ? { email } : {}),
-      myEmailShown: accounts.showsEmail(account.id, id),
+      // Shim, gate 339 — see planning/SHIMS.md. Builds up to 338 draw a
+      // show/stop button off this; true is the honest state of it now.
+      myEmailShown: true,
     };
   });
 
   /**
-   * Shows your sign-in address to one contact, or stops showing it.
+   * The routes builds up to 338 press to show a contact your address or stop.
    *
-   * Under `/contacts` rather than `/profiles`, because the path has to read as
-   * what it does: `/profiles/:id` is somebody else's screen, and this writes a
-   * decision of *yours* about the person named. The verb carries the rest —
-   * POST gives, DELETE takes back.
+   * **Shim, gate 339** — see planning/SHIMS.md. Since 2026-10-06 a contact
+   * always sees it, so there is nothing to set. Showing answers yes, which is
+   * already true. Stopping is refused in words, because answering yes to a
+   * request that changed nothing would leave the old screen saying it had;
+   * the old client renders the error under the button, which is where the
+   * person pressing it is looking.
    *
-   * **Contacts only, and the server is where that is settled.** A profile is
-   * also readable by anybody sharing a live channel, which is a wider audience
-   * than an address should reach: meeting somebody in a room an acquaintance
-   * opened is grounds to ask them to be a contact, and this is a step past
-   * that. The app offers the button on the same test, so the two agree; this is
-   * the one that is load-bearing.
-   *
-   * A 404 for anybody who is not, matching every other refusal on this pair of
-   * screens: whether an id exists is not a thing to be learnt by being told
-   * "not a contact" about some of them.
-   *
-   * Nothing is pushed to the other end. A profile is fetched when somebody
-   * opens one — that is the argument the protocol makes for keeping a profile
-   * off every roster — so the address appears on their screen the next time they
-   * look, which is the only moment it is of any use to them.
+   * The 404 for a non-contact stays, matching every other refusal on this
+   * pair of screens.
    */
   async function setEmailShown(
     request: FastifyRequest,
@@ -3486,9 +3462,12 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!accounts.areContacts(account.id, id)) {
       return reply.code(404).send({ error: 'No such contact.' });
     }
-    if (shown) accounts.showEmail(account.id, id, now());
-    else accounts.hideEmail(account.id, id);
-    return { ok: true, shown };
+    if (!shown) {
+      return reply.code(409).send({
+        error: 'Your contacts always see your email now.',
+      });
+    }
+    return { ok: true, shown: true };
   }
 
   fastify.post('/contacts/:id/email', (request, reply) =>

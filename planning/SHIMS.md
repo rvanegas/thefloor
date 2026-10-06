@@ -62,6 +62,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `ChannelState.removals` revived as empty | `server/src/channels.ts` |
 | 330 | `SharedDrift.withheld`, relayed for the readouts that still draw it | `core/protocol.ts`, `server/src/ws.ts` |
 | 336 | `POST /channels/community`, starting a community from nothing | `server/src/app.ts`, `server/src/channels.ts` |
+| 339 | `myEmailShown` sent as true, and the show/stop email routes | `core/protocol.ts`, `server/src/app.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -919,3 +920,24 @@ film's return from an advert) and is the readout's headline.
 
 Gate 330 because `build/329` is tagged and `app.json` already reads 330: the
 client that stops sending it ships in the next upload.
+
+## Gate 339 — `myEmailShown` sent as true, and the show/stop email routes
+
+A contact always sees your email since 2026-10-06 —
+`decision/2026-10-06-a-contact-always-sees-your-email.md` — so nothing from
+build 339 on has a button for it. **Builds up to 338 still draw one** off
+`ProfileView.myEmailShown` and press `POST`/`DELETE /contacts/:id/email`. So
+the profile route sends `myEmailShown: true` to every contact, which makes the
+old screen say *They can see your email* — now simply true — and the two
+routes stay: `POST` answers yes, and `DELETE` is refused with a 409 in words,
+which the old screen prints under the button rather than claiming it stopped.
+
+**What goes at 339**: `myEmailShown` in `core/protocol.ts` and the line that
+sends it, `setEmailShown` and both routes in `server/src/app.ts`, and the
+*for builds up to 338* describe in `server/__tests__/profiles.test.ts`. **What
+must not go with it**: `email` on the same response, and
+`accounts.emailShownTo`, which is the contacts-only check every address now
+goes through.
+
+Gate 339 because `build/338` is tagged and is the last build carrying the
+button.

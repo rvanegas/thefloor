@@ -868,8 +868,7 @@ describe('your own profile', () => {
     mockApp.loadProfile.mockResolvedValueOnce({
       account: { id: ME, displayName: 'Me' },
       // What the server sends about you: the invited count, and your own
-      // address always — but no availability and no `myEmailShown`, there
-      // being nobody to be shown to.
+      // address always — but no availability.
       invited: 2,
       email: 'me@example.com',
     });
@@ -1426,7 +1425,7 @@ describe('removing a contact', () => {
   });
 });
 
-describe('showing your email to a contact', () => {
+describe('a contact’s email on their profile', () => {
   const asContact = (status: 'accepted' | 'outgoing' = 'accepted') => {
     mockApp.home = {
       invites: [],
@@ -1454,11 +1453,9 @@ describe('showing your email to a contact', () => {
   }
 
   /**
-   * `withProfile` sets a standing implementation rather than a one-shot,
-   * because pressing either button re-reads the profile — so a `…Once` would
-   * answer the first read and leave the second with the shared default. A
-   * standing one outlives the test, `clearAllMocks` clearing calls and not
-   * implementations, so it is put back by hand.
+   * `withProfile` sets a standing implementation rather than a one-shot, and
+   * a standing one outlives the test, `clearAllMocks` clearing calls and not
+   * implementations — so it is put back by hand.
    */
   const defaultProfile = mockApp.loadProfile.getMockImplementation()!;
 
@@ -1470,53 +1467,9 @@ describe('showing your email to a contact', () => {
     mockApp.loadProfile.mockImplementation(defaultProfile);
   });
 
-  it('offers the button, and says what it does', async () => {
-    asContact();
-    withProfile({ myEmailShown: false });
-    const tree = await open();
-
-    expect(findButton(tree, 'Show my email')).toBeDefined();
-    expect(textOf(tree)).toContain('Show my email to this contact.');
-    act(() => tree.unmount());
-  });
-
-  it('sends the decision and re-reads what the server now says', async () => {
-    // Re-read rather than patched in place: the server decides the field, and
-    // a screen that assumed the answer would be a second copy of the rule.
-    asContact();
-    withProfile({ myEmailShown: false });
-    const tree = await open();
-    mockApp.loadProfile.mockClear();
-
-    await act(async () => findButton(tree, 'Show my email')!.props.onPress());
-
-    expect(mockApp.setEmailShown).toHaveBeenCalledWith(THEM, true);
-    expect(mockApp.loadProfile).toHaveBeenCalledWith(THEM);
-    act(() => tree.unmount());
-  });
-
-  it('offers to stop once it is shown, and says what stopping cannot do', async () => {
-    asContact();
-    withProfile({ myEmailShown: true });
-    const tree = await open();
-
-    const text = textOf(tree);
-    expect(text).toContain('They can see your email.');
-    // The honest half: it ends the standing ability to come back for it, and
-    // reaches nowhere they have already written it down.
-    expect(text).toContain('already have it written down');
-    expect(findButton(tree, 'Show my email')).toBeUndefined();
-
-    await act(async () =>
-      findButton(tree, 'Stop showing my email')!.props.onPress()
-    );
-    expect(mockApp.setEmailShown).toHaveBeenCalledWith(THEM, false);
-    act(() => tree.unmount());
-  });
-
   it('shows theirs with a button that copies it', async () => {
     asContact();
-    withProfile({ email: 'dana@example.com', myEmailShown: false });
+    withProfile({ email: 'dana@example.com' });
     const tree = await open();
 
     expect(textOf(tree)).toContain('dana@example.com');
@@ -1540,25 +1493,25 @@ describe('showing your email to a contact', () => {
     act(() => tree.unmount());
   });
 
-  it('says which half is empty rather than leaving a gap', async () => {
+  it('offers nothing to show or hide, yours being shown already', async () => {
+    // A build up to 338 drew a button off `myEmailShown`; the server still
+    // sends it, and this screen must not.
     asContact();
-    withProfile({ myEmailShown: false });
-    expect(textOf(await open())).toContain(
-      'They are not showing you their email.'
-    );
+    withProfile({ email: 'dana@example.com', myEmailShown: true });
+    const text = textOf(await open());
+    expect(text).not.toContain('Show my email');
+    expect(text).not.toContain('Stop showing');
   });
 
-  it('is not offered to anybody who is not a contact', async () => {
-    // The server refuses the same call, and that is the load-bearing half.
-    // This is the screen agreeing with it rather than offering a button that
-    // would be refused — somebody met in a channel is asked to be a contact
-    // first, which the card above does.
+  it('draws no card for anybody who is not a contact', async () => {
+    // The server sends no address to them, and the screen agrees rather than
+    // drawing an empty card.
     for (const home of ['outgoing', 'none'] as const) {
       if (home === 'none') mockApp.home = null;
       else asContact('outgoing');
-      withProfile({ myEmailShown: false });
+      withProfile({});
       const tree = await open();
-      expect(textOf(tree)).not.toContain('Show my email');
+      expect(textOf(tree)).not.toContain('Copy');
       act(() => tree.unmount());
     }
   });

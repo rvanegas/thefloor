@@ -974,7 +974,7 @@ export const es: Strings = {
     copyFailed: () => '\u2717 no se ha podido copiar',
     copy: () => 'Copiar',
     howYouSignIn: () =>
-      'C\u00f3mo entras. Nadie m\u00e1s lo ve salvo que se lo muestres, y eso se hace de contacto en contacto, desde su perfil.',
+      'C\u00f3mo entras. Tus contactos lo ven en tu perfil, y nadie m\u00e1s.',
     differentAddress: () => 'Otra direcci\u00f3n',
     codeOnItsWay: (address: string) =>
       `Va un c\u00f3digo de camino a ${address}. Te hace entrar ah\u00ed, que es lo que la hace tuya.`,
@@ -982,15 +982,7 @@ export const es: Strings = {
     changing: () => 'Cambiando\u2026',
     changeMyAddress: () => 'Cambiar mi direcci\u00f3n',
     sendACode: () => 'Enviar un c\u00f3digo',
-    notShowingTheirEmail: () => 'No te est\u00e1 mostrando su correo.',
-    theyCanSeeYourEmail: () => 'Puede ver tu correo.',
-    hiding: () => 'Ocultando\u2026',
-    stopShowingMyEmail: () => 'Dejar de mostrar mi correo',
-    stoppingIsNotRecall: () =>
-      'No podr\u00e1 volver a verlo, aunque puede que ya lo tenga apuntado en alg\u00fan sitio.',
     showing: () => 'Mostrando\u2026',
-    showMyEmail: () => 'Mostrar mi correo',
-    showMyEmailNote: () => 'Mostrar mi correo a este contacto.',
     messaging: () => 'Mensajer\u00eda',
     open: () => 'Abrir',
     contactsSeeThese: () => 'Tus contactos ven esto en tu perfil.',

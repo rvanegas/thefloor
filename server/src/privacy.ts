@@ -242,10 +242,10 @@ application collects little.</p>
 <ul>
   <li><strong>Your email address.</strong> It is how you sign in — a six-digit
   code is sent to it — and it is how somebody who knows your address can send
-  you a contact request. It is shown to nobody unless you choose to show it,
-  which you can do only for a contact, one person at a time, from their profile.
-  You can stop showing it at any time; that removes it from their screen, and it
-  cannot recover a copy they have already written down. You can change it from
+  you a contact request. It is shown to your contacts, on your profile, and to
+  nobody else — not to somebody you share a channel with. Removing a contact
+  removes it from their screen, and cannot recover a copy they have already
+  written down. You can change it from
   your own profile: a code is sent to the new address, and nothing changes
   until that code comes back, so the address this account signs in with is
   always one somebody has proved they can read.</li>

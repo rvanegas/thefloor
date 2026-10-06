@@ -357,13 +357,7 @@ export function ProfileView({
   const [pinging, setPinging] = useState(false);
   const [pingError, setPingError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  /** While the decision about your own address is in flight. */
-  const [showingEmail, setShowingEmail] = useState(false);
-  /**
-   * Shared by the two email cards, which are never both drawn: `isSelf` picks
-   * one, and one of them shows an address to a contact while the other changes
-   * your own.
-   */
+  /** Errors from changing your own address, on your own Email card. */
   const [emailError, setEmailError] = useState<string | null>(null);
   /**
    * Changing the address you sign in with, which is a sign-in and not a save.
@@ -659,27 +653,6 @@ export function ProfileView({
         },
       ]
     );
-  };
-
-  /**
-   * Shows your own address to this person, or stops.
-   *
-   * The profile is re-read rather than patched in place, because the server is
-   * what decides the answer and this screen has just changed something it
-   * derives from. Patching would work today and would be a second copy of the
-   * rule the moment showing it stops being the only thing that sets the field.
-   */
-  const setEmailShown = async (shown: boolean) => {
-    setShowingEmail(true);
-    setEmailError(null);
-    try {
-      await app.setEmailShown(accountId, shown);
-      setProfile(await app.loadProfile(accountId));
-    } catch (e) {
-      setEmailError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setShowingEmail(false);
-    }
   };
 
   /**
@@ -1677,77 +1650,41 @@ export function ProfileView({
             ) : null}
           </Card>
         </>
-      ) : contact?.status !== 'accepted' ? null : (
+      ) : contact?.status !== 'accepted' || !profile?.email ? null : (
         <>
           <SectionLabel>{t.email()}</SectionLabel>
           <Card style={styles.stack}>
-            {profile?.email ? (
-              <View style={styles.reachRow}>
-                {/* Selectable, because an address on a screen is something
-                    people reach for by hand when a button is not enough — and
-                    the button is the fallback rather than the only way. */}
-                <Text
-                  style={[type.body, styles.reachWho]}
-                  selectable
-                  numberOfLines={2}
-                >
-                  {profile.email}
-                </Text>
-                <Button
-                  label={
-                    copied === 'done'
-                      ? t.copied()
-                      : copied === 'failed'
-                        ? t.copyFailed()
-                        : t.copy()
-                  }
-                  style={styles.reachAction}
-                  onPress={() => {
-                    void (async () => {
-                      setCopied(
-                        (await copyText(profile.email!)) ? 'done' : 'failed'
-                      );
-                    })();
-                  }}
-                />
-              </View>
-            ) : (
-              // Said rather than left blank, so the empty half of the card is
-              // an answer instead of a gap somebody reads as a bug. It is also
-              // what makes the two halves legible as independent: yours is
-              // below and may well be shown.
-              <Text style={type.muted}>{t.notShowingTheirEmail()}</Text>
-            )}
-
-            <View style={styles.rule} />
-
-            {profile?.myEmailShown ? (
-              <>
-                <Text style={type.muted}>{t.theyCanSeeYourEmail()}</Text>
-                <Button
-                  label={showingEmail ? t.hiding() : t.stopShowingMyEmail()}
-                  disabled={showingEmail}
-                  onPress={() => void setEmailShown(false)}
-                />
-                {/* The one thing the button cannot do, said where it is about
-                    to be pressed. Stopping ends the standing ability to come
-                    back for the address; it does not reach into anywhere they
-                    have already written it down. */}
-                <Text style={type.muted}>{t.stoppingIsNotRecall()}</Text>
-              </>
-            ) : (
-              <>
-                <Button
-                  label={showingEmail ? t.showing() : t.showMyEmail()}
-                  disabled={showingEmail}
-                  onPress={() => void setEmailShown(true)}
-                />
-                <Text style={type.muted}>{t.showMyEmailNote()}</Text>
-              </>
-            )}
-            {emailError ? (
-              <Text style={styles.error}>{emailError}</Text>
-            ) : null}
+            {/* Every contact's, since 2026-10-06, and nobody else's: the
+                server sends it on the same standing as the handles below. */}
+            <View style={styles.reachRow}>
+              {/* Selectable, because an address on a screen is something
+                  people reach for by hand when a button is not enough — and
+                  the button is the fallback rather than the only way. */}
+              <Text
+                style={[type.body, styles.reachWho]}
+                selectable
+                numberOfLines={2}
+              >
+                {profile.email}
+              </Text>
+              <Button
+                label={
+                  copied === 'done'
+                    ? t.copied()
+                    : copied === 'failed'
+                      ? t.copyFailed()
+                      : t.copy()
+                }
+                style={styles.reachAction}
+                onPress={() => {
+                  void (async () => {
+                    setCopied(
+                      (await copyText(profile.email!)) ? 'done' : 'failed'
+                    );
+                  })();
+                }}
+              />
+            </View>
           </Card>
         </>
       )}

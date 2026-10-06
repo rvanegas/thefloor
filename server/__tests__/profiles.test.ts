@@ -825,14 +825,13 @@ describe('asking somebody in your channel to be a contact', () => {
 });
 
 /**
- * Handing one contact your sign-in address.
+ * Your sign-in address, on your profile, for your contacts.
  *
- * The one thing on a profile that is not released by the reader's standing.
- * Everything else here follows from who is asking — a contact gets
- * availability, somebody sharing a channel gets a name and a count — and this
- * follows from an act of the person it belongs to, aimed at one named reader.
+ * Released by the reader's standing since 2026-10-06, as availability and the
+ * messaging handles are: every contact sees it and nobody else does — not
+ * somebody sharing a channel, who gets a name and a count.
  */
-describe('showing your email to a contact', () => {
+describe('your email on your profile', () => {
   const setShown = (user: User, id: string, shown: boolean) =>
     app.fastify.inject({
       method: shown ? 'POST' : 'DELETE',
@@ -850,86 +849,21 @@ describe('showing your email to a contact', () => {
     return { alice, bob };
   };
 
-  it('is withheld until the owner says otherwise', async () => {
+  it('reaches every contact, both ways, with nothing pressed', async () => {
     const { alice, bob } = await pair();
-    // Being a contact is agreement to talk, not to be written to outside this
-    // application. Absent rather than null: there is nothing to draw.
-    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
+    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
+    expect(await emailOn(bob, alice.account.id)).toBe('alice@example.com');
   });
 
-  it('is on your own profile whatever you have shown to whom', async () => {
-    // Not a disclosure and not subject to one: on your own profile this is
-    // the address you sign in with, and the question the rest of this describe
-    // is about — has its owner aimed it at this reader — does not arise when
-    // the reader is the owner.
-    const { alice, bob } = await pair();
-    expect(await emailOn(alice, alice.account.id)).toBe('alice@example.com');
-    // Still there having shown it to nobody, and still there having shown it.
-    await setShown(alice, bob.account.id, true);
-    expect(await emailOn(alice, alice.account.id)).toBe('alice@example.com');
-  });
-
-  it('offers no button to show your address to yourself', async () => {
-    // `myEmailShown` is the state of a control aimed at one named reader.
-    // There is no such reader on your own profile, so there is no such state,
-    // and the screen draws half the card rather than a dead affordance.
+  it('is on your own profile', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
+    expect(await emailOn(alice, alice.account.id)).toBe('alice@example.com');
     expect((await read(alice, alice.account.id)).json()).not.toHaveProperty(
       'myEmailShown'
     );
   });
 
-  it('reaches the one person it was shown to, and nobody else', async () => {
-    const { alice, bob } = await pair();
-    const carol = await signIn('carol@example.com', 'Carol');
-    await befriend(bob, carol, 'carol@example.com');
-
-    expect((await setShown(bob, alice.account.id, true)).statusCode).toBe(200);
-
-    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
-    // Carol is bob's contact too and was told nothing. The decision is per
-    // person, which is why it lives on a profile rather than in settings.
-    expect(await emailOn(carol, bob.account.id)).toBeUndefined();
-  });
-
-  it('is one-directional, so showing is not a trade', async () => {
-    const { alice, bob } = await pair();
-    await setShown(bob, alice.account.id, true);
-
-    const onAlice = (await read(bob, alice.account.id)).json() as {
-      email?: string;
-      myEmailShown?: boolean;
-    };
-    // Alice's address is not disclosed by bob showing his, and bob's own
-    // screen says which way round it is.
-    expect(onAlice.email).toBeUndefined();
-    expect(onAlice.myEmailShown).toBe(true);
-  });
-
-  it('stops on request, and can be shown again', async () => {
-    const { alice, bob } = await pair();
-    await setShown(bob, alice.account.id, true);
-    await setShown(bob, alice.account.id, false);
-    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
-
-    await setShown(bob, alice.account.id, true);
-    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
-  });
-
-  it('records the decision once, however many times it is made', async () => {
-    const { alice, bob } = await pair();
-    await setShown(bob, alice.account.id, true);
-    clock += 60_000;
-    // A second call is not a second decision, and must not fail on the
-    // primary key either.
-    expect((await setShown(bob, alice.account.id, true)).statusCode).toBe(200);
-    expect(await emailOn(alice, bob.account.id)).toBe('bob@example.com');
-  });
-
-  it('is refused to anybody who is not a contact, as a 404', async () => {
-    // A profile is readable by anyone sharing a live channel, which is a wider
-    // audience than an address should reach. The refusal is a 404 like every
-    // other on these screens, so it answers nothing about which ids exist.
+  it('reaches nobody who is not a contact, not even a channel-sharer', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     const carol = await signIn('carol@example.com', 'Carol');
@@ -937,54 +871,77 @@ describe('showing your email to a contact', () => {
     await befriend(alice, carol, 'carol@example.com');
     app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
 
-    expect((await setShown(bob, carol.account.id, true)).statusCode).toBe(404);
-    expect((await setShown(bob, 'acct_nobody', true)).statusCode).toBe(404);
+    // Carol can read bob's profile, sharing a live channel with him, and
+    // gets no address off it.
+    expect((await read(carol, bob.account.id)).statusCode).toBe(200);
     expect(await emailOn(carol, bob.account.id)).toBeUndefined();
-  });
-
-  it('refuses an unauthenticated caller', async () => {
-    const { alice } = await pair();
-    const response = await app.fastify.inject({
-      method: 'POST',
-      url: `/contacts/${alice.account.id}/email`,
-    });
-    expect(response.statusCode).toBe(401);
+    expect(
+      app.accounts.emailShownTo(bob.account.id, carol.account.id)
+    ).toBe(null);
   });
 
   it('goes when the contact does', async () => {
-    // It was shown to a contact; ending the contact ends the audience. Both
-    // ways, without asking, since the row is the pair either way.
     const { alice, bob } = await pair();
-    await setShown(bob, alice.account.id, true);
-    await setShown(alice, bob.account.id, true);
-
     await app.fastify.inject({
       method: 'DELETE',
       url: `/contacts/${bob.account.id}`,
       headers: auth(alice.token),
     });
-
-    // Not readable at all now, the profile itself being refused — so the
-    // check that matters is the row: befriending again must not silently
-    // restore a disclosure neither of them made twice.
-    await befriend(alice, bob, 'bob@example.com');
-    expect(await emailOn(alice, bob.account.id)).toBeUndefined();
-    expect(await emailOn(bob, alice.account.id)).toBeUndefined();
+    expect(
+      app.accounts.emailShownTo(alice.account.id, bob.account.id)
+    ).toBe(null);
   });
 
   it('goes when the account does', async () => {
     const { alice, bob } = await pair();
-    await setShown(alice, bob.account.id, true);
     await app.fastify.inject({
       method: 'DELETE',
       url: '/me',
       headers: auth(alice.token),
     });
-    // A disclosure must not outlive the person who made it, and a tombstone's
-    // identifier is not an address in any case.
+    // A tombstone's identifier is not an address.
     expect(
       app.accounts.emailShownTo(alice.account.id, bob.account.id)
     ).toBe(null);
+  });
+
+  // Shim, gate 339 — see planning/SHIMS.md. Delete with it.
+  describe('for builds up to 338, which still draw the button', () => {
+    it('says it is shown, to a contact', async () => {
+      const { alice, bob } = await pair();
+      expect(
+        ((await read(alice, bob.account.id)).json() as {
+          myEmailShown?: boolean;
+        }).myEmailShown
+      ).toBe(true);
+    });
+
+    it('answers showing with yes, and stopping with a refusal in words', async () => {
+      const { alice, bob } = await pair();
+      const shown = await setShown(alice, bob.account.id, true);
+      expect(shown.statusCode).toBe(200);
+      expect(shown.json()).toEqual({ ok: true, shown: true });
+
+      const stopped = await setShown(alice, bob.account.id, false);
+      expect(stopped.statusCode).toBe(409);
+      expect((stopped.json() as { error: string }).error).toMatch(/always/);
+      expect(await emailOn(bob, alice.account.id)).toBe('alice@example.com');
+    });
+
+    it('is still a 404 for anybody who is not a contact', async () => {
+      const alice = await signIn('alice@example.com', 'Alice');
+      await signIn('bob@example.com', 'Bob');
+      expect((await setShown(alice, 'acct_nobody', true)).statusCode).toBe(404);
+    });
+
+    it('refuses an unauthenticated caller', async () => {
+      const { alice } = await pair();
+      const response = await app.fastify.inject({
+        method: 'POST',
+        url: `/contacts/${alice.account.id}/email`,
+      });
+      expect(response.statusCode).toBe(401);
+    });
   });
 });
 
