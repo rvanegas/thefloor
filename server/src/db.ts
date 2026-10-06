@@ -176,6 +176,7 @@ export interface AccountRow {
    * somebody today rather than a record of how they once could be.
    */
   im_whatsapp: string | null;
+  im_phone: string | null;
   im_telegram: string | null;
   im_signal: string | null;
   /**
@@ -733,12 +734,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- transcripts table, whose rows are swept; see the row type above.
   free_transcript_id TEXT,
   free_transcript_at INTEGER,
-  -- Where this person can be reached in the messaging apps they already use,
-  -- one column each and null until they say. Stored canonically — the two
-  -- phone numbers in international form with the plus, the Telegram username
-  -- without its at — because normalisation happens on the way in; see
-  -- core/im.ts. Three columns rather than one blob, so that a handle is a
-  -- value the database can be asked about rather than a string to parse.
+  -- Where this person can be reached outside the app — a phone number and
+  -- the messaging apps they already use — one column each and null until they
+  -- say. Stored canonically — the three phone numbers in international form
+  -- with the plus, the Telegram username without its at — because
+  -- normalisation happens on the way in; see core/im.ts. A column each rather
+  -- than one blob, so that a handle is a value the database can be asked
+  -- about rather than a string to parse. im_phone since 2026-10-06.
+  im_phone     TEXT,
   im_whatsapp  TEXT,
   im_telegram  TEXT,
   im_signal    TEXT,
@@ -2252,6 +2255,9 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE accounts ADD COLUMN im_whatsapp TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN im_telegram TEXT');
     db.exec('ALTER TABLE accounts ADD COLUMN im_signal TEXT');
+  }
+  if (!accountColumns.some((c) => c.name === 'im_phone')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN im_phone TEXT');
   }
   // Left null rather than backfilled from `created_at`: an account made a year
   // ago and used this morning would read as a year idle, which is worse than

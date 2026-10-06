@@ -1207,12 +1207,15 @@ export const en = {
     changeMyAddress: () => 'Change my address',
     sendACode: () => 'Send a code',
     showing: () => 'Showing\u2026',
+    /** The one row on the Messaging card that is not a brand, so is translated. */
+    phone: () => 'Phone',
+    text: () => 'Text',
     messaging: () => 'Messaging',
     open: () => 'Open',
     contactsSeeThese: () => 'Your contacts see these on your profile.',
     noProfileHere: () => 'There is no profile here to show you.',
     messagingFieldsNote: () =>
-      'Shown to your contacts, who can tap one to open the conversation there. Leave a field empty to take it off your profile.',
+      'Shown to your contacts, who can tap one to text you or open the conversation there. Leave a field empty to take it off your profile.',
     alreadyAContact: () => 'Already one of your contacts.',
     removing: () => 'Removing\u2026',
     removeContact: () => 'Remove contact',

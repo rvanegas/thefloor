@@ -3015,7 +3015,9 @@ export function buildApp(options: BuildOptions = {}): App {
             error:
               service === 'telegram'
                 ? 'That does not look like a Telegram username.'
-                : `That does not look like a phone number ${IM_SERVICE_NAMES[service]} could reach — include the country code.`,
+                : service === 'phone'
+                  ? 'That does not look like a phone number — include the country code.'
+                  : `That does not look like a phone number ${IM_SERVICE_NAMES[service]} could reach — include the country code.`,
           });
         }
         im[service] = value;

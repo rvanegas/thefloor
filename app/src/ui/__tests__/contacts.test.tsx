@@ -1572,6 +1572,24 @@ describe('reaching somebody in the messaging apps they use', () => {
     act(() => tree.unmount());
   });
 
+  it('draws the phone as Phone, and texts it on a tap', async () => {
+    const { Linking } = require('react-native');
+    const opened = jest
+      .spyOn(Linking, 'openURL')
+      .mockResolvedValue(undefined as never);
+
+    withProfile({ im: { phone: '+15551234567' } });
+    const tree = await open();
+
+    expect(textOf(tree)).toContain('Phone');
+    expect(findButton(tree, 'Open')).toBeUndefined();
+    await act(async () => findButton(tree, 'Text')!.props.onPress());
+    expect(opened).toHaveBeenCalledWith('sms:+15551234567');
+
+    opened.mockRestore();
+    act(() => tree.unmount());
+  });
+
   it('leaves the section out when there is nothing in it', async () => {
     // Which is the same screen a stranger gets, the server withholding the
     // handles from anybody who is not a contact — and the same one an older
@@ -1605,12 +1623,19 @@ describe('reaching somebody in the messaging apps they use', () => {
     // Seeded from what the server holds, like the name.
     expect(field('@username').props.value).toBe('me_here');
 
-    // WhatsApp first, Signal second — the two share a hint, both being phone
-    // numbers, which is why this is by position.
+    // The phone is the first field, and saves the same way.
+    act(() => field('+1 555 123 4567', 0).props.onChangeText('+44 20 7946 0000'));
+    await act(async () => field('+1 555 123 4567', 0).props.onBlur());
+    expect(mockApp.saveProfile).toHaveBeenCalledWith({
+      im: { phone: '+442079460000' },
+    });
+
+    // Phone first, WhatsApp second, Signal third — the three share a hint,
+    // all being phone numbers, which is why this is by position.
     act(() =>
-      field('+1 555 123 4567').props.onChangeText('+1 (555) 987-6543')
+      field('+1 555 123 4567', 1).props.onChangeText('+1 (555) 987-6543')
     );
-    await act(async () => field('+1 555 123 4567').props.onBlur());
+    await act(async () => field('+1 555 123 4567', 1).props.onBlur());
 
     // Canonical on the wire, whatever was typed into the field.
     expect(mockApp.saveProfile).toHaveBeenCalledWith({
@@ -1635,7 +1660,7 @@ describe('reaching somebody in the messaging apps they use', () => {
     const whatsapp = tree.root.findAll(
       (n) =>
         typeof n.type === 'string' && n.props?.placeholder === '+1 555 123 4567'
-    )[0];
+    )[1];
     act(() => whatsapp.props.onChangeText('555 1234'));
     await act(async () => whatsapp.props.onBlur());
 

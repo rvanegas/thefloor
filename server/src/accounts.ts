@@ -73,6 +73,7 @@ export class UsernameTakenError extends Error {
 const DERIVED_USERNAME_TRIES = 10;
 
 const IM_COLUMNS = {
+  phone: 'im_phone',
   whatsapp: 'im_whatsapp',
   telegram: 'im_telegram',
   signal: 'im_signal',
@@ -2957,8 +2958,8 @@ export class Accounts {
         `UPDATE accounts
             SET identifier = ?, display_name = ?, username = NULL,
                 last_seen_at = NULL, donations_allowed = NULL,
-                debug = NULL, im_whatsapp = NULL, im_telegram = NULL,
-                im_signal = NULL, tried_floor = NULL, tried_nearby = NULL,
+                debug = NULL, im_phone = NULL, im_whatsapp = NULL,
+                im_telegram = NULL, im_signal = NULL, tried_floor = NULL, tried_nearby = NULL,
                 tried_guest = NULL, tried_player = NULL,
                 marketing_email_at = NULL
           WHERE id = ?`

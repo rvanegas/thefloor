@@ -559,6 +559,22 @@ describe('the messaging handles on a profile', () => {
     });
   });
 
+  it('stores a phone number with the rest, and refuses one without enough digits', async () => {
+    const { alice, bob } = await pair();
+    expect(
+      (await save(bob, { im: { phone: '+44 20 7946 0000' } })).statusCode
+    ).toBe(200);
+    expect(await imOn(alice, bob.account.id)).toEqual({
+      phone: '+442079460000',
+    });
+
+    const refused = await save(bob, { im: { phone: '555 1234' } });
+    expect(refused.statusCode).toBe(400);
+    expect((refused.json() as { error: string }).error).toMatch(
+      /country code/
+    );
+  });
+
   it('leaves out what was left out, service by service', async () => {
     const { alice, bob } = await pair();
     await save(bob, { im: { telegram: 'bob_smith' } });
@@ -611,13 +627,16 @@ describe('the messaging handles on a profile', () => {
     const carol = await signIn('carol@example.com', 'Carol');
     await befriend(alice, bob, 'bob@example.com');
     await befriend(alice, carol, 'carol@example.com');
-    await save(carol, { im: { telegram: 'carol_smith' } });
+    await save(carol, {
+      im: { telegram: 'carol_smith', phone: '+15551234567' },
+    });
     app.channels.create(alice.account.id, [bob.account.id, carol.account.id]);
 
     expect((await read(bob, carol.account.id)).statusCode).toBe(200);
     expect(await imOn(bob, carol.account.id)).toBeUndefined();
     expect(await imOn(alice, carol.account.id)).toEqual({
       telegram: 'carol_smith',
+      phone: '+15551234567',
     });
   });
 

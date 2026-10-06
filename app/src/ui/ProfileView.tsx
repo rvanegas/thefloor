@@ -53,8 +53,8 @@ import { duration } from './relativeTime';
 import { colors, radius, spacing, type } from './theme';
 
 /**
- * What the three fields start out holding: every service, blank where there is
- * no handle. A record with all three keys rather than the wire's partial one,
+ * What the four fields start out holding: every service, blank where there is
+ * no handle. A record with every key rather than the wire's partial one,
  * because a text field's value cannot be undefined and a controlled field that
  * becomes one is a field that stops taking typing.
  */
@@ -71,6 +71,13 @@ const imOf = (fields: Record<ImService, string>): ImHandles =>
       fields[service],
     ])
   );
+
+/**
+ * What a row is called on screen: the service's own name, except the phone,
+ * which is an ordinary word and so is the one that is translated.
+ */
+const serviceName = (service: ImService, t: Strings['profile']): string =>
+  service === 'phone' ? t.phone() : IM_SERVICE_NAMES[service];
 
 /**
  * What is wrong with what somebody has typed, or null while there is nothing
@@ -118,7 +125,7 @@ function imProblem(
  * **There is no bio.** It was the first thing this screen was built around and
  * it went on 2026-08-31, field, column and all. What is left is a person's
  * standing and how to reach them — availability, who brought them, the
- * channels you share, an address and three handles — which is what somebody
+ * channels you share, an address, a phone and three handles — which is what somebody
  * opening a profile was after. See decision/DECISIONS.md.
  *
  * **Edit mode does not say whose account this is.** It carried a "Signed in
@@ -390,18 +397,16 @@ export function ProfileView({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   /**
-   * The three messaging handles, as typed rather than as stored.
+   * The phone and the messaging handles, as typed rather than as stored.
    *
    * Held as whatever is in the field, because normalisation is what happens to
    * a handle on the way to the server: a field that rewrote `+1 555 123 4567`
    * into `+15551234567` under somebody's cursor would be correcting them
    * mid-sentence, and the two are the same handle anyway.
    */
-  const [draftIm, setDraftIm] = useState<Record<ImService, string>>({
-    whatsapp: '',
-    telegram: '',
-    signal: '',
-  });
+  const [draftIm, setDraftIm] = useState<Record<ImService, string>>(() =>
+    imFields(undefined)
+  );
   /**
    * The name they chose for themselves, as typed and without its `@`.
    *
@@ -428,7 +433,7 @@ export function ProfileView({
     username: string;
   }>({
     displayName: '',
-    im: { whatsapp: '', telegram: '', signal: '' },
+    im: imFields(undefined),
     username: '',
   });
 
@@ -672,7 +677,7 @@ export function ProfileView({
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert(t.couldNotOpen(IM_SERVICE_NAMES[service]), handle);
+      Alert.alert(t.couldNotOpen(serviceName(service, t)), handle);
     }
   };
 
@@ -1700,7 +1705,7 @@ export function ProfileView({
         a reader — there is no way to reach this person elsewhere from here —
         and none of them is worth an empty card saying so.
 
-        Not shown while editing, where the same three handles are fields. A
+        Not shown while editing, where the same four handles are fields. A
         card of links above the fields that write them would be the profile
         arguing with itself.
       */}
@@ -1715,7 +1720,7 @@ export function ProfileView({
                   <View key={service} style={styles.reachRow}>
                     <View style={styles.reachWho}>
                       <Text style={type.label}>
-                        {IM_SERVICE_NAMES[service]}
+                        {serviceName(service, t)}
                       </Text>
                       {/* Selectable for the same reason the address above is:
                           the button is the fast way and not the only way. */}
@@ -1736,7 +1741,7 @@ export function ProfileView({
                         one somebody reaches for — the button is the shortcut,
                         so it should not be the loudest thing in the card. */}
                     <Button
-                      label={t.open()}
+                      label={service === 'phone' ? t.text() : t.open()}
                       style={styles.reachAction}
                       onPress={() => void openIm(service, handle)}
                     />
@@ -1779,11 +1784,11 @@ export function ProfileView({
       ) : null}
 
       {/*
-        The three handles, as fields.
+        The four handles, as fields — the phone and the three apps.
 
         Under the name rather than above it, and last on the screen: your name
         is what everybody else finds you by and these are an appendix to it —
-        and because two of the three are phone numbers, which is a keyboard
+        and because three of the four are phone numbers, which is a keyboard
         nobody should meet before they have been asked who they are.
 
         Each writes on blur like the fields above, and each says underneath
@@ -1800,7 +1805,7 @@ export function ProfileView({
               const problem = imProblem(service, draftIm[service], t);
               return (
                 <View key={service} style={styles.imField}>
-                  <Text style={type.label}>{IM_SERVICE_NAMES[service]}</Text>
+                  <Text style={type.label}>{serviceName(service, t)}</Text>
                   <Field
                     value={draftIm[service]}
                     onChangeText={(v) =>

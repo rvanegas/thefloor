@@ -1,9 +1,13 @@
 /**
- * Where somebody can be reached in the messaging apps they already use.
+ * Where somebody can be reached outside this application: a phone number, and
+ * the messaging apps they already use.
  *
- * Three of them — WhatsApp, Telegram, Signal — because those are the ones a
- * person is plausibly already in, and because each publishes a link format
- * that opens the app on the handle without any account of ours in the middle.
+ * The phone, since 2026-10-06, and three apps — WhatsApp, Telegram, Signal —
+ * because those are the ones a person is plausibly already in, and because
+ * each publishes a link format that opens the app on the handle without any
+ * account of ours in the middle. The phone's link is `sms:`, which opens a
+ * text to it — the one way of reaching a number every phone has, and the
+ * least intrusive of the two it offers.
  * Nothing is sent through them and nothing is read from them: what this file
  * knows how to do is turn what somebody typed into a canonical handle, and a
  * canonical handle into a URL. There is no API here and there is not meant to
@@ -15,12 +19,12 @@
  * the link on the way out. Two copies of a phone-number rule is two rules.
  *
  * **A handle is a fact about somebody, not an address this application owns.**
- * Two of the three are phone numbers, which is why entering one is treated as
+ * Three of the four are phone numbers, which is why entering one is treated as
  * publication to your contacts and nothing weaker — see `ProfileView.im`.
  */
 
 /** The services, in the order they are drawn. */
-export const IM_SERVICES = ['whatsapp', 'telegram', 'signal'] as const;
+export const IM_SERVICES = ['phone', 'whatsapp', 'telegram', 'signal'] as const;
 
 export type ImService = (typeof IM_SERVICES)[number];
 
@@ -36,9 +40,12 @@ export type ImHandles = Partial<Record<ImService, string>>;
  * What each is called on screen.
  *
  * **Not translated, and not translatable**: these are the services' own
- * names, which are the same word in every language the app will learn.
+ * names, which are the same word in every language the app will learn. The
+ * phone is the exception, being an ordinary word: this English one is what the
+ * server's refusals say, and the app draws its own translation instead.
  */
 export const IM_SERVICE_NAMES: Record<ImService, string> = {
+  phone: 'Phone',
   whatsapp: 'WhatsApp',
   telegram: 'Telegram',
   signal: 'Signal',
@@ -58,6 +65,7 @@ export const IM_SERVICE_NAMES: Record<ImService, string> = {
  * the instruction.
  */
 export const IM_SERVICE_HINTS: Record<ImService, string> = {
+  phone: '+1 555 123 4567',
   whatsapp: '+1 555 123 4567',
   telegram: '@username',
   signal: '+1 555 123 4567',
@@ -108,9 +116,10 @@ export function normaliseImHandle(
     return TELEGRAM.test(username) ? username : null;
   }
 
-  // Both of the others are phone numbers, and are stored in international
-  // form with the plus — which is what `signal.me` wants and what a person
-  // reading it back recognises as a whole number rather than a local one.
+  // All the others are phone numbers, and are stored in international form
+  // with the plus — which is what `signal.me` and `sms:` want and what a
+  // person reading it back recognises as a whole number rather than a local
+  // one.
   // `wa.me` wants the digits alone and strips it at the link, that being a
   // property of the URL rather than of the handle.
   const digits = text.replace(/\D/g, '');
@@ -123,7 +132,8 @@ export function normaliseImHandle(
 /**
  * Where to send somebody who taps the handle.
  *
- * `https` rather than each app's own scheme, deliberately. A universal link
+ * `https` rather than each app's own scheme, deliberately, for the apps. The
+ * phone is `sms:`, there being no app to fall back from. A universal link
  * opens the app when it is installed and a web page that explains itself when
  * it is not, where `whatsapp://` on a phone without WhatsApp fails with
  * nothing to read — and the same URL is the one that works from the browser
@@ -135,6 +145,7 @@ export function normaliseImHandle(
 export function imLink(service: ImService, handle: string): string | null {
   const value = normaliseImHandle(service, handle);
   if (!value) return null;
+  if (service === 'phone') return `sms:${value}`;
   if (service === 'telegram') return `https://t.me/${value}`;
   if (service === 'whatsapp') return `https://wa.me/${value.slice(1)}`;
   // Signal addresses a number, and only a number: a Signal *username* has a

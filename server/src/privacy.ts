@@ -251,11 +251,11 @@ application collects little.</p>
   always one somebody has proved they can read.</li>
   <li><strong>Your display name.</strong> It is shown to people you share a
   channel or a contact relationship with.</li>
-  <li><strong>A WhatsApp, Telegram or Signal handle, if you put one on your
-  profile.</strong> Two of those are phone numbers. Nothing here asks your
-  phone for them and nothing is sent through them — they are stored because
-  you typed them, and they are shown to your contacts, who can tap one to open
-  the conversation in that app. They are shown to nobody else, not even to
+  <li><strong>A phone number, and a WhatsApp, Telegram or Signal handle, if
+  you put one on your profile.</strong> Three of those are phone numbers.
+  Nothing here asks your phone for them and nothing is sent through them —
+  they are stored because you typed them, and they are shown to your contacts,
+  who can tap one to text you or to open the conversation in that app. They are shown to nobody else, not even to
   somebody you share a channel with. Clearing the field removes it.</li>
   <li><strong>Audio you record.</strong> Recording is deliberate: somebody in
   the channel starts it, and everybody in the channel can see that it is

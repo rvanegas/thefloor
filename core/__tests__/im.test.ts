@@ -70,6 +70,7 @@ describe('reading a handle the way it is written', () => {
 
   it('is settled: normalising twice changes nothing', () => {
     const written: Record<ImService, string> = {
+      phone: '+44 20 7946 0000',
       whatsapp: '+1 (555) 123-4567',
       telegram: '@alice_smith',
       signal: '+1 555 123 4567',
@@ -91,10 +92,11 @@ describe('the link a handle opens', () => {
       'https://signal.me/#p/+15551234567'
     );
     expect(imLink('telegram', 'alice_smith')).toBe('https://t.me/alice_smith');
+    expect(imLink('phone', '+1 (555) 123-4567')).toBe('sms:+15551234567');
   });
 
-  it('is https, so a phone without the app gets a page rather than nothing', () => {
-    for (const service of IM_SERVICES) {
+  it('is https for an app, so a phone without it gets a page rather than nothing', () => {
+    for (const service of IM_SERVICES.filter((s) => s !== 'phone')) {
       const handle = service === 'telegram' ? 'alice_smith' : '+15551234567';
       expect(imLink(service, handle)!.startsWith('https://')).toBe(true);
     }
