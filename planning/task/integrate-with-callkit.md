@@ -4,14 +4,13 @@ Integrate the app with CallKit. Two existing tasks would each be delivered by
 part of this, and they say to decide CallKit together:
 `mute-a-locked-phone-through-callkit.md`, which wants a lock screen mute that
 needs no passcode, and `phone-calls-during-watch.md`, which wants other calls
-to get a busy signal. Doing it means rewriting the "there is no CallKit in it
-at all" position in `apply-the-app-store-listing.md` and `post-to-the-launch-surfaces.md`. Read STATES.md and
-POSTMORTEM-echo.md first, because CallKit takes over activating the audio
-session.
+to get a busy signal. Read STATES.md and POSTMORTEM-echo.md first, because
+CallKit takes over activating the audio session.
 
 On the call with Erta, 2026-10-02, Rodrigo said he wants this: being on The
 Floor should count as a phone call to the phone, so that **incoming calls see
-you as busy** and **the call shows up in Recents**.
+you as busy** and **the call shows up in Recents**. The busy half was dropped
+on 2026-10-06, below.
 
 ## The plan
 
@@ -30,46 +29,45 @@ of it.
   system call screen's mute arrives as a `CXSetMutedCallAction`, which iOS runs
   itself. That is the evidence `mute-a-locked-phone-through-callkit.md` asked
   for. It is unmeasured until the spike, below.
-- **Busy: not as worded, and this needs deciding before the work.** iOS has no
-  setting that makes a CallKit call turn other calls away. A cellular or
-  FaceTime call that arrives during one gets *call waiting* — Hold & Accept /
-  End & Accept / Decline — and the caller hears it ringing. They hear busy
-  only where the carrier's call waiting is off. What CallKit really changes is
-  smaller and still worth having: the incoming call becomes a choice offered
-  over the channel, and the app is told which choice was made (see Phase 3).
-  Today it takes the audio session silently, which is the Telegram case in
-  `useSessionAudio.ts` and `backlog/websocket-lost.md`. Settle this on a device
-  in the spike. If Rodrigo meant a real busy signal, that is a
-  carrier setting and no app can provide it.
+- **Busy: no, and dropped.** iOS has no setting that makes a CallKit call turn
+  other calls away. A cellular or FaceTime call that arrives during one gets
+  *call waiting* — Hold & Accept / End & Accept / Decline — and the caller
+  hears it ringing. What CallKit really changes is smaller and still worth
+  having: the incoming call becomes a choice offered over the channel, and the
+  app is told which choice was made (see Phase 3). Today it takes the audio
+  session silently, which is the Telegram case in `useSessionAudio.ts` and
+  `backlog/websocket-lost.md`.
 - **Side effects that come along with it.** The green call pill or Dynamic
   Island. CarPlay and Apple Watch both show the call by name. Bluetooth hands-free
   routing is handled the way a phone call's is.
 
-### Decisions to make before the build, none of them technical
+### Decided 2026-10-06, by Rodrigo
 
-1. **What "busy" means, above.**
-2. **What the call is named.** Recents, CarPlay and the Watch show
-   `localizedCallerName`, and iCloud copies it to every device. This is the
-   disclosure question already left open in `modules/call-service/index.ts`
-   and `decision/2026-09-17-the-lock-screen-carries-two-controls.md` § *What
-   was left open*. It now has a third surface and a persistent record. Either
-   the channel's name everywhere, or a fixed *The Floor* everywhere. Android's
-   notification follows whichever is chosen.
-3. **Whether the Live Activity card stays.** A locked phone would show two
-   surfaces, the card (Out, and Mute that asks for a passcode) and the call
-   screen (Mute and End, which do not ask). The recommendation is to keep the card,
-   since it holds the floor state CallKit has no words for, and to say in
-   STYLE.md which surface each control belongs to.
-4. **China.** App Review rejects apps that use CallKit in the China storefront.
-   Either remove China from availability or turn CallKit off by region at
-   runtime. Check RELEASING.md's territory notes and what is sold there now.
-5. **The listing's sentences.** Only `post-to-the-launch-surfaces.md` still
-   says CallKit by name (*"There's no CallKit and no VoIP push in it at all"*,
-   twice). `apply-the-app-store-listing.md` no longer does, and no submission
-   in `planning/submissions/` mentions it. The truthful rewrite is *no VoIP
-   push and no ringing*: what made the claim worth making is still true. The
-   next review notes should say plainly that CallKit reports a channel the
-   person entered as an outgoing call, and never rings.
+1. **Busy is dropped.** The incoming call is handled as call waiting (Phase
+   3), and nothing tries to turn calls away.
+2. **The call is named *Floor*, fixed, never the channel's name.**
+   `localizedCallerName` is what Recents, CarPlay, the Watch and iCloud call
+   history show, so this answers the disclosure question left open in
+   `modules/call-service/index.ts` and
+   `decision/2026-09-17-the-lock-screen-carries-two-controls.md` § *What was
+   left open*, at least for this surface. Nothing a stranger reads names a
+   channel. Whether Android's notification title (*In a channel* today) should
+   change to match is not settled. Ask when Phase 1 is built.
+3. **The Live Activity card stays.** A locked phone will show two surfaces, the
+   card (floor state, Out, and a Mute that asks for a passcode) and the call
+   screen (Mute and End, which do not ask). Say in STYLE.md which control
+   belongs to which surface.
+4. **China is abandoned.** App Review rejects apps that use CallKit in the
+   China storefront, so China comes out of the app's availability in App Store
+   Connect before the first build carrying CallKit is submitted. There is no
+   runtime switch by region. Record it in RELEASING.md when it is done.
+5. **The listing's sentences are rewritten.** `post-to-the-launch-surfaces.md`
+   said *"There's no CallKit and no VoIP push"* twice. Both now say *nothing
+   rings, no VoIP push*, since not ringing was always what made the claim worth
+   making. `apply-the-app-store-listing.md` and the submissions never named
+   CallKit. The next review notes should say plainly that CallKit reports a
+   channel the person entered as an outgoing call named *Floor*, and never
+   rings.
 
 ### Phase 0 — a spike on two phones, thrown away afterwards
 
@@ -102,7 +100,8 @@ a `CXEndCallAction` when it goes. Nothing else changes. What it has to answer:
   Configuration* says.
 - **The locked mute**, phone flat on a table and Face ID out of it, which is
   the method from `2026-10-01-a-lock-screen-button-asks-whatever-is-declared.md`.
-- **Busy versus call waiting**, by calling the phone from a second line.
+- **What an incoming call offers**, by calling the phone from a second line:
+  Hold & Accept should be there, and should send `CXSetHeldCallAction`.
 - **Whether a backgrounded app may open a new microphone** while a call is
   active. If it may, the deferred-promotion row in STATES.md can go.
 - **Deactivation.** Does CallKit's own teardown give a paused podcast its audio
@@ -174,7 +173,7 @@ the session; add it to § *Where the sources disagree*. Add any new state to
 GLOSSARY.md's one-line list, and add the second lock-screen surface to
 STYLE.md. In RELEASING.md, `UIBackgroundModes` stays `["audio"]`: an outgoing
 call needs no `voip`, and its line about *"adopted for call-like ringing"*
-should say that. Rewrite the quotes in post-to-the-launch-surfaces.md. Retire
+should say that, and record that China was taken out of availability. Retire
 `mute-a-locked-phone-through-callkit.md` into the Phase 0 decision. Android's
 counterpart is a self-managed `ConnectionService`, and that belongs in
 `bring-android-level-with-ios.md` rather than here.

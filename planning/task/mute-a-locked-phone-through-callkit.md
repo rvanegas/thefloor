@@ -8,6 +8,12 @@ the evidence. **A mute that works without authentication has to be on a
 surface iOS runs itself**, and two fit. This is the question of whether either
 is worth what it costs, and it is a decision before it is any work.
 
+**Decided 2026-10-06: CallKit**, as part of `integrate-with-callkit.md`. That
+file's Phase 0 spike settles whether the locked mute really needs no
+authentication, and its Phase 2 builds it. This file is retired into the
+spike's decision. The *busy* sentence below no longer applies: iOS gives
+call waiting, and the idea was dropped.
+
 **CallKit**: report being in a channel as an outgoing call the app started —
 `CXStartCallAction` on entering, ended on stepping out — and the system call
 screen carries a mute that works while locked. This is **not** ringing: no

@@ -98,7 +98,7 @@ the third person as a press release.
 > rather than a call — up to six people, it keeps its name between
 > conversations, and you drop in when it suits you. When somebody wants you,
 > you get an ordinary notification that waits in line with everything else.
-> There's no CallKit and no VoIP push in it at all; it never claims
+> Nothing in it rings and there's no VoIP push at all; it never claims
 > time-sensitive or critical, so it can't pierce a Focus mode even if I wanted
 > it to.
 >
@@ -155,7 +155,7 @@ forty other products — the pain has to be named, not implied.
 >
 > When somebody wants you, you get an ordinary notification — it waits in line
 > with all the others, your ringer stays yours, and your Focus mode holds.
-> There's no CallKit, no VoIP push, and nothing that can claim the escalations
+> Nothing rings, there's no VoIP push, and nothing can claim the escalations
 > that pierce a silent switch.
 >
 > Conversation is open. When one person needs to be heard properly they take

@@ -4,4 +4,4 @@ Roster should show user to be on a phone call if one is received. Even better, b
 
 **More broadly, and not only during a watch:** there ought to be a proper co-existence with phone calls and equivalents, modeled after the functionality of FaceTime and Zoom channels. Merged 2026-10-01 from the backlog entry *Interaction with phonecalls*, which asked exactly that.
 
-**Shares its mechanism with `mute-a-locked-phone-through-callkit.md`.** Reporting a channel to iOS as a call the app started is what would give the busy signal here and the lock screen mute there, and it collides with the "no CallKit" position in `apply-the-app-store-listing.md` and `post-to-the-launch-surfaces.md` in both. Decide the two together.
+**Decided 2026-10-06 as part of `integrate-with-callkit.md`, which is where the mechanism now lives.** That file's Phase 3 covers the incoming call: hold, resume, end, and the roster showing somebody as on another call. The busy signal is dropped. iOS gives a CallKit call call waiting, not busy, and Rodrigo let it go. What remains here is the watch-specific half: what a held call does to a film that is playing.
