@@ -133,12 +133,14 @@ ${about}
   // why the custom scheme is never offered as an alternative to installing.
   const store = options.appStoreUrl
     ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
-<span class="aside">Free. Once it’s installed, come back to this page and tap Join ${name} below.</span></p>
-<p class="app"><a href="thefloor://j/${code}">Join ${name}</a> — in the app, once you have it.</p>`
+<span class="aside">Free. Once it’s on your phone, come back to this page there and tap Join ${name} below.</span></p>
+<p class="app"><a href="thefloor://j/${code}">Join ${name}</a> — in the app on your iPhone, once it’s installed.</p>`
     : '';
   const browser = options.webAppReady
-    ? `<p class="${options.appStoreUrl ? 'app' : 'cta'}"><a id="join" href="/open">${
-        options.appStoreUrl ? 'Or join in this browser' : `Join ${name} in this browser`
+    ? `<p class="${options.appStoreUrl ? 'app' : 'cta'}">${
+        options.appStoreUrl ? 'Not on an iPhone? ' : ''
+      }<a id="join" href="/open">${
+        options.appStoreUrl ? 'Join in this browser' : `Join ${name} in this browser`
       }</a> — no install; it needs a microphone and nothing else.</p>`
     : '';
   const neither =
