@@ -688,7 +688,7 @@ describe('the call to action, on a box that cannot make the usual one', () => {
   it('offers the return tap into the app beside the install', () => {
     const body = drawn({ appStoreUrl: STORE });
     expect(body).toContain('<a href="thefloor://i/alice_k">Open in the app</a>');
-    expect(body).toContain('come back to this link and tap Open in the app');
+    expect(body).toContain('come back to this link there and tap Open in the app');
   });
 
   it('offers no return tap where there is no install to return from', () => {

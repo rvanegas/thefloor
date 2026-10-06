@@ -321,7 +321,7 @@ export function invitePage(options: InvitePageOptions): string {
   // below is what the app takes the invitation up from, holding it across the
   // sign-in (`useInviteLink.ts`). A box with no store link says the same about
   // the browser — see callToAction.
-  const aside = `Free. Once it’s installed, come back to this link and tap Open in the app below: ${name} is in your contacts as soon as you sign in.`;
+  const aside = `Free. Once it’s on your phone, come back to this link there and tap Open in the app below: ${name} is in your contacts as soon as you sign in.`;
 
   // The return tap. Drawn only beside the store button: a box with no store
   // link has no installs to open, and the aside above is what points here.
@@ -329,10 +329,12 @@ export function invitePage(options: InvitePageOptions): string {
   // link does not fire from a page on its own domain, so it would only reload
   // this tab; planning/task/universal-links.md § *The button is a custom
   // scheme*. Somebody who taps it before installing gets Safari's error and the
-  // store button above it, which is why it says *once you have it*.
+  // store button above it, which is why it says *once it is installed*. And it
+  // names the phone, because a desktop with no handler for the scheme does
+  // nothing at all on the click — the browser line below is that reader's.
   const openInApp = options.appStoreUrl
     ? `<p class="app"><a href="thefloor://i/${escapeHtml(options.username)}">Open in the app</a>
-— once you have it.</p>`
+— on your iPhone, once it’s installed.</p>`
     : '';
 
   // Offered only where there is something to open, the way `landing.ts`
@@ -342,8 +344,8 @@ export function invitePage(options: InvitePageOptions): string {
   // into the button above, or the page would offer it twice.
   const browser =
     options.webAppReady && options.appStoreUrl
-      ? `<p class="browser"><a id="accept" href="/open">Or accept in this browser</a> — no
-install; it needs a microphone and nothing else.</p>`
+      ? `<p class="browser">Not on an iPhone? <a id="accept" href="/open">Accept in this
+browser</a> — no install; it needs a microphone and nothing else.</p>`
       : '';
 
   // A box serving neither train nor store. Nothing in this branch should read
