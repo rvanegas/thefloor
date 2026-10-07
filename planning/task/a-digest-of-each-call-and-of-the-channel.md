@@ -17,3 +17,18 @@ digest reaches people (push, or the channel); whether a newcomer may read
 digests of calls from before they joined, which is a consent question like
 publishing (`decision/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`);
 and what happens to a digest when its recording or transcript is deleted.
+
+**The call transcribed 2026-10-07 answered two of these and specified the
+prompt.** The model is Sonnet first (`run-a-cheap-transcriber-beside-assemblyai-and-compare.md`).
+Who pays is `free-to-talk-paid-to-transcribe-and-digest.md`. Rodrigo's
+context, stated as steps: the **full transcript of one uninterrupted
+conversation** plus the **digests of earlier ones**, each capped in length.
+Todd's refinement, which Rodrigo took up: rather than every past digest, one
+**running preamble**, like a season recap, regenerated as the history grows.
+It is hidden by default and exists to give the next digest its context. It
+may be offered to a newcomer, but it is not shown in the history. What the
+user sees is the sequence of digests. On length: *"pick a number and then
+tune it up or down"*. Rodrigo did not want the model judging how dense or
+valuable an hour was. And participants want the raw transcript out too, to
+paste into their own tools, as Todd does with Otter. The history this builds
+up is `the-channel-is-one-long-conversation.md`.
