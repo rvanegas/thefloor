@@ -2,9 +2,10 @@
 
 2026-10-08. The result of Phase 0 of `task/integrate-with-callkit.md`, run on
 one iPhone (build 338, branch `spike/callkit`) against the web app. Everything
-below that was measured is read from `bin/diagnostics` for that morning. **What
-is heard was not tested**, since both ends were in one room; that waits for a
-second tester at a distance, along with Hold & Accept.
+below that was measured is read from `bin/diagnostics` for that day. What is
+heard was tested in the afternoon with a second tester at a distance, Liliana,
+in the channel *Liliana & Rodrigo* (14:06, from her own account). Hold &
+Accept was not tested.
 
 ## What was decided
 
@@ -37,6 +38,10 @@ hold. CallKit stays wanted for Recents and for meeting other calls.
   configuration: `playAndRecord`, `videoChat`, speaker, built-in microphone.
   The engine started and the far end was subscribed. Setups B and C were not
   needed.
+- **Heard both ways, with no echo on either side**, the phone on its
+  loudspeaker under a live call; mute and unmute in the app reached the far
+  end. That is the end-to-end check that the session is really shared, not
+  merely logged as active.
 - **No earpiece.** CallKit left the output on the loudspeaker, so
   `speakerOnActivate` is not needed.
 - **Recents: one entry per step-in, written when the call ends.**
@@ -55,7 +60,10 @@ hold. CallKit stays wanted for Recents and for meeting other calls.
 
 ## Still to measure
 
-With a second tester at a distance: both directions heard, no echo, and Hold
-& Accept, with the session coming back afterwards. Bluetooth, the film and a
-guest's `LISTENING` under a call are in `app/modules/call-kit/SPIKE.md` on the
-spike branch.
+**Hold & Accept**, with the session coming back afterwards, which is Phase 3's
+premise. It was not tested because calling the phone needed the other
+tester's phone, which was in the channel. Measure it before Phase 3 is built,
+not before Phase 1: nothing in Phases 1 and 2 depends on it. Bluetooth, the
+film and a guest's `LISTENING` under a call are in
+`app/modules/call-kit/SPIKE.md` on the spike branch. They are for Phase 1's
+own device checks.
