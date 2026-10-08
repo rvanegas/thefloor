@@ -7,7 +7,7 @@ import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useChannelLink } from './src/state/useChannelLink';
 import {
-  channelTitleFor,
+  lockScreenStateFor,
   useLockScreen,
   useLockScreenPushToken,
 } from './src/state/useLockScreen';
@@ -427,12 +427,21 @@ function Root() {
     // and a locked phone has no screen to close.
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
-  // The reported call: shown under the channel's title, as the card is
-  // headed; and its End from CarPlay or the Watch is the card's Out by
-  // another road. See `state/useReportedCall.ts`.
+  // The reported call follows the card: the same title, the same mute and the
+  // same guard on changing it, all from `lockScreenStateFor`, so CarPlay or
+  // the Watch cannot show a different microphone from the lock screen. Its
+  // Mute and End are the card's by another road. See `state/useReportedCall.ts`.
+  const callCard = here
+    ? lockScreenStateFor(here, me, audio.inputAvailable, text.lockScreen, text.naming)
+    : null;
   useReportedCall(
-    here?.channel.id ?? null,
-    here ? channelTitleFor(here, me, text.naming) : null,
+    callCard && {
+      channelId: callCard.channelId,
+      title: callCard.channelName,
+      muted: callCard.muted,
+      canToggle: callCard.canToggle,
+    },
+    (channelId, muted) => app.act(channelId, { type: 'SET_SELF_MUTE', muted }),
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
   // The server's half of taking the card down: it ends the card itself when it

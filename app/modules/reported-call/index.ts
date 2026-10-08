@@ -19,6 +19,7 @@ interface NativeReportedCall {
   startCall(channelId: string): Promise<boolean>;
   endCall(): Promise<boolean>;
   setTitle(channelId: string, title: string): void;
+  setMuted(channelId: string, muted: boolean): void;
   holdsSession(): boolean;
   takePendingChannel(): string | null;
 }
@@ -74,6 +75,19 @@ export function setReportedCallTitle(channelId: string, title: string): void {
   }
 }
 
+/**
+ * The app's mute in `channelId` — Self-Mute, or no microphone, as the lock
+ * screen card reads it — which CallKit's flag follows, for CarPlay and the
+ * Watch. Sent again unchanged, it undoes a system tap the app refused.
+ */
+export function setReportedCallMuted(channelId: string, muted: boolean): void {
+  try {
+    native?.setMuted(channelId, muted);
+  } catch {
+    // CallKit's flag goes stale; nothing the app hears or sends changes.
+  }
+}
+
 export function endReportedCall(): void {
   native?.endCall().catch(() => {});
 }
@@ -105,6 +119,16 @@ export function takeRecentsChannel(): string | null {
 export const addReportedCallLogListener = (handle: (line: string) => void) =>
   listen<{ line?: unknown }>('onLog', (event) => {
     if (typeof event?.line === 'string') handle(event.line);
+  });
+
+/**
+ * A mute the system asked for and the app does not already have — CarPlay,
+ * the Watch, Siri. What arrives is the state asked for, not a toggle, as the
+ * card's Mute does.
+ */
+export const addReportedCallMuteListener = (handle: (muted: boolean) => void) =>
+  listen<{ muted?: unknown }>('onMute', (event) => {
+    if (typeof event?.muted === 'boolean') handle(event.muted);
   });
 
 /** An End this app did not ask for — CarPlay, the Watch, End & Accept. */

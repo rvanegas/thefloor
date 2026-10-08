@@ -1,91 +1,150 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { useReportedCall } from '../useReportedCall';
+import {
+  useReportedCall,
+  type ReportedCallBridge,
+  type ReportedCallState,
+} from '../useReportedCall';
 import { useChannelLink } from '../useChannelLink';
 
 /**
- * The two ways the *reported call* reaches back into the app: an End this app
- * did not ask for, which is stepping out, and a tap in Recents, which opens the
+ * The ways the *reported call* and the app reach each other: its title and its
+ * mute, which follow the app; a mute or an End the system asked for, which come
+ * back as the card's Mute and Out; and a tap in Recents, which opens the
  * channel and does not step in.
  */
 
-describe('an End the app did not ask for', () => {
-  function harness(channelId: string | null) {
-    let fire: () => void = () => {};
-    const subscribe = (handle: () => void) => {
-      fire = handle;
+function fakeBridge() {
+  let mute: (muted: boolean) => void = () => {};
+  let end: () => void = () => {};
+  const bridge: ReportedCallBridge = {
+    setTitle: jest.fn(),
+    setMuted: jest.fn(),
+    subscribeMute: (handle) => {
+      mute = handle;
       return () => {
-        fire = () => {};
+        mute = () => {};
       };
-    };
-    const stepOut = jest.fn();
-    const titled = jest.fn();
-    function Probe({ channel }: { channel: string | null }) {
-      useReportedCall(channel, channel ? 'Ana and Bea' : null, stepOut, subscribe, titled);
-      return null;
-    }
-    let tree!: ReactTestRenderer;
-    act(() => {
-      tree = renderer.create(<Probe channel={channelId} />);
-    });
-    return { fire: () => fire(), stepOut, tree, Probe };
-  }
+    },
+    subscribeEnd: (handle) => {
+      end = handle;
+      return () => {
+        end = () => {};
+      };
+    },
+  };
+  return {
+    bridge,
+    systemMute: (muted: boolean) => mute(muted),
+    systemEnd: () => end(),
+  };
+}
 
+const stood = (over: Partial<ReportedCallState> = {}): ReportedCallState => ({
+  channelId: 'chan-1',
+  title: 'Ana and Bea',
+  muted: false,
+  canToggle: true,
+  ...over,
+});
+
+function mount(call: ReportedCallState | null) {
+  const fake = fakeBridge();
+  const setMute = jest.fn();
+  const stepOut = jest.fn();
+  function Probe({ state }: { state: ReportedCallState | null }) {
+    useReportedCall(state, setMute, stepOut, fake.bridge);
+    return null;
+  }
+  let tree!: ReactTestRenderer;
+  act(() => {
+    tree = renderer.create(<Probe state={call} />);
+  });
+  const update = (state: ReportedCallState | null) =>
+    act(() => {
+      tree.update(<Probe state={state} />);
+    });
+  return { ...fake, setMute, stepOut, update };
+}
+
+describe('an End the app did not ask for', () => {
   it('steps out of the channel this device stands in', () => {
-    const { fire, stepOut } = harness('chan-1');
-    act(() => fire());
+    const { systemEnd, stepOut } = mount(stood());
+    act(() => systemEnd());
     expect(stepOut).toHaveBeenCalledWith('chan-1');
   });
 
   it('reads the channel when the End arrives, not when it was subscribed', () => {
-    const { fire, stepOut, tree, Probe } = harness('chan-1');
-    act(() => {
-      tree.update(<Probe channel="chan-2" />);
-    });
-    act(() => fire());
+    const { systemEnd, stepOut, update } = mount(stood());
+    update(stood({ channelId: 'chan-2' }));
+    act(() => systemEnd());
     expect(stepOut).toHaveBeenCalledWith('chan-2');
   });
 
   it('does nothing when no channel is stood in', () => {
-    const { fire, stepOut } = harness(null);
-    act(() => fire());
+    const { systemEnd, stepOut } = mount(null);
+    act(() => systemEnd());
     expect(stepOut).not.toHaveBeenCalled();
   });
 });
 
 describe('what the call is shown as', () => {
-  const none = () => () => {};
-
   it("is the channel's title, and follows it when it changes", () => {
-    const titled = jest.fn();
-    function Probe({ title }: { title: string }) {
-      useReportedCall('chan-1', title, jest.fn(), none, titled);
-      return null;
-    }
-    let tree!: ReactTestRenderer;
-    act(() => {
-      tree = renderer.create(<Probe title="Ana" />);
-    });
-    expect(titled).toHaveBeenLastCalledWith('chan-1', 'Ana');
+    const { bridge, update } = mount(stood({ title: 'Ana' }));
+    expect(bridge.setTitle).toHaveBeenLastCalledWith('chan-1', 'Ana');
 
     // An unnamed channel's title, when a second person arrives.
-    act(() => {
-      tree.update(<Probe title="Ana and Bea" />);
-    });
-    expect(titled).toHaveBeenLastCalledWith('chan-1', 'Ana and Bea');
-    expect(titled).toHaveBeenCalledTimes(2);
+    update(stood({ title: 'Ana and Bea' }));
+    expect(bridge.setTitle).toHaveBeenLastCalledWith('chan-1', 'Ana and Bea');
+    expect(bridge.setTitle).toHaveBeenCalledTimes(2);
   });
 
   it('is not sent without a channel', () => {
-    const titled = jest.fn();
-    function Probe() {
-      useReportedCall(null, null, jest.fn(), none, titled);
-      return null;
-    }
-    act(() => {
-      renderer.create(<Probe />);
-    });
-    expect(titled).not.toHaveBeenCalled();
+    const { bridge } = mount(null);
+    expect(bridge.setTitle).not.toHaveBeenCalled();
+  });
+});
+
+describe('the mute, kept in step', () => {
+  it("follows the app's mute, and only when it changes", () => {
+    const { bridge, update } = mount(stood({ muted: false }));
+    expect(bridge.setMuted).toHaveBeenLastCalledWith('chan-1', false);
+
+    update(stood({ muted: true }));
+    expect(bridge.setMuted).toHaveBeenLastCalledWith('chan-1', true);
+
+    // A new title is not a new mute.
+    update(stood({ muted: true, title: 'Ana' }));
+    expect(bridge.setMuted).toHaveBeenCalledTimes(2);
+  });
+
+  it('acts on a mute the system asked for, as the state asked for', () => {
+    const { systemMute, setMute } = mount(stood({ muted: false }));
+    act(() => systemMute(true));
+    expect(setMute).toHaveBeenCalledWith('chan-1', true);
+  });
+
+  /**
+   * The case the guard is for. The floor-holder may not mute themselves, and a
+   * device with no microphone has nothing to unmute; the card greys its button,
+   * and a car's screen cannot be greyed — so the app's own mute is sent back,
+   * which puts CallKit's flag where the app is.
+   */
+  it('undoes a mute the card would have refused, without acting', () => {
+    const { bridge, systemMute, setMute } = mount(stood({ muted: true, canToggle: false }));
+    (bridge.setMuted as jest.Mock).mockClear();
+
+    act(() => systemMute(false));
+
+    expect(setMute).not.toHaveBeenCalled();
+    expect(bridge.setMuted).toHaveBeenCalledWith('chan-1', true);
+  });
+
+  it('ignores a system mute with no channel stood in', () => {
+    const { systemMute, setMute, bridge } = mount(null);
+    act(() => systemMute(true));
+    expect(setMute).not.toHaveBeenCalled();
+    expect(bridge.setMuted).not.toHaveBeenCalled();
   });
 });
 

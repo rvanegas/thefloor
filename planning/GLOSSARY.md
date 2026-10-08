@@ -188,7 +188,7 @@ caused; the list carries the meaning.
 - **Protocol** — `core/protocol.ts` — the wire
 - **Pump** — `PlaybackPump` — what *produces* shared playback, as distinct from publishing
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
-- **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Not `CALL`, which is an audio session configuration
+- **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
 - **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
@@ -4095,6 +4095,13 @@ as a call. **What it does not buy is a call screen.** iOS gives a call an app
 places none, the pill opens the app, and Channel View is the call screen. So
 it gives no mute without a passcode either. See
 `decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
+
+**Its muted flag is the card's mute.** CallKit keeps one, and CarPlay and the
+Watch show and set it. It follows exactly what the lock screen card shows —
+Self-Mute, or no microphone — and never Muted-by-Claim or Party-Muted. A mute
+set from CarPlay or the Watch is the card's Mute by another road, held to the
+card's guard: one the card would refuse is not acted on, and the flag is put
+back.
 
 **It is not `CALL`**, the audio session configuration, and not the session
 want `call`. All three are about a phone holding a microphone, and none of

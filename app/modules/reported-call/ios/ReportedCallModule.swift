@@ -62,6 +62,20 @@ public class ReportedCallModule: Module {
    * while the call is up — an unnamed channel's follows who is in the room.
    */
   fileprivate var titled: (channel: String, title: String)?
+  /**
+   * The mute the app says this device has in `channel` — Self-Mute, or no
+   * microphone, as the lock screen card reads it. What an inbound action is
+   * compared against: one that agrees is CallKit echoing the app, or the
+   * system agreeing with it, and is not a tap.
+   */
+  fileprivate var appMuted: (channel: String, muted: Bool)?
+  /**
+   * What CallKit's flag says now, as of the last mute action it performed.
+   * What an outbound one is compared against, so nothing is sent that would
+   * change nothing — and so a refused tap is undone: the app re-states its
+   * mute, which then differs from this.
+   */
+  fileprivate var callMuted = false
   /** Set when this side asked for the end, so CarPlay's or the Watch's End is told apart from it. */
   fileprivate var endingFromApp = false
   /** From `didActivate` to `didDeactivate`: the stretch in which the app must not release. */
@@ -86,6 +100,25 @@ public class ReportedCallModule: Module {
     return "The Floor"
   }
 
+  /** The app's mute in `channel`; unmuted until JavaScript says otherwise. */
+  fileprivate func appIsMuted(in channel: String) -> Bool {
+    if let appMuted, appMuted.channel == channel { return appMuted.muted }
+    return false
+  }
+
+  /**
+   * Brings CallKit's flag to the app's, if the live call is for `channel` and
+   * the two differ. Main thread.
+   */
+  fileprivate func pushMute(for channel: String) {
+    guard let id = callId, callChannel == channel else { return }
+    let muted = appIsMuted(in: channel)
+    guard muted != callMuted else { return }
+    controller.request(CXTransaction(action: CXSetMutedCallAction(call: id, muted: muted))) { error in
+      if let error { self.emit("mute \(muted) refused: \(error.localizedDescription)") }
+    }
+  }
+
   private func ensureProvider() -> CXProvider {
     if let provider { return provider }
     let config = CXProviderConfiguration()
@@ -105,7 +138,7 @@ public class ReportedCallModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ReportedCall")
 
-    Events("onLog", "onEnd", "onOpenChannel")
+    Events("onLog", "onEnd", "onMute", "onOpenChannel")
 
     OnCreate {
       ReportedCallModule.current = self
@@ -131,6 +164,7 @@ public class ReportedCallModule: Module {
         let id = UUID()
         self.callId = id
         self.callChannel = channelId
+        self.callMuted = false
         self.endingFromApp = false
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
@@ -153,6 +187,8 @@ public class ReportedCallModule: Module {
           update.supportsDTMF = false
           provider.reportCall(with: id, updated: update)
           self.emit("started")
+          // A call starts unmuted; one stepped into muted says so at once.
+          DispatchQueue.main.async { self.pushMute(for: channelId) }
           promise.resolve(true)
         }
       }
@@ -191,6 +227,20 @@ public class ReportedCallModule: Module {
         let update = CXCallUpdate()
         update.localizedCallerName = title
         provider.reportCall(with: id, updated: update)
+      }
+    }
+
+    /**
+     * The app's mute in `channelId` — Self-Mute, or no microphone — which
+     * CallKit's flag follows, for CarPlay and the Watch to show. Applied at once
+     * to a live call for that channel when the flag differs, kept for one about
+     * to start, and ignored for any other channel. Called with the unchanged
+     * value it also undoes a tap the app refused.
+     */
+    Function("setMuted") { (channelId: String, muted: Bool) in
+      DispatchQueue.main.async {
+        self.appMuted = (channelId, muted)
+        self.pushMute(for: channelId)
       }
     }
 
@@ -243,12 +293,27 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate {
   }
 
   /**
-   * Fulfilled and otherwise ignored until Phase 2 keeps the two in step: with
-   * no call screen, only CarPlay, the Watch or Siri can send one.
+   * Every mute action CallKit performs: the app's own, sent by `pushMute`, and
+   * the system's — CarPlay, the Watch, Siri; with no call screen, nothing else
+   * can send one.
+   *
+   * **One that agrees with the app is not a tap.** The spike matched on the
+   * last value it had sent, and every app mute came back once as if a system
+   * button had been pressed. Comparing with what the app *says* instead makes
+   * the app's own echo, and the system agreeing with it, the same non-event.
+   * One that disagrees is the person asking, and goes to JavaScript as the
+   * mute they asked for, which acts on it or re-states its own to undo it.
+   *
+   * Runs on the main queue: the provider's delegate queue is nil.
    */
   func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-    module?.emit("mute \(action.isMuted) from the system, not yet followed")
+    guard let module else { action.fulfill(); return }
+    module.callMuted = action.isMuted
     action.fulfill()
+    guard let channel = module.callChannel else { return }
+    if action.isMuted == module.appIsMuted(in: channel) { return }
+    module.emit("mute \(action.isMuted) from the system")
+    module.sendEvent("onMute", ["muted": action.isMuted])
   }
 
   /** Hold & Accept. Logged until Phase 3 gives it a meaning. */

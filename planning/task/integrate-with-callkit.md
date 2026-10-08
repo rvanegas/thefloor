@@ -173,6 +173,19 @@ value sent, and every app mute came back once as if a system button had been
 tapped. Do not put a mute on the audio session: STATES.md says why self-mute
 is not an input to it.
 
+**Built 2026-10-08, not yet run on a device.** The call follows the lock
+screen card's state, so the two cannot disagree. `App.tsx` draws
+`lockScreenStateFor` once and gives the call its title, `muted` and
+`canToggle`. That makes *muted* the card's: Self-Mute, **or no
+microphone**, which the card and Channel View already count as muted. Natively
+the module keeps two values: what the app says (an inbound action that agrees
+with it is not a tap) and what CallKit shows (nothing is sent that would change
+nothing). A system mute the card's guard would refuse — the floor-holder
+muting themselves, an unmute with no microphone — is not acted on. The app
+sends its own mute back, which returns CallKit's flag to it. To check on a
+device: mute in the app and on the card, and see CarPlay or the Watch follow;
+mute from CarPlay or the Watch, and see the app follow.
+
 ### Phase 3 — another call arrives
 
 This is what `phone-calls-during-watch.md` asks for, and it needs a word for

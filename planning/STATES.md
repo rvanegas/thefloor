@@ -61,7 +61,11 @@ argues for reading a file that costs half again as much as it claims.
 **Name in source.** `ChannelState.selfMuted[userId]` (`core/types.ts:209`), a
 total map over participants. Written by `SET_SELF_MUTE`, guarded by
 `canSetSelfMute` (`core/channel.ts:250`). In the app, `iAmSelfMuted`
-(`ChannelView.tsx:205`), passed to `useSessionAudio` as `selfMuted`.
+(`ChannelView.tsx:205`), passed to `useSessionAudio` as `selfMuted`. Outside
+it, since 2026-10-08, CallKit's muted flag on the *reported call*, which
+CarPlay and the Watch show and set. It mirrors the lock screen card's `muted`
+— Self-Mute, or no microphone — both ways, and a system tap the card's guard
+would refuse is undone, not acted on (`state/useReportedCall.ts`).
 
 **Conditions.** Unilateral and unlimited, with one exception: `canSetSelfMute`
 refuses only *muting*, and only for the floor-holder — a muted holder is the one
