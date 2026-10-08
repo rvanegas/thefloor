@@ -276,6 +276,10 @@ export function ChannelView({
   const t = useText().channel;
   const namingWords = useText().naming;
   const linkWords = useText().links;
+  // Up here with the others, never inline below: there are early returns
+  // between here and its use, and a hook after one changes the hook count
+  // between a render without the channel and the next one with it.
+  const cardWords = useText().channelCards;
   const app = useApp();
   // This channel's snapshot, and nothing else's. Picked out by id rather than
   // taken from a single slot, so a snapshot arriving for another watched
@@ -1974,7 +1978,7 @@ export function ChannelView({
    * What is wrong with the audio, in words, or null while nothing is — which
    * is also whether the *Audio* card is drawn at all. See `describeAudio`.
    */
-  const audioNote = describeAudio(audio, useText().channelCards);
+  const audioNote = describeAudio(audio, cardWords);
   // Leaving is ordinary until you are the last one, at which point the same
   // tap destroys the channel. Nothing else in the interface would say so.
   const lastMember = channel.participants.length === 1;
