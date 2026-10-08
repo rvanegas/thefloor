@@ -25,10 +25,11 @@ of it.
   default. Each step-in becomes one entry, named by the call's
   `localizedCallerName`, and the entry syncs to the account's other Apple
   devices through iCloud call history.
-- **A mute that needs no passcode on a locked phone: yes,** probably. The
-  system call screen's mute arrives as a `CXSetMutedCallAction`, which iOS runs
-  itself. That is the evidence `mute-a-locked-phone-through-callkit.md` asked
-  for. It is unmeasured until the spike, below.
+- **A mute that needs no passcode on a locked phone: no.** Measured
+  2026-10-08. iOS gives a call that an app places no call screen of its own.
+  The pill opens the app, and Channel View is the call screen, by Rodrigo's
+  decision. See `decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`,
+  which carries everything the spike settled.
 - **Busy: no, and dropped.** iOS has no setting that makes a CallKit call turn
   other calls away. A cellular or FaceTime call that arrives during one gets
   *call waiting* — Hold & Accept / End & Accept / Decline — and the caller
@@ -139,15 +140,17 @@ CallKit cannot share the session, the plan stops here.
   `ExpoAppDelegateSubscriber`. The recommendation is that this *opens* the
   channel and does not step in: a Recents tap is not consent to a microphone.
 
-### Phase 2 — mute, both ways
+### Phase 2 — mute, kept in step
 
+With no system call screen, nothing in iOS's own interface mutes the call, but
+CallKit still holds a muted flag that CarPlay and the Watch can show and set.
 `CXSetMutedCallAction` maps to **Self-Mute and nothing else**. It does not map
 to Muted-by-Claim or Party-Muted (STATES.md). A self-mute made in the app or
-on the card is sent back as a `CXSetMutedCallAction` transaction, so that the
-system button never disagrees with the app. Inbound and outbound actions have
-to be told apart, or the app's own update comes back to it as a toggle. Do
-not put a mute on the audio session: STATES.md says why self-mute is not an
-input to it.
+on the card is sent to CallKit as a transaction. An inbound action is ignored
+when it matches the mute the app already has: the spike matched by the last
+value sent, and every app mute came back once as if a system button had been
+tapped. Do not put a mute on the audio session: STATES.md says why self-mute
+is not an input to it.
 
 ### Phase 3 — another call arrives
 
@@ -177,8 +180,11 @@ refuses every transaction without it, an outgoing call included — measured
 (`requesttransaction error 1`). This plan said the opposite until then. It
 needs no PushKit and nothing rings; the review notes should say that this is
 what `voip` is for. Its line about *"adopted for call-like ringing"* is
-corrected to match, and it records that China was taken out of availability. Retire
-`mute-a-locked-phone-through-callkit.md` into the Phase 0 decision. Android's
+corrected to match, and it records that China was taken out of availability.
+Under a call, `releaseSession` fails (`-12988`) and CallKit's `didDeactivate`
+does the release, so Phase 1 skips the app's release while a call is up.
+`mute-a-locked-phone-through-callkit.md` is **not** delivered by any of this,
+and its CallKit half is closed by the Phase 0 decision. Android's
 counterpart is a self-managed `ConnectionService`, and that belongs in
 `bring-android-level-with-ios.md` rather than here.
 
