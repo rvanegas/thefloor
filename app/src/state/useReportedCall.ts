@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import {
   addReportedCallEndListener,
-  nameReportedCall,
+  setReportedCallTitle,
 } from '../../modules/reported-call';
 import { recordEvent } from '../audio/diagnostics';
 
@@ -9,10 +9,11 @@ import { recordEvent } from '../audio/diagnostics';
  * The *reported call*'s two links back to the channel, held in `App.tsx` beside
  * `useLockScreen` for that hook's reason: presence is not a screen.
  *
- * **What it is called.** The channel's name, given or derived — `name`, which
- * the caller draws with `channelNameFor`, the lock screen card's own copy. It
- * is passed on whenever it changes, since a derived name follows who is in the
- * room, and CallKit shows the newest in Recents, CarPlay and on the Watch.
+ * **What it is shown as.** The channel's *title* — its name, or, for an
+ * unnamed channel, who else is in it — which the caller draws with
+ * `channelTitleFor`, the lock screen card's own copy. It is passed on whenever
+ * it changes, since an unnamed channel's title follows who is in the room, and
+ * CallKit shows the newest in Recents, CarPlay and on the Watch.
  *
  * **Its End, when this app did not ask for it, is stepping out.** There is no
  * call screen to end it from — Channel View is that — but CarPlay and the Watch
@@ -24,10 +25,10 @@ import { recordEvent } from '../audio/diagnostics';
  */
 export function useReportedCall(
   channelId: string | null,
-  name: string | null,
+  title: string | null,
   onStepOut: (channelId: string) => void,
   subscribe: (handle: () => void) => () => void = addReportedCallEndListener,
-  nameCall: (channelId: string, name: string) => void = nameReportedCall
+  setTitle: (channelId: string, title: string) => void = setReportedCallTitle
 ): void {
   const channel = useRef(channelId);
   channel.current = channelId;
@@ -35,8 +36,8 @@ export function useReportedCall(
   leave.current = onStepOut;
 
   useEffect(() => {
-    if (channelId && name) nameCall(channelId, name);
-  }, [channelId, name, nameCall]);
+    if (channelId && title) setTitle(channelId, title);
+  }, [channelId, title, setTitle]);
 
   useEffect(
     () =>

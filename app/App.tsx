@@ -7,7 +7,7 @@ import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useChannelLink } from './src/state/useChannelLink';
 import {
-  channelNameFor,
+  channelTitleFor,
   useLockScreen,
   useLockScreenPushToken,
 } from './src/state/useLockScreen';
@@ -427,12 +427,12 @@ function Root() {
     // and a locked phone has no screen to close.
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
-  // The reported call: called by the channel's name, given or derived, as the
-  // card is headed; and its End from CarPlay or the Watch is the card's Out by
+  // The reported call: shown under the channel's title, as the card is
+  // headed; and its End from CarPlay or the Watch is the card's Out by
   // another road. See `state/useReportedCall.ts`.
   useReportedCall(
     here?.channel.id ?? null,
-    here ? channelNameFor(here, me, text.naming) : null,
+    here ? channelTitleFor(here, me, text.naming) : null,
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
   // The server's half of taking the card down: it ends the card itself when it

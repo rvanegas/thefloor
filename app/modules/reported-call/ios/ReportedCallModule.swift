@@ -5,13 +5,14 @@ import WebRTC
 import os
 
 /**
- * Being in a channel, reported to iOS as an outgoing call, called by the
- * channel's name — given or derived, as the lock screen card is headed.
+ * Being in a channel, reported to iOS as an outgoing call shown under the
+ * channel's *title* — its name, or, for an unnamed channel, who else is in
+ * it — as the lock screen card is headed.
  *
- * **That name reaches Recents, CarPlay, the Watch, and through iCloud every
- * device on the Apple ID**, and a derived name is the display names of who
- * else is in the room. Chosen knowingly on 2026-10-08, reversing *Floor* for
- * every call, which had kept channel names off all of those.
+ * **That title reaches Recents, CarPlay, the Watch, and through iCloud every
+ * device on the Apple ID**, and an unnamed channel's title is the display
+ * names of who else is in the room. Chosen knowingly on 2026-10-08, reversing
+ * *Floor* for every call, which had kept channels' titles off all of those.
  *
  * One call per step-in, started when this device steps in and ended when it
  * steps out — `useSessionAudio` keys it on `mediaRoom`, as it keys Android's
@@ -53,14 +54,14 @@ public class ReportedCallModule: Module {
   fileprivate let controller = CXCallController()
   fileprivate var delegate: ProviderDelegate?
   fileprivate var callId: UUID?
-  /** The channel the live call is for, which a name has to match to be applied. */
+  /** The channel the live call is for, which a title has to match to be applied. */
   fileprivate var callChannel: String?
   /**
-   * The newest name JavaScript gave, and for which channel. Held because the
-   * call usually starts before the name arrives, and the name usually changes
-   * while the call is up — a derived name follows who is in the room.
+   * The newest title JavaScript gave, and for which channel. Held because the
+   * call usually starts before the title arrives, and the title often changes
+   * while the call is up — an unnamed channel's follows who is in the room.
    */
-  fileprivate var named: (channel: String, name: String)?
+  fileprivate var titled: (channel: String, title: String)?
   /** Set when this side asked for the end, so CarPlay's or the Watch's End is told apart from it. */
   fileprivate var endingFromApp = false
   /** From `didActivate` to `didDeactivate`: the stretch in which the app must not release. */
@@ -80,8 +81,8 @@ public class ReportedCallModule: Module {
   }
 
   /** What Recents, CarPlay and the Watch show for `channel`, until JavaScript says. */
-  fileprivate func name(for channel: String) -> String {
-    if let named, named.channel == channel { return named.name }
+  fileprivate func title(for channel: String) -> String {
+    if let titled, titled.channel == channel { return titled.title }
     return "The Floor"
   }
 
@@ -116,8 +117,8 @@ public class ReportedCallModule: Module {
 
     /**
      * Starts the call for `channelId`, which is its handle — what a Recents
-     * tap hands back. What it is *called* is the channel's name, given or
-     * derived, from `nameCall`; *The Floor* only until that arrives.
+     * tap hands back. What it is shown as is the channel's title, from
+     * `setTitle`; *The Floor* only until that arrives.
      */
     AsyncFunction("startCall") { (channelId: String, promise: Promise) in
       DispatchQueue.main.async {
@@ -143,7 +144,7 @@ public class ReportedCallModule: Module {
             return
           }
           let update = CXCallUpdate()
-          update.localizedCallerName = self.name(for: channelId)
+          update.localizedCallerName = self.title(for: channelId)
           update.remoteHandle = handle
           update.hasVideo = false
           update.supportsHolding = true
@@ -179,16 +180,16 @@ public class ReportedCallModule: Module {
     }
 
     /**
-     * What the call for `channelId` is called: the channel's name, given or
-     * derived. Applied at once to a call already up for that channel, and kept
-     * for one about to start. A name for any other channel changes nothing.
+     * What the call for `channelId` is shown as: the channel's title. Applied
+     * at once to a call already up for that channel, and kept for one about to
+     * start. A title for any other channel changes nothing.
      */
-    Function("nameCall") { (channelId: String, name: String) in
+    Function("setTitle") { (channelId: String, title: String) in
       DispatchQueue.main.async {
-        self.named = (channelId, name)
+        self.titled = (channelId, title)
         guard let id = self.callId, self.callChannel == channelId, let provider = self.provider else { return }
         let update = CXCallUpdate()
-        update.localizedCallerName = name
+        update.localizedCallerName = title
         provider.reportCall(with: id, updated: update)
       }
     }

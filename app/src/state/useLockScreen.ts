@@ -73,8 +73,8 @@ import {
 export const LOCK_SCREEN_HOLD_MS = DISCONNECT_GRACE_MS - 15_000;
 
 /**
- * A channel's *name*, given or derived (GLOSSARY.md): what a member called it,
- * or, while nobody has, who else is in it.
+ * A channel's *title* (GLOSSARY.md): its name, or, for an unnamed channel, who
+ * else is in it.
  *
  * `channel.name` is null whenever nobody has named the channel, which is most
  * of them, and a surface headed `null` — or headed nothing — is worse than one
@@ -82,7 +82,7 @@ export const LOCK_SCREEN_HOLD_MS = DISCONNECT_GRACE_MS - 15_000;
  * is what the channel header, the list row and the profile card all draw; the
  * lock screen card and the *reported call* share this one copy of it.
  */
-export function channelNameFor(
+export function channelTitleFor(
   view: ChannelView,
   me: UserId,
   naming: Strings['naming']
@@ -115,8 +115,11 @@ export function lockScreenStateFor(
   const muted = noInput || !!channel.selfMuted[me];
   return {
     channelId: channel.id,
-    /** The same fallback every other surface uses — see `channelNameFor`. */
-    channelName: channelNameFor(view, me, naming),
+    /**
+     * The channel's title — see `channelTitleFor`. The field keeps its older
+     * word because the widget extension decodes it by that key.
+     */
+    channelName: channelTitleFor(view, me, naming),
     micLabel: muted ? words.unmute() : words.mute(),
     micState: muted ? words.microphoneMuted() : words.microphoneOpen(),
     muted,

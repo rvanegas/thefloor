@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 
 /**
- * Being in a channel, reported to iOS as an outgoing call called by the
- * channel's name, given or derived — the *reported call* (GLOSSARY.md).
+ * Being in a channel, reported to iOS as an outgoing call shown under the
+ * channel's *title* — the *reported call* (GLOSSARY.md).
  *
  * See `ios/ReportedCallModule.swift` for what it does and does not buy. In
  * short: Recents, the green pill, and other calls meeting this one as a call;
@@ -18,7 +18,7 @@ import { Platform } from 'react-native';
 interface NativeReportedCall {
   startCall(channelId: string): Promise<boolean>;
   endCall(): Promise<boolean>;
-  nameCall(channelId: string, name: string): void;
+  setTitle(channelId: string, title: string): void;
   holdsSession(): boolean;
   takePendingChannel(): string | null;
 }
@@ -62,15 +62,15 @@ export async function startReportedCall(channelId: string): Promise<boolean> {
 }
 
 /**
- * What the call for `channelId` is called — the channel's name, given or
- * derived. Applied to a call already up for that channel, kept for one about
- * to start, and ignored for any other.
+ * What the call for `channelId` is shown as — the channel's *title*. Applied
+ * to a call already up for that channel, kept for one about to start, and
+ * ignored for any other.
  */
-export function nameReportedCall(channelId: string, name: string): void {
+export function setReportedCallTitle(channelId: string, title: string): void {
   try {
-    native?.nameCall(channelId, name);
+    native?.setTitle(channelId, title);
   } catch {
-    // A name that does not arrive leaves the call called The Floor.
+    // A title that does not arrive leaves the call shown as The Floor.
   }
 }
 

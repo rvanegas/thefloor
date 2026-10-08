@@ -1113,8 +1113,8 @@ export function useSessionAudio(
   /**
    * The iOS twin of the service above: the step-in reported to CallKit as an
    * outgoing call, for as long as this app is in the channel. What it is
-   * called is `App.tsx`'s to say, through `useReportedCall`: this hook has the
-   * channel's id and not its name.
+   * shown as is `App.tsx`'s to say, through `useReportedCall`: this hook has
+   * the channel's id and not its title.
    *
    * **Keyed on `mediaRoom` alone, for the service's reason.** A call tied to
    * the connection would end and start again on every rebuild, and each one
@@ -1129,15 +1129,14 @@ export function useSessionAudio(
    */
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current) return;
-    const unlog = addReportedCallLogListener(recordEvent);
     void startReportedCall(channelIdRef.current);
-    return () => {
-      endReportedCall();
-      // Kept a moment longer, so the end and CallKit's deactivation still
-      // reach the audio log.
-      setTimeout(unlog, 2000);
-    };
+    return () => endReportedCall();
   }, [mediaRoom]);
+
+  // The module's lines, for as long as this hook lives rather than the call:
+  // CallKit's deactivation lands after the call's effect has gone, and a timer
+  // to wait for it would outlive every unmount.
+  useEffect(() => addReportedCallLogListener(recordEvent), []);
 
 
   useEffect(() => {

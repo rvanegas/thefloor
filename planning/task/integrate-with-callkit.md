@@ -46,11 +46,12 @@ of it.
 
 1. **Busy is dropped.** The incoming call is handled as call waiting (Phase
    3), and nothing tries to turn calls away.
-2. **The call is called by the channel's name, given or derived** — reversed
-   on 2026-10-08 from *Floor, fixed*, once Rodrigo saw *Floor* in Recents.
+2. **The call is shown under the channel's *title*** — its name, or, for an
+   unnamed channel, who else is in it (GLOSSARY.md) — reversed on 2026-10-08
+   from *Floor, fixed*, once Rodrigo saw *Floor* in Recents.
    `localizedCallerName` is what Recents, CarPlay, the Watch and iCloud call
-   history show, so a channel's name — and, for a derived one, the display
-   names of who else is in it — now reaches every device on the Apple ID. That
+   history show, so a channel's title — for an unnamed one, the display names
+   of who else is in it — now reaches every device on the Apple ID. That
    is the disclosure question left open in `modules/call-service/index.ts` and
    `decision/2026-09-17-the-lock-screen-carries-two-controls.md` § *What was
    left open*, answered for this surface as the lock screen card answers it:
@@ -125,11 +126,11 @@ Three things differ from the plan below, and the code says why at each one:
 - **Every exit ends the call the same way**, as this app hanging up. Recents
   shows an outgoing call the same whoever ended it, so there was nothing for a
   reason to change.
-- **Called by the channel's name**, not *Floor*: decision 2, reversed.
+- **Shown under the channel's title**, not *Floor*: decision 2, reversed.
 
 **Still to check on a device before upload:**
 - a step-in shows the green pill;
-- Recents gets one entry, under the channel's name, and a reconnect adds none;
+- Recents gets one entry, under the channel's title, and a reconnect adds none;
 - a Recents tap opens that channel and does not step in;
 - a step-out lets Music play again;
 - a guest without speech, and a device watching here, under a call.

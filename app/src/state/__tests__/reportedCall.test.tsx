@@ -19,9 +19,9 @@ describe('an End the app did not ask for', () => {
       };
     };
     const stepOut = jest.fn();
-    const named = jest.fn();
+    const titled = jest.fn();
     function Probe({ channel }: { channel: string | null }) {
-      useReportedCall(channel, channel ? 'Ana and Bea' : null, stepOut, subscribe, named);
+      useReportedCall(channel, channel ? 'Ana and Bea' : null, stepOut, subscribe, titled);
       return null;
     }
     let tree!: ReactTestRenderer;
@@ -53,39 +53,39 @@ describe('an End the app did not ask for', () => {
   });
 });
 
-describe('what the call is called', () => {
+describe('what the call is shown as', () => {
   const none = () => () => {};
 
-  it("is the channel's name, and follows it when it changes", () => {
-    const named = jest.fn();
-    function Probe({ name }: { name: string }) {
-      useReportedCall('chan-1', name, jest.fn(), none, named);
+  it("is the channel's title, and follows it when it changes", () => {
+    const titled = jest.fn();
+    function Probe({ title }: { title: string }) {
+      useReportedCall('chan-1', title, jest.fn(), none, titled);
       return null;
     }
     let tree!: ReactTestRenderer;
     act(() => {
-      tree = renderer.create(<Probe name="Ana" />);
+      tree = renderer.create(<Probe title="Ana" />);
     });
-    expect(named).toHaveBeenLastCalledWith('chan-1', 'Ana');
+    expect(titled).toHaveBeenLastCalledWith('chan-1', 'Ana');
 
-    // A derived name, when a second person arrives.
+    // An unnamed channel's title, when a second person arrives.
     act(() => {
-      tree.update(<Probe name="Ana and Bea" />);
+      tree.update(<Probe title="Ana and Bea" />);
     });
-    expect(named).toHaveBeenLastCalledWith('chan-1', 'Ana and Bea');
-    expect(named).toHaveBeenCalledTimes(2);
+    expect(titled).toHaveBeenLastCalledWith('chan-1', 'Ana and Bea');
+    expect(titled).toHaveBeenCalledTimes(2);
   });
 
   it('is not sent without a channel', () => {
-    const named = jest.fn();
+    const titled = jest.fn();
     function Probe() {
-      useReportedCall(null, null, jest.fn(), none, named);
+      useReportedCall(null, null, jest.fn(), none, titled);
       return null;
     }
     act(() => {
       renderer.create(<Probe />);
     });
-    expect(named).not.toHaveBeenCalled();
+    expect(titled).not.toHaveBeenCalled();
   });
 });
 
