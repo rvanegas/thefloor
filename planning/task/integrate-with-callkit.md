@@ -171,9 +171,13 @@ a new state:
 STATES.md: CallKit becomes a fourth writer, or rather the one that activates
 the session; add it to § *Where the sources disagree*. Add any new state to
 GLOSSARY.md's one-line list, and add the second lock-screen surface to
-STYLE.md. In RELEASING.md, `UIBackgroundModes` stays `["audio"]`: an outgoing
-call needs no `voip`, and its line about *"adopted for call-like ringing"*
-should say that, and record that China was taken out of availability. Retire
+STYLE.md. In RELEASING.md, **`UIBackgroundModes` gains `voip`**: CallKit
+refuses every transaction without it, an outgoing call included — measured
+2026-10-08, when the spike's first run was refused as *unentitled*
+(`requesttransaction error 1`). This plan said the opposite until then. It
+needs no PushKit and nothing rings; the review notes should say that this is
+what `voip` is for. Its line about *"adopted for call-like ringing"* is
+corrected to match, and it records that China was taken out of availability. Retire
 `mute-a-locked-phone-through-callkit.md` into the Phase 0 decision. Android's
 counterpart is a self-managed `ConnectionService`, and that belongs in
 `bring-android-level-with-ios.md` rather than here.
