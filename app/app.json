@@ -13,7 +13,11 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "The Floor uses your microphone so the other people in a channel can hear you when you have the floor.",
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "voip"
+        ],
+        "NSUserActivityTypes": [
+          "INStartCallIntent"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "UISupportedInterfaceOrientations": [

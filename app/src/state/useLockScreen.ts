@@ -72,6 +72,30 @@ import {
  */
 export const LOCK_SCREEN_HOLD_MS = DISCONNECT_GRACE_MS - 15_000;
 
+/**
+ * A channel's *name*, given or derived (GLOSSARY.md): what a member called it,
+ * or, while nobody has, who else is in it.
+ *
+ * `channel.name` is null whenever nobody has named the channel, which is most
+ * of them, and a surface headed `null` — or headed nothing — is worse than one
+ * headed by who is in the room. `describeChannel` over the other participants
+ * is what the channel header, the list row and the profile card all draw; the
+ * lock screen card and the *reported call* share this one copy of it.
+ */
+export function channelNameFor(
+  view: ChannelView,
+  me: UserId,
+  naming: Strings['naming']
+): string {
+  return (
+    view.channel.name ??
+    describeChannel(
+      view.participants.filter((p) => p.id !== me).map((other) => other.displayName),
+      naming
+    )
+  );
+}
+
 /** What the controls read, derived once so the hook and its test agree. */
 export function lockScreenStateFor(
   view: ChannelView,
@@ -91,23 +115,8 @@ export function lockScreenStateFor(
   const muted = noInput || !!channel.selfMuted[me];
   return {
     channelId: channel.id,
-    /**
-     * The same fallback every other surface uses, rather than the raw field.
-     *
-     * `channel.name` is null whenever nobody has named the channel, which is
-     * most of them, and a card headed `null` — or headed nothing — is worse
-     * than one headed by who is in the room. `describeChannel` over the other
-     * participants is what the channel header, the list row and the profile
-     * card all draw; this is a fourth reader of it and not a fourth rule.
-     */
-    channelName:
-      channel.name ??
-      describeChannel(
-        view.participants
-          .filter((p) => p.id !== me)
-          .map((other) => other.displayName),
-        naming
-      ),
+    /** The same fallback every other surface uses — see `channelNameFor`. */
+    channelName: channelNameFor(view, me, naming),
     micLabel: muted ? words.unmute() : words.mute(),
     micState: muted ? words.microphoneMuted() : words.microphoneOpen(),
     muted,

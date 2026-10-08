@@ -46,14 +46,16 @@ of it.
 
 1. **Busy is dropped.** The incoming call is handled as call waiting (Phase
    3), and nothing tries to turn calls away.
-2. **The call is named *Floor*, fixed, never the channel's name.**
+2. **The call is called by the channel's name, given or derived** — reversed
+   on 2026-10-08 from *Floor, fixed*, once Rodrigo saw *Floor* in Recents.
    `localizedCallerName` is what Recents, CarPlay, the Watch and iCloud call
-   history show, so this answers the disclosure question left open in
-   `modules/call-service/index.ts` and
+   history show, so a channel's name — and, for a derived one, the display
+   names of who else is in it — now reaches every device on the Apple ID. That
+   is the disclosure question left open in `modules/call-service/index.ts` and
    `decision/2026-09-17-the-lock-screen-carries-two-controls.md` § *What was
-   left open*, at least for this surface. Nothing a stranger reads names a
-   channel. Whether Android's notification title (*In a channel* today) should
-   change to match is not settled. Ask when Phase 1 is built.
+   left open*, answered for this surface as the lock screen card answers it:
+   name the channel. Whether Android's notification title (*In a channel*
+   today) should change to match is still not settled. Ask.
 3. **The Live Activity card stays.** A locked phone will show two surfaces, the
    card (floor state, Out, and a Mute that asks for a passcode) and the call
    screen (Mute and End, which do not ask). Say in STYLE.md which control
@@ -113,6 +115,24 @@ The result is a dated decision, whichever way it goes. If the observer and
 CallKit cannot share the session, the plan stops here.
 
 ### Phase 1 — the call is the step-in
+
+**Built 2026-10-08, as `modules/reported-call`, and not yet run on a device.**
+Three things differ from the plan below, and the code says why at each one:
+
+- **JS does not wait for `didActivate`.** Phase 0's setup A — the app
+  activating first, CallKit following — worked, so `startAudioSession` stays
+  where it was.
+- **Every exit ends the call the same way**, as this app hanging up. Recents
+  shows an outgoing call the same whoever ended it, so there was nothing for a
+  reason to change.
+- **Called by the channel's name**, not *Floor*: decision 2, reversed.
+
+**Still to check on a device before upload:**
+- a step-in shows the green pill;
+- Recents gets one entry, under the channel's name, and a reconnect adds none;
+- a Recents tap opens that channel and does not step in;
+- a step-out lets Music play again;
+- a guest without speech, and a device watching here, under a call.
 
 - **One call per `mediaRoom`, not per connection.** The connection effect in
   `useSessionAudio.ts` re-runs on `generation`, and a reconnect must not end

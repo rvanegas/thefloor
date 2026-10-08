@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
+import {
+  addRecentsChannelListener,
+  takeRecentsChannel,
+} from '../../modules/reported-call';
 
 /**
  * A tap on the lock screen card, which arrives as a URL.
@@ -46,11 +50,30 @@ export function channelOfUrl(url: string | null): string | null {
   }
 }
 
-export function useChannelLink(): {
+export function useChannelLink(
+  takeRecents: () => string | null = takeRecentsChannel,
+  subscribeRecents: (
+    handle: (channelId: string) => void
+  ) => () => void = addRecentsChannelListener
+): {
   linked: string | null;
   clearLink: () => void;
 } {
   const [linked, setLinked] = useState<string | null>(null);
+
+  /**
+   * **A tap on a *Floor* entry in Recents arrives here too**, since
+   * 2026-10-08, and means what the card's tap means: open the channel, do not
+   * step in. It is not a URL — iOS hands the app an `INStartCallIntent`
+   * carrying the channel id the call was reported with — so it has its own two
+   * roads, the same two for the same reason: a listener while the app is alive,
+   * and a value waiting from a cold launch. See `modules/reported-call`.
+   */
+  useEffect(() => {
+    const waiting = takeRecents();
+    if (waiting) setLinked(waiting);
+    return subscribeRecents((id) => setLinked(id));
+  }, [takeRecents, subscribeRecents]);
 
   useEffect(() => {
     let cancelled = false;

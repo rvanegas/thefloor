@@ -6,7 +6,12 @@ import { useSessionAudio } from './src/audio/useSessionAudio';
 import { AudioLabView } from './src/ui/AudioLabView';
 import { useKnockNudge } from './src/audio/useKnockNudge';
 import { useChannelLink } from './src/state/useChannelLink';
-import { useLockScreen, useLockScreenPushToken } from './src/state/useLockScreen';
+import {
+  channelNameFor,
+  useLockScreen,
+  useLockScreenPushToken,
+} from './src/state/useLockScreen';
+import { useReportedCall } from './src/state/useReportedCall';
 import { api } from './src/api/http';
 import { DEVICE_ID } from './src/api/device';
 import { usePresenceChime } from './src/audio/usePresenceChime';
@@ -420,6 +425,14 @@ function Root() {
     // A bare act rather than the footer's `stepOut`: that only adds whether
     // leaving closes the screen, which it does not (`stepOutClosesScreen`),
     // and a locked phone has no screen to close.
+    (channelId) => app.act(channelId, { type: 'STEP_OUT' })
+  );
+  // The reported call: called by the channel's name, given or derived, as the
+  // card is headed; and its End from CarPlay or the Watch is the card's Out by
+  // another road. See `state/useReportedCall.ts`.
+  useReportedCall(
+    here?.channel.id ?? null,
+    here ? channelNameFor(here, me, text.naming) : null,
     (channelId) => app.act(channelId, { type: 'STEP_OUT' })
   );
   // The server's half of taking the card down: it ends the card itself when it

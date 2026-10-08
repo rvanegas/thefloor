@@ -36,6 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
+- **Channel name — given, derived** — What a channel is called: *given* when a member has named it (`channel.name`), *derived* while nobody has — who else is in it, by display name (`describeChannel`); every surface shows the given name, else the derived one (`channelNameFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
 - **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
@@ -186,6 +187,7 @@ caused; the list carries the meaning.
 - **Protocol** — `core/protocol.ts` — the wire
 - **Pump** — `PlaybackPump` — what *produces* shared playback, as distinct from publishing
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
+- **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, called by the *channel name* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
 - **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
@@ -269,6 +271,26 @@ and a member could hand out microphones without limit; see
 
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
+
+## Channel name — given, derived
+
+A channel has a name in one of two ways. **Given**: a member typed one, and
+it is `channel.name`. **Derived**: nobody has, `channel.name` is null — which
+is most channels — and what stands in for it is who else is in the room, by
+display name, from `describeChannel` in `core/naming.ts`: one name, a pair,
+or two names and a count. A derived name is the viewer's own: it leaves the
+viewer out, so the same channel reads differently to each member, and it
+changes as people arrive and leave.
+
+**Every surface shows the given name, else the derived one**, and none shows
+the raw field: a heading of `null`, or of nothing, is worse than who is
+there. `channelNameFor` in `app/src/state/useLockScreen.ts` is the rule for
+the lock screen card and the *reported call*; the channel header, the list
+row and the profile card write the same two terms inline.
+
+Named here on 2026-10-08, when the *reported call* took its name from it and
+the distinction needed words. Before that, this file said only *named or
+unnamed*, and *an unnamed channel's only name is its roster*.
 
 ## Channel one is present in, the
 
@@ -4033,6 +4055,32 @@ the room is actually carrying, once a tick, and restating the difference. A
 phone whose connection flaps rejoins publishing a new track id, which the mute
 already stated does not name. **The transition is for latency and the
 reconciliation is for truth**; do not collapse one into the other.
+
+## Reported call
+
+`modules/reported-call` — a step-in, reported to iOS through CallKit as an
+**outgoing** call, whoever arrived first: stepping in is always the person's
+own act, and an incoming call would ring them. It begins when `mediaRoom`
+appears and ends when it goes, so every exit from stepped-in ends it, and a
+reconnect, which rebuilds the room and keeps `mediaRoom`, does not. Every
+call is a line in Recents, so a call cycled by a reconnect would fill Recents
+on a bad network.
+
+It is called by the *channel name*, given or derived, and renamed as a
+derived name changes. That name reaches Recents, CarPlay and the Watch, and
+through iCloud every device on the Apple ID.
+
+**What it buys**: Recents, the green pill, and other calls meeting this one
+as a call. **What it does not buy is a call screen.** iOS gives a call an app
+places none, the pill opens the app, and Channel View is the call screen. So
+it gives no mute without a passcode either. See
+`decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
+
+**It is not `CALL`**, the audio session configuration, and not the session
+want `call`. All three are about a phone holding a microphone, and none of
+them is the other. A guest without speech and a device watching here hold a
+reported call while their session is `LISTENING`, which is meant to work and,
+as of 2026-10-08, has not been measured on a device.
 
 ## Restore
 

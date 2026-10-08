@@ -29,7 +29,7 @@ either of the other two.
 
 ## Contents
 
-Added 2026-09-07. Read the section you need, not the file: this is ninety-three
+Added 2026-09-07. Read the section you need, not the file: this is ninety-four
 kilobytes and almost no question needs all of it. **The figure had said
 sixty-two since it was written and was twenty-four kilobytes stale by
 2026-09-26** — correct it in the same commit as anything added here, on
@@ -1102,6 +1102,17 @@ tells the interrupted app it may resume; `releaseSession` in
 connection's teardown. Every `Release` in the 2026-09-08 lab run brought the
 other app back to full rate, and only with that option.
 
+**Under a *reported call*, CallKit does the release, and other apps no longer
+resume by themselves.** Since 2026-10-08 a step-in is also an outgoing CallKit
+call, and while CallKit holds the session `releaseSession` fails with `-12988`.
+So the teardown skips it (`reportedCallHoldsSession`), and CallKit's
+deactivation follows the call's end within a second. That deactivation does
+not say *you may resume*: Music and YouTube stayed paused after a step-out on
+the spike. Rodrigo's requirement is that other apps *can* take their audio
+back, which they can. Resuming was observed before, not required. The
+`notifyOnDeactivate` switch on branch `spike/callkit` is the fix if it is ever
+wanted. A reconnect keeps the call, so it no longer releases at all.
+
 **Every exit from stepped-in takes the same path** — a tap on Step Out,
 declaring nearby, Rule B retiring an unattended phone, being displaced by
 another device — because all of them take `mediaRoom` away. A process suspended
@@ -1225,6 +1236,16 @@ this app, the SDK's native policy observer on every audio-engine transition, and
 WebRTC re-applying its own defaults. Last writer wins, and the observer wins
 every race it enters — it runs on the audio worker thread at the transition
 itself, so a re-statement from JavaScript always lands after it.
+
+**CallKit is a fourth party since 2026-10-08, and it activates rather than
+configures.** Under a *reported call* the app still starts its own session
+first, and CallKit's `didActivate` follows about 190ms later on the same
+`CALL` configuration — `playAndRecord`, `videoChat`, loudspeaker — with no
+conflict measured. `modules/reported-call` passes `didActivate` and
+`didDeactivate` to `RTCAudioSession` natively. It writes no category, so the
+table above still holds, though `LISTENING` under a call has not been
+measured. See
+`decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
 
 **The observer used to be handed a constant, and that cost the route.** It took
 `IDLE` as its playout value on the argument that an unrequested write could then

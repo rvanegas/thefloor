@@ -22,6 +22,12 @@ import {
   setAllowHapticsDuringRecording,
 } from '../../modules/audio-route';
 import { startCallService, stopCallService } from '../../modules/call-service';
+import {
+  addReportedCallLogListener,
+  endReportedCall,
+  reportedCallHoldsSession,
+  startReportedCall,
+} from '../../modules/reported-call';
 import { ensureMicPermission } from './micPermission';
 import { api } from '../api/http';
 import { recordEvent } from './diagnostics';
@@ -1104,6 +1110,35 @@ export function useSessionAudio(
     };
   }, [mediaRoom]);
 
+  /**
+   * The iOS twin of the service above: the step-in reported to CallKit as an
+   * outgoing call, for as long as this app is in the channel. What it is
+   * called is `App.tsx`'s to say, through `useReportedCall`: this hook has the
+   * channel's id and not its name.
+   *
+   * **Keyed on `mediaRoom` alone, for the service's reason.** A call tied to
+   * the connection would end and start again on every rebuild, and each one
+   * is a line in Recents — a phone on a bad network would fill it.
+   *
+   * Every exit from stepped-in takes `mediaRoom` away, so every one ends the
+   * call here: Step Out, going nearby, Rule B, being displaced. All end it the
+   * same way, as this app hanging up — Recents shows an outgoing call the
+   * same whoever ended it, so there is nothing a reason would change.
+   *
+   * No-op everywhere but iOS. See `modules/reported-call`.
+   */
+  useEffect(() => {
+    if (!mediaRoom || !channelIdRef.current) return;
+    const unlog = addReportedCallLogListener(recordEvent);
+    void startReportedCall(channelIdRef.current);
+    return () => {
+      endReportedCall();
+      // Kept a moment longer, so the end and CallKit's deactivation still
+      // reach the audio log.
+      setTimeout(unlog, 2000);
+    };
+  }, [mediaRoom]);
+
 
   useEffect(() => {
     if (!mediaRoom || !channelIdRef.current || !token) return;
@@ -1723,12 +1758,25 @@ export function useSessionAudio(
        * deleted for. Deactivation is the whole answer.
        */
       pushPolicy();
-      void releaseSession().then((route) => {
-        recordEvent(
-          `released${route?.category ? ` ${route.category}` : ''}` +
-            (route?.error ? ` (${route.error})` : '')
-        );
-      });
+      /**
+       * **Not while CallKit holds the session**, since 2026-10-08. Under a
+       * reported call this release fails with `-12988` and changes nothing:
+       * CallKit deactivates the session itself within a second of the call
+       * ending, and on a reconnect — where this teardown also runs and the call
+       * goes on — the session is meant to stay held. Other apps can take their
+       * audio back either way. They are not told they may *resume*, which
+       * CallKit's release does not say. That was observed and not required.
+       */
+      if (reportedCallHoldsSession()) {
+        recordEvent('release left to the reported call');
+      } else {
+        void releaseSession().then((route) => {
+          recordEvent(
+            `released${route?.category ? ` ${route.category}` : ''}` +
+              (route?.error ? ` (${route.error})` : '')
+          );
+        });
+      }
       void releaseAndroidAudio();
     };
   }, [mediaRoom, token, generation]);

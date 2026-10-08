@@ -194,11 +194,21 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   `plutil -extract 'UISupportedInterfaceOrientations~ipad' xml1 -o -
   app/ios/TheFloor/Info.plist` after a prebuild, and
   `TARGETED_DEVICE_FAMILY = "1,2"` in `project.pbxproj`.
-- **`voip` removed from `UIBackgroundModes`, and still out.** It does nothing
-  without PushKit, and reviewers have objected to apps declaring it unused.
-  Push notification has since been picked up and this did *not* change: a
-  visible alert needs neither `voip` nor `remote-notification`. It becomes load
-  bearing only if PushKit and CallKit are adopted for call-like ringing.
+- **`voip` is in `UIBackgroundModes` again, since 2026-10-08, for the
+  *reported call*.** It was removed before the first TestFlight build because
+  nothing used it, and reviewers object to apps that declare it unused. CallKit
+  uses it: without it every CallKit transaction is refused as *unentitled*
+  (`requesttransaction error 1`), an outgoing call included. This file used to
+  say it did nothing without PushKit, and the CallKit spike showed otherwise.
+  There is still no PushKit and nothing rings. **The review notes have to say
+  what `voip` is for**: a channel the person entered is reported as an
+  outgoing call, so it shows in Recents and other calls meet it as a call.
+  A visible alert still needs neither `voip` nor `remote-notification`.
+- **China is out of the app's availability before any build with CallKit is
+  submitted.** App Review rejects apps that use CallKit in the China
+  storefront. Decided 2026-10-06 over switching CallKit off by region. It is
+  set in App Store Connect, under *Pricing and Availability*, and not in this
+  tree, so check it there before pressing Submit. TestFlight is not affected.
 - **`userInterfaceStyle` is `automatic`.** This said `dark`, and stopped being
   true when `app/src/ui/theme.ts` grew a light palette — the app follows the
   system now, and a screenshot of it in light mode is it working rather than
