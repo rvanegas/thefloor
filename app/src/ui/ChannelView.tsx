@@ -33,7 +33,6 @@ import {
   nearbyMs,
   canInvite,
   canControlPlayback,
-  canPauseRecording,
   canResumeRecording,
   canMuteOther,
   canSetSelfMute,
@@ -97,7 +96,6 @@ import {
   TranscriptIcon,
   SettingsIcon,
   StepIcon,
-  StopIcon,
   WatchIcon,
 } from './icons';
 import {
@@ -142,7 +140,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { LiveTranscript } from './LiveTranscript';
+import { Conversation } from './Conversation';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -152,26 +150,29 @@ const SKIP_MS = 15_000;
  *
  * **Who, then what, since 2026-09-12.** The first three are the people —
  * who is here, what one of them has just handed the rest, and how somebody who
- * is not here gets in — and the last three are what the channel is carrying: the track,
- * the recordings, the video. The order before this one ran the four carried
- * things together and put the ways in at the end, on the grounds that
+ * is not here gets in — and the last three are what the channel is carrying:
+ * what was said, the track, the video. The order before this one ran the four
+ * carried things together and put the ways in at the end, on the grounds that
  * inviting somebody is the rarest thing done here; rarity is a reason to keep
  * a tab off the one you land on and not a reason to file it away from the
  * subject it belongs to.
  *
- * It also puts the conditional tab last, which the earlier order did not.
- * `watch` is the one that is not always there — see `tabs` below — and a set
- * that loses its final entry leaves every other tab exactly where it was.
+ * **Six, always the same six, since 2026-10-09**, when *Recordings* and the
+ * live *Transcript* became one tab, *Conversation*, and it took *Listen*'s
+ * place as the first of the carried things. A recording is the conversation
+ * kept as audio and a live transcript is the same conversation kept as text;
+ * a channel may keep either, both or neither, and the tab is named for what
+ * they are records of rather than for either form. *Transcript* had been the
+ * one tab that came and went, and a strip that changes length while you reach
+ * for it is the thing the rest of this order is arranged to avoid.
  */
 export type ChannelTab =
   | 'people'
   | 'clipboard'
   | 'invites'
+  | 'conversation'
   | 'listen'
-  | 'recordings'
-  | 'watch'
-  /** The live transcript — offered only where there is one; see `tabs`. */
-  | 'transcript';
+  | 'watch';
 
 /**
  * What the upload button says while it is uploading.
@@ -2175,8 +2176,7 @@ export function ChannelView({
   const mayUnmuteRoom = canUnmuteRoom(channel);
 
   /**
-   * The tabs this account is offered, which is six, always the same six —
-   * and a seventh, *Transcript*, in a channel that has a live transcript.
+   * The tabs this account is offered, which is six, always the same six.
    *
    * *Watch* was the one variable tab while watching together was behind Labs,
    * and it is not any more: a tab bar that gains and loses entries as the
@@ -2184,17 +2184,15 @@ export function ChannelView({
    * one control up — the thing you were reaching for is somewhere else by the
    * time you land — and the reason to tolerate it was withholding an
    * experimental feature, which is no longer a thing being done here.
-   *
-   * **The seventh is the exception, and it is not one of the room's states.**
-   * It is offered while the channel's live transcript is switched on or has
-   * left anything behind — facts about the channel that change when its owner
-   * turns a setting, not while people come and go — and it is last, so a
-   * strip that gains it moves nothing else. While it is the tab somebody is
-   * on, it stays, whatever the setting does: a tab that vanished from under
-   * the reader would be the finger-under-the-thumb problem again.
+   * *Transcript* was the last exception, and went into *Conversation* on
+   * 2026-10-09; see `ChannelTab`.
    */
-  const offersTranscript =
-    !!channel.liveTranscription || !!view?.liveTranscript || tab === 'transcript';
+  /**
+   * Whether *Conversation* carries the live transcript: while it is switched
+   * on, or once it has left anything behind — facts about the channel that
+   * change when its owner turns a setting, not while people come and go.
+   */
+  const offersTranscript = !!channel.liveTranscription || !!view?.liveTranscript;
   const tabs: readonly {
     value: ChannelTab;
     label: string;
@@ -2216,29 +2214,20 @@ export function ChannelView({
       icon: (color) => <InviteIcon color={color} />,
     },
     {
+      value: 'conversation',
+      label: t.tabConversation(),
+      icon: (color) => <TranscriptIcon color={color} />,
+    },
+    {
       value: 'listen',
       label: t.tabListen(),
       icon: (color) => <ListenIcon color={color} />,
-    },
-    {
-      value: 'recordings',
-      label: t.tabRecordings(),
-      icon: (color) => <RecordingsIcon color={color} />,
     },
     {
       value: 'watch',
       label: t.tabWatch(),
       icon: (color) => <WatchIcon color={color} />,
     },
-    ...(offersTranscript
-      ? [
-          {
-            value: 'transcript' as const,
-            label: t.tabTranscript(),
-            icon: (color: ColorValue) => <TranscriptIcon color={color} />,
-          },
-        ]
-      : []),
   ];
   /**
    * Mints a follower link and hands it to the share sheet.
@@ -3170,9 +3159,10 @@ export function ChannelView({
       */
       asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
       contentStyle={styles.container}
-      // The transcript grows at the bottom while people talk; every other
-      // tab is read from the top. See `Screen.followEnd`.
-      followEnd={tab === 'transcript'}
+      // The conversation grows at the bottom while people talk, with its
+      // transport under it; every other tab is read from the top. See
+      // `Screen.followEnd`.
+      followEnd={tab === 'conversation'}
     >
         {/*
           Why you are in a room with people you have never met.
@@ -3777,8 +3767,8 @@ export function ChannelView({
           setting again and the fast half is this tab, which is why the tab is
           now called *Clipboard* and not *Notepad*.
 
-          **No label over it**, on the same terms as *Listen* and
-          *Recordings*: the tab is called Clipboard and this is the only thing
+          **No label over it**, on the same terms as *Listen*: the tab is
+          called Clipboard and this is the only thing
           on it, so SHARED CLIPBOARD would be the screen saying its own name
           twice — and the card's own sentence at the foot of it already says
           that one channel has one clipboard.
@@ -4037,79 +4027,84 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'recordings' ? (
+        {tab === 'conversation' ? (
           <>
         {/*
-          The transport, above the list it produces. It was on the *Listen*
-          tab, one card under the shared audio, on the grounds that recording
-          is what playing is doing to the room; but the tab somebody goes to
-          about a recording is the one named after them, and having gone there
-          to stop one they had to find their way to a different tab to do it.
-          Above the list rather than below it, so the control that is about
-          right now is not reached past a history that may be any length.
+          **One conversation, since 2026-10-09**: what was said here as the
+          live transcript kept it, with each recording standing in it at the
+          moment it began, oldest at the top. *Recordings* and *Transcript*
+          were two tabs; a recording is this conversation kept as audio and
+          the transcript is the same conversation kept as text, and a channel
+          may keep either, both or neither. See `Conversation`.
 
-          **Buttons carrying glyphs, since 2026-09-13, and the shape is the
-          player's.** It spent a few hours as three bare glyphs huddled at the
-          left margin — legible as a group, but drawn unlike every other
-          control in the app, and in particular unlike the row of three doing
-          the same job one tab over. What starts, holds and ends the shared
-          track is `buttonRow` and `flexButton`: filled rectangles in equal
-          thirds across the width. This is the same act on the same screen, so
-          it is the same row, and a hand that has learnt one has learnt both.
-          The glyphs stay — record, pause and stop are older than any wording
-          of them — and each carries its word beneath it, in `sublabel`.
+          Above the timeline, because the question it answers — which
+          conversation was that in — is one scrolling cannot answer. Only shown
+          once a recording here has been transcribed.
+        */}
+        {recordings.some((r) => r.transcript?.state === 'ready') ? (
+          <TranscriptSearch
+            channelId={channelId}
+            onOpen={(recordingId) => setTranscriptFor(recordingId)}
+          />
+        ) : null}
+        <Conversation
+          channelId={channelId}
+          live={offersTranscript}
+          transcribing={isTranscribingLive(channel)}
+          recordings={recordings}
+          renderRecording={(r) => (
+            <RecordingRow
+              key={r.id}
+              recording={r}
+              // Playing one loads it as the channel's shared track, so it is
+              // governed by exactly what governs a track somebody uploaded —
+              // including the floor-holder's say over what plays.
+              playable
+              playDisabled={!mayControlPlayback}
+              playDisabledReason={
+                ownersAlone
+                  ? t.ownerDecidesWhatPlaysShort()
+                  : channel.floor.holder
+                    ? t.floorDecidesWhatPlays()
+                    : t.stepInToPlayShort()
+              }
+              manageable={iHaveTheRoom && !ownersAlone}
+              onOpenTranscript={() => setTranscriptFor(r.id)}
+            />
+          )}
+        />
 
-          **The word under the glyph arrived later the same day, with the
-          paragraphs under the row leaving.** The case for a bare glyph is
-          that a shape which has meant one thing since tape does not need a
-          caption, and it holds right up until the shape is `disabled`: an
-          inert grey square says neither what it does nor why it will not do
-          it, and the answer used to be four muted paragraphs underneath.
-          One word apiece costs a line of the row's height and takes the
-          first half of that question away from the prose, which is what
-          made removing the rest of it affordable. It is the footer's shape —
-          a glyph over its word — and the footer is the other place in this
-          app where three or four states sit in one row and half of them are
-          refusals.
+        {/*
+          **The transport, under the conversation it adds to**, since
+          2026-10-09. It was above the list, so that the control about right
+          now was not reached past a history of any length; the tab now opens
+          at its foot (`followEnd`) with the newest of what was said directly
+          above it, which answers the same worry from the other end — the
+          composer under a message thread.
 
-          Always all three, and in this order: start, hold, end, which is the
-          run's own order and puts the irreversible one last where a thumb
-          moving in a hurry is least likely to land on it. What is available
-          is what is legible: a control you may press is filled, one you may
-          not is `disabled` with a `textFaint` glyph and inert. Nothing
-          appears or disappears, so the shapes stay where the thumb learned
-          them.
+          **Two buttons, and the second is Pause.** There is no Stop: every
+          pause ends the run, and the next Record begins a new recording, so a
+          conversation recorded in stretches is a row of segments in the
+          timeline above rather than one file with holes in it. It sends
+          `STOP_RECORDING`, under Stop's rule, which is Pause's rule widened to
+          a paused run. `PAUSE_RECORDING` is still understood by the server for
+          the builds that send it, and a run one of them paused shows Resume
+          here and ends on Pause like any other.
 
-          **In a `Card`, since 2026-09-13, which is the shared track's shape
-          one tab over.** The row was bare on the background, and the
-          argument above — that this is the same act as the player's
-          transport and so is the same row — does not stop at the row: that
-          one sits on `surface` with its failure lines under it, and so does
-          this. A group of filled rectangles with nothing behind them reads
-          as loose on a screen where everything that is a thing is on a card.
-          What is inside is the transport and what went wrong; the list
-          below is its own section and stays outside.
-
-          Still no RECORDING label above it, which is the part of the
-          bare-glyph pass that was right: the state of the run is reported in
-          the header, and the tab is already named after these — and the
-          words beneath the glyphs name the three acts rather than the
-          object, so none of them is that label under another name.
+          The shape is the player's: `buttonRow` and `flexButton`, filled
+          rectangles in equal parts across the width, each glyph over its
+          word, in a `Card` with what went wrong beneath. A control you may
+          press is filled, one you may not is `disabled`, and nothing appears
+          or disappears. No RECORDING label: the run's state is the header's
+          pill, and the words under the glyphs name the acts.
         */}
         <Card style={styles.stack}>
           <View style={styles.buttonRow}>
             {/*
               Record and Resume are one control, because they are one idea —
               *start capturing* — and a paused run is the only state where the
-              second is what that means. Splitting them would put a fourth
-              button on a row whose whole argument is that the positions do not
-              move.
-
-              `primary` for the same reason Play has it one tab over: it is the
-              one of the three somebody came here to press, and the other two
-              are only reachable once it has been. Stop is not `danger` — that
-              fill is spent on deletion, and ending a run keeps what it
-              captured.
+              second is what that means. `primary` for the same reason Play has
+              it one tab over: it is the one somebody came here to press.
             */}
             <Button
               label={
@@ -4142,14 +4137,6 @@ export function ChannelView({
               sublabel={t.pause()}
               style={styles.flexButton}
               icon={(color) => <PauseIcon color={color} />}
-              disabled={!canPauseRecording(channel, me)}
-              onPress={() => act({ type: 'PAUSE_RECORDING' })}
-            />
-            <Button
-              label={t.stopRecording()}
-              sublabel={t.stop()}
-              style={styles.flexButton}
-              icon={(color) => <StopIcon color={color} />}
               disabled={!canStopRecording(channel, me)}
               onPress={() => act({ type: 'STOP_RECORDING' })}
             />
@@ -4157,19 +4144,10 @@ export function ChannelView({
 
           {/*
             **What is left under the row is failure, and nothing else**, since
-            2026-09-13. Four muted paragraphs used to hang here — what the last
-            run captured, that the channel records itself, and the reason a
-            grey control is grey — on the reasoning that a glyph cannot say any
-            of it. The glyphs now carry their words, and three of the four were
-            answering a question that is answered elsewhere on the way here: the
-            run's state is the header's pill, what was saved is the list
-            immediately below, and `autoRecord` is a switch in this channel's
-            settings, set by somebody who was there when it was set. A greyed control
-            with a paragraph under it is also a paragraph read before every
-            recording and skipped after the second.
-
-            A capture that stopped for a reason nobody asked for is the
-            exception, in both tenses, because nothing else on this screen
+            2026-09-13: the run's state is the header's pill, what was saved is
+            the timeline above, and `autoRecord` is a switch in this channel's
+            settings. A capture that stopped for a reason nobody asked for is
+            the exception, in both tenses, because nothing else on this screen
             reports it and a recording that was not kept is not something to
             find out later.
           */}
@@ -4183,11 +4161,9 @@ export function ChannelView({
           ) : null}
 
           {/*
-            The same about the run before this one. This line used to report
-            every finished run — *Saved — 4:12 captured* — which is the list
-            directly below it saying the same thing in the same place; a run
-            that ended early is the half that list cannot tell you, since there
-            it is only a short recording.
+            The same about the run before this one: a run that ended early is
+            the half the timeline cannot tell you, since there it is only a
+            short recording.
           */}
           {channel.recording.status === 'idle' &&
           channel.lastRecording?.failure ? (
@@ -4197,59 +4173,7 @@ export function ChannelView({
             </Text>
           ) : null}
         </Card>
-
-        {/*
-          Recordings live here because they belong to the channel: it names
-          them, its members are who may hear them, and deleting it deletes
-          them. They were on Home, which put every conversation you had ever
-          recorded into one list belonging to nothing.
-        */}
-        <SectionLabel>{t.recordings()}</SectionLabel>
-        {/*
-          Above the list, because the question it answers — which conversation
-          was that in — is one the list itself cannot answer. Only shown once
-          something in this channel has been transcribed.
-        */}
-        {recordings.some((r) => r.transcript?.state === 'ready') ? (
-          <TranscriptSearch
-            channelId={channelId}
-            onOpen={(recordingId) => setTranscriptFor(recordingId)}
-          />
-        ) : null}
-        {recordings.length === 0 ? (
-          <Empty>{t.nothingRecordedYet()}</Empty>
-        ) : (
-          <View style={styles.stack}>
-            {recordings.map((r) => (
-              <RecordingRow
-                key={r.id}
-                recording={r}
-                // Playing one loads it as the channel's shared track, so it is
-                // governed by exactly what governs a track somebody uploaded —
-                // including the floor-holder's say over what plays.
-                playable
-                playDisabled={!mayControlPlayback}
-                playDisabledReason={
-                  ownersAlone
-                    ? t.ownerDecidesWhatPlaysShort()
-                    : channel.floor.holder
-                      ? t.floorDecidesWhatPlays()
-                      : t.stepInToPlayShort()
-                }
-                manageable={iHaveTheRoom && !ownersAlone}
-                onOpenTranscript={() => setTranscriptFor(r.id)}
-              />
-            ))}
-          </View>
-        )}
           </>
-        ) : null}
-
-        {tab === 'transcript' ? (
-          <LiveTranscript
-            channelId={channelId}
-            transcribing={isTranscribingLive(channel)}
-          />
         ) : null}
 
         {tab === 'watch' ? (
@@ -4805,7 +4729,7 @@ export function ChannelView({
                       // exclusive because the video's sound never reaches The Floor,
                       // so a recording made alongside one would be missing the thing
                       // everybody was reacting to.
-                      t.stopTheRecordingFirst()
+                      t.pauseTheRecordingFirst()
                     : theyHoldFloor
                       ? // **Reachable since 2026-09-24**, and narrowed in the
                         // same breath. A claim could not be made over a film

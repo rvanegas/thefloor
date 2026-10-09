@@ -41,7 +41,7 @@ import {
   showInvites,
   showClipboard,
   showListen,
-  showRecordings,
+  showConversation,
   showPeople,
   showWatch,
   textOf,
@@ -442,7 +442,7 @@ describe('Channel', () => {
     // filter, which would have claimed every contact was already in here.
     expect(invites).toContain('Miro Okafor');
 
-    showRecordings(tree);
+    showConversation(tree);
     // The recording row's actions are behind a tap, and two of the three are
     // refused. Share is not, and that is the assertion worth having.
     act(() => findButton(tree, 'Book club')!.props.onPress());
@@ -506,7 +506,7 @@ describe('Channel', () => {
     ).toEqual({ disabled: false, expanded: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
-    showRecordings(tree);
+    showConversation(tree);
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
     expect(on('Delete')).toEqual({ disabled: false });
@@ -521,7 +521,7 @@ describe('Channel', () => {
     expect(on('In')).toEqual({ disabled: false, selected: false });
     expect(on('Claim').disabled).toBe(true);
 
-    showRecordings(tree);
+    showConversation(tree);
     expect(on('Record')).toEqual({ disabled: true });
 
     showListen(tree);
@@ -630,7 +630,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
@@ -670,7 +670,7 @@ describe('Channel', () => {
           onClose={() => {}}
           onExit={() => {}}
         />);
-      showRecordings(tree);
+      showConversation(tree);
       return tree;
     };
 
@@ -1560,9 +1560,9 @@ describe('Channel', () => {
 
       People first because it is what the screen is for and what you land on.
       Then the people: what they have written down, and how somebody who is
-      not here gets in. Then the three things the channel carries, with Watch
-      last because it is the one tab that can be absent — see the type in
-      ChannelView, which is where the whole argument for this order is.
+      not here gets in. Then the three things the channel carries: what was
+      said in it, the track, the film — see the type in ChannelView, which is
+      where the whole argument for this order is.
     */
     // `findAll` with a predicate rather than `findByType`, which the installed
     // react-test-renderer types do not declare.
@@ -1574,8 +1574,8 @@ describe('Channel', () => {
       'People',
       'Clipboard',
       'Invite',
+      'Conversation',
       'Listen',
-      'Recordings',
       'Watch',
     ]);
 
@@ -1618,19 +1618,17 @@ describe('Channel', () => {
     expect(sections()).toEqual([]);
 
     // Nothing at all, since 2026-09-13: the recording transport moved to
-    // *Recordings* on 2026-09-12, and what was left was one card under a
+    // *Recordings*, now *Conversation*, on 2026-09-12, and what was left was one card under a
     // SHARED AUDIO label on a tab called *Listen* — the screen naming itself
     // twice over a card whose own sentence says everyone hears this.
     showListen(tree);
     expect(sections()).toEqual([]);
 
-    // The transport above the list it produces, and one heading rather than
-    // two: the transport lost its RECORDING label on 2026-09-13, three
-    // glyphs under the tab named after them needing no second announcement
-    // of what they are. It is back in a card as of the same day — the
-    // player's shape — and a card is not a heading.
-    showRecordings(tree);
-    expect(sections()).toEqual(['Recordings']);
+    // None, since 2026-10-09: *Conversation* is one timeline with the
+    // transport under it, and the RECORDINGS heading over a list went with
+    // the list. The day dividers in the timeline are rules, not labels.
+    showConversation(tree);
+    expect(sections()).toEqual([]);
 
     // And none over the watch card either, since 2026-09-22 — the same
     // argument as *Listen*'s above, applied three weeks late to the one
@@ -2149,8 +2147,8 @@ describe('Channel', () => {
 
     **By accessible name, not by text.** The header carries the whole pill
     again — the disc, the word and the clock — and a search for the word
-    would find the *Recordings* tab in the pinned switch beside it either
-    way, which is how the earlier split was noticed. The name is on the pill
+    would find the *Recordings* tab, as the switch beside it was then called,
+    which is how the earlier split was noticed. The name is on the pill
     and on nothing else.
   */
   const recordingDots = (tree: ReactTestRenderer) =>
@@ -2162,37 +2160,41 @@ describe('Channel', () => {
 
 
   /*
-    The transport, which is three glyphs and is all three of them whatever the
-    run is doing. It used to be one full-width button that changed its word,
-    swapped for a pair when a run started — so the control somebody reaches for
-    in a hurry was never twice in the same place. Greyed is how this row says
-    *not now*; nothing leaves it.
+    The transport, which is two glyphs and is both of them whatever the run is
+    doing. It used to be one full-width button that changed its word, swapped
+    for a pair when a run started — so the control somebody reaches for in a
+    hurry was never twice in the same place. Greyed is how this row says *not
+    now*; nothing leaves it.
+
+    **No Stop, since 2026-10-09: every pause ends the run.** Pause sends
+    `STOP_RECORDING`, so the next Record begins a new recording — a segment of
+    the conversation — rather than continuing the last one.
 
     Asserted through `accessibilityState`, which is what a screen reader is
     told and so is the assertion worth making. Found by the word under the
-    glyph — *Record*, *Pause*, *Stop* — since `findButton` prefers the text on
-    screen to the `accessibilityLabel`, and since 2026-09-13 there is text on
-    screen. The label a screen reader hears is still the longer phrase.
+    glyph — *Record*, *Pause* — since `findButton` prefers the text on screen
+    to the `accessibilityLabel`. The label a screen reader hears is still the
+    longer phrase.
   */
-  it('draws record, pause and stop at all times, greying what cannot be pressed', () => {
+  it('draws record and pause at all times, and a pause ends the run', () => {
     const transport = (tree: ReactTestRenderer, label: string) => {
       const button = findButton(tree, label);
       expect(button).toBeDefined();
       return button!.props.accessibilityState.disabled as boolean;
     };
 
-    // Idle, in a room with somebody in it: start, and nothing to stop.
+    // Idle, in a room with somebody in it: start, and nothing to end.
     showChannel(channelOf());
     const idle = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecordings(idle);
+    showConversation(idle);
     expect(transport(idle, 'Record')).toBe(false);
     expect(transport(idle, 'Pause')).toBe(true);
-    expect(transport(idle, 'Stop')).toBe(true);
+    expect(findButton(idle, 'Stop')).toBeUndefined();
     act(() => idle.unmount());
 
-    // Running: the two that end it, and no second run to start.
+    // Running: pause, which ends it, and no second run to start.
     showChannel(
       channelOf((c) =>
         reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
@@ -2201,14 +2203,15 @@ describe('Channel', () => {
     const live = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecordings(live);
+    showConversation(live);
     expect(transport(live, 'Record')).toBe(true);
     expect(transport(live, 'Pause')).toBe(false);
-    expect(transport(live, 'Stop')).toBe(false);
+    act(() => findButton(live, 'Pause')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
     act(() => live.unmount());
 
-    // Paused: the record glyph is what sets it going again — one control for
-    // *start capturing*, rather than a fourth shape that appears only here.
+    // Paused by a build that still sends PAUSE_RECORDING: the record glyph
+    // sets it going again, and Pause ends it like any other run.
     showChannel(
       channelOf((c) =>
         reduce(
@@ -2221,10 +2224,9 @@ describe('Channel', () => {
     const paused = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecordings(paused);
+    showConversation(paused);
     expect(transport(paused, 'Resume')).toBe(false);
-    expect(transport(paused, 'Pause')).toBe(true);
-    expect(transport(paused, 'Stop')).toBe(false);
+    expect(transport(paused, 'Pause')).toBe(false);
     act(() =>
       findButton(paused, 'Resume')!.props.onPress()
     );
@@ -2909,7 +2911,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     const text = textOf(tree);
     expect(text).toContain('Book club');
     expect(text).not.toContain('Nothing recorded here yet');
@@ -2956,7 +2958,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(mine);
+    showConversation(mine);
     act(() => findButton(mine, 'Tuesday')!.props.onPress());
     expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
     act(() => mine.unmount());
@@ -2971,7 +2973,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(theirs);
+    showConversation(theirs);
     act(() => findButton(theirs, 'Tuesday')!.props.onPress());
     expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
     expect(textOf(theirs)).toContain('the floor decides what plays');
@@ -3023,7 +3025,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(asked);
+    showConversation(asked);
     act(() => findButton(asked, 'Tuesday')!.props.onPress());
     expect(checkbox(asked)).toBeDefined();
     expect(textOf(asked)).toContain('Waiting on');
@@ -3038,7 +3040,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(bystander);
+    showConversation(bystander);
     act(() => findButton(bystander, 'Tuesday')!.props.onPress());
     expect(checkbox(bystander)).toBeUndefined();
     // Still told where it stands: it is the channel's recording either way.
@@ -3064,7 +3066,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
 
     // Share, Rename and Delete rather than Play, which is also the name of
     // the shared audio control further up the screen — and 'Share' is that
@@ -3104,7 +3106,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { Alert } = require('react-native');
@@ -3150,7 +3152,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { api } = require('../../api/http');
@@ -3205,7 +3207,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
 
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
     act(() => findButton(tree, 'Rename')!.props.onPress());
@@ -3231,7 +3233,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     expect(textOf(tree)).toContain('Nothing recorded here yet');
     act(() => tree.unmount());
   });
@@ -3447,7 +3449,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(speaking);
+    showConversation(speaking);
     expect(findButton(speaking, 'Record')!.props.disabled).toBe(false);
     act(() => speaking.unmount());
 
@@ -3458,7 +3460,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(muted);
+    showConversation(muted);
     expect(findButton(muted, 'Record')!.props.disabled).toBe(true);
     act(() => muted.unmount());
   });
@@ -3489,7 +3491,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showRecordings(tree);
+    showConversation(tree);
     expect(textOf(tree)).not.toContain('records itself');
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     act(() => tree.unmount());

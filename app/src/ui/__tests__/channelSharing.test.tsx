@@ -32,7 +32,7 @@ import {
   resetHarness,
   showChannel,
   showClipboard,
-  showRecordings,
+  showConversation,
   showWatch,
   textOf,
 } from '../testing/harness';
@@ -593,7 +593,7 @@ describe('Channel, watching together', () => {
     // nothing else. What survives is the refusal itself, and the word under
     // the glyph saying what is being refused.
     const tree = openOnPeople();
-    showRecordings(tree);
+    showConversation(tree);
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     expect(textOf(tree)).not.toContain('Stop the watch party to record');
     act(() => tree.unmount());
@@ -606,7 +606,7 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(textOf(tree)).toContain('Stop the recording first');
+    expect(textOf(tree)).toContain('Pause the recording first');
     act(() => tree.unmount());
   });
 

@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch — and a seventh, *Transcript*, in a channel with a *live transcript*; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
+- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Conversation, Listen, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
@@ -55,6 +55,7 @@ caused; the list carries the meaning.
 - **Community page** — What a community link opens: the community's name, description and member count, the App Store, the *join link* and the web app, and no member's name
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
+- **Conversation (the tab)** — What was said in a channel as it was kept, as one timeline: the *live transcript*, with each *recording* a segment where it began, and the recording transport under it; either form, both or neither. *Recordings* and *Transcript* until 2026-10-09
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
 - **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
@@ -105,7 +106,7 @@ caused; the list carries the meaning.
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
-- **Recording** — Audio kept from a channel, started and stopped by anybody present
+- **Recording** — Audio kept from a channel, started by anybody present and ended by a pause; each one a segment of the *Conversation*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
@@ -113,7 +114,7 @@ caused; the list carries the meaning.
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Transcript* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Conversation* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
@@ -345,10 +346,10 @@ planning/decision/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *People*, *Clipboard*, *Invite*, *Listen*, *Recordings*, *Watch* — and,
-since 2026-10-09, a seventh, *Transcript*, in a channel whose *live transcript*
-is on or has left anything behind. Last, so a strip that gains it moves nothing
-else, and kept while it is the tab you are on.
+draws: *People*, *Clipboard*, *Invite*, *Conversation*, *Listen*, *Watch* —
+the same six always. For one day, 2026-10-09, there was a seventh, *Transcript*,
+offered while a *live transcript* was on; it went into *Conversation* with
+*Recordings* the same day, and the strip stopped changing length.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -358,14 +359,14 @@ somebody in the channel has just handed everybody else (the *clipboard*), and
 how somebody who is not here gets in. The second was *Notepad* until
 2026-09-27 and held the *description* above the clipboard; the description is a
 setting again, and the tab is named after the one card left on it. The last three are what the channel
-is carrying, which outlives the moment: what is playing, what is being
-recorded and what was recorded before, what is being watched. The
-recording transport is on *Recordings* since 2026-09-12; it was a second card
-on *Listen* until then, on the reasoning that recording is what playing is
-doing to the room — but the tab somebody goes to about a recording is the one
-named after them. It is a card again on the tab it moved to, as of
-2026-09-13, and neither it nor the shared track's card carries a label over
-it: the tab is the heading where a tab holds one thing.
+is carrying, which outlives the moment: what was said, what is playing, what
+is being watched. The recording transport has been with the recordings since
+2026-09-12 — it was a second card on *Listen* until then, on the reasoning that
+recording is what playing is doing to the room, but the tab somebody goes to
+about a recording is the one that holds them — and since 2026-10-09 it sits
+under the *Conversation* timeline rather than above a list. Neither it nor the
+shared track's card carries a label over it: the tab is the heading where a
+tab holds one thing.
 *Watch* being last is also what keeps the other five still, it being the only
 one that can be absent.
 
@@ -768,6 +769,27 @@ people: asking and being asked are one subject, and a request is not a
 channel. A request row is the one row on this list that opens nobody — an
 outgoing one is an address rather than a person — so it carries Accept,
 Decline or Withdraw on itself.
+
+## Conversation (the tab)
+
+**What was said in a channel, as it was kept, as one timeline.** The fourth of
+the *channel tabs* since 2026-10-09, when *Recordings* and *Transcript* became
+it and it took *Listen*'s place. The *live transcript* runs oldest at the top
+and newest at the foot under a rule for each day; each *recording* stands in it
+as a segment at the moment it began, its card offering what a recording's card
+always has, Share — the download — among it. The recording transport is under
+the timeline, and the tab opens at its foot.
+
+**Named for what the two forms are records of, not for either form.** A
+channel may keep the conversation as audio, as text, both, or neither:
+*Recordings* was wrong for a channel that only transcribes, *Transcript* for
+one that only records. *Recording* still means audio, and nothing else — that
+audio exists at all is what people are told about, by the red pill.
+
+Not the *conversation* the rest of the interface means — the live talk in the
+room, which you step in to and out of. The tab is that conversation written
+down, which is why the word was chosen and why the two are not in conflict;
+but *Step in to the conversation* is not an instruction about this tab.
 
 ## Dab
 
@@ -2401,10 +2423,11 @@ for a lone speaker, billed per speaker per minute, and the room's turn is spent
 on a recording of one person — the turn coming back only once everybody has
 left and come back. See *Capturable*.
 
-**It decides how a recording begins and nothing else.** Pause, resume and stop
-are what they always were, and stopping is final: the room gets one automatic
-recording, and the next one comes when everybody has left the channel and come
-back. Without that the Stop button would appear not to work — the state returns
+**It decides how a recording begins and nothing else.** Ending a run is what it
+always was, and is final: the room gets one automatic recording, and the next
+one comes when everybody has left the channel and come back. Since 2026-10-09
+ending is what Pause does, there being no Stop. Without that the button would
+appear not to work — the state returns
 to idle, and a rule written as "record when you can" would start another at
 once.
 
@@ -2417,9 +2440,14 @@ it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
 
 ## Recording
 
-Audio kept from a channel, started and stopped by anybody present — and
-paused and resumed by them too, the transport being one act split four ways.
-*Present* is the operative word and is the whole of who may touch it: somebody
+Audio kept from a channel, started by anybody present and ended by them too.
+**Since 2026-10-09 there is no Stop: every pause ends the run**, and the next
+Record begins a new recording, so a conversation recorded in stretches is
+several recordings — segments of the *Conversation* tab, each where it began —
+rather than one file with holes in it. The app sends `STOP_RECORDING` for
+Pause; `PAUSE_RECORDING` and `RESUME_RECORDING` are still honoured for the
+builds that send them, and a run one of them paused shows Resume. *Present* is
+the operative word and is the whole of who may touch it: somebody
 who has stepped out is outside the conversation being recorded, and until
 2026-09-12 only the starting half of this sentence was enforced. A recording
 belongs to the channel, is named when it stops, and carries the same name for
@@ -2628,8 +2656,9 @@ the wall clock, and kept in `live_lines` until the channel goes.
 mark, checked by the server's route, so the switch in channel settings is drawn
 for that account and nobody else. Everybody in the room sees that it is on — the
 *Transcribing* pill — because everybody's speech goes to the provider while it
-is. Read in the *Transcript* tab, which is the first piece of the channel as
-one long conversation.
+is. Read in the *Conversation* tab — the *Transcript* tab for its first day —
+which is the first piece of the channel as one long conversation, with the
+channel's recordings standing in it as segments.
 
 **Not a transcript of a recording**, which is the entry below: that is made
 afterwards, on request, from stored audio. This one never had audio to store.
@@ -4540,8 +4569,8 @@ are settled:
     Clipboard (the tab)   Portapapeles
     Description           Descripción
     Invite (the tab)      Invitar
+    Conversation (the tab) Conversación
     Listen                Escuchar
-    Recordings            Grabaciones
     Watch                 Ver
     Podcasts              Podcasts
     Support (the tab)     Ayuda

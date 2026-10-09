@@ -36,6 +36,7 @@ import {
   showInvites,
   showClipboard,
   showListen,
+  showConversation,
   textOf,
 } from '../testing/harness';
 
@@ -2163,10 +2164,12 @@ describe('a channel screen that does not repeat its footer', () => {
     showClipboard(tree);
     expect(textOf(tree)).toContain('Paste my clipboard');
     showListen(tree);
-    expect(textOf(tree)).toContain('Recording');
+    expect(textOf(tree)).toContain('Play something together');
+    showConversation(tree);
+    expect(findButton(tree, 'Record')).toBeDefined();
     // And the tabs themselves are all still offered. A preference about
     // repetition that quietly removed a tab would be removing abilities.
-    expect(findTab(tree, 'Recordings')).toBeDefined();
+    expect(findTab(tree, 'Conversation')).toBeDefined();
     expect(findTab(tree, 'Invite')).toBeDefined();
     act(() => tree.unmount());
   });

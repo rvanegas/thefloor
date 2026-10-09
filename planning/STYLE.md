@@ -373,16 +373,17 @@ the variant's foreground colour, and it is drawn where the label would be; the
 label stays required and becomes the `accessibilityLabel`, so the word survives
 for a screen reader and for the tests that press controls by name. Instead of
 the word, never beside it — a shape with its own caption is teaching what the
-shape already says. The recording transport on *Recordings* is the only user:
-three of them, `primary` then two `default`, in the `buttonRow` / `flexButton`
+shape already says. The recording transport on *Conversation* is the only
+user: two of them, `primary` then `default`, in the `buttonRow` / `flexButton`
 row the player's transport is built from, which is the point of drawing them
-this way. See § *TransportAction is gone*.
+this way. It was three until 2026-10-09, when Stop went and every pause became
+the end of a run. See § *TransportAction is gone*.
 
 **Never beside it, but since 2026-09-13 under it**, and only there: the same
-three buttons carry *Record* — *Resume* when a run is paused — *Pause* and
-*Stop* as a `sublabel` beneath the glyph. The caption rule holds for a shape
-somebody may press and fails for one that is grey, which two of these three
-usually are; an inert square says neither what it does nor why it will not,
+buttons carry *Record* — *Resume* when a run an older build paused is waiting —
+and *Pause* as a `sublabel` beneath the glyph. The caption rule holds for a
+shape somebody may press and fails for one that is grey, which one of these
+two always is; an inert square says neither what it does nor why it will not,
 and what used to answer that was four muted paragraphs under the row. The word
 is what made removing them affordable, so the two changes are one. It is the
 footer's shape — glyph over word — for the same reason: a row where half the
@@ -557,8 +558,9 @@ what the count rule did.
 An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
-Both tab strips carry icons — the channel screen's six since 2026-09-12 (and
-the seventh, *Transcript*'s `lucide/scroll-text`, since 2026-10-09), Home's
+Both tab strips carry icons — the channel screen's six since 2026-09-12
+(*Conversation*'s is `lucide/scroll-text`, the record dot having gone to the
+Record button when that tab took in *Recordings* on 2026-10-09), Home's
 four since 2026-09-22, when a fourth tab arrived and a strip where one tab
 carried a glyph and three did not would have read as one tab singled out. The
 watch card's `choice` is the one set that still passes none, two halves of one
@@ -630,18 +632,22 @@ for one gesture is the cost the argument did not price.
 
 So the row is now `buttonRow` + `flexButton` with `Button`'s `icon`, which is
 the affordance that pass really wanted — the glyphs were right, the third
-control type was not. What carried over: all three present always, in the
-order start, hold, end, so the positions never move and the irreversible one
-is last; and no RECORDING label over them, the header's pill being where the
-state of the run is reported.
+control type was not. What carried over: every button present always, so the
+positions never move; and no RECORDING label over them, the header's pill
+being where the state of the run is reported. **Two since 2026-10-09**: Stop
+went, and Pause ends the run, so a recording made in stretches is a row of
+segments in the *Conversation* timeline rather than one file with holes in it.
 
 **The card came back later the same day, and the label did not.** Dropping
 both was one move, and only half of it was about the label: a `Card` is not a
 heading, it is what everything on this screen that is a thing sits on, and the
 row that had just been argued into being the player's row was the one thing
 left loose on the background. It now sits on `surface` with its failure lines
-under it, exactly as the shared track's transport does one tab over. The list
-of recordings stays outside it, being its own section.
+under it, exactly as the shared track's transport does one tab over. **Under
+the timeline since 2026-10-09**, not above a list: the tab opens at its foot,
+newest above the transport, which is the composer under a message thread and
+answers the old worry — a control about right now reached past a history of
+any length — from the other end.
 
 ---
 
@@ -982,7 +988,7 @@ no new hue.** To somebody deciding whether to speak, what they say being kept is
 one meaning whether it is kept as audio or as text — so it is the recording's
 token, its pill and its place in the header, without the clock, there being no
 run to time. It is never drawn beside the recording's: while both are true the
-recording is drawn alone, saying the same thing and carrying the Stop.
+recording is drawn alone, saying the same thing.
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
@@ -1230,8 +1236,9 @@ rather than "Empty".
 **A tab with one thing on it gets no label**, since 2026-09-13. A section
 label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED
-AUDIO and *Recordings* keeps only the one over the list, the transport above
-it having no heading at all.
+AUDIO, and *Conversation* has none since 2026-10-09: its recordings stand in
+the timeline rather than in a list under RECORDINGS, the days are divided by
+rules rather than labels, and the transport under it has no heading at all.
 
 ### The watch body has two shapes, and one number decides which
 
@@ -1451,7 +1458,7 @@ the copy.
   legible the first time and the glyph is what makes it findable after that,
   so neither half is ever dropped — an icon-only tab bar is one where the
   third tab is a guess. The exceptions are the header's `IconButton`s and the
-  recording transport's three buttons, where the shapes have meant one thing
+  recording transport's two buttons, where the shapes have meant one thing
   each since tape and a word beside a square would be teaching what the square
   already says. In both, the word survives as the accessibility label — and on
   the transport, since 2026-09-13, under the glyph as well, which is what lets

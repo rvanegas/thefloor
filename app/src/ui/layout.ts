@@ -369,11 +369,18 @@ export function useWholeWindow(take: WindowClaim | null = 'glass'): void {
  * so both stay two rows and every set but four is drawn where it was. Going
  * lower would start unwrapping those, which is the change this is not.
  *
- * The tightest case that occurs is still *Recordings*, the longest of the six
+ * The tightest case that occurs was *Recordings*, then the longest of the six
  * channel tabs: six on the narrowest pane that now takes one row leaves about
  * 67 points of caption, against the 61 that word spells at 11pt. That margin
  * is the floor under this number — six tabs unwrap at 480 rather than 540, and
  * anything under 80 starts clipping the word that made the rule.
+ *
+ * **It no longer holds for every word, since 2026-10-09.** *Conversation*
+ * replaced *Recordings* and runs about 71 points, as Spanish *Portapapeles*
+ * already did, so on a pane from 480 to roughly 510 points either truncates.
+ * Raising this to fit them would wrap Home's four tabs on the narrowest iPhone
+ * in support, which is the case the number exists for; a phone draws six in
+ * two rows and is unaffected.
  */
 export const MIN_SEGMENT = 80;
 

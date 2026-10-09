@@ -2,7 +2,7 @@ import type { LiveLine } from '../../../core/protocol';
 
 /**
  * The live transcript's lines as they arrive over the socket, handed to
- * whichever Transcript tab is showing their channel.
+ * whichever Conversation tab is showing their channel.
  *
  * A module rather than state on the provider, for `watch/drift.ts`'s reason:
  * a line is an event a screen folds into what it already fetched, and nothing

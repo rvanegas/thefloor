@@ -991,7 +991,7 @@ export const en = {
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
     liveTranscript: () => 'Live transcript',
     liveTranscriptNote: () =>
-      'On, everything said in this channel is transcribed as it is said and kept in the Transcript tab, with no recording. Everyone in the channel sees that it is on.',
+      'On, everything said in this channel is transcribed as it is said and kept in the Conversation tab, with no recording. Everyone in the channel sees that it is on.',
     liveTranscriptOnlyYou: () =>
       'Only you see this setting: the transcription is on the house.',
     /** Shown only to an account with `debug` set. See `transcriptionModel`. */
@@ -1283,9 +1283,8 @@ export const en = {
     tabClipboard: () => 'Clipboard',
     tabInvite: () => 'Invite',
     tabListen: () => 'Listen',
-    tabRecordings: () => 'Recordings',
+    tabConversation: () => 'Conversation',
     tabWatch: () => 'Watch',
-    tabTranscript: () => 'Transcript',
     aBrowser: () => 'A browser',
     anotherPhone: () => 'Another phone',
     copied: () => '\u2713 copied',
@@ -1420,7 +1419,6 @@ export const en = {
     record: () => 'Record',
     resume: () => 'Resume',
     pauseRecording: () => 'Pause recording',
-    stopRecording: () => 'Stop recording',
     stop: () => 'Stop',
     floorDecidesWhatPlays: () => 'the floor decides what plays',
     stepInToPlayShort: () => 'step in to play',
@@ -1465,8 +1463,8 @@ export const en = {
       'Step in to drive the film. What everybody is watching is for whoever is here.',
     stepInToStartAParty: () =>
       'Step in to start a watch party. What everybody is watching is for whoever is here.',
-    stopTheRecordingFirst: () =>
-      'Stop the recording first — a watch party is not recorded.',
+    pauseTheRecordingFirst: () =>
+      'Pause the recording first — a watch party is not recorded.',
     // The floor's two sentences on *this* card, which are narrower than the
     // Listen card's pair and must stay that way: a claim decides which film is
     // on, and `canControlWatch` deliberately lets anybody in the room drive
@@ -1506,7 +1504,6 @@ export const en = {
     partyMuted: () => 'Party-muted — nobody is heard while the video plays.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Audio diagnostics',
-    recordings: () => 'Recordings',
     nothingRecordedYet: () => 'Nothing recorded here yet.',
   },
   recordings: {

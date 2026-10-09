@@ -628,9 +628,9 @@ export function showListen(tree: ReactTestRenderer): void {
   showTab(tree, 'Listen');
 }
 
-/** What has been recorded here, and the search over their transcripts. */
-export function showRecordings(tree: ReactTestRenderer): void {
-  showTab(tree, 'Recordings');
+/** What was said here, its recordings among it, and the recording transport. */
+export function showConversation(tree: ReactTestRenderer): void {
+  showTab(tree, 'Conversation');
 }
 
 /**

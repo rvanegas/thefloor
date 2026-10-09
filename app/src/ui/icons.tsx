@@ -431,10 +431,10 @@ export function ListenIcon({
  * What has been kept. `lucide/circle-dot`.
  *
  * The record dot, which is the one glyph in this set nobody has to be taught —
- * it has meant this on hardware since before any of it was software. Drawn
- * plain whether or not a recording is running: the tab is where recordings
- * live, and a tab bar that started pulsing would be saying something the
- * screen already says twice, on the roster and in the header.
+ * it has meant this on hardware since before any of it was software. On the
+ * Record button since 2026-10-09, when the tab it labelled became
+ * *Conversation* and took the scroll; it labelled that tab until then, drawn
+ * plain whether or not a recording was running.
  */
 export function RecordingsIcon({
   color,
@@ -483,6 +483,10 @@ export function WatchIcon({
  * what the tab holds: not a document anybody wrote but a record that unrolls
  * as people talk. Not `lucide/file-text`, which is a page somebody drafted,
  * and not a speech bubble, which would say the tab is where you talk.
+ *
+ * *Conversation*'s since 2026-10-09, when that tab took in *Recordings* and
+ * *Transcript*: its recordings are segments of the scroll, so the scroll is
+ * the picture of the whole and the record dot is left to the button.
  */
 export function TranscriptIcon({
   color,

@@ -1676,7 +1676,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // the readout subscribes there, and nothing else reads these.
         onDrift: receiveDrift,
         // Straight to the live-lines module, for the same reason: the
-        // Transcript tab subscribes there and nothing else reads them.
+        // Conversation tab subscribes there and nothing else reads them.
         onLiveLine: receiveLiveLine,
         // Mirrored rather than derived. Every transition of it is a decision
         // already taken in `Realtime` — entering, stepping out, being

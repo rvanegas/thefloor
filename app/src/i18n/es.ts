@@ -788,7 +788,7 @@ export const es: Strings = {
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
     liveTranscript: () => 'Transcripci\u00f3n en directo',
     liveTranscriptNote: () =>
-      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Transcripci\u00f3n, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
+      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Conversaci\u00f3n, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
     liveTranscriptOnlyYou: () =>
       'Solo t\u00fa ves este ajuste: la transcripci\u00f3n corre por cuenta de la casa.',
     transcriptionModel: () => 'Modelo de transcripci\u00f3n',
@@ -1047,9 +1047,8 @@ export const es: Strings = {
     tabClipboard: () => 'Portapapeles',
     tabInvite: () => 'Invitar',
     tabListen: () => 'Escuchar',
-    tabRecordings: () => 'Grabaciones',
+    tabConversation: () => 'Conversaci\u00f3n',
     tabWatch: () => 'Ver',
-    tabTranscript: () => 'Transcripci\u00f3n',
     aBrowser: () => 'Un navegador',
     anotherPhone: () => 'Otro tel\u00e9fono',
     copied: () => '\u2713 copiado',
@@ -1176,7 +1175,6 @@ export const es: Strings = {
     record: () => 'Grabar',
     resume: () => 'Reanudar',
     pauseRecording: () => 'Pausar la grabaci\u00f3n',
-    stopRecording: () => 'Parar la grabaci\u00f3n',
     stop: () => 'Parar',
     floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',
     stepInToPlayShort: () => 'entra para reproducir',
@@ -1223,8 +1221,8 @@ export const es: Strings = {
       'Entra para manejar la pel\u00edcula. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
     stepInToStartAParty: () =>
       'Entra para empezar a ver algo juntos. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
-    stopTheRecordingFirst: () =>
-      'Para antes la grabaci\u00f3n: ver algo juntos no se graba.',
+    pauseTheRecordingFirst: () =>
+      'Pausa antes la grabaci\u00f3n: ver algo juntos no se graba.',
     theyDecideWhichFilm: (holder: string) =>
       `${holder} tiene la palabra, as\u00ed que cambiar la pel\u00edcula es cosa suya. Cualquiera que est\u00e9 aqu\u00ed puede manejarla.`,
     youDecideWhichFilm: () =>
@@ -1259,7 +1257,6 @@ export const es: Strings = {
       'Sala en silencio: no se oye a nadie mientras va el v\u00eddeo.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Diagn\u00f3stico de audio',
-    recordings: () => 'Grabaciones',
     nothingRecordedYet: () => 'Aqu\u00ed todav\u00eda no hay nada grabado.',
   },
   recordings: {
