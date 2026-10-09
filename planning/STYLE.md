@@ -557,7 +557,8 @@ what the count rule did.
 An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
-Both tab strips carry icons — the channel screen's six since 2026-09-12, Home's
+Both tab strips carry icons — the channel screen's six since 2026-09-12 (and
+the seventh, *Transcript*'s `lucide/scroll-text`, since 2026-10-09), Home's
 four since 2026-09-22, when a fourth tab arrived and a strip where one tab
 carried a glyph and three did not would have read as one tab singled out. The
 watch card's `choice` is the one set that still passes none, two halves of one
@@ -973,7 +974,15 @@ The small marks, and what a diameter means:
 | muted dot | 9, hollow, 1.5pt `textFaint` | you have closed your microphone |
 | speaking dot | 10, 1pt `border` → filled `floor` | this person is audible now |
 | recording dot | 8, solid `recording` (`textFaint` paused) | a recording is running |
+| transcribing dot | 8, solid `recording`, in the same pill with no clock | the *live transcript* is listening |
 | dab | 18, solid `waiting`, `!` in `surface` | something is waiting behind this tab or control |
+
+**The transcribing pill spends the recording's red, deliberately, and spends
+no new hue.** To somebody deciding whether to speak, what they say being kept is
+one meaning whether it is kept as audio or as text — so it is the recording's
+token, its pill and its place in the header, without the clock, there being no
+run to time. It is never drawn beside the recording's: while both are true the
+recording is drawn alone, saying the same thing and carrying the Stop.
 
 **Solid means in; hollow means adjacent to.** That is the whole of the
 grammar, and it is why self-muting is a hollow grey rather than a second
@@ -1420,7 +1429,7 @@ It carries pane identity and never tokens.
 
 ## Icons
 
-Twenty glyphs, **vendored** from `lucide-static@1.38.0` as path data in
+Twenty-one glyphs, **vendored** from `lucide-static@1.38.0` as path data in
 `icons.tsx`, each carrying the name it came from. Not `lucide-react-native`:
 Metro does not tree-shake by default on SDK 54, so the barrel import that
 reads most naturally risks dragging a 25MB package into the graph.

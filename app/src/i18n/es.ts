@@ -513,6 +513,7 @@ export const es: Strings = {
     mute: () => 'Silenciar',
     stepOut: () => 'Salir',
     beingRecorded: () => 'Esta conversaci\u00f3n se est\u00e1 grabando.',
+    beingTranscribed: () => 'Lo que se dice aqu\u00ed se est\u00e1 transcribiendo.',
     you: () => 'T\u00fa',
     silenced: () => 'Alguien tiene la palabra, as\u00ed que la sala no puede o\u00edrte ahora.',
     askToSpeak: () => 'Pedir la palabra',
@@ -791,6 +792,11 @@ export const es: Strings = {
       'Pausar y Parar funcionan igual en ambos casos, y parar es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
+    liveTranscript: () => 'Transcripci\u00f3n en directo',
+    liveTranscriptNote: () =>
+      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Transcripci\u00f3n, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
+    liveTranscriptOnlyYou: () =>
+      'Solo t\u00fa ves este ajuste: la transcripci\u00f3n corre por cuenta de la casa.',
     notifications: () => 'Notificaciones',
     podcast: () => 'Podcast',
     guestLinks: () => 'Enlaces de invitado',
@@ -1044,6 +1050,7 @@ export const es: Strings = {
     tabListen: () => 'Escuchar',
     tabRecordings: () => 'Grabaciones',
     tabWatch: () => 'Ver',
+    tabTranscript: () => 'Transcripci\u00f3n',
     aBrowser: () => 'Un navegador',
     anotherPhone: () => 'Otro tel\u00e9fono',
     copied: () => '\u2713 copiado',
@@ -1054,6 +1061,22 @@ export const es: Strings = {
     couldNotShare: () => 'No se ha podido compartir',
     recordingPaused: () => 'Grabaci\u00f3n en pausa',
     recording: () => 'Grabando',
+    transcribing: () => 'Transcribiendo',
+    liveTranscriptNote: () =>
+      'Lo que se dice en este canal se pone por escrito mientras se dice, y se guarda aqu\u00ed para sus miembros. El audio no se guarda.',
+    liveTranscriptOff: () =>
+      'La transcripci\u00f3n en directo est\u00e1 desactivada. Lo que se escribi\u00f3 mientras estaba activada se guarda aqu\u00ed.',
+    liveNothingYet: () => 'Todav\u00eda no se ha escrito nada.',
+    liveEarlier: () => 'Anteriores',
+    liveLoading: () => 'Cargando\u2026',
+    liveDay: (at: number) =>
+      new Date(at).toLocaleDateString('es', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }),
+    liveTime: (at: number) =>
+      new Date(at).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }),
     paused: () => 'En pausa',
     settings: () => 'Ajustes',
     home: () => 'Inicio',

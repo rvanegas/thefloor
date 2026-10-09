@@ -147,6 +147,22 @@ describe('the seat screen', () => {
     act(() => tree.unmount());
   });
 
+  it('says what is said is being transcribed, when it is', () => {
+    // The live transcript keeps what a guest says as text, which they are
+    // owed on the recording's terms — and the recording, when both are
+    // true, says it already.
+    const live = seatOf((v) => ({ ...v, transcribing: true }));
+    const tree = render(<SeatView view={live} onClose={() => {}} />);
+    expect(textOf(tree)).toContain('being transcribed');
+    act(() => tree.unmount());
+
+    const both = seatOf((v) => ({ ...v, transcribing: true, recording: true }));
+    const recorded = render(<SeatView view={both} onClose={() => {}} />);
+    expect(textOf(recorded)).toContain('being recorded');
+    expect(textOf(recorded)).not.toContain('being transcribed');
+    act(() => recorded.unmount());
+  });
+
   it('steps out of the room and leaves the screen with it', () => {
     const closed = jest.fn();
     const tree = render(<SeatView view={seatOf()} onClose={closed} />);

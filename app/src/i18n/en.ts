@@ -672,6 +672,7 @@ export const en = {
     mute: () => 'Mute',
     stepOut: () => 'Step out',
     beingRecorded: () => 'This conversation is being recorded.',
+    beingTranscribed: () => 'What is said here is being transcribed.',
     you: () => 'You',
     silenced: () =>
       'Somebody has the floor, so the room cannot hear you just now.',
@@ -994,6 +995,11 @@ export const en = {
       'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
+    liveTranscript: () => 'Live transcript',
+    liveTranscriptNote: () =>
+      'On, everything said in this channel is transcribed as it is said and kept in the Transcript tab, with no recording. Everyone in the channel sees that it is on.',
+    liveTranscriptOnlyYou: () =>
+      'Only you see this setting: the transcription is on the house.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
     podcast: () => 'Podcast',
@@ -1279,6 +1285,7 @@ export const en = {
     tabListen: () => 'Listen',
     tabRecordings: () => 'Recordings',
     tabWatch: () => 'Watch',
+    tabTranscript: () => 'Transcript',
     aBrowser: () => 'A browser',
     anotherPhone: () => 'Another phone',
     copied: () => '\u2713 copied',
@@ -1289,6 +1296,24 @@ export const en = {
     couldNotShare: () => 'Could not share',
     recordingPaused: () => 'Recording paused',
     recording: () => 'Recording',
+    /** The pill in the header while the live transcript is listening. */
+    transcribing: () => 'Transcribing',
+    liveTranscriptNote: () =>
+      'What is said in this channel is written down as it is said, and kept here for its members. The audio is not kept.',
+    liveTranscriptOff: () =>
+      'The live transcript is off. What was written down while it was on is kept here.',
+    liveNothingYet: () => 'Nothing has been written down yet.',
+    liveEarlier: () => 'Earlier',
+    liveLoading: () => 'Loading\u2026',
+    /** The divider above a day's lines. */
+    liveDay: (at: number) =>
+      new Date(at).toLocaleDateString('en', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }),
+    liveTime: (at: number) =>
+      new Date(at).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' }),
     paused: () => 'Paused',
     settings: () => 'Settings',
     home: () => 'Home',

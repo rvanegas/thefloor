@@ -799,6 +799,10 @@ export function showChannel(
     publicNotice?: boolean;
     /** When the channel became a podcast, or null while it is not one. */
     publicAt?: number | null;
+    /** Whether the channel has any live transcript to read. */
+    liveTranscript?: boolean;
+    /** Whether this reader may turn the live transcript on. */
+    mayTranscribeLive?: boolean;
   } = {}
 ) {
   const names: Record<string, string> = {

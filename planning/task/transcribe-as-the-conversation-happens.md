@@ -105,58 +105,22 @@ sessions.
 and two speakers, measuring CPU use and how well the live gate lines up with
 `floor_timeline`, on Universal-Streaming Multilingual at $0.15/hr.
 
-## Design, 2026-10-09: what is being built
+## Built, 2026-10-09
 
-Rodrigo's answers, the same day. **Live transcription runs whenever anybody
-talks in a chosen channel, with no recording**. It is switched on by a toggle
-in channel settings that only he can see or set, and the result is shown in
-**a Transcript tab**: one continuous history per channel, newest at the bottom,
-lines arriving while people talk. That is the first piece of
-`the-channel-is-one-long-conversation.md`, and the text
-`catch-up-when-stepping-into-a-conversation-under-way.md` needs.
+The first version is built: channels chosen by somebody on the house are
+transcribed as they talk, with no recording, into a Transcript tab.
+`decision/2026-10-09-live-transcription-runs-without-a-recording.md` is what
+was decided and why. What remains of this task:
 
-- **Who may switch it on.** Whoever `transcribesFreely`: the
-  `transcripts_unlimited` mark, which is the house paying. The answer to *who
-  pays* is still `free-to-talk-paid-to-transcribe-and-digest.md`'s. Until then
-  the switch is hidden from everybody else, and the server refuses it from
-  them. Also a *member* of the channel, as every channel setting requires.
-- **The state.** `ChannelState.liveTranscription: boolean`. Set by a server
-  route, `PUT /channels/:id/live-transcription`, through an internal action
-  that is not in the client's list. Everybody sees the state, because
-  everybody is owed the indicator.
-- **The indicator.** A *Transcribing* pill in the channel header, where the
-  recording pill goes and built the same way, shown while the setting is on
-  and the room is occupied. When a recording is running, the recording pill
-  is shown instead. The text is shown to guests too, on the seat page.
-- **The audio path.** One rtc-node participant per transcribing channel,
-  hidden, subscribed only to the microphones of people present. Each
-  identity's track arrives as `AudioStream(track, 16000, 1)` and goes to one
-  AssemblyAI streaming session, `universal-streaming-multilingual` with
-  `format_turns=true`, over `ws` with the key in `Authorization`. The session
-  opens when that track carries audio and closes after 30 s without any, with
-  `Terminate` and then waiting for `Termination`, because billing is by
-  connection time. The 3-hour cap rolls over to a new session.
-- **The floor.** While somebody is `isWithheld`, their frames are replaced
-  with zeros rather than dropped, as the findings above say. What listeners
-  did not hear is not written.
-- **Time.** No recording timeline exists, so a line is placed on the wall
-  clock. Each chunk sent records `(audio offset, Date.now())`, and a word's
-  `start` is mapped through the nearest anchor at or before it.
-- **Storage.** `live_lines(id, channel_id, identity, display_name, start_at,
-  end_at, text, confidence)`. The name is frozen per line, as
-  `participant_names` freezes it per run. Only final turns are stored. Partial
-  turns are not shown in this version.
-- **Wire.** `GET /channels/:id/live-transcript?before=&limit=` pages
-  backwards for members. A new `transcript.line` server message is sent to
-  every connection watching the channel. Older builds ignore it, since their
-  message switch has no default. `ChannelView.liveTranscript` says whether
-  the channel has any lines, so the tab can be offered to a channel whose
-  setting has since been turned off.
-- **The tab.** `transcript`, last in the strip so nothing else moves, offered
-  while the setting is on or any lines exist. Date dividers, entries grouped
-  by `intoBlocks`, and the newest line kept in view while you are at the
-  bottom.
-
-Not in this version, deliberately: search over live lines, deleting them,
-partial turns on screen, guests reading the tab, and the digest. A server
-restart drops what was in flight, a few seconds per speaker.
+- **Measure it on the box**, as the next step above asked: CPU for one
+  rtc-node subscriber decoding and resampling two or three speakers, and how
+  closely the live floor gate lines up with what listeners heard. Watch
+  `live_sessions` for what it costs.
+- **Partial turns on screen**, so a line appears as it is spoken rather than
+  when the provider finishes the turn.
+- **Search over live lines**, beside the recordings' transcript search.
+- **Deleting live lines**, by whom, and whether the free-transcript rules
+  have anything to say about it.
+- **Guests reading the tab.** Today they are told it is on and cannot read it.
+- **Surviving a restart.** A restart drops what was in flight, a few seconds
+  per speaker; sessions reopen on the next word.

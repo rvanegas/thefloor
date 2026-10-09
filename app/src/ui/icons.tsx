@@ -477,6 +477,31 @@ export function WatchIcon({
 }
 
 /**
+ * What has been said, written down. `lucide/scroll-text`.
+ *
+ * A scroll with lines on it — the channel's one long conversation, which is
+ * what the tab holds: not a document anybody wrote but a record that unrolls
+ * as people talk. Not `lucide/file-text`, which is a page somebody drafted,
+ * and not a speech bubble, which would say the tab is where you talk.
+ */
+export function TranscriptIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M15 12h-5" />
+      <Path d="M15 8h-5" />
+      <Path d="M19 17V5a2 2 0 0 0-2-2H4" />
+      <Path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />
+    </Glyph>
+  );
+}
+
+/**
  * The home tier's four tabs, below.
  *
  * Added 2026-09-22 with the Podcasts tab, and the other three came with it:

@@ -169,6 +169,13 @@ export function SeatView({
         <Card style={styles.recording}>
           <Text style={styles.recordingText}>{t.beingRecorded()}</Text>
         </Card>
+      ) : view.transcribing ? (
+        /* The live transcript, on the recording's terms and in its card: what
+           a guest says is being kept, as text rather than audio, and that is
+           the promise this card exists to make. The recording outranks it. */
+        <Card style={styles.recording}>
+          <Text style={styles.recordingText}>{t.beingTranscribed()}</Text>
+        </Card>
       ) : null}
 
       <SectionLabel>{t.you()}</SectionLabel>

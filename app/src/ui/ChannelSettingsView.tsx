@@ -20,7 +20,7 @@ import {
 } from '../../../core/notifications';
 import type { ChannelState } from '../../../core/types';
 import { API_URL } from '../api/config';
-import { type GuestLinkSummary } from '../api/http';
+import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
@@ -70,6 +70,7 @@ export function ChannelSettingsView({
   derivedTitle,
   publicAt,
   publication,
+  mayTranscribeLive = false,
   onBack,
   onLeft,
 }: {
@@ -100,6 +101,12 @@ export function ChannelSettingsView({
     category: string | null;
     imageAt: number | null;
   };
+  /**
+   * Whether this reader may turn the live transcript on, which is what draws
+   * the switch at all. Per reader, on the snapshot, for `publicAt`'s reason;
+   * see `ChannelView.mayTranscribeLive`.
+   */
+  mayTranscribeLive?: boolean;
   onBack: () => void;
   /** Called once membership is given up, to get off this channel's screens. */
   onLeft: () => void;
@@ -462,6 +469,49 @@ export function ChannelSettingsView({
               : t.autoRecordStepIn()}
         </Text>
       </Card>
+
+      {/*
+        The live transcript, and only for somebody who may switch it — the
+        house pays, and until somebody else can there is nobody else to show
+        it to. Not an action through the reducer, unlike the pair above: who
+        may is an account mark the channel state has never heard of, so the
+        server's route checks it and the snapshot carries the answer back.
+      */}
+      {mayTranscribeLive ? (
+        <>
+          <SectionLabel>{t.liveTranscript()}</SectionLabel>
+          <Card style={styles.stack}>
+            <View style={styles.choices}>
+              {(
+                [
+                  [true, t.on()],
+                  [false, t.off()],
+                ] as Array<[boolean, string]>
+              ).map(([value, label]) => (
+                <Button
+                  key={label}
+                  label={label}
+                  style={styles.choice}
+                  variant={!!channel.liveTranscription === value ? 'primary' : 'default'}
+                  onPress={() => {
+                    if (!app.token) return;
+                    api
+                      .setLiveTranscription(app.token, channel.id, value)
+                      .catch((e: unknown) =>
+                        Alert.alert(
+                          t.liveTranscript(),
+                          e instanceof Error ? e.message : String(e)
+                        )
+                      );
+                  }}
+                />
+              ))}
+            </View>
+            <Text style={type.muted}>{t.liveTranscriptNote()}</Text>
+            <Text style={type.muted}>{t.liveTranscriptOnlyYou()}</Text>
+          </Card>
+        </>
+      ) : null}
 
       {/*
         Whose phone this channel may ring, and how loudly. One person's own

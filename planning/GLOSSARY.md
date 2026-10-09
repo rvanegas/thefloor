@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
+- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Listen, Recordings, Watch — and a seventh, *Transcript*, in a channel with a *live transcript*; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
@@ -113,6 +113,8 @@ caused; the list carries the meaning.
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Transcript* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09; not behind *Labs*, since anybody whose speech is kept can read it
+- **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript, which since 2026-10-09 is exactly one *stem*: labelled with its owner's display name, or *Played audio*, and never renamed
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
@@ -342,7 +344,10 @@ planning/decision/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 ## Channel tabs
 
 **The six views of a channel**, one at a time, on the switch a channel screen
-draws: *People*, *Clipboard*, *Invite*, *Listen*, *Recordings*, *Watch*.
+draws: *People*, *Clipboard*, *Invite*, *Listen*, *Recordings*, *Watch* — and,
+since 2026-10-09, a seventh, *Transcript*, in a channel whose *live transcript*
+is on or has left anything behind. Last, so a strip that gains it moves nothing
+else, and kept while it is the tab you are on.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
@@ -2605,6 +2610,24 @@ under each list. A tab is one tap from either, and pushes neither down.
 the section means support this project — money; *Help* means get support. The
 tab's own label is the first sense, which is why Help is the section above it
 rather than a row inside it.
+
+## Live transcript
+
+**What is said in a channel, written down as it is said, with no recording.**
+One line per finished turn of one speaker, named after whose microphone it came
+from — a *stem* is one voice — with the name frozen as it was said, placed on
+the wall clock, and kept in `live_lines` until the channel goes.
+
+**Switched on per channel, by somebody on the house.** The setting is
+`ChannelState.liveTranscription`; who may turn it is the `transcripts_unlimited`
+mark, checked by the server's route, so the switch in channel settings is drawn
+for that account and nobody else. Everybody in the room sees that it is on — the
+*Transcribing* pill — because everybody's speech goes to the provider while it
+is. Read in the *Transcript* tab, which is the first piece of the channel as
+one long conversation.
+
+**Not a transcript of a recording**, which is the entry below: that is made
+afterwards, on request, from stored audio. This one never had audio to store.
 
 ## Transcript
 

@@ -454,6 +454,7 @@ export function Screen({
   footer,
   aside,
   asidePlace = 'above',
+  followEnd = false,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -527,8 +528,22 @@ export function Screen({
    * coordinates and only its top is read, which a row leaves alone.
    */
   asidePlace?: 'above' | 'beside';
+  /**
+   * Keeps the end of the content in view as it grows — **while the reader is
+   * already at the end**, and not otherwise.
+   *
+   * For a body that grows at the bottom on its own: the live transcript,
+   * whose newest line arrives while somebody is reading. Somebody who has
+   * scrolled up to read something earlier is left where they are; a body that
+   * dragged them back down every time a line landed would make the history
+   * unreadable for exactly as long as anybody is talking.
+   */
+  followEnd?: boolean;
 }) {
   const scroll = React.useRef<ScrollView>(null);
+  /** Whether the reader is at the end, which is what `followEnd` asks. */
+  const atEnd = React.useRef(true);
+  const contentHeight = React.useRef(0);
   /** The room the aside and the scroll share; see the `onLayout` below. */
   const [bodyHeight, setBodyHeight] = React.useState(0);
   /**
@@ -642,6 +657,18 @@ export function Screen({
           scrollEventThrottle={16}
           onScroll={(e) => {
             viewport.current.offset = e.nativeEvent.contentOffset.y;
+            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+            // Within a line's height of the end counts as at it, so a
+            // reader who is a few points short is still followed.
+            atEnd.current =
+              contentOffset.y + layoutMeasurement.height >= contentSize.height - 48;
+          }}
+          onContentSizeChange={(_, height) => {
+            const grew = height > contentHeight.current;
+            contentHeight.current = height;
+            if (followEnd && grew && atEnd.current) {
+              scroll.current?.scrollToEnd({ animated: true });
+            }
           }}
         >
           {children}

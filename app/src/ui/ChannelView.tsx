@@ -64,6 +64,7 @@ import {
   holdsTheControls,
   isPresent,
   canPing,
+  isTranscribingLive,
 } from '../../../core/channel';
 import { inRoom, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
@@ -93,6 +94,7 @@ import {
   PauseIcon,
   ListenIcon,
   RecordingsIcon,
+  TranscriptIcon,
   SettingsIcon,
   StepIcon,
   StopIcon,
@@ -140,6 +142,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
+import { LiveTranscript } from './LiveTranscript';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -166,7 +169,9 @@ export type ChannelTab =
   | 'invites'
   | 'listen'
   | 'recordings'
-  | 'watch';
+  | 'watch'
+  /** The live transcript — offered only where there is one; see `tabs`. */
+  | 'transcript';
 
 /**
  * What the upload button says while it is uploading.
@@ -1634,6 +1639,7 @@ export function ChannelView({
         // screen has already resolved the snapshot.
         publicAt={view.publicAt ?? null}
         publication={view.publication}
+        mayTranscribeLive={view.mayTranscribeLive ?? false}
         onBack={() => setSettingsOpen(false)}
         onLeft={() => {
           app.leaveChannelView(channelId);
@@ -2169,7 +2175,8 @@ export function ChannelView({
   const mayUnmuteRoom = canUnmuteRoom(channel);
 
   /**
-   * The tabs this account is offered, which is six, always the same six.
+   * The tabs this account is offered, which is six, always the same six —
+   * and a seventh, *Transcript*, in a channel that has a live transcript.
    *
    * *Watch* was the one variable tab while watching together was behind Labs,
    * and it is not any more: a tab bar that gains and loses entries as the
@@ -2177,7 +2184,17 @@ export function ChannelView({
    * one control up — the thing you were reaching for is somewhere else by the
    * time you land — and the reason to tolerate it was withholding an
    * experimental feature, which is no longer a thing being done here.
+   *
+   * **The seventh is the exception, and it is not one of the room's states.**
+   * It is offered while the channel's live transcript is switched on or has
+   * left anything behind — facts about the channel that change when its owner
+   * turns a setting, not while people come and go — and it is last, so a
+   * strip that gains it moves nothing else. While it is the tab somebody is
+   * on, it stays, whatever the setting does: a tab that vanished from under
+   * the reader would be the finger-under-the-thumb problem again.
    */
+  const offersTranscript =
+    !!channel.liveTranscription || !!view?.liveTranscript || tab === 'transcript';
   const tabs: readonly {
     value: ChannelTab;
     label: string;
@@ -2213,6 +2230,15 @@ export function ChannelView({
       label: t.tabWatch(),
       icon: (color) => <WatchIcon color={color} />,
     },
+    ...(offersTranscript
+      ? [
+          {
+            value: 'transcript' as const,
+            label: t.tabTranscript(),
+            icon: (color: ColorValue) => <TranscriptIcon color={color} />,
+          },
+        ]
+      : []),
   ];
   /**
    * Mints a follower link and hands it to the share sheet.
@@ -2442,6 +2468,25 @@ export function ChannelView({
               <Text style={styles.recordingTime}>
                 {formatDuration(recordedMs(channel.recording, now))}
               </Text>
+            </View>
+          ) : isTranscribingLive(channel) ? (
+            /*
+              **The live transcript's indicator, built as the recording's
+              is**, in the same place and in the same red: to somebody
+              deciding whether to speak, what they say being kept is one
+              meaning, whether it is kept as audio or as text. No clock, there
+              being no run to time. A recording outranks it, and is drawn
+              instead while both are true: it already says that what is said
+              is being kept, and it is the one with a Stop.
+            */
+            <View
+              style={[styles.recordingStatus, styles.headerRecording]}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={t.transcribing()}
+            >
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingLabel}>{t.transcribing()}</Text>
             </View>
           ) : null}
           <IconButton
@@ -3125,6 +3170,9 @@ export function ChannelView({
       */
       asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
       contentStyle={styles.container}
+      // The transcript grows at the bottom while people talk; every other
+      // tab is read from the top. See `Screen.followEnd`.
+      followEnd={tab === 'transcript'}
     >
         {/*
           Why you are in a room with people you have never met.
@@ -4195,6 +4243,13 @@ export function ChannelView({
           </View>
         )}
           </>
+        ) : null}
+
+        {tab === 'transcript' ? (
+          <LiveTranscript
+            channelId={channelId}
+            transcribing={isTranscribingLive(channel)}
+          />
         ) : null}
 
         {tab === 'watch' ? (

@@ -1,4 +1,5 @@
 import type {
+  LiveLine,
   HelpQuestion,
   HelpView,
   HomeView,
@@ -875,6 +876,25 @@ export const api = {
    * reason it is a request rather than a local `filter`: the text of a year of
    * conversation is not something a phone holds.
    */
+  /**
+   * A channel's live transcript, a page at a time: the newest page with no
+   * `before`, and the one ending just before `before` with it. Oldest first
+   * within a page; `more` says whether there is an earlier one.
+   */
+  liveTranscript: (token: string, channelId: string, before?: number) =>
+    request<{ lines: LiveLine[]; more: boolean }>(
+      `/channels/${channelId}/live-transcript` +
+        (before === undefined ? '' : `?before=${before}`),
+      { token }
+    ),
+
+  /** Turns a channel's live transcript on or off, for whoever may. */
+  setLiveTranscription: (token: string, channelId: string, on: boolean) =>
+    request<{ ok: true; liveTranscription: boolean }>(
+      `/channels/${channelId}/live-transcription`,
+      { method: 'PUT', token, body: { on } }
+    ),
+
   searchTranscripts: (token: string, channelId: string, q: string) =>
     request<{
       hits: Array<{

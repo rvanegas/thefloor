@@ -37,6 +37,7 @@ import {
   subscribeDrift,
 } from '../watch/drift';
 import { mustUpdate } from '../api/expiry';
+import { receiveLiveLine } from '../live/lines';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { traceSocket } from '../api/socketTrace';
@@ -1681,6 +1682,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Straight to the drift module, as the follower's own readings go:
         // the readout subscribes there, and nothing else reads these.
         onDrift: receiveDrift,
+        // Straight to the live-lines module, for the same reason: the
+        // Transcript tab subscribes there and nothing else reads them.
+        onLiveLine: receiveLiveLine,
         // Mirrored rather than derived. Every transition of it is a decision
         // already taken in `Realtime` — entering, stepping out, being
         // displaced, following a move, giving up a stale re-entry past the

@@ -12,6 +12,7 @@ import type {
   ScreenDevice,
   ServerMessage,
   SharedDrift,
+  LiveLine,
   ChannelView,
 } from '../../../core/protocol';
 import type { AccountSettings } from '../../../core/settings';
@@ -122,6 +123,8 @@ export interface RealtimeHandlers {
    * `ServerMessage.watch.drift`.
    */
   onDrift?: (channelId: string, userId: string, reading: SharedDrift | null) => void;
+  /** One line of a watched channel's live transcript, as it is written. */
+  onLiveLine?: (channelId: string, line: LiveLine) => void;
   /**
    * Which channel *this device* is standing in, or null for none.
    *
@@ -555,6 +558,9 @@ export class Realtime {
           break;
         case 'watch.drift':
           this.handlers.onDrift?.(message.channelId, message.userId, message.reading);
+          break;
+        case 'transcript.line':
+          this.handlers.onLiveLine?.(message.channelId, message.line);
           break;
         case 'error':
           if (message.channelId) {
