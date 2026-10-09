@@ -845,14 +845,8 @@ export const en = {
     audioOutput: () => 'Audio output',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
-    labs: () => 'Labs',
-    showExperimental: () => 'Show experimental features',
     on: () => 'On',
     off: () => 'Off',
-    labsWhat: () =>
-      'Off, which is where everybody starts. On, one unfinished thing appears: transcripts of your recordings. It can change or go away.',
-    labsWhose: () =>
-      'It follows your account rather than this phone, and it is only about you — turning it on shows these to you, not to anybody else in your channels.',
     diagnostics: () => 'Diagnostics',
     forgetThisPhone: () => 'Forget this phone',
     forgetting: () => 'Forgetting\u2026',

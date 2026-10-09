@@ -75,7 +75,7 @@ caused; the list carries the meaning.
 - **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
 - **Join link** — `thefloor://j/<code>`, drawn on the community page: what makes whoever follows it a member of the community once signed in. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
-- **Labs** — A Home setting deciding whether the unfinished parts exist for you; per account, off by default; *transcripts* is the only thing behind it since the watch party left on 2026-09-18
+- **Labs** — A per-account gate for the unfinished parts of the app, off by default; **nothing is behind it since 2026-10-09**, when transcripts left, so its switch is not drawn — kept for the next experiment
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
@@ -112,8 +112,8 @@ caused; the list carries the meaning.
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
-- **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Transcript* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09; not behind *Labs*, since anybody whose speech is kept can read it
+- **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Transcript* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript, which since 2026-10-09 is exactly one *stem*: labelled with its owner's display name, or *Played audio*, and never renamed
@@ -1301,17 +1301,21 @@ is in the channel rather than to whoever has the screen open.
 
 ## Labs
 
-**A setting on Home that decides whether the unfinished parts of the app exist
-for you.** Off for everybody until they turn it on, and it belongs to the
-account rather than to the phone. One thing is behind it today: *transcripts*.
-The *watch party* was the other and left on 2026-09-18, which is what graduating
-looks like — see
-planning/decision/2026-09-18-the-watch-party-comes-out-of-labs.md.
+**A gate on the unfinished parts of the app**, per account, off for everybody
+until they turn it on. **Nothing is behind it since 2026-10-09**, and the switch
+is not drawn — a switch that changes nothing is a control somebody presses to
+no effect. The setting is still stored, sent and accepted, so the next
+experiment has somewhere to stand, and the section in Settings comes back
+with it.
 
-It is a gate, not a preference: with it off the section is not on the screen at
-all — no greyed buttons, no empty cards. And it is only about you: a member of
-your channel who has turned it on can transcribe a recording you cannot read.
-See `labs` in core/settings.ts.
+Two things have graduated from it: the *watch party* on 2026-09-18 (see
+planning/decision/2026-09-18-the-watch-party-comes-out-of-labs.md), and
+*transcripts* on 2026-10-09, when the *live transcript* arrived and what is
+kept of somebody's speech stopped being something they had to opt in to read.
+
+It is a gate, not a preference: while something is behind it, the section is
+not on the screen at all for somebody with it off — no greyed buttons, no
+empty cards. See `labs` in core/settings.ts.
 
 ## Language
 
@@ -2631,8 +2635,9 @@ afterwards, on request, from stored audio. This one never had audio to store.
 
 ## Transcript
 
-Behind *Labs*, since 2026-09-06: without it, a recording shows no transcript
-and no way to ask for one.
+Behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now: every
+member of a channel is offered a recording's transcript and the way to ask for
+one.
 
 Text made from a recording, on request, by a third-party provider named on the
 screen that asks. Everybody gets one free; asking sends everybody's audio out,

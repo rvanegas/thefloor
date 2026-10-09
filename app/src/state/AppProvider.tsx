@@ -956,16 +956,9 @@ interface AppValue extends AppState {
   /**
    * Whether this account has asked to see the experimental features.
    *
-   * Off by default like the two above it, and unlike them it hides things
-   * rather than rearranging them: with it off there is no transcript anywhere.
-   * Nothing in the app reads this value to decide that — the server withholds
-   * each recording's `transcript` field from a viewer without Labs, and the
-   * app already draws nothing when that field is absent, which is how a server
-   * with no transcription key has always been handled. It is read here so the
-   * settings screen can show the switch and so signing in can restore it.
-   *
-   * The watch party was the other half of this and left Labs on 2026-09-18,
-   * which is why nothing on the channel screen consults it now. See `labs` in
+   * **Gates nothing since 2026-10-09**, when transcripts left it, and the
+   * settings screen no longer draws the switch. Kept, and restored on sign-in,
+   * so the next unfinished feature has somewhere to stand. See `labs` in
    * core/settings.ts.
    */
   labs: boolean;

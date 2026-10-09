@@ -269,27 +269,20 @@ describe('asking for one', () => {
   }, 60_000);
 
   /**
-   * The Labs gate, and it is checked before everything else this route
-   * checks: somebody who never asked for the experimental features is not
-   * told they have spent their one free use, and nothing is sent to the
-   * provider. The app withholds the button, so reaching here at all means a
-   * client that predates the gate or one asking directly — which is exactly
-   * the case a refusal exists for, transcription being the one thing in this
-   * app that spends money per use.
+   * Not behind Labs since 2026-10-09. An account that never turned it on is
+   * offered a transcript and may ask for one, the setting having nothing
+   * behind it any more. See `labs` in core/settings.ts.
    */
-  it('refuses somebody who has not turned Labs on, and spends nothing', async () => {
+  it('asks nobody to have turned Labs on', async () => {
     const { alice } = await room();
     app.accounts.updateSettings(alice.account.id, { labs: false }, clock);
 
+    expect(listedFor(alice.account.id).transcript).toBeDefined();
     const answered = await ask(alice.token);
-    expect(answered.statusCode).toBe(403);
-    expect(answered.json().error).toMatch(/Labs/);
-    expect(provider.submitted).toHaveLength(0);
-    // And the field goes with it, which is what takes the button off the
-    // screen — the app draws nothing for a recording with no transcript
-    // field, the same way it does against a server with no provider.
-    expect(listedFor(alice.account.id).transcript).toBeUndefined();
-  });
+    expect(answered.statusCode).toBe(200);
+    await app.transcripts.settled();
+    expect(provider.submitted.length).toBeGreaterThan(0);
+  }, 60_000);
 
   it('tells a stranger the recording does not exist', async () => {
     await room();

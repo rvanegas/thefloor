@@ -292,40 +292,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {/*
-        Under the settings that change what the app does and above appearance,
-        which is where it belongs by subject rather than by importance: the
-        sections above it are the ones somebody actually came here for, and
-        this is the one they did not. Not at the bottom beside the account,
-        which is where a screen puts what it is slightly ashamed of — this is
-        opt-in and unfinished, not dangerous, and the card says which.
+        *Labs* was here, a switch for the unfinished parts of the app, and has
+        nothing behind it since 2026-10-09 — so it is not drawn: a switch that
+        changes nothing is a control the person presses to no effect. It comes
+        back, in this place, with the next thing to put behind it. See `labs`
+        in core/settings.ts.
       */}
-      <SectionLabel>{t.labs()}</SectionLabel>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.showExperimental()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, t.on()],
-              [false, t.off()],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.labs === value ? 'primary' : 'default'}
-              onPress={() => app.setLabs(value)}
-            />
-          ))}
-        </View>
-        {/*
-          Named rather than described, because the whole point of the switch is
-          that somebody can tell afterwards what appeared. "Experimental
-          features" alone is a setting whose effect nobody can find.
-        */}
-        <Text style={type.muted}>{t.labsWhat()}</Text>
-        <Text style={type.muted}>{t.labsWhose()}</Text>
-      </Card>
 
       {/*
         **Behind `debug` rather than Labs**, which is the difference between a

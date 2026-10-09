@@ -668,14 +668,8 @@ export const es: Strings = {
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
-    labs: () => 'Pruebas',
-    showExperimental: () => 'Mostrar funciones experimentales',
     on: () => 'S\u00ed',
     off: () => 'No',
-    labsWhat: () =>
-      'No, que es donde empieza todo el mundo. S\u00ed, aparece una cosa sin terminar: las transcripciones de tus grabaciones. Puede cambiar o desaparecer.',
-    labsWhose: () =>
-      'Va con tu cuenta y no con este tel\u00e9fono, y es solo cosa tuya: activarlo te las muestra a ti, no a nadie m\u00e1s de tus canales.',
     diagnostics: () => 'Diagn\u00f3stico',
     forgetThisPhone: () => 'Olvidar este tel\u00e9fono',
     forgetting: () => 'Olvidando\u2026',

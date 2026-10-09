@@ -126,14 +126,16 @@ export interface AccountSettings {
   /**
    * Whether the experimental parts of the app are visible and usable at all.
    *
-   * Unset, which is the default, this app is what it has always been: a
-   * channel is voices, a clipboard, a shared track, a recording and a video
-   * watched together. Set, transcripts appear on recordings and the control
-   * that asks for one starts working.
+   * **Nothing is behind it, since 2026-10-09**, and the switch is not drawn.
+   * Transcripts were the last thing, and left with the live transcript: what
+   * is kept of somebody's speech is something they may read, not an
+   * experiment they opt into. The setting is kept — stored, sent and
+   * accepted — so the next unfinished thing has a gate to stand behind, and
+   * the section in Settings comes back with it.
    *
-   * The watch party was behind this until 2026-09-18 and is not any more: it
-   * had stopped being unfinished, and a feature nobody can reach is not being
-   * tested by anybody. Labs is down to the one thing again.
+   * The watch party was behind this until 2026-09-18 and left for the reason
+   * transcripts did: a feature nobody can reach is not being tested by
+   * anybody.
    *
    * **It is a gate rather than a preference**, which is the one thing that
    * still sets it apart from the two above now that all three read the same

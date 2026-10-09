@@ -316,55 +316,15 @@ describe("the Labs setting", () => {
   });
 
   /**
-   * One thing, not two: watching a video together left Labs on 2026-09-18 and
-   * the card must stop naming it, a switch that promises something it does not
-   * turn on being worse than one that promises nothing.
+   * Nothing is behind Labs since 2026-10-09 — transcripts were the last
+   * thing — so the switch is not drawn: one that changes nothing is a control
+   * somebody presses to no effect. It comes back with the next experiment.
    */
-  it("names the thing it turns on", async () => {
+  it("draws no Labs switch while nothing is behind it", async () => {
     const tree = await openSettings();
     const text = textOf(tree);
-    expect(text).toContain("Show experimental features");
-    expect(text).toContain("transcripts");
-    expect(text).not.toContain("watching a video together");
-    // And that it is nobody else's business, which is the question anybody
-    // sharing a channel asks next.
-    expect(text).toContain("not to anybody else");
-    act(() => tree.unmount());
-  });
-
-  it("reports a change rather than keeping it", async () => {
-    const tree = await openSettings();
-    act(() => labsButton(tree, "On").props.onPress());
-    expect(mockApp.setLabs).toHaveBeenCalledWith(true);
-    // `expect(mockApp.setTapToLook).not.toHaveBeenCalled()` was here, proving
-    // the positional helper above had found this pair rather than the tap's.
-    // There is no other On/Off pair on this screen since 2026-09-21, so the
-    // confusion it guarded against cannot arise — and it comes back the moment
-    // a second pair does.
-    expect(mockApp.setAppearance).not.toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  /**
-   * Which one is marked rather than merely that they differ, because the
-   * default is the whole point of this setting: an account that has never
-   * asked has to see Off in force. The tap's Off is the yardstick — since
-   * 2026-09-07 every setting on this screen is named for the departure from
-   * what an untouched account gets, so Off is in force on all three and they
-   * carry the same mark.
-   */
-  it("marks Off in force for somebody who has never asked", async () => {
-    const tree = await openSettings();
-    const styleFor = (node: ReactTestInstance) =>
-      StyleSheet.flatten(node.props.style({ pressed: false })) as {
-        backgroundColor?: unknown;
-      };
-    expect(styleFor(labsButton(tree, "Off")).backgroundColor).not.toBe(
-      styleFor(labsButton(tree, "On")).backgroundColor,
-    );
-    expect(styleFor(labsButton(tree, "Off")).backgroundColor).toBe(
-      styleFor(findButton(tree, "Off")!).backgroundColor,
-    );
+    expect(text).not.toContain("Labs");
+    expect(text).not.toContain("Show experimental features");
     act(() => tree.unmount());
   });
 });

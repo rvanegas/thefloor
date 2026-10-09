@@ -4275,18 +4275,6 @@ export function buildApp(options: BuildOptions = {}): App {
         .code(503)
         .send({ error: 'Transcription is not configured.' });
     }
-    // Before the gate and before the reach test, because it is the broadest of
-    // the three: a transcript is behind Labs, and somebody who has not turned
-    // it on is not being told they have spent their free use or that the
-    // recording is somebody else's. The app withholds the button, so reaching
-    // here means a client that was built before this or has been asked
-    // directly — and this is the refusal that actually stops the spending.
-    // See `labs` in core/settings.ts.
-    if (!accounts.settings(account.id).labs) {
-      return reply
-        .code(403)
-        .send({ error: 'Transcripts are a Labs feature. Turn Labs on in Settings.' });
-    }
     // Before the reach test, on purpose. A member who may see the recording
     // and may not spend on it should be told that, rather than told the
     // recording does not exist.
@@ -5467,15 +5455,8 @@ export function buildApp(options: BuildOptions = {}): App {
     viewerId: string
   ): Pick<RecordingView, 'transcript'> {
     if (!transcripts.available()) return {};
-    // Before the provider check would even matter: transcripts are behind
-    // Labs, and this absence is the whole of what withholds them from the app
-    // — the button, the search field above the list, and the way into a
-    // transcript that already exists. It is viewer-relative like everything
-    // else here, so one member of a channel having asked for the experimental
-    // features does not put them on anybody else's screen; a guest, who has no
-    // account to have asked, reads the default and sees none of it. See `labs`
-    // in core/settings.ts.
-    if (!accounts.settings(viewerId).labs) return {};
+    // Not behind Labs since 2026-10-09: everybody whose speech is in a
+    // recording may read what was made of it, as they may the live transcript.
     const gate = transcribeGate(viewerId, row.id);
     const mayRequest = gate.ok;
     // The sentence travels with the refusal rather than being composed in the
