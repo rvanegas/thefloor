@@ -513,6 +513,9 @@ describe("forgetting this phone", () => {
  * reverse, and nothing else in the app reverses it. What it must not do is
  * what its neighbour does — this one leaves the session alone, and a version
  * that signed out would make the checklist cost a code by email to look at.
+ *
+ * **Withdrawn on 2026-10-08**, with the checklist on Home; what is left here
+ * is that it stays withdrawn until something replaces both.
  */
 describe("showing the checklist again", () => {
   const openSettings = async () => {
@@ -523,56 +526,13 @@ describe("showing the checklist again", () => {
     return tree;
   };
 
-  const alertSpy = () =>
-    jest.spyOn(Alert, "alert").mockImplementation(() => {});
-
-  // The gate this used to assert, inverted. An account without `debug` sees
-  // *Forget this phone* nowhere and this everywhere; the two cards sat under
-  // one grant and no longer do.
-  it("is offered to an account without diagnostics", async () => {
+  // Gone since 2026-10-08, with the card it brought back: Home no longer
+  // draws the checklist, so a way back to it would bring back nothing.
+  it("is not offered while Home draws no checklist", async () => {
     mockApp.debug = false;
     const tree = await openSettings();
-    expect(findButton(tree, "Show the checklist again")).toBeDefined();
-    expect(findButton(tree, "Forget this phone")).toBeUndefined();
-    act(() => tree.unmount());
-  });
-
-  it("asks first, and says to step out of the channel", async () => {
-    mockApp.debug = false;
-    const asked = alertSpy();
-    const tree = await openSettings();
-
-    act(() => findButton(tree, "Show the checklist again")!.props.onPress());
-    expect(asked).toHaveBeenCalled();
-    expect(mockApp.forgetIntroduction).not.toHaveBeenCalled();
-
-    // The one thing that is not guessable from the button: `doneAt` is
-    // written off `conversing`, so doing this from inside a channel with
-    // somebody re-ticks that rung before the list can be looked at.
-    const body = asked.mock.calls[0][1] as string;
-    expect(body).toContain("Step out of any channel first");
-
-    asked.mockRestore();
-    act(() => tree.unmount());
-  });
-
-  it("forgets the introduction and nothing else", async () => {
-    mockApp.debug = false;
-    const asked = alertSpy();
-    const tree = await openSettings();
-    act(() => findButton(tree, "Show the checklist again")!.props.onPress());
-
-    const actions = asked.mock.calls[0][2] as Array<{
-      style?: string;
-      onPress?: () => void;
-    }>;
-    await act(async () =>
-      actions.find((a) => a.style !== "cancel")!.onPress!(),
-    );
-    expect(mockApp.forgetIntroduction).toHaveBeenCalled();
-    expect(mockApp.signOut).not.toHaveBeenCalled();
-
-    asked.mockRestore();
+    expect(findButton(tree, "Show the checklist again")).toBeUndefined();
+    expect(textOf(tree)).not.toContain("Getting started");
     act(() => tree.unmount());
   });
 });

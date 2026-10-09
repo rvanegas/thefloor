@@ -25,6 +25,11 @@ jest.mock('../../state/AppProvider', () =>
  * on screen — that it is in the tier rather than in a list, that it survives
  * the switch between them, and that it is gone for everybody who has finished
  * with it.
+ *
+ * **Every suite here is skipped since 2026-10-08**, when Home stopped drawing
+ * the checklist — `DRAWS_INTRODUCTION` in `HomeView`. They are kept with the
+ * card for whatever replaces it, and the one assertion that still holds is
+ * the last test in this file.
  */
 
 beforeEach(resetHarness);
@@ -59,7 +64,7 @@ const installRung = {
   done: false,
 };
 
-describe('the introduction on Home', () => {
+describe.skip('the introduction on Home', () => {
   it('draws nothing at all for an account that has finished with it', () => {
     mockApp.home = empty;
     const tree = render(<HomeView {...homeNav} />);
@@ -184,7 +189,7 @@ describe('the introduction on Home', () => {
   });
 });
 
-describe('the rungs that are done inside a channel', () => {
+describe.skip('the rungs that are done inside a channel', () => {
   /**
    * The four *try* rungs, which is the whole of what this describes: they
    * name a control two screens away, and where somebody is standing decides
@@ -293,7 +298,7 @@ describe('the rungs that are done inside a channel', () => {
   });
 });
 
-describe('the install rung', () => {
+describe.skip('the install rung', () => {
   it('says where the command is, and offers no button when there is none', () => {
     // Most browsers keep installing in their own chrome and will not let a
     // page raise it. The instruction is then the whole row, and a button that
@@ -395,7 +400,7 @@ describe('the install rung', () => {
  * The policy is `state/introduction.ts`' and is tested there; this is that the
  * control is drawn, is named for the rung it sits on, and reports that rung.
  */
-describe('putting a rung away', () => {
+describe.skip('putting a rung away', () => {
   it('offers a cross on the row, naming the rung to a screen reader', () => {
     mockApp.home = empty;
     mockApp.introduction = {
@@ -457,6 +462,17 @@ describe('putting a rung away', () => {
       findButton(tree, 'Dismiss Step in with somebody')?.props.onPress()
     );
     expect(mockApp.dismissStep).toHaveBeenCalledWith('stepIn');
+    act(() => tree.unmount());
+  });
+});
+
+describe('the introduction, while Home draws none', () => {
+  it('draws nothing even for an account with every rung still to climb', () => {
+    mockApp.home = empty;
+    mockApp.introduction = ladder;
+    const tree = render(<HomeView {...homeNav} />);
+    expect(textOf(tree)).not.toContain('Getting started');
+    expect(textOf(tree)).not.toContain('Get somebody here');
     act(() => tree.unmount());
   });
 });

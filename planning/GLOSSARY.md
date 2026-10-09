@@ -167,7 +167,7 @@ caused; the list carries the meaning.
 - **In-app** — `ContactView.inApp` — whether somebody holds a socket right now
 - **Installed (web app)** — A *train* put on a home screen or dock by the browser; it reports `display-mode: standalone`, gets an icon, and still cannot notify anybody
 - **Intent (a watch party's)** — *Retired 2026-09-18.* The video's own bar was a second way to press the transport, read off the player because the IFrame API never says what caused a state change. Telling a thumb from the echo of the app's own command took four phases and seven constants and failed five times; `controls: 0` removed the surface instead. The transport is the app's own row, and a button press *is* an action
-- **Introduction** — What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full — the next one — and every other rung, done or still to do, is behind *See more*, which since 2026-09-24 is where the ticks live too. Held back entirely while a *waiting bar* is up, an account that has not answered the person who brought it here having a shorter job to do first
+- **Introduction** — **Not drawn since 2026-10-08**, pending a replacement (`task/replace-the-getting-started-checklist.md`); the ladder is still computed and the rest of this describes it. What a new account is shown above both lists until every rung of it is done *or dismissed*: one ladder, the same for everybody — get somebody here, step in with somebody, an install rung in a browser that can, and four things to try inside a channel that are the only rungs the server had to be taught to record; one rung is drawn in full — the next one — and every other rung, done or still to do, is behind *See more*, which since 2026-09-24 is where the ticks live too. Held back entirely while a *waiting bar* is up, an account that has not answered the person who brought it here having a shorter job to do first
 - **Island** — A connected component of the accepted-contacts graph: people who can all reach each other through mutual contacts
 - **Ladder (the follower's)** — What a *follower* climbs while its player does not agree with the room — told, told again, seek and play, rebuilt, given up — each rung entered when the one below runs out of time; at rest only in agreement or at the top, which is said on the picture
 - **Live channel** — `liveChannelView` — the channel this *account* is standing in, across every snapshot held
@@ -3718,6 +3718,11 @@ See planning/decision/2026-09-18-the-picture-is-not-a-control.md.
 What a new account is shown above both of Home's lists, until every rung of it
 is done or dismissed. `state/introduction.ts` decides it and
 `ui/Introduction.tsx` draws it; planning/decision/2026-09-10-the-onboarding-checklist.md is the design.
+
+**Home has not drawn it since 2026-10-08** — it confused the people it was
+for — and *Show the checklist again* left Settings with it. Everything below
+still runs underneath and still describes the ladder;
+task/replace-the-getting-started-checklist.md is what comes next.
 
 One shape, for everybody: a ladder — get somebody here, step in with somebody,
 and then four things to try inside a channel — each rung carrying an

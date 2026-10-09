@@ -61,7 +61,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const [deleting, setDeleting] = useState(false);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [forgetting, setForgetting] = useState(false);
-  const [forgettingIntro, setForgettingIntro] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,31 +129,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       // reason to keep the keychain.
     }
     await forgetInstall();
-  };
-
-  /**
-   * Puts the introduction back, without touching anything else.
-   *
-   * **The narrow sibling of *Forget this phone*, and it outlived being one.**
-   * It was built beside that card and behind the same `debug` grant, because
-   * forgetting the phone clears the checklist as one of eighteen keys and then
-   * signs out and asks for a code by email — a round trip through a mailbox
-   * every time somebody wanted to look at the screen they were iterating on.
-   * Since 2026-09-14 it is offered to everybody, the ladder having grown a
-   * per-rung dismissal with no way back; see the card's own comment below.
-   *
-   * It stays on this screen afterwards rather than closing itself onto Home.
-   * Nothing here navigates, and a control that did would be the only one; the
-   * alert says where to look instead, which is also the only way of saying
-   * *and leave the channel first*.
-   */
-  const forgetIntroduction = async () => {
-    setForgettingIntro(true);
-    try {
-      await app.forgetIntroduction();
-    } finally {
-      setForgettingIntro(false);
-    }
   };
 
   /**
@@ -263,60 +237,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       */}
 
       {/*
-        **For everybody, since 2026-09-14.** It sat under Diagnostics behind
-        the `debug` grant, next to *Forget this phone*, on the reasoning that
-        it was an instrument: somebody working on the checklist wanted to look
-        at it again without paying a code by email for the privilege, and
-        nobody using the app had any reason to. That reading was too narrow.
-        The card is how Home says what there is to try, every rung of it is a
-        thing a person might come back to, and putting one away with the cross
-        is a decision they are allowed to change their mind about — and until
-        now there was nothing in the app that could change it back. Dismissing
-        was the reader's exit; this is the reader's way back in, and a one-way
-        door with no handle on the inside is the shape that made the card worth
-        ignoring in the first place. The decision that kept it behind `debug`
-        is 2026-09-13-the-checklist-has-a-second-exit.md; this reverses that
-        paragraph and nothing else in it.
-
-        **Its own section rather than joining Channels**, because the subject
-        is Home and that card's is a channel screen, and above Labs because it
-        is an ordinary setting and Labs is an invitation to unfinished ones.
-        Labelled *Getting started*, which is what the card calls itself on
-        Home — the code's word for it is *introduction*, and a section label
-        naming the thing by a word that appears on no screen would be a label
-        nobody can follow back.
-
-        **It is offered whether or not the checklist is showing.** A control
-        that appeared only once the card was gone would be one somebody could
-        not find at the moment they wanted it — they have just dismissed a rung
-        and want it back, and the card is still on Home with six rows left. It
-        is honest in that state too: what comes back is every rung, hollow,
-        including the ones already ticked.
-
-        It is not destructive — nothing is signed out and nothing else is
-        forgotten — so it asks for a confirmation only to have somewhere to say
-        the one thing that is not guessable from the button: leave the channel
-        first. See `state/useIntroduction.ts`.
+        *Getting started*, with its *Show the checklist again*, sat here until
+        2026-10-08, when Home stopped drawing the checklist — a way back to a
+        card that is not drawn would bring back nothing. `forgetIntroduction`
+        is still on the context for whatever replaces it; see
+        planning/task/replace-the-getting-started-checklist.md.
       */}
-      <SectionLabel>{t.gettingStarted()}</SectionLabel>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.showTheChecklistAgain()}</Text>
-        <Button
-          label={forgettingIntro ? t.showing() : t.showTheChecklistAgain()}
-          disabled={forgettingIntro}
-          onPress={() =>
-            Alert.alert(
-              t.showTheChecklistAgainAsk(),
-              t.showTheChecklistAgainBody(),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                { text: t.showIt(), onPress: () => void forgetIntroduction() },
-              ]
-            )
-          }
-        />
-        <Text style={type.muted}>{t.checklistNote()}</Text>
-      </Card>
 
       {/*
         The system's own output picker, not a control of ours: iOS knows what is

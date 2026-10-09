@@ -306,7 +306,9 @@ describe('The waiting bar', () => {
     act(() => tree.unmount());
   });
 
-  it('holds the introduction checklist back while somebody is waiting', () => {
+  // Skipped since 2026-10-08, when Home stopped drawing the checklist at all;
+  // the gate on `waiting` is still in `HomeView` for whatever replaces it.
+  it.skip('holds the introduction checklist back while somebody is waiting', () => {
     // The ladder's first rung is *get somebody here*, which is the wrong
     // thing to say to an account that arrived because somebody got them here
     // and has not been answered yet. Answering is the shorter job and ticks

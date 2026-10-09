@@ -29,6 +29,12 @@ import type { CardWords } from "./ChannelsView";
 import type { ChannelTab } from "./ChannelView";
 import { ContactsView, answerableRequests } from "./ContactsView";
 import { Introduction } from "./Introduction";
+
+/**
+ * Whether Home draws the *getting-started* checklist. Off since 2026-10-08;
+ * where it is read says why.
+ */
+const DRAWS_INTRODUCTION = false;
 import { PodcastsView } from "./PodcastsView";
 import { ProfileView } from "./ProfileView";
 import type { List } from "./detail";
@@ -756,7 +762,15 @@ export function HomeView({
             there; this decides only whether the tier draws it, which is a
             thing the tier already did.
           */}
-          {waiting ? null : (
+          {/*
+            **Not drawn at all, since 2026-10-08.** The checklist confused the
+            people it was for, and it is off until a different approach
+            replaces it — planning/task/replace-the-getting-started-checklist.md.
+            Everything behind it still runs: the rungs still tick, and the
+            channel screen's *how to be heard* line still reads the ladder.
+            The reasoning above is kept for whoever brings a card back here.
+          */}
+          {!DRAWS_INTRODUCTION || waiting ? null : (
             <Introduction
               onList={onList}
               live={liveChannel?.channelId ?? null}
