@@ -56,7 +56,6 @@ describe('Submitting audio', () => {
 
     const id = await provider(fetch).submit(Buffer.from('opus'), {
       languageDetection: true,
-      diarize: true,
     });
 
     expect(id).toBe('job-x');
@@ -70,12 +69,10 @@ describe('Submitting audio', () => {
 
     const started = JSON.parse(String(calls[1].body));
     expect(started.audio_url).toBe('https://cdn.example.test/u/1');
-    // The two decisions in this request. Labels are asked for on every stem —
-    // not to tell participants apart, which the stems already answer, but
-    // because how many voices are inside one stem is not something this system
-    // can declare in advance. The models are named because the provider's own
-    // default is an older pair.
-    expect(started.speaker_labels).toBe(true);
+    // The two decisions in this request. No speaker labels: a stem is one
+    // voice, named by whose stem it is. The models are named because the
+    // provider's own default is an older pair.
+    expect(started.speaker_labels).toBeUndefined();
     expect(started.speech_models).toEqual(ASSEMBLYAI_MODELS);
     expect(started.speech_model).toBeUndefined();
     expect(started.language_detection).toBe(true);
@@ -87,7 +84,7 @@ describe('Submitting audio', () => {
     ]);
 
     const failed = await provider(fetch)
-      .submit(Buffer.from('opus'), { languageDetection: true, diarize: true })
+      .submit(Buffer.from('opus'), { languageDetection: true })
       .catch((error: unknown) => error as TranscriptionError);
 
     expect(failed).toBeInstanceOf(TranscriptionError);
@@ -181,34 +178,6 @@ describe('Polling', () => {
     ]);
     // And each line's start is its own, which is what makes a tap land.
     expect(answered.utterances[1].startMs).toBe(5_000);
-    // The turn's label survives, since it is the only evidence that a stem
-    // holds a voice that is not its owner's.
-    expect(answered.utterances.every((u) => u.speaker === 'A')).toBe(true);
-  });
-
-  it('keeps a word\u2019s own label over the turn it falls in', async () => {
-    const { fetch } = stubFetch([
-      {
-        body: {
-          status: 'completed',
-          utterances: [{ start: 0, end: 10_000, text: 'all of it', speaker: 'A' }],
-          words: [
-            { start: 0, end: 400, text: 'mine', speaker: 'A' },
-            { start: 500, end: 900, text: 'theirs', speaker: 'B' },
-          ],
-        },
-      },
-    ]);
-
-    const answered = (await provider(fetch).poll('job-x')) as {
-      utterances: Utterance[];
-    };
-    // Two lines despite a 100ms gap: a change of voice breaks a line whatever
-    // the timing says, and the words are believed over the turn covering them.
-    expect(answered.utterances.map((u) => [u.speaker, u.text])).toEqual([
-      ['A', 'mine'],
-      ['B', 'theirs'],
-    ]);
   });
 
   it('deletes by id, which is the promise the privacy page makes', async () => {
@@ -244,25 +213,6 @@ describe('Making lines out of words', () => {
     expect(intoLines([word(0, 0, '   ')])).toEqual([]);
   });
 
-  it('breaks on a change of voice, whatever the timing says', () => {
-    // Two speakers in one line is the one join that cannot be undone later,
-    // and it is the case this exists for: a stem carrying a second voice is
-    // either played media or somebody who should not be on this microphone.
-    const lines = intoLines([
-      { start: 0, end: 100, text: 'mine', speaker: 'A' },
-      { start: 110, end: 200, text: 'yours', speaker: 'B' },
-      { start: 210, end: 300, text: 'again', speaker: 'B' },
-    ]);
-    expect(lines.map((l) => [l.speaker, l.text])).toEqual([
-      ['A', 'mine'],
-      ['B', 'yours again'],
-    ]);
-  });
-
-  it('carries no speaker when the provider labelled none', () => {
-    expect(intoLines([word(0, 10, 'a')])[0].speaker).toBeNull();
-  });
-
   it('says nothing about confidence when the provider did not', () => {
     const lines = intoLines([{ start: 0, end: 10, text: 'a' }]);
     expect(lines[0].confidence).toBeNull();
@@ -274,13 +224,12 @@ describe('The memory double', () => {
     const memory = new MemoryTranscription();
     const id = await memory.submit(Buffer.from('opus'), {
       languageDetection: true,
-      diarize: true,
     });
 
     expect(await memory.poll(id)).toEqual({ state: 'pending' });
 
     memory.ready(id, [
-      { startMs: 0, endMs: 500, text: 'hello', confidence: 0.99, speaker: 'A' },
+      { startMs: 0, endMs: 500, text: 'hello', confidence: 0.99 },
     ]);
     expect(await memory.poll(id)).toMatchObject({ state: 'ready' });
 
@@ -293,7 +242,6 @@ describe('The memory double', () => {
     const memory = new MemoryTranscription();
     const id = await memory.submit(Buffer.from('a'), {
       languageDetection: false,
-      diarize: true,
     });
     memory.fails(id, 'audio_too_short');
     expect(await memory.poll(id)).toEqual({
@@ -303,7 +251,7 @@ describe('The memory double', () => {
 
     memory.refuseSubmissions('no balance');
     await expect(
-      memory.submit(Buffer.from('b'), { languageDetection: false, diarize: true })
+      memory.submit(Buffer.from('b'), { languageDetection: false })
     ).rejects.toThrow('no balance');
   });
 });

@@ -77,12 +77,11 @@ function makeRecording(stems: Record<string, string[]>, timeline: unknown[] = []
   );
 }
 
-const line = (text: string, startMs = 0, speaker: string | null = 'A'): Utterance => ({
+const line = (text: string, startMs = 0): Utterance => ({
   startMs,
   endMs: startMs + 500,
   text,
   confidence: 0.9,
-  speaker,
 });
 
 const lines = () =>
@@ -147,20 +146,15 @@ describe('asking for a transcript', () => {
     expect(jobs().map((j) => j.identity)).toEqual([ALICE, BOB]);
     expect(jobs().every((j) => j.provider_id)).toBe(true);
     expect(provider.submitted).toHaveLength(2);
-    // Every stem is diarised — not to tell Alice from Bob, who are never in
-    // the same file, but because a stem may hold more than one voice.
-    expect(provider.submitted.every((s) => s.diarize)).toBe(true);
     // And nothing was swallowed on the way: onError is where a failure nobody
     // is waiting on goes, so an empty log is part of the happy path.
     expect(errors).toEqual([]);
   }, 60_000);
 
   it('transcribes played media too, as its own stem', async () => {
-    // Included since 2026-08-25. It is the one stem with no owner, and the one
-    // where diarisation buys real information rather than confirming what the
-    // identities already say — nothing here knows how many voices are inside a
-    // played track. What somebody has the right to play is theirs, and is a
-    // question about the recording rather than about transcribing it.
+    // Included since 2026-08-25. It is the one stem with no owner. What
+    // somebody has the right to play is theirs, and is a question about the
+    // recording rather than about transcribing it.
     makeRecording({ [ALICE]: ['a.ogg'], media: ['media.ogg'] });
 
     await transcripts.request(RECORDING, ALICE);
@@ -263,8 +257,9 @@ describe('collecting the text', () => {
 
     expect(transcript()).toMatchObject({ state: 'ready', failure: null });
     expect(lines()).toEqual([
-      { identity: ALICE, text: 'hello there', speaker: 'A', start_ms: 0 },
-      { identity: BOB, text: 'and hello back', speaker: 'A', start_ms: 1_000 },
+      // No letter stored: nothing asks the provider for one any more.
+      { identity: ALICE, text: 'hello there', speaker: null, start_ms: 0 },
+      { identity: BOB, text: 'and hello back', speaker: null, start_ms: 1_000 },
     ]);
     // Per speaker, which is what one job per stem buys.
     expect(jobs().map((j) => j.language)).toEqual(['en', 'es']);

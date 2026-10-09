@@ -1,13 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
-import {
-  intoBlocks,
-  readable,
-  voiceKey,
-  VOICE_SEPARATOR,
-  type TranscriptLine,
-  type VoiceDeclarations,
-} from '../../core/transcript';
+import { intoBlocks, readable, type TranscriptLine } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
@@ -441,8 +434,7 @@ export class Transcripts {
     return (
       this.db
         .prepare(
-          `SELECT l.identity, l.speaker, l.start_ms, l.end_ms, l.text,
-                  l.confidence
+          `SELECT l.identity, l.start_ms, l.end_ms, l.text, l.confidence
            FROM transcript_lines l
            JOIN transcripts t ON t.recording_id = l.recording_id
            WHERE l.recording_id = ? AND t.deleted_at IS NULL
@@ -450,7 +442,6 @@ export class Transcripts {
         )
         .all(recordingId) as unknown as Array<{
         identity: string;
-        speaker: string | null;
         start_ms: number;
         end_ms: number;
         text: string;
@@ -458,7 +449,6 @@ export class Transcripts {
       }>
     ).map((row) => ({
       identity: row.identity,
-      speaker: row.speaker,
       startMs: row.start_ms,
       endMs: row.end_ms,
       text: row.text,
@@ -490,21 +480,14 @@ export class Transcripts {
     const rows = hasSearchIndex(this.db)
       ? (this.db
           .prepare(
-            `SELECT l.recording_id, l.identity, l.speaker, l.start_ms, l.end_ms,
-                    l.text, l.confidence
+            `SELECT l.recording_id, l.identity, l.start_ms, l.end_ms, l.text,
+                    l.confidence
              FROM transcript_fts f
              JOIN transcript_lines l ON l.rowid = f.rowid
              JOIN transcripts t ON t.recording_id = l.recording_id
              JOIN recordings r ON r.id = l.recording_id
              WHERE f.text MATCH ? AND l.channel_id = ?
                AND t.deleted_at IS NULL AND r.deleted_at IS NULL
-               AND NOT EXISTS (
-                 SELECT 1 FROM transcript_voices v
-                 WHERE v.recording_id = l.recording_id
-                   AND v.identity = l.identity
-                   AND v.speaker = COALESCE(l.speaker, '')
-                   AND v.removed = 1
-               )
              ORDER BY l.recording_id, l.start_ms
              LIMIT ?`
           )
@@ -514,21 +497,14 @@ export class Transcripts {
         // should be if there were any doubt.
         (this.db
           .prepare(
-            `SELECT l.recording_id, l.identity, l.speaker, l.start_ms, l.end_ms,
-                    l.text, l.confidence
+            `SELECT l.recording_id, l.identity, l.start_ms, l.end_ms, l.text,
+                    l.confidence
              FROM transcript_lines l
              JOIN transcripts t ON t.recording_id = l.recording_id
              JOIN recordings r ON r.id = l.recording_id
              WHERE l.channel_id = ? AND t.deleted_at IS NULL
                AND r.deleted_at IS NULL
                AND lower(l.text) LIKE '%' || lower(?) || '%'
-               AND NOT EXISTS (
-                 SELECT 1 FROM transcript_voices v
-                 WHERE v.recording_id = l.recording_id
-                   AND v.identity = l.identity
-                   AND v.speaker = COALESCE(l.speaker, '')
-                   AND v.removed = 1
-               )
              ORDER BY l.recording_id, l.start_ms
              LIMIT ?`
           )
@@ -538,7 +514,6 @@ export class Transcripts {
       rows as Array<{
         recording_id: string;
         identity: string;
-        speaker: string | null;
         start_ms: number;
         end_ms: number;
         text: string;
@@ -547,117 +522,11 @@ export class Transcripts {
     ).map((row) => ({
       recordingId: row.recording_id,
       identity: row.identity,
-      speaker: row.speaker,
       startMs: row.start_ms,
       endMs: row.end_ms,
       text: row.text,
       confidence: row.confidence,
     }));
-  }
-
-  /**
-   * What has been declared about one transcript's voices.
-   *
-   * Empty for a transcript nobody has said anything about, which is the
-   * default naming and is most of them.
-   */
-  voicesFor(recordingId: string): VoiceDeclarations {
-    const rows = this.db
-      .prepare(
-        `SELECT identity, speaker, name, removed FROM transcript_voices
-         WHERE recording_id = ?`
-      )
-      .all(recordingId) as unknown as Array<{
-      identity: string;
-      speaker: string;
-      name: string | null;
-      removed: number;
-    }>;
-    const out: VoiceDeclarations = {};
-    for (const row of rows) {
-      out[voiceKey(row.identity, row.speaker || null)] = {
-        ...(row.name ? { name: row.name } : {}),
-        ...(row.removed ? { removed: true } : {}),
-      };
-    }
-    return out;
-  }
-
-  /**
-   * Replaces the whole declaration for one transcript.
-   *
-   * Whole rather than per voice, because the screen that sends it holds the
-   * whole thing and because that is what makes clearing expressible: a voice
-   * absent from what arrives has nothing declared about it, and an empty
-   * object puts the transcript back exactly as the provider left it. There is
-   * no separate reset path to get wrong.
-   *
-   * A declaration that says nothing — no name, not removed — is dropped rather
-   * than stored, so "cleared" has one representation in the table instead of
-   * two.
-   */
-  declareVoices(
-    recordingId: string,
-    voices: VoiceDeclarations,
-    by: string
-  ): void {
-    this.db
-      .prepare('DELETE FROM transcript_voices WHERE recording_id = ?')
-      .run(recordingId);
-    const insert = this.db.prepare(
-      `INSERT INTO transcript_voices
-         (recording_id, identity, speaker, name, removed, declared_by, declared_at)
-       VALUES (?,?,?,?,?,?,?)`
-    );
-    for (const [key, voice] of Object.entries(voices)) {
-      const name = voice.name?.trim();
-      if (!name && !voice.removed) continue;
-      const [identity, speaker = ''] = key.split(VOICE_SEPARATOR);
-      if (!identity) continue;
-      insert.run(
-        recordingId,
-        identity,
-        speaker,
-        name ?? null,
-        voice.removed ? 1 : 0,
-        by,
-        this.now()
-      );
-    }
-  }
-
-  /**
-   * Which stems, across these recordings, came back carrying more than one
-   * voice — keyed `<recording id>\u0000<identity>`.
-   *
-   * The same question `core`'s `multiVoiceStems` answers, asked of the
-   * database instead of a line array. Search needs it and cannot use the pure
-   * one: a search result is the handful of lines that matched, and counting
-   * voices in those would call a two-voice stem single-voiced whenever only
-   * one of them happened to say the word. One indexed group-by over the
-   * recordings a result set touched, rather than loading their transcripts.
-   */
-  stemsWithManyVoices(recordingIds: readonly string[]): Set<string> {
-    if (!recordingIds.length) return new Set();
-    const holes = recordingIds.map(() => '?').join(', ');
-    const rows = this.db
-      .prepare(
-        `SELECT l.recording_id, l.identity, COUNT(DISTINCT l.speaker) AS voices
-         FROM transcript_lines l
-         WHERE l.recording_id IN (${holes}) AND l.speaker IS NOT NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM transcript_voices v
-             WHERE v.recording_id = l.recording_id AND v.identity = l.identity
-               AND v.speaker = l.speaker AND v.removed = 1
-           )
-         GROUP BY l.recording_id, l.identity
-         HAVING voices > 1`
-      )
-      .all(...recordingIds) as unknown as Array<{
-      recording_id: string;
-      identity: string;
-    }>;
-    return new Set(rows.map((row) => `${row.recording_id}\u0000${row.identity}`));
   }
 
   // --- the work -------------------------------------------------------------
@@ -765,10 +634,6 @@ export class Transcripts {
 
       const providerId = await provider.submit(data, {
         languageDetection: true,
-        // Every stem — see TranscriptionOptions.diarize. Not to tell
-        // participants apart, which the stems answer, but because how many
-        // voices are inside one stem is not something this system knows.
-        diarize: true,
       });
 
       // Before anything waits on it. A crash after this line costs a poll; a
@@ -830,9 +695,9 @@ export class Transcripts {
 
     const insert = this.db.prepare(
       `INSERT INTO transcript_lines
-         (id, recording_id, channel_id, identity, speaker, start_ms, end_ms,
-          text, confidence)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, recording_id, channel_id, identity, start_ms, end_ms, text,
+          confidence)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const line of answered.utterances) {
       if (!line.text) continue;
@@ -841,7 +706,6 @@ export class Transcripts {
         job.recording_id,
         recording.channel_id,
         job.identity,
-        line.speaker,
         Math.round(line.startMs),
         Math.round(line.endMs),
         line.text,
@@ -1002,9 +866,9 @@ export class Transcripts {
    * makes transcription worth having on a channel that plays anything — a
    * discussion of a recorded talk, where the talk is most of what was said.
    *
-   * It is also the one stem where diarisation buys real information rather
-   * than confirming what we already hold: nothing here knows how many voices
-   * are inside a played track, or what any of them are called.
+   * Like every stem it is taken to be one voice, named `MEDIA_LABEL`, even
+   * when the track is an interview — see
+   * planning/decision/2026-10-09-a-stem-is-one-voice.md.
    *
    * **What somebody plays is theirs to have the right to play**, and that is
    * true of the recording already — transcribing it does not make a copy that
@@ -1039,19 +903,15 @@ export function speakerName(
 }
 
 /**
- * A transcript's lines as they are read: removed voices gone, every line named.
- *
- * The whole set goes in because that is what the questions need — whether to
- * print a letter is a fact about the stem across the transcript, and removing
- * a voice changes the answer for the ones beside it. See `core/transcript.ts`,
- * which is where the rules are and where the app reads them from too.
+ * A transcript's lines as they are read: every line named after its stem. See
+ * `core/transcript.ts`, which is where the rule is and where the app reads it
+ * from too.
  */
 export function readableLines(
   lines: readonly TranscriptLine[],
-  names: Record<string, string>,
-  voices: VoiceDeclarations = {}
+  names: Record<string, string>
 ): Array<TranscriptLine & { displayName: string | null }> {
-  return readable(lines, (identity) => speakerName(identity, names), voices);
+  return readable(lines, (identity) => speakerName(identity, names));
 }
 
 /**
@@ -1062,10 +922,9 @@ export function readableLines(
  * pastes into a message. `vtt` is what a media player wants and what pairs
  * with the exported audio — same timeline, since the stems were rendered with
  * their delays in place. `json` is for anybody who wants to do something else
- * with it, and is the only one that carries confidence and the raw within-stem
- * speaker label.
+ * with it, and is the only one that carries confidence.
  *
- * **Only `txt` groups.** Consecutive utterances from one voice are one entry
+ * **Only `txt` groups.** Consecutive utterances from one stem are one entry
  * with paragraphs, because that is how a person reads prose. A WebVTT cue is a
  * different unit — it is on screen for exactly as long as it says, and a
  * grouped cue would hold a minute of text under one subtitle; and `json` is
@@ -1078,10 +937,9 @@ export function readableLines(
 export function formatTranscript(
   lines: TranscriptLine[],
   names: Record<string, string>,
-  format: 'txt' | 'vtt' | 'json',
-  voices: VoiceDeclarations = {}
+  format: 'txt' | 'vtt' | 'json'
 ): { body: string; contentType: string; extension: string } {
-  const named = readableLines(lines, names, voices);
+  const named = readableLines(lines, names);
   const who = (line: { displayName: string | null }) => line.displayName ?? 'Someone';
 
   if (format === 'json') {
@@ -1105,7 +963,7 @@ export function formatTranscript(
     };
   }
 
-  // One entry per run of a voice, its paragraphs blank-line separated — so
+  // One entry per run of a stem, its paragraphs blank-line separated — so
   // every blank line is a paragraph break and only the `[time] Name:` prefix
   // starts a new speaker, which is the convention printed transcripts use.
   const body = intoBlocks(named)

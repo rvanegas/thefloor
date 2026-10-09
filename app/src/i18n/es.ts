@@ -541,7 +541,6 @@ export const es: Strings = {
   },
   transcript: {
     title: () => 'Transcripci\u00f3n',
-    nameTheVoices: () => 'Poner nombre a las voces',
     preparing: () => 'Preparando\u2026',
     share: () => 'Compartir',
     shareTranscript: () => 'Compartir la transcripci\u00f3n',
@@ -562,13 +561,10 @@ export const es: Strings = {
       `Fall\u00f3 la transcripci\u00f3n — ${reason}`,
     transcribingFailed: () => 'Fall\u00f3 la transcripci\u00f3n.',
     loading: () => 'Cargando\u2026',
-    couldNotSave: () => 'No se ha podido guardar',
     missing: (count: number) =>
       count === 1
         ? 'No se ha podido transcribir a una persona, y no est\u00e1 aqu\u00ed.'
         : `No se ha podido transcribir a ${count} personas, y no est\u00e1n aqu\u00ed.`,
-    manyVoices: () =>
-      'Una letra junto a un nombre significa que en ese micr\u00f3fono se oy\u00f3 m\u00e1s de una voz. No se sabe de qui\u00e9n eran las dem\u00e1s.',
     findAWord: () => 'Buscar una palabra',
     searchSeekable: () =>
       'La b\u00fasqueda es solo tuya. Tocar una l\u00ednea mueve la reproducci\u00f3n para todos.',
@@ -577,17 +573,7 @@ export const es: Strings = {
     nothingMatches: () => 'No hay coincidencias.',
     nothingWasTranscribed: () => 'No se transcribi\u00f3 nada.',
     couldNotShare: () => 'No se ha podido compartir',
-    voices: () => 'Voces',
-    voicesExplanation: () =>
-      'El servicio oy\u00f3 estas voces. Etiqueta cada micr\u00f3fono por separado, as\u00ed que las letras son su conjetura: ponles nombre, da el mismo nombre a dos para unirlas, o quita una que nunca fue una persona. La transcripci\u00f3n en s\u00ed no cambia y esto se puede rehacer cuando quieras.',
-    saving: () => 'Guardando\u2026',
-    save: () => 'Guardar',
-    clearAll: () => 'Borrar todo',
     someone: () => 'Alguien',
-    lines: (count: number) => (count === 1 ? '1 l\u00ednea' : `${count} l\u00edneas`),
-    nameThisVoice: () => 'Poner nombre a esta voz',
-    bringBack: () => 'Quitada — recuperar',
-    removeFromTranscript: () => 'Quitar de la transcripci\u00f3n',
     jumpTo: (at: string, name: string, text: string) =>
       `Saltar a ${at}, ${name}: ${text}`,
     stepInToDelete: () =>

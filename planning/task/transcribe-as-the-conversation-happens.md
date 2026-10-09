@@ -37,9 +37,10 @@ now "Universal-3.6 Pro", where the prompt says 3.5.
 is one WebSocket carrying one mono 16 kHz PCM stream (ASSEMBLY_PROMPT § 9), so
 it is one session per identity — the same one-job-per-stem shape decision/2026-08-25-transcripts.md
 chose. There is no multichannel option to be tempted by. Diarisation is
-optional (`speaker_labels=true`) and costs +$0.12/hr per stream there; it is
-worth paying on the `media` stem, the one where it was ever information, and
-probably nowhere else.
+optional (`speaker_labels=true`) and costs +$0.12/hr per stream there; **it is
+not to be asked for on any stream**, the `media` one included, since
+decision/2026-10-09-a-stem-is-one-voice.md: a stem is one voice, labelled with
+its owner's display name, in batch and here alike.
 
 **Cost is a wash with batch, if the model is the cheap one.** Streaming is
 billed for **as long as the WebSocket is open, not for audio sent**, which

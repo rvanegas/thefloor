@@ -14,10 +14,10 @@
  * here ever asks the provider to tell Alice from Bob: they were never in the
  * same file.
  *
- * Diarisation *within* one stem is a different question, and is asked of every
- * one of them — see `TranscriptionOptions.diarize`. How many voices are inside
- * a single stem is a thing this system genuinely does not know. See
- * planning/decision/2026-08-25-transcripts.md.
+ * Nor is diarisation *within* one stem, since 2026-10-09: a stem is taken to
+ * hold exactly one voice, its microphone's owner's, so a line is named by
+ * whose stem it came from and nothing is asked of the provider about voices
+ * at all. See planning/decision/2026-10-09-a-stem-is-one-voice.md.
  *
  * Nothing calls any of this yet. It is the first phase of that design: the
  * credential, the configuration, the disclosure on the privacy page, and the
@@ -64,24 +64,6 @@ export interface Utterance {
    * what is stored cannot.
    */
   confidence: number | null;
-  /**
-   * Which voice inside this stem said it — `A`, `B`, … — or null if the
-   * provider did not label it.
-   *
-   * Almost always a single value across a whole stem, since a stem is one
-   * person's microphone. It is kept for the times it is not, and there are two
-   * of those: the `media` stem, which is whatever somebody played into the
-   * room and has no owner at all; and a stem carrying a second voice that
-   * should not be there — two people sharing a handset, or the other party
-   * bleeding in on a speakerphone.
-   *
-   * **Storing it is not the same as showing it.** A "Speaker B" under a named
-   * participant is two answers on one screen, which is the thing this design
-   * refuses. What to do with a stem that comes back with more than one voice
-   * is a render-time decision, deliberately unmade until there is some
-   * experience of what this provider actually returns.
-   */
-  speaker: string | null;
 }
 
 /** What one poll found. `pending` covers both queued and processing. */
@@ -107,26 +89,6 @@ export type TranscriptionState =
 
 export interface TranscriptionOptions {
   languageDetection: boolean;
-  /**
-   * Whether to ask which voice said what, *within* this one file.
-   *
-   * On for every stem, which reads like a contradiction of this file's header
-   * and is not. The header says we never ask whose voice this is, because the
-   * stems already know — that is a claim about *attribution between
-   * participants*, and it still holds: nothing here ever asks the provider to
-   * tell Alice from Bob, because they were never in the same file.
-   *
-   * This asks something else. How many voices are inside one stem is a thing
-   * we do not know and cannot declare in advance — a played track, a shared
-   * handset, a speakerphone. Asking uniformly turns that from a declaration
-   * somebody has to remember to make into an observation the response carries,
-   * and a stem that comes back with one voice, which is nearly all of them,
-   * simply confirms what was already assumed.
-   *
-   * It also has a useful side effect: `utterances` comes back grouped, which
-   * is what `intoLines` exists to reconstruct when it does not.
-   */
-  diarize: boolean;
 }
 
 export interface TranscriptionProvider {
@@ -213,9 +175,9 @@ export const ASSEMBLYAI_MODELS = ['universal-3-5-pro', 'universal-2'];
 /**
  * How long a gap between words starts a new line, in milliseconds.
  *
- * The provider groups its own turns when it labels speakers, which it now does
- * for every stem — so this is the fallback for a response that comes back as
- * bare words, and the seam it uses is a pause long enough to read as one.
+ * The provider is never asked to label speakers, so it groups nothing and a
+ * response is bare words; the seam a line breaks on is a pause long enough to
+ * read as one.
  *
  * Chosen rather than derived, and deliberately at render distance from the
  * data — the words' own timings are what is stored, so a different number can
@@ -275,9 +237,8 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       body: JSON.stringify({
         audio_url: url,
         speech_models: ASSEMBLYAI_MODELS,
-        // Within one stem only — see TranscriptionOptions.diarize. This never
-        // tells one participant from another; they are never in the same file.
-        speaker_labels: options.diarize,
+        // No `speaker_labels` (default false): a stem is one voice, named by
+        // whose stem it is. See this file's header.
         language_detection: options.languageDetection,
         punctuate: true,
         format_text: true,
@@ -302,20 +263,7 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       // bill nobody can check. Confirm against llms.txt and delete the loser.
       audio_duration?: number;
       audio_duration_ms?: number;
-      utterances?: Array<{
-        start?: number;
-        end?: number;
-        text?: string;
-        confidence?: number;
-        speaker?: string;
-      }>;
-      words?: Array<{
-        start?: number;
-        end?: number;
-        text?: string;
-        confidence?: number;
-        speaker?: string;
-      }>;
+      words?: ProviderWord[];
     };
 
     if (body.status === 'error') {
@@ -335,15 +283,13 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     // and cannot be tapped: its `startMs` is where the turn began, so seeking
     // to it lands an hour before the words being pointed at.
     //
-    // `intoLines` is what a line is for — a pause, a length cap, and a change
-    // of voice. The turns are still read, but only for the speaker labels they
-    // carry; see `withSpeakers`.
-    const words = body.words ?? [];
+    // `intoLines` is what a line is for — a pause and a length cap. Nothing
+    // asks for speaker labels any more, so there are no turns to read either.
     return {
       state: 'ready',
       languageCode: body.language_code ?? null,
       billedMs: billedMs(body),
-      utterances: intoLines(withSpeakers(words, body.utterances ?? [])),
+      utterances: intoLines(body.words ?? []),
     };
   }
 
@@ -404,39 +350,6 @@ interface ProviderWord {
   end?: number;
   text?: string;
   confidence?: number;
-  speaker?: string;
-}
-
-/**
- * Puts a speaker label on every word that lacks one, from the turn it falls in.
- *
- * Words carry `speaker` when diarisation is on, and this is a belt for the
- * case where they do not: the labels are the only evidence this system has
- * that a stem holds more than one voice — the first real transcript found the
- * other party bleeding into three stems out of four that way — and losing them
- * by grouping from words alone would be a poor trade for readable lines.
- *
- * A pointer walk rather than a search per word: both lists are in time order,
- * which is what makes this cheap enough to do unconditionally.
- */
-function withSpeakers(
-  words: ProviderWord[],
-  turns: Array<{ start?: number; end?: number; speaker?: string }>
-): ProviderWord[] {
-  if (turns.length === 0 || words.every((word) => word.speaker !== undefined)) {
-    return words;
-  }
-  let turn = 0;
-  return words.map((word) => {
-    if (word.speaker !== undefined) return word;
-    const at = word.start ?? 0;
-    while (turn < turns.length - 1 && (turns[turn].end ?? 0) < at) turn += 1;
-    const found = turns[turn];
-    const inside = at >= (found.start ?? 0) && at <= (found.end ?? 0);
-    return inside && found.speaker !== undefined
-      ? { ...word, speaker: found.speaker }
-      : word;
-  });
 }
 
 /**
@@ -453,15 +366,7 @@ function withSpeakers(
  * uncertain across the whole line. A minimum would flag the first and miss
  * nothing the mean misses.
  */
-export function intoLines(
-  words: Array<{
-    start?: number;
-    end?: number;
-    text?: string;
-    confidence?: number;
-    speaker?: string;
-  }>
-): Utterance[] {
+export function intoLines(words: ProviderWord[]): Utterance[] {
   const lines: Utterance[] = [];
   let current: Utterance | null = null;
   let confidences: number[] = [];
@@ -484,19 +389,14 @@ export function intoLines(
     const startMs = word.start ?? 0;
     const endMs = word.end ?? startMs;
 
-    // A change of voice ends a line whatever the timing says: two speakers in
-    // one line is the one join that cannot be undone later.
-    const speaker = word.speaker ?? null;
     if (
       current &&
-      (startMs - current.endMs > LINE_GAP_MS ||
-        count >= LINE_MAX_WORDS ||
-        speaker !== current.speaker)
+      (startMs - current.endMs > LINE_GAP_MS || count >= LINE_MAX_WORDS)
     ) {
       close();
     }
     if (!current) {
-      current = { startMs, endMs, text, confidence: null, speaker };
+      current = { startMs, endMs, text, confidence: null };
     } else {
       current.text = `${current.text} ${text}`;
       current.endMs = Math.max(current.endMs, endMs);

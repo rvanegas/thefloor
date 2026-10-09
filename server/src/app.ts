@@ -12,10 +12,7 @@ import type {
   PublicAccount,
   RecordingView,
 } from '../../core/protocol';
-import {
-  MAX_DISPLAY_NAME_LENGTH,
-  MAX_TRACK_BYTES,
-} from '../../core/constants';
+import { MAX_TRACK_BYTES } from '../../core/constants';
 import {
   IM_SERVICES,
   IM_SERVICE_NAMES,
@@ -70,13 +67,7 @@ import {
   Transcripts,
   type TranscriptView,
 } from './transcripts';
-import {
-  readable,
-  voiceKey,
-  voiceName,
-  voiceRoster,
-  type VoiceDeclarations,
-} from '../../core/transcript';
+import { readable } from '../../core/transcript';
 import {
   BUILD_HEADER,
   NOTIFY_HEADER,
@@ -4299,22 +4290,17 @@ export function buildApp(options: BuildOptions = {}): App {
     const found = await readableTranscript(request, reply);
     if (!found) return;
 
-    const lines = transcripts.linesFor(found.row.id);
-    const voices = transcripts.voicesFor(found.row.id);
     const nameOf = (identity: string) =>
       nameFrom(found.row, identity)?.displayName ?? null;
 
     return {
       ...found.view,
       requestedBy: nameFrom(found.row, found.view.requestedBy),
-      // Named and filtered here rather than on the client, so that an export,
-      // a search result and this screen cannot disagree about who said what.
-      lines: readable(lines, nameOf, voices),
-      // The roster travels with the transcript rather than behind a second
-      // request: it is a handful of entries, the screen that edits it opens
-      // from this one, and it has to list the removed voices that `lines` no
-      // longer contains.
-      voices: voiceRoster(lines, nameOf, voices),
+      // Named here rather than on the client, so that an export, a search
+      // result and this screen cannot disagree about who said what. No
+      // `voices` roster and no `speaker` on a line, since 2026-10-09: builds
+      // that read them find none, which hides their voice-naming screen.
+      lines: readable(transcripts.linesFor(found.row.id), nameOf),
     };
   });
 
@@ -4335,8 +4321,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const file = formatTranscript(
       transcripts.linesFor(found.row.id),
       names,
-      format,
-      transcripts.voicesFor(found.row.id)
+      format
     );
     return reply
       .header('content-type', `${file.contentType}; charset=utf-8`)
@@ -4345,84 +4330,6 @@ export function buildApp(options: BuildOptions = {}): App {
         `attachment; filename="${found.row.id}.${file.extension}"`
       )
       .send(file.body);
-  });
-
-  /**
-   * Says who the voices in a transcript actually were.
-   *
-   * The provider labels each stem's voices independently and is wrong about
-   * them often, so the letters it produces are a starting point rather than an
-   * answer. This is where somebody replaces them: rename a voice, give two of
-   * them the same name to collapse a run the provider split, or drop one that
-   * was never a person.
-   *
-   * **It is a view and nothing else.** No line is edited and no text is
-   * rewritten, so this can be sent again with different answers, or with `{}`
-   * to put the transcript back exactly as it arrived. Nothing is re-transcribed
-   * and nothing is spent — which is why the whole declaration is replaced on
-   * every call rather than patched: the screen holds all of it, and a full
-   * replacement is what makes clearing one voice expressible without a second
-   * route that deletes.
-   *
-   * The same two guards as deleting, in the same order and for the same
-   * reasons: `mayRemoveTranscript` is about who may shape a thing only they
-   * can make again, and `mayManageRecording` is about reach. Reading and
-   * searching are never limited, so everybody in the channel sees the
-   * result.
-   */
-  fastify.put('/recordings/:id/transcript/voices', async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
-    const { id } = request.params as { id: string };
-
-    if (!mayRemoveTranscript(account.id, id)) {
-      return reply.code(403).send({
-        error:
-          'Only whoever asked for this transcript may change or remove it.',
-      });
-    }
-    const allowed = channels.mayManageRecording(id, account.id);
-    if (!allowed.ok) {
-      return reply
-        .code(allowed.code === 'conflict' ? 409 : 404)
-        .send({ error: allowed.error });
-    }
-    if (!transcripts.viewFor(id)) {
-      return reply.code(404).send({ error: 'No such transcript.' });
-    }
-
-    const body = request.body as { voices?: unknown } | undefined;
-    const sent = body?.voices;
-    if (sent === undefined || sent === null || typeof sent !== 'object') {
-      return reply.code(400).send({ error: 'voices must be an object.' });
-    }
-
-    const voices: VoiceDeclarations = {};
-    for (const [key, value] of Object.entries(sent as Record<string, unknown>)) {
-      if (!value || typeof value !== 'object') {
-        return reply.code(400).send({ error: 'Each voice must be an object.' });
-      }
-      const { name, removed } = value as { name?: unknown; removed?: unknown };
-      if (name !== undefined && typeof name !== 'string') {
-        return reply.code(400).send({ error: 'A voice name must be text.' });
-      }
-      if (name !== undefined && name.trim().length > MAX_DISPLAY_NAME_LENGTH) {
-        return reply.code(400).send({ error: 'That name is too long.' });
-      }
-      voices[key] = {
-        ...(typeof name === 'string' && name.trim() ? { name: name.trim() } : {}),
-        ...(removed ? { removed: true } : {}),
-      };
-    }
-
-    transcripts.declareVoices(id, voices, account.id);
-    // Everybody in the channel is reading the same transcript, so the change
-    // is theirs too — the same reason a transcript landing announces one.
-    const row = db
-      .prepare('SELECT channel_id FROM recordings WHERE id = ?')
-      .get(id) as unknown as { channel_id: string } | undefined;
-    if (row) channels.announce(row.channel_id);
-    return { ok: true };
   });
 
   /**
@@ -4506,35 +4413,15 @@ export function buildApp(options: BuildOptions = {}): App {
       return rows.get(recordingId);
     };
 
-    // Counted from the database rather than from the hits: see
-    // `stemsWithManyVoices`. A result set is not a transcript.
-    const touched = [...new Set(hits.map((hit) => hit.recordingId))];
-    const manyVoices = transcripts.stemsWithManyVoices(touched);
-    // One read per recording a result touched, not per hit. The removed
-    // voices are already gone — `search` excludes them in SQL, so that the
-    // cap counts results somebody can actually see.
-    const declared = new Map<string, VoiceDeclarations>(
-      touched.map((id) => [id, transcripts.voicesFor(id)])
-    );
-
     return {
       hits: hits.map((hit) => {
         const row = rowFor(hit.recordingId);
-        const name = row ? (nameFrom(row, hit.identity)?.displayName ?? null) : null;
-        const voice =
-          declared.get(hit.recordingId)?.[voiceKey(hit.identity, hit.speaker)];
         return {
           ...hit,
           recordingName: row ? toRecordingView(row, account.id).name : null,
-          displayName: voice?.name
-            ? voice.name
-            : name
-              ? voiceName(
-                  name,
-                  hit.speaker,
-                  manyVoices.has(`${hit.recordingId}\u0000${hit.identity}`)
-                )
-              : null,
+          displayName: row
+            ? (nameFrom(row, hit.identity)?.displayName ?? null)
+            : null,
         };
       }),
     };
@@ -5148,8 +5035,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const file = formatTranscript(
       transcripts.linesFor(recordingId),
       names,
-      'vtt',
-      transcripts.voicesFor(recordingId)
+      'vtt'
     );
     return reply
       .header('content-type', `${file.contentType}; charset=utf-8`)
@@ -5612,7 +5498,7 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
-   * Whether this account may remove a transcript, or say who its voices were.
+   * Whether this account may remove a transcript.
    *
    * Deleting spends nothing and destroys something that costs what it cost to
    * make again — so it is not for anybody who happens to be in the channel.

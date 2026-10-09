@@ -1885,12 +1885,10 @@ CREATE TABLE IF NOT EXISTS transcript_lines (
   -- denormalisation worth having.
   channel_id   TEXT NOT NULL,
   identity     TEXT NOT NULL,
-  -- Which voice within that one stem, when the provider labelled one. Almost
-  -- always a single value for a whole stem, in which case it never reaches a
-  -- screen — a "(A)" beside a named participant who was alone on their
-  -- microphone is two answers to a question nobody asked. A stem holding more
-  -- than one is shown as "Played audio (A)" against "Played audio (B)", and
-  -- transcript_voices is where somebody says who those actually were.
+  -- The provider's letter for a voice within this one stem. Written until
+  -- 2026-10-09, NULL since and read by nothing: a stem is one voice, named by
+  -- whose stem it is. Kept rather than dropped because it holds what older
+  -- transcripts came back with. See decision/2026-10-09-a-stem-is-one-voice.md.
   speaker      TEXT,
   start_ms     INTEGER NOT NULL,
   end_ms       INTEGER NOT NULL,
@@ -1902,27 +1900,13 @@ CREATE INDEX IF NOT EXISTS transcript_lines_recording
 CREATE INDEX IF NOT EXISTS transcript_lines_channel
   ON transcript_lines(channel_id);
 
--- What somebody said about the voices a transcript came back with.
+-- What somebody said about the voices a transcript came back with: a rename,
+-- or a removal, of one provider letter within one stem.
 --
--- **A view over the lines, never an edit of them.** The provider labels each
--- stem's voices independently and is wrong about them often — two labels on
--- one person's microphone is usually a failure to attribute a "Yeah.", not a
--- second speaker in the room. So the answer is a declaration laid over the
--- text: rename a voice, collapse two onto one name, or drop one entirely,
--- with nothing in transcript_lines touched. Getting it wrong costs a tap to
--- put right rather than a second run of a paid transcription, and there is
--- exactly one way to clear a declaration, which is to delete the row.
---
--- **Only the voices somebody has said something about have rows.** Absence is
--- the default naming, which is what makes clearing a delete and means no
--- backfill was needed for the transcripts that existed before this.
---
--- The speaker column is '' rather than NULL for a stem the provider never
--- labelled, so
--- that the primary key means what it says: NULLs do not compare equal in an
--- index, and a nullable key column would let the same voice have two rows and
--- an upsert insert a third. See voiceKey in core/transcript.ts, which is the
--- same decision on the other side of the wire.
+-- **Read and written by nothing since 2026-10-09**, when speaker labels became
+-- the stem's display name and stopped being editable. Kept, rows and all,
+-- because dropping it deletes what people typed; drop it once that is decided.
+-- See decision/2026-10-09-a-stem-is-one-voice.md.
 CREATE TABLE IF NOT EXISTS transcript_voices (
   recording_id TEXT NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
   identity     TEXT NOT NULL,

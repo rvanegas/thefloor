@@ -1,24 +1,11 @@
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RecordingView } from '../../../core/protocol';
-import {
-  intoBlocks,
-  multiVoiceStems,
-  type VoiceDeclarations,
-  type VoiceEntry,
-} from '../../../core/transcript';
+import { intoBlocks } from '../../../core/transcript';
 import { shareTranscript } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import {
-  Button,
-  Card,
-  Empty,
-  Field,
-  IconButton,
-  Screen,
-  SectionLabel,
-} from './components';
+import { Button, Card, Empty, Field, IconButton, Screen } from './components';
 import { CloseIcon } from './icons';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 import { useText } from '../i18n';
@@ -61,8 +48,6 @@ export function TranscriptView({
   const shared = useText().shared;
   const app = useApp();
   const [lines, setLines] = React.useState<Line[] | null>(null);
-  const [voices, setVoices] = React.useState<VoiceEntry[]>([]);
-  const [naming, setNaming] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -70,48 +55,27 @@ export function TranscriptView({
   const state = recording.transcript?.state;
 
   /**
-   * The transcript as the server names it now.
-   *
-   * A function rather than only an effect because declaring the voices changes
-   * every line's name at once, and the honest way to show that is to ask again
-   * — the naming rules live on the server precisely so that this screen, a
-   * shared copy and a search result cannot drift apart.
+   * The transcript as the server names it — every line after its speaker's
+   * display name, which lives on the server so that this screen, a shared copy
+   * and a search result cannot drift apart.
    */
-  const load = React.useCallback(async () => {
-    if (!app.token) return;
-    const body = await api.transcript(app.token, recording.id);
-    setLines(body.lines);
-    setVoices(body.voices ?? []);
-  }, [app.token, recording.id]);
-
   React.useEffect(() => {
     let live = true;
     if (!app.token || state !== 'ready') return;
-    load().catch((e: unknown) => {
-      if (live) setError(e instanceof Error ? e.message : String(e));
-    });
+    api
+      .transcript(app.token, recording.id)
+      .then((body) => {
+        if (live) setLines(body.lines);
+      })
+      .catch((e: unknown) => {
+        if (live) setError(e instanceof Error ? e.message : String(e));
+      });
     return () => {
       live = false;
     };
     // Refetched when the state moves to ready, which is how a screen left open
     // while the provider was working fills itself in.
-  }, [app.token, load, state]);
-
-  /**
-   * Whether this viewer may say who the voices were.
-   *
-   * The same pair of rules as deleting the transcript, because it is the same
-   * kind of act: `mayRemove` is the server saying who may shape a thing only
-   * they can make again — whoever asked for this one — and `manageable` is
-   * about changing something shared. Everybody else reads the result; naming
-   * is not a private annotation.
-   *
-   * Not `mayRequest`, which since transcription opened up answers a different
-   * question: whether this viewer could start a *new* one, which somebody who
-   * has spent their free use cannot, while still being the person who made
-   * the transcript on screen.
-   */
-  const mayName = manageable && recording.transcript?.mayRemove !== false;
+  }, [app.token, recording.id, state]);
 
   const matches = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -120,7 +84,7 @@ export function TranscriptView({
   }, [lines, query]);
 
   /**
-   * Runs of one voice, as entries — but only when the whole transcript is on
+   * Runs of one speaker, as entries — but only when the whole transcript is on
    * screen. A search result is a set of lines that matched, and grouping those
    * would put two paragraphs minutes apart under one heading as though they
    * had been said together. Filtered, each match stands alone.
@@ -129,16 +93,6 @@ export function TranscriptView({
   const entries = React.useMemo(
     () => (searching ? matches.map((line) => [line]) : intoBlocks(matches).map((b) => b.lines)),
     [matches, searching]
-  );
-
-  /**
-   * Whether any stem came back with more than one voice, which is when the
-   * letters beside the names need explaining. Nearly always false: a stem is
-   * one microphone, and the exception is played media or somebody bleeding in.
-   */
-  const manyVoices = React.useMemo(
-    () => (lines ? multiVoiceStems(lines).size > 0 : false),
-    [lines]
   );
 
   /**
@@ -178,25 +132,15 @@ export function TranscriptView({
         />
       </View>
 
-      {!naming && (state === 'ready' || deletable) ? (
+      {state === 'ready' || deletable ? (
         // Stacked rather than laid across: the labels are sentences, not
-        // icons, and three of them will not sit on one line on a small
+        // icons, and two of them will not sit on one line on a small
         // handset — wrapping them left a ragged two-and-one arrangement
         // whose second row read as a different group. One under another is
         // what the rest of the app does with a column of actions, and it
         // gives each the full width its label was written for.
         <View style={styles.headerActions}>
-          {state === 'ready' && !naming && mayName && voices.length > 1 ? (
-            <Button
-              label={t.nameTheVoices()}
-              // Only when there is a choice to make. One voice in the whole
-              // transcript is a conversation nobody needs to relabel, and a
-              // button that opens a screen with a single row on it is a
-              // button that teaches people to ignore it.
-              onPress={() => setNaming(true)}
-            />
-          ) : null}
-          {state === 'ready' && !naming ? (
+          {state === 'ready' ? (
             <Button
               label={busy ? t.preparing() : t.share()}
               disabled={busy}
@@ -210,7 +154,7 @@ export function TranscriptView({
               }}
             />
           ) : null}
-          {deletable && !naming ? (
+          {deletable ? (
             <Button
               label={t.deleteTranscript()}
               disabled={!manageable || busy}
@@ -255,7 +199,7 @@ export function TranscriptView({
         on transcripts that offer no deleting at all, where it answered a
         question nobody had asked.
       */}
-      {deletable && !naming && !manageable ? (
+      {deletable && !manageable ? (
         <Text style={type.muted}>{t.stepInToDelete()}</Text>
       ) : null}
       </View>
@@ -282,31 +226,7 @@ export function TranscriptView({
         <Empty>{t.loading()}</Empty>
       ) : null}
 
-      {state === 'ready' && lines !== null && naming ? (
-        <VoicesEditor
-          voices={voices}
-          busy={busy}
-          onCancel={() => setNaming(false)}
-          onSave={async (declarations) => {
-            if (!app.token) return;
-            setBusy(true);
-            try {
-              await api.declareVoices(app.token, recording.id, declarations);
-              await load();
-              setNaming(false);
-            } catch (e) {
-              Alert.alert(
-                t.couldNotSave(),
-                e instanceof Error ? e.message : String(e)
-              );
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-      ) : null}
-
-      {state === 'ready' && lines !== null && !naming ? (
+      {state === 'ready' && lines !== null ? (
         <>
           {/*
             Said before the list rather than beside every line, and only when
@@ -319,17 +239,6 @@ export function TranscriptView({
             <Text style={type.muted}>
               {t.missing(recording.transcript.missing)}
             </Text>
-          ) : null}
-
-          {/*
-            Said only when there is something to explain. A letter beside a
-            name means the service heard two voices in audio this app had
-            taken for one — played media, usually, or somebody else audible on
-            a member's handset. It is not an identification and must not read
-            as one.
-          */}
-          {manyVoices ? (
-            <Text style={type.muted}>{t.manyVoices()}</Text>
           ) : null}
 
           <Field
@@ -392,7 +301,6 @@ export function TranscriptView({
 interface Line {
   identity: string;
   displayName: string | null;
-  speaker: string | null;
   startMs: number;
   endMs: number;
   text: string;
@@ -400,177 +308,7 @@ interface Line {
 }
 
 /**
- * Saying who the voices in a transcript actually were.
- *
- * The provider labels each stem's voices independently, and what it produces
- * is a starting point rather than an answer: two labels on one person's
- * microphone is usually a failure to attribute a "Yeah.", and two labels on
- * played media is an interview whose speakers it cannot name. This is where
- * somebody who was there says which it was.
- *
- * Three things can be said about a voice, and they are the same three thing
- * the transcript needs:
- *
- *   - **A name.** What to call it instead of `Played audio (B)`.
- *   - **The same name as another voice**, which is how two are collapsed into
- *     one — the runs the spurious label split rejoin by themselves, because
- *     entries are grouped by name.
- *   - **Removed**, for a voice that was never a person.
- *
- * **Nothing here edits the transcript.** Every one of these is a view laid
- * over lines that are not touched, so it can be said differently a minute
- * later, or cleared entirely, and no audio is sent anywhere and nothing is
- * spent. That is why this screen can afford a Clear all button, and why the
- * one thing it never offers is a confirmation dialogue.
- */
-function VoicesEditor({
-  voices,
-  busy,
-  onSave,
-  onCancel,
-}: {
-  voices: VoiceEntry[];
-  busy: boolean;
-  onSave: (declarations: VoiceDeclarations) => void;
-  onCancel: () => void;
-}) {
-  const t = useText().transcript;
-  /**
-   * The draft, keyed the way the wire is.
-   *
-   * Held here and sent whole on Save rather than saved per field: the useful
-   * edit is "these two are the same person", which is two fields that only
-   * mean something together, and a screen that saved each one as it was typed
-   * would regroup the transcript underneath somebody halfway through saying
-   * it.
-   */
-  const [draft, setDraft] = React.useState<Record<string, { name: string; removed: boolean }>>(
-    () =>
-      Object.fromEntries(
-        voices.map((voice) => [
-          voice.key,
-          { name: voice.declaration.name ?? '', removed: !!voice.declaration.removed },
-        ])
-      )
-  );
-
-  const set = (key: string, change: Partial<{ name: string; removed: boolean }>) =>
-    setDraft((was) => ({ ...was, [key]: { ...was[key], ...change } }));
-
-  return (
-    <>
-      <SectionLabel>{t.voices()}</SectionLabel>
-      <Text style={type.muted}>{t.voicesExplanation()}</Text>
-
-      {/*
-        Above the rows, for the reason the transcript's own actions are above
-        its lines: a voice list is as long as the conversation had voices, and
-        Save at the foot of it is a scroll away from the moment somebody has
-        decided. The order is the same one the screen reads in — what this is,
-        what you may do to it, then the thing itself.
-      */}
-      <View style={styles.actions}>
-        <Button
-          label={busy ? t.saving() : t.save()}
-          variant="primary"
-          disabled={busy}
-          onPress={() =>
-            onSave(
-              Object.fromEntries(
-                Object.entries(draft).map(([key, value]) => [
-                  key,
-                  {
-                    ...(value.name.trim() ? { name: value.name.trim() } : {}),
-                    ...(value.removed ? { removed: true } : {}),
-                  },
-                ])
-              )
-            )
-          }
-        />
-        <Button
-          label={t.clearAll()}
-          disabled={busy}
-          // Empties the draft rather than saving one: undoing an edit and
-          // committing it are two different intentions, and the Save button
-          // beside it is for the second one.
-          onPress={() =>
-            setDraft(
-              Object.fromEntries(
-                voices.map((voice) => [voice.key, { name: '', removed: false }])
-              )
-            )
-          }
-        />
-        <Button label={t.cancel()} disabled={busy} onPress={onCancel} />
-      </View>
-
-      <View style={styles.lines}>
-        {voices.map((voice) => (
-          <VoiceRow
-            key={voice.key}
-            voice={voice}
-            draft={draft[voice.key] ?? { name: '', removed: false }}
-            onChange={(change) => set(voice.key, change)}
-          />
-        ))}
-      </View>
-    </>
-  );
-}
-
-/** One voice, with what it is called, what it said, and how much of it. */
-function VoiceRow({
-  voice,
-  draft,
-  onChange,
-}: {
-  voice: VoiceEntry;
-  draft: { name: string; removed: boolean };
-  onChange: (change: Partial<{ name: string; removed: boolean }>) => void;
-}) {
-  const t = useText().transcript;
-  return (
-    <Card style={styles.line}>
-      <View style={styles.lineHead}>
-        <Text style={styles.speaker} numberOfLines={1}>
-          {voice.defaultName ?? t.someone()}
-        </Text>
-        <Text style={type.muted}>
-          {t.lines(voice.lines)}
-        </Text>
-      </View>
-      {/*
-        What it first said, which is how somebody tells one voice from another.
-        A letter is not recognisable and a line count is not either; a sentence
-        is, immediately.
-      */}
-      <Text style={type.muted} numberOfLines={2}>
-        {voice.sample}
-      </Text>
-      <Field
-        value={draft.name}
-        onChangeText={(name) => onChange({ name })}
-        // The default is the placeholder, so leaving it blank plainly means
-        // "as it was" and there is no separate control for going back.
-        placeholder={voice.defaultName ?? t.nameThisVoice()}
-        autoCapitalize="words"
-        editable={!draft.removed}
-      />
-      <Button
-        // No tone to distinguish the two states any more: the label is the
-        // whole of it, and it says which way the press goes. A fill that
-        // changed under the same button was the weaker half of that pair even
-        // while there were two fills to choose between.
-        label={draft.removed ? t.bringBack() : t.removeFromTranscript()}
-        onPress={() => onChange({ removed: !draft.removed })}
-      />
-    </Card>
-  );
-}
-
-/**
- * One voice's uninterrupted run, as one card.
+ * One speaker's uninterrupted run, as one card.
  *
  * The name is printed once and the utterances beneath it are paragraphs, which
  * is what makes the labels alternate: the next card is always somebody else,
@@ -678,6 +416,5 @@ const styles = StyleSheet.create({
   line: { gap: spacing(0.5) },
   lineHead: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
-  actions: { gap: spacing(1) },
   pressed: { opacity: 0.6, borderRadius: radius.md },
 });

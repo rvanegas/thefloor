@@ -701,7 +701,6 @@ export const en = {
   },
   transcript: {
     title: () => 'Transcript',
-    nameTheVoices: () => 'Name the voices',
     preparing: () => 'Preparing\u2026',
     share: () => 'Share',
     shareTranscript: () => 'Share transcript',
@@ -722,13 +721,10 @@ export const en = {
       `Transcribing failed — ${reason}`,
     transcribingFailed: () => 'Transcribing failed.',
     loading: () => 'Loading\u2026',
-    couldNotSave: () => 'Could not save',
     missing: (count: number) =>
       count === 1
         ? 'One person could not be transcribed and is missing from this.'
         : `${count} people could not be transcribed and are missing from this.`,
-    manyVoices: () =>
-      'A letter beside a name means more than one voice was heard on that microphone. Who the others were is not known.',
     findAWord: () => 'Find a word',
     searchSeekable: () =>
       'Searching is yours alone. Tapping a line moves playback for everybody.',
@@ -737,17 +733,7 @@ export const en = {
     nothingMatches: () => 'Nothing matches.',
     nothingWasTranscribed: () => 'Nothing was transcribed.',
     couldNotShare: () => 'Could not share',
-    voices: () => 'Voices',
-    voicesExplanation: () =>
-      'The service heard these voices. It labels each microphone on its own, so the letters are its guess — name them, give two the same name to make them one, or remove one that was never a person. The transcript itself is not changed and this can be redone at any time.',
-    saving: () => 'Saving\u2026',
-    save: () => 'Save',
-    clearAll: () => 'Clear all',
     someone: () => 'Someone',
-    lines: (count: number) => (count === 1 ? '1 line' : `${count} lines`),
-    nameThisVoice: () => 'Name this voice',
-    bringBack: () => 'Removed — bring back',
-    removeFromTranscript: () => 'Remove from transcript',
     /** `at` is already formatted — see `formatDuration`. */
     jumpTo: (at: string, name: string, text: string) =>
       `Jump to ${at}, ${name}: ${text}`,

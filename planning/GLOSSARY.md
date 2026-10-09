@@ -114,7 +114,7 @@ caused; the list carries the meaning.
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Behind *Labs*: without it a recording shows no transcript and no way to ask for one
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
-- **Voice** — One speaker within a transcript
+- **Voice** — One speaker within a transcript, which since 2026-10-09 is exactly one *stem*: labelled with its owner's display name, or *Played audio*, and never renamed
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no recording may be begun, and while one is *playing* no *floor* may be claimed — the floor asked about the load too until 2026-09-24, which left a film paused at its own end refusing every claim in that channel for ever. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and *Watch on this device* bare where no device of yours has it at all (since 2026-09-24; nothing at all only when you have stepped out); a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
@@ -2615,9 +2615,10 @@ Text made from a recording, on request, by a third-party provider named on the
 screen that asks. Everybody gets one free; asking sends everybody's audio out,
 so who asked is always shown.
 
-A transcript is never edited. What can be said about it — renaming a *voice*,
-dropping one — is a *declaration* laid over the text, so getting it wrong costs
-a tap rather than a second paid run.
+A transcript is never edited, and since 2026-10-09 nothing is said about it
+either: each line is named after its *voice*, which is its *stem*, and there
+is no renaming. Until then a rename or a removal was a *declaration* laid over
+the text.
 
 ## Username
 
@@ -2651,10 +2652,15 @@ mean.
 
 ## Voice
 
-One speaker within a transcript. Usually one voice per person, since each
-person's audio was captured separately — see *stem* in Part Two — so a voice
-label is only ever drawn where the provider heard more than one voice in audio
-this system assumed was one.
+One speaker within a transcript, and **exactly one *stem***, since
+2026-10-09 — see Part Two. A stem is one microphone, so whose stem a line came
+from is who said it, and its label is that person's display name as frozen
+with the run, or *Played audio* for the shared track. Nothing asks the provider
+how many voices it heard, and nothing renames one: an interview played into
+the room is one voice called *Played audio*, and a speakerphone's bleed is
+credited to the microphone's owner. Until then the provider's letters split a
+stem into several voices — *Played audio (B)* — that could be named or removed;
+decision/2026-10-09-a-stem-is-one-voice.md is why that went.
 
 ## Waiting bar
 

@@ -12,10 +12,6 @@ import type { NotificationLevel } from '../../../core/notifications';
 import type { AccountSettings } from '../../../core/settings';
 import type { NavAction } from '../../../core/navigation';
 import type { Tried, TriedId } from '../../../core/tried';
-import type {
-  VoiceDeclarations,
-  VoiceEntry,
-} from '../../../core/transcript';
 import { appBuild, BUILD_HEADER, CLIENT_HEADER, CLIENT_KIND } from './build';
 import { API_URL } from './config';
 import { notificationPermission, NOTIFY_HEADER } from './notify';
@@ -864,39 +860,12 @@ export const api = {
       lines: Array<{
         identity: string;
         displayName: string | null;
-        speaker: string | null;
         startMs: number;
         endMs: number;
         text: string;
         confidence: number | null;
       }>;
-      /**
-       * Every voice the provider found, named as it currently is.
-       *
-       * Includes the ones declared gone, which `lines` no longer carries —
-       * the screen that names them has to be able to bring one back.
-       */
-      voices?: VoiceEntry[];
     }>(`/recordings/${recordingId}/transcript`, { token }),
-
-  /**
-   * Says who the voices in a transcript actually were.
-   *
-   * The whole declaration, every time: the screen holds all of it, and
-   * replacing it wholesale is what makes clearing one voice — or all of them,
-   * with `{}` — a thing that can be said at all. Nothing is re-transcribed and
-   * nothing is spent; this is a view over lines that are never edited.
-   */
-  declareVoices: (
-    token: string,
-    recordingId: string,
-    voices: VoiceDeclarations
-  ) =>
-    request<{ ok: true }>(`/recordings/${recordingId}/transcript/voices`, {
-      method: 'PUT',
-      token,
-      body: { voices },
-    }),
 
   /**
    * Every line in this channel's transcripts matching a query.

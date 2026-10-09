@@ -198,18 +198,6 @@ const ask = (token: string, method: 'POST' | 'DELETE' = 'POST') =>
     headers: auth(token),
   });
 
-/** Declares who the voices were, which is the whole declaration every time. */
-const declare = (token: string, voices: Record<string, unknown>) =>
-  app.fastify.inject({
-    method: 'PUT',
-    url: `/recordings/${RECORDING}/transcript/voices`,
-    headers: auth(token),
-    payload: { voices },
-  });
-
-/** The key one voice is declared against — `voiceKey`, spelled out. */
-const key = (identity: string, speaker: string) => `${identity}\u0000${speaker}`;
-
 const read = (token: string, url = `/recordings/${RECORDING}/transcript`) =>
   app.fastify.inject({ method: 'GET', url, headers: auth(token) });
 
@@ -225,7 +213,6 @@ async function complete(text: Record<string, string>) {
           endMs: n * 1_000 + 900,
           text: text[identities[n]],
           confidence: 0.9,
-          speaker: 'A',
         },
       ],
       'en'
@@ -237,12 +224,11 @@ async function complete(text: Record<string, string>) {
 }
 
 /**
- * Answers every open job with utterances of its own, so a stem can come back
- * carrying more than one voice — which is the case `complete` cannot make and
- * the one the played-media stem is actually in.
+ * Answers every open job with utterances of its own, so a stem can say more
+ * than one thing — which is the case `complete` cannot make.
  */
 async function completeWith(
-  utterances: Record<string, Array<{ text: string; speaker: string | null; startMs: number }>>
+  utterances: Record<string, Array<{ text: string; startMs: number }>>
 ) {
   const identities = Object.keys(utterances);
   for (const [n, job] of provider.submitted.entries()) {
@@ -253,7 +239,6 @@ async function completeWith(
         endMs: u.startMs + 900,
         text: u.text,
         confidence: 0.9,
-        speaker: u.speaker,
       })),
       'en'
     );
@@ -630,19 +615,18 @@ describe('what was played into the room', () => {
     expect(file.body).toContain('Played audio: and the second movement begins');
   }, 60_000);
 
-  it('tells its voices apart when the provider heard more than one', async () => {
-    // The ordinary case for this stem: what somebody plays into a room may be
-    // an interview. `speaker_labels` separates them; the letter is what makes
-    // the separation visible, and without it 200 lines of two people read as
-    // one speaker called "Played audio".
+  it('names every line of it "Played audio", whoever was speaking in the track', async () => {
+    // A stem is one voice, since 2026-10-09: an interview played into the
+    // room is one speaker called "Played audio", and nothing offers to say
+    // otherwise. See decision/2026-10-09-a-stem-is-one-voice.md.
     const { alice } = await roomWithMedia();
     await ask(alice.token);
     await app.transcripts.settled();
     await completeWith({
-      [alice.account.id]: [{ text: 'listen to this bit', speaker: 'A', startMs: 0 }],
+      [alice.account.id]: [{ text: 'listen to this bit', startMs: 0 }],
       media: [
-        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
-        { text: 'thank you for having me', speaker: 'B', startMs: 2_000 },
+        { text: 'welcome to the programme', startMs: 1_000 },
+        { text: 'thank you for having me', startMs: 2_000 },
       ],
     });
 
@@ -651,26 +635,24 @@ describe('what was played into the room', () => {
       body.lines.map((l: { text: string; displayName: string }) => [l.text, l.displayName])
     );
 
-    expect(named['welcome to the programme']).toBe('Played audio (A)');
-    expect(named['thank you for having me']).toBe('Played audio (B)');
-    // And the stem that held one voice keeps its plain name. A letter beside
-    // a named participant who was alone on their microphone answers a
-    // question nobody asked.
+    expect(named['welcome to the programme']).toBe('Played audio');
+    expect(named['thank you for having me']).toBe('Played audio');
     expect(named['listen to this bit']).toBe('Alice');
+    // Neither half of what an older build drew its voice editor from: no
+    // roster, and no letter on a line.
+    expect(body.voices).toBeUndefined();
+    expect(body.lines.every((l: object) => !('speaker' in l))).toBe(true);
   }, 60_000);
 
-  it('carries the letter into a search result too', async () => {
-    // Counted from the database rather than from the hits: the matching lines
-    // are not the transcript, and a stem whose second voice never said the
-    // word would otherwise come back looking single-voiced.
+  it('names a search result the same way', async () => {
     const { alice } = await roomWithMedia();
     await ask(alice.token);
     await app.transcripts.settled();
     await completeWith({
-      [alice.account.id]: [{ text: 'listen to this bit', speaker: 'A', startMs: 0 }],
+      [alice.account.id]: [{ text: 'listen to this bit', startMs: 0 }],
       media: [
-        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
-        { text: 'a distinctive remark', speaker: 'B', startMs: 2_000 },
+        { text: 'welcome to the programme', startMs: 1_000 },
+        { text: 'a distinctive remark', startMs: 2_000 },
       ],
     });
 
@@ -679,7 +661,22 @@ describe('what was played into the room', () => {
       `/channels/${CHANNEL}/transcripts/search?q=distinctive`
     );
     expect(found.json().hits).toHaveLength(1);
-    expect(found.json().hits[0].displayName).toBe('Played audio (B)');
+    expect(found.json().hits[0].displayName).toBe('Played audio');
+  }, 60_000);
+
+  it('offers nowhere to rename a voice', async () => {
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await complete({ [alice.account.id]: 'here it is', media: 'welcome' });
+
+    const answered = await app.fastify.inject({
+      method: 'PUT',
+      url: `/recordings/${RECORDING}/transcript/voices`,
+      headers: auth(alice.token),
+      payload: { voices: {} },
+    });
+    expect(answered.statusCode).toBe(404);
   }, 60_000);
 });
 
@@ -692,11 +689,13 @@ describe('a transcript to read as prose', () => {
     await ask(alice.token);
     await app.transcripts.settled();
     await completeWith({
-      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
+      [alice.account.id]: [
+        { text: 'here it is', startMs: 0 },
+        { text: 'and a reply', startMs: 12_000 },
+      ],
       media: [
-        { text: 'first sentence', speaker: 'B', startMs: 10_000 },
-        { text: 'second sentence', speaker: 'B', startMs: 11_000 },
-        { text: 'and a reply', speaker: 'A', startMs: 12_000 },
+        { text: 'first sentence', startMs: 10_000 },
+        { text: 'second sentence', startMs: 11_000 },
       ],
     });
 
@@ -709,11 +708,11 @@ describe('a transcript to read as prose', () => {
       [
         '[00:00:00] Alice: here it is',
         '',
-        '[00:00:10] Played audio (B): first sentence',
+        '[00:00:10] Played audio: first sentence',
         '',
         'second sentence',
         '',
-        '[00:00:12] Played audio (A): and a reply',
+        '[00:00:12] Alice: and a reply',
         '',
       ].join('\n')
     );
@@ -726,11 +725,13 @@ describe('a transcript to read as prose', () => {
     await ask(alice.token);
     await app.transcripts.settled();
     await completeWith({
-      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
+      [alice.account.id]: [
+        { text: 'here it is', startMs: 0 },
+        { text: 'and a reply', startMs: 12_000 },
+      ],
       media: [
-        { text: 'first sentence', speaker: 'B', startMs: 10_000 },
-        { text: 'second sentence', speaker: 'B', startMs: 11_000 },
-        { text: 'and a reply', speaker: 'A', startMs: 12_000 },
+        { text: 'first sentence', startMs: 10_000 },
+        { text: 'second sentence', startMs: 11_000 },
       ],
     });
 
@@ -739,209 +740,8 @@ describe('a transcript to read as prose', () => {
       `/recordings/${RECORDING}/transcript/export?format=vtt`
     );
 
-    expect(file.body).toContain('<v Played audio (B)>first sentence');
-    expect(file.body).toContain('<v Played audio (B)>second sentence');
-  }, 60_000);
-});
-
-describe('saying who the voices were', () => {
-  /** A transcript whose media stem came back holding two voices. */
-  async function interviewed() {
-    const { alice } = await roomWithMedia();
-    await ask(alice.token);
-    await app.transcripts.settled();
-    await completeWith({
-      [alice.account.id]: [
-        { text: 'so I started the recording', speaker: 'A', startMs: 0 },
-        { text: 'Mm-hmm.', speaker: 'B', startMs: 5_000 },
-      ],
-      media: [
-        { text: 'welcome to the programme', speaker: 'A', startMs: 1_000 },
-        { text: 'thank you for having me', speaker: 'B', startMs: 2_000 },
-      ],
-    });
-    return alice;
-  }
-
-  const namesIn = async (token: string) =>
-    Object.fromEntries(
-      (await read(token))
-        .json()
-        .lines.map((l: { text: string; displayName: string }) => [l.text, l.displayName])
-    );
-
-  it('lists every voice with what it said and how much of it', async () => {
-    const alice = await interviewed();
-    const body = (await read(alice.token)).json();
-
-    expect(
-      body.voices.map((v: { displayName: string; lines: number; sample: string }) => [
-        v.displayName,
-        v.lines,
-        v.sample,
-      ])
-    ).toEqual([
-      // In the order they were first heard, which is the order of the
-      // transcript rather than of the stems.
-      ['Alice (A)', 1, 'so I started the recording'],
-      ['Played audio (A)', 1, 'welcome to the programme'],
-      ['Played audio (B)', 1, 'thank you for having me'],
-      ['Alice (B)', 1, 'Mm-hmm.'],
-    ]);
-  }, 60_000);
-
-  it('names the voices inside the played stem', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, {
-      [key('media', 'A')]: { name: 'Host' },
-      [key('media', 'B')]: { name: 'Douglas' },
-    });
-
-    const named = await namesIn(alice.token);
-    expect(named['welcome to the programme']).toBe('Host');
-    expect(named['thank you for having me']).toBe('Douglas');
-  }, 60_000);
-
-  it('collapses two voices onto one name, and un-letters what is left', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, {
-      [key(alice.account.id, 'A')]: { name: 'Alice' },
-      [key(alice.account.id, 'B')]: { name: 'Alice' },
-    });
-
-    const named = await namesIn(alice.token);
-    expect(named['so I started the recording']).toBe('Alice');
-    expect(named['Mm-hmm.']).toBe('Alice');
-  }, 60_000);
-
-  it('drops a removed voice from the transcript and from an export', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
-
-    const named = await namesIn(alice.token);
-    expect(named['Mm-hmm.']).toBeUndefined();
-    // And the stem it left holding one voice loses its letter, since the
-    // evidence for showing one is what was just taken away.
-    expect(named['so I started the recording']).toBe('Alice');
-
-    const file = await read(alice.token, `/recordings/${RECORDING}/transcript/export`);
-    expect(file.body).not.toContain('Mm-hmm.');
-  }, 60_000);
-
-  it('keeps a removed voice on the roster, so it can be brought back', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
-
-    const body = (await read(alice.token)).json();
-    const gone = body.voices.find(
-      (v: { key: string }) => v.key === key(alice.account.id, 'B')
-    );
-    expect(gone).toBeDefined();
-    expect(gone.declaration).toEqual({ removed: true });
-    expect(gone.sample).toBe('Mm-hmm.');
-  }, 60_000);
-
-  it('is a view, so an empty declaration puts everything back', async () => {
-    // The whole point of storing this beside the lines rather than in them:
-    // getting it wrong costs a tap, never a second run of a paid job.
-    const alice = await interviewed();
-    await declare(alice.token, {
-      [key('media', 'A')]: { name: 'Host' },
-      [key(alice.account.id, 'B')]: { removed: true },
-    });
-    await declare(alice.token, {});
-
-    const named = await namesIn(alice.token);
-    expect(named['welcome to the programme']).toBe('Played audio (A)');
-    expect(named['Mm-hmm.']).toBe('Alice (B)');
-  }, 60_000);
-
-  it('does not touch the text, so the same audio is never sent twice', async () => {
-    const alice = await interviewed();
-    const before = provider.submitted.length;
-    await declare(alice.token, { [key('media', 'A')]: { name: 'Host' } });
-
-    expect(provider.submitted).toHaveLength(before);
-    const body = (await read(alice.token)).json();
-    const line = body.lines.find(
-      (l: { text: string }) => l.text === 'welcome to the programme'
-    );
-    // The label the provider gave it is still there underneath the name.
-    expect(line.speaker).toBe('A');
-  }, 60_000);
-
-  it('keeps a removed voice out of a search, not merely off the screen', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, { [key(alice.account.id, 'B')]: { removed: true } });
-
-    const found = await read(
-      alice.token,
-      `/channels/${CHANNEL}/transcripts/search?q=Mm-hmm`
-    );
-    expect(found.json().hits).toEqual([]);
-  }, 60_000);
-
-  it('carries a declared name into a search result', async () => {
-    const alice = await interviewed();
-    await declare(alice.token, { [key('media', 'B')]: { name: 'Douglas' } });
-
-    const found = await read(
-      alice.token,
-      `/channels/${CHANNEL}/transcripts/search?q=having`
-    );
-    expect(found.json().hits[0].displayName).toBe('Douglas');
-  }, 60_000);
-
-  it('refuses a transcript that does not exist', async () => {
-    const { alice } = await roomWithMedia();
-    expect((await declare(alice.token, {})).statusCode).toBe(404);
-  });
-
-  it('refuses a body that is not an object of voices', async () => {
-    const alice = await interviewed();
-    const answered = await app.fastify.inject({
-      method: 'PUT',
-      url: `/recordings/${RECORDING}/transcript/voices`,
-      headers: auth(alice.token),
-      payload: { voices: 'Douglas' },
-    });
-    expect(answered.statusCode).toBe(400);
-  }, 60_000);
-});
-
-describe('naming the voices', () => {
-  // The same pair of rules as deleting, for the same reason: this shapes a
-  // shared artefact that costs money to make again, so it belongs to whoever
-  // asked for it. Reading is not restricted, so everybody in the channel sees
-  // the result.
-  beforeEach(async () => {
-    build();
-    store.put('a.ogg', await tone('a.ogg'));
-    store.put('b.ogg', await tone('b.ogg'));
-  });
-
-  it('refuses somebody who did not ask for it, without hiding the recording', async () => {
-    const { alice, bob } = await roomWithMedia();
-    await ask(alice.token);
-    await app.transcripts.settled();
-    await completeWith({
-      [alice.account.id]: [{ text: 'here it is', speaker: 'A', startMs: 0 }],
-      media: [
-        { text: 'welcome', speaker: 'A', startMs: 1_000 },
-        { text: 'thank you', speaker: 'B', startMs: 2_000 },
-      ],
-    });
-
-    const refused = await declare(bob.token, { [key('media', 'A')]: { name: 'Host' } });
-    expect(refused.statusCode).toBe(403);
-
-    // And Bob still reads the transcript, names and all.
-    expect((await read(bob.token)).statusCode).toBe(200);
-
-    // Alice asked for it, so it is hers to shape — including after her free
-    // use is gone, which is a different question from making a new one.
-    const named = await declare(alice.token, { [key('media', 'A')]: { name: 'Host' } });
-    expect(named.statusCode).toBe(200);
+    expect(file.body).toContain('<v Played audio>first sentence');
+    expect(file.body).toContain('<v Played audio>second sentence');
   }, 60_000);
 });
 
@@ -1039,7 +839,7 @@ describe('the file it exports', () => {
     expect(answered.body).toContain('<v Alice>first thing');
   }, 60_000);
 
-  it('carries the labels and the confidence as JSON', async () => {
+  it('carries the names and the confidence as JSON', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const answered = await read(alice.token, exportUrl('json'));
 
@@ -1048,9 +848,11 @@ describe('the file it exports', () => {
     expect(lines[0]).toMatchObject({
       text: 'first thing',
       displayName: 'Alice',
-      speaker: 'A',
       confidence: 0.9,
     });
+    // The provider's letter is not on the wire, even for a line stored with
+    // one: a stem is one voice. See decision/2026-10-09-a-stem-is-one-voice.md.
+    expect(lines[0]).not.toHaveProperty('speaker');
   }, 60_000);
 
   it('refuses a format it does not have', async () => {
@@ -1228,7 +1030,7 @@ describe('what the recordings list carries', () => {
     await ask(alice.token);
     await app.transcripts.settled();
     provider.ready(provider.submitted[0].id, [
-      { startMs: 0, endMs: 100, text: 'only me', confidence: 0.9, speaker: 'A' },
+      { startMs: 0, endMs: 100, text: 'only me', confidence: 0.9 },
     ]);
     provider.fails(provider.submitted[1].id, 'audio_too_short');
     clock += 120_000;
