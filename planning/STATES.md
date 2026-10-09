@@ -29,7 +29,7 @@ either of the other two.
 
 ## Contents
 
-Added 2026-09-07. Read the section you need, not the file: this is ninety-four
+Added 2026-09-07. Read the section you need, not the file: this is ninety-five
 kilobytes and almost no question needs all of it. **The figure had said
 sixty-two since it was written and was twenty-four kilobytes stale by
 2026-09-26** — correct it in the same commit as anything added here, on
@@ -1113,9 +1113,12 @@ So the teardown skips it (`reportedCallHoldsSession`), and CallKit's
 deactivation follows the call's end within a second. That deactivation does
 not say *you may resume*: Music and YouTube stayed paused after a step-out on
 the spike. Rodrigo's requirement is that other apps *can* take their audio
-back, which they can. Resuming was observed before, not required. The
-`notifyOnDeactivate` switch on branch `spike/callkit` is the fix if it is ever
-wanted. A reconnect keeps the call, so it no longer releases at all.
+back, which they can. Resuming was observed before, not required. **If it is
+ever wanted, the likely fix is one call**, never run on a device: in
+`didDeactivate`, once the call no longer owns the session, call
+`setActive(false, options: .notifyOthersOnDeactivation)` again — the option
+that brought Music back every time in the 2026-09-08 lab. A reconnect keeps
+the call, so it no longer releases at all.
 
 **Every exit from stepped-in takes the same path** — a tap on Step Out,
 declaring nearby, Rule B retiring an unattended phone, being displaced by

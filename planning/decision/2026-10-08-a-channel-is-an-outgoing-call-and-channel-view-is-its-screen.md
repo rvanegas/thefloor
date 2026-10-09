@@ -52,8 +52,10 @@ hold. CallKit stays wanted for Recents and for meeting other calls.
   within a second, every time. Music and YouTube did not *resume* on their
   own, which they did without CallKit. Rodrigo's requirement is only that
   other apps can take their audio back, which they can, and the automatic
-  resume is not required. `notifyOnDeactivate` on the spike branch is the fix
-  if it is ever wanted.
+  resume is not required. If it is ever wanted, the likely fix — written on
+  the spike and never run on a device — is to call
+  `setActive(false, options: .notifyOthersOnDeactivation)` again in
+  `didDeactivate`. STATES.md § *Audio Session Configuration* carries it.
 - **The spike mirrors every app mute to CallKit twice**, and the second one
   comes back as if a system button had been tapped. That is harmless at equal
   values, and Phase 2 matches the actions properly.
@@ -64,6 +66,6 @@ hold. CallKit stays wanted for Recents and for meeting other calls.
 premise. It was not tested because calling the phone needed the other
 tester's phone, which was in the channel. Measure it before Phase 3 is built,
 not before Phase 1: nothing in Phases 1 and 2 depends on it. Bluetooth, the
-film and a guest's `LISTENING` under a call are in
-`app/modules/call-kit/SPIKE.md` on the spike branch. They are for Phase 1's
-own device checks.
+film and a guest's `LISTENING` under a call are Phase 1's own device checks,
+listed in `task/integrate-with-callkit.md`. The spike's branch was deleted
+once those checks and the resume fix above had been written down here.

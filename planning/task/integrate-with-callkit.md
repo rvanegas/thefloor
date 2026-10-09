@@ -133,7 +133,13 @@ Three things differ from the plan below, and the code says why at each one:
 - Recents gets one entry, under the channel's title, and a reconnect adds none;
 - a Recents tap opens that channel and does not step in;
 - a step-out lets Music play again;
-- a guest without speech, and a device watching here, under a call.
+- a guest without speech, and a device watching here, under a call;
+- Bluetooth under a call: a headset keeps the audio through a mute and an
+  unmute, and a speaker with no microphone is evicted to the phone's
+  loudspeaker, as STATES.md says.
+
+Keep Bluetooth off for every other check. A headset that connects mid-run
+takes the audio, which is how the spike's first run lost the far end.
 
 - **One call per `mediaRoom`, not per connection.** The connection effect in
   `useSessionAudio.ts` re-runs on `generation`, and a reconnect must not end
