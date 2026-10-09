@@ -55,6 +55,7 @@ describe('Submitting audio', () => {
     ]);
 
     const id = await provider(fetch).submit(Buffer.from('opus'), {
+      model: 'standard',
       languageDetection: true,
     });
 
@@ -70,12 +71,30 @@ describe('Submitting audio', () => {
     const started = JSON.parse(String(calls[1].body));
     expect(started.audio_url).toBe('https://cdn.example.test/u/1');
     // The two decisions in this request. No speaker labels: a stem is one
-    // voice, named by whose stem it is. The models are named because the
-    // provider's own default is an older pair.
+    // voice, named by whose stem it is. The models are named, so that the
+    // provider moving its default changes nothing here.
     expect(started.speaker_labels).toBeUndefined();
-    expect(started.speech_models).toEqual(ASSEMBLYAI_MODELS);
+    expect(started.speech_models).toEqual(['universal-2']);
+    expect(ASSEMBLYAI_MODELS.standard).toEqual(['universal-2']);
     expect(started.speech_model).toBeUndefined();
     expect(started.language_detection).toBe(true);
+  });
+
+  it('asks for the flagship, falling back to Universal-2, on the pro grade', async () => {
+    const { fetch, calls } = stubFetch([
+      { body: { upload_url: 'https://cdn.example.test/u/1' } },
+      { body: { id: 'job-y', status: 'queued' } },
+    ]);
+
+    await provider(fetch).submit(Buffer.from('opus'), {
+      model: 'pro',
+      languageDetection: true,
+    });
+
+    expect(JSON.parse(String(calls[1].body)).speech_models).toEqual([
+      'universal-3-5-pro',
+      'universal-2',
+    ]);
   });
 
   it('carries the status and any Retry-After when the provider refuses', async () => {
@@ -84,7 +103,7 @@ describe('Submitting audio', () => {
     ]);
 
     const failed = await provider(fetch)
-      .submit(Buffer.from('opus'), { languageDetection: true })
+      .submit(Buffer.from('opus'), { model: 'standard', languageDetection: true })
       .catch((error: unknown) => error as TranscriptionError);
 
     expect(failed).toBeInstanceOf(TranscriptionError);
@@ -223,6 +242,7 @@ describe('The memory double', () => {
   it('is a whole lifecycle without a network', async () => {
     const memory = new MemoryTranscription();
     const id = await memory.submit(Buffer.from('opus'), {
+      model: 'standard',
       languageDetection: true,
     });
 
@@ -241,6 +261,7 @@ describe('The memory double', () => {
   it('can fail a submission and a job independently', async () => {
     const memory = new MemoryTranscription();
     const id = await memory.submit(Buffer.from('a'), {
+      model: 'standard',
       languageDetection: false,
     });
     memory.fails(id, 'audio_too_short');
@@ -251,7 +272,7 @@ describe('The memory double', () => {
 
     memory.refuseSubmissions('no balance');
     await expect(
-      memory.submit(Buffer.from('b'), { languageDetection: false })
+      memory.submit(Buffer.from('b'), { model: 'standard', languageDetection: false })
     ).rejects.toThrow('no balance');
   });
 });

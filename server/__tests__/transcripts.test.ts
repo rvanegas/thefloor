@@ -151,6 +151,43 @@ describe('asking for a transcript', () => {
     expect(errors).toEqual([]);
   }, 60_000);
 
+  it('asks for the standard grade unless told otherwise, and stores it', async () => {
+    makeRecording({ [ALICE]: ['a.ogg'] });
+
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+
+    expect(transcript()).toMatchObject({ model: 'standard' });
+    expect(provider.submitted.map((s) => s.model)).toEqual(['standard']);
+  }, 60_000);
+
+  it('asks for the grade it was requested on', async () => {
+    makeRecording({ [ALICE]: ['a.ogg'], [BOB]: ['b.ogg'] });
+
+    await transcripts.request(RECORDING, ALICE, 'pro');
+    await transcripts.settled();
+
+    expect(transcript()).toMatchObject({ model: 'pro' });
+    expect(provider.submitted.map((s) => s.model)).toEqual(['pro', 'pro']);
+  }, 60_000);
+
+  it('submits a row from before the column on the flagship it was asked for', async () => {
+    // A transcript requested by the build before the column, still waiting to
+    // be submitted when the new one starts. It was asked for the pair that was
+    // then the only choice, and resuming it must not quietly downgrade it.
+    makeRecording({ [ALICE]: ['a.ogg'] });
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+    provider.submitted.length = 0;
+    db.prepare('UPDATE transcripts SET model = NULL').run();
+    db.prepare('UPDATE transcript_jobs SET provider_id = NULL').run();
+
+    await transcripts.tick();
+    await transcripts.settled();
+
+    expect(provider.submitted.map((s) => s.model)).toEqual(['pro']);
+  }, 60_000);
+
   it('transcribes played media too, as its own stem', async () => {
     // Included since 2026-08-25. It is the one stem with no owner. What
     // somebody has the right to play is theirs, and is a question about the

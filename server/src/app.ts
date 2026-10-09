@@ -4288,7 +4288,11 @@ export function buildApp(options: BuildOptions = {}): App {
     }
 
     try {
-      await transcripts.request(id, account.id);
+      // The grade is the channel's, read now and stored on the transcript,
+      // so changing the setting afterwards changes nothing already asked for.
+      const model =
+        channels.get(allowed.row.channel_id)?.transcriptionModel ?? 'standard';
+      await transcripts.request(id, account.id, model);
       // After the request rather than before it: everything `request` refuses
       // — no speech, already transcribed, deleted underneath — spends nothing
       // and must not spend the free use either. A no-op for an unlimited

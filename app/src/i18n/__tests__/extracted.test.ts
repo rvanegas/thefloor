@@ -193,6 +193,9 @@ describe('the two languages', () => {
       'home.podcasts',
       'channelSettings.podcast',
       'transcript.data',
+      // A grade name taken from the provider's own model name, which is not
+      // translated where they sell it either.
+      'channelSettings.transcriptionPro',
       // The two language names, which are each written in their own language
       // in both catalogues: the person who cannot read the language the screen
       // is drawn in is the one about to change it, and *Inglés* is no use to

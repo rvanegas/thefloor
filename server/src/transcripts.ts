@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
+import type { TranscriptionModel } from '../../core/types';
 import { intoBlocks, readable, type TranscriptLine } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
@@ -204,7 +205,12 @@ export class Transcripts {
    * Throws when there is nothing to transcribe or a transcript already exists,
    * both of which are answers a caller should relay rather than retry.
    */
-  async request(recordingId: string, requestedBy: string): Promise<void> {
+  async request(
+    recordingId: string,
+    requestedBy: string,
+    /** The channel's setting at the moment of asking; stored on the row. */
+    model: TranscriptionModel = 'standard'
+  ): Promise<void> {
     const provider = this.provider;
     if (!provider || !this.store) {
       throw new Error('Transcription is not configured.');
@@ -244,8 +250,9 @@ export class Transcripts {
     this.db
       .prepare(
         `INSERT INTO transcripts
-           (recording_id, state, requested_by, requested_at, provider, billed_ms)
-         VALUES (?, 'pending', ?, ?, ?, ?)`
+           (recording_id, state, requested_by, requested_at, provider, billed_ms,
+            model)
+         VALUES (?, 'pending', ?, ?, ?, ?, ?)`
       )
       .run(
         recordingId,
@@ -254,7 +261,8 @@ export class Transcripts {
         provider.name,
         // The ceiling rather than a measurement: every stem is rendered from
         // the start of the recording, so none is longer than the recording is.
-        recording.duration_ms * identities.length
+        recording.duration_ms * identities.length,
+        model
       );
 
     const insert = this.db.prepare(
@@ -592,6 +600,19 @@ export class Transcripts {
     }
   }
 
+  /**
+   * The grade a transcript was asked for. Read from the row at submission
+   * rather than carried in memory, so a job resumed after a restart is sent to
+   * the model it was requested on. Null is a row from before the column, all
+   * of which were asked for the flagship.
+   */
+  private modelOf(recordingId: string): TranscriptionModel {
+    const row = this.db
+      .prepare('SELECT model FROM transcripts WHERE recording_id = ?')
+      .get(recordingId) as { model: string | null } | undefined;
+    return row?.model === 'standard' ? 'standard' : 'pro';
+  }
+
   /** Renders one speaker's gated audio and hands it to the provider. */
   private async submitJob(job: JobRow): Promise<void> {
     const provider = this.provider;
@@ -633,6 +654,7 @@ export class Transcripts {
       }
 
       const providerId = await provider.submit(data, {
+        model: this.modelOf(job.recording_id),
         languageDetection: true,
       });
 

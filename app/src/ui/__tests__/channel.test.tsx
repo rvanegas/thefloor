@@ -3387,6 +3387,36 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  it('offers the transcription model to a debug account and nobody else', () => {
+    // The server refuses the change from anybody without `debug`, so offering
+    // it to them would be a control that always fails.
+    const open = () => {
+      const tree = render(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />);
+      act(() => findButton(tree, 'Settings')!.props.onPress());
+      return tree;
+    };
+    showChannel(channelOf());
+
+    const plain = open();
+    expect(textOf(plain)).not.toContain('Transcription model');
+    act(() => plain.unmount());
+
+    mockApp.debug = true;
+    const debug = open();
+    expect(textOf(debug)).toContain('Transcription model');
+    act(() => findButton(debug, 'Pro')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_TRANSCRIPTION_MODEL',
+      transcriptionModel: 'pro',
+    });
+    act(() => debug.unmount());
+  });
+
   /*
     The sentence this asserted until 2026-09-13 is gone, and its absence is
     what is asserted now.

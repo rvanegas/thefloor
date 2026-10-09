@@ -336,6 +336,7 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_NAME',
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
+  'SET_TRANSCRIPTION_MODEL',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -2316,6 +2317,25 @@ export class ChannelRegistry {
     if (action.type === 'SET_AUTO_RECORD') {
       if (typeof (action as { autoRecord?: unknown }).autoRecord !== 'boolean') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+    }
+
+    // **A `debug` account's alone**, and here because the reducer knows
+    // nothing about accounts. The grade is a cost somebody else's transcript
+    // would carry, offered while the difference between the two is measured;
+    // the app shows the control only to `debug` sessions, so reaching here
+    // without it is a client asking directly.
+    if (action.type === 'SET_TRANSCRIPTION_MODEL') {
+      const model = (action as { transcriptionModel?: unknown }).transcriptionModel;
+      if (model !== 'standard' && model !== 'pro') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      if (this.accounts.byId(userId)?.debug !== 1) {
+        return {
+          ok: false,
+          error: 'Only a debug account can choose the transcription model.',
+          code: 'forbidden',
+        };
       }
     }
 
@@ -7329,6 +7349,8 @@ export class ChannelRegistry {
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
       liveTranscription: channel.liveTranscription ?? false,
+      // Durable for the same reason: it is a setting somebody chose.
+      transcriptionModel: channel.transcriptionModel,
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
       // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
@@ -7699,6 +7721,7 @@ export class ChannelRegistry {
       description?: string | null;
       autoRecord?: boolean;
       liveTranscription?: boolean;
+      transcriptionModel?: ChannelState['transcriptionModel'];
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -7754,6 +7777,8 @@ export class ChannelRegistry {
       // channels did.
       autoRecord: durable.autoRecord ?? false,
       liveTranscription: durable.liveTranscription ?? false,
+      // The default on a row written before the field existed.
+      transcriptionModel: durable.transcriptionModel ?? 'standard',
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       participants,

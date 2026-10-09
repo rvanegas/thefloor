@@ -158,6 +158,9 @@ export function createChannel(params: {
     // that records itself is a thing to have asked for.
     autoRecord: false,
     liveTranscription: false,
+    // The cheap grade, which is what every transcript is asked for unless a
+    // `debug` account has said otherwise.
+    transcriptionModel: 'standard',
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
@@ -211,6 +214,7 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_NAME',
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
+  'SET_TRANSCRIPTION_MODEL',
   'START_RECORDING',
   'PAUSE_RECORDING',
   'RESUME_RECORDING',
@@ -2855,6 +2859,14 @@ function reduceAction(
       // server starts one on the next if the room is ready for it, and
       // turning it off leaves whatever is capturing alone.
       return { ...state, autoRecord: action.autoRecord };
+    }
+
+    case 'SET_TRANSCRIPTION_MODEL': {
+      // Guarded like `SET_AUTO_RECORD`. Who has `debug` is not channel state,
+      // so that half of the rule is the server's, applied before this runs.
+      if (!canEditChannel(state, action.userId)) return state;
+      if (action.transcriptionModel === state.transcriptionModel) return state;
+      return { ...state, transcriptionModel: action.transcriptionModel };
     }
 
     case 'CLAIM_FLOOR': {

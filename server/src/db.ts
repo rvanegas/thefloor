@@ -1829,7 +1829,13 @@ CREATE TABLE IF NOT EXISTS transcripts (
   -- is for is reading a usage report honestly — a month of estimates and a
   -- month of measurements are not the same number and should not add up as
   -- though they were.
-  billed_exact INTEGER NOT NULL DEFAULT 0
+  billed_exact INTEGER NOT NULL DEFAULT 0,
+  -- The grade of model asked for — 'standard' | 'pro', see TranscriptionModel
+  -- in core/types.ts — copied from the channel's setting when the transcript
+  -- was requested, so that changing the setting later changes nothing already
+  -- asked for. Null on rows written before the column, which were all asked
+  -- for the flagship.
+  model        TEXT
 );
 
 -- One per speaker, because one stem is one job. Diarisation is asked for
@@ -2326,6 +2332,17 @@ function migrate(db: Db): void {
   // at a time, while something is being watched, and turned off after.
   if (!accountColumns.some((c) => c.name === 'debug')) {
     db.exec('ALTER TABLE accounts ADD COLUMN debug INTEGER');
+  }
+  // Null on every row that predates it, which `Transcripts` reads as 'pro' —
+  // the flagship, which is what every one of them was asked for.
+  const transcriptColumns = db
+    .prepare('PRAGMA table_info(transcripts)')
+    .all() as Array<{ name: string }>;
+  if (
+    transcriptColumns.length > 0 &&
+    !transcriptColumns.some((c) => c.name === 'model')
+  ) {
+    db.exec('ALTER TABLE transcripts ADD COLUMN model TEXT');
   }
   // Null for every account that predates the column, and not backfilled by
   // this migration. It said until 2026-09-23 that reconstructing the value

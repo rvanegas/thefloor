@@ -791,6 +791,11 @@ export const es: Strings = {
       'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Transcripci\u00f3n, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
     liveTranscriptOnlyYou: () =>
       'Solo t\u00fa ves este ajuste: la transcripci\u00f3n corre por cuenta de la casa.',
+    transcriptionModel: () => 'Modelo de transcripci\u00f3n',
+    transcriptionStandard: () => 'Est\u00e1ndar',
+    transcriptionPro: () => 'Pro',
+    transcriptionModelNote: () =>
+      'Est\u00e1ndar es Universal-2. Pro es Universal-3.5 Pro, que cuesta un 40% m\u00e1s y entiende un cambio de idioma a mitad de frase. Se aplica a las transcripciones que se pidan a partir de ahora.',
     notifications: () => 'Notificaciones',
     podcast: () => 'Podcast',
     guestLinks: () => 'Enlaces de invitado',

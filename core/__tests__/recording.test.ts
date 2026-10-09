@@ -452,3 +452,33 @@ describe('automatic recording', () => {
     expect(stopped.lastRecording?.durationMs).toBe(5_000);
   });
 });
+
+describe('the transcription model', () => {
+  const choose = (
+    state: ChannelState,
+    transcriptionModel: 'standard' | 'pro',
+    userId = A,
+    now = T0
+  ): ChannelState =>
+    reduce(state, { type: 'SET_TRANSCRIPTION_MODEL', userId, transcriptionModel }, now);
+
+  it('is standard on a channel nobody has set it on', () => {
+    expect(
+      createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).transcriptionModel
+    ).toBe('standard');
+  });
+
+  it('is changed by somebody in the room, and changes nothing else', () => {
+    const before = joined();
+    const after = choose(before, 'pro');
+    expect(after.transcriptionModel).toBe('pro');
+    expect({ ...after, transcriptionModel: 'standard' }).toEqual(before);
+  });
+
+  it('is guarded like the other channel settings', () => {
+    // Whether the account has `debug` is the server's half of the rule; this
+    // is the half the reducer can see.
+    const busy = apply(joined(), [[{ type: 'STEP_OUT', userId: A }, T0 + 1]]);
+    expect(choose(busy, 'pro', A, T0 + 2)).toBe(busy);
+  });
+});

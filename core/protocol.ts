@@ -2,7 +2,7 @@ import type { ImHandles } from './im';
 import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { Tried } from './tried';
-import type { ChannelState, Clip, UserId } from './types';
+import type { ChannelState, Clip, TranscriptionModel, UserId } from './types';
 import type { PlayerState, Rest, Rung } from './watch';
 
 /**
@@ -1622,6 +1622,12 @@ export type ClientAction =
    * would otherwise flip on screen and be corrected by the next snapshot.
    */
   | { type: 'SET_AUTO_RECORD'; autoRecord: boolean }
+  /**
+   * Refused by the server from an account without `debug`, so an app offers it
+   * only to those. A server that predates it refuses it as unknown, so it
+   * ships to the server before any build sends it.
+   */
+  | { type: 'SET_TRANSCRIPTION_MODEL'; transcriptionModel: TranscriptionModel }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

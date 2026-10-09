@@ -36,6 +36,8 @@
  * not use the part that justifies it, on four endpoints, is the wrong trade.
  */
 
+import type { TranscriptionModel } from '../../core/types';
+
 /**
  * One utterance — a stretch of speech from one person, with the times it ran
  * between.
@@ -89,6 +91,8 @@ export type TranscriptionState =
 
 export interface TranscriptionOptions {
   languageDetection: boolean;
+  /** The grade of model, which the provider maps to one of its own. */
+  model: TranscriptionModel;
 }
 
 export interface TranscriptionProvider {
@@ -149,28 +153,37 @@ export interface TranscriptionProvider {
 const ASSEMBLYAI_BASE = 'https://api.assemblyai.com/v2';
 
 /**
- * The models to ask for, pinned rather than defaulted.
+ * The models to ask for, by grade, pinned rather than defaulted.
  *
  * `speech_models` is an **ordered fallback list**, not parallel execution: the
- * first is used unless the account cannot have it, and exactly one model
+ * first is used unless it cannot handle the audio, and exactly one model
  * produces the transcript. The provider's own default is
- * `['universal-3-pro', 'universal-2']`, so the flagship has to be asked for by
- * name — and a default that moves under us is a re-run disagreeing with the run
- * before it for reasons nothing in this repository records. Pinning makes a
- * model change a decision with a diff.
+ * `['universal-3-5-pro', 'universal-2']` today, and a default that moves under
+ * us is a re-run disagreeing with the run before it for reasons nothing in
+ * this repository records. Pinning makes a model change a decision with a
+ * diff.
  *
- * The pair also settles multi-language: `universal-3-5-pro` transcribes 18
- * languages natively and code-switches between them without configuration,
- * falling back to `universal-2` (99 languages) for anything outside that. So a
- * speaker who changes language mid-recording is handled rather than mislabelled
- * — which planning/decision/2026-08-25-transcripts.md listed as a limit of
- * per-file language detection, and is not one on this model.
+ * **`standard` is Universal-2 alone**, and the default since 2026-10-09: about
+ * $0.15 an hour against $0.21, for a mean word error rate on the provider's
+ * own English benchmarks of 6.1% against 5.6%. It covers 99 languages, but
+ * detects one per file, so a speaker who changes language mid-stem is
+ * transcribed in the first.
+ *
+ * **`pro` is the pair the default used to be.** `universal-3-5-pro`
+ * transcribes 18 languages natively and code-switches between them without
+ * configuration, falling back to `universal-2` for anything outside that —
+ * which is the case the benchmark does not measure and the reason a `debug`
+ * account can still ask for it per channel. There is no Universal-3.6 for
+ * pre-recorded audio; that name is the provider's realtime model.
  *
  * Note the singular `speech_model` is deprecated, and is a *different shape*
  * on the realtime API — a string rather than an array. We are batch-only, so
  * the array is the one that applies.
  */
-export const ASSEMBLYAI_MODELS = ['universal-3-5-pro', 'universal-2'];
+export const ASSEMBLYAI_MODELS: Record<TranscriptionModel, string[]> = {
+  standard: ['universal-2'],
+  pro: ['universal-3-5-pro', 'universal-2'],
+};
 
 /**
  * How long a gap between words starts a new line, in milliseconds.
@@ -236,7 +249,7 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         audio_url: url,
-        speech_models: ASSEMBLYAI_MODELS,
+        speech_models: ASSEMBLYAI_MODELS[options.model],
         // No `speaker_labels` (default false): a stem is one voice, named by
         // whose stem it is. See this file's header.
         language_detection: options.languageDetection,

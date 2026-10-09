@@ -18,7 +18,7 @@ import {
   NOTIFICATION_LEVELS,
   type NotificationLevel,
 } from '../../../core/notifications';
-import type { ChannelState } from '../../../core/types';
+import type { ChannelState, TranscriptionModel } from '../../../core/types';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
@@ -168,6 +168,8 @@ export function ChannelSettingsView({
    * it on. See `autoRecord` in core/types.ts.
    */
   const autoRecord = channel.autoRecord ?? false;
+  /** `?? 'standard'` for the same reason. See `transcriptionModel`. */
+  const transcriptionModel = channel.transcriptionModel ?? 'standard';
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
   /**
@@ -469,6 +471,40 @@ export function ChannelSettingsView({
               : t.autoRecordStepIn()}
         </Text>
       </Card>
+
+      {/*
+        Which grade of speech model this channel's transcripts are asked for,
+        drawn only for an account with `debug` set — the server refuses
+        everybody else, so offering it to them would be a button that always
+        fails. Beside *Record automatically* because it is the same kind of
+        thing: a setting about what the channel keeps, on the same terms.
+      */}
+      {app.debug ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>{t.transcriptionModel()}</Text>
+          <View style={styles.choices}>
+            {(
+              [
+                ['standard', t.transcriptionStandard()],
+                ['pro', t.transcriptionPro()],
+              ] as Array<[TranscriptionModel, string]>
+            ).map(([value, label]) => (
+              <Button
+                key={value}
+                label={label}
+                style={styles.choice}
+                disabled={!mayEdit}
+                variant={transcriptionModel === value ? 'primary' : 'default'}
+                onPress={() => app.act(channel.id, {
+                  type: 'SET_TRANSCRIPTION_MODEL',
+                  transcriptionModel: value,
+                })}
+              />
+            ))}
+          </View>
+          <Text style={type.muted}>{t.transcriptionModelNote()}</Text>
+        </Card>
+      ) : null}
 
       {/*
         The live transcript, and only for somebody who may switch it — the

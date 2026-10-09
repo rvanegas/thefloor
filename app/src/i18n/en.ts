@@ -994,6 +994,12 @@ export const en = {
       'On, everything said in this channel is transcribed as it is said and kept in the Transcript tab, with no recording. Everyone in the channel sees that it is on.',
     liveTranscriptOnlyYou: () =>
       'Only you see this setting: the transcription is on the house.',
+    /** Shown only to an account with `debug` set. See `transcriptionModel`. */
+    transcriptionModel: () => 'Transcription model',
+    transcriptionStandard: () => 'Standard',
+    transcriptionPro: () => 'Pro',
+    transcriptionModelNote: () =>
+      'Standard is Universal-2. Pro is Universal-3.5 Pro, which costs about 40% more and handles a change of language mid-sentence. It applies to transcripts asked for from now on.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
     podcast: () => 'Podcast',

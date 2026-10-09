@@ -243,6 +243,18 @@ export interface FloorState {
  */
 export type RecordingStatus = 'idle' | 'recording' | 'paused';
 
+/**
+ * Which grade of speech model a channel's transcripts are asked for.
+ *
+ * Named by grade rather than by the provider's model id, so that the setting
+ * survives a change of provider — the mapping to an actual model is the
+ * provider's, in `server/src/transcription.ts`. `standard` is the cheap one
+ * and the default; `pro` is the flagship, about 40% dearer per hour and a
+ * little more accurate, and is offered only to `debug` accounts while the
+ * difference is being measured.
+ */
+export type TranscriptionModel = 'standard' | 'pro';
+
 export interface RecordingState {
   status: RecordingStatus;
   /**
@@ -810,6 +822,20 @@ export interface ChannelState {
    * Absent on a snapshot from a server that predates the field, read as off.
    */
   liveTranscription?: boolean;
+  /**
+   * The grade of speech model this channel's next transcript is asked for.
+   * See `TranscriptionModel`.
+   *
+   * The channel's for the reason `autoRecord` is: a transcript is a shared
+   * artefact of the channel, so whoever presses the button gets the grade the
+   * channel was set to. Read when a transcript is *requested*, and stored on
+   * it then, so changing it later never changes what an existing one was.
+   *
+   * **Only a `debug` account may change it**, which the reducer cannot know —
+   * the server refuses everyone else before dispatching. Absent on a snapshot
+   * from a server that predates the field, which the app reads as `standard`.
+   */
+  transcriptionModel: TranscriptionModel;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1109,6 +1135,16 @@ export type ChannelAction =
    * fills.
    */
   | { type: 'SET_AUTO_RECORD'; userId: UserId; autoRecord: boolean }
+  /**
+   * Chooses the grade of speech model for the channel's transcripts. The
+   * reducer guards it as it guards `SET_AUTO_RECORD`; the server additionally
+   * refuses it from any account without `debug`.
+   */
+  | {
+      type: 'SET_TRANSCRIPTION_MODEL';
+      userId: UserId;
+      transcriptionModel: TranscriptionModel;
+    }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   /**

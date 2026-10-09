@@ -115,6 +115,7 @@ caused; the list carries the meaning.
 - **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Transcript* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
+- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript, which since 2026-10-09 is exactly one *stem*: labelled with its owner's display name, or *Played audio*, and never renamed
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
@@ -2647,6 +2648,23 @@ A transcript is never edited, and since 2026-10-09 nothing is said about it
 either: each line is named after its *voice*, which is its *stem*, and there
 is no renaming. Until then a rename or a removal was a *declaration* laid over
 the text.
+
+## Transcription model
+
+**A channel setting, and drawn only for an account with `debug` set**, since
+2026-10-09. *Standard* is the cheap grade and every channel's default; *Pro*
+is the flagship. `transcriptionModel` on `ChannelState`, of type
+`TranscriptionModel`, whose values are `'standard'` and `'pro'`.
+
+Named by **grade rather than by model**, so the setting outlives a change of
+provider: which model each grade means is `ASSEMBLYAI_MODELS` in
+`server/src/transcription.ts` — Universal-2 for *Standard*, Universal-3.5 Pro
+falling back to Universal-2 for *Pro*. Read when a transcript is asked for
+and stored on its row, so changing the setting changes nothing already asked
+for.
+
+**Batch only.** The *live transcript* streams on
+`universal-streaming-multilingual` whatever this says.
 
 ## Username
 
