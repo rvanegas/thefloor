@@ -24,6 +24,7 @@ import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
   autoRecordStarter,
+  isTranscribingLive,
   canAnswerKnock,
   canRequestSpeech,
   canClaimFloor,
@@ -768,6 +769,17 @@ export class ChannelRegistry {
   /** Where this server keeps loaded tracks. See the constructor argument. */
   private readonly trackRoot: string;
   private listeners = new Set<ChangeListener>();
+  /**
+   * The live transcript, when one is configured — attached by the composition
+   * root rather than constructed here, because it needs the provider and the
+   * account names, which this class has never been told about. Synced on
+   * every commit and swept on every tick. See server/src/live.ts.
+   */
+  private live: {
+    sync(state: ChannelState): void;
+    sweep(): void;
+    hasLines(channelId: string): boolean;
+  } | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private usageTimer: ReturnType<typeof setInterval> | null = null;
@@ -1121,8 +1133,50 @@ export class ChannelRegistry {
     this.usageTimer = null;
   }
 
+  /**
+   * Gives the registry its live transcriber, and brings it up to date with
+   * every channel already open — a restart restores channels before the
+   * composition root gets here.
+   */
+  attachLive(live: NonNullable<ChannelRegistry['live']>): void {
+    this.live = live;
+    for (const state of this.channels.values()) live.sync(state);
+  }
+
+  /** Whether a channel has any live transcript, for its snapshot. */
+  hasLiveTranscript(channelId: string): boolean {
+    return this.live?.hasLines(channelId) ?? false;
+  }
+
+  /**
+   * Turns a channel's live transcript on or off, for somebody the caller has
+   * already found entitled to — the route checks the account mark, which is
+   * not this class's to know. Membership is checked here, as for every
+   * channel setting.
+   */
+  setLiveTranscription(
+    channelId: string,
+    userId: string,
+    on: boolean
+  ): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.participants.includes(userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.status !== 'active') {
+      return { ok: false, error: 'This channel has ended.', code: 'conflict' };
+    }
+    const next = reduce(channel, { type: 'SET_LIVE_TRANSCRIPTION', on }, this.now());
+    if (next !== channel) {
+      this.commit(channel, next);
+      this.emit([channelId]);
+    }
+    return { ok: true, channel: this.channels.get(channelId) ?? next };
+  }
+
   /** Advances every live channel's timers. Exposed so tests can step it. */
   tick(): void {
+    this.live?.sweep();
     const now = this.now();
     const changed: string[] = [];
     /**
@@ -4304,6 +4358,7 @@ export class ChannelRegistry {
     // that reads a half-committed room would ask for egress against a roster
     // nobody had stated yet.
     this.autoRecord(after);
+    this.live?.sync(this.channels.get(after.id) ?? after);
   }
 
   /**
@@ -7092,6 +7147,7 @@ export class ChannelRegistry {
         .filter(([, state]) => state === 'asking')
         .map(([askerId]) => ({ askerId, from: this.displayName(askerId) })),
       recording: channel.recording.status === 'recording',
+      transcribing: isTranscribingLive(channel),
       clip: channel.clip,
       serverNow: this.now(),
     };
@@ -7272,6 +7328,7 @@ export class ChannelRegistry {
       // about the channel, and a deploy is not a thing that should quietly
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
+      liveTranscription: channel.liveTranscription ?? false,
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
       // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
@@ -7641,6 +7698,7 @@ export class ChannelRegistry {
       name?: string | null;
       description?: string | null;
       autoRecord?: boolean;
+      liveTranscription?: boolean;
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -7695,6 +7753,7 @@ export class ChannelRegistry {
       // Off on a row written before the field existed, which is what those
       // channels did.
       autoRecord: durable.autoRecord ?? false,
+      liveTranscription: durable.liveTranscription ?? false,
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       participants,

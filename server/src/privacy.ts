@@ -111,10 +111,20 @@ export interface PolicyOptions {
    * avoided in the other direction.
    */
   cohorts?: boolean;
+  /**
+   * Whether this server can transcribe a channel as it talks — the live
+   * transcript, which needs no recording. Conditional on `transcription`'s
+   * reasoning: it withdraws the sentences that say so when the server cannot,
+   * and it qualifies the two claims below that would otherwise be false
+   * where it can — that only a deliberate recording is stored, and that the
+   * provider receives only what somebody asked to have transcribed.
+   */
+  liveTranscription?: boolean;
 }
 
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts } = options;
+  const live = !!(options.liveTranscription && transcription);
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
@@ -213,6 +223,20 @@ recording is —
 immediately for everyone, and about ${RETENTION_DAYS} days later underneath,
 like everything else.</p>
 
+${
+    live
+      ? `<p><strong>A channel can also be transcribed as it talks</strong>, with no
+recording at all. While that is switched on, a channel says so on every screen in
+it, with a <em>Transcribing</em> label where a recording’s would be. Each
+person’s audio is streamed to ${provider} as it is spoken, the parts a
+silenced person spoke while they did not hold the floor replaced with silence
+first, and only the text that comes back is kept: one line per thing said, with
+the speaker’s name and the time, readable by the channel’s members and
+deleted with the channel, on the same schedule as everything else in it. The
+audio itself is not stored here.</p>
+`
+      : ''
+  }
 <p>A transcript can also be deleted on its own, leaving the recording. That
 works the same way: it disappears for everyone at once, and the text is removed
 about ${TRANSCRIPT_RETENTION_DAYS} days later. Longer than the week a deleted
@@ -341,13 +365,15 @@ application collects little.</p>
 
 <h2>Live audio is not recorded</h2>
 <p>Ordinary conversation passes through the server as it happens and is not
-written anywhere. Only a recording somebody deliberately started is stored.</p>
+written anywhere. Only a recording somebody deliberately started is stored${
+      live ? ' — and, in a channel that has a live transcript switched on, the text described below' : ''
+    }.</p>
 
 ${transcriptionSection}
 <h2>What is not collected</h2>
 <p>There is no advertising, no third-party analytics${
       provider
-        ? `, and no service anywhere that receives your activity — ${provider}, above, is sent audio you asked to have transcribed and nothing else: not who you talked to, not when you were connected, not what you did in the application`
+        ? `, and no service anywhere that receives your activity — ${provider}, above, is sent audio ${live ? 'to be transcribed' : 'you asked to have transcribed'} and nothing else: not who you talked to, not when you were connected, not what you did in the application`
         : ', and no service anywhere\nthat receives your activity'
     }. Nothing about you is sold or shared for anyone
 else’s purposes, and nothing is used to profile you or to decide what you are
@@ -445,12 +471,14 @@ screen.</p>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
 and Google deliver notifications, each to their own phones. Ko-fi handles
 donations.${
-      provider ? ` ${provider} transcribes a recording when somebody asks it to.` : ''
+      provider
+        ? ` ${provider} transcribes a recording when somebody asks it to${live ? ', and a channel\u2019s speech as it happens where its live transcript is on' : ''}.`
+        : ''
     } None of them are given
 anything beyond what their job requires${
       provider
         ? `, none of them but ${provider} receive your conversations, and that
-one receives only the recording it was asked to transcribe`
+one receives only ${live ? 'what it is asked to transcribe' : 'the recording it was asked to transcribe'}`
         : ', and none of them receive your\nconversations'
     } — the recording storage key used by the media server can only add
 files, not read them back.</p>

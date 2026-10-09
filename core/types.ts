@@ -797,6 +797,19 @@ export interface ChannelState {
    * reads as off — the same thing every channel had before it existed.
    */
   autoRecord: boolean;
+  /**
+   * Whether what is said in this channel is transcribed as it is said, with
+   * no recording — the *live transcript*.
+   *
+   * A property of the channel for `autoRecord`'s reason, but **not shared
+   * furniture**: the server sets it, through `SET_LIVE_TRANSCRIPTION`, and
+   * only for somebody who transcribes on the house. Everybody reads it,
+   * because everybody in the room is owed the indicator it lights. See
+   * `isTranscribingLive`.
+   *
+   * Absent on a snapshot from a server that predates the field, read as off.
+   */
+  liveTranscription?: boolean;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1126,6 +1139,13 @@ export type ChannelAction =
    * media plane reports it — so it carries no userId and no guard.
    */
   | { type: 'RECORDING_FAILED'; reason: string }
+  /**
+   * Turns the live transcript on or off. Not a user action in the reducer's
+   * sense: the server applies it after its own check of who asked — the
+   * `transcripts_unlimited` mark, which no `ChannelState` knows about — so it
+   * carries no userId, and it is absent from the client's list of actions.
+   */
+  | { type: 'SET_LIVE_TRANSCRIPTION'; on: boolean }
   /**
    * Shared playback. All of these are gated by `canControlPlayback`, which
    * hands the floor-holder exclusive control while a claim is active — a claim

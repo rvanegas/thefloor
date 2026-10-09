@@ -7,9 +7,11 @@ import { DirectFileOutput, S3Upload, TrackType } from '@livekit/protocol';
 import {
   AudioFrame,
   AudioSource,
+  AudioStream,
   LocalAudioTrack,
   Room as RtcRoom,
   RoomEvent,
+  TrackKind,
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
@@ -27,6 +29,7 @@ import {
   SAMPLE_RATE,
   type FrameSink,
 } from './playback';
+import { STREAM_SAMPLE_RATE } from './streaming';
 
 /**
  * Whether the media plane's answer was *no such thing*, rather than a failure.
@@ -216,6 +219,30 @@ export interface MediaServer {
     file: string;
     onFailure?: (error: unknown) => void;
   }): Promise<PlaybackSession>;
+
+  /**
+   * Joins the room hidden and hands over every microphone, one speaker's
+   * frames at a time — the live transcript's ears.
+   *
+   * Hidden, so no client draws it as somebody in the room; publishing
+   * nothing, so it is never heard. Frames arrive at 16 kHz mono, which is
+   * what the streaming provider takes, resampled by the SDK rather than here.
+   * It is subscribed to everybody whatever the floor says: silencing acts on
+   * the room's listeners by name, and this is not one of them, so the floor
+   * is applied by whoever receives the frames.
+   */
+  openListener(params: {
+    room: string;
+    identity: string;
+    onAudio: (speaker: string, samples: Int16Array) => void;
+    /** The connection was lost, not closed. */
+    onFailure?: (error: unknown) => void;
+  }): Promise<ListenerSession>;
+}
+
+/** A channel's hidden listener, for as long as it is being transcribed. */
+export interface ListenerSession {
+  close(): Promise<void>;
 }
 
 /** One channel's shared playback, for as long as a track is loaded. */
@@ -353,11 +380,14 @@ export class LiveKitMediaServer implements MediaServer {
     identity,
     displayName,
     canPublish = true,
+    hidden = false,
   }: {
     room: string;
     identity: string;
     displayName: string;
     canPublish?: boolean;
+    /** Left out of every client's participant list. The transcriber's. */
+    hidden?: boolean;
   }): Promise<string> {
     const token = new AccessToken(this.options.apiKey, this.options.apiSecret, {
       identity,
@@ -374,6 +404,7 @@ export class LiveKitMediaServer implements MediaServer {
       // applies it.
       canPublishData: false,
       canUpdateOwnMetadata: false,
+      ...(hidden ? { hidden: true } : {}),
     });
     return token.toJwt();
   }
@@ -502,6 +533,74 @@ export class LiveKitMediaServer implements MediaServer {
       ffmpegPath,
       this.options.storage
     );
+  }
+
+  async openListener({
+    room,
+    identity,
+    onAudio,
+    onFailure,
+  }: {
+    room: string;
+    identity: string;
+    onAudio: (speaker: string, samples: Int16Array) => void;
+    onFailure?: (error: unknown) => void;
+  }): Promise<ListenerSession> {
+    const token = await this.issueToken({
+      room,
+      identity,
+      displayName: 'Transcriber',
+      canPublish: false,
+      hidden: true,
+    });
+    const rtc = new RtcRoom();
+    /** One reader per subscribed track, by track sid. */
+    const readers = new Map<string, ReadableStreamDefaultReader<AudioFrame>>();
+    let closing = false;
+
+    rtc.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if (track.kind !== TrackKind.KIND_AUDIO) return;
+      const speaker = participant.identity;
+      const sid = publication.sid ?? speaker;
+      const reader = new AudioStream(track, STREAM_SAMPLE_RATE, 1).getReader();
+      readers.set(sid, reader);
+      void (async () => {
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) return;
+            onAudio(speaker, value.data);
+          }
+        } catch (error) {
+          if (!closing) onFailure?.(error);
+        }
+      })();
+    });
+    rtc.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+      const sid = publication.sid ?? '';
+      const reader = readers.get(sid);
+      readers.delete(sid);
+      void reader?.cancel().catch(() => {});
+    });
+    rtc.on(RoomEvent.Disconnected, () => {
+      if (!closing) onFailure?.(new Error('The transcriber lost the room.'));
+    });
+
+    await rtc.connect(this.options.url, token, {
+      autoSubscribe: true,
+      dynacast: false,
+    });
+
+    return {
+      close: async () => {
+        closing = true;
+        for (const reader of readers.values()) {
+          await reader.cancel().catch(() => {});
+        }
+        readers.clear();
+        await rtc.disconnect();
+      },
+    };
   }
 }
 
@@ -661,6 +760,8 @@ export class MemoryMediaServer implements MediaServer {
   readonly closed: string[] = [];
   /** Playback channels opened, in order, live or closed. */
   readonly playbacks: MemoryPlaybackSession[] = [];
+  /** Hidden listeners opened, in order, live or closed. */
+  readonly listeners: MemoryListener[] = [];
   /**
    * While set, startRecording rejects — for every participant, or just one when
    * an identity is given, which is how a partial failure is exercised.
@@ -919,6 +1020,58 @@ export class MemoryMediaServer implements MediaServer {
   /** The playback channel for a room, if one was ever opened. */
   playbackFor(room: string): MemoryPlaybackSession | undefined {
     return this.playbacks.find((p) => p.room === room);
+  }
+
+  /**
+   * Not added to `known`, unlike playback: the real one is hidden, and the
+   * roster a client is shown has nobody in it for this.
+   */
+  async openListener({
+    room,
+    identity,
+    onAudio,
+    onFailure,
+  }: {
+    room: string;
+    identity: string;
+    onAudio: (speaker: string, samples: Int16Array) => void;
+    onFailure?: (error: unknown) => void;
+  }): Promise<ListenerSession> {
+    const listener = new MemoryListener(room, identity, onAudio, onFailure);
+    this.listeners.push(listener);
+    return listener;
+  }
+
+  /** The open listener for a room, if there is one. */
+  listenerFor(room: string): MemoryListener | undefined {
+    return this.listeners.find((l) => l.room === room && !l.closed);
+  }
+}
+
+/** A hidden listener a test can speak into. */
+export class MemoryListener implements ListenerSession {
+  closed = false;
+
+  constructor(
+    readonly room: string,
+    readonly identity: string,
+    private onAudio: (speaker: string, samples: Int16Array) => void,
+    private onFailure?: (error: unknown) => void
+  ) {}
+
+  /** Delivers one speaker's frame, as the room would. */
+  speak(speaker: string, samples: Int16Array): void {
+    if (!this.closed) this.onAudio(speaker, samples);
+  }
+
+  /** Loses the connection, as the room dropping it would. */
+  lose(error: Error): void {
+    this.closed = true;
+    this.onFailure?.(error);
+  }
+
+  async close(): Promise<void> {
+    this.closed = true;
   }
 }
 

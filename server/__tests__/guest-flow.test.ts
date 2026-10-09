@@ -344,6 +344,9 @@ describe('admission', () => {
       'asks',
       'invites',
       'recording',
+      // Whether what they say is being transcribed as they say it, which a
+      // guest is owed on the same terms as a recording.
+      'transcribing',
       'clip',
       'serverNow',
     ]);

@@ -10,6 +10,7 @@ import type {
   GuestClientMessage,
   GuestServerMessage,
   HomeView,
+  LiveLine,
   PublicAccount,
   RecordingView,
   ScreenDevice,
@@ -483,6 +484,20 @@ export function createSettingsNotifier(): SettingsNotifier {
 }
 
 /**
+ * Lets the live transcriber hand a finished line to everybody watching its
+ * channel. Shaped like the two above and for their reason: the transcriber
+ * exists before the socket plugin does, and a line nobody is watching for is
+ * in the database for the next screen that asks.
+ */
+export interface LiveLineNotifier {
+  notify: (channelId: string, line: LiveLine) => void;
+}
+
+export function createLiveLineNotifier(): LiveLineNotifier {
+  return { notify: () => {} };
+}
+
+/**
  * Whether somebody is *about*: in the app, and there.
  *
  * The one thing the two availability surfaces need from the socket layer —
@@ -531,6 +546,9 @@ export function registerWebsocket(deps: {
   now: () => number;
   homeNotifier: HomeNotifier;
   settingsNotifier: SettingsNotifier;
+  liveLineNotifier?: LiveLineNotifier;
+  /** Whether this account may turn a channel's live transcript on. */
+  mayTranscribeLive?: (userId: string) => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -1300,6 +1318,12 @@ export function registerWebsocket(deps: {
         // What a directory requires and nothing can derive, plus whether
         // there is a cover yet. Same terms as the line above.
         publication: channels.publicationSettingsOf(channelId),
+        // Whether there is a live transcript to read, which is what offers
+        // the tab once the setting has been turned off. See LiveLine.
+        liveTranscript: channels.hasLiveTranscript(channelId),
+        // About the reader, like `publicNotice`: whether the switch is
+        // theirs to see. Everybody else's answer is nobody's business here.
+        mayTranscribeLive: deps.mayTranscribeLive?.(connection.userId) ?? false,
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.
@@ -1357,6 +1381,20 @@ export function registerWebsocket(deps: {
   // Session-scoped only. A follower page is a second screen rather than one of
   // this person's devices, holds a watch token rather than a session, and has
   // no settings screen to be out of date with.
+  // Members watching the channel, and nobody else: a guest's page is not
+  // shown the transcript in this version, and a member who is not looking at
+  // the channel reads it from the history when they do.
+  if (deps.liveLineNotifier) {
+    deps.liveLineNotifier.notify = (channelId, line) => {
+      const members = channels.get(channelId)?.participants ?? [];
+      for (const connection of connections) {
+        if (!connection.watchingChannels.has(channelId)) continue;
+        if (!members.includes(connection.userId)) continue;
+        send(connection, { type: 'transcript.line', channelId, line });
+      }
+    };
+  }
+
   settingsNotifier.notify = (userId, settings) => {
     for (const connection of connections) {
       if (connection.scope.kind !== 'session') continue;

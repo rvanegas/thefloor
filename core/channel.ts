@@ -157,6 +157,7 @@ export function createChannel(params: {
     // Off, like every other setting somebody has never touched: a channel
     // that records itself is a thing to have asked for.
     autoRecord: false,
+    liveTranscription: false,
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
@@ -1007,6 +1008,23 @@ function recordingStartable(state: ChannelState, userId: UserId): boolean {
 export function autoRecordStarter(state: ChannelState): UserId | null {
   if (!state.autoRecord) return null;
   return state.present.find((id) => recordingStartable(state, id)) ?? null;
+}
+
+/**
+ * Whether what is said in this channel is being transcribed right now — the
+ * one question the *Transcribing* indicator and the server's transcriber both
+ * ask, so that the pill and the audio leaving for the provider cannot
+ * disagree.
+ *
+ * The setting and an occupied room, members or guests, and nothing finer.
+ * Whether any one speaker's audio is on its way at this instant depends on
+ * their microphone, which is the media plane's to know; the indicator says
+ * what anybody who speaks here will be subject to, which is the thing a
+ * person deciding whether to speak needs.
+ */
+export function isTranscribingLive(state: ChannelState): boolean {
+  if (!state.liveTranscription || state.status !== 'active') return false;
+  return state.present.length > 0 || Object.keys(state.guests ?? {}).length > 0;
 }
 
 /**
@@ -2153,6 +2171,11 @@ function reduceAction(
       ...state,
       declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
     };
+  }
+
+  if (action.type === 'SET_LIVE_TRANSCRIPTION') {
+    if (!!state.liveTranscription === action.on) return state;
+    return { ...state, liveTranscription: action.on };
   }
 
   if (action.type === 'RECORDING_FAILED') {

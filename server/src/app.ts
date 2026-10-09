@@ -106,6 +106,9 @@ import {
   registerWebsocket,
   deviceKeyOf,
 } from './ws';
+import { createLiveLineNotifier } from './ws';
+import { LiveTranscriber } from './live';
+import type { StreamingTranscriptionProvider } from './streaming';
 
 export interface BuildOptions {
   dbPath?: string;
@@ -273,6 +276,13 @@ export interface BuildOptions {
    * absent credential has to mean absent feature rather than a broken one.
    */
   transcription?: TranscriptionProvider;
+  /**
+   * Turns speech into text as it is spoken — the live transcript. Optional
+   * for `transcription`'s reason, and needs `media` too: without a room to
+   * listen to there is nothing to stream. Absent, the switch is never offered
+   * and the route refuses.
+   */
+  streaming?: StreamingTranscriptionProvider;
   /**
    * An address that may transcribe without limit, on top of whatever accounts
    * carry the `transcripts_unlimited` mark.
@@ -929,6 +939,38 @@ export function buildApp(options: BuildOptions = {}): App {
       'silence notice'
     );
   };
+
+  // The live transcript, when both halves of it exist: a provider to stream
+  // to and a room to listen in. Attached rather than handed to the registry's
+  // constructor, which has never been told about accounts or providers.
+  const liveLineNotifier = createLiveLineNotifier();
+  const live =
+    options.streaming && options.media
+      ? new LiveTranscriber({
+          db,
+          media: options.media,
+          provider: options.streaming,
+          now,
+          stateOf: (channelId) => channels.get(channelId),
+          accountName: (userId) => accounts.byId(userId)?.display_name ?? null,
+          onLine: (channelId, line) => liveLineNotifier.notify(channelId, line),
+          onError: (error, context) =>
+            fastify.log.error({ err: error, context }, 'live transcript failed'),
+        })
+      : null;
+  if (live) {
+    channels.attachLive(live);
+    fastify.addHook('onClose', async () => live.closeAll());
+  }
+
+  /**
+   * Whether this account may turn a channel's live transcript on: somebody
+   * who transcribes on the house, on a server that can do it at all. Until
+   * `free-to-talk-paid-to-transcribe-and-digest.md` answers who pays, that is
+   * the whole rule, and everybody else is never shown the switch.
+   */
+  const mayTranscribeLive = (userId: string): boolean =>
+    live !== null && transcribesFreely(userId);
 
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
@@ -2605,6 +2647,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // Named on the page only where the server can actually reach it. See
       // PolicyOptions.transcription.
       transcription: options.transcription?.name,
+      liveTranscription: live !== null,
       // Disclosed while it can happen to the reader, **or while the channels
       // it already made are still standing**. Switching the hosts off stops
       // new placements; it does not delete the cohorts people are in, and a
@@ -4384,6 +4427,53 @@ export function buildApp(options: BuildOptions = {}): App {
    * shape here: nobody pages through a common word across a year of
    * conversation, they type something more specific.
    */
+  /**
+   * Turns a channel's live transcript on or off. Only for somebody who may —
+   * see `mayTranscribeLive` — and only in a channel they belong to; anybody
+   * else is told it does not exist, which is the same answer the switch
+   * being absent gives them.
+   */
+  fastify.put('/channels/:id/live-transcription', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!mayTranscribeLive(account.id)) {
+      return reply.code(404).send({ error: 'No such setting.' });
+    }
+    const on = (request.body as { on?: unknown } | undefined)?.on;
+    if (typeof on !== 'boolean') {
+      return reply.code(400).send({ error: 'on must be true or false.' });
+    }
+    const result = channels.setLiveTranscription(id, account.id, on);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true, liveTranscription: !!result.channel.liveTranscription };
+  });
+
+  /**
+   * A channel's live transcript, a page at a time, newest page first and
+   * oldest line first within it — `before` is the `startAt` of the earliest
+   * line already held, absent for the newest page. Members only, and the same
+   * 404 for a channel that does not exist as for one that is not theirs.
+   */
+  fastify.get('/channels/:id/live-transcript', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    const query = (request.query ?? {}) as { before?: string; limit?: string };
+    const before = Number(query.before ?? Number.MAX_SAFE_INTEGER);
+    const limit = Math.min(Math.max(Number(query.limit ?? 200) || 200, 1), 500);
+    if (!Number.isFinite(before)) {
+      return reply.code(400).send({ error: 'before must be a time.' });
+    }
+    const lines = live ? live.linesBefore(id, before, limit).reverse() : [];
+    return { lines, more: lines.length === limit };
+  });
+
   fastify.get('/channels/:id/transcripts/search', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
@@ -5612,6 +5702,8 @@ export function buildApp(options: BuildOptions = {}): App {
       now,
       homeNotifier,
       settingsNotifier,
+      liveLineNotifier,
+      mayTranscribeLive,
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,

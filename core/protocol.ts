@@ -1022,6 +1022,24 @@ export interface ScreenDevice {
   watching: boolean;
 }
 
+/**
+ * One line of a channel's live transcript: one speaker's finished turn.
+ *
+ * Placed on the wall clock, there being no recording timeline to place it on,
+ * and named as it was said — `displayName` is frozen with the line, the way
+ * `participant_names` freezes a recording's.
+ */
+export interface LiveLine {
+  id: string;
+  identity: string;
+  displayName: string;
+  /** Epoch milliseconds. */
+  startAt: number;
+  endAt: number;
+  text: string;
+  confidence: number | null;
+}
+
 export interface ChannelView {
   channel: ChannelState;
   /**
@@ -1049,6 +1067,22 @@ export interface ChannelView {
    * Always sent; absent from the map means now.
    */
   pingableAt: Partial<Record<UserId, number>>;
+  /**
+   * Whether this channel has a live transcript to read: any line at all,
+   * whether or not `liveTranscription` is on now. What offers the Transcript
+   * tab to a channel whose setting has since been turned off.
+   *
+   * Here rather than on `ChannelState` for `pingableAt`'s reason: it is a
+   * fact about stored text, which no reducer knows. Optional, so a server that
+   * predates the live transcript sends nothing and reads as having none.
+   */
+  liveTranscript?: boolean;
+  /**
+   * Whether this connection's own member may turn the live transcript on —
+   * which is what draws the switch in settings. About the reader, like
+   * `publicNotice`. Optional, read as no.
+   */
+  mayTranscribeLive?: boolean;
   /**
    * When this channel declared itself public, or null — which is every
    * channel that has not.
@@ -1384,6 +1418,13 @@ export interface GuestView {
    * before the microphone can open.
    */
   recording: boolean;
+  /**
+   * Whether what is said here is being transcribed as it is said — the live
+   * transcript, which needs no recording. Said on screen for `recording`'s
+   * reason: audio leaving for a third party is something a speaker is told
+   * while it happens. Optional for a server that predates it.
+   */
+  transcribing?: boolean;
   /** The channel's clipboard, which a guest may read and replace. */
   clip: Clip | null;
   serverNow: number;
@@ -2103,6 +2144,15 @@ export type ServerMessage =
       userId: UserId;
       reading: SharedDrift | null;
     }
+  /**
+   * One line of a channel's live transcript, the moment the provider
+   * finishes a turn. Sent to every connection watching the channel; the
+   * history before it is `GET /channels/:id/live-transcript`.
+   *
+   * A build that has never heard of this ignores it, the client's dispatch
+   * having no default case, so it may be sent to any build.
+   */
+  | { type: 'transcript.line'; channelId: string; line: LiveLine }
   /**
    * This account's other live instances, for the screen picker.
    *

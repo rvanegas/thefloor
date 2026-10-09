@@ -1919,6 +1919,43 @@ CREATE TABLE IF NOT EXISTS transcript_voices (
   PRIMARY KEY (recording_id, identity, speaker)
 );
 
+-- A channel's live transcript: what was said, as it was said, with no
+-- recording behind it. One row per finished turn of one speaker.
+--
+-- **On the wall clock**, start_at and end_at in epoch milliseconds, there
+-- being no recording timeline to place it on. **The name is frozen with the
+-- line**, as participant_names freezes a recording's: a history that
+-- relabelled itself when somebody renamed themselves would be one in which
+-- nobody said what they said under the name they said it under.
+--
+-- Gone with the channel. See server/src/live.ts.
+CREATE TABLE IF NOT EXISTS live_lines (
+  id           TEXT PRIMARY KEY,
+  channel_id   TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  identity     TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  start_at     INTEGER NOT NULL,
+  end_at       INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  confidence   REAL
+);
+CREATE INDEX IF NOT EXISTS live_lines_channel
+  ON live_lines(channel_id, start_at);
+
+-- One streaming session per row: what the live transcript cost. The provider
+-- bills by how long a session is open, which is billed_seconds as its own
+-- Termination reported it — null when it never said, an error or a timeout.
+CREATE TABLE IF NOT EXISTS live_sessions (
+  channel_id     TEXT NOT NULL,
+  identity       TEXT NOT NULL,
+  opened_at      INTEGER NOT NULL,
+  closed_at      INTEGER NOT NULL,
+  billed_seconds REAL,
+  error          TEXT
+);
+CREATE INDEX IF NOT EXISTS live_sessions_opened
+  ON live_sessions(opened_at);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means

@@ -74,5 +74,16 @@ export const LocalAudioTrack = {
  * property read would break the import itself, and one that invented values
  * would be lying about a wire constant. These are what the package defines.
  */
-export const RoomEvent = { Disconnected: 'disconnected' } as const;
+export const RoomEvent = {
+  Disconnected: 'disconnected',
+  TrackSubscribed: 'trackSubscribed',
+  TrackUnsubscribed: 'trackUnsubscribed',
+} as const;
 export const TrackSource = { SOURCE_MICROPHONE: 2 } as const;
+export const TrackKind = { KIND_AUDIO: 1 } as const;
+
+export class AudioStream {
+  constructor() {
+    refuse('AudioStream');
+  }
+}

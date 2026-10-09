@@ -15,6 +15,7 @@ import {
   AssemblyAiTranscription,
   type TranscriptionProvider,
 } from './transcription';
+import { AssemblyAiStreaming } from './streaming';
 
 // Node's own .env loader — no dependency. Resolved against the working
 // directory, which npm scripts set to this package. A missing file is not an
@@ -271,6 +272,15 @@ const transcription: TranscriptionProvider | undefined = assemblyAiKey
   : undefined;
 
 /**
+ * The live transcript's provider: the same key, streaming rather than batch.
+ * Nothing streams until somebody marked as transcribing on the house turns a
+ * channel's switch on, so the key alone spends nothing.
+ */
+const streaming = assemblyAiKey
+  ? new AssemblyAiStreaming({ apiKey: assemblyAiKey })
+  : undefined;
+
+/**
  * An address that transcribes without limit — a bootstrap for the account
  * that used to be the only one allowed to, and deprecated.
  *
@@ -329,6 +339,7 @@ const app = buildApp({
   // key, host and environment, on a topic `end` adds the suffix to.
   liveActivityEnder: pusher,
   transcription,
+  streaming,
   transcribeUnlimitedIdentifier,
   freeTranscriptMinutes,
   logger: true,
@@ -375,6 +386,7 @@ app.fastify
         // public page claims, and reading .env is not how anybody should have
         // to find out which.
         transcription: transcription ? transcription.name : 'not configured',
+        liveTranscription: streaming ? 'AssemblyAI streaming' : 'not configured',
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets one free transcript; the account marks that

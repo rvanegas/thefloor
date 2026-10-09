@@ -263,6 +263,9 @@ describe('the floor as an actual mute', () => {
           return 'egress_x';
         },
         async stopRecording() {},
+        async openListener() {
+          throw new Error('livekit unreachable');
+        },
         async openPlayback() {
           throw new Error('livekit unreachable');
         },
