@@ -34,6 +34,7 @@ import {
   capacityOf,
   isOwner,
   presentOrEmpty,
+  canEditChannel,
   canSetLiveTranscription,
   holdsTheControls,
   COMMUNITY_OWNER_ACTIONS,
@@ -1202,6 +1203,37 @@ export class ChannelRegistry {
       };
     }
     const next = reduce(channel, { type: 'SET_LIVE_TRANSCRIPTION', on }, this.now());
+    if (next !== channel) {
+      this.commit(channel, next);
+      this.emit([channelId]);
+    }
+    return { ok: true, channel: this.channels.get(channelId) ?? next };
+  }
+
+  /**
+   * *Record automatically*'s Text, for somebody the route has found pays for
+   * it. The rest is `canEditChannel`'s, as for *Audio* beside it: present,
+   * and holding the controls.
+   */
+  setAutoTranscribe(
+    channelId: string,
+    userId: string,
+    on: boolean
+  ): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.participants.includes(userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!canEditChannel(channel, userId)) {
+      return {
+        ok: false,
+        error: holdsTheControls(channel, userId)
+          ? 'Step in to change this.'
+          : 'Only the owner of this community can change this.',
+        code: 'forbidden',
+      };
+    }
+    const next = reduce(channel, { type: 'SET_AUTO_TRANSCRIBE', on }, this.now());
     if (next !== channel) {
       this.commit(channel, next);
       this.emit([channelId]);
@@ -7416,6 +7448,7 @@ export class ChannelRegistry {
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
       liveTranscription: channel.liveTranscription ?? false,
+      autoTranscribe: channel.autoTranscribe ?? false,
       // Durable for the same reason: it is a setting somebody chose.
       transcriptionModel: channel.transcriptionModel,
       // Durable, unlike the knocks and guests it sits beside in the state, and
@@ -7789,6 +7822,7 @@ export class ChannelRegistry {
       description?: string | null;
       autoRecord?: boolean;
       liveTranscription?: boolean;
+      autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       initiator?: string;
       owner?: string;
@@ -7845,6 +7879,12 @@ export class ChannelRegistry {
       // channels did.
       autoRecord: durable.autoRecord ?? false,
       liveTranscription: durable.liveTranscription ?? false,
+      // **A row from before the field, with the live transcript on, is read
+      // as asking for it every sitting** — which is what the live transcript
+      // meant until 2026-10-10, when it began to end with the room. Without
+      // this a deploy would quietly stop transcribing the channels somebody
+      // had switched on.
+      autoTranscribe: durable.autoTranscribe ?? durable.liveTranscription ?? false,
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       initiator: durable.initiator ?? row.initiator_id,

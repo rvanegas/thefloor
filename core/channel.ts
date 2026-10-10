@@ -158,6 +158,7 @@ export function createChannel(params: {
     // that records itself is a thing to have asked for.
     autoRecord: false,
     liveTranscription: false,
+    autoTranscribe: false,
     // The cheap grade, which is what every transcript is asked for unless a
     // `debug` account has said otherwise.
     transcriptionModel: 'standard',
@@ -2262,6 +2263,13 @@ function reduceAction(
     };
   }
 
+  if (action.type === 'SET_AUTO_TRANSCRIBE') {
+    if (!!state.autoTranscribe === action.on) return state;
+    // Nothing else moves: like `autoRecord`, it decides how the next sitting
+    // begins, and the one in progress keeps what it chose.
+    return { ...state, autoTranscribe: action.on };
+  }
+
   if (action.type === 'SET_LIVE_TRANSCRIPTION') {
     if (!!state.liveTranscription === action.on) return state;
     return { ...state, liveTranscription: action.on, liveTranscriptionPaused: false };
@@ -2548,6 +2556,11 @@ function reduceAction(
         // side.
         declaredNearbyAt: stillDeclared,
         present: [...state.present, action.userId],
+        // **The first arrival opens a sitting**, and a sitting begins with the
+        // live transcript the channel asks for. See `autoTranscribe`.
+        ...(state.present.length === 0 && state.autoTranscribe
+          ? { liveTranscription: true, liveTranscriptionPaused: false }
+          : {}),
         // **A fresh arrival has declared no screen**, and clearing it here is
         // what covers a device change. An account is present on one device at
         // a time, so entering from a second one displaces the first — and if
@@ -3726,11 +3739,13 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
     paused.watch.status === 'playing'
       ? { ...paused, watch: watchPause(paused.watch, now) }
       : paused;
-  // A held transcript is let go with the sitting, as a held recording is
-  // ended below: the next sitting starts with the channel's choice running.
-  const settled = watched.liveTranscriptionPaused
-    ? { ...watched, liveTranscriptionPaused: false }
-    : watched;
+  // **The live transcript ends with the sitting**, as the recording does
+  // below, since 2026-10-10: the next one begins with it only if the channel
+  // asks, through `autoTranscribe`. A hold goes with it.
+  const settled =
+    watched.liveTranscription || watched.liveTranscriptionPaused
+      ? { ...watched, liveTranscription: false, liveTranscriptionPaused: false }
+      : watched;
   if (!isRecordingActive(settled.recording)) return settled;
   return endRun(settled, now);
 }

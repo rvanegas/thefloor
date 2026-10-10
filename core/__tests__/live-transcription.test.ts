@@ -118,3 +118,45 @@ describe('who may switch the live transcript', () => {
     expect(canSetLiveTranscription(held, A, false)).toBe(true);
   });
 });
+
+/*
+  **Per sitting, since 2026-10-10**, as a recording is: the room emptying
+  ends it, and *Record automatically*'s Text — `autoTranscribe` — is what
+  starts it again when the room next fills.
+*/
+describe('the live transcript, sitting by sitting', () => {
+  const auto = (state: ChannelState, value = true): ChannelState =>
+    reduce(state, { type: 'SET_AUTO_TRANSCRIBE', on: value }, T0);
+  const leave = (state: ChannelState) => reduce(state, { type: 'STEP_OUT', userId: A }, T0);
+  const come = (state: ChannelState, userId = A) => reduce(state, { type: 'ENTER', userId }, T0);
+
+  it('ends with the room, and stays off without the setting', () => {
+    const emptied = leave(on(fresh()));
+    expect(emptied.liveTranscription).toBe(false);
+    expect(come(emptied).liveTranscription).toBe(false);
+  });
+
+  it('starts again with the next sitting when the channel asks', () => {
+    const asked = auto(fresh());
+    expect(asked.autoTranscribe).toBe(true);
+    // Setting it changes nothing about the sitting in progress.
+    expect(asked.liveTranscription).toBe(false);
+    const next = come(leave(asked));
+    expect(next.liveTranscription).toBe(true);
+    expect(isTranscribingLive(next)).toBe(true);
+  });
+
+  it('stays off for the sitting once somebody switches it off', () => {
+    const sitting = come(leave(auto(fresh())));
+    const off = reduce(sitting, { type: 'SET_LIVE_TRANSCRIPTION', on: false }, T0);
+    // A second arrival is not a new sitting.
+    expect(come(off, B).liveTranscription).toBe(false);
+    expect(come(leave(off)).liveTranscription).toBe(true);
+  });
+
+  it('is off on a fresh channel and changes nothing when already so', () => {
+    const start = fresh();
+    expect(start.autoTranscribe).toBe(false);
+    expect(auto(start, false)).toBe(start);
+  });
+});

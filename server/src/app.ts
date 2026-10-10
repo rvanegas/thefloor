@@ -4429,6 +4429,29 @@ export function buildApp(options: BuildOptions = {}): App {
    * else is told it does not exist, which is the same answer the switch
    * being absent gives them.
    */
+  /**
+   * *Record automatically*'s Text: whether each sitting begins with the live
+   * transcript on. The same mark as the switch on the *Record* tab, and the
+   * same answer to anybody without it.
+   */
+  fastify.put('/channels/:id/auto-transcribe', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!mayTranscribeLive(account.id)) {
+      return reply.code(404).send({ error: 'No such setting.' });
+    }
+    const on = (request.body as { on?: unknown } | undefined)?.on;
+    if (typeof on !== 'boolean') {
+      return reply.code(400).send({ error: 'on must be true or false.' });
+    }
+    const result = channels.setAutoTranscribe(id, account.id, on);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true, autoTranscribe: !!result.channel.autoTranscribe };
+  });
+
   fastify.put('/channels/:id/live-transcription', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;

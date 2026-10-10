@@ -781,9 +781,9 @@ export const es: Strings = {
     on: () => 'S\u00ed',
     off: () => 'No',
     autoRecordNote: () =>
-      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien activa Audio en la pesta\u00f1a Grabado. S\u00ed, empieza sola en cuanto hay dos personas aqu\u00ed, y todos la ven en marcha.',
+      'Cada conversaci\u00f3n aqu\u00ed empieza con lo que est\u00e9 activado: Audio empieza una grabaci\u00f3n en cuanto hay algo que grabar, y Texto transcribe lo que se dice. Todos ven cualquiera de los dos en marcha. Desactivados, que es como empieza todo canal, se activan en la pesta\u00f1a Grabado.',
     autoRecordHow: () =>
-      'Desactivar Audio funciona igual en ambos casos, y es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
+      'Desactivar cualquiera de los dos en la pesta\u00f1a Grabado dura hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
     transcriptionModel: () => 'Modelo de transcripci\u00f3n',

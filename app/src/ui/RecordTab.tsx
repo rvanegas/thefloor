@@ -690,8 +690,12 @@ export function KeepSwitches({
   );
 }
 
-/** One of the pair: its word, and the switch beside it. */
-function KeepSwitch({
+/**
+ * One of the pair: its word, and the switch beside it. Exported for *Channel
+ * Settings*' *Record automatically*, whose Audio and Text are the same pair
+ * one step removed — what every sitting starts with — and are drawn alike.
+ */
+export function KeepSwitch({
   label,
   on,
   refused,

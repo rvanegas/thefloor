@@ -129,6 +129,33 @@ describe('the switch', () => {
     expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
   });
 
+  it('is set to start each sitting by the house, on the room\'s terms', async () => {
+    // *Record automatically*'s Text. The mark, as for the switch; and
+    // `canEditChannel`, as for Audio beside it.
+    boot();
+    const { alice, bob, channelId } = await room();
+    const auto = (token: string, on = true) =>
+      app.fastify.inject({
+        method: 'PUT',
+        url: `/channels/${channelId}/auto-transcribe`,
+        headers: auth(token),
+        payload: { on },
+      });
+
+    expect((await auto(bob.token)).statusCode).toBe(404);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    const refused = await auto(alice.token);
+    expect(refused.statusCode).toBe(403);
+    expect(app.channels.get(channelId)?.autoTranscribe).toBe(false);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    expect((await auto(alice.token)).statusCode).toBe(200);
+    expect(app.channels.get(channelId)?.autoTranscribe).toBe(true);
+    // Not this sitting's: the next one begins with it.
+    expect(app.channels.get(channelId)?.liveTranscription).toBe(false);
+  });
+
   it('is refused everybody on a server that cannot stream', async () => {
     boot(false);
     const { alice, channelId } = await room();

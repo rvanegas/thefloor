@@ -984,9 +984,9 @@ export const en = {
     on: () => 'On',
     off: () => 'Off',
     autoRecordNote: () =>
-      'Off, which is where every channel starts: a recording begins when somebody switches Audio on in the Record tab. On, one begins by itself as soon as there are two of you here, and everyone sees it running.',
+      'Each conversation here begins with what is switched on: Audio starts a recording as soon as there is something to record, and Text transcribes what is said. Everyone sees either running. Off, which is where every channel starts, they are switched on in the Record tab.',
     autoRecordHow: () =>
-      'Switching Audio off works the same either way, and is final — nothing starts a second recording until everybody has left the channel and come back.',
+      'Switching either off in the Record tab lasts until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
     /** Shown only to an account with `debug` set. See `transcriptionModel`. */

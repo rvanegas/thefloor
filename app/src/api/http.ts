@@ -900,6 +900,13 @@ export const api = {
       { method: 'PUT', token, body: { on } }
     ),
 
+  /** *Record automatically*'s Text. See `autoTranscribe`. */
+  setAutoTranscribe: (token: string, channelId: string, on: boolean) =>
+    request<{ ok: true; autoTranscribe: boolean }>(
+      `/channels/${channelId}/auto-transcribe`,
+      { method: 'PUT', token, body: { on } }
+    ),
+
   searchTranscripts: (token: string, channelId: string, q: string) =>
     request<{
       hits: Array<{

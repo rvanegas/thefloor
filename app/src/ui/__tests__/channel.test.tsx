@@ -3594,6 +3594,12 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
+  /*
+    **Record automatically is two switches, since 2026-10-10**: Audio, which
+    is `autoRecord`, and Text, which is `autoTranscribe` and the house's to
+    pay for — so it moves only for an account that does, as the *Record*
+    tab's Text does.
+  */
   it('turns automatic recording on from the channel settings', () => {
     showChannel(channelOf());
     const tree = render(<ChannelView
@@ -3605,12 +3611,36 @@ describe('Channel', () => {
     act(() => findButton(tree, 'Settings')!.props.onPress());
 
     expect(textOf(tree)).toContain('Record automatically');
-    act(() => findButton(tree, 'On')!.props.onPress());
+    act(() => findSwitch(tree, 'Audio')!.props.onValueChange(true));
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_AUTO_RECORD',
       autoRecord: true,
     });
+    expect(findSwitch(tree, 'Text')!.props.disabled).toBe(true);
     act(() => tree.unmount());
+  });
+
+  it('turns automatic transcription on, for an account that pays for it', () => {
+    const { api } = require('../../api/http');
+    const asked = jest
+      .spyOn(api, 'setAutoTranscribe')
+      .mockResolvedValue({ ok: true, autoTranscribe: true } as never);
+    showChannel(channelOf(), [], { mayTranscribeLive: true });
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+
+    const text = findSwitch(tree, 'Text')!;
+    expect(text.props.disabled).toBe(false);
+    expect(text.props.value).toBe(false);
+    act(() => text.props.onValueChange(true));
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
+    act(() => tree.unmount());
+    asked.mockRestore();
   });
 
   it('offers the transcription model to a debug account and nobody else', () => {

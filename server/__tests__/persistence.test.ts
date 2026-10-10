@@ -167,6 +167,29 @@ describe('a channel across a restart', () => {
   /** What `durableOf` stores: the stamp, floored to the minute. */
   const asStored = (at: number) => Math.floor(at / 60_000) * 60_000;
 
+  it('reads a channel transcribed before automatic Text as asking for it', async () => {
+    // Until 2026-10-10 the live transcript stayed on from one sitting to the
+    // next; since then it ends with the room and `autoTranscribe` brings it
+    // back. A row written before the field, with the transcript on, has to
+    // come back asking for it, or a deploy would stop transcribing it.
+    const first = boot();
+    const { channelId } = await pair(first);
+    const row = first.db.prepare('SELECT state FROM channels WHERE id = ?').get(channelId) as {
+      state: string;
+    };
+    const older = JSON.parse(row.state);
+    delete older.autoTranscribe;
+    older.liveTranscription = true;
+    first.db
+      .prepare('UPDATE channels SET state = ? WHERE id = ?')
+      .run(JSON.stringify(older), channelId);
+    await shutdown(first);
+
+    const second = boot();
+    expect(second.channels.get(channelId)!.autoTranscribe).toBe(true);
+    await shutdown(second);
+  });
+
   it('remembers when somebody stepped out, across a restart', async () => {
     // "Stepped out an hour ago" has to survive a deploy. When somebody was
     // last in a channel is a fact about the channel rather than about the

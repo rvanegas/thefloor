@@ -592,8 +592,11 @@ on controls* requires of every disabled control.
 
 ### Switch
 
-Since 2026-10-09, and one place: the *Record* tab's **Audio** and **Text**,
-pinned under the channel's header (`KeepSwitches` in `RecordTab.tsx`). React
+Since 2026-10-09: the *Record* tab's **Audio** and **Text**, pinned under
+the channel's header (`KeepSwitches` in `RecordTab.tsx`) — and since
+2026-10-10 the same pair under *Record automatically* on *Channel Settings*,
+drawn by the same `KeepSwitch`, side by side on the card rather than on a
+bar. React
 Native's own `Switch`, drawn at 0.8 of its size (`SWITCH_SCALE`, with
 negative margins taking back the room a transform leaves), its word to its
 left in 15 `text`, the two side by side at `spacing(3)` on a pinned bar built

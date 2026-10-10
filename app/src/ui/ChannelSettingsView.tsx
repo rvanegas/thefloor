@@ -38,6 +38,7 @@ import {
   SectionLabel,
 } from './components';
 import { CloseIcon } from './icons';
+import { KeepSwitch } from './RecordTab';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -105,6 +106,8 @@ export function ChannelSettingsView({
   onLeft: () => void;
 }) {
   const t = useText().channelSettings;
+  /** The *Record* tab's words, which the switches here share. */
+  const tc = useText().channel;
   const shared = useText().shared;
   const app = useApp();
   /**
@@ -161,6 +164,10 @@ export function ChannelSettingsView({
    * it on. See `autoRecord` in core/types.ts.
    */
   const autoRecord = channel.autoRecord ?? false;
+  /** And Text beside it, `?? false` for the same reason. See `autoTranscribe`. */
+  const autoTranscribe = channel.autoTranscribe ?? false;
+  /** Whether this account pays for live transcription, which Text needs. */
+  const mayTranscribeLive = app.channelViews[channel.id]?.mayTranscribeLive ?? false;
   /** `?? 'standard'` for the same reason. See `transcriptionModel`. */
   const transcriptionModel = channel.transcriptionModel ?? 'standard';
   const [name, setName] = useState(channel.name ?? '');
@@ -435,25 +442,34 @@ export function ChannelSettingsView({
       <SectionLabel>{t.recording()}</SectionLabel>
       <Card style={styles.stack}>
         <Text style={type.heading}>{t.recordAutomatically()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, t.on()],
-              [false, t.off()],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              disabled={!mayEdit}
-              variant={autoRecord === value ? 'primary' : 'default'}
-              onPress={() => app.act(channel.id, {
-                type: 'SET_AUTO_RECORD',
-                autoRecord: value,
-              })}
-            />
-          ))}
+        {/*
+          **Two switches since 2026-10-10**, the *Record* tab's pair one step
+          removed: what every sitting begins with, where that pair is what
+          this one keeps. Drawn as that pair is, by the same component. Text
+          is the house's to pay for, so it moves only for an account that
+          does, as on the *Record* tab — and only on `mayEdit`'s terms, as
+          Audio does, which the route asks again.
+        */}
+        <View style={styles.autoSwitches}>
+          <KeepSwitch
+            label={tc.audio()}
+            on={autoRecord}
+            refused={!mayEdit}
+            onChange={(on) => app.act(channel.id, { type: 'SET_AUTO_RECORD', autoRecord: on })}
+          />
+          <KeepSwitch
+            label={tc.keepText()}
+            on={autoTranscribe}
+            refused={!mayEdit || !mayTranscribeLive}
+            onChange={(on) => {
+              if (!app.token) return;
+              api
+                .setAutoTranscribe(app.token, channel.id, on)
+                .catch((e: unknown) =>
+                  Alert.alert(t.recordAutomatically(), e instanceof Error ? e.message : String(e))
+                );
+            }}
+          />
         </View>
         <Text style={type.muted}>{t.autoRecordNote()}</Text>
         <Text style={type.muted}>
@@ -717,6 +733,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  autoSwitches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
   warning: { ...type.muted, color: colors.danger },

@@ -823,6 +823,25 @@ export interface ChannelState {
    */
   liveTranscription?: boolean;
   /**
+   * Whether each sitting begins with the live transcript on — *Record
+   * automatically*'s *Text*, beside `autoRecord`'s *Audio*, since 2026-10-10.
+   *
+   * **`liveTranscription` is per sitting since the same day**, as a recording
+   * is: the room emptying turns it off, and the first arrival in an empty room
+   * turns it on again if this is set. So the *Record* tab's Text says what
+   * this conversation keeps, and this says what every conversation starts
+   * with. Switching Text off mid-sitting holds until the room empties, which
+   * is `autoRecord`'s rule for Audio arrived at without a latch.
+   *
+   * Set by the server, through `SET_AUTO_TRANSCRIBE`, for somebody who may
+   * edit the channel and transcribes on the house — the mark being the
+   * server's to know, as for `liveTranscription`. Absent on a snapshot from a
+   * server that predates it, read as off; a channel stored with the live
+   * transcript on and no answer here is read back with it set, so the
+   * channels transcribed before this keep being transcribed.
+   */
+  autoTranscribe?: boolean;
+  /**
    * Whether the live transcript is on and held: nothing is sent to the
    * provider and the *Transcribing* pill gives way to *Paused*, until a
    * resume. The text's half of the *Record* tab's Pause, since 2026-10-09 —
@@ -1200,6 +1219,11 @@ export type ChannelAction =
    * carries no userId, and it is absent from the client's list of actions.
    */
   | { type: 'SET_LIVE_TRANSCRIPTION'; on: boolean }
+  /**
+   * *Record automatically*'s Text. Server-applied for `SET_LIVE_TRANSCRIPTION`'s
+   * reason, after the route has asked for the mark and `canEditChannel`.
+   */
+  | { type: 'SET_AUTO_TRANSCRIBE'; on: boolean }
   /**
    * Shared playback. All of these are gated by `canControlPlayback`, which
    * hands the floor-holder exclusive control while a claim is active — a claim

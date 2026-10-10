@@ -106,7 +106,7 @@ caused; the list carries the meaning.
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
 - **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
 - **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, each moving only itself — either, both or neither: *Audio* is a *recording*, *Text* the *live transcript*; the button beside them is the pair's transport — *Start* while nothing is chosen turns on both, as much as this person may; *Pause* holds everything running; *Resume*, while anything is held, restarts everything held. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
-- **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
+- **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. Switching either off on the *Record* tab holds until the room empties and fills again
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off — a Pause between holds it and keeps it one recording, joined without the gap; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
@@ -115,7 +115,7 @@ caused; the list carries the meaning.
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
@@ -2468,8 +2468,20 @@ act, since a switch is a state somebody sets. Spanish *Audio* and *Texto*.
 
 ## Record automatically
 
-A channel setting, in Channel Settings, off until somebody in the room turns it
-on. On, a *recording* begins by itself as soon as the room has anything to
+A channel setting, in Channel Settings: **two switches since 2026-10-10**,
+*Audio* and *Text*, drawn as the *Record* tab's pair is, since they are that
+pair one step removed — what every sitting begins with rather than what this
+one keeps. Both off until somebody in the room turns them on.
+
+**Text** is `autoTranscribe`: the first arrival in an empty room turns the
+*live transcript* on. That means something only because the live transcript
+became **per sitting** the same day — it ends when the room empties, as a
+recording does — where before it stayed on from one sitting to the next. A
+channel stored with it on and no `autoTranscribe` is read back with it set,
+so nothing transcribed before stopped being. Moved only by an account on the
+house, through its own route, and on `canEditChannel`'s terms as Audio is.
+
+**Audio**, the rest of this entry, is `autoRecord`. On, a *recording* begins by itself as soon as the room has anything to
 capture — which is exactly when *Record* stops being greyed out, and is the
 same condition, deliberately, so that nothing is recorded automatically that
 could not have been recorded by hand.
@@ -2721,7 +2733,9 @@ mark, checked by the server's route. **The switch is *Text* on the *Record*
 tab since 2026-10-09**, beside *Audio* and independent of it, and drawn for
 everybody — it says what is being kept — but moved only by that account, and
 only while present and holding the controls (`canSetLiveTranscription`); it
-was an On/Off pair in channel settings, drawn for that account alone. Everybody in the room sees that it is on — the
+was an On/Off pair in channel settings, drawn for that account alone. **It
+ends with the sitting since 2026-10-10**, as a recording does, and *Record
+automatically*'s Text (`autoTranscribe`) begins the next with it on. Everybody in the room sees that it is on — the
 *Transcribing* pill — because everybody's speech goes to the provider while it
 is. **Held by the *Record* tab's Pause** since 2026-10-09
 (`liveTranscriptionPaused`): still on, and nothing sent while held. Read in
