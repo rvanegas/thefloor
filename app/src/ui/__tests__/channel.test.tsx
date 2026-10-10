@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { createChannel, reduce } from '../../../../core/channel';
-import { type Guest } from '../../../../core/types';
+import { type ChannelState, type Guest } from '../../../../core/types';
 import { type RecordingView } from '../../../../core/protocol';
 import { ChannelView, uploadingLabel } from '../ChannelView';
 import { Screen, SectionLabel, Segmented } from '../components';
@@ -2163,8 +2163,8 @@ describe('Channel', () => {
   /*
     **The two switches, since 2026-10-09**, which took the Record and Pause
     buttons' place and the *Live transcript* setting's: what the channel
-    keeps, as *Audio* or as *Text*. Radio style — turning one on turns the
-    other off in the same press — and both may be off. Audio runs on the
+    keeps, as *Audio*, as *Text*, both or neither. Each moves only itself —
+    radio style for a day, until 2026-10-10. Audio runs on the
     recording's own rules, so a switch is refused exactly where the button
     was; Text on the account's, `mayTranscribeLive`.
 
@@ -2172,10 +2172,10 @@ describe('Channel', () => {
     one on begins a new recording rather than continuing the last.
   */
   /*
-    **Pause holds whichever is chosen, and Resume restarts only what it
-    held** — the run stays one recording, joined without the gap, and the
-    text one stretch of the same room. Drawn always, refused while nothing
-    is running.
+    **Pause is one hold over the pair**: it holds everything running, and
+    while anything is held it reads Resume and restarts everything held — the
+    run stays one recording, joined without the gap, and the text one
+    stretch of the same room. Drawn always, refused while nothing is running.
   */
   it('pauses whichever is running, and resumes only what it paused', () => {
     // Nothing chosen: drawn, and refused.
@@ -2231,9 +2231,44 @@ describe('Channel', () => {
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'RESUME_LIVE_TRANSCRIPTION' });
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
     act(() => held.unmount());
+
+    // Both running: one Pause holds both.
+    mockApp.act.mockClear();
+    const both = (c: ChannelState) =>
+      reduce(
+        reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW),
+        { type: 'START_RECORDING', userId: ME, runId: 'rec_1' },
+        NOW
+      );
+    showChannel(channelOf(both));
+    const pair = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(pair);
+    act(() => findButton(pair, 'Pause')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_RECORDING' });
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+    act(() => pair.unmount());
+
+    // Audio held and text running — text switched on during the hold: the
+    // button still reads Resume, and resumes the audio and only that.
+    mockApp.act.mockClear();
+    showChannel(
+      channelOf((c) => reduce(both(c), { type: 'PAUSE_RECORDING', userId: ME }, NOW))
+    );
+    const mixed = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(mixed);
+    expect(findButton(mixed, 'Pause')).toBeUndefined();
+    act(() => findButton(mixed, 'Resume')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'RESUME_LIVE_TRANSCRIPTION' });
+    act(() => mixed.unmount());
   });
 
-  it('keeps audio or text, never both, and turning audio off ends the run', () => {
+  it('keeps audio, text, both or neither, and turning audio off ends the run', () => {
     const { api } = require('../../api/http');
     const asked = jest
       .spyOn(api, 'setLiveTranscription')
@@ -2271,8 +2306,9 @@ describe('Channel', () => {
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
     act(() => live.unmount());
 
-    // Text on, for somebody who may switch it: audio on turns text off.
+    // Text on, for somebody who may switch it: audio on leaves text alone.
     mockApp.act.mockClear();
+    asked.mockClear();
     showChannel(
       channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)),
       [],
@@ -2285,21 +2321,22 @@ describe('Channel', () => {
     expect(state(texting, 'Text')).toEqual({ on: true, refused: false });
     expect(state(texting, 'Audio')).toEqual({ on: false, refused: false });
     act(() => findSwitch(texting, 'Audio')!.props.onValueChange(true));
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', false);
+    expect(asked).not.toHaveBeenCalled();
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
     act(() => texting.unmount());
 
-    // The same for somebody who may not: audio is refused, and says why.
+    // The same for somebody who may not move text: audio is theirs all the
+    // same, since adding it takes nothing away from the text.
     showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
-    const refused = render(
+    const other = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecord(refused);
-    expect(state(refused, 'Audio')).toEqual({ on: false, refused: true });
-    expect(textOf(refused)).toContain('only whoever pays for the transcription');
-    act(() => refused.unmount());
+    showRecord(other);
+    expect(state(other, 'Audio')).toEqual({ on: false, refused: false });
+    expect(state(other, 'Text')).toEqual({ on: true, refused: true });
+    act(() => other.unmount());
 
-    // Recording, for somebody who may switch text: text on ends the run.
+    // Recording, for somebody who may switch text: text on leaves the run.
     mockApp.act.mockClear();
     asked.mockClear();
     showChannel(
@@ -2312,9 +2349,35 @@ describe('Channel', () => {
     );
     showRecord(recording);
     act(() => findSwitch(recording, 'Text')!.props.onValueChange(true));
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
     expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
     act(() => recording.unmount());
+
+    // Both on: each switch reads on, and off moves only its own.
+    mockApp.act.mockClear();
+    asked.mockClear();
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW),
+          { type: 'START_RECORDING', userId: ME, runId: 'rec_1' },
+          NOW
+        )
+      ),
+      [],
+      { mayTranscribeLive: true }
+    );
+    const pair = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(pair);
+    expect(state(pair, 'Audio')).toEqual({ on: true, refused: false });
+    expect(state(pair, 'Text')).toEqual({ on: true, refused: false });
+    act(() => findSwitch(pair, 'Audio')!.props.onValueChange(false));
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
+    expect(asked).not.toHaveBeenCalled();
+    act(() => pair.unmount());
+
 
     // Held, by this build's Pause or an older one's: Audio stays on, since
     // it is still what the channel keeps, and Resume restarts it.

@@ -501,7 +501,7 @@ export function ChannelSettingsView({
 
       {/*
         **No live transcript here since 2026-10-09**: it is the *Text* switch
-        on the *Record* tab, the radio partner of *Audio* — see
+        on the *Record* tab, beside *Audio* — see
         `KeepSwitches`. What a channel keeps is chosen where it is kept.
       */}
 

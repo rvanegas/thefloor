@@ -603,20 +603,19 @@ repeated the header's pill, which is what says in red that what is said is
 being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
-**Radio style**: one, the other, or neither, never both — turning one on turns
-the other off in the same press. It replaced the Record and Pause buttons and
+**Independent**: either, both or neither — each moves only itself, since
+2026-10-10; radio style the day before. It replaced the Record and Pause buttons and
 the *Live transcript* On/Off pair on *Channel Settings*, and § *Checkbox*'s
 line that a switch cannot draw *unticked* is no objection here: what a channel
 keeps is an answer in force, and each of these is always either on or off.
 **Refused with a sentence under the pair**, by § *Words on controls*' rule:
-`recordingRefusal`'s reasons, and the text holding against somebody who may
-not switch it. A held run leaves its switch on: the switch says what is
+`recordingRefusal`'s reasons. A held run leaves its switch on: the switch says what is
 chosen, and the pill says whether it is running.
 
 **Pause sits beside them, as thin as they are and on no card**: a hairline
 pill the height of a switch as drawn, its word — *Pause*, or *Resume* while anything
-chosen is held — at the switches' 15. It holds whichever is running and
-resumes only what it held. Always drawn and refused while nothing is
+chosen is held — at the switches' 15. One hold over the pair: it holds
+everything running and resumes everything held. Always drawn and refused while nothing is
 running, rule six's reason. Added back on 2026-10-09, the day the transport
 it came from went.
 

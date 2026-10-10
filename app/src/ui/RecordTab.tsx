@@ -507,38 +507,39 @@ export function formatRoomText(
 }
 
 /**
- * What this channel keeps of what is said: its audio, its text, or neither,
- * and a Pause that holds whichever is running. Pinned under the channel's
- * header on the *Record* tab, since 2026-10-09, where the Record and Pause
- * buttons were and in place of the *Live transcript* setting on *Channel
+ * What this channel keeps of what is said — its audio, its text, both or
+ * neither — and a Pause that holds whatever is running. Pinned under the
+ * channel's header on the *Record* tab, since 2026-10-09, where the Record and
+ * Pause buttons were and in place of the *Live transcript* setting on *Channel
  * Settings*.
  *
- * **Two switches, radio style** — either may be on, never both, and both may
- * be off. Turning one on turns the other off in the same press, which is what
- * `keep-the-transcript-and-let-the-audio-go` asks for: the channel keeps the
- * conversation as audio or as text, and a person chooses which. **Only on
- * this side**: the server would still hold both, as *Record automatically*
- * can bring about by starting a recording under the text.
+ * **Two independent switches, since 2026-10-10.** Each moves only its own
+ * form, so either, both or neither may be on. They were radio style for a
+ * day, on a reading of `keep-the-transcript-and-let-the-audio-go` that the
+ * task does not make: it asks that text be enough, and that keeping the audio
+ * be something somebody chooses — which is adding it, not swapping to it.
  *
  * **Audio is the recording's own rules**: on is `START_RECORDING`, off is
  * `STOP_RECORDING`, and the switch is refused exactly where the button it
  * replaces was. **Text is the account's**, `mayTranscribeLive`, since the
- * house pays for it; everybody else sees its state and cannot move it — and
- * cannot turn the audio on while it holds, since that would mean turning it
- * off. A switch says what is *chosen*, so a held run leaves it on.
+ * house pays for it; everybody else sees its state and cannot move it. A
+ * switch says what is *chosen*, so a held run leaves it on.
  *
- * **Pause holds whichever is chosen, and Resume restarts only what it held.**
- * Audio's is `PAUSE_RECORDING`, which keeps the run one recording — the server
- * captures it in segments and joins them, recorded time only, so what was
- * said either side of a pause is one file with no gap, in the room it began
- * in. Text's is `PAUSE_LIVE_TRANSCRIPTION`: nothing goes to the provider while
- * it holds, and the lines either side are one stretch of the same room. Both
- * on the recording's Pause rules. **The button is always drawn**, refused
- * while there is nothing to hold, so it never moves under the thumb.
+ * **Pause is one hold over the pair.** Pause holds everything running; while
+ * anything chosen is held it reads Resume, and Resume restarts everything
+ * held — so a form switched on during a hold runs, the button still offers
+ * Resume, and one press brings the pair back level. Audio's hold is
+ * `PAUSE_RECORDING`, which keeps the run one recording — the server captures
+ * it in segments and joins them, recorded time only, so what was said either
+ * side of a pause is one file with no gap, in the room it began in. Text's is
+ * `PAUSE_LIVE_TRANSCRIPTION`: nothing goes to the provider while it holds, and
+ * the lines either side are one stretch of the same room. Both on the
+ * recording's Pause rules. **The button is always drawn**, refused while there
+ * is nothing to hold, so it never moves under the thumb.
  *
- * Under the row, as under the buttons it replaces: why Record is refused
- * when nothing else on the screen says, and a capture that stopped for a
- * reason nobody asked for.
+ * Under the row, as under the buttons it replaces: why Audio is refused when
+ * nothing else on the screen says, and a capture that stopped for a reason
+ * nobody asked for.
  */
 export function KeepSwitches({
   channelId,
@@ -567,21 +568,13 @@ export function KeepSwitches({
         Alert.alert(t.keepText(), e instanceof Error ? e.message : String(e))
       );
   };
-  const switchAudio = (on: boolean) => {
-    if (!on) {
-      app.act(channelId, { type: 'STOP_RECORDING' });
-      return;
-    }
-    if (textOn) setText(false);
-    app.act(channelId, { type: 'START_RECORDING' });
-  };
-  const switchText = (on: boolean) => {
-    if (on && audioOn) app.act(channelId, { type: 'STOP_RECORDING' });
-    setText(on);
-  };
+  const switchAudio = (on: boolean) =>
+    app.act(channelId, { type: on ? 'START_RECORDING' : 'STOP_RECORDING' });
 
   // Resume while anything chosen is held, Pause otherwise; each sends only
-  // what this person may do to what is actually in that state.
+  // what this person may do to what is actually in that state. A form that
+  // is running while the other is held is left alone by Resume, which is
+  // what lets one press bring the pair back level.
   const resuming = audioHeld || textHeld;
   const holds: Array<
     | { type: 'PAUSE_RECORDING' }
@@ -604,10 +597,8 @@ export function KeepSwitches({
           : []),
       ];
 
-  const audioRefused = audioOn
-    ? !mayStop
-    : !canStartRecording(channel, me) || (textOn && !mayTranscribeLive);
-  const textRefused = !mayTranscribeLive || (!textOn && audioOn && !mayStop);
+  const audioRefused = audioOn ? !mayStop : !canStartRecording(channel, me);
+  const textRefused = !mayTranscribeLive;
   const refusal = recordingRefusal(channel, me);
 
   return (
@@ -624,7 +615,7 @@ export function KeepSwitches({
             label={t.keepText()}
             on={textOn}
             refused={textRefused}
-            onChange={switchText}
+            onChange={setText}
           />
           <Pressable
             accessibilityRole="button"
@@ -647,8 +638,6 @@ export function KeepSwitches({
                 ? t.recordRefusedFilm()
                 : t.recordRefusedSilent()}
           </Text>
-        ) : textOn && !mayTranscribeLive && !audioOn ? (
-          <Text style={type.muted}>{t.recordRefusedText()}</Text>
         ) : null}
         {channel.recording.failure ? (
           // Capture stopping for a reason nobody asked for must not read like

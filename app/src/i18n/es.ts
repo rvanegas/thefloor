@@ -1085,8 +1085,6 @@ export const es: Strings = {
     shareRoomTitle: () => 'Compartir esta sala',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     keepText: () => 'Texto',
-    recordRefusedText: () =>
-      'Aqu\u00ed se guarda el texto en lugar del audio, y solo quien paga la transcripci\u00f3n puede cambiarlo.',
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',

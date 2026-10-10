@@ -1331,12 +1331,9 @@ export const en = {
     roomTextCopied: () => 'The text is copied.',
     /**
      * The *Record* tab's two switches: what this channel keeps of what is
-     * said, beside `audio`. Radio style — one, the other, or neither. See
-     * `KeepSwitches`.
+     * said, beside `audio`. Either, both or neither. See `KeepSwitches`.
      */
     keepText: () => 'Text',
-    recordRefusedText: () =>
-      'Text is being kept here instead of audio, and only whoever pays for the transcription can change that.',
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',
