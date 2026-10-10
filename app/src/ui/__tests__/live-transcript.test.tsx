@@ -309,6 +309,36 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it('opens with an old recording as a room of its own, without the talk around it', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l0', ME, 'Me', NOW - 86_400_000 + 5_000, 'said during the old one'),
+        line('l1', ME, 'Me', NOW + 1_000, 'in the sitting'),
+      ],
+      more: false,
+    } as never);
+    showChannel(transcribed(), [segment('rec_old', 'Before rooms', NOW - 86_400_000)]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        {
+          ...room('standin_rec_old', NOW - 86_400_000, NOW - 86_400_000 + 30_000, ['rec_old']),
+          transcribed: false,
+          standIn: true,
+        },
+        room('room_1', NOW, NOW + 60_000, []),
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const text = textOf(tree);
+    expect(text).toContain('Before rooms');
+    expect(text.indexOf('Before rooms')).toBeLessThan(text.indexOf('in the sitting'));
+    expect(text).not.toContain('said during the old one');
+    act(() => tree.unmount());
+  });
+
   it("shares the audio of the room on the bar, whole", async () => {
     showChannel(channelOf(), [segment('rec_1', 'Planning', NOW + 10_000)]);
     jest.spyOn(api, 'rooms').mockResolvedValue({

@@ -24,10 +24,12 @@ import { colors, measure, spacing, type } from './theme';
  * **Laid out in rooms.** A room is a sitting — first step in to last step out,
  * written by the server as it happens (`server/src/rooms.ts`) — and each one
  * that kept something, a recording or a line of transcript, starts with a rule
- * bearing its date and its hours. A sitting that kept nothing is not drawn,
- * and nothing from before rooms existed is: lines and recordings that fall in
- * no room are left out rather than gathered under a heading that would be a
- * guess.
+ * bearing its date and its hours. A sitting that kept nothing is not drawn.
+ * **A recording that fell in no sitting is its own room** — the server lists
+ * it as a `standIn`, spanning the run, recorded and not transcribed — so the
+ * recordings made before rooms existed open the log, each under its own rule.
+ * Lines of live transcript from before then are left out rather than
+ * gathered under a heading that would be a guess.
  *
  * **The room at the top of the scroll is reported up**, through
  * `onRoomAtTop`, for the pinned `RoomBar` — whose date is always visible and
@@ -150,8 +152,9 @@ export function RecordTab({
   );
   // Earlier pages are worth asking for only while they could still land in a
   // room: anything older than the first one is not drawn.
+  const firstSitting = rooms?.find((room) => !room.standIn);
   const earlierMatters =
-    more && held.length > 0 && !!rooms?.length && held[0].startAt > rooms[0].openedAt;
+    more && held.length > 0 && !!firstSitting && held[0].startAt > firstSitting.openedAt;
   const loading = (rooms === null || (live && lines === null)) && !error;
 
   // --- Which room is at the top ---------------------------------------------
@@ -371,7 +374,13 @@ export function intoRooms(
         ...recordings
           .filter((r) => ids.has(r.id) || (room.closedAt === null && holds(room, r.startedAt)))
           .map((recording) => ({ at: recording.startedAt, recording })),
-        ...lines.filter((l) => holds(room, l.startAt)).map((line) => ({ at: line.startAt, line })),
+        // Only into a room that was transcribed, or is open and may yet be:
+        // a recording's stand-in is not, so talk written down before rooms
+        // existed does not attach itself to whichever old recording it
+        // happens to overlap.
+        ...(room.transcribed || room.closedAt === null ? lines : [])
+          .filter((l) => holds(room, l.startAt))
+          .map((line) => ({ at: line.startAt, line })),
       ].sort((x, y) => x.at - y.at || ('recording' in x ? -1 : 0) - ('recording' in y ? -1 : 0));
 
       const items: RoomItem[] = [];

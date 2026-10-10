@@ -1043,7 +1043,8 @@ export interface LiveLine {
 /**
  * A sitting: a channel's span from the first member stepping in to the last
  * stepping out, as `GET /channels/:id/rooms` lists them — only those that kept
- * something, oldest first. Since 2026-10-09; nothing earlier has one.
+ * something, oldest first. Since 2026-10-09; a recording from before then
+ * is listed as a room of its own, `standIn`.
  */
 export interface RoomView {
   id: string;
@@ -1055,6 +1056,12 @@ export interface RoomView {
   recordingIds: string[];
   /** Whether any live transcript was written inside it. */
   transcribed: boolean;
+  /**
+   * Not a sitting but one recording standing as its own room, because it
+   * fell in none — every recording made before rooms existed. Spans exactly
+   * the run, recorded and not transcribed.
+   */
+  standIn?: true;
 }
 
 export interface ChannelView {

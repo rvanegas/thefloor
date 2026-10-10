@@ -26,11 +26,15 @@ export interface RoomRow {
  * registry and never inferred afterwards. It is the unit the *Record* tab is
  * laid out in and the unit whose audio is shared whole.
  *
- * Members only, because `channelEmptied` is: a guest left talking alone is not
- * a room still open, for the reason their link lapses at the same moment.
+ * Bounded by members, because `channelEmptied` is — and that moment also ends
+ * every guest's seat, so it is the end of the room for everybody in it.
  *
  * Nothing before 2026-10-09 has one, and nothing is reconstructed —
- * `usage_spans` could, and the application does not read it.
+ * `usage_spans` could, and the application does not read it. **A recording
+ * that falls in no room stands as one of its own** in what `forChannel`
+ * lists: a span exactly as long as the run, recorded and not transcribed,
+ * so the recordings made before rooms existed open the log rather than
+ * vanishing from it.
  */
 export class Rooms {
   constructor(private db: Db) {}
@@ -79,7 +83,8 @@ export class Rooms {
   /**
    * A channel's rooms that kept something, oldest first: a finished recording
    * or a line of live transcript inside its span. A sitting nobody recorded or
-   * transcribed left nothing to show and is not one.
+   * transcribed left nothing to show and is not one. A finished recording
+   * inside no sitting is listed as a room of its own, `standIn` — see above.
    */
   forChannel(channelId: string, now: number): RoomView[] {
     const rows = this.db
@@ -89,6 +94,11 @@ export class Rooms {
       `SELECT id FROM recordings
        WHERE channel_id = ? AND ended_at IS NOT NULL AND deleted_at IS NULL
          AND started_at >= ? AND started_at <= ?
+       ORDER BY started_at`
+    );
+    const recordingsOf = this.db.prepare(
+      `SELECT id, started_at, ended_at FROM recordings
+       WHERE channel_id = ? AND ended_at IS NOT NULL AND deleted_at IS NULL
        ORDER BY started_at`
     );
     const transcribedIn = this.db.prepare(
@@ -110,7 +120,21 @@ export class Rooms {
         transcribed,
       });
     }
-    return rooms;
+    const placed = new Set(rooms.flatMap((room) => room.recordingIds));
+    const strays = (
+      recordingsOf.all(channelId) as Array<{ id: string; started_at: number; ended_at: number }>
+    ).filter((r) => !placed.has(r.id));
+    for (const stray of strays) {
+      rooms.push({
+        id: standInId(stray.id),
+        openedAt: stray.started_at,
+        closedAt: stray.ended_at,
+        recordingIds: [stray.id],
+        transcribed: false,
+        standIn: true,
+      });
+    }
+    return rooms.sort((a, b) => a.openedAt - b.openedAt);
   }
 
   /** One room of one channel, or nothing. */
@@ -119,4 +143,9 @@ export class Rooms {
       .prepare('SELECT * FROM rooms WHERE id = ? AND channel_id = ?')
       .get(roomId, channelId) as RoomRow | undefined;
   }
+}
+
+/** The id a recording's stand-in room is listed under; see `Rooms`. */
+export function standInId(recordingId: string): string {
+  return `standin_${recordingId}`;
 }

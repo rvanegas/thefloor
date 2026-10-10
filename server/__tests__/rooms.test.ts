@@ -143,6 +143,36 @@ describe('rooms', () => {
     });
   });
 
+  it('list a recording that fell in no sitting as a room of its own, first', async () => {
+    const { alice, channelId } = await channel();
+    const old = clock - 86_400_000;
+    recording(channelId, alice.account.id, old);
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const sitting = clock;
+    line(channelId, sitting + 1);
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const { rooms } = (
+      await app.fastify.inject({
+        method: 'GET',
+        url: `/channels/${channelId}/rooms`,
+        headers: auth(alice.token),
+      })
+    ).json() as { rooms: Array<Record<string, unknown>> };
+    expect(rooms).toHaveLength(2);
+    expect(rooms[0]).toEqual({
+      id: `standin_rec_${old}`,
+      openedAt: old,
+      closedAt: old + 60_000,
+      recordingIds: [`rec_${old}`],
+      transcribed: false,
+      standIn: true,
+    });
+    expect(rooms[1]).toMatchObject({ openedAt: sitting, transcribed: true });
+  });
+
   it('resume across a restart when people come back, and not otherwise', async () => {
     const { alice, channelId } = await channel();
     clock += 1_000;

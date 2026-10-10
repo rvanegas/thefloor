@@ -10,18 +10,23 @@ step out.
 ended. `usage_spans` has per-participant spans that could reconstruct them, and
 its own rule is that the application never reads it, so a `rooms` table is
 written on the two transitions of `present` instead (`server/src/rooms.ts`).
-The end is the moment `channelEmptied` already fires, members only, so a guest
-left talking alone does not keep a room open — the same moment their link
-lapses. A restart closes every open room and marks it, and the people
+A restart closes every open room and marks it, and the people
 reconnecting within ten minutes resume it rather than starting a second.
 
-**Nothing from before is shown, by his choice.** Asked whether to backfill from
+**What came before rooms, by his choice.** Asked whether to backfill from
 the usage spans, treat each old recording as its own room, or show only new
-rooms, he chose the last and went further: older history is not drawn at all,
-and a sitting is drawn only if it was recorded or transcribed. So recordings
-made before this shipped are not on the tab. They still exist, transcript search still finds
-the ones transcribed, and a published one is still on its channel's page —
-but renaming, deleting and publishing them has no way in from the app now.
+rooms, he first chose new rooms only, and a sitting drawn only if it was
+recorded or transcribed. That left every recording made before this shipped
+with no way to be renamed, deleted or published from the app, and he reversed
+it the same day: **a recording that falls in no sitting is a room of its own**,
+a *stand-in* spanning exactly the run, recorded and not transcribed, so the
+old recordings open the log. Live transcript from before then is still not
+drawn — it has no sitting, and would attach itself to whichever old
+recording it happened to overlap.
+
+The end of a sitting is the moment `channelEmptied` fires, when the last
+member steps out — which also ends every guest's seat, so it is the end for
+everybody.
 
 **Considered and not built:**
 

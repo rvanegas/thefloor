@@ -104,7 +104,7 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions, a pinned bar with the date of the room at the top and its share, and the recording transport under it. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, a pinned bar with the date of the room at the top and its share, and the recording transport under it. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started by anybody present and ended by a pause; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
@@ -2403,9 +2403,12 @@ out — that kept something starts with a rule bearing its date and hours, and
 a pinned bar over the log names the one at the top of the scroll and carries
 the share glyph, which sends that room's recordings as one file, back to back.
 A room that was only transcribed keeps the glyph, faint, and says why when
-pressed. **Nothing outside a room is drawn**: sittings were first written on
-2026-10-09, so what was said or recorded before then is not on this tab, and
-neither is a sitting that kept nothing.
+pressed. A sitting that kept nothing is not drawn. **A recording that fell in
+no sitting is a room of its own** — a *stand-in*, spanning exactly the run,
+recorded and not transcribed — so every recording made before sittings were
+first written, on 2026-10-09, opens the log under its own rule and shares
+like any room. Live transcript from before then is not drawn: it has no
+sitting to stand in and would be a guess.
 
 **Named for what the two forms are together, not for either form.** A
 channel may keep the conversation as audio, as text, both, or neither:
@@ -4223,13 +4226,16 @@ flight — and not the channel. A deploy costs presence, not channels.
 
 **A sitting**, since 2026-10-09: a channel's span from the first member
 stepping in to the last stepping out. `rooms` on the server, written on those
-two transitions — the second is the one `channelEmptied` fires on, so a guest
-left talking alone does not hold a room open — and `RoomView` on the wire.
+two transitions — the second is the one `channelEmptied` fires on, which also
+ends every guest's seat, so a room ends for everybody at once; *the seat ends
+when the room does* was saying this before the word had a table — and
+`RoomView` on the wire. A recording that fell in no sitting is listed as a
+room of its own, `standIn`.
 The *Record* tab is laid out in them and shares one's audio whole, its
 recordings back to back with the gaps between them dropped. A restart closes
 every open one and the people reconnecting within ten minutes resume it.
-Nothing earlier has one and nothing is reconstructed: `usage_spans` could,
-and the application does not read it. "Sala" in Spanish, which the app
+No sitting earlier than that is reconstructed: `usage_spans` could, and the
+application does not read it. "Sala" in Spanish, which the app
 already said.
 
 **The media plane's word for a media thing.** `ChannelState.mediaRoom` names
@@ -4240,7 +4246,8 @@ sitting.
 Separately, "the room" in prose and in `core/guests.ts` means **everybody
 present including guests** — `roomOccupants`, `inRoom` — as against
 `state.present`, which is members only. A sitting is bounded by the
-members-only one.
+members-only one, which comes to the same thing: the last member out ends
+every guest's seat.
 
 ## Reach
 
