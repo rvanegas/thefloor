@@ -612,11 +612,13 @@ keeps is an answer in force, and each of these is always either on or off.
 `recordingRefusal`'s reasons. A held run leaves its switch on: the switch says what is
 chosen, and the pill says whether it is running.
 
-**Pause sits beside them, as thin as they are and on no card**: a hairline
-pill the height of a switch as drawn, its word — *Pause*, or *Resume* while anything
-chosen is held — at the switches' 15. One hold over the pair: it holds
-everything running and resumes everything held. Always drawn and refused while nothing is
-running, rule six's reason. Added back on 2026-10-09, the day the transport
+**Pause stands before them, left of the pair since 2026-10-10, as thin as they are and on no card**: a hairline
+pill the height of a switch as drawn, its word — *Start* while nothing is
+chosen, *Resume* while anything chosen is held, *Pause* otherwise — at the
+switches' 15. It is the pair's transport: Start turns on both, as much as
+this person may, and the switches after it read as modifiers on it, for choosing one alone; Pause holds
+everything running and Resume restarts everything held. Always drawn, and
+refused while there is nothing it may do, rule six's reason. Added back on 2026-10-09, the day the transport
 it came from went.
 
 ### FooterAction

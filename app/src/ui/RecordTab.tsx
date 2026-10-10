@@ -525,6 +525,13 @@ export function formatRoomText(
  * house pays for it; everybody else sees its state and cannot move it. A
  * switch says what is *chosen*, so a held run leaves it on.
  *
+ * **Start turns on both in one press, since 2026-10-10.** While nothing is
+ * chosen, Pause's button reads Start and switches on as much of the pair as
+ * this person may — Audio on the recording's rules, Text if the account pays
+ * for it. The button is the transport and stands first, left of the
+ * switches, so they read as modifiers on it; they are for choosing one form
+ * alone, and the ordinary day is Start, Pause, Resume, and both off.
+ *
  * **Pause is one hold over the pair.** Pause holds everything running; while
  * anything chosen is held it reads Resume, and Resume restarts everything
  * held — so a form switched on during a hold runs, the button still offers
@@ -535,7 +542,7 @@ export function formatRoomText(
  * `PAUSE_LIVE_TRANSCRIPTION`: nothing goes to the provider while it holds, and
  * the lines either side are one stretch of the same room. Both on the
  * recording's Pause rules. **The button is always drawn**, refused while there
- * is nothing to hold, so it never moves under the thumb.
+ * is nothing it may start or hold, so it never moves under the thumb.
  *
  * Under the row, as under the buttons it replaces: why Audio is refused when
  * nothing else on the screen says, and a capture that stopped for a reason
@@ -576,6 +583,8 @@ export function KeepSwitches({
   // is running while the other is held is left alone by Resume, which is
   // what lets one press bring the pair back level.
   const resuming = audioHeld || textHeld;
+  const starting = !audioOn && !textOn;
+  const mayStartAudio = canStartRecording(channel, me);
   const holds: Array<
     | { type: 'PAUSE_RECORDING' }
     | { type: 'RESUME_RECORDING' }
@@ -597,7 +606,19 @@ export function KeepSwitches({
           : []),
       ];
 
-  const audioRefused = audioOn ? !mayStop : !canStartRecording(channel, me);
+  const starts = starting
+    ? [
+        ...(mayStartAudio ? [() => switchAudio(true)] : []),
+        ...(mayTranscribeLive ? [() => setText(true)] : []),
+      ]
+    : [];
+  const press = starting
+    ? () => starts.forEach((start) => start())
+    : () => holds.forEach((action) => app.act(channelId, action));
+  const refusedPress = starting ? starts.length === 0 : holds.length === 0;
+  const word = starting ? t.start() : resuming ? t.resume() : t.pause();
+
+  const audioRefused = audioOn ? !mayStop : !mayStartAudio;
   const textRefused = !mayTranscribeLive;
   const refusal = recordingRefusal(channel, me);
 
@@ -605,6 +626,20 @@ export function KeepSwitches({
     <View style={styles.bar}>
       <View style={[styles.barInner, styles.keep]}>
         <View style={styles.switches}>
+          {/* First, so the switches read as what it keeps rather than as
+              controls of their own: Start, then what. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={word}
+            accessibilityState={{ disabled: refusedPress }}
+            disabled={refusedPress}
+            onPress={press}
+            style={({ pressed }) => [styles.hold, pressed && styles.pressed]}
+          >
+            <Text style={[styles.holdLabel, refusedPress && styles.switchLabelRefused]}>
+              {word}
+            </Text>
+          </Pressable>
           <KeepSwitch
             label={t.audio()}
             on={audioOn}
@@ -617,18 +652,6 @@ export function KeepSwitches({
             refused={textRefused}
             onChange={setText}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={resuming ? t.resume() : t.pause()}
-            accessibilityState={{ disabled: holds.length === 0 }}
-            disabled={holds.length === 0}
-            onPress={() => holds.forEach((action) => app.act(channelId, action))}
-            style={({ pressed }) => [styles.hold, pressed && styles.pressed]}
-          >
-            <Text style={[styles.holdLabel, holds.length === 0 && styles.switchLabelRefused]}>
-              {resuming ? t.resume() : t.pause()}
-            </Text>
-          </Pressable>
         </View>
         {refusal !== null && !audioOn ? (
           <Text style={type.muted}>
@@ -803,9 +826,13 @@ const styles = StyleSheet.create({
   switchLabelRefused: { color: colors.textFaint },
   // Pause, as thin as the switches beside it and on no card: a hairline
   // pill the height of a switch, its word at the switches' size.
+  // Wide enough for its longest word, Spanish *Reanudar*: it stands first,
+  // so a pill that grew from Start to Resume would push both switches along.
   hold: {
     height: Math.round(31 * SWITCH_SCALE),
+    minWidth: 92,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: spacing(1.5),
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,

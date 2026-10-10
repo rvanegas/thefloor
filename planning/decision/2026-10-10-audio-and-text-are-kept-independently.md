@@ -22,6 +22,19 @@ That is cheap for text, but for audio it means a recording that begins paused,
 an egress started only to be stopped, and core has no such state. It would
 also have needed a channel-level hold on the wire, where this needs nothing.
 
+**Both in one press: Start.** Rodrigo then asked for a single action that
+turns on both. While nothing is chosen, the Pause button reads *Start* and
+switches on as much of the pair as the person may: Audio on the recording's
+rules, and Text if their account pays for it. That makes the button the pair's
+transport, Start, Pause, Resume, and leaves the switches for choosing one
+form alone. A third switch or a *Both* segment would have added a control to
+a bar that holds three already. *Record* was the obvious word and was passed
+over because it is the tab's name, and it reads as audio only. The button was
+already refused whenever nothing was running, so giving it a job in that state
+moves nothing under the thumb. **It stands first, left of the switches**,
+at Rodrigo's direction, so that they read as optional modifiers on it rather
+than as the controls themselves.
+
 **What went with the radio.** One refusal went: somebody who may not move
 *Text* could not turn *Audio* on while the text held, since that would have
 turned the text off. That person may now add Audio on the recording's own

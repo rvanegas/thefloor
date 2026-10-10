@@ -1338,6 +1338,11 @@ export const en = {
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',
     resume: () => 'Resume',
+    /**
+     * The *Record* tab's Pause while nothing is chosen: turns on both Audio
+     * and Text, as much of the pair as this person may. See `KeepSwitches`.
+     */
+    start: () => 'Start',
     settings: () => 'Settings',
     home: () => 'Home',
     /**

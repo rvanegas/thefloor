@@ -1089,6 +1089,7 @@ export const es: Strings = {
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',
     resume: () => 'Reanudar',
+    start: () => 'Iniciar',
     settings: () => 'Ajustes',
     home: () => 'Inicio',
     rungIn: () => 'Dentro',

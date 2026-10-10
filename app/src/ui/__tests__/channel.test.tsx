@@ -2178,14 +2178,55 @@ describe('Channel', () => {
     stretch of the same room. Drawn always, refused while nothing is running.
   */
   it('pauses whichever is running, and resumes only what it paused', () => {
-    // Nothing chosen: drawn, and refused.
-    showChannel(channelOf());
+    // Nothing chosen: the button reads Start and turns on as much of the
+    // pair as this person may — both, for somebody who may move the text.
+    const { api } = require('../../api/http');
+    const asked = jest
+      .spyOn(api, 'setLiveTranscription')
+      .mockResolvedValue({ ok: true, liveTranscription: true } as never);
+    showChannel(channelOf(), [], { mayTranscribeLive: true });
     const idle = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecord(idle);
-    expect(findButton(idle, 'Pause')!.props.accessibilityState.disabled).toBe(true);
+    expect(findButton(idle, 'Pause')).toBeUndefined();
+    act(() => findButton(idle, 'Start')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
     act(() => idle.unmount());
+
+    // And only the audio, for somebody who may not.
+    mockApp.act.mockClear();
+    asked.mockClear();
+    showChannel(channelOf());
+    const audioOnly = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(audioOnly);
+    act(() => findButton(audioOnly, 'Start')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
+    expect(asked).not.toHaveBeenCalled();
+    act(() => audioOnly.unmount());
+    asked.mockRestore();
+
+    // Nothing this person may start — alone and muted, so nothing to
+    // capture, and the text not theirs: drawn, and refused.
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(c, { type: 'STEP_OUT', userId: THEM }, NOW),
+          { type: 'SET_SELF_MUTE', userId: ME, muted: true },
+          NOW
+        )
+      )
+    );
+    const nothing = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(nothing);
+    expect(findButton(nothing, 'Start')!.props.accessibilityState.disabled).toBe(true);
+    act(() => nothing.unmount());
+    mockApp.act.mockClear();
 
     // Audio running: Pause holds the recording, and nothing else.
     showChannel(
