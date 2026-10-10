@@ -1,0 +1,78 @@
+1. SCREEN RECORDING AND DEVICES
+None attached; section 3 walks it. No purchases, no tracking, no ATT prompt.
+iPhone is portrait and turns sideways only for a film; iPad takes all four.
+
+2. WHAT IT DOES
+Voice conversation between people who know each other. A channel holds six
+members and outlasts a conversation; anyone present may claim "the floor",
+withholding every other microphone for a minute.
+
+3. GETTING IN AND REACHING FEATURES
+No passwords; a code is emailed. This account has a fixed
+one: appreview@rvanegas.co / SIX-DIGIT CODE GOES HERE BEFORE SUBMITTING
+
+It holds a contact, Sam Rivera, and three channels; "Weekly Convo" has
+recordings.
+
+Home switches between Channels, Contacts, Podcasts and Support. Open "Weekly
+Convo". The bottom bar is Mute, Claim and the rungs In, Nearby and Out.
+A member's profile has "Mute them", Ping and "Move to remove them".
+
+The tabs across the top: People, Clipboard, Invite (a contact as "Guest" or
+"Member", or "Share a guest link"), Record, Listen and Watch - copy a YouTube
+link, then Paste. "Start a channel", on Home, makes one holding only you; its
+Settings offer "Make channel into a community" and "This channel is a podcast".
+
+NEW: Record replaces Recordings: Audio records, Pause holds it, and the log
+lists what was kept a room at a time. Transcribe is on a recording's row.
+
+NEW, AND WHY UIBackgroundModes HAS voip: stepping into a channel is reported
+to CallKit as an outgoing call, so it shows in Recents and other calls meet
+it as a call. There is no PushKit and nothing ever rings.
+
+Floor Settings, from Home: Language, "Choose where sound comes out", Email.
+
+NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
+unavailable while alone; Ping is offered only to somebody in the channel or
+nearby it; Audio off is final until the room empties; Record's Text switch,
+the live transcript, is ours to pay for and switch, so it is grey; the room is muted while a
+film plays on the device you stepped in on; a podcast needs a named channel;
+removing a member needs a second member to agree, except a community's owner.
+
+4. EXTERNAL SERVICES
+LiveKit (open-source, self-hosted) for audio and recordings; S3 stores them and
+cover art; SES for sign-in codes; APNs; Ko-fi; YouTube's IFrame player, only
+once a member starts a watch party; AssemblyAI, sent a recording somebody asks
+to transcribe, or a channel's audio while its live transcript is on.
+
+5. REGIONAL DIFFERENCES
+The Ko-fi link on Support shows only in the US storefront (3.1.1(a));
+voluntary, unlocks nothing, and the app is free.
+
+6. THIRD-PARTY MATERIAL, PUBLISHING AND WATCH PARTIES
+A member may play their own audio file in. A watch party sends only a position
+and a clock; YouTube's own IFrame player plays the video, unmodified.
+
+A podcast is a public page and RSS feed. A conversation reaches it only when
+every account heard in it agrees; any one withdrawing takes it down at once.
+No member is named, and both carry a takedown address read by a person.
+
+GUIDELINE 1.2: what can be found is channels that opted in, never people. A
+username names its owner's invite link, which only they hand out. A field
+taking an email address sends a request there and returns nothing. A contact
+needs both sides' consent; only contacts see each other's email and phone,
+and Ping is contacts-only.
+
+Two exceptions. A community admits anybody its owner gives the link to, up to
+twenty, making nobody a contact; its page names no member, and the owner alone
+invites, plays, records, removes and deletes. And signing up without an
+invitation and knowing nobody puts you, once, into "Getting Started Cohort"
+with up to three others who joined then and one of us; leaving is a tap.
+
+Guests: a visitor with a link knocks under a typed name and a member admits
+them; up to forty, two with a microphone, all gone when the last member
+leaves. Recording and
+transcribing show to guests.
+
+PLEASE TEST ACCOUNT DELETION LAST - it is immediate and leaves a working,
+empty app.

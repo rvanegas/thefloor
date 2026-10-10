@@ -1,0 +1,17 @@
+Recordings is now Record. Its Audio switch records and Pause beside it holds the recording, so what was said either side of a pause is one recording. What a channel keeps reads as a log, one room at a time, from the first person stepping in to the last stepping out, with when it ran and Share this room for all of it. When Audio cannot be switched on, the tab says why.
+
+A channel can be transcribed as it talks, with no audio kept. Its header then shows Transcribing, and what is said appears in the Record log.
+
+Transcribe is on every recording, for every member. Labs is gone from Floor Settings.
+
+Being in a channel shows in your phone's Recents as a call, under the channel's name, and tapping it opens the channel. Mute on CarPlay or Apple Watch mutes you in the app.
+
+Your profile can carry a phone number. Your contacts see it, and tapping it texts you.
+
+Your contacts now see your email on your profile, and nobody else does. Show my email is gone.
+
+Watch on another device floats the film in the corner of that device, over whatever it is showing. Tap it to open the channel. The floating film starts top right.
+
+A film left loaded ends with the room, and no longer stops anybody recording.
+
+The getting-started checklist is gone from Home.
