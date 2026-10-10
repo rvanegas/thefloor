@@ -1055,8 +1055,11 @@ export const es: Strings = {
     recordingPaused: () => 'Grabaci\u00f3n en pausa',
     recording: () => 'Grabando',
     transcribing: () => 'Transcribiendo',
+    transcriptionPaused: () => 'Transcripci\u00f3n en pausa',
     liveTranscriptNote: () =>
       'Lo que se dice en este canal se pone por escrito mientras se dice, y se guarda aqu\u00ed para sus miembros. El audio no se guarda.',
+    liveTranscriptHeld: () =>
+      'La transcripci\u00f3n en directo est\u00e1 en pausa, as\u00ed que no se escribe nada de lo que se dice ahora. Al reanudarla sigue en la misma sala.',
     liveTranscriptOff: () =>
       'La transcripci\u00f3n en directo est\u00e1 desactivada. Lo que se escribi\u00f3 mientras estaba activada se guarda aqu\u00ed.',
     liveNothingYet: () => 'Todav\u00eda no se ha escrito nada.',
@@ -1087,6 +1090,7 @@ export const es: Strings = {
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',
+    resume: () => 'Reanudar',
     settings: () => 'Ajustes',
     home: () => 'Inicio',
     rungIn: () => 'Dentro',

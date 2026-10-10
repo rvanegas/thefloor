@@ -11,6 +11,9 @@ import {
   View,
 } from 'react-native';
 import {
+  canPauseLiveTranscription,
+  canPauseRecording,
+  canResumeLiveTranscription,
   canResumeRecording,
   canStartRecording,
   canStopRecording,
@@ -27,7 +30,7 @@ import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
 import { Button, Empty, useScrollPosition } from './components';
 import { ShareIcon } from './icons';
-import { colors, formatDuration, measure, spacing, type } from './theme';
+import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 /**
  * The Record tab: what was kept of a channel, as a log, one room at a time.
@@ -70,6 +73,7 @@ export function RecordTab({
   name,
   live,
   transcribing,
+  paused = false,
   recordings,
   renderRecording,
   onHoist,
@@ -82,6 +86,8 @@ export function RecordTab({
   live: boolean;
   /** Whether the room is being transcribed now, which is what the note says. */
   transcribing: boolean;
+  /** Whether it is on and held by the Pause above. */
+  paused?: boolean;
   /** This channel's recordings, in any order. */
   recordings: readonly RecordingView[];
   /** One recording as a line of the log. */
@@ -247,7 +253,11 @@ export function RecordTab({
     >
       {live ? (
         <Text style={type.muted}>
-          {transcribing ? t.liveTranscriptNote() : t.liveTranscriptOff()}
+          {paused
+            ? t.liveTranscriptHeld()
+            : transcribing
+              ? t.liveTranscriptNote()
+              : t.liveTranscriptOff()}
         </Text>
       ) : null}
 
@@ -497,10 +507,11 @@ export function formatRoomText(
 }
 
 /**
- * What this channel keeps of what is said: its audio, its text, or neither.
- * Pinned under the channel's header on the *Record* tab, since 2026-10-09,
- * where the Record and Pause buttons were and in place of the *Live
- * transcript* setting on *Channel Settings*.
+ * What this channel keeps of what is said: its audio, its text, or neither,
+ * and a Pause that holds whichever is running. Pinned under the channel's
+ * header on the *Record* tab, since 2026-10-09, where the Record and Pause
+ * buttons were and in place of the *Live transcript* setting on *Channel
+ * Settings*.
  *
  * **Two switches, radio style** — either may be on, never both, and both may
  * be off. Turning one on turns the other off in the same press, which is what
@@ -509,15 +520,23 @@ export function formatRoomText(
  * this side**: the server would still hold both, as *Record automatically*
  * can bring about by starting a recording under the text.
  *
- * **Audio is the recording's own rules**: on is `START_RECORDING` (or
- * `RESUME_RECORDING`, for a run an old build paused), off is
+ * **Audio is the recording's own rules**: on is `START_RECORDING`, off is
  * `STOP_RECORDING`, and the switch is refused exactly where the button it
  * replaces was. **Text is the account's**, `mayTranscribeLive`, since the
  * house pays for it; everybody else sees its state and cannot move it — and
  * cannot turn the audio on while it holds, since that would mean turning it
- * off.
+ * off. A switch says what is *chosen*, so a held run leaves it on.
  *
- * Under the pair, as under the buttons it replaces: why Record is refused
+ * **Pause holds whichever is chosen, and Resume restarts only what it held.**
+ * Audio's is `PAUSE_RECORDING`, which keeps the run one recording — the server
+ * captures it in segments and joins them, recorded time only, so what was
+ * said either side of a pause is one file with no gap, in the room it began
+ * in. Text's is `PAUSE_LIVE_TRANSCRIPTION`: nothing goes to the provider while
+ * it holds, and the lines either side are one stretch of the same room. Both
+ * on the recording's Pause rules. **The button is always drawn**, refused
+ * while there is nothing to hold, so it never moves under the thumb.
+ *
+ * Under the row, as under the buttons it replaces: why Record is refused
  * when nothing else on the screen says, and a capture that stopped for a
  * reason nobody asked for.
  */
@@ -534,10 +553,10 @@ export function KeepSwitches({
 }) {
   const t = useText().channel;
   const app = useApp();
-  const paused = channel.recording.status === 'paused';
-  const audioOn = channel.recording.status === 'recording';
+  const audioOn = channel.recording.status !== 'idle';
+  const audioHeld = channel.recording.status === 'paused';
   const textOn = !!channel.liveTranscription;
-  const mayStart = paused ? canResumeRecording(channel, me) : canStartRecording(channel, me);
+  const textHeld = textOn && !!channel.liveTranscriptionPaused;
   const mayStop = canStopRecording(channel, me);
 
   const setText = (on: boolean) => {
@@ -554,14 +573,40 @@ export function KeepSwitches({
       return;
     }
     if (textOn) setText(false);
-    app.act(channelId, { type: paused ? 'RESUME_RECORDING' : 'START_RECORDING' });
+    app.act(channelId, { type: 'START_RECORDING' });
   };
   const switchText = (on: boolean) => {
     if (on && audioOn) app.act(channelId, { type: 'STOP_RECORDING' });
     setText(on);
   };
 
-  const audioRefused = audioOn ? !mayStop : !mayStart || (textOn && !mayTranscribeLive);
+  // Resume while anything chosen is held, Pause otherwise; each sends only
+  // what this person may do to what is actually in that state.
+  const resuming = audioHeld || textHeld;
+  const holds: Array<
+    | { type: 'PAUSE_RECORDING' }
+    | { type: 'RESUME_RECORDING' }
+    | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
+    | { type: 'RESUME_LIVE_TRANSCRIPTION' }
+  > = resuming
+    ? [
+        ...(audioHeld && canResumeRecording(channel, me)
+          ? [{ type: 'RESUME_RECORDING' as const }]
+          : []),
+        ...(textHeld && canResumeLiveTranscription(channel, me)
+          ? [{ type: 'RESUME_LIVE_TRANSCRIPTION' as const }]
+          : []),
+      ]
+    : [
+        ...(canPauseRecording(channel, me) ? [{ type: 'PAUSE_RECORDING' as const }] : []),
+        ...(canPauseLiveTranscription(channel, me)
+          ? [{ type: 'PAUSE_LIVE_TRANSCRIPTION' as const }]
+          : []),
+      ];
+
+  const audioRefused = audioOn
+    ? !mayStop
+    : !canStartRecording(channel, me) || (textOn && !mayTranscribeLive);
   const textRefused = !mayTranscribeLive || (!textOn && audioOn && !mayStop);
   const refusal = recordingRefusal(channel, me);
 
@@ -581,6 +626,18 @@ export function KeepSwitches({
             refused={textRefused}
             onChange={switchText}
           />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={resuming ? t.resume() : t.pause()}
+            accessibilityState={{ disabled: holds.length === 0 }}
+            disabled={holds.length === 0}
+            onPress={() => holds.forEach((action) => app.act(channelId, action))}
+            style={({ pressed }) => [styles.hold, pressed && styles.pressed]}
+          >
+            <Text style={[styles.holdLabel, holds.length === 0 && styles.switchLabelRefused]}>
+              {resuming ? t.resume() : t.pause()}
+            </Text>
+          </Pressable>
         </View>
         {refusal !== null && !audioOn ? (
           <Text style={type.muted}>
@@ -739,10 +796,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing(2),
   },
   keep: { gap: spacing(0.5) },
-  switches: { flexDirection: 'row', gap: spacing(3) },
+  switches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   switchLabel: { color: colors.text, fontSize: 15 },
   switchLabelRefused: { color: colors.textFaint },
+  // Pause, as thin as the switches beside it and on no card: a hairline
+  // pill the height of a switch, its word at the switches' size.
+  hold: {
+    height: 31,
+    justifyContent: 'center',
+    paddingHorizontal: spacing(1.5),
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  holdLabel: { color: colors.text, fontSize: 15 },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

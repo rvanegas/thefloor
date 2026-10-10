@@ -1672,6 +1672,9 @@ export type ClientAction =
   | { type: 'PAUSE_RECORDING' }
   | { type: 'RESUME_RECORDING' }
   | { type: 'STOP_RECORDING' }
+  /** Since 2026-10-09; a server that predates them refuses them. */
+  | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
+  | { type: 'RESUME_LIVE_TRANSCRIPTION' }
   /**
    * Shared playback. Loading a track is absent by design — it arrives as an
    * upload over HTTP, and the server dispatches SET_TRACK itself once the file

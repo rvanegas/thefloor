@@ -219,6 +219,8 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'PAUSE_RECORDING',
   'RESUME_RECORDING',
   'STOP_RECORDING',
+  'PAUSE_LIVE_TRANSCRIPTION',
+  'RESUME_LIVE_TRANSCRIPTION',
   'CLEAR_TRACK',
   'PLAY',
   'PAUSE',
@@ -1056,7 +1058,8 @@ export function autoRecordStarter(state: ChannelState): UserId | null {
  * person deciding whether to speak needs.
  */
 export function isTranscribingLive(state: ChannelState): boolean {
-  if (!state.liveTranscription || state.status !== 'active') return false;
+  if (!state.liveTranscription || state.liveTranscriptionPaused) return false;
+  if (state.status !== 'active') return false;
   return state.present.length > 0 || Object.keys(state.guests ?? {}).length > 0;
 }
 
@@ -1345,6 +1348,33 @@ export function canResumeRecording(
     state.status === 'active' &&
     state.recording.status === 'paused' &&
     state.watch.party === null &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId)
+  );
+}
+
+/**
+ * Whether `userId` may hold the live transcript: `canPauseRecording`'s rule,
+ * applied to the text. Holding it is a pause of what is being kept, and who
+ * may do that does not depend on which form it is kept in.
+ */
+export function canPauseLiveTranscription(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    !!state.liveTranscription &&
+    !state.liveTranscriptionPaused &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
+    canPauseOrStopRecording(state.floor, userId)
+  );
+}
+
+/** And setting it going again: `canResumeRecording`'s rule, for the text. */
+export function canResumeLiveTranscription(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    !!state.liveTranscription &&
+    !!state.liveTranscriptionPaused &&
     isPresent(state, userId) &&
     holdsTheControls(state, userId)
   );
@@ -2208,7 +2238,7 @@ function reduceAction(
 
   if (action.type === 'SET_LIVE_TRANSCRIPTION') {
     if (!!state.liveTranscription === action.on) return state;
-    return { ...state, liveTranscription: action.on };
+    return { ...state, liveTranscription: action.on, liveTranscriptionPaused: false };
   }
 
   if (action.type === 'RECORDING_FAILED') {
@@ -2996,6 +3026,16 @@ function reduceAction(
       return endRun(state, now);
     }
 
+    case 'PAUSE_LIVE_TRANSCRIPTION': {
+      if (!canPauseLiveTranscription(state, action.userId)) return state;
+      return { ...state, liveTranscriptionPaused: true };
+    }
+
+    case 'RESUME_LIVE_TRANSCRIPTION': {
+      if (!canResumeLiveTranscription(state, action.userId)) return state;
+      return { ...state, liveTranscriptionPaused: false };
+    }
+
     // Every playback action shares one guard, because they are all the same
     // kind of act: changing what the pair are listening to.
     case 'SET_TRACK':
@@ -3656,10 +3696,15 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
   // **And so does a watch party**, on exactly the reasoning above: a film
   // running itself out for nobody is not shared watching, and whoever comes
   // back would find it twenty minutes further along than they left it.
-  const settled =
+  const watched =
     paused.watch.status === 'playing'
       ? { ...paused, watch: watchPause(paused.watch, now) }
       : paused;
+  // A held transcript is let go with the sitting, as a held recording is
+  // ended below: the next sitting starts with the channel's choice running.
+  const settled = watched.liveTranscriptionPaused
+    ? { ...watched, liveTranscriptionPaused: false }
+    : watched;
   if (!isRecordingActive(settled.recording)) return settled;
   return endRun(settled, now);
 }

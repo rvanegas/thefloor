@@ -2483,6 +2483,19 @@ export function ChannelView({
               <View style={styles.recordingDot} />
               <Text style={styles.recordingLabel}>{t.transcribing()}</Text>
             </View>
+          ) : isTranscribingLive({ ...channel, liveTranscriptionPaused: false }) ? (
+            // Held by the *Record* tab's Pause: the same pill, paused, as a
+            // held recording's is — nothing is being kept, and it will be
+            // again on a press.
+            <View
+              style={[styles.recordingStatus, styles.headerRecording]}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={t.transcriptionPaused()}
+            >
+              <View style={[styles.recordingDot, styles.recordingDotPaused]} />
+              <Text style={styles.recordingLabel}>{t.paused()}</Text>
+            </View>
           ) : null}
           <IconButton
             label={t.settings()}
@@ -4084,6 +4097,7 @@ export function ChannelView({
           channelId={channelId}
           live={offersTranscript}
           transcribing={isTranscribingLive(channel)}
+          paused={!!channel.liveTranscription && !!channel.liveTranscriptionPaused}
           name={channel.name ?? derivedTitle}
           recordings={recordings}
           onHoist={setHoistedRoom}

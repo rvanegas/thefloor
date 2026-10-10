@@ -46,3 +46,44 @@ describe('the live transcript', () => {
     expect(isTranscribingLive(older)).toBe(false);
   });
 });
+
+/*
+  **Held by the Record tab's Pause, since 2026-10-09.** The choice stays on
+  and only its running stops: nothing goes to the provider, and the lines
+  either side of the hold are one stretch of the same room. Anybody present
+  may hold it, on the recording's Pause rules — holding costs the house
+  nothing, so it is not the house's.
+*/
+describe('holding the live transcript', () => {
+  const pause = (state: ChannelState, userId = A) =>
+    reduce(state, { type: 'PAUSE_LIVE_TRANSCRIPTION', userId }, T0);
+  const resume = (state: ChannelState, userId = A) =>
+    reduce(state, { type: 'RESUME_LIVE_TRANSCRIPTION', userId }, T0);
+
+  it('stops transcribing while held, and starts again on resume', () => {
+    const held = pause(on(fresh()));
+    expect(held.liveTranscription).toBe(true);
+    expect(held.liveTranscriptionPaused).toBe(true);
+    expect(isTranscribingLive(held)).toBe(false);
+    expect(isTranscribingLive(resume(held))).toBe(true);
+  });
+
+  it('holds only a transcript that is on and running, for somebody present', () => {
+    const off = fresh();
+    expect(pause(off).liveTranscriptionPaused).toBeFalsy();
+    const away = reduce(on(fresh()), { type: 'STEP_OUT', userId: B }, T0);
+    expect(pause(away, B).liveTranscriptionPaused).toBeFalsy();
+    const running = on(fresh());
+    expect(resume(running)).toBe(running);
+  });
+
+  it('lets go of the hold when the choice changes, and when the room empties', () => {
+    const held = pause(on(fresh()));
+    const again = on(reduce(held, { type: 'SET_LIVE_TRANSCRIPTION', on: false }, T0));
+    expect(again.liveTranscriptionPaused).toBe(false);
+    expect(isTranscribingLive(again)).toBe(true);
+
+    const emptied = reduce(held, { type: 'STEP_OUT', userId: A }, T0);
+    expect(emptied.liveTranscriptionPaused).toBeFalsy();
+  });
+});

@@ -1292,8 +1292,12 @@ export const en = {
     recording: () => 'Recording',
     /** The pill in the header while the live transcript is listening. */
     transcribing: () => 'Transcribing',
+    /** The same pill while the *Record* tab's Pause holds the text. */
+    transcriptionPaused: () => 'Transcription paused',
     liveTranscriptNote: () =>
       'What is said in this channel is written down as it is said, and kept here for its members. The audio is not kept.',
+    liveTranscriptHeld: () =>
+      'The live transcript is paused, so nothing said now is written down. Resume picks up in the same room.',
     liveTranscriptOff: () =>
       'The live transcript is off. What was written down while it was on is kept here.',
     liveNothingYet: () => 'Nothing has been written down yet.',
@@ -1336,6 +1340,7 @@ export const en = {
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',
+    resume: () => 'Resume',
     settings: () => 'Settings',
     home: () => 'Home',
     /**

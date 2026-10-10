@@ -823,6 +823,17 @@ export interface ChannelState {
    */
   liveTranscription?: boolean;
   /**
+   * Whether the live transcript is on and held: nothing is sent to the
+   * provider and the *Transcribing* pill gives way to *Paused*, until a
+   * resume. The text's half of the *Record* tab's Pause, since 2026-10-09 —
+   * `liveTranscription` is the choice, this is whether it is running.
+   *
+   * Cleared whenever the choice changes and when the room empties, so a
+   * sitting never opens already paused. Absent on a snapshot from a server
+   * that predates it, read as running.
+   */
+  liveTranscriptionPaused?: boolean;
+  /**
    * The grade of speech model this channel's next transcript is asked for.
    * See `TranscriptionModel`.
    *
@@ -1170,6 +1181,13 @@ export type ChannelAction =
   | { type: 'PAUSE_RECORDING'; userId: UserId }
   | { type: 'RESUME_RECORDING'; userId: UserId }
   | { type: 'STOP_RECORDING'; userId: UserId }
+  /**
+   * Holds and restarts the live transcript, under the recording's own Pause
+   * rules — unlike `SET_LIVE_TRANSCRIPTION`, which costs the house money and
+   * is the house's, holding it costs nothing and is anybody's present.
+   */
+  | { type: 'PAUSE_LIVE_TRANSCRIPTION'; userId: UserId }
+  | { type: 'RESUME_LIVE_TRANSCRIPTION'; userId: UserId }
   /**
    * Capture could not be started or kept running. Not a user action — the
    * media plane reports it — so it carries no userId and no guard.

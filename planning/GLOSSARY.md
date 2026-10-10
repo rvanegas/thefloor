@@ -105,9 +105,9 @@ caused; the list carries the meaning.
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
 - **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
-- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, radio style — one, the other or neither, never both: *Audio* is a *recording*, *Text* the *live transcript*. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
+- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, radio style — one, the other or neither, never both: *Audio* is a *recording*, *Text* the *live transcript*; Pause beside them holds whichever is running and Resume restarts only what it held. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
-- **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off; each one a segment of the *Record*
+- **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off — a Pause between holds it and keeps it one recording, joined without the gap; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
 - **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back or its live transcript as text, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
@@ -2445,6 +2445,15 @@ starting a recording under the text leaves both on, and both are drawn on.
 Somebody who may not move *Text* cannot turn *Audio* on while it holds,
 since that would be turning it off, and is told so under the pair.
 
+**Pause holds whichever is running, and Resume restarts only what it held.**
+Audio's is the recording's own pause, which keeps the run one recording.
+Text's is `liveTranscriptionPaused` — `PAUSE_LIVE_TRANSCRIPTION` and
+`RESUME_LIVE_TRANSCRIPTION`, on the recording's Pause rules rather than the
+house's, since holding it costs nothing — which stops what goes to the
+provider and turns the pill to *Paused*; the lines either side are one
+stretch of the same room. A hold is let go when the choice changes and when
+the room empties. A switch stays on while what it chose is held.
+
 **Not *Record* and *Transcribe***: the words name what is kept rather than an
 act, since a switch is a state somebody sets. Spanish *Audio* and *Texto*.
 
@@ -2486,9 +2495,11 @@ Audio kept from a channel, started by anybody present and ended by them too.
 begins a new recording, so a conversation recorded in stretches is several
 recordings — segments of the *Record* tab, each where it began — rather than
 one file with holes in it. Since the same day starting and ending are the
-*Audio* switch, on and off: off sends `STOP_RECORDING`. `PAUSE_RECORDING` and
-`RESUME_RECORDING` are still honoured for the builds that send them, and a
-run one of them paused shows *Audio* off, which switching on resumes. *Present* is
+*Audio* switch, on and off: off sends `STOP_RECORDING`. **Pausing does not
+end it**: the Pause beside the switches sends `PAUSE_RECORDING`, the server
+stops capture and starts a new segment on resume, and the segments are one
+recording, joined on export with the paused time left out — one file, no gap,
+in the room it began in. *Audio* stays on while it is held. *Present* is
 the operative word and is the whole of who may touch it: somebody
 who has stepped out is outside the conversation being recorded, and until
 2026-09-12 only the starting half of this sentence was enforced. A recording
@@ -2702,7 +2713,9 @@ tab since 2026-10-09**, beside *Audio* and radio with it, and drawn for
 everybody — it says what is being kept — but moved only by that account; it
 was an On/Off pair in channel settings, drawn for that account alone. Everybody in the room sees that it is on — the
 *Transcribing* pill — because everybody's speech goes to the provider while it
-is. Read in the *Record* tab — the *Transcript* tab for its first day —
+is. **Held by the *Record* tab's Pause** since 2026-10-09
+(`liveTranscriptionPaused`): still on, and nothing sent while held. Read in
+the *Record* tab — the *Transcript* tab for its first day —
 which is the first piece of the channel as one long conversation, with the
 channel's recordings standing in it as segments.
 
