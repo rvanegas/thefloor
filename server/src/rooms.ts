@@ -12,6 +12,17 @@ import type { RoomView } from '../../core/protocol';
  */
 export const ROOM_RESUME_MS = 10 * 60_000;
 
+/**
+ * How long LiveKit keeps a room standing after its last participant leaves —
+ * its `room.departure_timeout`, which `bin/provision-livekit` does not set, so
+ * this is LiveKit's default. **A room here is meant to be that room**: one
+ * LiveKit room from creation to deletion, of which `mediaRoom` is the name.
+ * Somebody stepping back in inside this window finds the same LiveKit room
+ * still standing, so the sitting carries on rather than a second beginning.
+ * Change it with the config, or the two stop agreeing.
+ */
+export const ROOM_DEPARTURE_MS = 20_000;
+
 export interface RoomRow {
   id: string;
   channel_id: string;
@@ -23,7 +34,11 @@ export interface RoomRow {
 /**
  * **A room is a sitting**: a channel's span from the first member stepping in
  * to the last stepping out, written on those two transitions by the channel
- * registry and never inferred afterwards. It is the unit the *Record* tab is
+ * registry and never inferred afterwards. Being present is holding a
+ * connection to the channel's LiveKit room, so this is that room's lifetime:
+ * LiveKit creates it on the first connection and deletes it
+ * `ROOM_DEPARTURE_MS` after the last, which is why a return inside that
+ * window is the same room. It is the unit the *Record* tab is
  * laid out in and the unit whose audio is shared whole.
  *
  * Bounded by members, because `channelEmptied` is — and that moment also ends
@@ -47,12 +62,8 @@ export class Rooms {
       )
       .get(channelId) as RoomRow | undefined;
     if (last && last.closed_at === null) return;
-    if (
-      last &&
-      last.closed_by_restart === 1 &&
-      last.closed_at !== null &&
-      now - last.closed_at <= ROOM_RESUME_MS
-    ) {
+    const window = last?.closed_by_restart === 1 ? ROOM_RESUME_MS : ROOM_DEPARTURE_MS;
+    if (last && last.closed_at !== null && now - last.closed_at <= window) {
       this.db
         .prepare('UPDATE rooms SET closed_at = NULL, closed_by_restart = 0 WHERE id = ?')
         .run(last.id);

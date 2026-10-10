@@ -1,7 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
-import { ROOM_RESUME_MS } from '../src/rooms';
+import { ROOM_DEPARTURE_MS, ROOM_RESUME_MS } from '../src/rooms';
 
 /**
  * Rooms: a channel's sittings, from the first member stepping in to the last
@@ -62,6 +62,8 @@ async function channel() {
   for (const id of [alice.account.id, bob.account.id]) {
     app.channels.dispatch(channelId, id, { type: 'STEP_OUT' });
   }
+  // And past the departure window, so the next step in is a new room.
+  clock += ROOM_DEPARTURE_MS + 1;
   return { alice, bob, channelId };
 }
 
@@ -141,6 +143,22 @@ describe('rooms', () => {
       transcribed: false,
       recordingIds: [`rec_${recorded + 1_000}`],
     });
+  });
+
+  it('carry on through a step out and back inside the departure window, as LiveKit does', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const sitting = rows(channelId).at(-1)!;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    clock += ROOM_DEPARTURE_MS;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    expect(rows(channelId).at(-1)).toMatchObject({ id: sitting.id, closed_at: null });
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    clock += ROOM_DEPARTURE_MS + 1;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    expect(rows(channelId).at(-1)!.id).not.toBe(sitting.id);
   });
 
   it('list a recording that fell in no sitting as a room of its own, first', async () => {
