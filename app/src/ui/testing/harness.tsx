@@ -546,6 +546,21 @@ export function findButton(
 }
 
 /**
+ * A recording's line in the *Record* log, by the recording's name — which the
+ * line shows only once opened since 2026-10-10, showing its segment's hours
+ * instead, so it is found by what a screen reader is told.
+ */
+export function findRecording(
+  tree: ReactTestRenderer | ReactTestInstance,
+  name: string
+): ReactTestInstance | undefined {
+  const root = 'root' in tree ? tree.root : tree;
+  return root
+    .findAll((n) => n.props?.accessibilityRole === 'button')
+    .find((n) => String(n.props?.accessibilityLabel ?? '').startsWith(name));
+}
+
+/**
  * One answer of a labelled choice, by its label — a `Segmented` with
  * `role="choice"` rather than a tab strip.
  *
@@ -877,7 +892,6 @@ export function knowing(...ids: string[]) {
  */
 export const downloadMock = () => ({
   shareRecording: jest.fn(async () => {}),
-  shareRoom: jest.fn(async () => {}),
   shareTrack: jest.fn(async () => {}),
 });
 
@@ -917,19 +931,54 @@ export function resetHarness(): void {
   // did when recordings were drawn straight from the snapshot, and a real
   // promise would leave them reading *Loading…*. A test that wants the real
   // timing spies on `api.rooms` itself.
+  //
+  // **Its segments as the server derives a room's from before them**, since
+  // 2026-10-10: each recording one, kept as text too where the channel has a
+  // live transcript, and between them, where it has, a segment of text.
   jest.spyOn(api, 'rooms').mockImplementation(((_token: string, channelId: string) => {
     const view = mockApp.channelViews[channelId];
-    const recordings = view?.recordings ?? [];
+    const recordings = [...(view?.recordings ?? [])].sort((a, b) => a.startedAt - b.startedAt);
+    const transcribed =
+      !!(view as { liveTranscript?: boolean } | undefined)?.liveTranscript ||
+      !!view?.channel.liveTranscription;
+    const openedAt = Math.min(NOW - 7 * 86_400_000, ...recordings.map((r) => r.startedAt));
+    const segments: Array<{
+      id: string;
+      startedAt: number;
+      endedAt: number | null;
+      recordingId: string | null;
+      text: boolean;
+    }> = [];
+    let gapFrom = openedAt;
+    for (const r of [...recordings, null]) {
+      if (transcribed && (!r || gapFrom < r.startedAt)) {
+        segments.push({
+          id: `seg_text_${gapFrom}`,
+          startedAt: gapFrom,
+          endedAt: r ? r.startedAt - 1 : null,
+          recordingId: null,
+          text: true,
+        });
+      }
+      if (!r) break;
+      segments.push({
+        id: `seg_${r.id}`,
+        startedAt: r.startedAt,
+        endedAt: r.endedAt,
+        recordingId: r.id,
+        text: transcribed,
+      });
+      gapFrom = r.endedAt + 1;
+    }
     return answered({
       rooms: [
         {
           id: `room_${channelId}`,
-          openedAt: Math.min(NOW - 7 * 86_400_000, ...recordings.map((r) => r.startedAt)),
+          openedAt,
           closedAt: null,
-          recordingIds: [...recordings]
-            .sort((a, b) => a.startedAt - b.startedAt)
-            .map((r) => r.id),
-          transcribed: !!(view as { liveTranscript?: boolean } | undefined)?.liveTranscript,
+          recordingIds: recordings.map((r) => r.id),
+          transcribed,
+          segments,
         },
       ],
     });

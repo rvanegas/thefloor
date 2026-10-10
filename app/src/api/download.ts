@@ -26,27 +26,6 @@ export async function shareRecording(
   );
 }
 
-/**
- * A room's recordings as one file, back to back — see `joinRecordings` on the
- * server. Named like a recording's, by the channel and when the room began,
- * since that is what tells two rooms of one channel apart.
- */
-export async function shareRoom(
-  token: string,
-  channelId: string,
-  roomId: string,
-  name: string,
-  openedAt: number
-): Promise<void> {
-  await shareOgg(
-    token,
-    `${API_URL}/channels/${channelId}/rooms/${roomId}/export`,
-    name,
-    openedAt,
-    name
-  );
-}
-
 /** Downloads one Ogg the server exports and offers it to the share sheet. */
 async function shareOgg(
   token: string,
@@ -110,8 +89,8 @@ async function shareOgg(
 /**
  * Fetches the channel's current track and hands it to the share sheet.
  *
- * The third of these and the odd one out, because **the file is not ours**.
- * A recording and a room are artefacts this project produced, in formats
+ * The odd one out, because **the file is not ours**.
+ * A recording is an artefact this project produced, in a format
  * it chose; a track is whatever somebody picked on their phone, so the name
  * and the type both have to come back from the server rather than being known
  * here. That is why this downloads to a scratch name and renames afterwards:
@@ -119,7 +98,7 @@ async function shareOgg(
  * the response is, and a file handed to the share sheet under the wrong
  * extension is offered to the wrong applications — or to none.
  *
- * No timestamp in the name, unlike the two above. A track has a title somebody
+ * No timestamp in the name, unlike a recording. A track has a title somebody
  * chose, which is already the filename they uploaded, and stamping it with the
  * moment it was fetched would rename their file for them.
  */

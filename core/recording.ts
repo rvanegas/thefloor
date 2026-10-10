@@ -96,25 +96,6 @@ export function startRecording(
   };
 }
 
-export function pauseRecording(
-  recording: RecordingState,
-  now: number
-): RecordingState {
-  return {
-    ...recording,
-    status: 'paused',
-    accumulatedMs: recordedMs(recording, now),
-    segmentStartedAt: null,
-  };
-}
-
-export function resumeRecording(
-  recording: RecordingState,
-  now: number
-): RecordingState {
-  return { ...recording, status: 'recording', segmentStartedAt: now };
-}
-
 /**
  * Ends a run and returns the channel to idle, ready for the next one.
  *

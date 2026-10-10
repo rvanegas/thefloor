@@ -207,6 +207,15 @@ describe('rooms', () => {
       closedAt: old + 60_000,
       recordingIds: [`rec_${old}`],
       transcribed: false,
+      segments: [
+        {
+          id: `standin_rec_${old}`,
+          startedAt: old,
+          endedAt: old + 60_000,
+          recordingId: `rec_${old}`,
+          text: false,
+        },
+      ],
       standIn: true,
     });
     expect(rooms[1]).toMatchObject({ openedAt: sitting, transcribed: true });
@@ -258,5 +267,97 @@ describe('rooms', () => {
     });
     expect(exported.statusCode).toBe(404);
     expect(exported.json()).toEqual({ error: 'Nothing was recorded in this room.' });
+  });
+
+  /*
+    **Segments, since 2026-10-10**: a stretch of a room kept one way
+    throughout, and a new one at every change of what is kept.
+  */
+  const roomsOf = async (channelId: string, token: string) =>
+    (
+      (
+        await app.fastify.inject({
+          method: 'GET',
+          url: `/channels/${channelId}/rooms`,
+          headers: auth(token),
+        })
+      ).json() as {
+        rooms: Array<{
+          segments: Array<{
+            startedAt: number;
+            endedAt: number | null;
+            recordingId: string | null;
+            text: boolean;
+          }>;
+        }>;
+      }
+    ).rooms;
+
+  it('begin a segment at every change of what is kept', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    const first = app.channels.get(channelId)!.recording.runId;
+    clock += 10_000;
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    const second = app.channels.get(channelId)!.recording.runId;
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const [room] = await roomsOf(channelId, alice.token);
+    expect(second).not.toBe(first);
+    expect(room.segments).toEqual([
+      { id: expect.any(String), startedAt: t0, endedAt: t0 + 10_000, recordingId: first, text: false },
+      { id: expect.any(String), startedAt: t0 + 10_000, endedAt: t0 + 20_000, recordingId: second, text: true },
+      { id: expect.any(String), startedAt: t0 + 20_000, endedAt: t0 + 30_000, recordingId: null, text: true },
+    ]);
+  });
+
+  it('begin audio and text at one instant when started together', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.setLiveTranscription(channelId, alice.account.id, true, true);
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments).toEqual([
+      {
+        id: expect.any(String),
+        startedAt: t0,
+        endedAt: t0 + 10_000,
+        recordingId: expect.stringMatching(/^rec_/),
+        text: true,
+      },
+    ]);
+  });
+
+  it('derive the segments of a room from before them', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    const opened = clock;
+    app.db
+      .prepare('INSERT INTO rooms (id, channel_id, opened_at, closed_at) VALUES (?, ?, ?, ?)')
+      .run('room_old', channelId, opened, opened + 600_000);
+    line(channelId, opened + 1_000);
+    line(channelId, opened + 2_000);
+    recording(channelId, alice.account.id, opened + 10_000);
+    line(channelId, opened + 20_000);
+    line(channelId, opened + 100_000);
+
+    const [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments.map((s) => [s.startedAt, s.endedAt, s.recordingId, s.text])).toEqual([
+      [opened + 1_000, opened + 3_000, null, true],
+      [opened + 10_000, opened + 70_000, `rec_${opened + 10_000}`, true],
+      [opened + 100_000, opened + 101_000, null, true],
+    ]);
   });
 });

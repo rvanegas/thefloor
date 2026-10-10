@@ -105,26 +105,10 @@ export async function shareRecording(
   );
 }
 
-/** A room's recordings as one file; see the native side. */
-export async function shareRoom(
-  token: string,
-  channelId: string,
-  roomId: string,
-  name: string,
-  openedAt: number
-): Promise<void> {
-  await download(
-    token,
-    `${API_URL}/channels/${channelId}/rooms/${roomId}/export`,
-    `${fileStem(name, openedAt)}.ogg`,
-    'Could not download the room'
-  );
-}
-
 /**
  * Downloads the channel's current track under the name it was uploaded with.
  *
- * No `The Floor —` prefix and no timestamp, unlike the two above and for the
+ * No `The Floor —` prefix and no timestamp, unlike a recording and for the
  * reason the native side gives: this file is somebody else's, it already has
  * the name they gave it, and the only thing this side supplies is the
  * extension — which comes back from the server, since a browser knows no more

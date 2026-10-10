@@ -1391,6 +1391,8 @@ export function RecordingRow({
   playDisabledReason,
   manageable = true,
   inline = false,
+  inlineLabel,
+  inlineTrailing,
 }: {
   recording: RecordingView;
   /**
@@ -1399,6 +1401,13 @@ export function RecordingRow({
    * the flow of what was said around it. Opens to the same actions.
    */
   inline?: boolean;
+  /**
+   * What the inline line says in place of the name, the time and the length:
+   * its segment's hours and what it kept, since 2026-10-10. See `SegmentLine`.
+   */
+  inlineLabel?: string;
+  /** Drawn at the end of the inline line, outside its press: the share. */
+  inlineTrailing?: React.ReactNode;
   /** Whether this row can be played into the room. */
   playable?: boolean;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
@@ -1464,6 +1473,7 @@ export function RecordingRow({
       }}
     >
     <Shell style={recordingStyles.row}>
+      <View style={recordingStyles.head}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t.rowLabel(
@@ -1490,12 +1500,16 @@ export function RecordingRow({
           <View style={recordingStyles.marker}>
             <RecordingsIcon color={colors.textMuted} size={14} />
             <Text style={[type.muted, recordingStyles.markerText]} numberOfLines={1}>
-              {recording.name} ·{' '}
-              {new Date(recording.startedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}{' '}
-              · {formatDuration(recording.durationMs)}
+              {inlineLabel ?? (
+                <>
+                  {recording.name} ·{' '}
+                  {new Date(recording.startedAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}{' '}
+                  · {formatDuration(recording.durationMs)}
+                </>
+              )}
             </Text>
           </View>
         ) : (
@@ -1514,6 +1528,8 @@ export function RecordingRow({
         </View>
         )}
       </Pressable>
+      {inline ? inlineTrailing : null}
+      </View>
 
       {open && renaming ? (
         <RenameEditor recording={recording} onDone={() => setRenaming(false)} />
@@ -1521,6 +1537,13 @@ export function RecordingRow({
 
       {open && !renaming ? (
         <View style={recordingStyles.actions}>
+          {/* The name, which a segment's line does not carry: said where
+              Rename is, so the thing renamed is on screen. */}
+          {inline && inlineLabel !== undefined ? (
+            <Text style={recordingStyles.name} numberOfLines={2}>
+              {recording.name}
+            </Text>
+          ) : null}
           {playable ? (
             <PlayButton
               recording={recording}
@@ -2088,6 +2111,8 @@ const recordingStyles = StyleSheet.create({
   // sitting beside it.
   row: { gap: spacing(1.5) },
   main: { gap: spacing(0.25) },
+  // The press and, inline, the share beside it.
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   marker: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   markerText: { flexShrink: 1 },
   name: { color: colors.text, fontSize: 16, fontWeight: '600' },

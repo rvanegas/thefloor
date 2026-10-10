@@ -1054,10 +1054,10 @@ export const es: Strings = {
           ? 'ahora'
           : new Date(to).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
       }`,
-    shareRoom: () => 'Compartir esta sala',
-    preparingRoom: () => 'Preparando\u2026',
-    couldNotShareRoom: () => 'No se pudo compartir la sala',
-    shareRoomTitle: () => 'Compartir esta sala',
+    preparingKept: () => 'Preparando\u2026',
+    couldNotShareKept: () => 'No se pudo compartir',
+    shareSpan: (span: string) => `Compartir ${span}`,
+    keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     keepText: () => 'Texto',
     roomsNothingYet: () =>

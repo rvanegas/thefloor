@@ -4459,11 +4459,14 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!mayTranscribeLive(account.id)) {
       return reply.code(404).send({ error: 'No such setting.' });
     }
-    const on = (request.body as { on?: unknown } | undefined)?.on;
+    const body = request.body as { on?: unknown; audio?: unknown } | undefined;
+    const on = body?.on;
     if (typeof on !== 'boolean') {
       return reply.code(400).send({ error: 'on must be true or false.' });
     }
-    const result = channels.setLiveTranscription(id, account.id, on);
+    // `audio: true` is Start: the audio begins in the same step as the text,
+    // so the segment they share begins at one instant. Since 2026-10-10.
+    const result = channels.setLiveTranscription(id, account.id, on, body?.audio === true);
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }

@@ -1287,9 +1287,8 @@ export const en = {
     liveTime: (at: number) =>
       new Date(at).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' }),
     /**
-     * The pinned bar over the *Record* log: when the room at the top of the
-     * scroll ran, by the clock. A room is a sitting, first step in to last
-     * step out; one still going has no end yet.
+     * When something ran, by the clock: a room on the pinned bar over the
+     * *Record* log, and a segment on its line. One still going has no end yet.
      */
     roomSpan: (from: number, to: number | null) =>
       `${new Date(from).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}\u2013${
@@ -1297,11 +1296,15 @@ export const en = {
           ? 'now'
           : new Date(to).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })
       }`,
-    shareRoom: () => 'Share this room',
-    preparingRoom: () => 'Preparing\u2026',
-    couldNotShareRoom: () => 'Could not share the room',
-    /** Share's question, answered by `audio` and `keepText`; see `chooseWhatToShare`. */
-    shareRoomTitle: () => 'Share this room',
+    preparingKept: () => 'Preparing\u2026',
+    couldNotShareKept: () => 'Could not share',
+    /**
+     * Share's question, answered by `audio` and `keepText`, naming a segment
+     * by its hours (`roomSpan`); see `chooseWhatToShare`.
+     */
+    shareSpan: (span: string) => `Share ${span}`,
+    /** A segment kept as audio and as text, on its line. */
+    keptBoth: () => 'Audio + Text',
     roomTextCopied: () => 'The text is copied.',
     /**
      * The *Record* tab's two switches: what this channel keeps of what is

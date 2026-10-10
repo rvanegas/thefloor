@@ -265,9 +265,16 @@ export interface RecordingState {
    * generating identifiers, and arrives on the action the way a track does.
    */
   runId: string | null;
-  /** When this run started. Survives pause/resume. */
+  /**
+   * When this run started. A run no longer survives a pause, since
+   * 2026-10-10: Pause ends it and Resume begins another.
+   */
   startedAt: number | null;
-  /** Recorded milliseconds accumulated across previous run segments. */
+  /**
+   * Recorded milliseconds before the current stretch began — zero for a run,
+   * now that a pause ends it, and the length of the run just ended while
+   * `paused`, which is what the paused pill reads.
+   */
   accumulatedMs: number;
   /** When the current run segment began; null unless status is 'recording'. */
   segmentStartedAt: number | null;
@@ -1197,16 +1204,23 @@ export type ChannelAction =
        */
       automatic?: boolean;
     }
+  /**
+   * Pause and Resume hold and restart **everything** this person may, audio
+   * and text alike, whichever of the four is sent — since 2026-10-10, when the
+   * record became a sequence of segments. A pause ends the audio's run, and a
+   * resume begins a new one, under `runId`, which the server mints as it does
+   * a start's. See `holdKeeping`.
+   */
   | { type: 'PAUSE_RECORDING'; userId: UserId }
-  | { type: 'RESUME_RECORDING'; userId: UserId }
+  | { type: 'RESUME_RECORDING'; userId: UserId; runId?: string }
   | { type: 'STOP_RECORDING'; userId: UserId }
   /**
    * Holds and restarts the live transcript, under the recording's own Pause
    * rules — unlike `SET_LIVE_TRANSCRIPTION`, which costs the house money and
    * is the house's, holding it costs nothing and is anybody's present.
    */
-  | { type: 'PAUSE_LIVE_TRANSCRIPTION'; userId: UserId }
-  | { type: 'RESUME_LIVE_TRANSCRIPTION'; userId: UserId }
+  | { type: 'PAUSE_LIVE_TRANSCRIPTION'; userId: UserId; runId?: string }
+  | { type: 'RESUME_LIVE_TRANSCRIPTION'; userId: UserId; runId?: string }
   /**
    * Capture could not be started or kept running. Not a user action — the
    * media plane reports it — so it carries no userId and no guard.
@@ -1218,7 +1232,22 @@ export type ChannelAction =
    * `transcripts_unlimited` mark, which no `ChannelState` knows about — so it
    * carries no userId, and it is absent from the client's list of actions.
    */
-  | { type: 'SET_LIVE_TRANSCRIPTION'; on: boolean }
+  | {
+      type: 'SET_LIVE_TRANSCRIPTION';
+      on: boolean;
+      /**
+       * The run the audio continues under if it is running, since a change of
+       * what is kept is a clean break (`restartOnTextChange`), and the run a
+       * Start begins under. Minted by the server.
+       */
+      runId?: string;
+      /**
+       * Start's other half: begin the audio in the same step, so that a
+       * segment kept both ways begins at one instant. Set by the route, which
+       * has asked `canStartRecording` for whoever pressed it.
+       */
+      startRecording?: boolean;
+    }
   /**
    * *Record automatically*'s Text. Server-applied for `SET_LIVE_TRANSCRIPTION`'s
    * reason, after the route has asked for the mark and `canEditChannel`.

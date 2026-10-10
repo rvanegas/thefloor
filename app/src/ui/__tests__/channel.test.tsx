@@ -28,6 +28,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findRecording,
   findChoice,
   findSwitch,
   findNamed,
@@ -446,7 +447,7 @@ describe('Channel', () => {
     showRecord(tree);
     // The recording row's actions are behind a tap, and two of the three are
     // refused. Share is not, and that is the assertion worth having.
-    act(() => findButton(tree, 'Book club')!.props.onPress());
+    act(() => findRecording(tree, 'Book club')!.props.onPress());
     expect(disabled('Rename')).toEqual(off('Rename'));
     expect(disabled('Delete')).toEqual(off('Delete'));
     expect(findExactButton(tree, 'Share')!.props.accessibilityState).toEqual({
@@ -508,7 +509,7 @@ describe('Channel', () => {
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecord(tree);
-    act(() => findButton(tree, 'Book club')!.props.onPress());
+    act(() => findRecording(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
     expect(on('Delete')).toEqual({ disabled: false });
 
@@ -2173,9 +2174,10 @@ describe('Channel', () => {
   */
   /*
     **Pause is one hold over the pair**: it holds everything running, and
-    while anything is held it reads Resume and restarts everything held — the
-    run stays one recording, joined without the gap, and the text one
-    stretch of the same room. Drawn always, refused while nothing is running.
+    while anything is held it reads Resume and restarts everything held.
+    **One action, since 2026-10-10**, which core applies to both, so they
+    end and begin together — each a clean break, a new segment. Drawn
+    always, refused while nothing is running.
   */
   it('pauses whichever is running, and resumes only what it paused', () => {
     // Nothing chosen: the button reads Start and turns on as much of the
@@ -2191,8 +2193,9 @@ describe('Channel', () => {
     showRecord(idle);
     expect(findButton(idle, 'Pause')).toBeUndefined();
     act(() => findButton(idle, 'Start')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
+    // One request that begins both, so the segment begins at one instant.
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, true);
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
     act(() => idle.unmount());
 
     // And only the audio, for somebody who may not.
@@ -2273,7 +2276,7 @@ describe('Channel', () => {
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
     act(() => held.unmount());
 
-    // Both running: one Pause holds both.
+    // Both running: one Pause, one action, which core applies to both.
     mockApp.act.mockClear();
     const both = (c: ChannelState) =>
       reduce(
@@ -2288,11 +2291,10 @@ describe('Channel', () => {
     showRecord(pair);
     act(() => findButton(pair, 'Pause')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_RECORDING' });
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
     act(() => pair.unmount());
 
-    // Audio held and text running — text switched on during the hold: the
-    // button still reads Resume, and resumes the audio and only that.
+    // Both held: Resume is one action too.
     mockApp.act.mockClear();
     showChannel(
       channelOf((c) => reduce(both(c), { type: 'PAUSE_RECORDING', userId: ME }, NOW))
@@ -2406,8 +2408,10 @@ describe('Channel', () => {
     );
     showRecord(recording);
     act(() => findSwitch(recording, 'Text')!.props.onValueChange(true));
+    // The server begins the run anew under it — a clean break — so the app
+    // stops nothing itself.
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, false);
     act(() => recording.unmount());
 
     // Both on: each switch reads on, and off moves only its own.
@@ -3137,13 +3141,15 @@ describe('Channel', () => {
       />);
     showRecord(tree);
     const text = textOf(tree);
-    expect(text).toContain('Book club');
+    // Its segment's line: its hours and what it kept, the name behind a tap.
+    expect(text).toContain('· Audio');
+    expect(findRecording(tree, 'Book club')).toBeDefined();
     expect(text).not.toContain('Nothing kept yet');
 
     // Closed until asked: the list is what this section is for, and the
     // actions belong to whichever row somebody has opened.
     expect(findExactButton(tree, 'Share')).toBeUndefined();
-    act(() => findButton(tree, 'Book club')!.props.onPress());
+    act(() => findRecording(tree, 'Book club')!.props.onPress());
 
     // Shared under the recording's own name, which the server fixed when the
     // run stopped — not a label rebuilt here from the roster, which is how two
@@ -3183,7 +3189,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(mine);
-    act(() => findButton(mine, 'Tuesday')!.props.onPress());
+    act(() => findRecording(mine, 'Tuesday')!.props.onPress());
     expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
     act(() => mine.unmount());
 
@@ -3198,7 +3204,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(theirs);
-    act(() => findButton(theirs, 'Tuesday')!.props.onPress());
+    act(() => findRecording(theirs, 'Tuesday')!.props.onPress());
     expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
     expect(textOf(theirs)).toContain('the floor decides what plays');
     act(() => theirs.unmount());
@@ -3250,7 +3256,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(asked);
-    act(() => findButton(asked, 'Tuesday')!.props.onPress());
+    act(() => findRecording(asked, 'Tuesday')!.props.onPress());
     expect(checkbox(asked)).toBeDefined();
     expect(textOf(asked)).toContain('Waiting on');
     act(() => asked.unmount());
@@ -3265,7 +3271,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(bystander);
-    act(() => findButton(bystander, 'Tuesday')!.props.onPress());
+    act(() => findRecording(bystander, 'Tuesday')!.props.onPress());
     expect(checkbox(bystander)).toBeUndefined();
     // Still told where it stands: it is the channel's recording either way.
     expect(textOf(bystander)).toContain('does not need your agreement');
@@ -3299,13 +3305,13 @@ describe('Channel', () => {
       expect(findExactButton(tree, label)).toBeUndefined();
     }
 
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
     for (const label of ['Share', 'Rename', 'Delete']) {
       expect(findExactButton(tree, label)).toBeDefined();
     }
 
     // One row's worth of actions at a time: tapping it again puts them away.
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
     expect(findButton(tree, 'Delete')).toBeUndefined();
     act(() => tree.unmount());
   });
@@ -3331,7 +3337,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(tree);
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
 
     const { Alert } = require('react-native');
     const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
@@ -3377,7 +3383,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(tree);
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
 
     const { api } = require('../../api/http');
     const renamed = jest
@@ -3433,10 +3439,10 @@ describe('Channel', () => {
       />);
     showRecord(tree);
 
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
     act(() => findButton(tree, 'Rename')!.props.onPress());
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
-    act(() => findButton(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
     // Reopening offers the actions again, not the half-typed name of something
     // somebody had already changed their mind about.
     expect(findButton(tree, 'Rename')).toBeDefined();

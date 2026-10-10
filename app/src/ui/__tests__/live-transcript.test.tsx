@@ -12,6 +12,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findRecording,
   findSwitch,
   findTab,
   render,
@@ -55,12 +56,26 @@ const screen = () => (
   <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
 );
 
+/** One segment of a room: a stretch kept one way throughout. */
+const seg = (
+  id: string,
+  startedAt: number,
+  endedAt: number | null,
+  recordingId: string | null,
+  text: boolean
+) => ({ id, startedAt, endedAt, recordingId, text });
+
+/**
+ * A room, by default kept as text from end to end — one segment — unless the
+ * test says what its segments were.
+ */
 const room = (
   id: string,
   openedAt: number,
   closedAt: number | null,
-  recordingIds: string[]
-) => ({ id, openedAt, closedAt, recordingIds, transcribed: true });
+  recordingIds: string[],
+  segments = [seg(`${id}_text`, openedAt, closedAt, null, true)]
+) => ({ id, openedAt, closedAt, recordingIds, transcribed: true, segments });
 
 /** Lets the history fetch settle. */
 const settle = () => act(async () => {});
@@ -124,14 +139,18 @@ describe('the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
+    // Each recording is a segment's line, kept both ways here, with what was
+    // said inside it under it.
     const text = textOf(tree);
+    const first = text.indexOf('Audio + Text');
+    const second = text.indexOf('Audio + Text', first + 1);
     const order = [
-      'before the first',
-      'First stretch',
-      'between the two',
-      'Second stretch',
-      'after the second',
-    ].map((said) => text.indexOf(said));
+      text.indexOf('before the first'),
+      first,
+      text.indexOf('between the two'),
+      second,
+      text.indexOf('after the second'),
+    ];
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     act(() => tree.unmount());
@@ -147,7 +166,7 @@ describe('the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
     expect(textOf(tree)).toContain('newer');
-    expect(textOf(tree)).not.toContain('Long ago');
+    expect(findRecording(tree, 'Long ago')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -265,7 +284,7 @@ describe('the switch', () => {
     const text = findSwitch(house, 'Text')!;
     expect(text.props.disabled).toBe(false);
     await act(async () => text.props.onValueChange(true));
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, false);
     act(() => house.unmount());
   });
 });
@@ -280,12 +299,22 @@ describe('merging lines', () => {
 
 /*
   **Rooms, since 2026-10-09**: the log is laid out in sittings, first step in
-  to last step out, each headed by a line with its date, its hours and its
-  share, which is hoisted over the top once it scrolls off.
+  to last step out, each headed by a line with its date and its hours, which
+  is hoisted over the top once it scrolls off. **And segments, since
+  2026-10-10**: within a room, each stretch kept one way throughout is a line
+  of its own — its hours, what it kept, its share — with its text under it.
 */
 describe('rooms on the Record tab', () => {
-  const { shareRoom } = require('../../api/download');
+  const { shareRecording } = require('../../api/download');
   const { ActionSheetIOS, Share } = require('react-native');
+
+  /** A segment's share, named by its hours. The tests run as iOS. */
+  const sharesOf = (tree: ReturnType<typeof render>) =>
+    tree.root.findAll(
+      (node: { props: Record<string, unknown> }) =>
+        /^Share \d/.test(String(node.props.accessibilityLabel ?? '')) && !!node.props.onPress
+    );
+  const shareOf = (tree: ReturnType<typeof render>) => sharesOf(tree)[0];
 
   it('starts each room with its date and hours, and leaves out what fell in none', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
@@ -323,11 +352,14 @@ describe('rooms on the Record tab', () => {
       ],
       more: false,
     } as never);
-    showChannel(transcribed(), [segment('rec_old', 'Before rooms', NOW - 86_400_000)]);
+    const old = NOW - 86_400_000;
+    showChannel(transcribed(), [segment('rec_old', 'Before rooms', old)]);
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [
         {
-          ...room('standin_rec_old', NOW - 86_400_000, NOW - 86_400_000 + 30_000, ['rec_old']),
+          ...room('standin_rec_old', old, old + 30_000, ['rec_old'], [
+            seg('standin_rec_old', old, old + 30_000, 'rec_old', false),
+          ]),
           transcribed: false,
           standIn: true,
         },
@@ -339,27 +371,50 @@ describe('rooms on the Record tab', () => {
     await settle();
 
     const text = textOf(tree);
-    expect(text).toContain('Before rooms');
-    expect(text.indexOf('Before rooms')).toBeLessThan(text.indexOf('in the sitting'));
+    expect(findRecording(tree, 'Before rooms')).toBeDefined();
+    expect(text.indexOf('· Audio')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('· Audio')).toBeLessThan(text.indexOf('in the sitting'));
     expect(text).not.toContain('said during the old one');
     act(() => tree.unmount());
   });
 
-  /*
-    **The share asks which, since 2026-10-09**: audio, text, or both, with
-    what the room did not keep shown and refused — iOS's action sheet, which
-    can grey an option. The tests run as iOS.
-  */
-  const shareOf = (tree: ReturnType<typeof render>) =>
-    tree.root.findAll(
-      (node: { props: Record<string, unknown> }) =>
-        node.props.accessibilityLabel === 'Share this room' && !!node.props.onPress
-    )[0];
+  it('draws a line for each segment of a room, saying what it kept', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l1', ME, 'Me', NOW + 5_000, 'said on the record'),
+        line('l2', ME, 'Me', NOW + 45_000, 'said off the record'),
+      ],
+      more: false,
+    } as never);
+    showChannel(transcribed(), [segment('rec_1', 'Planning', NOW)]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, ['rec_1'], [
+          seg('s1', NOW, NOW + 30_000, 'rec_1', true),
+          seg('s2', NOW + 30_000, NOW + 60_000, null, true),
+        ]),
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const text = textOf(tree);
+    const both = text.indexOf('· Audio + Text');
+    const textOnly = text.indexOf('· Text');
+    expect(both).toBeGreaterThanOrEqual(0);
+    expect(both).toBeLessThan(text.indexOf('said on the record'));
+    expect(text.indexOf('said on the record')).toBeLessThan(textOnly);
+    expect(textOnly).toBeLessThan(text.indexOf('said off the record'));
+    // One share each, and none on the room.
+    expect(sharesOf(tree)).toHaveLength(2);
+    act(() => tree.unmount());
+  });
 
   /*
     **A batch transcript is drawn as the live one is, since 2026-10-10**:
     under its recording's line, each speaker's run under their name and the
-    clock time it began, and shared with the room's text.
+    clock time it began, and shared as the segment's text.
   */
   it("draws a recording's batch transcript under it, as live lines are", async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
@@ -376,15 +431,18 @@ describe('rooms on the Record tab', () => {
         { identity: THEM, displayName: 'Dana Chu', startMs: 9_000, endMs: 10_000, text: 'and Dana', confidence: 0.9 },
       ],
     } as never);
+    const at = NOW - 86_400_000;
     const old = {
-      ...segment('rec_old', 'Before rooms', NOW - 86_400_000),
+      ...segment('rec_old', 'Before rooms', at),
       transcript: { state: 'ready' as const, provider: 'AssemblyAI', requestedBy: null },
     };
     showChannel(transcribed(), [old]);
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [
         {
-          ...room('standin_rec_old', NOW - 86_400_000, NOW - 86_400_000 + 30_000, ['rec_old']),
+          ...room('standin_rec_old', at, at + 30_000, ['rec_old'], [
+            seg('standin_rec_old', at, at + 30_000, 'rec_old', false),
+          ]),
           standIn: true,
         },
       ],
@@ -395,12 +453,12 @@ describe('rooms on the Record tab', () => {
 
     const text = textOf(tree);
     expect(transcript).toHaveBeenCalledWith(expect.anything(), 'rec_old');
-    expect(text.indexOf('Before rooms')).toBeLessThan(text.indexOf('first in batch'));
+    // Kept as audio, and now as text by batch: both, on its line.
+    expect(text.indexOf('· Audio + Text')).toBeLessThan(text.indexOf('first in batch'));
     expect(text.indexOf('first in batch')).toBeLessThan(text.indexOf('and Dana'));
     // A stand-in carries its recording's text, never live talk it overlaps.
     expect(text).not.toContain('said during the old one');
 
-    const { ActionSheetIOS, Share } = require('react-native');
     const sheet = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
@@ -416,43 +474,53 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it("puts each room's line, with its share, at the head of the room", async () => {
+  it("puts each room's line at the head of the room", async () => {
     showChannel(channelOf(), [
       segment('rec_1', 'Planning', NOW + 10_000),
       segment('rec_2', 'Review', NOW + 1_000_000),
     ]);
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [
-        room('room_1', NOW, NOW + 60_000, ['rec_1']),
-        room('room_2', NOW + 900_000, NOW + 1_100_000, ['rec_2']),
+        room('room_1', NOW, NOW + 60_000, ['rec_1'], [
+          seg('s1', NOW + 10_000, NOW + 40_000, 'rec_1', false),
+        ]),
+        room('room_2', NOW + 900_000, NOW + 1_100_000, ['rec_2'], [
+          seg('s2', NOW + 1_000_000, NOW + 1_030_000, 'rec_2', false),
+        ]),
       ],
     } as never);
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
-    // Inline, one per room, and in the log between the two rooms' contents;
-    // nothing is hoisted until something has scrolled off the top, which in
-    // a renderer that measures nothing is never.
+    // Inline, one per room; nothing is hoisted until something has scrolled
+    // off the top, which in a renderer that measures nothing is never.
     expect(tree.root.findAll((n: { type: unknown }) => n.type === RoomLine).map((n) => (n.props.room as { id: string }).id)).toEqual([
       'room_1',
       'room_2',
     ]);
     expect(tree.root.findAll((n: { type: unknown }) => n.type === HoistedRoom)[0].props.room).toBeNull();
-    const text = textOf(tree);
-    expect(text.indexOf('Planning')).toBeLessThan(text.indexOf('Review'));
+    expect(sharesOf(tree)).toHaveLength(2);
     act(() => tree.unmount());
   });
 
-  it('offers audio and text, and shares the audio whole', async () => {
+  it("offers a segment's audio and text under its hours, and shares its recording", async () => {
     const sheet = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(0));
     showChannel(transcribed(), [segment('rec_1', 'Planning', NOW + 10_000)]);
-    jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [], more: false } as never);
-    jest.spyOn(api, 'rooms').mockResolvedValue({
-      rooms: [room('room_1', NOW, NOW + 60_000, ['rec_1'])],
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 12_000, 'said')],
+      more: false,
     } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, ['rec_1'], [
+          seg('s1', NOW + 10_000, NOW + 40_000, 'rec_1', true),
+        ]),
+      ],
+    } as never);
+    shareRecording.mockClear();
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
@@ -461,15 +529,22 @@ describe('rooms on the Record tab', () => {
     expect(share.props.accessibilityState.disabled).toBe(false);
     await act(async () => share.props.onPress());
     expect(sheet.mock.calls[0][0]).toMatchObject({
+      title: expect.stringMatching(/^Share \d/),
       options: ['Audio', 'Text', 'Cancel'],
       disabledButtonIndices: [],
     });
-    expect(shareRoom).toHaveBeenCalledWith(expect.any(String), 'sess_1', 'room_1', expect.any(String), NOW);
+    expect(String((sheet.mock.calls[0][0] as { title?: string }).title)).not.toMatch(/room/i);
+    expect(shareRecording).toHaveBeenCalledWith(
+      expect.any(String),
+      'rec_1',
+      expect.any(String),
+      NOW + 40_000
+    );
     sheet.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('greys audio on a room with none, and shares its text', async () => {
+  it('greys audio on a segment with none, and shares its text', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [
         line('l0', ME, 'Me', NOW - 5_000, 'before the room'),
@@ -485,7 +560,7 @@ describe('rooms on the Record tab', () => {
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
     const handed = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as never);
-    shareRoom.mockClear();
+    shareRecording.mockClear();
     showChannel(transcribed());
     const tree = render(screen());
     showTab(tree, 'Record');
@@ -493,7 +568,7 @@ describe('rooms on the Record tab', () => {
 
     await act(async () => shareOf(tree).props.onPress());
     expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
-    expect(shareRoom).not.toHaveBeenCalled();
+    expect(shareRecording).not.toHaveBeenCalled();
     const message = (handed.mock.calls[0][0] as { message: string }).message;
     expect(message).toContain('only written down\nand again');
     expect(message).not.toContain('before the room');
@@ -502,13 +577,18 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it('greys the icon on a room that kept neither yet', async () => {
+  it('greys the share on a segment that has kept nothing yet', async () => {
+    // A recording still running is a segment whose recording is not filed:
+    // drawn, with nothing yet to share.
     jest.spyOn(api, 'rooms').mockResolvedValue({
-      rooms: [{ ...room('room_1', NOW, null, []), transcribed: false }],
+      rooms: [
+        {
+          ...room('room_1', NOW, null, [], [seg('s1', NOW + 1_000, null, 'rec_running', false)]),
+          transcribed: false,
+        },
+      ],
     } as never);
-    // A recording still running is what puts an open room in the log
-    // before anything in it is finished.
-    showChannel(channelOf(), [segment('rec_1', 'Running', NOW + 1_000)]);
+    showChannel(channelOf());
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();

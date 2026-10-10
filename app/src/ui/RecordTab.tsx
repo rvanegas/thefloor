@@ -20,63 +20,74 @@ import {
   canStopRecording,
   recordingRefusal,
 } from '../../../core/channel';
-import type { LiveLine, RecordingView, RoomView } from '../../../core/protocol';
+import type {
+  LiveLine,
+  RecordingView,
+  RoomView,
+  SegmentView,
+} from '../../../core/protocol';
 import { intoBlocks } from '../../../core/transcript';
 import type { ChannelState } from '../../../core/types';
-import { shareRoom } from '../api/download';
+import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
 import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
 import { Button, Empty, useScrollPosition } from './components';
-import { ShareIcon } from './icons';
+import { RecordingsIcon, ShareIcon } from './icons';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 
 /**
- * The Record tab: what was kept of a channel, as a log, one room at a time.
+ * What a segment's line says and carries, for a recording drawn as one: its
+ * hours and what it kept, and its share.
+ */
+export interface SegmentHead {
+  label: string;
+  trailing: React.ReactNode;
+}
+
+/**
+ * The Record tab: what was kept of a channel, as a log of segments, in rooms.
  *
  * **A log, not cards, since 2026-10-09.** Lines run oldest at the top and
  * newest at the foot, each speaker's run of them under their name and the time
  * it began, in plain text the way a chat reads — consecutive lines from one
- * speaker are one entry, by `intoBlocks`, the grouping a recording's own
- * transcript uses. A recording is a single muted line where it began, the
- * record dot and its name, which opens to the actions its card had.
+ * speaker are one entry, by `intoBlocks`.
+ *
+ * **The record is a sequence of segments, since 2026-10-10**: a stretch kept
+ * one way throughout — as audio, as text, or as both — and a new one at every
+ * change of what is kept, Pause and Resume included, so that where both are
+ * kept they cover exactly the same span. Each is one muted line — the record
+ * dot where it has audio and a ring where it has none, its hours, and what it
+ * kept — with its share at the end, and its text under it. A segment with
+ * audio is its recording's line, and opens to the actions that recording's
+ * card had. Its text is the live transcript written inside it, or, for one
+ * kept as audio alone, that recording's batch transcript once there is one,
+ * on the clock at the recording's start plus each line's offset — exact, a
+ * recording being one unbroken run.
  *
  * **Laid out in rooms.** A room is a sitting — first step in to last step out,
- * written by the server as it happens (`server/src/rooms.ts`) — and each one
- * that kept something, a recording or a line of transcript, starts with a rule
- * bearing its date and its hours. A sitting that kept nothing is not drawn.
- * **A recording that fell in no sitting is its own room** — the server lists
- * it as a `standIn`, spanning the run, recorded and not transcribed — so the
- * recordings made before rooms existed open the log, each under its own rule.
- * Lines of live transcript from before then are left out rather than
- * gathered under a heading that would be a guess.
+ * written by the server as it happens (`server/src/rooms.ts`) — holding one
+ * segment or more, under a rule bearing its date and its hours. A sitting that
+ * kept nothing is not drawn. **A recording that fell in no sitting is its own
+ * room** — the server lists it as a `standIn` — so the recordings made before
+ * rooms existed open the log, each under its own rule.
  *
- * **Each room's rule is a `RoomLine`** — its date, its hours and its share —
- * and it scrolls with the log, so two rooms on screen at once have the line
- * between them where one ended and the next began. **It is hoisted only once
- * it has scrolled off the top**, since 2026-10-09: the room whose rule is
- * above the viewport is reported up through `onHoist`, and the screen draws
- * the same line pinned over the top of the scroll until the next room's rule
- * arrives and pushes it off — `hoistShift` is how far, set on every scroll
- * without rendering anything. Before anything is measured (and in a test
- * renderer, where nothing is) nothing is hoisted, and every rule is inline.
- *
- * **A recording's batch transcript is drawn as live lines are**, since
- * 2026-10-10: under the recording's own line, each speaker's run under their
- * name and the time it began, placed on the clock at the recording's start
- * plus each line's offset. A recording made with Text on is not offered one
- * — its words are here already — so the two never cover the same stretch.
- * **The clock is approximate after a pause**: a run's pauses are not kept,
- * so its later lines read early by however long it was held, in the right
- * order.
+ * **Each room's rule is a `RoomLine`** — its date and its hours — and it
+ * scrolls with the log. **It is hoisted only once it has scrolled off the
+ * top**, since 2026-10-09: the room whose rule is above the viewport is
+ * reported up through `onHoist`, and the screen draws the same line pinned
+ * over the top of the scroll until the next room's rule arrives and pushes it
+ * off — `hoistShift` is how far, set on every scroll without rendering
+ * anything. Before anything is measured (and in a test renderer, where nothing
+ * is) nothing is hoisted, and every rule is inline.
  *
  * **Fetched when shown, and kept current by the socket.** The transcript comes
  * a page at a time, newest first; lines written while the tab is open arrive
- * as `transcript.line` and are folded in by id. A line outside every room held
- * means a room opened since they were fetched, so they are fetched again, as
- * they are whenever the set of recordings changes.
+ * as `transcript.line` and are folded in by id. A line outside every segment
+ * held means one began since they were fetched, so they are fetched again, as
+ * they are whenever the recordings or what is being kept change.
  */
 export function RecordTab({
   channelId,
@@ -85,12 +96,13 @@ export function RecordTab({
   transcribing,
   paused = false,
   recordings,
+  keptKey = '',
   renderRecording,
   onHoist,
   hoistShift,
 }: {
   channelId: string;
-  /** What a shared file is called after, with the room's start. */
+  /** What a shared file is called after. */
   name: string;
   /** Whether this channel has a live transcript to show, now or from before. */
   live: boolean;
@@ -100,8 +112,13 @@ export function RecordTab({
   paused?: boolean;
   /** This channel's recordings, in any order. */
   recordings: readonly RecordingView[];
-  /** One recording as a line of the log. */
-  renderRecording: (recording: RecordingView) => React.ReactNode;
+  /**
+   * What is being kept now, as any string that changes when it does — every
+   * such change begins a segment, so the rooms are fetched again.
+   */
+  keptKey?: string;
+  /** One recording as a segment's line of the log. */
+  renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
   /** The room whose rule has scrolled off the top, or null; see above. */
   onHoist?: (room: RoomView | null) => void;
   /** How far the next room's rule has pushed the hoisted one up, ≤ 0. */
@@ -137,7 +154,7 @@ export function RecordTab({
     return () => {
       current = false;
     };
-  }, [app.token, channelId, recordingKey, roomsAsked]);
+  }, [app.token, channelId, recordingKey, keptKey, roomsAsked]);
 
   React.useEffect(() => {
     if (!live) return;
@@ -150,7 +167,12 @@ export function RecordTab({
       if (!current) return;
       setLines((held) => merge(held ?? [], [line]));
       const known = roomsHeld.current;
-      if (known && !known.some((room) => holds(room, line.startAt))) askRooms();
+      if (
+        known &&
+        !known.some((room) => room.segments.some((segment) => covers(segment, line.startAt)))
+      ) {
+        askRooms();
+      }
     });
     api
       .liveTranscript(token, channelId)
@@ -210,17 +232,11 @@ export function RecordTab({
 
   const held = live ? (lines ?? []) : [];
   // Until the oldest page is in, the log starts at the oldest line held, so a
-  // recording is never drawn above a stretch of talk not loaded yet.
+  // segment is never drawn with a stretch of its talk not loaded yet.
   const from = live && more && held.length ? held[0].startAt : -Infinity;
   const sittings = React.useMemo(
-    () =>
-      intoRooms(
-        rooms ?? [],
-        held,
-        recordings.filter((r) => r.startedAt >= from),
-        batch
-      ),
-    [rooms, held, recordings, from, batch]
+    () => intoRooms(rooms ?? [], held, recordings, batch, from),
+    [rooms, held, recordings, batch, from]
   );
   // Earlier pages are worth asking for only while they could still land in a
   // room: anything older than the first one is not drawn.
@@ -270,8 +286,8 @@ export function RecordTab({
   }, [position]);
 
   /** Where the log starts in the content, read afresh whenever it may have
-   * moved: what sits above it — the search, a note — changes height without
-   * the log's own frame changing, and a stale top hoists the wrong room. */
+   * moved: what sits above it — a note — changes height without the log's own
+   * frame changing, and a stale top hoists the wrong room. */
   const measure = React.useCallback(() => {
     position?.contentTopOf(root, (top) => {
       rootTop.current = top;
@@ -335,20 +351,17 @@ export function RecordTab({
               lineHeight.current = event.nativeEvent.layout.height;
             }}
           >
-            <RoomLine
-              channelId={channelId}
-              name={name}
-              room={room}
-              recordings={recordings}
-            />
+            <RoomLine room={room} />
           </View>
-          {items.map((item) =>
-            item.kind === 'recording' ? (
-              <React.Fragment key={item.recording.id}>
-                {renderRecording(item.recording)}
-              </React.Fragment>
-            ) : (
-              intoBlocks(
+          {items.map((item) => (
+            <View key={item.segment.id} style={styles.segment}>
+              <SegmentLine
+                channelId={channelId}
+                name={name}
+                item={item}
+                renderRecording={renderRecording}
+              />
+              {intoBlocks(
                 item.lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
               ).map((block) => (
                 <View key={block.lines[0].id} style={styles.entry}>
@@ -364,9 +377,9 @@ export function RecordTab({
                     </Text>
                   ))}
                 </View>
-              ))
-            )
-          )}
+              ))}
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -374,76 +387,21 @@ export function RecordTab({
 }
 
 /**
- * A room's line: its date and hours, and its share. Drawn inline at the head
- * of each room in the log, and again pinned over the top of the scroll by
+ * A room's line: its date and its hours. Drawn inline at the head of each
+ * room in the log, and again pinned over the top of the scroll by
  * `HoistedRoom` once that one has scrolled off — **the same component in both
  * places**, so the hand-over from one to the other has no seam to see.
  *
- * **The share asks which**, since 2026-10-09: a room may have kept its audio,
- * its text, or both, and the press offers both with whichever it lacks greyed
- * out — the native action sheet on iOS, which can grey an option; elsewhere
- * `Alert`, which cannot, and so offers only what there is. A room that kept
- * neither (one still open, before its first line or finished recording) greys
- * the icon itself. **It stays drawn either way**: a control that comes and
- * goes as you scroll is one that is not where the thumb went (STYLE.md, rule
- * six).
+ * **No share since 2026-10-10.** What is shared is a segment, each from its
+ * own line, a room holding as many as it changed what it kept.
  */
-export function RoomLine({
-  channelId,
-  name,
-  room,
-  recordings,
-}: {
-  channelId: string;
-  /** What the shared file is called after, with the room's start. */
-  name: string;
-  room: RoomView;
-  /** The channel's recordings, whose batch transcripts its text includes. */
-  recordings: readonly RecordingView[];
-}) {
+export function RoomLine({ room }: { room: RoomView }) {
   const t = useText().channel;
-  const app = useApp();
-  const [busy, setBusy] = React.useState(false);
-  const audio = room.recordingIds.length > 0;
-  const text = room.transcribed;
-  const available = (audio || text) && !busy;
-
-  const share = async (what: 'audio' | 'text') => {
-    if (!app.token || busy) return;
-    setBusy(true);
-    try {
-      if (what === 'audio') {
-        await shareRoom(app.token, channelId, room.id, name, room.openedAt);
-      } else {
-        const handed = await shareText(
-          await roomText(app.token, channelId, room, t, recordings)
-        );
-        if (handed === 'copied') Alert.alert(t.roomTextCopied());
-        if (handed === 'failed') Alert.alert(t.couldNotShareRoom());
-      }
-    } catch (e) {
-      Alert.alert(t.couldNotShareRoom(), e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <View style={styles.line}>
       <Text style={styles.lineLabel} numberOfLines={1} accessibilityRole="header">
         {t.liveDay(room.openedAt)} · {t.roomSpan(room.openedAt, room.closedAt)}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={busy ? t.preparingRoom() : t.shareRoom()}
-        accessibilityState={{ disabled: !available, busy }}
-        disabled={!available}
-        hitSlop={spacing(1)}
-        onPress={() => chooseWhatToShare(t, { audio, text }, (what) => void share(what))}
-        style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-      >
-        <ShareIcon color={available ? colors.text : colors.textFaint} />
-      </Pressable>
     </View>
   );
 }
@@ -460,16 +418,10 @@ export function RoomLine({
  * covers instead, and what it covers is the line it stands for.
  */
 export function HoistedRoom({
-  channelId,
-  name,
   room,
-  recordings,
   shift,
 }: {
-  channelId: string;
-  name: string;
   room: RoomView | null;
-  recordings: readonly RecordingView[];
   shift: Animated.Value;
 }) {
   if (!room) return null;
@@ -479,18 +431,112 @@ export function HoistedRoom({
       style={[styles.hoisted, { transform: [{ translateY: shift }] }]}
     >
       <View style={styles.hoistedInner}>
-        <RoomLine channelId={channelId} name={name} room={room} recordings={recordings} />
+        <RoomLine room={room} />
       </View>
     </Animated.View>
   );
 }
 
 /**
- * Which of a room's two to share, with what it lacks shown and refused.
- * Exported for the test, which drives both paths.
+ * A segment's line: the record dot where it kept audio and a ring where it
+ * kept none, its hours, what it kept, and its share. A segment with a
+ * recording is drawn by `renderRecording`, so its line opens to that
+ * recording's actions; the rest is this.
+ *
+ * **The share asks which**: the segment's audio, or its text, with whichever
+ * it lacks greyed — the native action sheet on iOS, which can grey an option;
+ * elsewhere `Alert`, which cannot, and so offers only what there is. Its
+ * title names the segment by its hours rather than by a noun, there being no
+ * word for it a person needs. **It stays drawn either way**: a control that
+ * comes and goes as you scroll is one that is not where the thumb went
+ * (STYLE.md, rule six).
+ */
+export function SegmentLine({
+  channelId,
+  name,
+  item,
+  renderRecording,
+}: {
+  channelId: string;
+  name: string;
+  item: SegmentItem;
+  renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
+}) {
+  const t = useText().channel;
+  const app = useApp();
+  const [busy, setBusy] = React.useState(false);
+  const { segment, recording } = item;
+  const audio = !!recording && !recording.mixing;
+  const text = item.lines.length > 0;
+  const available = (audio || text) && !busy;
+  const span = t.roomSpan(segment.startedAt, segment.endedAt);
+  const kept =
+    segment.recordingId !== null && (segment.text || recording?.transcript?.state === 'ready')
+      ? t.keptBoth()
+      : segment.recordingId !== null
+        ? t.audio()
+        : t.keepText();
+  const label = `${span} · ${kept}`;
+
+  const share = async (what: 'audio' | 'text') => {
+    if (!app.token || busy) return;
+    setBusy(true);
+    try {
+      if (what === 'audio' && recording) {
+        await shareRecording(app.token, recording.id, name, recording.endedAt);
+      } else {
+        const handed = await shareText(
+          await segmentText(app.token, channelId, item, t)
+        );
+        if (handed === 'copied') Alert.alert(t.roomTextCopied());
+        if (handed === 'failed') Alert.alert(t.couldNotShareKept());
+      }
+    } catch (e) {
+      Alert.alert(t.couldNotShareKept(), e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const trailing = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={busy ? t.preparingKept() : t.shareSpan(span)}
+      accessibilityState={{ disabled: !available, busy }}
+      disabled={!available}
+      hitSlop={spacing(1)}
+      onPress={() => chooseWhatToShare(t, span, { audio, text }, (what) => void share(what))}
+      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+    >
+      <ShareIcon color={available ? colors.text : colors.textFaint} />
+    </Pressable>
+  );
+
+  if (recording && renderRecording) {
+    return <>{renderRecording(recording, { label, trailing })}</>;
+  }
+  return (
+    <View style={styles.segmentLine}>
+      {segment.recordingId !== null ? (
+        <RecordingsIcon color={colors.textMuted} size={14} />
+      ) : (
+        <View style={styles.ring} />
+      )}
+      <Text style={[type.muted, styles.segmentLabel]} numberOfLines={1}>
+        {label}
+      </Text>
+      {trailing}
+    </View>
+  );
+}
+
+/**
+ * Which of a segment's two to share, with what it lacks shown and refused,
+ * under its hours. Exported for the test, which drives both paths.
  */
 export function chooseWhatToShare(
   t: Strings['channel'],
+  span: string,
   has: { audio: boolean; text: boolean },
   then: (what: 'audio' | 'text') => void
 ): void {
@@ -500,7 +546,7 @@ export function chooseWhatToShare(
     if (!has.text) disabledButtonIndices.push(1);
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        title: t.shareRoomTitle(),
+        title: t.shareSpan(span),
         options: [t.audio(), t.keepText(), t.cancel()],
         cancelButtonIndex: 2,
         disabledButtonIndices,
@@ -512,7 +558,7 @@ export function chooseWhatToShare(
     );
     return;
   }
-  Alert.alert(t.shareRoomTitle(), undefined, [
+  Alert.alert(t.shareSpan(span), undefined, [
     { text: t.cancel(), style: 'cancel' },
     ...(has.audio ? [{ text: t.audio(), onPress: () => then('audio') }] : []),
     ...(has.text ? [{ text: t.keepText(), onPress: () => then('text') }] : []),
@@ -520,46 +566,41 @@ export function chooseWhatToShare(
 }
 
 /**
- * A room's text as plain text, the way the log draws it: its date and hours,
- * then each speaker's run under their name and the time it began — its live
- * transcript and the batch transcripts of its recordings, in one order.
+ * A segment's text as plain text, the way the log draws it: its date and
+ * hours, then each speaker's run under their name and the time it began.
  *
- * **Assembled here from the pages the log already reads**, walking back from
- * the room's end until a page reaches before its start, rather than from a
- * route of its own — so sharing text needs nothing the server does not
- * already serve, and reads only what the member could scroll to. A stand-in
- * has no live text, for `intoRooms`' reason, so its pages are not read.
+ * **Its batch transcript as held, or its live lines read afresh**, walking
+ * back from the segment's end until a page reaches before its start, rather
+ * than from a route of its own — so sharing text needs nothing the server
+ * does not already serve, and is whole even where the log has not paged that
+ * far back yet.
  */
-export async function roomText(
+export async function segmentText(
   token: string,
   channelId: string,
-  room: RoomView,
-  t: Strings['channel'],
-  recordings: readonly RecordingView[] = []
+  item: SegmentItem,
+  t: Strings['channel']
 ): Promise<string> {
-  const ids = new Set(room.recordingIds);
+  const { segment } = item;
+  if (!segment.text) return formatSegmentText(segment, item.lines, t);
   let lines: LiveLine[] = [];
-  for (const recording of recordings) {
-    if (!ids.has(recording.id) || recording.transcript?.state !== 'ready') continue;
-    lines = merge(lines, await batchLines(token, recording));
-  }
-  let before = room.closedAt === null ? undefined : room.closedAt + 1;
-  while (!room.standIn) {
+  let before = segment.endedAt === null ? undefined : segment.endedAt + 1;
+  for (;;) {
     const page = await api.liveTranscript(token, channelId, before);
-    lines = merge(page.lines.filter((line) => holds(room, line.startAt)), lines);
-    if (!page.more || page.lines.length === 0 || page.lines[0].startAt < room.openedAt) break;
+    lines = merge(page.lines.filter((line) => covers(segment, line.startAt)), lines);
+    if (!page.more || page.lines.length === 0 || page.lines[0].startAt < segment.startedAt) break;
     before = page.lines[0].startAt;
   }
-  return formatRoomText(room, lines, t);
+  return formatSegmentText(segment, lines, t);
 }
 
-/** The text `roomText` shares, from lines already in hand. */
-export function formatRoomText(
-  room: RoomView,
+/** The text `segmentText` shares, from lines already in hand. */
+export function formatSegmentText(
+  segment: SegmentView,
   lines: readonly LiveLine[],
   t: Strings['channel']
 ): string {
-  const head = `${t.liveDay(room.openedAt)} · ${t.roomSpan(room.openedAt, room.closedAt)}`;
+  const head = `${t.liveDay(segment.startedAt)} · ${t.roomSpan(segment.startedAt, segment.endedAt)}`;
   const blocks = intoBlocks(
     lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
   ).map(
@@ -601,14 +642,16 @@ export function formatRoomText(
  * **Pause is one hold over the pair.** Pause holds everything running; while
  * anything chosen is held it reads Resume, and Resume restarts everything
  * held — so a form switched on during a hold runs, the button still offers
- * Resume, and one press brings the pair back level. Audio's hold is
- * `PAUSE_RECORDING`, which keeps the run one recording — the server captures
- * it in segments and joins them, recorded time only, so what was said either
- * side of a pause is one file with no gap, in the room it began in. Text's is
- * `PAUSE_LIVE_TRANSCRIPTION`: nothing goes to the provider while it holds, and
- * the lines either side are one stretch of the same room. Both on the
- * recording's Pause rules. **The button is always drawn**, refused while there
- * is nothing it may start or hold, so it never moves under the thumb.
+ * Resume, and one press brings the pair back level. **A pause is a clean
+ * break, since 2026-10-10**: it ends the recording and the stretch of text,
+ * and Resume begins a new segment of each — one action either way, which core
+ * applies to both, so they end and begin together. Both on the recording's
+ * Pause rules. **The button is always drawn**, refused while there is nothing
+ * it may start or hold, so it never moves under the thumb.
+ *
+ * **So is every switch.** Text switched while the audio records ends that
+ * recording and begins another, so a segment is kept one way throughout; and
+ * Start, where it includes the text, is one request that begins both.
  *
  * Under the row, as under the buttons it replaces: why Audio is refused when
  * nothing else on the screen says, and a capture that stopped for a reason
@@ -633,10 +676,10 @@ export function KeepSwitches({
   const textHeld = textOn && !!channel.liveTranscriptionPaused;
   const mayStop = canStopRecording(channel, me);
 
-  const setText = (on: boolean) => {
+  const setText = (on: boolean, withAudio = false) => {
     if (!app.token) return;
     api
-      .setLiveTranscription(app.token, channelId, on)
+      .setLiveTranscription(app.token, channelId, on, withAudio)
       .catch((e: unknown) =>
         Alert.alert(t.keepText(), e instanceof Error ? e.message : String(e))
       );
@@ -644,46 +687,48 @@ export function KeepSwitches({
   const switchAudio = (on: boolean) =>
     app.act(channelId, { type: on ? 'START_RECORDING' : 'STOP_RECORDING' });
 
-  // Resume while anything chosen is held, Pause otherwise; each sends only
-  // what this person may do to what is actually in that state. A form that
-  // is running while the other is held is left alone by Resume, which is
-  // what lets one press bring the pair back level.
+  // Resume while anything chosen is held, Pause otherwise. **One action
+  // either way, since 2026-10-10**: core holds or restarts everything this
+  // person may with whichever of the pair is sent, so that both end, and
+  // begin again, at one instant — each a clean break, a new segment. The one
+  // sent is whichever this person may move, so the guard is the one asked.
   const resuming = audioHeld || textHeld;
   const starting = !audioOn && !textOn;
   const mayStartAudio = canStartRecording(channel, me);
   // The account pays for it and the room decides it, as Audio is decided.
   const mayStartText = mayTranscribeLive && canSetLiveTranscription(channel, me, true);
-  const holds: Array<
+  const hold:
     | { type: 'PAUSE_RECORDING' }
     | { type: 'RESUME_RECORDING' }
     | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
     | { type: 'RESUME_LIVE_TRANSCRIPTION' }
-  > = resuming
-    ? [
-        ...(audioHeld && canResumeRecording(channel, me)
-          ? [{ type: 'RESUME_RECORDING' as const }]
-          : []),
-        ...(textHeld && canResumeLiveTranscription(channel, me)
-          ? [{ type: 'RESUME_LIVE_TRANSCRIPTION' as const }]
-          : []),
-      ]
-    : [
-        ...(canPauseRecording(channel, me) ? [{ type: 'PAUSE_RECORDING' as const }] : []),
-        ...(canPauseLiveTranscription(channel, me)
-          ? [{ type: 'PAUSE_LIVE_TRANSCRIPTION' as const }]
-          : []),
-      ];
+    | null = resuming
+    ? audioHeld && canResumeRecording(channel, me)
+      ? { type: 'RESUME_RECORDING' }
+      : textHeld && canResumeLiveTranscription(channel, me)
+        ? { type: 'RESUME_LIVE_TRANSCRIPTION' }
+        : null
+    : canPauseRecording(channel, me)
+      ? { type: 'PAUSE_RECORDING' }
+      : canPauseLiveTranscription(channel, me)
+        ? { type: 'PAUSE_LIVE_TRANSCRIPTION' }
+        : null;
 
-  const starts = starting
-    ? [
-        ...(mayStartAudio ? [() => switchAudio(true)] : []),
-        ...(mayStartText ? [() => setText(true)] : []),
-      ]
-    : [];
+  // Start in one request where it includes the text — the route begins the
+  // audio in the same step — so the segment kept both ways begins at once.
+  const start = !starting
+    ? null
+    : mayStartText
+      ? () => setText(true, mayStartAudio)
+      : mayStartAudio
+        ? () => switchAudio(true)
+        : null;
   const press = starting
-    ? () => starts.forEach((start) => start())
-    : () => holds.forEach((action) => app.act(channelId, action));
-  const refusedPress = starting ? starts.length === 0 : holds.length === 0;
+    ? () => start?.()
+    : () => {
+        if (hold) app.act(channelId, hold);
+      };
+  const refusedPress = starting ? start === null : hold === null;
   const word = starting ? t.start() : resuming ? t.resume() : t.pause();
 
   const audioRefused = audioOn ? !mayStop : !mayStartAudio;
@@ -785,8 +830,8 @@ export function KeepSwitch({
 
 /**
  * A recording's batch transcript as lines of the log: on the clock at the
- * recording's start plus each line's offset, which is exact for a run never
- * paused and early by the pauses after one. Ids are the recording's, so they
+ * recording's start plus each line's offset, which is exact, a recording
+ * being one unbroken run since 2026-10-10. Ids are the recording's, so they
  * cannot meet a live line's.
  */
 export async function batchLines(token: string, recording: RecordingView): Promise<LiveLine[]> {
@@ -809,57 +854,50 @@ export function merge(a: readonly LiveLine[], b: readonly LiveLine[]): LiveLine[
   return [...byId.values()].sort((x, y) => x.startAt - y.startAt || x.id.localeCompare(y.id));
 }
 
-/** Whether a moment falls inside a room, which may still be open. */
-function holds(room: RoomView, at: number): boolean {
-  return at >= room.openedAt && (room.closedAt === null || at <= room.closedAt);
+/** Whether a moment falls inside a segment, which may still be running. */
+function covers(segment: SegmentView, at: number): boolean {
+  return at >= segment.startedAt && (segment.endedAt === null || at <= segment.endedAt);
 }
 
-/** What a room holds: stretches of talk, and the recordings between them. */
-type RoomItem =
-  | { kind: 'lines'; lines: LiveLine[] }
-  | { kind: 'recording'; recording: RecordingView };
+/** One segment as the log draws it: its recording, if any, and its text. */
+export interface SegmentItem {
+  segment: SegmentView;
+  /** Its audio, once the recording is filed and while it is not deleted. */
+  recording: RecordingView | null;
+  lines: LiveLine[];
+}
 
 /**
- * Lines and recordings in the order they happened, under the room they
- * happened in; anything in no room is left out. A recording belongs to the
- * room the server named it in, or to an open one it began inside since, and
- * its batch transcript, from `batch`, goes with it. A recording that began at
- * the same moment as a line comes first, being where that stretch of the
- * record starts.
+ * Each room's segments as the log draws them, oldest first; a room with none
+ * left to draw is left out. A segment's text is the live lines inside it when
+ * it was kept as text live, and otherwise its recording's batch transcript.
+ * One whose recording is gone — deleted, or never filed because it captured
+ * nothing — and that kept no text is left out; one still running whose
+ * recording is not filed yet is drawn without it. A segment that ended before
+ * `from`, the oldest live line loaded, waits for the earlier pages, so that
+ * nothing is drawn above talk not loaded yet.
  */
 export function intoRooms(
   rooms: readonly RoomView[],
   lines: readonly LiveLine[],
   recordings: readonly RecordingView[],
-  batch: ReadonlyMap<string, readonly LiveLine[]> = new Map()
-): Array<{ room: RoomView; items: RoomItem[] }> {
+  batch: ReadonlyMap<string, readonly LiveLine[]> = new Map(),
+  from = -Infinity
+): Array<{ room: RoomView; items: SegmentItem[] }> {
+  const byId = new Map(recordings.map((r) => [r.id, r]));
   return rooms
     .map((room) => {
-      const ids = new Set(room.recordingIds);
-      const placed = recordings.filter(
-        (r) => ids.has(r.id) || (room.closedAt === null && holds(room, r.startedAt))
-      );
-      const events = [
-        ...placed.map((recording) => ({ at: recording.startedAt, recording })),
-        ...placed.flatMap((r) => batch.get(r.id) ?? []).map((line) => ({ at: line.startAt, line })),
-        // Live lines only into a sitting that was transcribed, or is open and
-        // may yet be — never a recording's stand-in, which may be transcribed
-        // by batch, so that talk written down before rooms existed does not
-        // attach itself to whichever old recording it happens to overlap.
-        ...(!room.standIn && (room.transcribed || room.closedAt === null) ? lines : [])
-          .filter((l) => holds(room, l.startAt))
-          .map((line) => ({ at: line.startAt, line })),
-      ].sort((x, y) => x.at - y.at || ('recording' in x ? -1 : 0) - ('recording' in y ? -1 : 0));
-
-      const items: RoomItem[] = [];
-      for (const event of events) {
-        if ('recording' in event) {
-          items.push({ kind: 'recording', recording: event.recording });
-          continue;
-        }
-        const last = items[items.length - 1];
-        if (last?.kind === 'lines') last.lines.push(event.line);
-        else items.push({ kind: 'lines', lines: [event.line] });
+      const items: SegmentItem[] = [];
+      for (const segment of room.segments ?? []) {
+        if (segment.endedAt !== null && segment.endedAt < from) continue;
+        const recording = segment.recordingId ? (byId.get(segment.recordingId) ?? null) : null;
+        if (!recording && !segment.text && segment.endedAt !== null) continue;
+        const said = segment.text
+          ? lines.filter((line) => covers(segment, line.startAt))
+          : recording
+            ? [...(batch.get(recording.id) ?? [])]
+            : [];
+        items.push({ segment, recording, lines: said });
       }
       return { room, items };
     })
@@ -872,11 +910,25 @@ const SWITCH_SCALE = 0.8;
 const styles = StyleSheet.create({
   body: { gap: spacing(1) },
   room: { gap: spacing(1.5) },
+  segment: { gap: spacing(1) },
+  // A segment's line where no recording draws it: the marker, the label, the
+  // share at the end — the same row `RecordingRow`'s inline line is.
+  segmentLine: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
+  segmentLabel: { flex: 1 },
+  // A ring the record dot's size: kept, and not as audio.
+  ring: {
+    width: 10,
+    height: 10,
+    marginHorizontal: 2,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+  },
   entry: { gap: spacing(0.25) },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
-  // A room's line, inline and hoisted alike: the date and hours, and the
-  // share at the end. The hairline under it is what made it a rule.
+  // A room's line, inline and hoisted alike: the date and hours. The
+  // hairline under it is what made it a rule.
   line: {
     flexDirection: 'row',
     alignItems: 'center',

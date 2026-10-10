@@ -36,6 +36,7 @@ import {
   presentOrEmpty,
   canEditChannel,
   canSetLiveTranscription,
+  canStartRecording,
   holdsTheControls,
   COMMUNITY_OWNER_ACTIONS,
   GUEST_ACTIONS,
@@ -84,6 +85,7 @@ import type {
 import type { Accounts } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
 import { ROOM_DEPARTURE_MS, Rooms } from './rooms';
+import { Segments } from './segments';
 import {
   insertWithUniqueKey,
   newId,
@@ -810,6 +812,8 @@ export class ChannelRegistry {
    * rooms.ts.
    */
   readonly rooms: Rooms;
+  /** What each stretch of a room kept. See segments.ts. */
+  readonly segmentLog: Segments;
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
@@ -1100,6 +1104,8 @@ export class ChannelRegistry {
     );
     this.guests = new Guests(db);
     this.rooms = new Rooms(db);
+    this.segmentLog = new Segments(db);
+    this.rooms.segments = this.segmentLog;
     this.trackRoot =
       trackRoot ??
       join(tmpdir(), `thefloor-tracks-${process.pid}-${++ephemeralRoots}`);
@@ -1181,7 +1187,9 @@ export class ChannelRegistry {
   setLiveTranscription(
     channelId: string,
     userId: string,
-    on: boolean
+    on: boolean,
+    /** Start's other half: begin the audio in the same step, if they may. */
+    withAudio = false
   ): { ok: true; channel: ChannelState } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel || !channel.participants.includes(userId)) {
@@ -1202,7 +1210,21 @@ export class ChannelRegistry {
         code: 'forbidden',
       };
     }
-    const next = reduce(channel, { type: 'SET_LIVE_TRANSCRIPTION', on }, this.now());
+    // A run id whether or not one is needed: switching the text while the
+    // audio records begins a new run, since a change of what is kept is a
+    // clean break (`restartOnTextChange` in core), and so does Start.
+    const runId = newId('rec');
+    const next = reduce(
+      channel,
+      {
+        type: 'SET_LIVE_TRANSCRIPTION',
+        on,
+        runId,
+        startRecording: withAudio && canStartRecording(channel, userId),
+      },
+      this.now()
+    );
+    if (next.recording.runId === runId) this.runInitiator.set(runId, userId);
     if (next !== channel) {
       this.commit(channel, next);
       this.emit([channelId]);
@@ -2530,6 +2552,19 @@ export class ChannelRegistry {
     if (action.type === 'START_RECORDING') {
       return this.apply(channelId, userId, {
         type: 'START_RECORDING',
+        runId: newId('rec'),
+      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    }
+    // Each of these may begin a run since 2026-10-10 — Resume a new one, and
+    // a change to the text a continuation (`restartOnTextChange`) — so each
+    // carries an id minted here, for the same reason as a start's.
+    if (
+      action.type === 'RESUME_RECORDING' ||
+      action.type === 'PAUSE_LIVE_TRANSCRIPTION' ||
+      action.type === 'RESUME_LIVE_TRANSCRIPTION'
+    ) {
+      return this.apply(channelId, userId, {
+        type: action.type,
         runId: newId('rec'),
       } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     }
@@ -4316,6 +4351,8 @@ export class ChannelRegistry {
       this.rooms.closed(after.id, this.now());
       this.roomEmptiedAt.set(after.id, this.now());
     }
+    // After the room, so a segment never opens in a room not yet written.
+    this.segmentLog.follow(before, after, this.now());
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a
@@ -5625,13 +5662,31 @@ export class ChannelRegistry {
   ): void {
     if (!this.media) return;
 
+    // **One run replaced by another without a stop between** — a change of
+    // what is kept, which is a clean break since 2026-10-10 — is torn down
+    // and filed before the next is opened. Both write into the same
+    // per-channel maps (stems, audience, floor windows), so the new run's
+    // capture must not begin until the old run has taken what is its.
+    const finished = before.recording.runId;
+    const runId = after.recording.runId;
+    let filed = false;
+    if (
+      finished !== null &&
+      runId !== null &&
+      finished !== runId &&
+      this.capturing.has(after.id)
+    ) {
+      this.stopCapture(after);
+      this.fileRun(after, finished);
+      filed = true;
+    }
+
     // A new run gets its row now, not when it ends. An open row is what makes
     // the run survivable: if this process dies mid-capture, the next boot
     // finds the row, keeps the audio it references, and marks it failed —
     // where a row written only at the end would leave nothing to find and the
     // bucket holding audio no recording admits to.
-    const runId = after.recording.runId;
-    if (runId !== null && runId !== before.recording.runId) {
+    if (runId !== null && runId !== finished) {
       this.openRun(after, runId);
     }
 
@@ -5644,10 +5699,10 @@ export class ChannelRegistry {
         requested: new Set(),
         retryAt: new Map(),
       });
-      // Seeded only if absent, because this branch is reached by a resume as
-      // well as by a start — pause genuinely stops capture, so resuming looks
-      // identical from here. Overwriting would drop everyone who was in the
-      // first half of the run and gone by the second.
+      // Seeded only if absent. Every run begins here with none since
+      // 2026-10-10, a resume being a new run and `fileRun` having taken the
+      // last one's — but overwriting a set somebody had already started
+      // would drop whoever it held.
       if (!this.recordingAudience.has(after.id)) {
         this.recordingAudience.set(after.id, new Set());
       }
@@ -5665,26 +5720,31 @@ export class ChannelRegistry {
       // openPlayback handles the other.
       this.startMediaCapture(after.id, after);
     } else if (!shouldCapture && isCapturing) {
-      const run = this.capturing.get(after.id)!;
-      this.capturing.delete(after.id);
-      // The run is over, so every stem is, whatever became of its handle.
-      this.usage.closeOthers(['egress'], after.id, new Set());
-      for (const { identity, handle } of run.handles) {
-        this.run(
-          () => this.media?.stopRecording(handle),
-          `stopRecording ${after.id}/${identity}`
-        );
-      }
-      this.stopMediaCapture(after.id);
+      this.stopCapture(after);
     }
 
     // A run that has ended is filed now rather than when the channel ends,
     // which is what lets a channel hold more than one. Capture has already
     // been torn down above, so the stems are complete by the time this runs.
-    const finished = before.recording.runId;
-    if (finished !== null && finished !== after.recording.runId) {
+    if (!filed && finished !== null && finished !== runId) {
       this.fileRun(after, finished);
     }
+  }
+
+  /** Ends every stem of the run being captured. */
+  private stopCapture(after: ChannelState): void {
+    const run = this.capturing.get(after.id);
+    if (!run) return;
+    this.capturing.delete(after.id);
+    // The run is over, so every stem is, whatever became of its handle.
+    this.usage.closeOthers(['egress'], after.id, new Set());
+    for (const { identity, handle } of run.handles) {
+      this.run(
+        () => this.media?.stopRecording(handle),
+        `stopRecording ${after.id}/${identity}`
+      );
+    }
+    this.stopMediaCapture(after.id);
   }
 
 
@@ -7590,6 +7650,7 @@ export class ChannelRegistry {
   restore(): void {
     const now = this.now();
     this.rooms.restore(now);
+    this.segmentLog.restore(now);
 
     // Runs the previous process never finished. Kept rather than deleted —
     // the audio LiveKit wrote is real and the row's last checkpoint references

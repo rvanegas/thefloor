@@ -159,28 +159,52 @@ describe('starting a recording', () => {
 });
 
 describe('pause, resume, and stop', () => {
-  it('accumulates recorded time across pauses, excluding paused time', () => {
-    const s = apply(joined(), [
+  /**
+   * **A pause ends the run, and Resume begins another**, since 2026-10-10:
+   * the record is a sequence of segments, and every pause is a break.
+   */
+  it('ends the run at a pause and begins a new one, quietly, at Resume', () => {
+    const paused = apply(joined(), [
       [start(A), T0],
       [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 10_000],
-      [{ type: 'RESUME_RECORDING', userId: A }, T0 + 40_000],
     ]);
-    // 10s recorded, 30s paused, then running again.
-    expect(recordedMs(s.recording, T0 + 40_000)).toBe(10_000);
-    expect(recordedMs(s.recording, T0 + 45_000)).toBe(15_000);
-
-    const stopped = reduce(s, { type: 'STOP_RECORDING', userId: A }, T0 + 45_000);
-    // Stopping returns the channel to idle rather than parking it in a
-    // terminal state; what was captured moves to `lastRecording`, which is the
-    // only place a finished run is described.
-    expect(stopped.recording.status).toBe('idle');
-    expect(stopped.recording.runId).toBeNull();
-    expect(stopped.lastRecording).toMatchObject({
+    expect(paused.recording).toMatchObject({ status: 'paused', runId: null });
+    expect(paused.lastRecording).toMatchObject({
       runId: RUN,
       startedAt: T0,
-      endedAt: T0 + 45_000,
-      durationMs: 15_000,
+      endedAt: T0 + 10_000,
+      durationMs: 10_000,
     });
+    // The paused pill still reads what was recorded.
+    expect(recordedMs(paused.recording, T0 + 20_000)).toBe(10_000);
+
+    const resumed = reduce(
+      paused,
+      { type: 'RESUME_RECORDING', userId: A, runId: 'rec_two' },
+      T0 + 40_000
+    );
+    expect(resumed.recording).toMatchObject({
+      status: 'recording',
+      runId: 'rec_two',
+      startedAt: T0 + 40_000,
+      // Resuming is not somebody starting a recording, so it does not chime.
+      automatic: true,
+    });
+    expect(recordedMs(resumed.recording, T0 + 45_000)).toBe(5_000);
+
+    const stopped = reduce(resumed, { type: 'STOP_RECORDING', userId: A }, T0 + 45_000);
+    expect(stopped.recording.status).toBe('idle');
+    expect(stopped.recording.runId).toBeNull();
+    expect(stopped.lastRecording).toMatchObject({ runId: 'rec_two', durationMs: 5_000 });
+  });
+
+  it('stays paused when a resume carries no run id', () => {
+    const s = apply(joined(), [
+      [start(A), T0],
+      [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
+      [{ type: 'RESUME_RECORDING', userId: A }, T0 + 2_000],
+    ]);
+    expect(s.recording.status).toBe('paused');
   });
 
   it('does not end the channel', () => {
@@ -257,8 +281,92 @@ describe('floor restriction on recording controls', () => {
       [{ type: 'CLAIM_FLOOR', userId: A }, T0 + 2_000],
     ]);
     expect(canResumeRecording(s, B)).toBe(true);
-    const resumed = reduce(s, { type: 'RESUME_RECORDING', userId: B }, T0 + 3_000);
+    const resumed = reduce(
+      s,
+      { type: 'RESUME_RECORDING', userId: B, runId: 'rec_two' },
+      T0 + 3_000
+    );
     expect(resumed.recording.status).toBe('recording');
+  });
+});
+
+/**
+ * **Each segment is kept one way throughout**, since 2026-10-10, so that
+ * where audio and text are both kept they cover exactly the same span. A
+ * change to the text while the audio records ends the run and begins another;
+ * Pause and Resume move both at once.
+ */
+describe('segments', () => {
+  const text = (on: boolean, runId?: string): ChannelAction =>
+    ({ type: 'SET_LIVE_TRANSCRIPTION', on, ...(runId ? { runId } : {}) }) as ChannelAction;
+
+  it('restarts the run when text is switched on while recording', () => {
+    const s = apply(joined(), [
+      [start(A), T0],
+      [text(true, 'rec_two'), T0 + 10_000],
+    ]);
+    expect(s.liveTranscription).toBe(true);
+    expect(s.recording).toMatchObject({
+      status: 'recording',
+      runId: 'rec_two',
+      startedAt: T0 + 10_000,
+      automatic: true,
+    });
+    expect(s.lastRecording).toMatchObject({ runId: RUN, endedAt: T0 + 10_000 });
+  });
+
+  it('restarts it again when text is switched off', () => {
+    const s = apply(joined(), [
+      [text(true), T0],
+      [start(A), T0],
+      [text(false, 'rec_two'), T0 + 10_000],
+    ]);
+    expect(s.liveTranscription).toBe(false);
+    expect(s.recording.runId).toBe('rec_two');
+    expect(s.lastRecording).toMatchObject({ runId: RUN, durationMs: 10_000 });
+  });
+
+  it('leaves a run alone when what changed is not the text', () => {
+    const s = apply(joined(), [
+      [text(true), T0],
+      [start(A), T0],
+      [text(true, 'rec_two'), T0 + 10_000],
+    ]);
+    expect(s.recording.runId).toBe(RUN);
+  });
+
+  it('starts audio and text at one instant, for Start', () => {
+    const s = reduce(
+      joined(),
+      { type: 'SET_LIVE_TRANSCRIPTION', on: true, runId: RUN, startRecording: true },
+      T0
+    );
+    expect(s.liveTranscription).toBe(true);
+    expect(s.recording).toMatchObject({
+      status: 'recording',
+      runId: RUN,
+      startedAt: T0,
+      automatic: false,
+    });
+  });
+
+  it('holds both with either Pause, and restarts both with either Resume', () => {
+    const paused = apply(joined(), [
+      [text(true), T0],
+      [start(A), T0],
+      [{ type: 'PAUSE_LIVE_TRANSCRIPTION', userId: A }, T0 + 10_000],
+    ]);
+    expect(paused.recording.status).toBe('paused');
+    expect(paused.liveTranscriptionPaused).toBe(true);
+    expect(paused.lastRecording).toMatchObject({ runId: RUN, durationMs: 10_000 });
+
+    const resumed = reduce(
+      paused,
+      { type: 'RESUME_RECORDING', userId: A, runId: 'rec_two' },
+      T0 + 20_000
+    );
+    expect(resumed.recording).toMatchObject({ status: 'recording', runId: 'rec_two' });
+    expect(resumed.liveTranscriptionPaused).toBe(false);
   });
 });
 

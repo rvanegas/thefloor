@@ -888,11 +888,15 @@ export const api = {
   rooms: (token: string, channelId: string) =>
     request<{ rooms: RoomView[] }>(`/channels/${channelId}/rooms`, { token }),
 
-  /** Turns a channel's live transcript on or off, for whoever may. */
-  setLiveTranscription: (token: string, channelId: string, on: boolean) =>
+  /**
+   * Turns a channel's live transcript on or off, for whoever may — and with
+   * `audio`, Start: the recording begins in the same step, so the segment
+   * kept both ways begins at one instant.
+   */
+  setLiveTranscription: (token: string, channelId: string, on: boolean, audio = false) =>
     request<{ ok: true; liveTranscription: boolean }>(
       `/channels/${channelId}/live-transcription`,
-      { method: 'PUT', token, body: { on } }
+      { method: 'PUT', token, body: audio ? { on, audio } : { on } }
     ),
 
   /** *Record automatically*'s Text. See `autoTranscribe`. */

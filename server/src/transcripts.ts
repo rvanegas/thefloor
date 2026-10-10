@@ -877,15 +877,20 @@ export class Transcripts {
   }
 
   /**
-   * Whether any of this recording was transcribed live — a line of the live
-   * transcript written while it ran, between its start and its end.
+   * Whether this recording was kept as text live, which is what withholds a
+   * batch transcript from it: its words are in the log already.
    *
-   * **Any line, not the whole run**, since 2026-10-10: a recording that had
-   * Text switched on partway is one somebody chose to keep as text, and it is
-   * not offered for batch, which would draw the overlap twice in the log.
-   * The batch transcript is for recordings made with no text at all.
+   * **Its segment says**, since 2026-10-10, when every change of what is
+   * kept became a clean break and a recording became exactly one segment's
+   * audio. One made before then has no segment, and counts as live if any
+   * line of the live transcript fell inside it — Text could be switched on
+   * partway, then, and the overlap would otherwise be drawn twice.
    */
   transcribedLive(recordingId: string): boolean {
+    const segment = this.db
+      .prepare('SELECT text FROM segments WHERE recording_id = ?')
+      .get(recordingId) as { text: number } | undefined;
+    if (segment) return segment.text === 1;
     return !!this.db
       .prepare(
         `SELECT 1 FROM recordings r JOIN live_lines l

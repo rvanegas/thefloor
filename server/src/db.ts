@@ -1964,6 +1964,23 @@ CREATE TABLE IF NOT EXISTS rooms (
 CREATE INDEX IF NOT EXISTS rooms_channel
   ON rooms(channel_id, opened_at);
 
+-- A segment: a stretch of a room kept one way throughout — audio (the run in
+-- recording_id), text, or both — written on every change of what is kept,
+-- with ended_at null while it runs. See segments.ts. None exist before
+-- 2026-10-10; rooms.ts derives those.
+CREATE TABLE IF NOT EXISTS segments (
+  id            TEXT PRIMARY KEY,
+  channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  started_at    INTEGER NOT NULL,
+  ended_at      INTEGER,
+  recording_id  TEXT,
+  text          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS segments_channel
+  ON segments(channel_id, started_at);
+CREATE INDEX IF NOT EXISTS segments_recording
+  ON segments(recording_id);
+
 -- One streaming session per row: what the live transcript cost. The provider
 -- bills by how long a session is open, which is billed_seconds as its own
 -- Termination reported it — null when it never said, an error or a timeout.

@@ -697,10 +697,14 @@ a departure.
 `RecordingState` whose `status` is `'idle' | 'recording' | 'paused'`
 (`:32`). Single predicate `isRecordingActive` (`core/recording.ts:28`).
 
-**Conditions.** `runId` is non-null exactly while a run is in progress — total
-by construction, because there is no `'stopped'`: a stopped run is simply over
-and the channel returns to idle, which is what makes several recordings in one
-channel possible. Guarded by `canStartRecording`, which requires the actor to
+**Conditions.** `runId` is non-null exactly while `status` is `'recording'` —
+total by construction, because there is no `'stopped'`: a stopped run is simply
+over and the channel returns to idle, which is what makes several recordings in
+one channel possible. **`'paused'` holds no run since 2026-10-10**: a pause
+ends the run and Resume begins another under a fresh id, as does *Text*
+changing while it records (`restartOnTextChange`), because every change of
+what is kept begins a new *segment* (GLOSSARY.md § *Segment*). `paused` is
+only the memory that Resume has something to begin again. Guarded by `canStartRecording`, which requires the actor to
 be **present** and requires the room to be `capturable` — anybody's open
 microphone, or a track playing. **One person alone may record**, as they could
 before 2026-09-07 and could not between then and 2026-09-14; what is refused is
@@ -708,8 +712,9 @@ a room where every microphone is shut and nothing is playing, a run there
 having nothing to put in the file. The run stops the moment nobody is present.
 
 **`automatic` is how the run began, and is the one field here that no layer
-computes.** True exactly for a run the server's `autoRecord` latch started,
-false for every client-originated one — the wire's `START_RECORDING` carries no
+computes.** True for a run the server's `autoRecord` latch started — and, since
+2026-10-10, for one continuing a run that a pause or a *Text* change ended,
+which is nobody starting a recording — false for every run a person started — the wire's `START_RECORDING` carries no
 such field, so it cannot be claimed from a phone. It is on the state rather
 than only on the action because the layer that reads it is every *other*
 device: `useRecordingChime` sounds an audible notice when a hand-started run

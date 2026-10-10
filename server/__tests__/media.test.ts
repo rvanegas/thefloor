@@ -340,10 +340,11 @@ describe('recording capture', () => {
     }
   });
 
-  it('stops every stem on pause and starts new segments on resume', async () => {
+  it('stops every stem on pause and begins a new run on resume', async () => {
     const { alice, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
+    const first = runIdOf(channelId);
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
 
@@ -355,14 +356,15 @@ describe('recording capture', () => {
     await settle();
 
     expect(media.recordings).toHaveLength(4);
-    // Pause and resume are one run, so both segments sit under the same run
-    // prefix — it is the index that distinguishes them, not the run.
+    // A pause ends the run since 2026-10-10, so the resumed stems are a new
+    // run's, under its own prefix and numbered from one.
     const run = runIdOf(channelId);
+    expect(run).not.toBe(first);
     const second = media.recordings.slice(2);
     expect(second.map((r) => r.key).sort()).toEqual(
       [
-        `${channelId}/${run}/${alice.account.id}-002.ogg`,
-        `${channelId}/${run}/${second.find((r) => r.identity !== alice.account.id)!.identity}-002.ogg`,
+        `${channelId}/${run}/${alice.account.id}-001.ogg`,
+        `${channelId}/${run}/${second.find((r) => r.identity !== alice.account.id)!.identity}-001.ogg`,
       ].sort()
     );
     expect(second.every((r) => !r.stopped)).toBe(true);
@@ -445,37 +447,63 @@ describe('recording capture', () => {
     expect(channel.recording.runId).toBeNull();
   });
 
-  it('records every segment against the finished recording', async () => {
+  it('files a recording either side of a pause', async () => {
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
-    const run = runIdOf(channelId);
+    const first = runIdOf(channelId);
     clock += 10_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
     await settle();
+    clock += 30_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
+    const second = runIdOf(channelId);
     clock += 5_000;
     endChannel(channelId);
     await settle();
 
-    const row = app.db
-      .prepare('SELECT * FROM recordings WHERE id = ?')
-      .get(run) as { stems: string; duration_ms: number };
-    const stems = JSON.parse(row.stems) as Record<
-      string,
-      Array<{ key: string; startMs: number }>
-    >;
-    // Each participant's stem is split by the pause, and only by the pause —
-    // and the second segment knows it starts where the first run ended.
-    for (const identity of [alice.account.id, bob.account.id]) {
-      expect(stems[identity]).toEqual([
-        { key: `${channelId}/${run}/${identity}-001.ogg`, startMs: 0 },
-        { key: `${channelId}/${run}/${identity}-002.ogg`, startMs: 10_000 },
-      ]);
+    const rows = app.db
+      .prepare('SELECT * FROM recordings WHERE channel_id = ? ORDER BY started_at')
+      .all(channelId) as Array<{ id: string; stems: string; duration_ms: number }>;
+    expect(rows.map((r) => [r.id, r.duration_ms])).toEqual([
+      [first, 10_000],
+      [second, 5_000],
+    ]);
+    for (const [row, run] of [[rows[0], first], [rows[1], second]] as const) {
+      const stems = JSON.parse(row.stems) as Record<
+        string,
+        Array<{ key: string; startMs: number }>
+      >;
+      for (const identity of [alice.account.id, bob.account.id]) {
+        expect(stems[identity]).toEqual([
+          { key: `${channelId}/${run}/${identity}-001.ogg`, startMs: 0 },
+        ]);
+      }
     }
-    // Paused time is excluded, so the duration is the two run segments only.
-    expect(row.duration_ms).toBe(15_000);
+  });
+
+  it('files the run and begins another when Text changes while recording', async () => {
+    const { alice, channelId } = await sessionOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    await settle();
+    const first = runIdOf(channelId);
+    clock += 6_000;
+    const result = app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    expect(result.ok).toBe(true);
+    await settle();
+
+    const second = runIdOf(channelId);
+    expect(second).not.toBe(first);
+    // The first run's stems are stopped and filed; the second's are running.
+    expect(media.recordings.slice(0, 2).every((r) => r.stopped)).toBe(true);
+    expect(media.recordings.slice(2).every((r) => !r.stopped)).toBe(true);
+    expect(media.recordings.slice(2).every((r) => r.key.startsWith(`${channelId}/${second}/`))).toBe(true);
+    const filed = app.db
+      .prepare('SELECT duration_ms, ended_at FROM recordings WHERE id = ?')
+      .get(first) as { duration_ms: number; ended_at: number | null };
+    expect(filed.duration_ms).toBe(6_000);
+    expect(filed.ended_at).not.toBeNull();
   });
 
   it('captures nothing when recording was never started', async () => {
@@ -606,9 +634,9 @@ describe('several recordings in one channel', () => {
   });
 
   it('numbers the second run’s segments from one, under its own prefix', async () => {
-    // The index restarting is exactly why the run has to be in the path. A
-    // pause inside run two writes -001 and -002 again, and those names mean a
-    // different pair of objects than run one's did.
+    // The index restarting is exactly why the run has to be in the path:
+    // run two writes -001 again, and that name means a different object than
+    // run one's did.
     const { alice, bob, channelId } = await sessionOfTwo();
 
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
@@ -622,12 +650,6 @@ describe('several recordings in one channel', () => {
     await settle();
     const second = runIdOf(channelId);
     clock += 3_000;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
-    await settle();
-    clock += 20_000; // Paused, so absent from the audio and from the offsets.
-    app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
-    await settle();
-    clock += 2_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
     await settle();
 
@@ -638,7 +660,6 @@ describe('several recordings in one channel', () => {
       ]);
       expect(stemsOf(runTwo)[identity]).toEqual([
         { key: `${channelId}/${second}/${identity}-001.ogg`, startMs: 0 },
-        { key: `${channelId}/${second}/${identity}-002.ogg`, startMs: 3_000 },
       ]);
     }
     // Nothing from run two was filed against run one, and nothing under run
@@ -647,7 +668,7 @@ describe('several recordings in one channel', () => {
     expect(
       keysOf(runTwo).filter((key) => key.startsWith(`${channelId}/${first}/`))
     ).toEqual([]);
-    expect(runTwo.duration_ms).toBe(5_000);
+    expect(runTwo.duration_ms).toBe(3_000);
   });
 
   it('keeps a floor window on the run it happened in', async () => {
@@ -907,18 +928,19 @@ describe('the floor timeline', () => {
     ]);
   });
 
-  it('excludes paused time, so offsets match the recorded audio', async () => {
-    // The encoder gates concatenated segments, which contain no paused time.
-    // An offset measured against the wall clock would drift past every pause.
+  it('measures a claim from the start of the run resumed after a pause', async () => {
+    // A pause ends the run since 2026-10-10, so the run after it begins at
+    // zero and its windows are measured from there.
     const { alice, bob, channelId } = await sessionOfTwo();
     app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
     await settle();
 
     clock += 5_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
-    clock += 30_000; // A long pause, absent from the audio entirely.
+    clock += 30_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'RESUME_RECORDING' });
     await settle();
+    const resumed = runIdOf(channelId);
 
     clock += 4_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'CLAIM_FLOOR' });
@@ -926,9 +948,11 @@ describe('the floor timeline', () => {
     endChannel(channelId);
     await settle();
 
-    // 5s recorded, then 4s more: the claim begins 9s into the audio, not 39s.
-    expect(timelineFor(channelId)).toEqual([
-      { identity: bob.account.id, fromMs: 9_000, toMs: 12_000 },
+    const row = app.db
+      .prepare('SELECT floor_timeline FROM recordings WHERE id = ?')
+      .get(resumed) as { floor_timeline: string };
+    expect(JSON.parse(row.floor_timeline)).toEqual([
+      { identity: bob.account.id, fromMs: 4_000, toMs: 7_000 },
     ]);
   });
 

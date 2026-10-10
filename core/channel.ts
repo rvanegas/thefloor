@@ -54,8 +54,7 @@ import {
   finishedRun,
   initialRecordingState,
   isRecordingActive,
-  pauseRecording,
-  resumeRecording,
+  recordedMs,
   startRecording,
   stopRecording,
 } from './recording';
@@ -2271,8 +2270,17 @@ function reduceAction(
   }
 
   if (action.type === 'SET_LIVE_TRANSCRIPTION') {
-    if (!!state.liveTranscription === action.on) return state;
-    return { ...state, liveTranscription: action.on, liveTranscriptionPaused: false };
+    const starts =
+      action.startRecording === true &&
+      !!action.runId &&
+      state.recording.status === 'idle';
+    if (!!state.liveTranscription === action.on && !starts) return state;
+    return {
+      ...state,
+      liveTranscription: action.on,
+      liveTranscriptionPaused: false,
+      ...(starts ? { recording: startRecording(state.recording, action.runId!, now) } : {}),
+    };
   }
 
   if (action.type === 'RECORDING_FAILED') {
@@ -3050,29 +3058,17 @@ function reduceAction(
       };
     }
 
-    case 'PAUSE_RECORDING': {
-      if (!canPauseRecording(state, action.userId)) return state;
-      return { ...state, recording: pauseRecording(state.recording, now) };
-    }
+    case 'PAUSE_RECORDING':
+    case 'PAUSE_LIVE_TRANSCRIPTION':
+      return holdKeeping(state, action.userId, now);
 
-    case 'RESUME_RECORDING': {
-      if (!canResumeRecording(state, action.userId)) return state;
-      return { ...state, recording: resumeRecording(state.recording, now) };
-    }
+    case 'RESUME_RECORDING':
+    case 'RESUME_LIVE_TRANSCRIPTION':
+      return resumeKeeping(state, action.userId, action.runId, now);
 
     case 'STOP_RECORDING': {
       if (!canStopRecording(state, action.userId)) return state;
       return endRun(state, now);
-    }
-
-    case 'PAUSE_LIVE_TRANSCRIPTION': {
-      if (!canPauseLiveTranscription(state, action.userId)) return state;
-      return { ...state, liveTranscriptionPaused: true };
-    }
-
-    case 'RESUME_LIVE_TRANSCRIPTION': {
-      if (!canResumeLiveTranscription(state, action.userId)) return state;
-      return { ...state, liveTranscriptionPaused: false };
     }
 
     // Every playback action shares one guard, because they are all the same
@@ -3334,7 +3330,90 @@ export function reduce(
   action: ChannelAction,
   now: number
 ): ChannelState {
-  return liftSpentEnforcement(reduceAction(state, action, now));
+  return liftSpentEnforcement(
+    restartOnTextChange(state, reduceAction(state, action, now), action, now)
+  );
+}
+
+/** Whether the live transcript is running: on, and not held. */
+function textRunning(state: ChannelState): boolean {
+  return !!state.liveTranscription && !state.liveTranscriptionPaused;
+}
+
+/**
+ * **A change of what is kept is a clean break**, since 2026-10-10: the record
+ * is a sequence of segments, each kept one way throughout, so that where both
+ * audio and text are kept they cover exactly the same span. Text starting,
+ * stopping, holding or resuming while the audio records therefore ends the
+ * run and begins another, under the run id the server put on the action.
+ * Without one — nothing a client sends lacks it — the run carries on.
+ *
+ * The new run is marked `automatic`, which is what keeps it silent: the chime
+ * announces somebody starting a recording, and this is the one in progress
+ * carrying on in a new segment.
+ */
+function restartOnTextChange(
+  before: ChannelState,
+  after: ChannelState,
+  action: ChannelAction,
+  now: number
+): ChannelState {
+  if (before.recording.status !== 'recording') return after;
+  if (after.recording.status !== 'recording') return after;
+  if (after.recording.runId !== before.recording.runId) return after;
+  if (textRunning(before) === textRunning(after)) return after;
+  const runId = 'runId' in action ? action.runId : undefined;
+  if (!runId) return after;
+  const ended = endRun(after, now);
+  return { ...ended, recording: startRecording(ended.recording, runId, now, true) };
+}
+
+/**
+ * Pause: holds everything running that `userId` may hold. The audio's run
+ * **ends** here rather than being suspended, since 2026-10-10 — a pause is a
+ * clean break like any other change of what is kept — and the state reads
+ * `paused` with no run, so that Resume knows what to begin again.
+ */
+function holdKeeping(state: ChannelState, userId: UserId, now: number): ChannelState {
+  let next = state;
+  if (canPauseRecording(state, userId)) {
+    const ended = endRun(next, now);
+    next = {
+      ...ended,
+      recording: {
+        ...ended.recording,
+        status: 'paused',
+        // What was recorded, so the paused pill reads as it always did.
+        accumulatedMs: recordedMs(state.recording, now),
+        automatic: state.recording.automatic,
+      },
+    };
+  }
+  if (canPauseLiveTranscription(state, userId)) {
+    next = { ...next, liveTranscriptionPaused: true };
+  }
+  return next;
+}
+
+/**
+ * Resume: restarts everything held that `userId` may restart — the audio as a
+ * new run under `runId`, marked `automatic` for `restartOnTextChange`'s
+ * reason, since resuming is not starting a recording.
+ */
+function resumeKeeping(
+  state: ChannelState,
+  userId: UserId,
+  runId: string | undefined,
+  now: number
+): ChannelState {
+  let next = state;
+  if (runId && canResumeRecording(state, userId)) {
+    next = { ...next, recording: startRecording(next.recording, runId, now, true) };
+  }
+  if (canResumeLiveTranscription(state, userId)) {
+    next = { ...next, liveTranscriptionPaused: false };
+  }
+  return next;
 }
 
 function tick(state: ChannelState, now: number): ChannelState {

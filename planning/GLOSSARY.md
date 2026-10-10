@@ -104,13 +104,13 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions, with its *transcript* under it drawn the same way — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
-- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, each moving only itself — either, both or neither: *Audio* is a *recording*, *Text* the *live transcript*; the button beside them is the pair's transport — *Start* while nothing is chosen turns on both, as much as this person may; *Pause* holds everything running; *Resume*, while anything is held, restarts everything held. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
+- **Record (the tab)** — What was kept of a channel, as a log of *segments* laid out in *rooms*: each segment a muted line — its hours, what it kept, its share — with its text under it as plain lines under each speaker's name and time, a segment with audio being its *recording*'s line that opens to its actions; each room headed by a line with its date and hours that is pinned once it scrolls off — one recording from before rooms standing as a room of its own —, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, each moving only itself — either, both or neither: *Audio* is a *recording*, *Text* the *live transcript*; the button beside them is the pair's transport — *Start* while nothing is chosen turns on both, as much as this person may; *Pause* holds everything running; *Resume*, while anything is held, restarts everything held. Every switch, Pause and Resume included, begins a new *segment* since 2026-10-10. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
 - **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. Switching either off on the *Record* tab holds until the room empties and fills again
-- **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off — a Pause between holds it and keeps it one recording, joined without the gap; each one a segment of the *Record*
+- **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off, by a Pause, or by *Text* changing under it, since 2026-10-10 — each one the audio of exactly one *segment* of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back or its text — live and *transcript* alike — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
+- **Share** — Handing a copy of a *segment*'s audio or its text — live or *transcript* — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
@@ -195,7 +195,8 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in and whose audio is shared whole. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`
+- **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
@@ -2393,24 +2394,26 @@ channel settings saying so.
 the *channel tabs* since 2026-10-09, when *Recordings* and *Transcript* became
 it and it took *Listen*'s place. The *live transcript* runs oldest at the top
 and newest at the foot as plain text, the way a chat reads — no cards — each
-speaker's run of lines under their name and the time it began. Each
-*recording* is one muted line at the moment it began, the record dot and its
-name, which opens in place to what a recording's card always offered, Share
-among it. The *Audio* and *Text* switches are pinned over the log, and the
+speaker's run of lines under their name and the time it began. The *Audio* and *Text* switches are pinned over the log, and the
 tab opens at its foot.
 
+**A sequence of segments, since 2026-10-10.** Each *segment* — a stretch
+kept one way throughout — is one muted line: the record dot where it kept
+audio and a ring where it did not, its hours, what it kept (*Audio*, *Text*,
+*Audio + Text*), and the share glyph, with its text under it. A segment with
+audio is its recording's line, and opens to that recording's actions, its
+name among them. The share asks which: the segment's audio or its text, with
+whichever it lacks greyed, under a title naming its hours — never *room*.
+
 **Laid out in rooms.** Each *room* — a sitting, first step in to last step
-out — that kept something starts with a line bearing its date and hours and
-the share glyph, and the line scrolls with the log until it goes off the top,
-where it is pinned until the next room's line pushes it off. The share asks
-which: the room's recordings as one file, back to back, or its live
-transcript as text — whichever the room did not keep shown and greyed. A
-sitting that kept nothing is not drawn. **A recording that fell in
-no sitting is a room of its own** — a *stand-in*, spanning exactly the run,
-recorded and not transcribed — so every recording made before sittings were
-first written, on 2026-10-09, opens the log under its own rule and shares
-like any room. Live transcript from before then is not drawn: it has no
-sitting to stand in and would be a guess.
+out — that kept something starts with a line bearing its date and hours,
+which scrolls with the log until it goes off the top, where it is pinned
+until the next room's line pushes it off. A sitting that kept nothing is not
+drawn. **A recording that fell in no sitting is a room of its own** — a
+*stand-in*, one segment spanning exactly the run — so every recording made
+before sittings were first written, on 2026-10-09, opens the log under its
+own rule. Live transcript from before then is not drawn: it has no sitting to
+stand in and would be a guess.
 
 **Named for what the two forms are together, not for either form.** A
 channel may keep the conversation as audio, as text, both, or neither:
@@ -2516,11 +2519,12 @@ Audio kept from a channel, started by anybody present and ended by them too.
 begins a new recording, so a conversation recorded in stretches is several
 recordings — segments of the *Record* tab, each where it began — rather than
 one file with holes in it. Since the same day starting and ending are the
-*Audio* switch, on and off: off sends `STOP_RECORDING`. **Pausing does not
-end it**: the Pause beside the switches sends `PAUSE_RECORDING`, the server
-stops capture and starts a new segment on resume, and the segments are one
-recording, joined on export with the paused time left out — one file, no gap,
-in the room it began in. *Audio* stays on while it is held. *Present* is
+*Audio* switch, on and off: off sends `STOP_RECORDING`. **Pausing ends it
+too, since 2026-10-10**, and Resume begins another, as does *Text* switched
+while it runs: every change of what is kept is a clean break, so a recording
+is exactly one *segment*'s audio, and where the text was kept beside it the
+two cover the same span. Until then a pause kept one recording, joined
+without the gap. *Audio* stays on while it is held. *Present* is
 the operative word and is the whole of who may touch it: somebody
 who has stepped out is outside the conversation being recorded, and until
 2026-09-12 only the starting half of this sentence was enforced. A recording
@@ -2757,12 +2761,13 @@ screen that asks. Everybody gets one free; asking sends everybody's audio out,
 so who asked is always shown.
 
 **Offered only for a recording made with no text, and read in the log**, since
-2026-10-10. A recording any of which ran while the *live transcript* was on is
-in the log already, so the server refuses one for it and the row offers none.
-A finished transcript is drawn in the *Record* log under its recording's line,
-as the live transcript is — each speaker's run under their name and the time it
-began, on the clock at the recording's start plus each line's offset, which
-reads early after a pause — and is shared as the room's text. Its own screen
+2026-10-10. A recording is one *segment*'s audio, and one whose segment was
+kept as text live is in the log already, so the server refuses one for it and
+the row offers none. A finished transcript is drawn in the *Record* log under
+its segment's line, as the live transcript is — each speaker's run under
+their name and the time it began, on the clock at the recording's start plus
+each line's offset, exact since a recording is one unbroken run — and is
+shared as that segment's text. Its own screen
 went then, and with it the search across a channel's transcripts, the tap that
 moved playback to a line, and its export as subtitles or data; the routes stay
 for the builds that read them.
@@ -4303,6 +4308,31 @@ Reviving every unended channel from its state blob at startup. A restart costs
 the volatile half of *channel state* — presence, the floor, a recording in
 flight — and not the channel. A deploy costs presence, not channels.
 
+## Segment
+
+**A stretch of a room kept one way throughout** — as audio, as text, or as
+both — since 2026-10-10, Rodrigo's word and his rule: *the record is a
+sequence of segments*, one or more per room, and **every change of what is
+kept is a clean break**. *Audio* or *Text* switched, Pause, Resume: each ends
+the segment and begins the next at the same instant. Where audio and text are
+both kept they cover exactly the same span — core ends the recording's run
+and begins another whenever the text changes under it
+(`restartOnTextChange`) — so a *recording* is exactly one segment's audio.
+
+Written by the server on the transitions, as rooms are (`segments`,
+`server/src/segments.ts`), and derived for the rooms from before it: each
+recording one, and the live transcript between recordings one each.
+`SegmentView` on the wire, inside `RoomView`.
+
+**Not a word on screen.** A segment's line names it by its hours, and its
+share's title does too, so nothing asks a person to learn it. A recording
+made as audio alone may be given a *transcript* afterwards, which makes it
+a segment kept both ways; one kept as text live is not offered one.
+
+**Not the stem's pieces**, which the server's capture also calls segments in
+places — the objects one participant's audio is written in, several when an
+egress restarts.
+
 ## Room
 
 **One LiveKit room, from creation to deletion — and, since 2026-10-09,
@@ -4323,8 +4353,9 @@ room does. **A restart ends it**, because the boot deletes every channel's
 LiveKit room, so the people reconnecting are in a new one however soon they
 come. The guests go with the last member (`settleEmpty`), so a room ends for
 everybody at once — *the seat ends when the room does*. `RoomView` is one on the wire; the *Record* tab
-is laid out in them and shares one's audio whole, its recordings back to back
-with the gaps dropped. A recording that fell in no sitting — every one made
+is laid out in them, each holding one *segment* or more. Its audio was shared
+whole, recordings back to back, until 2026-10-10; a segment is what is
+shared now, and the route stays for older builds. A recording that fell in no sitting — every one made
 before rooms were written — is listed as a room of its own, `standIn`.
 "Sala" in Spanish.
 

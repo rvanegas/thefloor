@@ -13,7 +13,10 @@ text be enough by default, and that keeping the audio be something somebody
 chooses to do — which is adding it, not swapping to it. The server never
 enforced the exclusion, and *Record automatically* already produced both.
 
-**Pause is one hold over the pair.** It holds everything running. While
+**Pause is one hold over the pair.** (Superseded the same day in one
+respect: a pause now ends the recording and Resume begins another, every
+change of what is kept being a clean break — see
+2026-10-10-the-record-is-a-sequence-of-segments.md.) It holds everything running. While
 anything chosen is held it reads *Resume*, and Resume restarts everything
 held. A form switched on during a hold, like Text turned on while Audio is
 paused, runs at once and the button keeps offering Resume, so one press brings

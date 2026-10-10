@@ -3093,10 +3093,7 @@ export function ChannelView({
       overlay={
         tab === 'record' ? (
           <HoistedRoom
-            channelId={channelId}
-            name={channel.name ?? derivedTitle}
             room={hoistedRoom}
-            recordings={recordings}
             shift={hoistShift}
           />
         ) : undefined
@@ -4003,10 +4000,13 @@ export function ChannelView({
           recordings={recordings}
           onHoist={setHoistedRoom}
           hoistShift={hoistShift}
-          renderRecording={(r) => (
+          keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}`}
+          renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}
               inline
+              inlineLabel={head.label}
+              inlineTrailing={head.trailing}
               recording={r}
               // Playing one loads it as the channel's shared track, so it is
               // governed by exactly what governs a track somebody uploaded —

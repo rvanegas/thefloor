@@ -1,5 +1,6 @@
 import { newId, type Db } from './db';
-import type { RoomView } from '../../core/protocol';
+import type { RoomView, SegmentView } from '../../core/protocol';
+import type { Segments } from './segments';
 
 /**
  * How long LiveKit keeps a room standing after its last participant leaves —
@@ -45,6 +46,9 @@ export interface RoomRow {
  * existed open the log rather than vanishing from it.
  */
 export class Rooms {
+  /** Where each room's segments are read from; set by the registry. */
+  segments?: Segments;
+
   constructor(private db: Db) {}
 
   /** The channel has gone from nobody here to somebody. */
@@ -135,6 +139,7 @@ export class Rooms {
         closedAt: row.closed_at,
         recordingIds,
         transcribed,
+        segments: this.segmentsOf(channelId, row.opened_at, until, recordingIds),
       });
     }
     const placed = new Set(rooms.flatMap((room) => room.recordingIds));
@@ -148,10 +153,88 @@ export class Rooms {
         closedAt: stray.ended_at,
         recordingIds: [stray.id],
         transcribed: anyBatch([stray.id]),
+        segments: [
+          {
+            id: standInId(stray.id),
+            startedAt: stray.started_at,
+            endedAt: stray.ended_at,
+            recordingId: stray.id,
+            text: false,
+          },
+        ],
         standIn: true,
       });
     }
     return rooms.sort((a, b) => a.openedAt - b.openedAt);
+  }
+
+  /**
+   * A room's segments: as written, or for a room from before they were,
+   * derived — each finished recording one, kept as text too if any live line
+   * fell inside it, and the live lines between recordings one text segment
+   * per gap, from the first such line to the last. A recording without a
+   * row of its own in a room that has rows was still being filed, and is
+   * left to the next read.
+   */
+  private segmentsOf(
+    channelId: string,
+    from: number,
+    until: number,
+    recordingIds: readonly string[]
+  ): SegmentView[] {
+    const written = this.segments?.within(channelId, from, until) ?? [];
+    if (written.length > 0) {
+      return written.map((row) => ({
+        id: row.id,
+        startedAt: row.started_at,
+        endedAt: row.ended_at,
+        recordingId: row.recording_id,
+        text: row.text === 1,
+      }));
+    }
+    const runs = recordingIds
+      .map(
+        (id) =>
+          this.db
+            .prepare('SELECT id, started_at, ended_at FROM recordings WHERE id = ?')
+            .get(id) as { id: string; started_at: number; ended_at: number }
+      )
+      .filter((r) => !!r);
+    const linesIn = this.db.prepare(
+      `SELECT MIN(start_at) first, MAX(end_at) last FROM live_lines
+       WHERE channel_id = ? AND start_at >= ? AND start_at < ?`
+    );
+    const derived: SegmentView[] = [];
+    let gapFrom = from;
+    for (const run of [...runs, null]) {
+      const gapUntil = run ? run.started_at : until + 1;
+      const gap = linesIn.get(channelId, gapFrom, gapUntil) as {
+        first: number | null;
+        last: number | null;
+      };
+      if (gap.first !== null && gap.last !== null) {
+        derived.push({
+          id: `derived_${channelId}_${gap.first}`,
+          startedAt: gap.first,
+          endedAt: gap.last,
+          recordingId: null,
+          text: true,
+        });
+      }
+      if (!run) break;
+      const inside = linesIn.get(channelId, run.started_at, run.ended_at + 1) as {
+        first: number | null;
+      };
+      derived.push({
+        id: `derived_${run.id}`,
+        startedAt: run.started_at,
+        endedAt: run.ended_at,
+        recordingId: run.id,
+        text: inside.first !== null,
+      });
+      gapFrom = run.ended_at + 1;
+    }
+    return derived;
   }
 
   /** One room of one channel, or nothing. */

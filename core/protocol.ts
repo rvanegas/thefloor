@@ -1049,6 +1049,27 @@ export interface LiveLine {
 }
 
 /**
+ * A stretch of a room kept one way throughout — as audio, as text, or both —
+ * which the *Record* tab draws as one line and shares as one thing. Every
+ * change of what is kept begins another, so where both are kept they cover
+ * the same span. Since 2026-10-10.
+ */
+export interface SegmentView {
+  id: string;
+  /** Epoch milliseconds. */
+  startedAt: number;
+  /** Null while it is still being kept. */
+  endedAt: number | null;
+  /** The recording that is its audio, or null when it kept none. */
+  recordingId: string | null;
+  /**
+   * Whether it was kept as text live. A recording's batch transcript, which
+   * is offered only where this is false, is read from the recording.
+   */
+  text: boolean;
+}
+
+/**
  * A sitting: a channel's span from the first member stepping in to the last
  * stepping out, as `GET /channels/:id/rooms` lists them — only those that kept
  * something, oldest first. Since 2026-10-09; a recording from before then
@@ -1067,6 +1088,12 @@ export interface RoomView {
    * or, since 2026-10-10, a recording in it with a finished batch transcript.
    */
   transcribed: boolean;
+  /**
+   * What it kept, oldest first, since 2026-10-10. A room from before then
+   * has them derived: each recording one, and the live transcript between
+   * them one each.
+   */
+  segments: SegmentView[];
   /**
    * Not a sitting but one recording standing as its own room, because it
    * fell in none — every recording made before rooms existed. Spans exactly

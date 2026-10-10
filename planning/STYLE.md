@@ -1301,10 +1301,13 @@ log, the way a chat reads: each speaker's run of lines under their name in
 `spacing(1.5)` between entries and nothing around them. A recording is one
 muted line where it began — the record dot at 14, its name, the time, how
 long — that opens in place to the actions its card had (`RecordingRow`'s
-`inline`). A recording's *transcript* is drawn under that line exactly as
-the live lines are, since 2026-10-10, when its own screen went. Each room
-starts with its line — date, hours, share — over a hairline; see § *The
-pinned header*.
+`inline`). **Since 2026-10-10 the line is a *segment*'s**: the record dot
+where it kept audio and a 10-point ring in `textMuted` where it did not, its
+hours, what it kept, and the share glyph at the end; the recording's name
+moved into the opened row, above its actions. A segment's text — live, or
+its recording's *transcript* — is drawn under its line exactly as the live
+lines were. Each room starts with its line — date and hours, no share — over
+a hairline; see § *The pinned header*.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 
