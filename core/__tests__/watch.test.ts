@@ -232,7 +232,7 @@ describe('starting a party', () => {
    * it writes is the name under the progress bar and the length the scrubber
    * runs on, on every screen watching — so a member sitting outside the room,
    * who has no player and sends this from nowhere the app can reach, does not
-   * get to name somebody else's film. `Picture` mounts on the same `inRoom`.
+   * get to name somebody else's film. `Picture` mounts on the same `isHere`.
    */
   it('is refused to a member who is not in the room', () => {
     const out = reduce(watching(), { type: 'STEP_OUT', userId: B }, T0);
@@ -418,7 +418,7 @@ describe('who may drive it', () => {
  * is one place for the watch party and two for shared playback. **Every watch
  * control asks presence now** — driving as well as putting something on — so
  * the empty channel is no longer an exception to anything here. Playback keeps
- * the older split, `hasTheRoom` to drive and presence to load, and the
+ * the older split, `presentOrEmpty` to drive and presence to load, and the
  * divergence is asserted below rather than left to be noticed.
  */
 describe('a member who has not stepped in', () => {

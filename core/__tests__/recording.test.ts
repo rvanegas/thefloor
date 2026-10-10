@@ -302,8 +302,8 @@ describe('the transport belongs to whoever is in the room', () => {
     expect(canStopRecording(s, B)).toBe(true);
   });
 
-  it('has no empty-channel case for `hasTheRoom` to allow', () => {
-    // Why this asks presence rather than `hasTheRoom` like the clipboard and
+  it('has no empty-channel case for `presentOrEmpty` to allow', () => {
+    // Why this asks presence rather than `presentOrEmpty` like the clipboard and
     // the name: a run cannot outlive the room, so there is never a paused or
     // running transport in an empty channel for an absent member to tidy.
     const s = apply(running(), [[{ type: 'STEP_OUT', userId: A }, T0 + 2_000]]);

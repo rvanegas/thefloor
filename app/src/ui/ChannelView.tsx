@@ -44,7 +44,7 @@ import {
   canPlayWatch,
   watchIsPlaying,
   trackIsPlaying,
-  canUnmuteRoom,
+  canUnmuteEveryone,
   isPartyMuted,
   isWithheld,
   partyMuteRequested,
@@ -59,13 +59,13 @@ import {
   canMoveToRemove,
   ownerRemoves,
   canWithdrawGuestInvite,
-  hasTheRoom,
+  presentOrEmpty,
   holdsTheControls,
   isPresent,
   canPing,
   isTranscribingLive,
 } from '../../../core/channel';
-import { inRoom, pendingGuests } from '../../../core/guests';
+import { isHere, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
@@ -640,13 +640,13 @@ export function ChannelView({
    * while the phone holds the presence is not stepped in here and must go on
    * showing it.
    *
-   * **`inRoom` rather than `isPresent`, for the reason the roster asks it
+   * **`isHere` rather than `isPresent`, for the reason the roster asks it
    * that way**: a guest is in the room without ever being in `present`, so a
    * film gated on presence alone would be one a guest could never see — on a
    * link somebody sent them in order to watch something together. *Nearby*
    * and *stepped out* fail this; a guest does not, having no rung to be on.
    */
-  const inTheRoom = !!channel && inRoom(channel, me);
+  const amHere = !!channel && isHere(channel, me);
   /**
    * Whether this device is the one standing in this channel.
    *
@@ -657,12 +657,12 @@ export function ChannelView({
    * *Watch on* has to answer: the film belongs on the device you are in the
    * room on.
    *
-   * A guest passes the first half by being a guest — see `inTheRoom` — which
-   * is the same standing `WATCH_HERE` is given in the reducer, `inRoom` there
+   * A guest passes the first half by being a guest — see `amHere` — which
+   * is the same standing `WATCH_HERE` is given in the reducer, `isHere` there
    * too. So a guest sent a link to watch something gets the film on the
    * browser they opened it in, and reports it like anybody else.
    */
-  const steppedIn = inTheRoom && app.standingIn === channelId;
+  const steppedIn = amHere && app.standingIn === channelId;
   /**
    * Whether this device is showing the party's film.
    *
@@ -681,7 +681,7 @@ export function ChannelView({
    * *I do not want to watch this*.
    */
   const screenIsHere =
-    app.screenFor === channelId && partyLoaded && inTheRoom;
+    app.screenFor === channelId && partyLoaded && amHere;
   const screenIsMine = screenIsHere && steppedIn;
   /**
    * **Whether this is the party's *second device*, which is a whole screen.**
@@ -1106,7 +1106,7 @@ export function ChannelView({
    * the room already believes about it.
    *
    * **And not before there is a snapshot to read it off**, which is the same
-   * repair as the effect above and the same mistake twice: `inRoom` is
+   * repair as the effect above and the same mistake twice: `isHere` is
    * answered by the channel, so with no channel it answers *no*, and every
    * mount before the first snapshot looked exactly like somebody who had
    * stepped out. Of the two this is the worse one — it is the rule that no
@@ -1114,9 +1114,9 @@ export function ChannelView({
    * told yet* is not that person.
    */
   useEffect(() => {
-    if (!channelHere || inTheRoom || app.screenFor !== channelId) return;
+    if (!channelHere || amHere || app.screenFor !== channelId) return;
     app.showScreenFor(null);
-  }, [app, channelHere, channelId, inTheRoom]);
+  }, [app, channelHere, channelId, amHere]);
 
   /**
    * **A television is the screen or it is nothing: it never has a corner.**
@@ -1278,7 +1278,7 @@ export function ChannelView({
     // picture away — the effect above — so stepping back in has to be able to
     // bring it back, and a mark that outlived the departure would make the
     // second visit the one where nothing happens.
-    if (filmOn === null || !inTheRoom) {
+    if (filmOn === null || !amHere) {
       defaulted.current = null;
       deferred.current = false;
       return;
@@ -1305,7 +1305,7 @@ export function ChannelView({
     deferred.current = screenElsewhere && app.screenFor !== channelId;
     if (app.screenFor === channelId || screenElsewhere) return;
     app.showScreenFor(channelId);
-  }, [app, channelId, filmOn, inTheRoom, screenElsewhere, steppedIn]);
+  }, [app, channelId, filmOn, amHere, screenElsewhere, steppedIn]);
 
   /**
    * A film playing on this screen is somebody being here.
@@ -1759,7 +1759,7 @@ export function ChannelView({
   const watchSaysFor = (id: string): boolean | null => {
     if (watchingNow === null) return null;
     if (watchingNow.includes(id)) return true;
-    return inRoom(channel, id) ? false : null;
+    return isHere(channel, id) ? false : null;
   };
   /**
    * Standing here, but not on this device.
@@ -1899,7 +1899,7 @@ export function ChannelView({
    * says their audio went, and the hold in `speaking.ts` would otherwise keep
    * them lit for two seconds after their own card says they left.
    *
-   * `inRoom` rather than `isPresent` because a guest is in the room without
+   * `isHere` rather than `isPresent` because a guest is in the room without
    * being in `present`, and the guest cards below ask this too.
    */
   const audioIsThisChannel =
@@ -1929,8 +1929,8 @@ export function ChannelView({
    */
   const announcedSpeaking = view?.speakingWhileWithheld ?? [];
   const speakingHere = (id: string) =>
-    (audioIsThisChannel && inRoom(channel, id) && audio.speaking.includes(id)) ||
-    (inRoom(channel, id) &&
+    (audioIsThisChannel && isHere(channel, id) && audio.speaking.includes(id)) ||
+    (isHere(channel, id) &&
       isWithheld(channel, id) &&
       announcedSpeaking.includes(id));
   /**
@@ -1944,11 +1944,11 @@ export function ChannelView({
    * yourself from outside, is worse than either alone.
    */
   const failingHere = (id: string) =>
-    id !== me && audioIsThisChannel && inRoom(channel, id) &&
+    id !== me && audioIsThisChannel && isHere(channel, id) &&
     audio.failing.includes(id);
   /**
    * Whether the channel is mine to change, as against somebody else's
-   * conversation to leave alone. See `hasTheRoom` in core.
+   * conversation to leave alone. See `presentOrEmpty` in core.
    *
    * Every control it governs is disabled rather than hidden, which is the
    * opposite of what presence does to the microphone card above. The
@@ -1959,7 +1959,7 @@ export function ChannelView({
    * Since the only way this is false is that other people are present, every
    * sentence explaining it can say "step in", and they all do.
    */
-  const iHaveTheRoom = hasTheRoom(channel, me);
+  const presentOrEmptyForMe = presentOrEmpty(channel, me);
   /**
    * Whether this is a *community* whose controls are somebody else's — see
    * `holdsTheControls`. The guards already grey what it covers; this is read
@@ -2010,7 +2010,7 @@ export function ChannelView({
       <TranscriptView
         recording={transcriptRow}
         onBack={() => setTranscriptFor(null)}
-        manageable={iHaveTheRoom && !ownersAlone}
+        manageable={presentOrEmptyForMe && !ownersAlone}
         // Offered only while this recording is what is loaded and the floor is
         // yours to drive: a line's times are positions in *this* recording, so
         // they mean nothing against another track, and a seek moves playback
@@ -2175,10 +2175,10 @@ export function ChannelView({
    * False for a run that began with somebody watching on the device they are
    * in the room on: their screen cannot serve the film in stereo and hold a
    * microphone open at once, so the quiet is the party's condition rather
-   * than a preference of whoever pressed the button. See `canUnmuteRoom`,
+   * than a preference of whoever pressed the button. See `canUnmuteEveryone`,
    * which is the same guard the reducer refuses `SET_WATCH_MUTE` with.
    */
-  const mayUnmuteRoom = canUnmuteRoom(channel);
+  const mayUnmuteRoom = canUnmuteEveryone(channel);
 
   /**
    * The tabs this account is offered, which is six, always the same six.
@@ -4090,7 +4090,7 @@ export function ChannelView({
                     ? t.floorDecidesWhatPlays()
                     : t.stepInToPlayShort()
               }
-              manageable={iHaveTheRoom && !ownersAlone}
+              manageable={presentOrEmptyForMe && !ownersAlone}
               onOpenTranscript={() => setTranscriptFor(r.id)}
             />
           )}
@@ -4340,16 +4340,16 @@ export function ChannelView({
 
                   Only the Unmute half disappears: a party that is *not*
                   muted cannot be enforced, so the Mute button is always
-                  here. See `canUnmuteRoom`, and `WatchState.enforced` for
+                  here. See `canUnmuteEveryone`, and `WatchState.enforced` for
                   why the question is sampled at the edge of a run rather
                   than asked continuously — which is also what stops this
                   button vanishing under somebody's finger.
                 */}
                 {muteRequested && !mayUnmuteRoom ? null : (
                   <Button
-                    label={muteRequested ? t.unmuteTheRoom() : t.muteTheRoom()}
+                    label={muteRequested ? t.unmuteEveryone() : t.muteEveryone()}
                     sublabel={
-                      muteRequested ? t.unmuteTheRoomSub() : t.muteTheRoomSub()
+                      muteRequested ? t.unmuteEveryoneSub() : t.muteEveryoneSub()
                     }
                     disabled={!mayControlWatch}
                     onPress={() =>
@@ -4497,7 +4497,7 @@ export function ChannelView({
                       app.listScreens();
                     }}
                   />
-                ) : screenElsewhere && inTheRoom ? (
+                ) : screenElsewhere && amHere ? (
                   <>
                     {/*
                       **Said as well as implied.** The offer alone would carry
@@ -4517,7 +4517,7 @@ export function ChannelView({
                       }}
                     />
                   </>
-                ) : inTheRoom ? (
+                ) : amHere ? (
                   /*
                     **The film is loaded and on no device at all**, which had
                     no branch here until 2026-09-24 and so drew nothing: no
@@ -4547,7 +4547,7 @@ export function ChannelView({
                     }}
                   />
                 ) : null}
-                {!inTheRoom ? (
+                {!amHere ? (
                   // The same shape as the sentence below: beside the refused
                   // control, saying which rung answers it.
                   <Text style={type.muted}>{t.stepInToWatch()}</Text>
@@ -4690,8 +4690,8 @@ export function ChannelView({
                 // indistinguishable from a room where nobody is talking, so it
                 // says which, and how to get out of it.
                 <Text style={type.muted}>
-                  <Text style={styles.emphasis}>{t.roomIsMutedLead()}</Text>
-                  {t.roomIsMutedRest()}
+                  <Text style={styles.emphasis}>{t.everyoneIsMutedLead()}</Text>
+                  {t.everyoneIsMutedRest()}
                   {!mayUnmuteRoom
                     ? // The second half of the button that is not there. It is
                       // only ever said on a run where it is true, and it names
@@ -4699,7 +4699,7 @@ export function ChannelView({
                       // is is nobody else's business, and *somebody* is the
                       // whole of what anyone needs to know to understand why
                       // the previous sentence cannot be argued with.
-                      t.roomStaysMuted()
+                      t.everyoneStaysMuted()
                     : ''}
                 </Text>
               ) : muteRequested ? (
@@ -4717,8 +4717,8 @@ export function ChannelView({
                 // the state in which the channel behaves least like the rest of
                 // the watch party.
                 <Text style={type.muted}>
-                  <Text style={styles.emphasis}>{t.roomIsUnmutedLead()}</Text>
-                  {t.roomIsUnmutedRest()}
+                  <Text style={styles.emphasis}>{t.everyoneIsUnmutedLead()}</Text>
+                  {t.everyoneIsUnmutedRest()}
                 </Text>
               )
             ) : null}
@@ -4802,7 +4802,7 @@ export function ChannelView({
           <InviteList
             channel={channel}
             me={me}
-            mayInvite={iHaveTheRoom && !ownersAlone}
+            mayInvite={presentOrEmptyForMe && !ownersAlone}
             ownersAlone={ownersAlone}
             states={askedIn}
             onInvite={(contactId) => act({ type: 'INVITE', contactId })}

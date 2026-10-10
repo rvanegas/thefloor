@@ -165,10 +165,10 @@ export function usePresenceChime(
      */
     const rungOf = (
       id: UserId,
-      inRoom: readonly UserId[],
+      isHere: readonly UserId[],
       atHand: readonly UserId[]
     ): ChimeKind =>
-      inRoom.includes(id) ? 'in' : atHand.includes(id) ? 'nearby' : 'out';
+      isHere.includes(id) ? 'in' : atHand.includes(id) ? 'nearby' : 'out';
 
     /**
      * **Everybody who crossed `present`, and nobody else** — the second clause

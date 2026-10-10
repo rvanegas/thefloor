@@ -173,7 +173,7 @@ describe('a link', () => {
 });
 
 /**
- * `hasTheRoom` at the door: minting and revoking are decisions about who may
+ * `presentOrEmpty` at the door: minting and revoking are decisions about who may
  * walk into whatever is being said, so they belong to whoever is saying it —
  * and to any member at all when nobody is.
  *

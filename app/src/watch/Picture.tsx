@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { inRoom } from '../../../core/guests';
+import { isHere } from '../../../core/guests';
 import { useApp } from '../state/AppProvider';
 import { COLUMN_GAP, useWatchShape } from '../ui/layout';
 import { colors } from '../ui/theme';
@@ -426,10 +426,10 @@ export function Picture({
    * the screen role is given up: an effect runs after a commit, so a rule
    * written only there would load the page and take it away again. *Nearby*
    * fails it exactly as *out* does, and a *guest* passes — which is the whole
-   * of `inRoom`, and the same line the reducer draws for `WATCH_HERE`.
+   * of `isHere`, and the same line the reducer draws for `WATCH_HERE`.
    */
   const picture =
-    channelId && channel && watch && party && inRoom(channel, me) ? (
+    channelId && channel && watch && party && isHere(channel, me) ? (
       <WatchDock
         /*
           **No second device ever reaches `floating`**, and the rule is kept

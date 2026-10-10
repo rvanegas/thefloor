@@ -340,7 +340,7 @@ describe('Channel', () => {
   });
 
   /**
-   * `hasTheRoom`, seen from the screen. The rule is that nobody reaches into a
+   * `presentOrEmpty`, seen from the screen. The rule is that nobody reaches into a
    * conversation they are not in, so everything that changes what the people
    * in the channel can see is disabled for somebody looking at it from
    * outside — and every one of them says the same word, "step in", because
@@ -1947,7 +1947,7 @@ describe('Channel', () => {
     trap in writing the rule above as a presence check: a guest link is very
     often sent in order to watch something together, and gating the picture on
     `isPresent` would have made that the one thing the link cannot do. The
-    reducer draws the same line — `WATCH_HERE` asks `inRoom` — so this is the
+    reducer draws the same line — `WATCH_HERE` asks `isHere` — so this is the
     screen agreeing with it rather than a second rule.
   */
   it('gives a guest the picture, having no rung to be off', () => {

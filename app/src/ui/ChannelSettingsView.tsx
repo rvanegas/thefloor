@@ -141,7 +141,7 @@ export function ChannelSettingsView({
   /** Whether the tap at the foot of the screen destroys rather than leaves. */
   const deletes = lastMember || owner;
   /**
-   * Whether the name is yours to change — `hasTheRoom`, so either you are in
+   * Whether the name is yours to change — `presentOrEmpty`, so either you are in
    * the channel or nobody is. What it protects against is a member who is
    * somewhere else renaming the place mid-conversation. The *notepad* keeps
    * the same gate on its own tab, the two being one question asked twice.

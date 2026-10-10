@@ -40,19 +40,19 @@ export function OfflineView({ roster }: { roster: string[] | null }) {
    * nothing to permit: `SET_SELF_MUTE` is a channel action like any other, so
    * with the socket down the microphone is as unreachable as the settings.
    */
-  const inRoom = roster !== null;
+  const isHere = roster !== null;
   const t = useText().offline;
 
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.stack}>
         <Text style={type.title}>
-          {inRoom ? t.partlyConnected() : t.notConnected()}
+          {isHere ? t.partlyConnected() : t.notConnected()}
         </Text>
 
         <Card style={styles.stack}>
-          {inRoom ? (
-            <Text style={type.body}>{t.roomStillAudible()}</Text>
+          {isHere ? (
+            <Text style={type.body}>{t.everyoneStillAudible()}</Text>
           ) : (
             <Text style={type.body}>{t.cannotReach()}</Text>
           )}
@@ -61,7 +61,7 @@ export function OfflineView({ roster }: { roster: string[] | null }) {
 
         {roster && roster.length > 0 ? (
           <Card style={styles.stack}>
-            <Text style={type.heading}>{t.whoWasInTheRoom()}</Text>
+            <Text style={type.heading}>{t.whoWasHere()}</Text>
             {roster.map((name, i) => (
               <Text key={`${name}-${i}`} style={type.body}>
                 {name}

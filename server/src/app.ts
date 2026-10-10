@@ -3901,7 +3901,7 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Shuts one link. Anybody in the room may, not only whoever minted it: a
    * door onto a conversation is everybody's business. Which is also why it is
-   * not any member's from anywhere — `hasTheRoom` answers 409 to somebody
+   * not any member's from anywhere — `presentOrEmpty` answers 409 to somebody
    * outside an occupied channel, the conversation being the thing the door
    * opens onto.
    */

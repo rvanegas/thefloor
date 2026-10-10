@@ -190,7 +190,7 @@ describe('a community keeps a name', () => {
 
 describe('a member of a community, who is not its owner', () => {
   /** The owner and two members, all three in the room. */
-  function inTheRoom(): ChannelState {
+  function amHere(): ChannelState {
     let s = communityOf(3);
     for (const id of [OWNER, member(1), member(2)]) {
       s = reduce(s, { type: 'ENTER', userId: id }, T0);
@@ -199,7 +199,7 @@ describe('a member of a community, who is not its owner', () => {
   }
 
   it('mutes themselves, claims the floor, pastes and clears the clipboard', () => {
-    const s = inTheRoom();
+    const s = amHere();
     expect(canSetSelfMute(s, member(1), true)).toBe(true);
     expect(canClaimFloor(s, member(1), T0)).toBe(true);
     expect(canPasteClip(s, member(1))).toBe(true);
@@ -208,7 +208,7 @@ describe('a member of a community, who is not its owner', () => {
   });
 
   it('cannot rename, describe, invite, record, play, watch or mute anybody else', () => {
-    const s = inTheRoom();
+    const s = amHere();
     expect(canEditChannel(s, member(1))).toBe(false);
     expect(canInvite(s, member(1), 'usr_new')).toBe(false);
     expect(canInviteGuest(s, member(1))).toBe(false);
@@ -226,7 +226,7 @@ describe('a member of a community, who is not its owner', () => {
   });
 
   it('leaves the owner every one of those', () => {
-    const s = inTheRoom();
+    const s = amHere();
     expect(canEditChannel(s, OWNER)).toBe(true);
     expect(canInvite(s, OWNER, 'usr_new')).toBe(true);
     expect(canInviteGuest(s, OWNER)).toBe(true);

@@ -1,5 +1,5 @@
 import { isWithheld } from '../../../core/channel';
-import { inRoom } from '../../../core/guests';
+import { isHere } from '../../../core/guests';
 import type { ChannelState, UserId } from '../../../core/types';
 
 /**
@@ -82,13 +82,13 @@ export function unheardSpeakers(
   me: UserId,
   hearing: Hearing
 ): string[] {
-  if (!channel || channel.status !== 'active' || !inRoom(channel, me)) return [];
+  if (!channel || channel.status !== 'active' || !isHere(channel, me)) return [];
   const heard = new Set(hearing.heard);
   return hearing.publishing.filter(
     (id) =>
       id !== me &&
       !heard.has(id) &&
-      inRoom(channel, id) &&
+      isHere(channel, id) &&
       !isWithheld(channel, id)
   );
 }

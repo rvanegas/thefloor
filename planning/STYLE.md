@@ -1566,11 +1566,11 @@ rules.
   place. What replaced them is the word under the glyph: refusals a rule can
   enumerate are worth a sentence, a permanent condition of the row is not.
 - **And when the refusal is a condition rather than a permission, the control
-  goes and the sentence stays.** Adopted 2026-09-20 with *Unmute the room*.
+  goes and the sentence stays.** Adopted 2026-09-20 with *Unmute everyone*.
   The rule above assumes a grey button is worth keeping because the reader can
   do something about it — step in, wait for the floor, stop the recording —
   and the sentence is what tells them which. A refusal nothing on the screen
-  can lift is a different shape: *Unmute the room* is grey for the whole of a
+  can lift is a different shape: *Unmute everyone* is grey for the whole of a
   two-hour film whenever somebody is watching on the device they are in the
   room on, because that device cannot serve the film in stereo and hold a
   microphone open at once. A control that offers what is not on offer, for

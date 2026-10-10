@@ -981,7 +981,7 @@ export function ParticipantCard({
  * contacts, so the two disagree only if a contact was dropped mid-channel.
  *
  * **`canInvite` is asked about the contact, not about the room.** It carries
- * `hasTheRoom` too, so filtering on it whole would empty this list for
+ * `presentOrEmpty` too, so filtering on it whole would empty this list for
  * somebody standing outside an occupied channel — and an empty list here says
  * "every contact you could invite is already in this channel", which would be
  * false and unrecoverable, there being nothing left on screen to explain
@@ -1096,7 +1096,7 @@ export function InviteList({
                 {entry.account.displayName}
               </Text>
               {seated.has(entry.account.id) ? (
-                <Text style={type.muted}>{t.inTheRoomAsAGuest()}</Text>
+                <Text style={type.muted}>{t.hereAsAGuest()}</Text>
               ) : state === 'asked' ? (
                 // **The row goes quiet rather than offering the same mark
                 // again.** A second tap is refused by the server — they have

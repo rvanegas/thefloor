@@ -10,7 +10,7 @@ import {
   reduce,
 } from '../channel';
 import { MAX_DISPLAY_NAME_LENGTH } from '../constants';
-import { inRoom, isGuest, roomOccupants } from '../guests';
+import { isHere, isGuest, peopleHere } from '../guests';
 import {
   channelHasAudio,
   microphoneNeeded,
@@ -116,8 +116,8 @@ describe('a guest is not a participant', () => {
     expect(state.participants).toEqual([ALICE, BOB]);
     expect(state.present).toEqual([ALICE]);
     expect(isGuest(state, DANA)).toBe(true);
-    expect(inRoom(state, DANA)).toBe(true);
-    expect(roomOccupants(state)).toEqual([ALICE, DANA]);
+    expect(isHere(state, DANA)).toBe(true);
+    expect(peopleHere(state)).toEqual([ALICE, DANA]);
   });
 
   it('is refused everything nobody granted them, by the membership check', () => {
@@ -290,7 +290,7 @@ describe('the microphone', () => {
 describe('muting somebody else, with a guest in the room', () => {
   it('lets a member close a guest’s microphone', () => {
     // A guest is in the room and is audible, so they are as much the object of
-    // the favour as anybody — which is why the guard asks `inRoom` at the
+    // the favour as anybody — which is why the guard asks `isHere` at the
     // target end rather than `isPresent`.
     const state = act(withGuest({ maySpeak: true }), {
       type: 'SET_SELF_MUTE',
@@ -362,7 +362,7 @@ describe('managing a guest', () => {
       maySpeak: false,
     });
     expect(withdrawn.guests[DANA].maySpeak).toBe(false);
-    expect(inRoom(withdrawn, DANA)).toBe(true);
+    expect(isHere(withdrawn, DANA)).toBe(true);
   });
 
   it('lets no guest grant themselves anything', () => {
@@ -386,7 +386,7 @@ describe('managing a guest', () => {
       guestId: DANA,
     });
     expect(ejected.guests).toEqual({});
-    expect(inRoom(ejected, DANA)).toBe(false);
+    expect(isHere(ejected, DANA)).toBe(false);
   });
 });
 
@@ -438,14 +438,14 @@ describe('a guest and a connection', () => {
     let state = withGuest({ maySpeak: true });
     state = act(state, { type: 'DISCONNECTED', userId: DANA }, T0 + 2_000);
     expect(state.disconnectedAt[DANA]).toBe(T0 + 2_000);
-    expect(inRoom(state, DANA)).toBe(true);
+    expect(isHere(state, DANA)).toBe(true);
 
     const back = act(state, { type: 'CONNECTED', userId: DANA }, T0 + 3_000);
     expect(back.disconnectedAt[DANA]).toBeUndefined();
-    expect(inRoom(back, DANA)).toBe(true);
+    expect(isHere(back, DANA)).toBe(true);
 
     const expired = reduce(state, { type: 'TICK' }, T0 + 120_000);
-    expect(inRoom(expired, DANA)).toBe(false);
+    expect(isHere(expired, DANA)).toBe(false);
     // And the clock goes with them, or the tick would fire on it for ever.
     expect(expired.disconnectedAt[DANA]).toBeUndefined();
   });

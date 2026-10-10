@@ -63,9 +63,9 @@ import {
   guestCount,
   guestMaySpeak,
   guestsPromised,
-  inRoom,
+  isHere,
   isGuest,
-  roomOccupants,
+  peopleHere,
   speakingGuests,
 } from './guests';
 import { hasMicrophone } from './micNeeded';
@@ -416,7 +416,7 @@ export function connectedCount(state: ChannelState): number {
  * an abandoned one is resolved — see `ChannelRegistry.considerRetiring`.
  */
 export function subscribeable(state: ChannelState, userId: UserId): boolean {
-  if (roomOccupants(state).some((id) => id !== userId)) return true;
+  if (peopleHere(state).some((id) => id !== userId)) return true;
   if (state.playback.status === 'playing') return true;
   return state.watch.status === 'playing';
 }
@@ -438,7 +438,7 @@ export function subscribeable(state: ChannelState, userId: UserId): boolean {
  * theirs to open, to mute, or to record. See `core/micNeeded.ts`.
  */
 function microphoneOpen(state: ChannelState, id: UserId): boolean {
-  if (!inRoom(state, id)) return false;
+  if (!isHere(state, id)) return false;
   if (isGuest(state, id) && !guestMaySpeak(state, id)) return false;
   if (state.selfMuted[id]) return false;
   return !isWithheld(state, id);
@@ -471,7 +471,7 @@ function microphoneOpen(state: ChannelState, id: UserId): boolean {
  */
 export function capturable(state: ChannelState): boolean {
   if (state.playback.status === 'playing') return true;
-  return roomOccupants(state).some((id) => microphoneOpen(state, id));
+  return peopleHere(state).some((id) => microphoneOpen(state, id));
 }
 
 /**
@@ -635,13 +635,13 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  * test is not presence — it is the absence of somebody else's conversation.
  *
  * `state.present` is members only, which is deliberate and is the reason this
- * is not written in terms of `roomOccupants`. It costs nothing today —
+ * is not written in terms of `peopleHere`. It costs nothing today —
  * `settleEmpty` takes every guest out with the last member, so a room with no
  * member in it has nobody in it at all, and the two readings agree. What it
  * buys is that the rule says what it means: a conversation is people who
  * belong here talking, and a guest is somebody a member is answering for.
  *
- * `inRoom` rather than `isPresent` so that a guest satisfies it — the two
+ * `isHere` rather than `isPresent` so that a guest satisfies it — the two
  * guards a guest is allowed through, the clipboard's, ask this directly.
  * Everything a guest must *not* reach says `isParticipant` beside it rather
  * than leaning on this one to do both jobs; see `canManageGuest`.
@@ -651,8 +651,8 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  * transport's four actions, answering the door — nor leaving, which is
  * personal and always yours. See planning/STATES.md.
  */
-export function hasTheRoom(state: ChannelState, id: UserId): boolean {
-  return state.present.length === 0 || inRoom(state, id);
+export function presentOrEmpty(state: ChannelState, id: UserId): boolean {
+  return state.present.length === 0 || isHere(state, id);
 }
 
 /**
@@ -673,7 +673,7 @@ export function canEditChannel(state: ChannelState, userId: UserId): boolean {
     state.status === 'active' &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
-    hasTheRoom(state, userId)
+    presentOrEmpty(state, userId)
   );
 }
 
@@ -707,8 +707,8 @@ export function canClaimFloor(
   // So the guard follows the sound rather than the mode, which is
   // `watchIsPlaying` — the same question the two transports ask of each other.
   if (watchIsPlaying(state)) return false;
-  // **Members only, and this reversed on 2026-08-30.** It read `inRoom`
-  // against `roomOccupants`, deliberately, on the argument that the floor is
+  // **Members only, and this reversed on 2026-08-30.** It read `isHere`
+  // against `peopleHere`, deliberately, on the argument that the floor is
   // about who is talking and a guest with the microphone is talking. What that
   // left out is what a claim does to everybody else: it is not permission to
   // speak — an unclaimed floor already leaves a granted guest free to talk —
@@ -725,7 +725,7 @@ export function canClaimFloor(
   // Whether there is anybody here to be quiet is about the room, guests
   // included — a member alone with a talking guest is precisely who a claim is
   // for.
-  if (roomOccupants(state).length < 2) return false;
+  if (peopleHere(state).length < 2) return false;
   // The queue is members only, and for the reason `claimDelayMs` already
   // gives: an id that can never take the zero slot delays everybody behind it
   // for nothing. A guest never claims, so their `lastClaimedAt` is always
@@ -760,7 +760,7 @@ export function canReleaseFloor(state: ChannelState, userId: UserId): boolean {
  * being skipped by a caller that did not know to pass one.
  *
  * **And the room, since 2026-09-23.** `canMuteOther` has always required its
- * target to be `inRoom`, on the grounds that there is no microphone to close
+ * target to be `isHere`, on the grounds that there is no microphone to close
  * out there; the self case had no such clause, and a mute racing a departure
  * was therefore accepted and written onto somebody who had already gone. The
  * roster said *Stepped out · muted*, which is two states that cannot both
@@ -780,7 +780,7 @@ export function canSetSelfMute(
   // Nothing to close. Said of muting only: an unmute from out there is already
   // a no-op against a cleared key, and refusing it would be refusing the
   // remedy — the one direction this function exists to keep always available.
-  if (muted && !inRoom(state, userId)) return false;
+  if (muted && !isHere(state, userId)) return false;
   // Only muting is refused. Unmuting is always allowed, and is a no-op for a
   // holder who is already unmuted.
   return !muted || state.floor.holder !== userId;
@@ -813,7 +813,7 @@ export function canSetSelfMute(
  *   `ENTER` wrote nothing to `selfMuted` until 2026-09-23, and the key sat
  *   there waiting to make somebody inaudible on their return. It is now
  *   cleared at both edges, and `canSetSelfMute` carries this same clause, so
- *   the two halves of a mute agree about the room. `inRoom` at the target end
+ *   the two halves of a mute agree about the room. `isHere` at the target end
  *   rather than `isPresent`, so a guest can be the object of the favour — they
  *   are in the room and they are audible, which is the whole of what
  *   qualifies anybody.
@@ -859,7 +859,7 @@ export function canMuteOther(
   if (!muted) return false;
   if (isGuest(state, actorId)) return false;
   if (!holdsTheControls(state, actorId)) return false;
-  if (!isPresent(state, actorId) || !inRoom(state, targetId)) return false;
+  if (!isPresent(state, actorId) || !isHere(state, targetId)) return false;
   // Everything they may not do to their own microphone, nobody may do to it.
   if (!canSetSelfMute(state, targetId, muted)) return false;
   return !hasJustUnmutedThemselves(state, targetId, now);
@@ -1213,7 +1213,7 @@ export function ownerRemoves(state: ChannelState, userId: UserId): boolean {
  * Whether the pair are contacts is the server's to check before dispatching
  * this.
  *
- * `hasTheRoom` because an invitation lands in a conversation: the newcomer's
+ * `presentOrEmpty` because an invitation lands in a conversation: the newcomer's
  * home screen lights up, and if they take it they walk into whatever is being
  * said. Widening a roster is the most ordinary of these acts and the easiest
  * to do absent-mindedly from a list of contacts, which is why it is governed
@@ -1228,7 +1228,7 @@ export function canInvite(
     state.status === 'active' &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
-    hasTheRoom(state, userId) &&
+    presentOrEmpty(state, userId) &&
     !isParticipant(state, inviteeId) &&
     state.participants.length < capacityOf(state)
   );
@@ -1262,13 +1262,13 @@ export function canJoin(state: ChannelState, userId: UserId): boolean {
  * glossary said *started and stopped by anybody present* the whole time, which
  * is the half of the pair that was right.
  *
- * Presence rather than `hasTheRoom`, unlike the clipboard and the name. The
+ * Presence rather than `presentOrEmpty`, unlike the clipboard and the name. The
  * empty half of that guard exists so that an absent member may furnish a room
  * nobody is in, and there is no such thing here: a run cannot outlive the last
  * person stepping out, `settleEmpty` ending it on that transition, so whenever
  * there is a transport to drive somebody is present and the two guards would
  * answer alike. Saying `isPresent` puts this in the family it belongs to —
- * recording is one of the things `hasTheRoom` names as being about presence
+ * recording is one of the things `presentOrEmpty` names as being about presence
  * for its own reasons — and says what the rule is rather than what it
  * collapses to.
  *
@@ -1432,7 +1432,7 @@ export function trackIsPlaying(state: ChannelState): boolean {
  * holder left — with nothing to keep in step.
  *
  * **Presence, since 2026-09-20, which is what closed the last of the split.**
- * It asked `hasTheRoom` — you are in the channel, or nobody is — on the seam
+ * It asked `presentOrEmpty` — you are in the channel, or nobody is — on the seam
  * adopted 2026-08-24: driving what is already on is tidying up after a room
  * that has gone home, and only *putting something on* leaves a choice behind
  * for whoever steps in next.
@@ -1476,9 +1476,9 @@ function holdsSharedControl(state: ChannelState, userId: UserId): boolean {
   if (state.status !== 'active') return false;
   // `isParticipant` where this used to read `isPresent`, and it is doing the
   // work that word used to: playback is not among GUEST_ACTIONS, and presence
-  // was what quietly refused a guest it. `hasTheRoom` alone would let one
+  // was what quietly refused a guest it. `presentOrEmpty` alone would let one
   // through, since a guest is always in the room.
-  if (!isParticipant(state, userId) || !hasTheRoom(state, userId)) return false;
+  if (!isParticipant(state, userId) || !presentOrEmpty(state, userId)) return false;
   return floorPermits(state, userId);
 }
 
@@ -1502,7 +1502,7 @@ function floorPermits(state: ChannelState, userId: UserId): boolean {
  * the point: a channel attends to one thing, and the rule for changing what
  * that thing is should not depend on which of the two it happens to be.
  *
- * `hasTheRoom` is true when nobody is present, deliberately — an empty channel
+ * `presentOrEmpty` is true when nobody is present, deliberately — an empty channel
  * is nobody's conversation to interrupt — and that used to be enough to drive
  * what was already loaded, on the argument that stopping something left
  * running is tidying up after a room that has gone home.
@@ -1513,11 +1513,11 @@ function floorPermits(state: ChannelState, userId: UserId): boolean {
  * from outside an empty channel is a sound in a room the person who started
  * it is not in. A film is worse still, being watched in real time. So the
  * empty-channel half survives only where it began — membership, which is
- * `hasTheRoom`'s own business — and everything that changes what is attended
+ * `presentOrEmpty`'s own business — and everything that changes what is attended
  * to is for whoever is in the room.
  *
  * Guests never reach this: `present` counts members only, the same reason
- * `hasTheRoom` is not written in terms of `roomOccupants`.
+ * `presentOrEmpty` is not written in terms of `peopleHere`.
  */
 function mayPutSomethingOn(state: ChannelState, userId: UserId): boolean {
   return (
@@ -1553,7 +1553,7 @@ export function canLoadTrack(state: ChannelState, userId: UserId): boolean {
  * — it is reaching into a scene they are not in and moving it.
  *
  * **This is where it stops matching `canControlPlayback`, which still asks
- * `hasTheRoom`.** That rule's second half — nobody is present, so there is no
+ * `presentOrEmpty`.** That rule's second half — nobody is present, so there is no
  * conversation to interrupt — was carried here as *tidying up after a room
  * that has gone home*. Two things are wrong with it. The tidying is already
  * done: `settleEmpty` pauses the party the moment the last member steps out,
@@ -1597,7 +1597,7 @@ export function canControlWatch(
     which is the same bargain everybody else in the room is on, and needs no
     second rule here to state it.
 
-    `isPresent` rather than `inRoom`: a guest is refused by `isParticipant`
+    `isPresent` rather than `isHere`: a guest is refused by `isParticipant`
     above in any case, and saying presence directly is what the rule means.
   */
   if (state.status !== 'active') return false;
@@ -1685,14 +1685,14 @@ export function canStartWatch(state: ChannelState, userId: UserId): boolean {
  * is not an input to the audio session* is a standing rule with an afternoon
  * behind it, and this is not the thing that reopens it.
  *
- * Filtered by `inRoom` as well, which is what saves every departure path from
+ * Filtered by `isHere` as well, which is what saves every departure path from
  * having to clear `watchingHere`: stepping out, being displaced, losing a
  * socket and the channel ending all remove somebody from `present`, and this
  * stops counting them at the same moment.
  */
-export function anyScreenInTheRoom(state: ChannelState): boolean {
+export function anyScreenHere(state: ChannelState): boolean {
   return (state.watchingHere ?? []).some(
-    (id) => inRoom(state, id) && hasMicrophone(state, id)
+    (id) => isHere(state, id) && hasMicrophone(state, id)
   );
 }
 
@@ -1711,7 +1711,7 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
  * planning/decision/2026-09-20-an-enforced-mute-has-no-button.md and
  * STYLE.md § *Words on controls*.
  *
- * `enforced` rather than `anyScreenInTheRoom`, which is the sampling and is
+ * `enforced` rather than `anyScreenHere`, which is the sampling and is
  * the point: the question was asked when the run began, and asking it again
  * here would make the button flicker under somebody's finger every time a
  * person in another country closed a laptop.
@@ -1722,7 +1722,7 @@ export function anyScreenInTheRoom(state: ChannelState): boolean {
  * never back to true before the next `WATCH_PLAY`. A button that appears and
  * stays is not the failure mode.
  */
-export function canUnmuteRoom(state: ChannelState): boolean {
+export function canUnmuteEveryone(state: ChannelState): boolean {
   return !state.watch?.enforced;
 }
 
@@ -1781,7 +1781,7 @@ export function isWithheld(state: ChannelState, speaker: UserId): boolean {
 /**
  * Whether `userId` may put something on the channel's clipboard.
  *
- * `hasTheRoom`, not mere membership. A paste is an act in a conversation that
+ * `presentOrEmpty`, not mere membership. A paste is an act in a conversation that
  * is happening — the reason the task calls it *in channel* — and someone who
  * has stepped out leaving something behind for the others to find later is a
  * message, which this deliberately is not. That reasoning is exactly why the
@@ -1792,7 +1792,7 @@ export function isWithheld(state: ChannelState, speaker: UserId): boolean {
  * paste makes no sound.
  */
 export function canPasteClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && hasTheRoom(state, userId);
+  return state.status === 'active' && presentOrEmpty(state, userId);
 }
 
 /**
@@ -1804,7 +1804,7 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
  * nothing.
  */
 export function canClearClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && hasTheRoom(state, userId);
+  return state.status === 'active' && presentOrEmpty(state, userId);
 }
 
 /**
@@ -1819,7 +1819,7 @@ export function canClearClip(state: ChannelState, userId: UserId): boolean {
  * about who may walk into whatever is being said, taken by someone who is not
  * in it and cannot hear what that is.
  *
- * So it is `hasTheRoom` like the rest, and the empty case is what keeps it
+ * So it is `presentOrEmpty` like the rest, and the empty case is what keeps it
  * from being a nuisance — handing somebody a link ahead of a conversation is
  * the normal way this is used, and there is nothing to interrupt.
  */
@@ -1884,7 +1884,7 @@ export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
     state.status === 'active' &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
-    hasTheRoom(state, userId)
+    presentOrEmpty(state, userId)
   );
 }
 
@@ -1946,7 +1946,7 @@ export function canRequestSpeech(state: ChannelState, guestId: GuestId): boolean
  * admitter would leave a channel unable to silence a guest the moment that one
  * person stepped out.
  *
- * `hasTheRoom` for the family's sake rather than for any behaviour: here it
+ * `presentOrEmpty` for the family's sake rather than for any behaviour: here it
  * collapses to plain presence, because the empty half of it can never be
  * reached with a guest in the state. `settleEmpty` takes every guest out when
  * the last member steps out — nobody may remain in a room with no member to
@@ -1980,7 +1980,7 @@ export function canWithdrawGuestInvite(
     state.status === 'active' &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
-    hasTheRoom(state, userId) &&
+    presentOrEmpty(state, userId) &&
     !!invited &&
     invited.expiresAt > now
   );
@@ -1996,11 +1996,11 @@ export function canManageGuest(
     // Spelled out rather than left to GUEST_ACTIONS, which would also refuse
     // it: this is the rule that stops a link propagating itself, and it should
     // be readable here rather than inferred from a set two hundred lines away.
-    // It is also what `hasTheRoom` cannot say on its own, a guest being in the
+    // It is also what `presentOrEmpty` cannot say on its own, a guest being in the
     // room by definition.
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
-    hasTheRoom(state, userId) &&
+    presentOrEmpty(state, userId) &&
     isGuest(state, guestId)
   );
 }
@@ -2095,7 +2095,7 @@ function reduceAction(
     // The room rather than the roster: a guest's connection flaps like
     // anybody's, and a guest dropped at the first stumble would be one who has
     // to knock again to get back into a conversation they are in the middle of.
-    if (!inRoom(state, action.userId)) return state;
+    if (!isHere(state, action.userId)) return state;
     if (action.userId in state.disconnectedAt) return state;
     return {
       ...state,
@@ -3040,7 +3040,7 @@ function reduceAction(
         case 'SET_WATCH_MUTE':
           // The enforced mute is refused here as well as in `setPartyMute`,
           // so that the reducer and the greyed button are reading one rule.
-          if (!action.muted && !canUnmuteRoom(state)) return state;
+          if (!action.muted && !canUnmuteEveryone(state)) return state;
           // Note the two things that are *not* here. No write to `selfMuted`:
           // the two are separate states, and clearing this one restores each
           // person's own mute exactly as they left it, which is the whole
@@ -3064,7 +3064,7 @@ function reduceAction(
           // than answered continuously.
           return {
             ...state,
-            watch: watchPlay(watch, now, anyScreenInTheRoom(state)),
+            watch: watchPlay(watch, now, anyScreenHere(state)),
           };
         case 'WATCH_PAUSE':
           return { ...state, watch: watchPause(watch, now) };
@@ -3079,17 +3079,17 @@ function reduceAction(
       // the follower page of somebody who does not hold the floor is exactly
       // the one most likely to have loaded the video first.
       //
-      // **`inRoom` rather than `isParticipant`, which is what it said until
+      // **`isHere` rather than `isParticipant`, which is what it said until
       // 2026-09-23 while the comment said this.** A report is not a control
       // and is still not one, but it is a report *about the film the room is
       // watching*: it writes the title under the progress bar and the length
       // the scrubber runs on, on everybody's screen. A member who is not in
-      // the room has no player — `Picture` mounts on this same `inRoom`, and
+      // the room has no player — `Picture` mounts on this same `isHere`, and
       // is the only thing that sends this — so the loose guard admitted
       // nothing the app does and one thing the wire could: renaming somebody
       // else's film from outside the room. The same line `WATCH_HERE` draws
       // ten lines below, and for the same reason.
-      if (!inRoom(state, action.userId)) return state;
+      if (!isHere(state, action.userId)) return state;
       // Both facts from the one report, in the order they were learnt in —
       // the length since the party shipped, the name since 2026-09-20. A
       // report carrying no title is an older build or a player that could not
@@ -3111,7 +3111,7 @@ function reduceAction(
       // number on a run already under way, and `watchStarted` is where every
       // guard about *which* number lives: the first report only, inside the
       // grace only, and only a position that is this film's.
-      if (!inRoom(state, action.userId)) return state;
+      if (!isHere(state, action.userId)) return state;
       return {
         ...state,
         watch: watchStarted(state.watch, now, action.positionMs),
@@ -3127,8 +3127,8 @@ function reduceAction(
       // **Stepping out takes it away**, which is handled where presence is
       // rather than here: `watchingHere` is filtered by `present` wherever it
       // is read, so there is no departure path that has to remember to clear
-      // it. See `anyScreenInTheRoom`.
-      if (!inRoom(state, action.userId)) return state;
+      // it. See `anyScreenHere`.
+      if (!isHere(state, action.userId)) return state;
       const here = (state.watchingHere ?? []).includes(action.userId);
       if (here === action.watching) return state;
       return {
@@ -3178,7 +3178,7 @@ function reduceAction(
  * you are looking at, so a party started from a phone samples `enforced` true;
  * handing the picture to a television then empties `watchingHere` without
  * ending the run, and the *Unmute the room* button — removed rather than
- * greyed, see `canUnmuteRoom` — stayed gone for the rest of the film, under a
+ * greyed, see `canUnmuteEveryone` — stayed gone for the rest of the film, under a
  * sentence claiming somebody was watching in the room when nobody was.
  *
  * **`mutedAll` is deliberately untouched.** The room stays quiet; what comes
@@ -3188,7 +3188,7 @@ function reduceAction(
  */
 function liftSpentEnforcement(state: ChannelState): ChannelState {
   if (!state.watch?.enforced) return state;
-  if (anyScreenInTheRoom(state)) return state;
+  if (anyScreenHere(state)) return state;
   return { ...state, watch: { ...state.watch, enforced: false } };
 }
 
@@ -3268,7 +3268,7 @@ function tick(state: ChannelState, now: number): ChannelState {
   //
   // Occupants rather than `present`, on `pollUsage`'s reasoning: a room
   // holding guests and no members is a room with people in it.
-  if (roomOccupants(next).length === 0) {
+  if (peopleHere(next).length === 0) {
     if (next.playback.status === 'playing') {
       next = { ...next, playback: pausePlayback(next.playback, now) };
     }

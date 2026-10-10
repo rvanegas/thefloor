@@ -164,7 +164,7 @@ export function rememberFilm(watch: WatchState): WatchParty[] {
 export function setPartyMute(watch: WatchState, muted: boolean): WatchState {
   if (!watch.party) return watch;
   // Refused rather than silently ignored is the caller's business — the
-  // reducer checks `canUnmuteRoom` and never reaches here — but the rule is
+  // reducer checks `canUnmuteEveryone` and never reaches here — but the rule is
   // restated at the mutation for the same reason every guard in core is: a
   // second caller arriving later must not be able to lift an enforced mute by
   // going round the guard.
@@ -212,7 +212,7 @@ export function watchPlay(
    * edge of a run, and the answer is written to `enforced` and left alone
    * until the next one.
    */
-  screenInTheRoom = false
+  screenHere = false
 ): WatchState {
   if (!watch.party) return watch;
   const atEnd =
@@ -234,8 +234,8 @@ export function watchPlay(
     // Forced on rather than merely locked: a run that cannot be unmuted must
     // also not begin audible, or the first thing an enforced party does is
     // publish a room full of microphones pointed at their own screens.
-    mutedAll: screenInTheRoom ? true : watch.mutedAll,
-    enforced: screenInTheRoom,
+    mutedAll: screenHere ? true : watch.mutedAll,
+    enforced: screenHere,
     failure: null,
   };
 }

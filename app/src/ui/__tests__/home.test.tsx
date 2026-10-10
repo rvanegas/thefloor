@@ -716,7 +716,7 @@ describe('Home while still in a channel', () => {
    */
   describe('a room another of your devices is standing in', () => {
     /** The channel in the snapshot, which is where its name and count come from. */
-    const withRoom = (presentCount = 1) => {
+    const withPeopleHere = (presentCount = 1) => {
       mockApp.home = {
         invites: [],
         rejoinable: [
@@ -734,7 +734,7 @@ describe('Home while still in a channel', () => {
     };
 
     it('pins the room, with the sentence that says which device holds it', () => {
-      withRoom(2);
+      withPeopleHere(2);
       mockApp.standingElsewhere = ['sess_1'];
       const tree = render(<HomeView {...homeNav} />);
       const text = textOf(tree).replace(/\s+/g, ' ');
@@ -755,7 +755,7 @@ describe('Home while still in a channel', () => {
       // which channels a bar above has taken; it was told about the nearby
       // ones only, so the room came out pinned at the top *and* listed under
       // *Live*, which is how somebody saw one channel twice on one screen.
-      withRoom(2);
+      withPeopleHere(2);
       mockApp.standingElsewhere = ['sess_1'];
       const tree = render(<HomeView {...homeNav} />);
       const text = textOf(tree);
@@ -766,7 +766,7 @@ describe('Home while still in a channel', () => {
     it('says nobody else is there rather than counting you', () => {
       // One present is you, standing there on the other device. "1 present"
       // would be the bar reporting somebody to wait for.
-      withRoom(1);
+      withPeopleHere(1);
       mockApp.standingElsewhere = ['sess_1'];
       const tree = render(<HomeView {...homeNav} />);
       expect(textOf(tree).replace(/\s+/g, ' ')).toContain(
@@ -780,7 +780,7 @@ describe('Home while still in a channel', () => {
       // talking into. That is a thing to do on purpose, on the channel's own
       // screen, and never on the way past — the nearby bar's rule, with a
       // sharper edge.
-      withRoom(2);
+      withPeopleHere(2);
       mockApp.standingElsewhere = ['sess_1'];
       const onEnter = jest.fn();
       const tree = render(
@@ -798,7 +798,7 @@ describe('Home while still in a channel', () => {
       // The server never reports a connection to itself, so this should not
       // arrive — but the two pushes are independent, and the moment between
       // them must not pin one room twice.
-      withRoom(2);
+      withPeopleHere(2);
       mockApp.standingElsewhere = ['sess_1'];
       const tree = render(
         <HomeView

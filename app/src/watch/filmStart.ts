@@ -173,7 +173,7 @@ export function onPress(listener: PressListener): () => void {
  * Whether a press of Play here would make this device the one showing the film.
  *
  * `isScreening` asks the same of a run already under way, and a run is enforced
- * exactly when somebody showing it has a microphone — `anyScreenInTheRoom` in
+ * exactly when somebody showing it has a microphone — `anyScreenHere` in
  * core/channel.ts — so for the person pressing, the two are one question: am
  * I watching here, and do I have a microphone to give up.
  */

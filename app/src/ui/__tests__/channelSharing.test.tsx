@@ -1420,7 +1420,7 @@ describe('Channel, watching together', () => {
     // prevented now rather than advised against.
     showChannel(watching());
     const tree = open();
-    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(findButton(tree, 'Unmute everyone')).toBeDefined();
     expect(textOf(tree)).not.toContain('Headphones');
     // Paused, so nothing is actually withheld yet.
     expect(textOf(tree)).not.toContain('Party-muted');
@@ -1434,8 +1434,8 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(textOf(tree)).toContain('The room is unmuted');
-    expect(findButton(tree, 'Mute the room')).toBeDefined();
+    expect(textOf(tree)).toContain('Everyone is unmuted');
+    expect(findButton(tree, 'Mute everyone')).toBeDefined();
     act(() => tree.unmount());
   });
 
@@ -1468,7 +1468,7 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    const button = findButton(tree, 'Mute the room')!;
+    const button = findButton(tree, 'Mute everyone')!;
     expect(button).toBeDefined();
     act(() => button.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -1481,7 +1481,7 @@ describe('Channel, watching together', () => {
   it('offers to clear it, and says the self-mute is untouched', () => {
     showChannel(muted());
     const tree = open();
-    const button = findButton(tree, 'Unmute the room')!;
+    const button = findButton(tree, 'Unmute everyone')!;
     expect(labelOf(button)).toContain('your own mute is unchanged');
     act(() => button.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
@@ -1522,7 +1522,7 @@ describe('Channel, watching together', () => {
     const tree = open();
     const text = textOf(tree);
     expect(text).not.toContain('Headphones on the screen end');
-    expect(text).toContain('The room is muted');
+    expect(text).toContain('Everyone is muted');
     act(() => tree.unmount());
   });
 
@@ -1540,12 +1540,12 @@ describe('Channel, watching together', () => {
   });
 
   it('keeps the toggle on the intent, not on what the transport is doing', () => {
-    // A button that flipped itself back to "Mute the room" at every pause
+    // A button that flipped itself back to "Mute everyone" at every pause
     // would be a control fighting its owner.
     showChannel(mutedAndPaused());
     const tree = open();
-    expect(findButton(tree, 'Unmute the room')).toBeDefined();
-    expect(findButton(tree, 'Mute the room')).toBeUndefined();
+    expect(findButton(tree, 'Unmute everyone')).toBeDefined();
+    expect(findButton(tree, 'Mute everyone')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -1572,8 +1572,8 @@ describe('Channel, watching together', () => {
     // whole of a film offers something that is not on offer.
     showChannel(enforced());
     const tree = open();
-    expect(findButton(tree, 'Unmute the room')).toBeUndefined();
-    expect(findButton(tree, 'Mute the room')).toBeUndefined();
+    expect(findButton(tree, 'Unmute everyone')).toBeUndefined();
+    expect(findButton(tree, 'Mute everyone')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -1583,8 +1583,8 @@ describe('Channel, watching together', () => {
     showChannel(enforced());
     const tree = open();
     const text = textOf(tree);
-    expect(text).toContain('The room is muted');
-    expect(text).toContain('watching on the device they are in the room on');
+    expect(text).toContain('Everyone is muted');
+    expect(text).toContain('watching on the device they are here on');
     act(() => tree.unmount());
   });
 
@@ -1593,9 +1593,9 @@ describe('Channel, watching together', () => {
       enforced((s) => reduce(s, { type: 'WATCH_PAUSE', userId: ME }, NOW))
     );
     const tree = open();
-    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(findButton(tree, 'Unmute everyone')).toBeDefined();
     expect(textOf(tree)).not.toContain(
-      'watching on the device they are in the room on'
+      'watching on the device they are here on'
     );
     act(() => tree.unmount());
   });
@@ -1605,9 +1605,9 @@ describe('Channel, watching together', () => {
     // control that set it is the control that clears it.
     showChannel(muted());
     const tree = open();
-    expect(findButton(tree, 'Unmute the room')).toBeDefined();
+    expect(findButton(tree, 'Unmute everyone')).toBeDefined();
     expect(textOf(tree)).not.toContain(
-      'watching on the device they are in the room on'
+      'watching on the device they are here on'
     );
     act(() => tree.unmount());
   });
@@ -1654,7 +1654,7 @@ describe('Channel, watching together', () => {
     );
     const tree = open();
     // "Unmute", the party having started muted — the label follows the intent.
-    expect(findButton(tree, 'Unmute the room')!.props.disabled).toBe(false);
+    expect(findButton(tree, 'Unmute everyone')!.props.disabled).toBe(false);
     act(() => tree.unmount());
   });
 

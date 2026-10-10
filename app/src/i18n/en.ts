@@ -55,13 +55,13 @@ export const en = {
   offline: {
     partlyConnected: () => 'Partly connected',
     notConnected: () => 'Not connected',
-    roomStillAudible: () =>
-      'You can still hear the room, and if you had the floor you can still be heard — the conversation travels on its own connection. Everything that manages it is down: the microphone, the floor, and every other screen.',
+    everyoneStillAudible: () =>
+      'You can still hear everyone, and if you had the floor you can still be heard — the conversation travels on its own connection. Everything that manages it is down: the microphone, the floor, and every other screen.',
     cannotReach: () =>
       'The Floor cannot reach the server, so nothing here can be changed and nothing shown would be current.',
     queueDropped: () =>
       'Anything you did in the last few seconds did not go through. It is not waiting to be sent, so do it again once this clears.',
-    whoWasInTheRoom: () => 'Who was in the room',
+    whoWasHere: () => 'Who was here',
     asOfLastUpdate: () =>
       'As of the last update that arrived. Nobody is being added or removed here until the connection is back.',
     tryingAgain: () => 'Trying again…',
@@ -412,7 +412,7 @@ export const en = {
      * no microphone open.
      */
     standingElsewhereLabel: (title: string, present: number) =>
-      `${title}, you are in this room on another of your devices. ${
+      `${title}, you are here from another of your devices. ${
         present === 1 ? 'Nobody else is there.' : `${present} present.`
       } Tap to open.`,
     /**
@@ -491,14 +491,14 @@ export const en = {
      * **All four branches are here rather than in the view**, because which
      * of them applies is a question about words. A seat and a membership are
      * different offers and may not share a sentence — `InviteView.guest` —
-     * and the room goes unnamed where its name is the asker's, which is what
+     * and the channel goes unnamed where its name is the asker's, which is what
      * `inviteCard` leaves behind for an unnamed channel whose roster the
      * server withheld: *Dana Chu asked you into Dana Chu* reads as a bug.
      */
     invitationWaiting: (
       count: number,
       from: string,
-      room: string,
+      channel: string,
       guest: boolean
     ) => {
       if (count > 1) return `${count} invitations waiting`;
@@ -507,14 +507,14 @@ export const en = {
           ? 'A seat is waiting for you'
           : 'You have been asked into a channel';
       }
-      if (!room || room === from) {
+      if (!channel || channel === from) {
         return guest
           ? `${from} kept you a seat`
           : `${from} asked you into a channel`;
       }
       return guest
-        ? `${from} kept you a seat in ${room}`
-        : `${from} asked you into ${room}`;
+        ? `${from} kept you a seat in ${channel}`
+        : `${from} asked you into ${channel}`;
     },
     tapToAnswer: () => 'tap to answer',
     /**
@@ -644,7 +644,7 @@ export const en = {
       ' If you have been talking, nobody is hearing it — which is what an app\u2019s built-in browser usually does on iOS. Open this in Safari or Chrome instead; stepping out and back in takes the reading again.',
     everyContactAlreadyIn: () =>
       'Every contact you could invite is already in this channel.',
-    inTheRoomAsAGuest: () => 'In the room as a guest',
+    hereAsAGuest: () => 'Here as a guest',
     askedInAsAGuest: () => 'Asked in as a guest',
     asking: () => 'Asking\u2026',
   },
@@ -675,10 +675,10 @@ export const en = {
     beingTranscribed: () => 'What is said here is being transcribed.',
     you: () => 'You',
     silenced: () =>
-      'Somebody has the floor, so the room cannot hear you just now.',
+      'Somebody has the floor, so nobody can hear you just now.',
     askToSpeak: () => 'Ask to speak',
     twoGuestsAlready: () =>
-      'Two guests have the microphone already, which is as many as a room takes.',
+      'Two guests have the microphone already, which is as many as a channel takes.',
     whoIsHere: () => 'Who is here',
     nobodyElseIsHere: () => 'Nobody else is here.',
     guest: () => 'Guest',
@@ -694,8 +694,8 @@ export const en = {
     pasteMine: () => 'Paste mine',
     clear: () => 'Clear',
     yourNameHere: () => 'Your name here',
-    whatTheRoomCallsYou: () =>
-      'What the room calls you while you are in it. It is this conversation only, and nothing about your account.',
+    whatYouAreCalledHere: () =>
+      'What people here call you. It is this conversation only, and nothing about your account.',
     yourName: () => 'Your name',
     backToHome: () => 'Back to Home',
     headerKind: () => 'Guest',
@@ -775,9 +775,9 @@ export const en = {
       'Stay in the channel while they open it — a guest link stops working the moment no member is there.',
     playerLabel: () => 'Play something together',
     playerInstruction: () =>
-      "On a channel's Listen tab, add audio. Everybody in the room hears it at the same moment, and you can still talk over it.",
+      "On a channel's Listen tab, add audio. Everybody here hears it at the same moment, and you can still talk over it.",
     playerNote: () =>
-      'It is the one thing here that is not somebody talking, and the room stays a room while it plays.',
+      'It is the one thing here that is not somebody talking, and everyone can still talk while it plays.',
     installLabel: () => 'Put The Floor on your home screen',
     installNote: () =>
       'It gets an icon of its own and opens without a browser around it, which is how you find your way back here.',
@@ -957,13 +957,13 @@ export const en = {
     renameStepIn: () =>
       'Step in to rename this channel. Somebody is in there, and the name is what they are calling the place they are in.',
     renamePublic: () =>
-      'Everyone in the channel sees this name, and anyone in the room can change it. It cannot be emptied while this channel is a podcast or a community — each is found by its name, and an unnamed channel is listed by who is in it.',
+      'Everyone in the channel sees this name, and anyone here can change it. It cannot be emptied while this channel is a podcast or a community — each is found by its name, and an unnamed channel is listed by who is in it.',
     renameCommunity: () =>
       'Everyone in the channel sees this name, and only you can change it. It cannot be emptied, and changing it resets the community link: the old one stops working for everybody who has it.',
     /** Under a control a community's member sees greyed: see `holdsTheControls`. */
     ownerOnly: () => 'Only the community\u2019s owner can change this.',
     renamePrivate: () =>
-      'Everyone in the channel sees this name, and anyone in the room can change it. Leave it empty to go back to listing who is here.',
+      'Everyone in the channel sees this name, and anyone here can change it. Leave it empty to go back to listing who is here.',
     /**
      * The channel's description, which is offered only while the channel has
      * a public page — see the section on `ChannelSettingsView`. Its own words
@@ -973,7 +973,7 @@ export const en = {
     description: () => 'Description',
     descriptionPlaceholder: () => 'What this channel is, in a line or two…',
     descriptionNote: () =>
-      'Shown under the name on this podcast\u2019s page, and in the feed a podcast app reads. Anyone in the room can change it.',
+      'Shown under the name on this podcast\u2019s page, and in the feed a podcast app reads. Anyone here can change it.',
     /** The same field on a *community*, whose page is the one its link opens. */
     communityDescriptionNote: () =>
       'Shown under the name on the page its link opens, to anybody who has the link. Only you can change it.',
@@ -984,7 +984,7 @@ export const en = {
     on: () => 'On',
     off: () => 'Off',
     autoRecordNote: () =>
-      'Off, which is where every channel starts: a recording begins when somebody presses Record. On, one begins by itself as soon as there are two of you in the room, and everyone sees it running.',
+      'Off, which is where every channel starts: a recording begins when somebody presses Record. On, one begins by itself as soon as there are two of you here, and everyone sees it running.',
     autoRecordHow: () =>
       'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
@@ -1441,10 +1441,10 @@ export const en = {
     stop: () => 'Stop',
     floorDecidesWhatPlays: () => 'the floor decides what plays',
     stepInToPlayShort: () => 'step in to play',
-    unmuteTheRoom: () => 'Unmute the room',
-    muteTheRoom: () => 'Mute the room',
-    unmuteTheRoomSub: () => 'Everyone can speak again; your own mute is unchanged',
-    muteTheRoomSub: () => 'Quiet while the video plays; pause to talk',
+    unmuteEveryone: () => 'Unmute everyone',
+    muteEveryone: () => 'Mute everyone',
+    unmuteEveryoneSub: () => 'Everyone can speak again; your own mute is unchanged',
+    muteEveryoneSub: () => 'Quiet while the video plays; pause to talk',
     watchThisInstead: () => 'Watch this instead',
     watchThisInsteadSub: () => 'Plays the YouTube link on your clipboard',
     cancel: () => 'Cancel',
@@ -1465,16 +1465,16 @@ export const en = {
     hideWhatWeHaveWatched: () => 'Hide what we have watched',
     watchedBefore: (count: number) => `Watched before (${count})`,
     watchedBeforeSub: () => 'Puts one of them back on, without a link',
-    roomIsMutedLead: () => 'The room is muted.',
-    roomIsMutedRest: () =>
+    everyoneIsMutedLead: () => 'Everyone is muted.',
+    everyoneIsMutedRest: () =>
       ' No microphone is open, so nothing leaks in from anybody\u2019s screen. Pause the video to talk.',
-    roomStaysMuted: () =>
-      ' Somebody is watching on the device they are in the room on, so it stays muted until the video is paused.',
+    everyoneStaysMuted: () =>
+      ' Somebody is watching on the device they are here on, so everyone stays muted until the video is paused.',
     pausedSoYouCanTalkLead: () => 'Paused, so you can talk.',
     pausedSoYouCanTalkRest: () =>
-      ' The room goes quiet again when the video resumes.',
-    roomIsUnmutedLead: () => 'The room is unmuted.',
-    roomIsUnmutedRest: () =>
+      ' Everyone goes quiet again when the video resumes.',
+    everyoneIsUnmutedLead: () => 'Everyone is unmuted.',
+    everyoneIsUnmutedRest: () =>
       ' Everybody can be heard, including whatever their own screen is playing.',
     somethingOnListen: () =>
       'Something is playing on Listen. Pause it to watch together.',

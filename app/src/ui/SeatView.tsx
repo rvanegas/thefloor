@@ -323,7 +323,7 @@ export function SeatView({
 
       <SectionLabel>{t.yourNameHere()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.muted}>{t.whatTheRoomCallsYou()}</Text>
+        <Text style={type.muted}>{t.whatYouAreCalledHere()}</Text>
         <Field
           value={rename ?? view.you.name}
           onChangeText={setRename}

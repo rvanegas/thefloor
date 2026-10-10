@@ -1383,14 +1383,14 @@ export function RecordingRow({
   playDisabled?: boolean;
   playDisabledReason?: string;
   /**
-   * Whether renaming and deleting are yours to do — `hasTheRoom` at the
+   * Whether renaming and deleting are yours to do — `presentOrEmpty` at the
    * channel this was recorded in. Both change what everybody else's list says,
    * and one of them cannot be undone, so neither is for a member standing
    * outside a conversation in progress.
    *
    * Defaults to true, which is what a row outside a live channel wants: a
    * recording whose channel has ended has nobody in it to interrupt, and the
-   * server says the same thing by way of `hasTheRoomIn`.
+   * server says the same thing by way of `presentOrEmptyIn`.
    *
    * Sharing is deliberately not covered. It is a read, it changes nothing
    * anybody in the room can see, and refusing somebody their own conversation

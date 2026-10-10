@@ -7,13 +7,13 @@ import {
   canManageGuest,
   canPasteClip,
   createChannel,
-  hasTheRoom,
+  presentOrEmpty,
   reduce,
 } from '../channel';
 import type { ChannelAction, ChannelState, Guest } from '../types';
 
 /**
- * `hasTheRoom`, which is one rule stated once and asked by seven guards.
+ * `presentOrEmpty`, which is one rule stated once and asked by seven guards.
  *
  * The rule: **nobody reaches into a conversation they are not in.** Membership
  * is standing over a channel; it is not standing over an occupation of it. The
@@ -56,10 +56,10 @@ const act = (state: ChannelState, action: ChannelAction, now = T0 + 2_000) =>
 
 describe('the room rule', () => {
   it('holds for somebody inside, and for everybody when nobody is inside', () => {
-    expect(hasTheRoom(occupied(), ALICE)).toBe(true);
-    expect(hasTheRoom(occupied(), BOB)).toBe(false);
-    expect(hasTheRoom(empty(), ALICE)).toBe(true);
-    expect(hasTheRoom(empty(), BOB)).toBe(true);
+    expect(presentOrEmpty(occupied(), ALICE)).toBe(true);
+    expect(presentOrEmpty(occupied(), BOB)).toBe(false);
+    expect(presentOrEmpty(empty(), ALICE)).toBe(true);
+    expect(presentOrEmpty(empty(), BOB)).toBe(true);
   });
 
   /**
@@ -95,14 +95,14 @@ describe('the room rule', () => {
       type: 'GUEST_ENTERED',
       guest: guest({ maySpeak: true }),
     });
-    // In the room, so `hasTheRoom` alone would let them through. Every guard
+    // In the room, so `presentOrEmpty` alone would let them through. Every guard
     // that must refuse them says `isParticipant` beside it.
-    expect(hasTheRoom(withGuest, DANA)).toBe(true);
+    expect(presentOrEmpty(withGuest, DANA)).toBe(true);
     expect(canManageGuest(withGuest, DANA, DANA)).toBe(false);
     expect(canControlPlayback(withGuest, DANA)).toBe(false);
     expect(canInviteGuest(withGuest, DANA)).toBe(false);
     expect(canEditChannel(withGuest, DANA)).toBe(false);
-    // The two it does grant, which is what the guard is written in `inRoom`
+    // The two it does grant, which is what the guard is written in `isHere`
     // terms for.
     expect(canPasteClip(withGuest, DANA)).toBe(true);
     expect(canClearClip(withGuest, DANA)).toBe(true);
@@ -141,7 +141,7 @@ describe('the room rule', () => {
    * interrupt.
    */
   it('does not govern the shared track any more', () => {
-    expect(hasTheRoom(empty(), BOB)).toBe(true);
+    expect(presentOrEmpty(empty(), BOB)).toBe(true);
     expect(canControlPlayback(empty(), BOB)).toBe(false);
     // And it is the presence half doing it, not membership: Alice is the one
     // standing in the occupied channel.

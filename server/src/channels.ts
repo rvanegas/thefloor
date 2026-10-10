@@ -33,7 +33,7 @@ import {
   canMakeCommunity,
   capacityOf,
   isOwner,
-  hasTheRoom,
+  presentOrEmpty,
   holdsTheControls,
   COMMUNITY_OWNER_ACTIONS,
   GUEST_ACTIONS,
@@ -57,8 +57,8 @@ import {
 import { initialFloorState } from '../../core/floor';
 import {
   guestsPromised,
-  inRoom,
-  roomOccupants,
+  isHere,
+  peopleHere,
   statedIdentities,
 } from '../../core/guests';
 import { describeChannel, nameRecording } from '../../core/naming';
@@ -2589,7 +2589,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
     // `canLoadTrack`, not `canControlPlayback`: putting something on asks
-    // presence where driving what is already on asks only `hasTheRoom`. The
+    // presence where driving what is already on asks only `presentOrEmpty`. The
     // two differ on the empty channel, which is the case this route used to
     // allow — see `mayPutSomethingOn` in core, and the watch party's
     // `canStartWatch`, which is the same rule for the same reason.
@@ -2866,7 +2866,7 @@ export class ChannelRegistry {
     // leave the flag set. Only the assertion is gated.
     if (speaking) {
       if (!channel || channel.status !== 'active') return;
-      if (!inRoom(channel, userId)) return;
+      if (!isHere(channel, userId)) return;
       if (!isWithheld(channel, userId)) return;
       if (!this.speakingWhileWithheld.add(key)) return;
     } else if (!this.speakingWhileWithheld.delete(key)) {
@@ -2898,7 +2898,7 @@ export class ChannelRegistry {
     const channel = this.channels.get(channelId);
     if (!channel || channel.status !== 'active') return;
     if (listener === speaker) return;
-    if (!inRoom(channel, listener) || !inRoom(channel, speaker)) return;
+    if (!isHere(channel, listener) || !isHere(channel, speaker)) return;
     if (isWithheld(channel, speaker)) return;
     const now = this.now();
     for (const [key, at] of this.lastUnheardAt) {
@@ -2932,7 +2932,7 @@ export class ChannelRegistry {
     for (const key of this.speakingWhileWithheld) {
       if (!key.startsWith(`${channelId}:`)) continue;
       const userId = key.slice(channelId.length + 1);
-      if (!inRoom(channel, userId) || !isWithheld(channel, userId)) {
+      if (!isHere(channel, userId) || !isWithheld(channel, userId)) {
         // Dropped rather than merely skipped: the condition that made it true
         // is gone, and a claim nobody can act on is one nothing should keep.
         this.speakingWhileWithheld.delete(key);
@@ -3643,7 +3643,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * `hasTheRoom`, asked about a channel this class holds by id.
+   * `presentOrEmpty`, asked about a channel this class holds by id.
    *
    * For the routes that change something a conversation can see without going
    * through the reducer — renaming and deleting a recording — since those have
@@ -3654,9 +3654,9 @@ export class ChannelRegistry {
    * and an ended channel has nobody in it to interrupt. Its recordings outlive
    * it by a week and its last member is entitled to tidy them.
    */
-  private hasTheRoomIn(channelId: string, userId: string): boolean {
+  private presentOrEmptyIn(channelId: string, userId: string): boolean {
     const channel = this.channels.get(channelId);
-    return !channel || hasTheRoom(channel, userId);
+    return !channel || presentOrEmpty(channel, userId);
   }
 
   /**
@@ -3696,7 +3696,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'No such recording.', code: 'not_found' };
     }
     if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
-    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+    if (!this.presentOrEmptyIn(row.channel_id, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to change a recording.',
@@ -3746,9 +3746,9 @@ export class ChannelRegistry {
     }
     // Deleting takes the recording out of everybody's list, including the
     // lists of the people who are in the channel talking right now. See
-    // `hasTheRoomIn`.
+    // `presentOrEmptyIn`.
     if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
-    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+    if (!this.presentOrEmptyIn(row.channel_id, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to delete a recording.',
@@ -3800,7 +3800,7 @@ export class ChannelRegistry {
     // rename changes what everybody in the channel is looking at, and the same
     // rule governs it as governs deleting.
     if (!this.holdsTheControlsIn(row.channel_id, userId)) return OWNERS_ALONE;
-    if (!this.hasTheRoomIn(row.channel_id, userId)) {
+    if (!this.presentOrEmptyIn(row.channel_id, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to rename a recording.',
@@ -4108,7 +4108,7 @@ export class ChannelRegistry {
     const now = this.now();
     const seen = this.mediaSeen.get(after.id) ?? new Map<string, number>();
     this.mediaSeen.set(after.id, seen);
-    const occupants = new Set(roomOccupants(after));
+    const occupants = new Set(peopleHere(after));
     for (const id of occupants) if (!seen.has(id)) seen.set(id, now);
     for (const id of [...seen.keys()]) if (!occupants.has(id)) seen.delete(id);
   }
@@ -4122,7 +4122,7 @@ export class ChannelRegistry {
       // Which arm it left by is the question, and presence is what says: a
       // socket that came back leaves them standing where they were, where a
       // grace period running out takes them out of the room on its way.
-      if (inRoom(after, id)) {
+      if (isHere(after, id)) {
         this.connectivity.recovered += 1;
       } else {
         this.connectivity.expired += 1;
@@ -4159,7 +4159,7 @@ export class ChannelRegistry {
     // they were in the room, so their name belongs on the recording. What they
     // are not is entitled to it: reach is `recordingsFor`, which reads the
     // *channel's* participants, and a guest is not one. See fileRun.
-    if (audience) for (const id of roomOccupants(after)) audience.add(id);
+    if (audience) for (const id of peopleHere(after)) audience.add(id);
     this.applyPlaybackToMedia(before, after);
     this.trackFloorWindows(before, after);
     this.meterCommit(before, after);
@@ -4228,7 +4228,7 @@ export class ChannelRegistry {
     // `consume`'s reason — tapping *Be nearby* is going, and a ping that got
     // somebody onto the rung beside the room worked.
     //
-    // Members only. `roomOccupants` includes guests and a guest cannot be
+    // Members only. `peopleHere` includes guests and a guest cannot be
     // pinged, so their ids would match nothing; passing them would be a query
     // per guest per arrival for a row that cannot exist. `steppedIn` is taken
     // from `after.present`, which holds both.
@@ -4671,7 +4671,7 @@ export class ChannelRegistry {
     this.quietSince.delete(state.id);
 
     let next = state;
-    for (const userId of roomOccupants(state)) {
+    for (const userId of peopleHere(state)) {
       next = reduce(next, { type: 'ATTENTION_EXPIRED', userId }, at);
     }
     if (next === state) return;
@@ -5244,7 +5244,7 @@ export class ChannelRegistry {
       // room holding guests and no members is a room with people in it, and
       // skipping it left the one kind of occupant this server cannot see any
       // other way unmeasured — and, now, unreconciled.
-      if (roomOccupants(channel).length === 0) {
+      if (peopleHere(channel).length === 0) {
         this.usage.closeOthers(['mic', 'listen'], id, new Set());
         continue;
       }
@@ -5369,10 +5369,10 @@ export class ChannelRegistry {
    * occupant by anybody's reading. Publishing is a question about the meter;
    * this one is answered by being there at all.
    *
-   * The playback participant cannot reach this: `roomOccupants` is members and
+   * The playback participant cannot reach this: `peopleHere` is members and
    * guests, and `media:<channelId>` is neither.
    */
-  private reconcilePresence(state: ChannelState, inRoom: Set<string>): void {
+  private reconcilePresence(state: ChannelState, isHere: Set<string>): void {
     // **Squared here as well as on every commit**, because a poll can run
     // against a channel no commit has touched since it was restored — a boot
     // that revives a channel holding guests reaches this with no record of when
@@ -5388,13 +5388,13 @@ export class ChannelRegistry {
     // is not something this has to know.
     if (!seen) return;
     const dropped = this.socketDropped.get(state.id);
-    for (const id of roomOccupants(state)) {
+    for (const id of peopleHere(state)) {
       // Self-healing rather than unwound at each of the several places a grace
       // can end: no grace running means nothing to be the origin of.
       if (dropped?.has(id) && state.disconnectedAt[id] === undefined) {
         dropped.delete(id);
       }
-      if (inRoom.has(id)) {
+      if (isHere.has(id)) {
         // **Stamped, not reported.** The room may falsify a presence and may
         // never sustain one — which is what
         // `2026-09-08-present-is-the-media-connection.md` said it did, while
@@ -5738,7 +5738,7 @@ export class ChannelRegistry {
     // by the fatal cohort that starts a run, because a guest may be in the
     // room with no publish grant and therefore no track — which is not a
     // failure and must not kill somebody else's recording.
-    for (const identity of roomOccupants(state)) {
+    for (const identity of peopleHere(state)) {
       if (run.requested.has(identity)) continue;
       if (this.now() < (run.retryAt.get(identity) ?? 0)) continue;
       this.startEgress(state, identity, { fatal: false });
@@ -5774,7 +5774,7 @@ export class ChannelRegistry {
     const had = before.playback.track?.id ?? null;
     const has = after.playback.track?.id ?? null;
     const channel = this.playback.get(after.id);
-    const occupied = roomOccupants(after).length > 0;
+    const occupied = peopleHere(after).length > 0;
 
     // The first track opens the participant, and it stays as long as anybody
     // is in the room, publishing silence between tracks so the recording stem
@@ -5854,7 +5854,7 @@ export class ChannelRegistry {
     // because every one of them is a transition that can happen in an empty
     // room — a stall rebuilt by the tick, a track loaded by somebody who has
     // since stepped out.
-    if (roomOccupants(state).length === 0) return;
+    if (peopleHere(state).length === 0) return;
 
     this.openingPlayback.add(channelId);
     this.run(
@@ -5874,7 +5874,7 @@ export class ChannelRegistry {
           if (
             !live ||
             live.status !== 'active' ||
-            roomOccupants(live).length === 0
+            peopleHere(live).length === 0
           ) {
             await channel.close();
             return;
@@ -6307,7 +6307,7 @@ export class ChannelRegistry {
     // what is wanted here is which half refused, and the two are a 403 and a
     // 409 because only one of them is worth waiting out.
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
-    if (!hasTheRoom(channel, userId)) {
+    if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to make a link.',
@@ -6350,7 +6350,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
-    if (!hasTheRoom(channel, userId)) {
+    if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to ask somebody.',
@@ -6450,7 +6450,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'No such invitation.', code: 'not_found' };
     }
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
-    if (!hasTheRoom(channel, userId)) {
+    if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to take it back.',
@@ -6489,7 +6489,7 @@ export class ChannelRegistry {
     // Asked after the link is found so that a revoke of something that was
     // never there still reads as not-found rather than as a busy channel.
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
-    if (!hasTheRoom(channel, userId)) {
+    if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
         error: 'Somebody is in this channel. Step in to revoke a link.',

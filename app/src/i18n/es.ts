@@ -52,13 +52,13 @@ export const es: Strings = {
   offline: {
     partlyConnected: () => 'Conexión parcial',
     notConnected: () => 'Sin conexión',
-    roomStillAudible: () =>
-      'Todavía puedes oír la sala, y si tenías la palabra todavía se te puede oír — la conversación viaja por su propia conexión. Todo lo que la gestiona está caído: el micrófono, la palabra y las demás pantallas.',
+    everyoneStillAudible: () =>
+      'Todavía puedes oír a todos, y si tenías la palabra todavía se te puede oír — la conversación viaja por su propia conexión. Todo lo que la gestiona está caído: el micrófono, la palabra y las demás pantallas.',
     cannotReach: () =>
       'The Floor no llega al servidor, así que aquí no se puede cambiar nada y nada de lo que se muestre estaría al día.',
     queueDropped: () =>
       'Lo que hiciste en los últimos segundos no llegó a enviarse. No está esperando en cola, así que vuelve a hacerlo cuando esto se resuelva.',
-    whoWasInTheRoom: () => 'Quién estaba en la sala',
+    whoWasHere: () => 'Quién estaba aquí',
     asOfLastUpdate: () =>
       'Según la última actualización que llegó. Aquí no se añade ni se quita a nadie hasta que vuelva la conexión.',
     tryingAgain: () => 'Reintentando…',
@@ -313,7 +313,7 @@ export const es: Strings = {
     filmElsewhere: (title: string) =>
       `${title}: la pel\u00edcula est\u00e1 en otro de tus dispositivos. Toca para verla aqu\u00ed.`,
     standingElsewhereLabel: (title: string, present: number) =>
-      `${title}, est\u00e1s en esta sala en otro de tus dispositivos. ${
+      `${title}, est\u00e1s aqu\u00ed desde otro de tus dispositivos. ${
         present === 1
           ? 'No hay nadie m\u00e1s.'
           : `${present} ${present === 1 ? 'presente' : 'presentes'}.`
@@ -376,7 +376,7 @@ export const es: Strings = {
     invitationWaiting: (
       count: number,
       from: string,
-      room: string,
+      channel: string,
       guest: boolean
     ) => {
       if (count > 1) return `${count} invitaciones esperando`;
@@ -385,14 +385,14 @@ export const es: Strings = {
           ? 'Tienes un sitio esperando'
           : 'Te han invitado a un canal';
       }
-      if (!room || room === from) {
+      if (!channel || channel === from) {
         return guest
           ? `${from} te ha guardado un sitio`
           : `${from} te ha invitado a un canal`;
       }
       return guest
-        ? `${from} te ha guardado un sitio en ${room}`
-        : `${from} te ha invitado a ${room}`;
+        ? `${from} te ha guardado un sitio en ${channel}`
+        : `${from} te ha invitado a ${channel}`;
     },
     tapToAnswer: () => 'toca para responder',
     waitingBarLabel: (sentence: string) => `${sentence}. Toca para responder.`,
@@ -499,7 +499,7 @@ export const es: Strings = {
       ' Si has estado hablando, nadie te oye: es lo que suele pasar en iOS con el navegador integrado de una app. Abre esto en Safari o Chrome; salir y volver a entrar repite la medici\u00f3n.',
     everyContactAlreadyIn: () =>
       'Todos los contactos que podr\u00edas invitar ya est\u00e1n en este canal.',
-    inTheRoomAsAGuest: () => 'En la sala como invitado',
+    hereAsAGuest: () => 'Aqu\u00ed como invitado',
     askedInAsAGuest: () => 'Invitado como invitado',
     asking: () => 'Pidiendo\u2026',
   },
@@ -515,10 +515,10 @@ export const es: Strings = {
     beingRecorded: () => 'Esta conversaci\u00f3n se est\u00e1 grabando.',
     beingTranscribed: () => 'Lo que se dice aqu\u00ed se est\u00e1 transcribiendo.',
     you: () => 'T\u00fa',
-    silenced: () => 'Alguien tiene la palabra, as\u00ed que la sala no puede o\u00edrte ahora.',
+    silenced: () => 'Alguien tiene la palabra, as\u00ed que nadie puede o\u00edrte ahora.',
     askToSpeak: () => 'Pedir la palabra',
     twoGuestsAlready: () =>
-      'Ya hay dos invitados con micr\u00f3fono, que es todo lo que admite una sala.',
+      'Ya hay dos invitados con micr\u00f3fono, que es todo lo que admite un canal.',
     whoIsHere: () => 'Qui\u00e9n est\u00e1 aqu\u00ed',
     nobodyElseIsHere: () => 'No hay nadie m\u00e1s.',
     guest: () => 'Invitado',
@@ -534,8 +534,8 @@ export const es: Strings = {
     pasteMine: () => 'Pegar el m\u00edo',
     clear: () => 'Borrar',
     yourNameHere: () => 'Tu nombre aqu\u00ed',
-    whatTheRoomCallsYou: () =>
-      'C\u00f3mo te llama la sala mientras est\u00e1s en ella. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',
+    whatYouAreCalledHere: () =>
+      'C\u00f3mo te llaman aqu\u00ed. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',
     yourName: () => 'Tu nombre',
     backToHome: () => 'Volver al inicio',
     headerKind: () => 'Invitado',
@@ -608,9 +608,9 @@ export const es: Strings = {
       'Qu\u00e9date en el canal mientras lo abre: un enlace de invitado deja de funcionar en cuanto no hay ning\u00fan miembro dentro.',
     playerLabel: () => 'Pon algo para escuchar juntos',
     playerInstruction: () =>
-      'En la pesta\u00f1a Escuchar de un canal, a\u00f1ade audio. Todos en la sala lo oyen en el mismo momento, y pod\u00e9is seguir hablando por encima.',
+      'En la pesta\u00f1a Escuchar de un canal, a\u00f1ade audio. Todos los que est\u00e1n aqu\u00ed lo oyen en el mismo momento, y pod\u00e9is seguir hablando por encima.',
     playerNote: () =>
-      'Es lo \u00fanico aqu\u00ed que no es alguien hablando, y la sala sigue siendo una sala mientras suena.',
+      'Es lo \u00fanico aqu\u00ed que no es alguien hablando, y todos pueden seguir hablando mientras suena.',
     installLabel: () => 'Pon The Floor en tu pantalla de inicio',
     installNote: () =>
       'Tiene su propio icono y se abre sin un navegador alrededor, que es c\u00f3mo encuentras el camino de vuelta.',
@@ -762,16 +762,16 @@ export const es: Strings = {
     renameStepIn: () =>
       'Entra para cambiar el nombre de este canal. Hay alguien dentro, y el nombre es c\u00f3mo llama al sitio en el que est\u00e1.',
     renamePublic: () =>
-      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 aqu\u00ed puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
     renameCommunity: () =>
       'Todos los del canal ven este nombre, y solo t\u00fa puedes cambiarlo. No se puede dejar vac\u00edo, y cambiarlo restablece el enlace de la comunidad: el anterior deja de funcionar para todos los que lo tengan.',
     ownerOnly: () => 'Esto solo lo cambia quien es responsable de la comunidad.',
     renamePrivate: () =>
-      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 en la sala puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
+      'Todos los del canal ven este nombre, y cualquiera que est\u00e9 aqu\u00ed puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
     description: () => 'Descripci\u00f3n',
     descriptionPlaceholder: () => 'Qu\u00e9 es este canal, en una l\u00ednea o dos\u2026',
     descriptionNote: () =>
-      'Se muestra bajo el nombre en la p\u00e1gina de este podcast, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 en la sala puede cambiarla.',
+      'Se muestra bajo el nombre en la p\u00e1gina de este podcast, y en el feed que lee una app de podcasts. Cualquiera que est\u00e9 aqu\u00ed puede cambiarla.',
     communityDescriptionNote: () =>
       'Se muestra bajo el nombre en la p\u00e1gina que abre su enlace, a cualquiera que lo tenga. Solo t\u00fa puedes cambiarla.',
     descriptionStepIn: () =>
@@ -781,7 +781,7 @@ export const es: Strings = {
     on: () => 'S\u00ed',
     off: () => 'No',
     autoRecordNote: () =>
-      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien pulsa Grabar. S\u00ed, empieza sola en cuanto hay dos personas en la sala, y todos la ven en marcha.',
+      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien pulsa Grabar. S\u00ed, empieza sola en cuanto hay dos personas aqu\u00ed, y todos la ven en marcha.',
     autoRecordHow: () =>
       'Pausar y Parar funcionan igual en ambos casos, y parar es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>
@@ -850,7 +850,7 @@ export const es: Strings = {
     removesFromHomeWith: (recordings: string) =>
       `Lo quita de tu pantalla de inicio, ${recordings} incluidas`,
     steppingOutInstead: () =>
-      'Salir de la sala est\u00e1 en la pantalla del canal y es seguramente lo que quieres: conserva tu sitio aqu\u00ed.',
+      'Salir de la conversaci\u00f3n est\u00e1 en la pantalla del canal y es seguramente lo que quieres: conserva tu sitio aqu\u00ed.',
     couldNotChange: () => 'Ahora mismo no se ha podido cambiar eso.',
     thatDidNotWork: () => 'Eso no ha funcionado.',
     isAPodcast: () => 'Este canal es un podcast',
@@ -1192,11 +1192,11 @@ export const es: Strings = {
     stop: () => 'Parar',
     floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',
     stepInToPlayShort: () => 'entra para reproducir',
-    unmuteTheRoom: () => 'No silenciar la sala',
-    muteTheRoom: () => 'Silenciar la sala',
-    unmuteTheRoomSub: () =>
+    unmuteEveryone: () => 'No silenciar a todos',
+    muteEveryone: () => 'Silenciar a todos',
+    unmuteEveryoneSub: () =>
       'Todos pueden hablar otra vez; tu propio silencio no cambia',
-    muteTheRoomSub: () => 'En silencio mientras va el v\u00eddeo; pausa para hablar',
+    muteEveryoneSub: () => 'En silencio mientras va el v\u00eddeo; pausa para hablar',
     watchThisInstead: () => 'Ver esto en su lugar',
     watchThisInsteadSub: () =>
       'Reproduce el enlace de YouTube de tu portapapeles',
@@ -1218,16 +1218,16 @@ export const es: Strings = {
     hideWhatWeHaveWatched: () => 'Ocultar lo que hemos visto',
     watchedBefore: (count: number) => `Vistas antes (${count})`,
     watchedBeforeSub: () => 'Vuelve a poner una, sin enlace',
-    roomIsMutedLead: () => 'La sala est\u00e1 en silencio.',
-    roomIsMutedRest: () =>
+    everyoneIsMutedLead: () => 'Todos est\u00e1n en silencio.',
+    everyoneIsMutedRest: () =>
       ' No hay ning\u00fan micr\u00f3fono abierto, as\u00ed que no se cuela nada de la pantalla de nadie. Pausa el v\u00eddeo para hablar.',
-    roomStaysMuted: () =>
-      ' Alguien lo est\u00e1 viendo en el mismo dispositivo desde el que est\u00e1 en la sala, as\u00ed que sigue en silencio hasta que se pause el v\u00eddeo.',
+    everyoneStaysMuted: () =>
+      ' Alguien lo est\u00e1 viendo en el mismo dispositivo desde el que est\u00e1 aqu\u00ed, as\u00ed que todos siguen en silencio hasta que se pause el v\u00eddeo.',
     pausedSoYouCanTalkLead: () => 'En pausa, pod\u00e9is hablar.',
     pausedSoYouCanTalkRest: () =>
-      ' La sala vuelve al silencio cuando se reanude el v\u00eddeo.',
-    roomIsUnmutedLead: () => 'La sala no est\u00e1 en silencio.',
-    roomIsUnmutedRest: () =>
+      ' Todos vuelven al silencio cuando se reanude el v\u00eddeo.',
+    everyoneIsUnmutedLead: () => 'Nadie est\u00e1 en silencio.',
+    everyoneIsUnmutedRest: () =>
       ' Se oye a todo el mundo, incluido lo que suene en su propia pantalla.',
     somethingOnListen: () =>
       'Hay algo sonando en Escuchar. P\u00e1usalo para ver algo juntos.',
@@ -1268,7 +1268,7 @@ export const es: Strings = {
     headerKindWatching: () => 'Viendo',
     members: () => 'Miembros',
     partyMuted: () =>
-      'Sala en silencio: no se oye a nadie mientras va el v\u00eddeo.',
+      'Todos en silencio: no se oye a nadie mientras va el v\u00eddeo.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Diagn\u00f3stico de audio',
   },

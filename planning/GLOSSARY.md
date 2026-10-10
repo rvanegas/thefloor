@@ -164,7 +164,7 @@ caused; the list carries the meaning.
 - **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
-- **Has the room** — `hasTheRoom` — you are in the channel, or nobody is
+- **Present or empty** — `presentOrEmpty` — you are in the channel, or nobody is; *has the room* (`hasTheRoom`) until 2026-10-09
 - **Hearing (a device's)** — `Hearing` — who in the media room is publishing audio and which of them this device is subscribed to; read off the room, the only account of what LiveKit actually did with a subscription, and nothing to do with *reach*
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
@@ -194,7 +194,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Room** — Three senses. The user's: a sitting, a channel's span from the first member stepping in to the last stepping out (`rooms`, `RoomView`), the unit the *Record* log is laid out in and whose audio is shared whole; since 2026-10-09. The media plane's: `mediaRoom`, LiveKit's room. And in `core/guests.ts`, everybody present including guests
+- **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in and whose audio is shared whole. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
@@ -2820,7 +2820,7 @@ during one. Stopping the party lifts it.
 
 **The *floor* asked the same question until 2026-09-24 and now asks a narrower
 one**: no claim while a film is *playing*. The argument for the wider rule was
-that a claim is a demand that the room be quiet, and *mute the room* already
+that a claim is a demand that everyone be quiet, and *mute everyone* already
 makes that demand for a film with a control that belongs to the film. But that
 mute holds only while the transport runs — pause, and everybody has their
 voice back — so over a paused film the party was quieting nobody and the claim
@@ -2840,7 +2840,7 @@ the replacement that once ran both ways now runs neither. The rule it replaced
 greyed a whole card for anybody who had paused a film, and explained it with a
 sentence about the floor.
 
-**Mute the room** withholds every microphone *while the video is playing*, and
+**Mute everyone** withholds every microphone *while the video is playing*, and
 pausing gives them all back — you pause a film to talk about it. It writes
 nobody's *self-mute*, and it is not the *floor*: it withholds everybody and
 confers nothing.
@@ -3207,7 +3207,7 @@ which is what makes it an answer to *I do not want to watch this*.
 **In the room rather than *present*, which is the distinction that matters
 here**: a *guest* is in the room without ever being in `present`, and a guest
 link is very often the one sent in order to watch something together. The
-reducer draws the line the same way — `WATCH_HERE` asks `inRoom` — so the
+reducer draws the line the same way — `WATCH_HERE` asks `isHere` — so the
 screen is agreeing with it rather than keeping a second rule.
 
 **The tab decides where it is, not whether it exists — and so does the screen**,
@@ -3731,9 +3731,13 @@ button and a rejected action cannot disagree. **A control the server refuses
 must not be offered**, and a control offered must not be silently refused; that
 is the one shape a control in this codebase may not have.
 
-## Has the room
+## Present or empty
 
-`hasTheRoom` — you are in the channel, or nobody is. The rule that nobody
+*Has the room*, `hasTheRoom`, until 2026-10-09, when *room* came to mean
+one thing only.
+
+
+`presentOrEmpty` — you are in the channel, or nobody is. The rule that nobody
 reaches into a conversation they are not in: the people talking decide what the
 channel is called, who gets in, what is on the clipboard. Membership is
 standing over a channel, not over an occupation of it.
@@ -4222,32 +4226,42 @@ flight — and not the channel. A deploy costs presence, not channels.
 
 ## Room
 
-**Three senses, and the first is the only one a user meets.**
+**One LiveKit room, from creation to deletion — and, since 2026-10-09,
+nothing else.** LiveKit creates a channel's room when the first person
+connects and deletes it `ROOM_DEPARTURE_MS` after the last leaves (its
+`departure_timeout`, 20 seconds by default and not set by
+`bin/provision-livekit`). Being *present* is holding a connection to it, so
+its lifetime is a channel's **sitting**: first step in to last step out,
+which is what the user means by a room and the meaning Rodrigo gave the word
+on 2026-10-09. `ChannelState.mediaRoom` is the *name* a channel's rooms are
+opened under — reused by every one of them, and not the same as the channel's
+id for a channel that took in a moving conversation.
 
-**A sitting**, since 2026-10-09: a channel's span from the first member
-stepping in to the last stepping out. `rooms` on the server, written on those
-two transitions — the second is the one `channelEmptied` fires on, which also
-ends every guest's seat, so a room ends for everybody at once; *the seat ends
-when the room does* was saying this before the word had a table — and
-`RoomView` on the wire. A recording that fell in no sitting is listed as a
-room of its own, `standIn`.
-The *Record* tab is laid out in them and shares one's audio whole, its
-recordings back to back with the gaps between them dropped. A restart closes
-every open one and the people reconnecting within ten minutes resume it.
-No sitting earlier than that is reconstructed: `usage_spans` could, and the
-application does not read it. "Sala" in Spanish, which the app
-already said.
+On the server a sitting is written as it happens, in `rooms`
+(`server/src/rooms.ts`), on the two transitions of `present`; stepping back in
+inside the departure window carries the same one on, as the LiveKit room
+does, and a restart closes every open one and lets the people reconnecting
+within ten minutes resume it. The end is the moment `channelEmptied` fires,
+which also ends every guest's seat — *the seat ends when the room does* — so
+it is the end for everybody. `RoomView` is one on the wire; the *Record* tab
+is laid out in them and shares one's audio whole, its recordings back to back
+with the gaps dropped. A recording that fell in no sitting — every one made
+before rooms were written — is listed as a room of its own, `standIn`.
+"Sala" in Spanish.
 
-**The media plane's word for a media thing.** `ChannelState.mediaRoom` names
-the LiveKit room a channel's audio flows through; this sense never appears in
-the interface, which says *channel* for the place and *room* only for the
-sitting.
+**Three other senses were retired the same day**, and their words replaced:
 
-Separately, "the room" in prose and in `core/guests.ts` means **everybody
-present including guests** — `roomOccupants`, `inRoom` — as against
-`state.present`, which is members only. A sitting is bounded by the
-members-only one, which comes to the same thing: the last member out ends
-every guest's seat.
+- **The people in it now, guests included** — "in the room" — is **here**:
+  *Everybody here hears it*, *anyone here can change it*, *Here as a guest*.
+  `inRoom` is `isHere`, `roomOccupants` is `peopleHere`.
+- **Their sound** — *Mute the room*, *hear the room* — is **everyone**:
+  *Mute everyone*, *Everyone is muted*, `canUnmuteEveryone`.
+- **Has the room** is **present or empty**, `presentOrEmpty`; see that entry.
+
+**Older prose still says it**, in this file and in code comments: "the room"
+for the people present, mostly. Read it as *here*; rewrite it when you are in
+the paragraph anyway, and do not take it as licence to use the word that way
+again.
 
 ## Reach
 
@@ -4608,6 +4622,9 @@ are settled:
     Description           Descripción
     Invite (the tab)      Invitar
     Record (the tab)      Grabado
+    Room                  Sala
+    Here                  Aquí
+    Mute everyone         Silenciar a todos
     Listen                Escuchar
     Watch                 Ver
     Podcasts              Podcasts

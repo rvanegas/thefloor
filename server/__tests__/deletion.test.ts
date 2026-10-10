@@ -304,9 +304,9 @@ describe('deleting one recording', () => {
 });
 
 /**
- * `hasTheRoom` at the two recording routes, which are the only acts governed
+ * `presentOrEmpty` at the two recording routes, which are the only acts governed
  * by it that do not go through the reducer — there is no action to carry the
- * guard, so `Channels` asks core directly. See `hasTheRoomIn`.
+ * guard, so `Channels` asks core directly. See `presentOrEmptyIn`.
  *
  * Exporting is deliberately outside the rule and is asserted here so that
  * nobody tidies it in: it is a read, and refusing somebody their own

@@ -179,7 +179,7 @@ tab.
 
 **A watch party** is a
 YouTube link everybody watches in step on their own
-screens — nothing is fetched, stored or recorded here. **Mute the room**
+screens — nothing is fetched, stored or recorded here. **Mute everyone**
 withholds everybody's microphone while the video plays and gives them all back
 when you pause it, because you pause a film to talk about it. The film follows
 you around the channel: it is pinned above the *Watch* tab and sits in the

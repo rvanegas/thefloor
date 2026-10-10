@@ -37,7 +37,7 @@ export function isGuest(state: ChannelState, id: UserId): boolean {
  * by when each person last spoke and ties by nothing, so a list that reordered
  * itself would move nobody's turn.
  */
-export function roomOccupants(state: ChannelState): UserId[] {
+export function peopleHere(state: ChannelState): UserId[] {
   return [...state.present, ...Object.keys(state.guests ?? {})];
 }
 
@@ -45,7 +45,7 @@ export function roomOccupants(state: ChannelState): UserId[] {
  * Everybody the media plane may have been told something about: the whole
  * roster, present or not, and every guest.
  *
- * Wider than `roomOccupants` on purpose, and the difference is what the floor
+ * Wider than `peopleHere` on purpose, and the difference is what the floor
  * costs when its holder walks out. A mute is a statement about a pair, and
  * undoing it means naming the same pair again — including a member who has
  * since stepped out, who is exactly who a released claim has to un-silence.
@@ -57,7 +57,7 @@ export function statedIdentities(state: ChannelState): UserId[] {
 }
 
 /** Whether this id — member or guest — is in the room right now. */
-export function inRoom(state: ChannelState, id: UserId): boolean {
+export function isHere(state: ChannelState, id: UserId): boolean {
   return state.present.includes(id) || isGuest(state, id);
 }
 
@@ -66,7 +66,7 @@ export function inRoom(state: ChannelState, id: UserId): boolean {
  *
  * What `MAX_CHANNEL_GUESTS` is checked against, and deliberately not a count
  * of anything else: members are bounded by `MAX_CHANNEL_PARTICIPANTS` and the
- * two ceilings are asked separately. `roomOccupants` mixes the two and is the
+ * two ceilings are asked separately. `peopleHere` mixes the two and is the
  * wrong thing to measure either with.
  */
 export function guestCount(state: ChannelState): number {
@@ -129,7 +129,7 @@ export function speakingGuests(state: ChannelState): number {
  *
  * False for anybody who is not a guest, which is the answer that makes this
  * safe to ask about an id of unknown kind: it is about the grant, and members
- * do not have one. Ask `inRoom` first if what you meant was "may this person
+ * do not have one. Ask `isHere` first if what you meant was "may this person
  * speak at all".
  */
 export function guestMaySpeak(state: ChannelState, id: GuestId): boolean {

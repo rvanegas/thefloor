@@ -1,4 +1,4 @@
-import { guestMaySpeak, inRoom, isGuest } from './guests';
+import { guestMaySpeak, isHere, isGuest } from './guests';
 import type { ChannelState, UserId } from './types';
 
 /**
@@ -98,7 +98,7 @@ export function microphoneNeeded(channel: ChannelState, me: UserId): boolean {
  * Whether this person has a microphone in this room at all.
  *
  * **The rule above, minus the watch exception below it**, and the two are
- * separated for a reason that is not tidiness: `anyScreenInTheRoom` in
+ * separated for a reason that is not tidiness: `anyScreenHere` in
  * channel.ts has to ask whether somebody's microphone matters *in order to
  * decide whether it should be closed*, and asking `microphoneNeeded` for that
  * would be asking a question whose answer is what it is about to compute. One
@@ -112,7 +112,7 @@ export function hasMicrophone(
   // Stated here rather than left to the call site because it is the whole rule
   // — every caller that used to lean on the occupancy clause for this is now
   // leaning on this line.
-  if (!inRoom(channel, me)) return false;
+  if (!isHere(channel, me)) return false;
   // A guest with no grant has no microphone to need. Their LiveKit token is
   // minted unable to publish, so asking for capture would open a device
   // microphone that nothing is allowed to carry — and on a phone that is the
@@ -227,5 +227,5 @@ export function isScreening(channel: ChannelState, me: UserId): boolean {
  * already the whole answer.
  */
 export function channelHasAudio(channel: ChannelState, me: UserId): boolean {
-  return inRoom(channel, me);
+  return isHere(channel, me);
 }

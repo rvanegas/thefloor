@@ -271,7 +271,7 @@ media plane. So `canClaimFloor` asks `isParticipant` and `isPresent`, and
 `CLAIM_FLOOR`/`RELEASE_FLOOR` left `GUEST_ACTIONS`.
 
 **The two counts inside that guard ask different questions, and must not be
-merged.** *Is there anybody here to be quiet* is `roomOccupants`, guests
+merged.** *Is there anybody here to be quiet* is `peopleHere`, guests
 included — a member alone with a talking guest is exactly who a claim is for.
 *Who is in the queue* is `state.present`, members only: a guest never claims, so
 their `lastClaimedAt` is always absent, which the ladder reads as having spoken
@@ -454,7 +454,7 @@ things that this file keeps apart:
 
 - **A seat**, which is none of the four above and is worth naming here because
   it looks like two of them. Somebody holding one is *in the room* — audible,
-  countable, in `roomOccupants` — and is in `participants`, `present` and
+  countable, in `peopleHere` — and is in `participants`, `present` and
   `everPresent` nowhere. **Since 2026-09-16 a seat may belong to an account
   that is a contact of somebody in the room and still be a seat**, so neither
   being known nor being somebody's contact is evidence of membership; the one
@@ -486,13 +486,13 @@ things that this file keeps apart:
   controls were not wired to their guard at all and were refused silently by
   the reducer. See **Occupation**, below.
 
-- **Occupation** — `hasTheRoom` in `core/channel.ts`, which is `present` being
+- **Occupation** — `presentOrEmpty` in `core/channel.ts`, which is `present` being
   empty *or* you being in the room. Not a state of a person but of a channel
   seen from one: whether what you are looking at is somebody else's
   conversation. Since 2026-08-22 it governs the channel's name and description,
   inviting a contact, minting and revoking a guest link, the shared track, the
   clipboard, guest management, and — at the two HTTP routes, through
-  `Channels.hasTheRoomIn` — renaming and deleting a recording. **Membership is
+  `Channels.presentOrEmptyIn` — renaming and deleting a recording. **Membership is
   standing over a channel; it is not standing over an occupation of it.**
 
   It does **not** govern leaving, exporting a recording, reading the guest
@@ -732,7 +732,7 @@ Pause, resume and stop asked only whether the floor had silenced the actor, so
 a member who had stepped out could reach into a conversation they were not in
 and end the record of it; `canResumeRecording` did not take a user at all.
 They all ask `isPresent` now, alongside the floor clause the two cutting
-actions already carried. Presence rather than `hasTheRoom`, deliberately: the
+actions already carried. Presence rather than `presentOrEmpty`, deliberately: the
 empty-channel half of that guard can never be reached here, because a run
 cannot outlive the last person stepping out.
 
@@ -1322,7 +1322,7 @@ neither: it is an ordinary seat somebody knocked their way into.
 
 **Why it is a second field rather than an entry in `guests`.** Because
 `state.guests` means *in the room*, and every reader of it depends on that:
-`roomOccupants`, `statedIdentities`, `inRoom`, `selfMuted`, and through the
+`peopleHere`, `statedIdentities`, `isHere`, `selfMuted`, and through the
 last of those the mute matrix and what the media plane is told. An invitation
 is nobody in the room. `participants` is equally wrong for the opposite reason
 — that one means *belongs*, and spends one of the six. So it is neither, and

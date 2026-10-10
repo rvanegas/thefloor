@@ -1,11 +1,11 @@
 import {
-  anyScreenInTheRoom,
+  anyScreenHere,
   canClaimFloor,
   canControlPlayback,
   canControlWatch,
   canLoadTrack,
   canStartRecording,
-  canUnmuteRoom,
+  canUnmuteEveryone,
   createChannel,
   isPartyMuted,
   isWithheld,
@@ -111,13 +111,13 @@ describe('declaring this device the screen', () => {
     // The row survives — nothing went looking for it — and the predicate that
     // matters stops reading it, which is the whole of the departure handling.
     expect(state.watchingHere).toEqual([A]);
-    expect(anyScreenInTheRoom(state)).toBe(false);
+    expect(anyScreenHere(state)).toBe(false);
   });
 });
 
 describe('who counts as a screen in the room', () => {
   it('counts a member watching here', () => {
-    expect(anyScreenInTheRoom(reduce(watching(), here(A), T0))).toBe(true);
+    expect(anyScreenHere(reduce(watching(), here(A), T0))).toBe(true);
   });
 
   it('counts a member who is watching here and self-muted', () => {
@@ -127,7 +127,7 @@ describe('who counts as a screen in the room', () => {
     ]);
     // A muted microphone is held open rather than released, so the session is
     // still a call's and the film is still mono. Self-mute is not an input.
-    expect(anyScreenInTheRoom(state)).toBe(true);
+    expect(anyScreenHere(state)).toBe(true);
   });
 
   it('does not count a guest with no speech grant', () => {
@@ -147,7 +147,7 @@ describe('who counts as a screen in the room', () => {
     );
     const state = reduce(withGuest, here('g1'), T0);
     expect(hasMicrophone(state, 'g1')).toBe(false);
-    expect(anyScreenInTheRoom(state)).toBe(false);
+    expect(anyScreenHere(state)).toBe(false);
   });
 });
 
@@ -160,7 +160,7 @@ describe('enforcement is sampled when a run starts', () => {
     ]);
     expect(state.watch.enforced).toBe(true);
     expect(isPartyMuted(state)).toBe(true);
-    expect(canUnmuteRoom(state)).toBe(false);
+    expect(canUnmuteEveryone(state)).toBe(false);
     expect(isWithheld(state, B)).toBe(true);
   });
 
@@ -183,7 +183,7 @@ describe('enforcement is sampled when a run starts', () => {
       [{ type: 'SET_WATCH_MUTE', userId: A, muted: false }, T0 + 1_000],
     ]);
     expect(state.watch.enforced).toBe(false);
-    expect(canUnmuteRoom(state)).toBe(true);
+    expect(canUnmuteEveryone(state)).toBe(true);
     expect(isPartyMuted(state)).toBe(false);
   });
 
@@ -207,7 +207,7 @@ describe('enforcement is sampled when a run starts', () => {
       [{ type: 'WATCH_PLAY', userId: A }, T0 + 4_000],
     ]);
     expect(isPartyMuted(switched)).toBe(true);
-    expect(canUnmuteRoom(switched)).toBe(false);
+    expect(canUnmuteEveryone(switched)).toBe(false);
   });
 
   it('lifts enforcement at a pause, so a paused party may be unmuted', () => {
@@ -217,7 +217,7 @@ describe('enforcement is sampled when a run starts', () => {
       [{ type: 'WATCH_PAUSE', userId: A }, T0 + 5_000],
     ]);
     expect(paused.watch.enforced).toBe(false);
-    expect(canUnmuteRoom(paused)).toBe(true);
+    expect(canUnmuteEveryone(paused)).toBe(true);
     const unmuted = reduce(
       paused,
       { type: 'SET_WATCH_MUTE', userId: A, muted: false },
@@ -248,7 +248,7 @@ describe('enforcement is lifted when its premise goes', () => {
     const moved = reduce(enforcedRun(), here(A, false), T0 + 2_000);
 
     expect(moved.watch.enforced).toBe(false);
-    expect(canUnmuteRoom(moved)).toBe(true);
+    expect(canUnmuteEveryone(moved)).toBe(true);
     expect(moved.watch.status).toBe('playing');
   });
 
@@ -280,7 +280,7 @@ describe('enforcement is lifted when its premise goes', () => {
       T0 + 2_000
     );
 
-    expect(canUnmuteRoom(gone)).toBe(true);
+    expect(canUnmuteEveryone(gone)).toBe(true);
   });
 
   it('does not re-impose mid-run when the screen comes back', () => {
@@ -293,7 +293,7 @@ describe('enforcement is lifted when its premise goes', () => {
     ]);
 
     expect(back.watch.enforced).toBe(false);
-    expect(canUnmuteRoom(back)).toBe(true);
+    expect(canUnmuteEveryone(back)).toBe(true);
 
     // The next run asks again, and the answer is yes — A is watching here.
     const next = apply(back, [
@@ -301,7 +301,7 @@ describe('enforcement is lifted when its premise goes', () => {
       [{ type: 'WATCH_PLAY', userId: A }, T0 + 5_000],
     ]);
     expect(next.watch.enforced).toBe(true);
-    expect(canUnmuteRoom(next)).toBe(false);
+    expect(canUnmuteEveryone(next)).toBe(false);
   });
 
   it('does not disturb a run that was never enforced', () => {
@@ -341,7 +341,7 @@ describe('the screen gives its microphone up', () => {
     ]);
     expect(microphoneNeeded(state, A)).toBe(false);
     // **But they still *have* one**, which is the distinction `hasMicrophone`
-    // exists for: `anyScreenInTheRoom` has to ask whether somebody's microphone
+    // exists for: `anyScreenHere` has to ask whether somebody's microphone
     // matters in order to decide whether to close it, and asking
     // `microphoneNeeded` would be asking a question whose answer it is
     // computing.

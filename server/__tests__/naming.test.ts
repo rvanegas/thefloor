@@ -77,7 +77,7 @@ describe('naming a channel', () => {
   it('any participant in the room may set it, and it reaches the rejoinable view', async () => {
     const { alice, bob, channelId } = await pair();
     // `create` leaves its initiator present, so Bob is a member standing
-    // outside an occupied channel — which since `hasTheRoom` is exactly who
+    // outside an occupied channel — which since `presentOrEmpty` is exactly who
     // may not rename it. He steps in first, which is what the settings screen
     // now tells him to do.
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
@@ -96,7 +96,7 @@ describe('naming a channel', () => {
   });
 
   /**
-   * The rule from `hasTheRoom`, at the naming end of it. A name is what
+   * The rule from `presentOrEmpty`, at the naming end of it. A name is what
    * everybody in the conversation calls the place they are in, and it is not
    * for somebody who is somewhere else to change it under them.
    */

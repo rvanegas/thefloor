@@ -493,7 +493,7 @@ export interface WatchState {
    * **Sampled when a run starts, never evaluated continuously.** `WATCH_PLAY`
    * asks whether anybody in the room is watching on the device they are in it
    * on — `watchingHere` below — and if so this run begins muted and stays
-   * that way until it is paused. `canUnmuteRoom` is the guard that reads it.
+   * that way until it is paused. `canUnmuteEveryone` is the guard that reads it.
    *
    * Sampling rather than deriving is what stops a voice being cut
    * mid-sentence. Somebody switching to their only device during a playing,
@@ -708,8 +708,8 @@ export interface ChannelState {
    * will have when it is.
    *
    * **Not folded into `guests`, and that is load-bearing rather than tidy.**
-   * Everything that asks who is in the room reads `guests` — `roomOccupants`,
-   * `statedIdentities`, `inRoom`, `selfMuted`, and through the last of those
+   * Everything that asks who is in the room reads `guests` — `peopleHere`,
+   * `statedIdentities`, `isHere`, `selfMuted`, and through the last of those
    * the whole mute matrix and what the media plane is told. An invitation is
    * nobody in the room. Merging the two would announce a person who has never
    * connected.
@@ -1089,7 +1089,7 @@ export type ChannelAction =
    * removal ends a channel.
    *
    * **No presence, unlike almost everything else a member does to the room.**
-   * Muting somebody or answering the door asks `hasTheRoom`, because those are
+   * Muting somebody or answering the door asks `presentOrEmpty`, because those are
    * acts inside a conversation. This is administration, and demanding presence
    * would mean the two who agree had to be in the channel — with the person
    * they are removing listening — which is the one arrangement the whole
