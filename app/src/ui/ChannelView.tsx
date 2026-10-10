@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -1121,76 +1121,17 @@ export function ChannelView({
   }, [app, channelHere, channelId, amHere]);
 
   /**
-   * **A television is the screen or it is nothing: it never has a corner.**
+   * **Leaving the television keeps the film, in the corner.**
    *
-   * The picture floats when no screen leaves it a hole — `Picture`'s
-   * `place`, which is `slot ? 'docked' : 'floating'` — and that is right for
-   * the device somebody is standing in the room on. Going Home there leaves
-   * the film in the corner and a tap on it comes back, which is the whole
-   * point of the player hanging above the route table.
-   *
-   * **It is wrong for a second device, which is a screen showing one film and
-   * nothing else.** A corner rectangle on a television is the state that
-   * screen was cleaned up to stop being: the film on the glass, shrunk, with
-   * the channel list back beside it and every control of it on the other
-   * device. There is no control here that reaches it — no Home, no tab — but
-   * on the web the browser's own back button and address bar leave any screen
-   * in this application, and that route was reaching it.
-   *
-   * So leaving the television gives the screen role up, which stops the film
-   * on this device and tells the server, so that the *Watch on* switch on the
-   * device holding the room stops saying the picture is over here. **The act
-   * is the same one that switch performs** and not a new kind of withdrawal:
-   * it says nothing about the room, the account stays present on the other
-   * instance, and the party's clock runs on for anybody else watching. It is
-   * the fourth way out of this state and the only one that leaves your
-   * standing in the channel alone — the three rungs all change it.
-   *
-   * **A layout effect rather than an effect**, which is the one subtlety: the
-   * cleanup of a passive effect runs after the frame is painted, so the corner
-   * this exists to forbid would be drawn once on the way out. This one runs
-   * inside the commit, and the state it sets is flushed before the paint.
-   *
-   * **Refs because the cleanup has no deps**, the same shape as `collapse`
-   * above: what is wanted is the last thing that was true while this screen
-   * was on the glass, not the value some render closed over.
+   * Until 2026-10-09 a second device was the screen or nothing: navigating
+   * away from it gave the screen role back, and a film sent here opened the
+   * channel and cleared the profile, settings or transcript in front of it.
+   * Both are gone. A film sent here floats over whatever this device is
+   * showing, as a running film does on the device holding the room, and a tap
+   * on it comes back here. The way to give it back is still the television's
+   * *Watch on another device*, or a rung. See
+   * decision/2026-10-09-a-film-sent-to-a-device-floats-on-it.md.
    */
-  /**
-   * **A film sent here takes the device, whatever it was showing.**
-   *
-   * The ask is somebody at another of this account's devices deciding that
-   * the picture belongs on this glass, and there is no tap coming on this one
-   * — so it is an assignment rather than an offer, and `App.tsx` answers it by
-   * opening the channel. What that alone does not reach is this screen's own
-   * three: the profile, the settings screen and a transcript are early
-   * returns *above* the television, and all three are component state that a
-   * change of `channelId` does not touch. A browser sitting in another
-   * channel's settings, handed a film, went on drawing a settings screen —
-   * now for the channel the film is in, which is the one state worse than
-   * having ignored the ask.
-   *
-   * Cleared when this device becomes the second device rather than when the
-   * ask lands, because the ask is spent by `App.tsx` before this screen is
-   * mounted and cannot be read here. Becoming a television is the same fact a
-   * render later, and it is the one this screen can see.
-   */
-  useEffect(() => {
-    if (!secondDevice) return;
-    setViewing(null);
-    setSettingsOpen(false);
-    setTranscriptFor(null);
-  }, [secondDevice]);
-
-  const television = useRef(false);
-  television.current = secondDevice;
-  const releaseScreen = useRef(app.showScreenFor);
-  releaseScreen.current = app.showScreenFor;
-  useLayoutEffect(
-    () => () => {
-      if (television.current) releaseScreen.current(null);
-    },
-    []
-  );
 
   /**
    * **The film comes up on the device you are looking at.**

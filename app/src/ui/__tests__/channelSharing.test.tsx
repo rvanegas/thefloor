@@ -2299,16 +2299,12 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('takes the device over, whatever it was showing', () => {
+    it('leaves whatever it was showing alone', () => {
       /*
-        **The ask is an assignment, not an offer.** Somebody at another of
-        this account's devices has decided the picture belongs on this glass
-        and there is no tap coming on this one, so the arrival opens the
-        channel — `App.tsx` — and the second device replaces whatever this one
-        was on. What that alone does not reach is this screen's own three: the
-        profile, the settings screen and a transcript are early returns
-        *above* the television and are state this component holds, so a device
-        sitting in one of them was handed a film and went on drawing it.
+        **Since 2026-10-09 the film floats over the current view** rather than
+        taking the device over. A device sitting in the channel's settings is
+        handed a film and goes on drawing the settings; the picture is the
+        corner rectangle above it, and a tap on that is the way in.
       */
       showChannel(watching());
       const tree = openOnPeople();
@@ -2326,8 +2322,8 @@ describe('Channel, watching together', () => {
             onExit={() => {}}
           />)
       );
-      expect(textOf(tree)).toContain('Watching');
-      expect(sendOffer(tree)).toBeDefined();
+      expect(textOf(tree)).not.toContain('Watching');
+      expect(sendOffer(tree)).toBeUndefined();
       act(() => tree.unmount());
     });
 
@@ -2342,21 +2338,18 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
-    it('gives the screen up when it goes, there being no corner for it', () => {
+    it('keeps the screen when it goes, the film floating instead', () => {
       /*
-        The picture floats when no screen leaves it a hole, which is right on
-        the device somebody is standing in the room on and wrong here: a
-        television shrunk into a corner with the channel list back beside it
-        is the state this screen was cleaned up to stop being. Nothing on the
-        screen reaches that — but on the web the browser's back button leaves
-        any screen in this application, and that route was reaching it.
+        Until 2026-10-09 leaving the television gave the role back, a second
+        device having no corner. It floats now, as the first device's film
+        does, and a tap on it comes back here.
       */
       showChannel(watching());
       mockApp.screenFor = 'sess_1';
       mockApp.standingIn = null;
       const tree = openOnPeople();
       act(() => tree.unmount());
-      expect(mockApp.showScreenFor).toHaveBeenCalledWith(null);
+      expect(mockApp.showScreenFor).not.toHaveBeenCalledWith(null);
     });
 
     it('keeps it on the way out of the ordinary channel screen', () => {

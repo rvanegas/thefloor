@@ -369,34 +369,10 @@ interface AppState {
    */
   screenFor: string | null;
   /**
-   * A channel this device has just been *asked* to show, waiting to be opened.
-   *
-   * **`screenFor`'s other half, and the two are not the same question.** That
-   * one is a role and holds for as long as the film is here; this one is an
-   * arrival, and it is spent the moment something has acted on it — see
-   * `takeScreenAsked`, which is what spends it.
-   *
-   * It exists because a television is a whole screen rather than a picture in
-   * a corner, and nothing else in the app can put this device on that screen.
-   * The person who sent the film here is looking at their other device; there
-   * is no tap to come on this one, and until 2026-09-20 there was nothing at
-   * all — the picture floated over whatever this device happened to be
-   * showing, which is the state the second device was cleaned up to stop
-   * being.
-   *
-   * **Set only by the server's ask, never by a local declaration**, which is
-   * the whole of why it is a field rather than a reading of `screenFor`.
-   * Pressing *This device* on the device you are holding sets `screenFor` too,
-   * and a rule written against that would drag somebody who had pressed Home
-   * back into the channel they had just left.
-   */
-  screenAsked: string | null;
-  /**
    * The channel to open because an invitation was just spent, waiting to be
    * opened. Null the rest of the time.
    *
-   * **`screenAsked`'s shape and for the same structural reason.** An invitation
-   * is redeemed by the effect below, which is fired by a token arriving rather
+   * **A one-shot, for a structural reason.** An invitation is redeemed by the effect below, which is fired by a token arriving rather
    * than by anybody tapping something — and the thing that can navigate is
    * `Root`, which is a *child* of this provider. So the id is published as
    * state and spent by whoever acts on it; see `takeLandedChannel`.
@@ -799,23 +775,11 @@ interface AppValue extends AppState {
    */
   showScreenFor: (channelId: string | null) => void;
   /**
-   * Spends {@link AppState.screenAsked}, the caller having acted on it.
-   *
-   * **Spent rather than latched**, which matters for the one sequence a
-   * latched string gets wrong: a film sent here, sent away, and sent back
-   * again names the same channel both times, so nothing would change and the
-   * second arrival would open nothing. The eviction that comes between them
-   * sets this to null by itself — the server asks with a null channel — but
-   * a television that let go of the picture on its own, by being navigated
-   * away from, gets no such message.
-   */
-  takeScreenAsked: () => void;
-  /**
    * Spends {@link AppState.landedChannel}, the caller having opened it.
    *
-   * One-shot for the reason `takeScreenAsked` is: an arrival is spent the
-   * moment something has acted on it, or coming back to the list would throw
-   * somebody into the same channel again.
+   * One-shot because an arrival is spent the moment something has acted on
+   * it, or coming back to the list would throw somebody into the same channel
+   * again.
    */
   takeLandedChannel: () => void;
   leaveChannelView: (channelId: string) => void;
@@ -1329,7 +1293,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     screensElsewhere: [],
     standingElsewhere: [],
     screenFor: null,
-    screenAsked: null,
     landedChannel: null,
     standingIn: null,
     nearbyIn: [],
@@ -1659,16 +1622,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             stays the one thing that drops one.
           */
           if (channelId !== null) realtime.watchChannel(channelId);
-          setState((s) => ({
-            ...s,
-            screenFor: channelId,
-            // And the arrival beside the role, which is what puts this device
-            // on the channel's screen rather than a rectangle in its corner.
-            // Null here is the eviction, and it spends a pending ask that
-            // nothing got to: the film went somewhere else before this device
-            // had drawn it.
-            screenAsked: channelId,
-          }));
+          /*
+            **And nothing is opened.** Until 2026-10-09 the ask also carried an
+            arrival that `App.tsx` spent by navigating to the channel's Watch
+            tab, on the reasoning that a second device is a television and
+            never has a corner. It took this device away from whatever it was
+            showing, and from another channel's screen it was reported as not
+            visibly happening at all. The film now floats over whatever is open, which is
+            what `Picture` does with a running film and no slot to dock in; a
+            tap on it opens the television. See
+            decision/2026-10-09-a-film-sent-to-a-device-floats-on-it.md.
+          */
+          setState((s) =>
+            s.screenFor === channelId ? s : { ...s, screenFor: channelId }
+          );
         },
         onDisplaced: () =>
           setState((s) => ({ ...s, displaced: true, nearbyIn: [], nearbyArrival: {} })),
@@ -2197,7 +2164,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         screensElsewhere: [],
         standingElsewhere: [],
         screenFor: null,
-        screenAsked: null,
         landedChannel: null,
         home: null,
         channelViews: {},
@@ -2556,7 +2522,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screensElsewhere: [],
           standingElsewhere: [],
           screenFor: null,
-          screenAsked: null,
           landedChannel: null,
         standingIn: null,
           nearbyIn: [],
@@ -2621,7 +2586,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screensElsewhere: [],
           standingElsewhere: [],
           screenFor: null,
-          screenAsked: null,
           landedChannel: null,
           standingIn: null,
           nearbyIn: [],
@@ -2668,7 +2632,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           screensElsewhere: [],
           standingElsewhere: [],
           screenFor: null,
-          screenAsked: null,
           landedChannel: null,
         standingIn: null,
           nearbyIn: [],
@@ -2976,9 +2939,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           s.screenFor === channelId ? s : { ...s, screenFor: channelId }
         );
       },
-
-      takeScreenAsked: () =>
-        setState((s) => (s.screenAsked === null ? s : { ...s, screenAsked: null })),
 
       takeLandedChannel: () =>
         setState((s) =>

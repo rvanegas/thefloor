@@ -123,7 +123,7 @@ caused; the list carries the meaning.
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no recording may be begun, and the film is unloaded when the *room* ends (since 2026-10-09), and while one is *playing* no *floor* may be claimed — the floor asked about the load too until 2026-09-24, which left a film paused at its own end refusing every claim in that channel for ever. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and *Watch on this device* bare where no device of yours has it at all (since 2026-09-24; nothing at all only when you have stepped out); a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
-- **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home* — the way to stop being the second device is *Other device*, under *Full screen* — no corner to float into, and no channel list beside it however wide the window; a film sent here subscribes this device to the channel and opens it on *Watch*, taking the device over whatever it was showing — another channel, the channel list, a settings screen, a transcript, a profile — and only the server's ask counting as an arrival
+- **First device / second device** — The two instances a party can be spread across: the *first* holds the presence and every control of the channel, the *second* is the *screen* and holds the film. Not stored anywhere — the second device is simply the screen that is not *stepped in* — and since 2026-09-20 it draws a view of its own rather than the channel screen: the picture, the transport, *Full screen* and the three rungs, and nothing else of the channel or of the party — no *Home* — the way to stop being the second device is *Other device*, under *Full screen*, and no channel list beside it however wide the window; since 2026-10-09 a film sent here subscribes this device to the channel and floats in the corner over whatever it was showing, rather than opening the channel, and leaving the television keeps it there rather than giving the role up — a tap on the corner is the way back to the television
 - **The picture** — Where a party's film is drawn on the device showing it: a pinned row under the tabs on *Watch* — or under the header alone on a *second device*, which has no tabs — or a column beside its transport where the pane is wide enough (see *watch shape*), a small draggable rectangle resting in one of the four corners of the application everywhere else — and that corner only while the film is *playing*, a paused one being hidden rather than parked over another tab — or *full screen*. Mounted above the route table for as long as this device is the *screen*, so since 2026-09-19 neither leaving the Watch tab nor leaving the channel stops a film — Home and the settings keep it in the corner, and going *nearby* or *out* is what stops it. It neither mounts nor plays for somebody who is not in the room — *nearby* and *out* both fail that, a *guest* passes it — and that is a precondition on drawing it rather than a rule that fires afterwards
 - **Full screen** — The film filling one device. Two ways in, and a surface gets whichever it can perform: the *Full screen* button on the watch card everywhere, and on a *handheld*, *turning* the device sideways — unless the film is an *upright film*, which has only the button. *Exit full screen* on the scrim leaves — except on a turned handheld, where it is not drawn and the wrist is the way out. On the scrim, the transport and that button and nothing else, fading after three seconds and back at a touch anywhere; the channel's own bar and *Back to portrait* both went on 2026-09-20. Three automatic collapses besides. One device's own business and never the party's
 - **Handheld** — A window whose short side is under 500 points, which is to say one somebody is holding: every iPhone in either orientation, a phone browser, and nothing else this app is opened on. The one surface this app turns — see *portrait lock* — a tablet and a browser window being landscape sitting still. `isHandheld` in `ui/layout.ts`; a different question from the layout breakpoint, which a phone on its side is already past
@@ -3171,22 +3171,16 @@ said in the negative, where it is now simply that answer, said from the
 television. All
 three rungs change your standing in the channel; that one does not.
 
-**A second device never draws the picture in a corner.** Leaving the television
-by any route gives the screen role up, the browser's own back button included,
-so the floating rectangle every other screen in the app can show is a state
-this one has no version of.
-
-**The film arriving opens the channel here, which is what makes that true of
-the arrival as well as of the exit.** Being asked to be the screen subscribes
-this device to the channel and puts it on that channel's screen, on the
-*Watch* tab — the person who sent the film is looking at their other device
-and there is no tap to come on this one. Until 2026-09-20 neither half was
-written: the picture was drawn off a snapshot nothing had asked for, so a
-device handed a film it did not already have open drew nothing at all, and the
-channel screen it was opened on by hand gave the role straight back while the
-first snapshot was still on its way. Only the server's ask counts as an
-arrival — pressing *This device* opens nothing, that being the device the
-person is already holding.
+**A second device floats like any other, since 2026-10-09.** Being asked to
+be the screen subscribes this device to the channel and puts the film in the
+corner over whatever it is showing — another channel, the channel list, a
+settings screen — and a tap on the corner opens the television. Leaving the
+television keeps the film in the corner rather than giving the role up. From
+2026-09-20 until then the opposite held: the ask opened the channel on its
+*Watch* tab and the television was the screen or nothing, which took the device
+away from what it was showing and, from another channel's screen, was reported
+as not visibly happening at all. See
+`decision/2026-10-09-a-film-sent-to-a-device-floats-on-it.md`.
 
 **A film on a second device sounds best**, which is the configuration the
 design prefers: a screen does not step in, so it claims no audio session and

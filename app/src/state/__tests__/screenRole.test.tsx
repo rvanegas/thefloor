@@ -95,7 +95,7 @@ function Screen() {
   latest = app;
   return (
     <Text>
-      screen:{app.screenFor ?? 'nowhere'} asked:{app.screenAsked ?? 'nothing'}
+      screen:{app.screenFor ?? 'nowhere'}
     </Text>
   );
 }
@@ -297,38 +297,14 @@ describe('being handed a film', () => {
     expect(watched).toEqual([]);
   });
 
-  it('records the arrival, which is what opens the channel', async () => {
+  it('takes the role without opening anything', async () => {
     /*
-      `screenAsked` is the role's other half: a one-shot that `App.tsx` turns
-      into the channel screen, because a television is a whole screen and the
-      person who sent the film here is looking at their other device.
+      Until 2026-10-09 the ask also recorded an arrival that `App.tsx` spent
+      by opening the channel. The film floats over whatever is open now, so
+      the role is the whole of what the ask sets.
     */
     const shown = await open();
     act(() => handlers.onScreenAsked?.('sess_1'));
-    expect(textOf(shown)).toContain('asked:sess_1');
-  });
-
-  it('spends it once taken, so the next arrival is a new one', async () => {
-    const shown = await open();
-    act(() => handlers.onScreenAsked?.('sess_1'));
-    act(() => latest?.takeScreenAsked());
-    expect(textOf(shown)).toContain('asked:nothing');
-    // And the same channel again is an arrival again, which is the sequence a
-    // latched string gets wrong: sent here, sent away, sent back.
-    act(() => handlers.onScreenAsked?.('sess_1'));
-    expect(textOf(shown)).toContain('asked:sess_1');
-  });
-
-  it('records no arrival for a role this device took itself', async () => {
-    /*
-      The whole reason this is a field rather than a reading of `screenFor`.
-      Pressing *This device* is the device you are already holding, and a rule
-      written against the role would drag somebody who had pressed Home back
-      into the channel they had just left.
-    */
-    const shown = await open();
-    act(() => latest?.showScreenFor('sess_1'));
     expect(textOf(shown)).toContain('screen:sess_1');
-    expect(textOf(shown)).toContain('asked:nothing');
   });
 });

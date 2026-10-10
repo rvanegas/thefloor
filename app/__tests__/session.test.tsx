@@ -56,8 +56,6 @@ const mockApp = {
    * screen — null in every test here, nothing in this file being about a film
    * sent from another device, but read on every render.
    */
-  screenAsked: null as string | null,
-  takeScreenAsked: jest.fn(),
   showScreenFor: jest.fn(),
   listScreens: jest.fn(),
   useScreen: jest.fn(),

@@ -1368,11 +1368,12 @@ state *one screen* can be in — and this bar is three rungs in all of them,
 each still `flex: 1`. A screen with a footer of its own is not the channel's
 footer changing shape; Home has no footer at all.
 
-**And no corner, either.** Leaving this screen by any route — on the web the
-browser's own back button is one — gives the screen role up, so the floating
-picture § *The picture* describes is a state a second device has no version of.
-A television shrunk into a corner with the channel list back beside it is what
-this screen was made to stop being.
+**But it does have a corner, since 2026-10-09.** A film sent to a second device
+floats over whatever that device is showing, rather than opening this screen,
+and leaving this screen keeps the film in the corner § *The picture* describes.
+A tap on the corner comes back here. Until then a second device never floated:
+the arrival took the device over, which pulled somebody off what they were
+reading to show them a film they had sent from the other hand.
 
 **And no list beside it, however wide the window.** It claims the window the
 way the expanded picture does — `WholeWindowContext`, the second and last
