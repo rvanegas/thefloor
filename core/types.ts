@@ -1216,6 +1216,13 @@ export type ChannelAction =
        * automatic and mute the chime on somebody else's phone.
        */
       automatic?: boolean;
+      /**
+       * Begin the live transcript in the same step: *Record automatically*
+       * with both Audio and Text on, whose text waits for the audio so the
+       * two begin one segment together. Set by the `autoRecord` latch alone,
+       * for the reason `automatic` is. See `startsTextWithAudio`.
+       */
+      withText?: boolean;
     }
   /**
    * Pause and Resume hold and restart **everything** this person may, audio

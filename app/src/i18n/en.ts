@@ -958,7 +958,7 @@ export const en = {
     on: () => 'On',
     off: () => 'Off',
     autoRecordNote: () =>
-      'Each conversation here begins with what is switched on: Audio starts a recording as soon as there is something to record, and Text transcribes what is said. Everyone sees either running. Off, which is where every channel starts, they are switched on in the Record tab.',
+      'Each conversation here begins with what is switched on: Audio starts a recording as soon as there is something to record, and Text transcribes what is said — with both on, the two begin together. Everyone sees either running. Off, which is where every channel starts, they are switched on in the Record tab.',
     autoRecordHow: () =>
       'Switching either off in the Record tab lasts until everybody has left the channel and come back.',
     autoRecordStepIn: () =>

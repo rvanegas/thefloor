@@ -756,7 +756,7 @@ export const es: Strings = {
     on: () => 'S\u00ed',
     off: () => 'No',
     autoRecordNote: () =>
-      'Cada conversaci\u00f3n aqu\u00ed empieza con lo que est\u00e9 activado: Audio empieza una grabaci\u00f3n en cuanto hay algo que grabar, y Texto transcribe lo que se dice. Todos ven cualquiera de los dos en marcha. Desactivados, que es como empieza todo canal, se activan en la pesta\u00f1a Grabado.',
+      'Cada conversaci\u00f3n aqu\u00ed empieza con lo que est\u00e9 activado: Audio empieza una grabaci\u00f3n en cuanto hay algo que grabar, y Texto transcribe lo que se dice; con los dos activados, empiezan a la vez. Todos ven cualquiera de los dos en marcha. Desactivados, que es como empieza todo canal, se activan en la pesta\u00f1a Grabado.',
     autoRecordHow: () =>
       'Desactivar cualquiera de los dos en la pesta\u00f1a Grabado dura hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>

@@ -1040,6 +1040,20 @@ export function recordingRefusal(
  * nothing else here will say it: an *egress* now opens for a lone speaker in
  * every channel with the setting on.
  */
+/**
+ * Whether *Record automatically*'s Text waits to begin with its Audio, which
+ * it does whenever both are on, since 2026-10-10. **Kept both ways, they must
+ * coincide**: a segment kept as audio and as text covers one span, and text
+ * begun on the first arrival while the audio could not yet start — a film
+ * still loaded, every microphone shut — was a stretch kept as text alone,
+ * which nobody asked for. So the arrival leaves the text off, and the
+ * automatic start that `autoRecordStarter` names begins both in one step
+ * (`START_RECORDING`'s `withText`). If the audio never can, neither begins.
+ */
+export function startsTextWithAudio(state: ChannelState): boolean {
+  return !!state.autoTranscribe && !!state.autoRecord;
+}
+
 export function autoRecordStarter(state: ChannelState): UserId | null {
   if (!state.autoRecord) return null;
   return state.present.find((id) => recordingStartable(state, id)) ?? null;
@@ -2572,8 +2586,10 @@ function reduceAction(
         declaredNearbyAt: stillDeclared,
         present: [...state.present, action.userId],
         // **The first arrival opens a sitting**, and a sitting begins with the
-        // live transcript the channel asks for. See `autoTranscribe`.
-        ...(state.present.length === 0 && state.autoTranscribe
+        // live transcript the channel asks for — unless it asks for the audio
+        // too, when the text waits to begin with it. See `autoTranscribe` and
+        // `startsTextWithAudio`.
+        ...(state.present.length === 0 && state.autoTranscribe && !startsTextWithAudio(state)
           ? {
               liveTranscription: true,
               liveTranscriptionPaused: false,
@@ -3067,6 +3083,15 @@ function reduceAction(
           now,
           action.automatic === true
         ),
+        // The text the channel asks for, beginning with the audio rather
+        // than before it. See `startsTextWithAudio`.
+        ...(action.withText === true && !state.liveTranscription
+          ? {
+              liveTranscription: true,
+              liveTranscriptionPaused: false,
+              liveTranscriptionPaidBy: undefined,
+            }
+          : {}),
       };
     }
 

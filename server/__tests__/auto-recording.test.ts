@@ -177,3 +177,75 @@ describe('a channel that records itself', () => {
     expect(channel(channelId).recording.status).toBe('idle');
   });
 });
+
+/*
+  **Audio and Text automatic together begin together**, since 2026-10-10. A
+  first arrival used to start the text at once and the audio only when it
+  could, so a film left loaded from an earlier evening — which refuses a
+  recording — gave a sitting kept as text alone.
+*/
+describe('a channel that records and transcribes itself', () => {
+  const both = async () => {
+    const { alice, bob, channelId } = await channelOfTwo();
+    ask(channelId, alice.id, true);
+    expect(app.channels.setAutoTranscribe(channelId, alice.id, true).ok).toBe(true);
+    // Out, so the next arrival opens a sitting with the settings in force.
+    app.channels.dispatch(channelId, alice.id, { type: 'STEP_OUT' });
+    clock += 60_000;
+    return { alice, bob, channelId };
+  };
+  const segments = (channelId: string) =>
+    app.db
+      .prepare('SELECT started_at, ended_at, recording_id, text FROM segments WHERE channel_id = ? ORDER BY started_at')
+      .all(channelId) as Array<{ started_at: number; ended_at: number | null; recording_id: string | null; text: number }>;
+
+  it('begins audio and text in one step on the first arrival', async () => {
+    const { alice, channelId } = await both();
+    const from = segments(channelId).length;
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+    const state = channel(channelId);
+    expect(state.recording.status).toBe('recording');
+    expect(state.liveTranscription).toBe(true);
+    expect(segments(channelId).slice(from)).toEqual([
+      { started_at: clock, ended_at: null, recording_id: state.recording.runId, text: 1 },
+    ]);
+  });
+
+  it('keeps the text waiting while a loaded film refuses the audio, and begins both when it goes', async () => {
+    const { alice, channelId } = await both();
+    // An earlier sitting that ended with a film still loaded.
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, alice.id, { type: 'STOP_RECORDING' });
+    const loaded = app.channels.dispatch(channelId, alice.id, {
+      type: 'START_WATCH',
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+    } as never);
+    expect(loaded.ok).toBe(true);
+    app.channels.dispatch(channelId, alice.id, { type: 'STEP_OUT' });
+    expect(channel(channelId).watch.party).not.toBeNull();
+    clock += 60_000;
+    const from = segments(channelId).length;
+
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+    expect(channel(channelId).recording.status).toBe('idle');
+    expect(channel(channelId).liveTranscription).toBe(false);
+    expect(segments(channelId).slice(from)).toEqual([]);
+
+    clock += 30_000;
+    app.channels.dispatch(channelId, alice.id, { type: 'STOP_WATCH' } as never);
+    const state = channel(channelId);
+    expect(state.recording.status).toBe('recording');
+    expect(state.liveTranscription).toBe(true);
+    expect(segments(channelId).slice(from)).toEqual([
+      { started_at: clock, ended_at: null, recording_id: state.recording.runId, text: 1 },
+    ]);
+  });
+
+  it('still begins the text on arrival where only Text is automatic', async () => {
+    const { alice, channelId } = await both();
+    ask(channelId, alice.id, false);
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+    expect(channel(channelId).liveTranscription).toBe(true);
+    expect(channel(channelId).recording.status).toBe('idle');
+  });
+});

@@ -154,6 +154,29 @@ describe('the live transcript, sitting by sitting', () => {
     expect(come(leave(off)).liveTranscription).toBe(true);
   });
 
+  /*
+    **With Audio automatic too, the text waits for it**, since 2026-10-10:
+    kept both ways, the two must begin one segment together, so the arrival
+    leaves the text off and the automatic start begins both.
+  */
+  it('waits for the automatic recording when Audio is automatic too', () => {
+    const both = reduce(
+      auto(fresh()),
+      { type: 'SET_AUTO_RECORD', userId: A, autoRecord: true },
+      T0
+    );
+    const arrived = come(leave(both));
+    expect(arrived.liveTranscription).toBe(false);
+    const started = reduce(
+      arrived,
+      { type: 'START_RECORDING', userId: A, runId: 'rec_1', automatic: true, withText: true },
+      T0 + 1_000
+    );
+    expect(started.recording).toMatchObject({ status: 'recording', startedAt: T0 + 1_000 });
+    expect(started.liveTranscription).toBe(true);
+    expect(isTranscribingLive(started)).toBe(true);
+  });
+
   it('is off on a fresh channel and changes nothing when already so', () => {
     const start = fresh();
     expect(start.autoTranscribe).toBe(false);

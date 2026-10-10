@@ -24,6 +24,7 @@ import { playbackPositionMs } from '../../core/playback';
 import { recordedMs } from '../../core/recording';
 import {
   autoRecordStarter,
+  startsTextWithAudio,
   isTranscribingLive,
   canAnswerKnock,
   canRequestSpeech,
@@ -4581,6 +4582,9 @@ export class ChannelRegistry {
       // `automatic` field in `core/types.ts`.
       automatic: true,
       runId: newId('rec'),
+      // The channel asks for text as well, which waited for this so the two
+      // begin together. See `startsTextWithAudio` in core.
+      withText: startsTextWithAudio(state),
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
   }
 
