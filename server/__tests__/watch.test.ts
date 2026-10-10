@@ -7,7 +7,9 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { WATCH_TOKEN_TTL_MS } from '../src/accounts';
+import { ROOM_DEPARTURE_MS } from '../src/rooms';
 import { WATCH_DRIFT_MS } from '../../core/constants';
+import { canStartRecording } from '../../core/channel';
 import type { ClientMessage, ServerMessage } from '../../core/protocol';
 
 /**
@@ -533,5 +535,53 @@ describe('across a restart', () => {
     expect(revived.watch.history).toEqual([
       { videoId: VIDEO, url: URL, durationMs: 600_000, title: 'A Film' },
     ]);
+  });
+});
+
+describe('a film ends with the room', () => {
+  /**
+   * A film left loaded used to stay for ever, and a loaded film refuses a
+   * recording — so the next person in the channel could not record, alone or
+   * otherwise. It is unloaded when the room ends: `ROOM_DEPARTURE_MS` after
+   * the last person left, and not before, since stepping back inside the
+   * window is the same room. See `ROOM_ENDED` in core/channel.ts.
+   */
+  async function emptiedWithFilm() {
+    const { alice, bob, channelId } = await channelOfTwo();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'START_WATCH',
+      url: URL,
+    } as never);
+    expect(app.channels.get(channelId)!.watch.party).not.toBeNull();
+    for (const id of [alice.account.id, bob.account.id]) {
+      app.channels.dispatch(channelId, id, { type: 'STEP_OUT' });
+    }
+    return { alice, channelId };
+  }
+
+  it('unloads the film once nobody has come back within the window', async () => {
+    const { alice, channelId } = await emptiedWithFilm();
+    clock += ROOM_DEPARTURE_MS;
+    app.channels.tick();
+    expect(app.channels.get(channelId)!.watch.party).not.toBeNull();
+
+    clock += 1;
+    app.channels.tick();
+    const after = app.channels.get(channelId)!;
+    expect(after.watch.party).toBeNull();
+    expect(after.watch.history[0]?.videoId).toBe(VIDEO);
+
+    // The point of it: somebody stepping in alone can record.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    expect(canStartRecording(app.channels.get(channelId)!, alice.account.id)).toBe(true);
+  });
+
+  it('keeps the film for somebody stepping back in inside the window', async () => {
+    const { alice, channelId } = await emptiedWithFilm();
+    clock += ROOM_DEPARTURE_MS / 2;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    clock += ROOM_DEPARTURE_MS;
+    app.channels.tick();
+    expect(app.channels.get(channelId)!.watch.party).not.toBeNull();
   });
 });

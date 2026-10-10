@@ -81,7 +81,7 @@ import type {
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
-import { Rooms } from './rooms';
+import { ROOM_DEPARTURE_MS, Rooms } from './rooms';
 import {
   insertWithUniqueKey,
   newId,
@@ -882,6 +882,17 @@ export class ChannelRegistry {
    */
   private quietSince = new Map<string, number>();
   /**
+   * When each channel's room last emptied, for `endRooms` — set on the
+   * transition to nobody here and cleared on the transition back.
+   *
+   * **In memory, and that is the rule rather than a shortcut**, on the
+   * guest links' reasoning: a restart empties nothing anybody chose to empty,
+   * so it must not start this clock, and a film being watched across a
+   * deploy is still loaded when everybody reconnects. A restart inside the
+   * window loses the pending end; the next time the room empties catches it.
+   */
+  private roomEmptiedAt = new Map<string, number>();
+  /**
    * Who last stepped into each channel, and when.
    *
    * **The act, not the notification.** An earlier draft of this recorded the
@@ -1202,7 +1213,7 @@ export class ChannelRegistry {
     const gainedWait = new Set<string>();
     for (const [id, channel] of this.channels) {
       if (channel.status !== 'active') continue;
-      const attended = this.expireInattentive(channel, now);
+      const attended = this.endRooms(this.expireInattentive(channel, now), now);
       const next = reduce(attended, { type: 'TICK' }, now);
       if (next !== channel) {
         for (const userId of next.waiting) {
@@ -4250,8 +4261,14 @@ export class ChannelRegistry {
     // because it is the count LiveKit sees. See rooms.ts.
     const herePeople = peopleHere(after).length;
     const wereHere = peopleHere(before).length;
-    if (wereHere === 0 && herePeople > 0) this.rooms.opened(after.id, this.now());
-    if (wereHere > 0 && herePeople === 0) this.rooms.closed(after.id, this.now());
+    if (wereHere === 0 && herePeople > 0) {
+      this.rooms.opened(after.id, this.now());
+      this.roomEmptiedAt.delete(after.id);
+    }
+    if (wereHere > 0 && herePeople === 0) {
+      this.rooms.closed(after.id, this.now());
+      this.roomEmptiedAt.set(after.id, this.now());
+    }
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a
@@ -4653,6 +4670,23 @@ export class ChannelRegistry {
       next = reduce(next, { type: 'ATTENTION_EXPIRED', userId }, now);
     }
     return next;
+  }
+
+  /**
+   * Ends this channel's room once nobody has been back for
+   * `ROOM_DEPARTURE_MS`, which is when LiveKit deletes it and `Rooms.opened`
+   * stops carrying the same one on. What ending it does is core's —
+   * `ROOM_ENDED`; this is only *when*. Strictly past the window, as
+   * `Rooms.opened` continues a room at exactly the edge of it.
+   *
+   * Returns the state to go on with, as `expireInattentive` does, so the end
+   * is folded into the same TICK pass and emitted once.
+   */
+  private endRooms(state: ChannelState, now: number): ChannelState {
+    const since = this.roomEmptiedAt.get(state.id);
+    if (since === undefined || now - since <= ROOM_DEPARTURE_MS) return state;
+    this.roomEmptiedAt.delete(state.id);
+    return reduce(state, { type: 'ROOM_ENDED' }, now);
   }
 
   private considerRetiring(state: ChannelState, publishing: number): void {

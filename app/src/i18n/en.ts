@@ -1437,6 +1437,11 @@ export const en = {
     resumeRecording: () => 'Resume recording',
     record: () => 'Record',
     resume: () => 'Resume',
+    recordRefusedOwner: () => 'Only the owner can record in this community.',
+    recordRefusedFilm: () =>
+      'Something is loaded to watch together. Stop it on the Watch tab to record.',
+    recordRefusedSilent: () =>
+      'Nobody\u2019s microphone is open and nothing is playing, so there is nothing to record.',
     pauseRecording: () => 'Pause recording',
     stop: () => 'Stop',
     floorDecidesWhatPlays: () => 'the floor decides what plays',

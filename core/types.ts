@@ -1273,6 +1273,13 @@ export type ChannelAction =
   /** Reported, not performed — like PLAYBACK_FAILED: no actor, no guard. */
   | { type: 'WATCH_FAILED'; reason: string }
   /**
+   * The room is over: nobody has been here for `ROOM_DEPARTURE_MS`, so the
+   * LiveKit room is gone. Raised by the server, like WATCH_FAILED — no actor,
+   * no guard — and it ends a loaded film the way Stop would. See
+   * `ChannelRegistry.endRooms`.
+   */
+  | { type: 'ROOM_ENDED' }
+  /**
    * Puts something on the channel's clipboard, replacing whatever was there.
    *
    * The whole `Clip` arrives assembled because the server mints its id and

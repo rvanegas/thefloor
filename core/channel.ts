@@ -979,6 +979,35 @@ function recordingStartable(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * Why Record is refused to this person, when the reason is one worth a
+ * sentence — and null otherwise, including when it is not refused at all.
+ *
+ * The transport is grey most of the time by design, and STYLE.md § *Words on
+ * controls* exempts it from a sentence per refusal for that reason: the
+ * ordinary cause is not being in the room, which the footer already says, and
+ * a run already going is the header's pill. What is left are the refusals
+ * nothing else on the screen explains, which a person standing in the room
+ * alone met as a dead button — a film still loaded from an earlier evening
+ * was the one that was noticed, on 2026-10-09.
+ *
+ * Read off the same clauses `canStartRecording` is, in its order, so the
+ * sentence and the grey cannot name different rules.
+ */
+export type RecordingRefusal = 'owner' | 'film' | 'silent';
+
+export function recordingRefusal(
+  state: ChannelState,
+  userId: UserId
+): RecordingRefusal | null {
+  if (state.status !== 'active' || state.recording.status !== 'idle') return null;
+  if (!isPresent(state, userId)) return null;
+  if (!holdsTheControls(state, userId)) return 'owner';
+  if (watchPartyIsOn(state)) return 'film';
+  if (!capturable(state)) return 'silent';
+  return null;
+}
+
+/**
  * Who would begin an automatic run right now, or null if nobody would.
  *
  * The whole of what `autoRecord` means, in one place and pure, so that the
@@ -2208,6 +2237,27 @@ function reduceAction(
     return { ...state, watch: failWatch(state.watch, action.reason, now) };
   }
 
+  // **A film ends with the room it was loaded in**, since 2026-10-09. A party
+  // left loaded — paused at its own end, or walked out of — used to stay for
+  // ever, and since a loaded film refuses a recording, the next person to
+  // step in could not record, alone or not: seventeen channels were in that
+  // state when it was noticed. The floor had the same trap and left it by
+  // asking `watchIsPlaying` instead; the recording keeps asking *loaded*, for
+  // its reason in `recordingStartable`, so the load itself has to end.
+  //
+  // At the room's end rather than the instant it empties, which is what
+  // `tick` still does with a playing film: a pause there, so that stepping
+  // back in inside `ROOM_DEPARTURE_MS` — the same room, as LiveKit has it —
+  // finds the film where it was left. Every screen goes with the party, as on
+  // Stop, and the film joins the history so the card can offer it back.
+  //
+  // Refused while anybody is here, so a report that arrives late cannot end
+  // the film under people who have since come back.
+  if (action.type === 'ROOM_ENDED') {
+    if (!state.watch.party || peopleHere(state).length > 0) return state;
+    return { ...state, watch: stopParty(state.watch), watchingHere: [] };
+  }
+
   // Raised by the server rather than performed by anyone, exactly as the two
   // failure reports above are: a knock arrives over HTTP from somebody who is
   // by definition not in the channel, and admission is settled by a member
@@ -3259,12 +3309,14 @@ function tick(state: ChannelState, now: number): ChannelState {
   // retires anybody — there is nobody left to retire — it is the state
   // telling the truth about a room with no audience in it.
   //
-  // **Paused rather than stopped**, so the evening survives being walked out
-  // of. A pause keeps the party, the video and the position, so somebody
+  // **Paused rather than stopped**, so the evening survives a quick step out.
+  // A pause keeps the party, the video and the position, so somebody
   // stepping back in resumes where the room left off; stopping would discard
   // what they came back for. `watchPause` and `pausePlayback` both come to
   // rest at the derived position, so the film does not silently run on behind
-  // an empty room.
+  // an empty room. **The film does not outlive the room, though**: once
+  // nobody has been back for `ROOM_DEPARTURE_MS` the server raises
+  // `ROOM_ENDED`, which unloads it — see that action for why.
   //
   // Occupants rather than `present`, on `pollUsage`'s reasoning: a room
   // holding guests and no members is a room with people in it.

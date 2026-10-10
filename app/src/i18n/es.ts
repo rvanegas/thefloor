@@ -1188,6 +1188,12 @@ export const es: Strings = {
     resumeRecording: () => 'Reanudar la grabaci\u00f3n',
     record: () => 'Grabar',
     resume: () => 'Reanudar',
+    recordRefusedOwner: () =>
+      'Solo quien es responsable de esta comunidad puede grabar.',
+    recordRefusedFilm: () =>
+      'Hay algo puesto para ver juntos. P\u00e1ralo en la pesta\u00f1a Ver para grabar.',
+    recordRefusedSilent: () =>
+      'No hay ning\u00fan micr\u00f3fono abierto ni nada sonando, as\u00ed que no hay nada que grabar.',
     pauseRecording: () => 'Pausar la grabaci\u00f3n',
     stop: () => 'Parar',
     floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',

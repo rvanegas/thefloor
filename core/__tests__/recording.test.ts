@@ -7,6 +7,7 @@ import {
   canStartRecording,
   canStopRecording,
   createChannel,
+  recordingRefusal,
   reduce,
 } from '../channel';
 import type { ChannelAction, ChannelState } from '../types';
@@ -480,5 +481,25 @@ describe('the transcription model', () => {
     // is the half the reducer can see.
     const busy = apply(joined(), [[{ type: 'STEP_OUT', userId: A }, T0 + 1]]);
     expect(choose(busy, 'pro', A, T0 + 2)).toBe(busy);
+  });
+});
+
+describe('why Record is refused', () => {
+  // Only the reasons nothing else on the screen gives; see `recordingRefusal`.
+  it('says nothing when it is not refused, or to somebody not here', () => {
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    expect(recordingRefusal(alone, A)).toBeNull();
+    expect(recordingRefusal(alone, B)).toBeNull();
+  });
+
+  it('says so when nothing would be captured', () => {
+    const alone = createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 });
+    const muted = reduce(alone, { type: 'SET_SELF_MUTE', userId: A, muted: true }, T0);
+    expect(recordingRefusal(muted, A)).toBe('silent');
+  });
+
+  it('says nothing while a run is going', () => {
+    const recording = reduce(joined(), start(A), T0);
+    expect(recordingRefusal(recording, B)).toBeNull();
   });
 });

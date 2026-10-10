@@ -38,6 +38,7 @@ import {
   canSetSelfMute,
   mutableAt,
   canStartRecording,
+  recordingRefusal,
   canLoadTrack,
   canStartWatch,
   canControlWatch,
@@ -4165,14 +4166,31 @@ export function ChannelView({
           </View>
 
           {/*
-            **What is left under the row is failure, and nothing else**, since
-            2026-09-13: the run's state is the header's pill, what was saved is
-            the timeline above, and `autoRecord` is a switch in this channel's
-            settings. A capture that stopped for a reason nobody asked for is
-            the exception, in both tenses, because nothing else on this screen
+            **What is left under the row is failure, and why Record is grey
+            when nothing else says** — since 2026-09-13 and 2026-10-09: the
+            run's state is the header's pill, what was saved is the timeline
+            above, and `autoRecord` is a switch in this channel's settings. A
+            capture that stopped for a reason nobody asked for is the
+            exception, in both tenses, because nothing else on this screen
             reports it and a recording that was not kept is not something to
-            find out later.
+            find out later. The refusal is the other: somebody standing in the
+            room with a dead button and no way to learn it was a film loaded
+            weeks ago. `recordingRefusal` names only the reasons nothing else
+            on the screen gives — not being here is the footer's to say.
           */}
+          {(() => {
+            const refusal = recordingRefusal(channel, me);
+            if (refusal === null) return null;
+            return (
+              <Text style={type.muted}>
+                {refusal === 'owner'
+                  ? t.recordRefusedOwner()
+                  : refusal === 'film'
+                    ? t.recordRefusedFilm()
+                    : t.recordRefusedSilent()}
+              </Text>
+            );
+          })()}
           {channel.recording.failure ? (
             // Capture stopping for a reason nobody asked for must not read like
             // a recording somebody chose to end. Whoever was speaking on the

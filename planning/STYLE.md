@@ -1565,6 +1565,11 @@ rules.
   pill, the list below and the channel's settings each answer in their own
   place. What replaced them is the word under the glyph: refusals a rule can
   enumerate are worth a sentence, a permanent condition of the row is not.
+  **Record got one back on 2026-10-09**, for the refusals nothing else on the
+  screen explains — a film still loaded, nothing to capture, a community's
+  owner's — after somebody alone in a room met a dead button over a film
+  loaded weeks before. `recordingRefusal` in core names them; not being in
+  the room still goes unsaid, the footer saying it already.
 - **And when the refusal is a condition rather than a permission, the control
   goes and the sentence stays.** Adopted 2026-09-20 with *Unmute everyone*.
   The rule above assumes a grey button is worth keeping because the reader can

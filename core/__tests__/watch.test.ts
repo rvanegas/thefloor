@@ -16,6 +16,7 @@ import {
   isPartyMuted,
   isWithheld,
   partyMuteRequested,
+  recordingRefusal,
   reduce,
 } from '../channel';
 import type {
@@ -970,5 +971,42 @@ describe('a party playing to an empty room', () => {
     const ticked = reduce(one, { type: 'TICK' }, T0 + 10_000);
 
     expect(ticked.watch.status).toBe('playing');
+  });
+});
+
+describe('the end of the room', () => {
+  // The server raises ROOM_ENDED once nobody has been back for
+  // ROOM_DEPARTURE_MS; what it does is here. See `ROOM_ENDED` in channel.ts.
+  function emptied(): ChannelState {
+    return apply(watching(), [
+      [{ type: 'STEP_OUT', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: B }, T0],
+    ]);
+  }
+
+  it('unloads a film left in it, keeping it in the history', () => {
+    const ended = reduce(emptied(), { type: 'ROOM_ENDED' }, T0);
+    expect(ended.watch.party).toBeNull();
+    expect(ended.watch.history[0]?.videoId).toBe(VIDEO);
+    expect(ended.watchingHere).toEqual([]);
+  });
+
+  it('lets the next person in record by themselves', () => {
+    const before = reduce(emptied(), { type: 'ENTER', userId: A }, T0);
+    expect(recordingRefusal(before, A)).toBe('film');
+    expect(canStartRecording(before, A)).toBe(false);
+
+    const after = reduce(
+      reduce(emptied(), { type: 'ROOM_ENDED' }, T0),
+      { type: 'ENTER', userId: A },
+      T0
+    );
+    expect(recordingRefusal(after, A)).toBeNull();
+    expect(canStartRecording(after, A)).toBe(true);
+  });
+
+  it('does nothing while anybody is here', () => {
+    const occupied = watching();
+    expect(reduce(occupied, { type: 'ROOM_ENDED' }, T0)).toBe(occupied);
   });
 });
