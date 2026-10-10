@@ -24,6 +24,7 @@ import {
   channelOf,
   chosen,
   findButton,
+  findSwitch,
   findChoice,
   findTab,
   labelOf,
@@ -594,7 +595,7 @@ describe('Channel, watching together', () => {
     // the glyph saying what is being refused.
     const tree = openOnPeople();
     showRecord(tree);
-    expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
+    expect(findSwitch(tree, 'Audio')!.props.disabled).toBe(true);
     expect(textOf(tree)).not.toContain('Stop the watch party to record');
     act(() => tree.unmount());
   });
@@ -606,7 +607,7 @@ describe('Channel, watching together', () => {
       )
     );
     const tree = open();
-    expect(textOf(tree)).toContain('Pause the recording first');
+    expect(textOf(tree)).toContain('Switch Audio off on the Record tab first');
     act(() => tree.unmount());
   });
 

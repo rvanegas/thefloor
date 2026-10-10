@@ -29,10 +29,10 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button and its five variants, PasteButton and the one control Apple draws, IconButton, Field, Checkbox, Segmented, FooterAction — and when a set of choices stops being a row |
+| *Controls* | Button and its five variants, PasteButton and the one control Apple draws, IconButton, Field, Checkbox, Segmented, Switch, FooterAction — and when a set of choices stops being a row |
 | *Cards and rows* | the card, its tinted states, the notice card, a profile's section order, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
-| *The shape of a screen* | Screen, the keyboard, the pinned header, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
+| *The shape of a screen* | Screen, the keyboard, the pinned header and the room line that is pinned only once it scrolls off, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
 | *Icons* | vendored Lucide, the one grid, the one stroke |
 | *Feedback and motion* | why there is no animation, and what stands in for it |
 | *Words on controls* | labels, busy states, confirmations, empty states, when a refused control is greyed and when it is removed |
@@ -373,15 +373,15 @@ the variant's foreground colour, and it is drawn where the label would be; the
 label stays required and becomes the `accessibilityLabel`, so the word survives
 for a screen reader and for the tests that press controls by name. Instead of
 the word, never beside it — a shape with its own caption is teaching what the
-shape already says. The recording transport on *Record* is the only
-user: two of them, `primary` then `default`, in the `buttonRow` / `flexButton`
-row the player's transport is built from, which is the point of drawing them
-this way. It was three until 2026-10-09, when Stop went and every pause became
-the end of a run. See § *TransportAction is gone*.
+shape already says. The recording transport on *Record* was the user this
+was built for — two of them, `primary` then `default`, in the `buttonRow` /
+`flexButton` row the player's transport is built from — **until 2026-10-09,
+when it became the pair of switches in § *Switch***. See § *TransportAction is
+gone*.
 
-**Never beside it, but since 2026-09-13 under it**, and only there: the same
-buttons carry *Record* — *Resume* when a run an older build paused is waiting —
-and *Pause* as a `sublabel` beneath the glyph. The caption rule holds for a
+**Never beside it, but since 2026-09-13 under it**, and only there: those
+buttons carried *Record* — *Resume* when a run an older build paused was
+waiting — and *Pause* as a `sublabel` beneath the glyph. The caption rule holds for a
 shape somebody may press and fails for one that is grey, which one of these
 two always is; an inert square says neither what it does nor why it will not,
 and what used to answer that was four muted paragraphs under the row. The word
@@ -590,6 +590,26 @@ control. Never per-option: a set with one answer left is not a choice and
 must not be drawn as one. A caller says why in a sentence beside it, as § *Words
 on controls* requires of every disabled control.
 
+### Switch
+
+Since 2026-10-09, and one place: the *Record* tab's **Audio** and **Text**,
+pinned under the channel's header (`KeepSwitches` in `RecordTab.tsx`). React
+Native's own `Switch`, its word to its left in 15 `text`, the two side by side
+at `spacing(3)` on a pinned bar built as § *The pinned header* says. On is
+`recording` — the dot's red, for both, since to somebody deciding whether to
+speak what they say being kept is one meaning, as audio or as text, which the
+header's pill already says; off is `disabled`. A refused switch is the
+platform's grey and its word goes to `textFaint`.
+
+**Radio style**: one, the other, or neither, never both — turning one on turns
+the other off in the same press. It replaced the Record and Pause buttons and
+the *Live transcript* On/Off pair on *Channel Settings*, and § *Checkbox*'s
+line that a switch cannot draw *unticked* is no objection here: what a channel
+keeps is an answer in force, and each of these is always either on or off.
+**Refused with a sentence under the pair**, by § *Words on controls*' rule:
+`recordingRefusal`'s reasons, and the text holding against somebody who may
+not switch it.
+
 ### FooterAction
 
 Deliberately not a `Button`: a row of filled rectangles would make the bar
@@ -637,6 +657,10 @@ positions never move; and no RECORDING label over them, the header's pill
 being where the state of the run is reported. **Two since 2026-10-09**: Stop
 went, and Pause ends the run, so a recording made in stretches is a row of
 segments in the *Record* timeline rather than one file with holes in it.
+
+**The whole row went on 2026-10-09**, into the two switches of § *Switch*:
+what a channel keeps is a state somebody sets, and a pair of verbs one of which
+was always grey was a state drawn as acts. What follows is the row's history.
 
 **The card came back later the same day, and the label did not.** Dropping
 both was one move, and only half of it was about the label: a `Card` is not a
@@ -1184,14 +1208,23 @@ price of a corner that a screen without a footer can also use.
 ### The pinned header
 
 Two screens have one and they are built identically — and since 2026-10-09
-the *Record* tab hangs a second bar under the channel's, `RoomBar`, built
-the same way: the date and hours of the room at the top of the scroll, muted,
-with the share glyph (`lucide/share`) at the trailing end. The glyph is
-drawn in `textFaint` for a room nothing was recorded in and still answers a
-press with why, since a control that comes and goes as you scroll is rule
-six broken. The bar's text changes as the next room's rule scrolls under it,
-which is how its date is always visible without a floating label over the
-log:
+the *Record* tab hangs a second bar under the channel's, built the same way,
+carrying the two switches of § *Switch*.
+
+**The room's line is not pinned, until it has to be.** Each room in the log
+opens with a `RoomLine` — its date and hours, muted, and the share glyph
+(`lucide/square-arrow-up`, the closed box) at the trailing end, over a hairline
+— and it scrolls with the log, so two rooms on screen at once have their line
+between them. Once a room's line has scrolled off the top the same component
+is drawn pinned over the top edge of the scroll (`HoistedRoom`, through
+`Screen`'s `overlay`), on `bg`, until the next room's line arrives under it and
+pushes it off: a sticky header. **It covers rather than taking height** — the
+one thing on any screen allowed to — because a bar that came and went above
+the scroll would move the log by its own height each time, and bring back the
+very line it stood for. The share asks *Audio* or *Text*, with what the room
+did not keep greyed in the sheet; a room that kept neither yet greys the
+glyph, which stays drawn, since a control that comes and goes as you scroll
+is rule six broken. The pinned bars themselves:
 
 ```
 header      paddingTop: spacing(1), paddingBottom: spacing(1–1.5),
@@ -1246,7 +1279,7 @@ label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED
 AUDIO, and *Record* has none since 2026-10-09: its recordings stand in
 the log rather than in a list under RECORDINGS, its rooms are divided by
-rules rather than labels, and the transport under it has no heading at all.
+lines rather than labels, and the switches over it have no heading at all.
 
 **And *Record* is the one tab that is not cards.** Since 2026-10-09 it is a
 log, the way a chat reads: each speaker's run of lines under their name in
@@ -1254,7 +1287,8 @@ log, the way a chat reads: each speaker's run of lines under their name in
 `spacing(1.5)` between entries and nothing around them. A recording is one
 muted line where it began — the record dot at 14, its name, the time, how
 long — that opens in place to the actions its card had (`RecordingRow`'s
-`inline`). Each room starts with a hairline rule bearing its date and hours.
+`inline`). Each room starts with its line — date, hours, share — over a
+hairline; see § *The pinned header*.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 
@@ -1454,7 +1488,7 @@ It carries pane identity and never tokens.
 
 ## Icons
 
-Twenty-one glyphs, **vendored** from `lucide-static@1.38.0` as path data in
+Twenty glyphs, **vendored** from `lucide-static@1.38.0` as path data in
 `icons.tsx`, each carrying the name it came from. Not `lucide-react-native`:
 Metro does not tree-shake by default on SDK 54, so the barrel import that
 reads most naturally risks dragging a 25MB package into the graph.
@@ -1475,12 +1509,13 @@ the copy.
   vocabulary.** In a footer action or a tab the label is what makes the glyph
   legible the first time and the glyph is what makes it findable after that,
   so neither half is ever dropped — an icon-only tab bar is one where the
-  third tab is a guess. The exceptions are the header's `IconButton`s and the
-  recording transport's two buttons, where the shapes have meant one thing
-  each since tape and a word beside a square would be teaching what the square
-  already says. In both, the word survives as the accessibility label — and on
-  the transport, since 2026-09-13, under the glyph as well, which is what lets
-  the prose that used to explain its grey controls be gone. See § *Button*.
+  third tab is a guess. The exception is the header's `IconButton`s, and was
+  the recording transport's buttons until 2026-10-09, when they became
+  switches with words and their glyphs (`lucide/pause`, `lucide/square`) left
+  this file. The word survives as the accessibility label. See § *Button*.
+- **The room's share, since 2026-10-09**, which is the share glyph alone on
+  the room's line: the line is the room's date, and the glyph is the one
+  everybody has met on a phone. Its accessible name is *Share this room*.
 - **A third exception, since 2026-09-22: the `+` on a contact's row under
   *Invite*.** The row is the name and the mark, the way *Add a contact* is the
   mark and its words, and the sentence under the list says what the two ways
@@ -1556,8 +1591,9 @@ rules.
   `type.muted`, beside it rather than up in a summary. A disabled control with
   no reason is a bug. Two exceptions: a state that will move on its own and
   has nothing to wait for on this screen, like "Transcribing…"; and **a row
-  where being refused is the ordinary condition**, which as of 2026-09-17 is
-  the recording transport and the lock screen card — see § *The lock screen
+  where being refused is the ordinary condition**, which as of 2026-10-09 is
+  the lock screen card — it was the recording transport too, until that
+  became switches with their sentences under them — see § *The lock screen
   card*, where there is no room for a sentence and the way to find out is to
   open the app. Two of its three are grey most of
   the time, by design, and a sentence for each was four paragraphs under three
@@ -1591,6 +1627,10 @@ rules.
   what is actually lost and for how long. There are 35 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
+  **One choice is asked through iOS's action sheet**, since 2026-10-09: a
+  room's share, *Audio* or *Text*, because only the sheet can show an option
+  greyed rather than leave it out. Elsewhere it is `Alert`, offering only what
+  there is.
 - **And a control that only *proposes* something confirms anyway, saying that
   nothing has happened yet.** Added 2026-09-26 with the *motion to remove*.
   *Move to remove them* takes nobody's place away — a second member has to

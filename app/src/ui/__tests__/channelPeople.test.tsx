@@ -24,6 +24,7 @@ import {
   audioWith,
   channelOf,
   findButton,
+  findSwitch,
   findNamed,
   findTab,
   invitePrompt,
@@ -2166,7 +2167,7 @@ describe('a channel screen that does not repeat its footer', () => {
     showListen(tree);
     expect(textOf(tree)).toContain('Play something together');
     showRecord(tree);
-    expect(findButton(tree, 'Record')).toBeDefined();
+    expect(findSwitch(tree, 'Audio')).toBeDefined();
     // And the tabs themselves are all still offered. A preference about
     // repetition that quietly removed a tab would be removing abilities.
     expect(findTab(tree, 'Record')).toBeDefined();

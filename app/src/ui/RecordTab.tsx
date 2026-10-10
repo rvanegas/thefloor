@@ -1,15 +1,33 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActionSheetIOS,
+  Alert,
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
+import {
+  canResumeRecording,
+  canStartRecording,
+  canStopRecording,
+  recordingRefusal,
+} from '../../../core/channel';
 import type { LiveLine, RecordingView, RoomView } from '../../../core/protocol';
 import { intoBlocks } from '../../../core/transcript';
+import type { ChannelState } from '../../../core/types';
 import { shareRoom } from '../api/download';
 import { api } from '../api/http';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
-import { useText } from '../i18n';
+import { shareText } from '../share';
+import { useText, type Strings } from '../i18n';
 import { Button, Empty, useScrollPosition } from './components';
 import { ShareIcon } from './icons';
-import { colors, measure, spacing, type } from './theme';
+import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
  * The Record tab: what was kept of a channel, as a log, one room at a time.
@@ -31,12 +49,15 @@ import { colors, measure, spacing, type } from './theme';
  * Lines of live transcript from before then are left out rather than
  * gathered under a heading that would be a guess.
  *
- * **The room at the top of the scroll is reported up**, through
- * `onRoomAtTop`, for the pinned `RoomBar` — whose date is always visible and
- * changes as the next room's rule scrolls under it, and whose share icon sends
- * that room's audio whole. Before anything is measured (and in a test
- * renderer, where nothing is) that is the newest room, which is where the tab
- * opens.
+ * **Each room's rule is a `RoomLine`** — its date, its hours and its share —
+ * and it scrolls with the log, so two rooms on screen at once have the line
+ * between them where one ended and the next began. **It is hoisted only once
+ * it has scrolled off the top**, since 2026-10-09: the room whose rule is
+ * above the viewport is reported up through `onHoist`, and the screen draws
+ * the same line pinned over the top of the scroll until the next room's rule
+ * arrives and pushes it off — `hoistShift` is how far, set on every scroll
+ * without rendering anything. Before anything is measured (and in a test
+ * renderer, where nothing is) nothing is hoisted, and every rule is inline.
  *
  * **Fetched when shown, and kept current by the socket.** The transcript comes
  * a page at a time, newest first; lines written while the tab is open arrive
@@ -46,13 +67,17 @@ import { colors, measure, spacing, type } from './theme';
  */
 export function RecordTab({
   channelId,
+  name,
   live,
   transcribing,
   recordings,
   renderRecording,
-  onRoomAtTop,
+  onHoist,
+  hoistShift,
 }: {
   channelId: string;
+  /** What a shared file is called after, with the room's start. */
+  name: string;
   /** Whether this channel has a live transcript to show, now or from before. */
   live: boolean;
   /** Whether the room is being transcribed now, which is what the note says. */
@@ -61,8 +86,10 @@ export function RecordTab({
   recordings: readonly RecordingView[];
   /** One recording as a line of the log. */
   renderRecording: (recording: RecordingView) => React.ReactNode;
-  /** The room at the top of the scroll, for the pinned bar. */
-  onRoomAtTop?: (room: RoomView | null) => void;
+  /** The room whose rule has scrolled off the top, or null; see above. */
+  onHoist?: (room: RoomView | null) => void;
+  /** How far the next room's rule has pushed the hoisted one up, ≤ 0. */
+  hoistShift?: Animated.Value;
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -157,28 +184,40 @@ export function RecordTab({
     more && held.length > 0 && !!firstSitting && held[0].startAt > firstSitting.openedAt;
   const loading = (rooms === null || (live && lines === null)) && !error;
 
-  // --- Which room is at the top ---------------------------------------------
+  // --- Which room's rule is hoisted ------------------------------------------
   const position = useScrollPosition();
   const root = React.useRef<View>(null);
   const rootTop = React.useRef<number | null>(null);
   const tops = React.useRef(new Map<string, number>());
+  /** A rule's height, which is the hoisted line's: they are one component. */
+  const lineHeight = React.useRef(0);
   const reported = React.useRef<RoomView | null | undefined>(undefined);
   const shown = React.useRef(sittings);
   shown.current = sittings;
-  const report = React.useRef(onRoomAtTop);
-  report.current = onRoomAtTop;
+  const report = React.useRef(onHoist);
+  report.current = onHoist;
+  const shift = React.useRef(hoistShift);
+  shift.current = hoistShift;
 
   const settle = React.useCallback(() => {
     const list = shown.current;
-    let at: RoomView | null = list.length ? list[list.length - 1].room : null;
-    if (list.length && position && rootTop.current !== null) {
-      const offset = position.offset() + 1;
-      at = list[0].room;
-      for (const { room } of list) {
-        const y = tops.current.get(room.id);
-        if (y !== undefined && rootTop.current + y <= offset) at = room;
+    let at: RoomView | null = null;
+    let push = 0;
+    const base = rootTop.current;
+    if (position && base !== null) {
+      const offset = position.offset();
+      // A rule exactly at the top is still in the log; one a hair above it
+      // has started to go, and the pinned copy, drawn identically in the same
+      // place, takes over without a visible seam.
+      for (let i = 0; i < list.length; i++) {
+        const y = tops.current.get(list[i].room.id);
+        if (y === undefined || base + y >= offset) break;
+        at = list[i].room;
+        const next = i + 1 < list.length ? tops.current.get(list[i + 1].room.id) : undefined;
+        push = next === undefined ? 0 : Math.min(0, base + next - offset - lineHeight.current);
       }
     }
+    shift.current?.setValue(push);
     if (reported.current !== at) {
       reported.current = at;
       report.current?.(at);
@@ -235,14 +274,14 @@ export function RecordTab({
             settle();
           }}
         >
-          {/* Where one sitting ends and the next begins — the rule the
-              pinned bar takes over once it has scrolled under it. */}
-          <View style={styles.divider} accessibilityRole="header">
-            <View style={styles.rule} />
-            <Text style={type.muted}>
-              {t.liveDay(room.openedAt)} · {t.roomSpan(room.openedAt, room.closedAt)}
-            </Text>
-            <View style={styles.rule} />
+          {/* Where one sitting ends and the next begins — the line the
+              pinned copy takes over once it has scrolled off the top. */}
+          <View
+            onLayout={(event) => {
+              lineHeight.current = event.nativeEvent.layout.height;
+            }}
+          >
+            <RoomLine channelId={channelId} name={name} room={room} />
           </View>
           {items.map((item) =>
             item.kind === 'recording' ? (
@@ -276,16 +315,21 @@ export function RecordTab({
 }
 
 /**
- * The pinned bar over the log: the date and hours of the room at the top of
- * the scroll, and the one control that is always there, sharing that room's
- * audio.
+ * A room's line: its date and hours, and its share. Drawn inline at the head
+ * of each room in the log, and again pinned over the top of the scroll by
+ * `HoistedRoom` once that one has scrolled off — **the same component in both
+ * places**, so the hand-over from one to the other has no seam to see.
  *
- * **The icon stays when there is nothing to share.** A room that was only
- * transcribed has no audio, and the icon is drawn faint and says so when
- * pressed rather than vanishing — a control that comes and goes as you scroll
- * is one that is not where the thumb went (STYLE.md, rule six).
+ * **The share asks which**, since 2026-10-09: a room may have kept its audio,
+ * its text, or both, and the press offers both with whichever it lacks greyed
+ * out — the native action sheet on iOS, which can grey an option; elsewhere
+ * `Alert`, which cannot, and so offers only what there is. A room that kept
+ * neither (one still open, before its first line or finished recording) greys
+ * the icon itself. **It stays drawn either way**: a control that comes and
+ * goes as you scroll is one that is not where the thumb went (STYLE.md, rule
+ * six).
  */
-export function RoomBar({
+export function RoomLine({
   channelId,
   name,
   room,
@@ -293,23 +337,26 @@ export function RoomBar({
   channelId: string;
   /** What the shared file is called after, with the room's start. */
   name: string;
-  room: RoomView | null;
+  room: RoomView;
 }) {
   const t = useText().channel;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
-  if (!room) return null;
   const audio = room.recordingIds.length > 0;
+  const text = room.transcribed;
+  const available = (audio || text) && !busy;
 
-  const share = async () => {
-    if (!audio) {
-      Alert.alert(t.roomNoAudioTitle(), t.roomNoAudio());
-      return;
-    }
+  const share = async (what: 'audio' | 'text') => {
     if (!app.token || busy) return;
     setBusy(true);
     try {
-      await shareRoom(app.token, channelId, room.id, name, room.openedAt);
+      if (what === 'audio') {
+        await shareRoom(app.token, channelId, room.id, name, room.openedAt);
+      } else {
+        const handed = await shareText(await roomText(app.token, channelId, room, t));
+        if (handed === 'copied') Alert.alert(t.roomTextCopied());
+        if (handed === 'failed') Alert.alert(t.couldNotShareRoom());
+      }
     } catch (e) {
       Alert.alert(t.couldNotShareRoom(), e instanceof Error ? e.message : String(e));
     } finally {
@@ -318,22 +365,278 @@ export function RoomBar({
   };
 
   return (
-    <View style={styles.bar}>
-      <View style={styles.barInner}>
-        <Text style={styles.barLabel} numberOfLines={1}>
-          {t.liveDay(room.openedAt)} · {t.roomSpan(room.openedAt, room.closedAt)}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={busy ? t.preparingRoom() : t.shareRoom()}
-          accessibilityState={{ disabled: !audio, busy }}
-          hitSlop={spacing(1)}
-          onPress={share}
-          style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-        >
-          <ShareIcon color={audio && !busy ? colors.text : colors.textFaint} />
-        </Pressable>
+    <View style={styles.line}>
+      <Text style={styles.lineLabel} numberOfLines={1} accessibilityRole="header">
+        {t.liveDay(room.openedAt)} · {t.roomSpan(room.openedAt, room.closedAt)}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={busy ? t.preparingRoom() : t.shareRoom()}
+        accessibilityState={{ disabled: !available, busy }}
+        disabled={!available}
+        hitSlop={spacing(1)}
+        onPress={() => chooseWhatToShare(t, { audio, text }, (what) => void share(what))}
+        style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+      >
+        <ShareIcon color={available ? colors.text : colors.textFaint} />
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * The hoisted copy of a `RoomLine`, for `Screen`'s `overlay`: pinned over the
+ * top edge of the scroll while its room's own line is above it, and pushed up
+ * by `shift` as the next room's line arrives under it — a sticky header.
+ *
+ * **Over the scroll rather than above it**, which is the exception to the
+ * rule `Screen.header` keeps. A row that came and went above the scroll would
+ * take its height out of the viewport each time, moving the log down by
+ * exactly enough to bring the inline line back and dismiss itself — so it
+ * covers instead, and what it covers is the line it stands for.
+ */
+export function HoistedRoom({
+  channelId,
+  name,
+  room,
+  shift,
+}: {
+  channelId: string;
+  name: string;
+  room: RoomView | null;
+  shift: Animated.Value;
+}) {
+  if (!room) return null;
+  return (
+    <Animated.View
+      pointerEvents="box-none"
+      style={[styles.hoisted, { transform: [{ translateY: shift }] }]}
+    >
+      <View style={styles.hoistedInner}>
+        <RoomLine channelId={channelId} name={name} room={room} />
       </View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Which of a room's two to share, with what it lacks shown and refused.
+ * Exported for the test, which drives both paths.
+ */
+export function chooseWhatToShare(
+  t: Strings['channel'],
+  has: { audio: boolean; text: boolean },
+  then: (what: 'audio' | 'text') => void
+): void {
+  if (Platform.OS === 'ios') {
+    const disabledButtonIndices: number[] = [];
+    if (!has.audio) disabledButtonIndices.push(0);
+    if (!has.text) disabledButtonIndices.push(1);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: t.shareRoomTitle(),
+        options: [t.audio(), t.keepText(), t.cancel()],
+        cancelButtonIndex: 2,
+        disabledButtonIndices,
+      },
+      (index) => {
+        if (index === 0 && has.audio) then('audio');
+        if (index === 1 && has.text) then('text');
+      }
+    );
+    return;
+  }
+  Alert.alert(t.shareRoomTitle(), undefined, [
+    { text: t.cancel(), style: 'cancel' },
+    ...(has.audio ? [{ text: t.audio(), onPress: () => then('audio') }] : []),
+    ...(has.text ? [{ text: t.keepText(), onPress: () => then('text') }] : []),
+  ]);
+}
+
+/**
+ * A room's live transcript as plain text, the way the log draws it: its date
+ * and hours, then each speaker's run under their name and the time it began.
+ *
+ * **Assembled here from the pages the log already reads**, walking back from
+ * the room's end until a page reaches before its start, rather than from a
+ * route of its own — so sharing text needs nothing the server does not
+ * already serve, and reads only what the member could scroll to.
+ */
+export async function roomText(
+  token: string,
+  channelId: string,
+  room: RoomView,
+  t: Strings['channel']
+): Promise<string> {
+  let lines: LiveLine[] = [];
+  let before = room.closedAt === null ? undefined : room.closedAt + 1;
+  for (;;) {
+    const page = await api.liveTranscript(token, channelId, before);
+    lines = merge(page.lines.filter((line) => holds(room, line.startAt)), lines);
+    if (!page.more || page.lines.length === 0 || page.lines[0].startAt < room.openedAt) break;
+    before = page.lines[0].startAt;
+  }
+  return formatRoomText(room, lines, t);
+}
+
+/** The text `roomText` shares, from lines already in hand. */
+export function formatRoomText(
+  room: RoomView,
+  lines: readonly LiveLine[],
+  t: Strings['channel']
+): string {
+  const head = `${t.liveDay(room.openedAt)} · ${t.roomSpan(room.openedAt, room.closedAt)}`;
+  const blocks = intoBlocks(
+    lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
+  ).map(
+    (block) =>
+      `${block.displayName} · ${t.liveTime(block.startMs)}\n` +
+      block.lines.map((line) => line.text).join('\n')
+  );
+  return [head, ...blocks].join('\n\n');
+}
+
+/**
+ * What this channel keeps of what is said: its audio, its text, or neither.
+ * Pinned under the channel's header on the *Record* tab, since 2026-10-09,
+ * where the Record and Pause buttons were and in place of the *Live
+ * transcript* setting on *Channel Settings*.
+ *
+ * **Two switches, radio style** — either may be on, never both, and both may
+ * be off. Turning one on turns the other off in the same press, which is what
+ * `keep-the-transcript-and-let-the-audio-go` asks for: the channel keeps the
+ * conversation as audio or as text, and a person chooses which. **Only on
+ * this side**: the server would still hold both, as *Record automatically*
+ * can bring about by starting a recording under the text.
+ *
+ * **Audio is the recording's own rules**: on is `START_RECORDING` (or
+ * `RESUME_RECORDING`, for a run an old build paused), off is
+ * `STOP_RECORDING`, and the switch is refused exactly where the button it
+ * replaces was. **Text is the account's**, `mayTranscribeLive`, since the
+ * house pays for it; everybody else sees its state and cannot move it — and
+ * cannot turn the audio on while it holds, since that would mean turning it
+ * off.
+ *
+ * Under the pair, as under the buttons it replaces: why Record is refused
+ * when nothing else on the screen says, and a capture that stopped for a
+ * reason nobody asked for.
+ */
+export function KeepSwitches({
+  channelId,
+  channel,
+  me,
+  mayTranscribeLive,
+}: {
+  channelId: string;
+  channel: ChannelState;
+  me: string;
+  mayTranscribeLive: boolean;
+}) {
+  const t = useText().channel;
+  const app = useApp();
+  const paused = channel.recording.status === 'paused';
+  const audioOn = channel.recording.status === 'recording';
+  const textOn = !!channel.liveTranscription;
+  const mayStart = paused ? canResumeRecording(channel, me) : canStartRecording(channel, me);
+  const mayStop = canStopRecording(channel, me);
+
+  const setText = (on: boolean) => {
+    if (!app.token) return;
+    api
+      .setLiveTranscription(app.token, channelId, on)
+      .catch((e: unknown) =>
+        Alert.alert(t.keepText(), e instanceof Error ? e.message : String(e))
+      );
+  };
+  const switchAudio = (on: boolean) => {
+    if (!on) {
+      app.act(channelId, { type: 'STOP_RECORDING' });
+      return;
+    }
+    if (textOn) setText(false);
+    app.act(channelId, { type: paused ? 'RESUME_RECORDING' : 'START_RECORDING' });
+  };
+  const switchText = (on: boolean) => {
+    if (on && audioOn) app.act(channelId, { type: 'STOP_RECORDING' });
+    setText(on);
+  };
+
+  const audioRefused = audioOn ? !mayStop : !mayStart || (textOn && !mayTranscribeLive);
+  const textRefused = !mayTranscribeLive || (!textOn && audioOn && !mayStop);
+  const refusal = recordingRefusal(channel, me);
+
+  return (
+    <View style={styles.bar}>
+      <View style={[styles.barInner, styles.keep]}>
+        <View style={styles.switches}>
+          <KeepSwitch
+            label={t.audio()}
+            on={audioOn}
+            refused={audioRefused}
+            onChange={switchAudio}
+          />
+          <KeepSwitch
+            label={t.keepText()}
+            on={textOn}
+            refused={textRefused}
+            onChange={switchText}
+          />
+        </View>
+        {refusal !== null && !audioOn ? (
+          <Text style={type.muted}>
+            {refusal === 'owner'
+              ? t.recordRefusedOwner()
+              : refusal === 'film'
+                ? t.recordRefusedFilm()
+                : t.recordRefusedSilent()}
+          </Text>
+        ) : textOn && !mayTranscribeLive && !audioOn ? (
+          <Text style={type.muted}>{t.recordRefusedText()}</Text>
+        ) : null}
+        {channel.recording.failure ? (
+          // Capture stopping for a reason nobody asked for must not read like
+          // a recording somebody chose to end. Whoever was speaking on the
+          // strength of the indicator needs to know it was not kept.
+          <Text style={styles.warning}>Recording failed — {channel.recording.failure}</Text>
+        ) : null}
+        {/* The same about the run before this one, which the log can only
+            show as a short recording. */}
+        {channel.recording.status === 'idle' && channel.lastRecording?.failure ? (
+          <Text style={styles.warning}>
+            Ended early — {formatDuration(channel.lastRecording.durationMs)} captured.
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** One of the pair: its word, and the switch beside it. */
+function KeepSwitch({
+  label,
+  on,
+  refused,
+  onChange,
+}: {
+  label: string;
+  on: boolean;
+  refused: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <View style={styles.switchRow}>
+      <Text style={[styles.switchLabel, refused && styles.switchLabelRefused]}>{label}</Text>
+      <Switch
+        accessibilityLabel={label}
+        value={on}
+        disabled={refused}
+        onValueChange={onChange}
+        // The recording dot's red, for both: to somebody deciding whether to
+        // speak, what they say being kept is one meaning, as audio or as
+        // text — the header's pill says so already.
+        trackColor={{ false: colors.disabled, true: colors.recording }}
+        ios_backgroundColor={colors.disabled}
+      />
     </View>
   );
 }
@@ -401,20 +704,29 @@ export function intoRooms(
 const styles = StyleSheet.create({
   body: { gap: spacing(1) },
   room: { gap: spacing(1.5) },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(1),
-    paddingVertical: spacing(0.5),
-  },
-  rule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-  },
   entry: { gap: spacing(0.25) },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  // A room's line, inline and hoisted alike: the date and hours, and the
+  // share at the end. The hairline under it is what made it a rule.
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+    paddingVertical: spacing(1),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  lineLabel: { ...type.muted, flex: 1 },
+  // Over the top of the scroll, on the page's own colour so the log passes
+  // under it, and on the measure with the padding the log has — so it lands
+  // exactly on the line it stands for.
+  hoisted: { position: 'absolute', top: 0, left: 0, right: 0 },
+  hoistedInner: {
+    ...measure,
+    paddingHorizontal: spacing(2),
+    backgroundColor: colors.bg,
+  },
   // A pinned bar, built as STYLE.md § *The pinned header* says: the edge full
   // bleed, the contents on the measure and lined up with the log below.
   bar: {
@@ -425,10 +737,12 @@ const styles = StyleSheet.create({
   barInner: {
     ...measure,
     paddingHorizontal: spacing(2),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing(1),
   },
-  barLabel: { ...type.muted, flex: 1 },
+  keep: { gap: spacing(0.5) },
+  switches: { flexDirection: 'row', gap: spacing(3) },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
+  switchLabel: { color: colors.text, fontSize: 15 },
+  switchLabelRefused: { color: colors.textFaint },
+  warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

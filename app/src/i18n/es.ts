@@ -781,16 +781,11 @@ export const es: Strings = {
     on: () => 'S\u00ed',
     off: () => 'No',
     autoRecordNote: () =>
-      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien pulsa Grabar. S\u00ed, empieza sola en cuanto hay dos personas aqu\u00ed, y todos la ven en marcha.',
+      'No, que es donde empieza todo canal: una grabaci\u00f3n empieza cuando alguien activa Audio en la pesta\u00f1a Grabado. S\u00ed, empieza sola en cuanto hay dos personas aqu\u00ed, y todos la ven en marcha.',
     autoRecordHow: () =>
-      'Pausar y Parar funcionan igual en ambos casos, y parar es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
+      'Desactivar Audio funciona igual en ambos casos, y es definitivo: no empieza una segunda grabaci\u00f3n hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
-    liveTranscript: () => 'Transcripci\u00f3n en directo',
-    liveTranscriptNote: () =>
-      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Grabado, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
-    liveTranscriptOnlyYou: () =>
-      'Solo t\u00fa ves este ajuste: la transcripci\u00f3n corre por cuenta de la casa.',
     transcriptionModel: () => 'Modelo de transcripci\u00f3n',
     transcriptionStandard: () => 'Est\u00e1ndar',
     transcriptionPro: () => 'Pro',
@@ -1081,12 +1076,14 @@ export const es: Strings = {
           ? 'ahora'
           : new Date(to).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
       }`,
-    shareRoom: () => 'Compartir el audio de esta sala',
-    preparingRoom: () => 'Preparando el audio\u2026',
+    shareRoom: () => 'Compartir esta sala',
+    preparingRoom: () => 'Preparando\u2026',
     couldNotShareRoom: () => 'No se pudo compartir la sala',
-    roomNoAudioTitle: () => 'Sin audio',
-    roomNoAudio: () =>
-      'En esta sala no se grab\u00f3 nada, as\u00ed que no hay audio que compartir. Su transcripci\u00f3n se guarda aqu\u00ed.',
+    shareRoomTitle: () => 'Compartir esta sala',
+    roomTextCopied: () => 'El texto est\u00e1 copiado.',
+    keepText: () => 'Texto',
+    recordRefusedText: () =>
+      'Aqu\u00ed se guarda el texto en lugar del audio, y solo quien paga la transcripci\u00f3n puede cambiarlo.',
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',
@@ -1185,16 +1182,12 @@ export const es: Strings = {
       'Todos oyen esto, y cualquiera que est\u00e9 presente puede cambiarlo.',
     everyoneHearsAndItIsKept: () =>
       'Lo que pongas lo oye todo el mundo, y queda en la grabaci\u00f3n.',
-    resumeRecording: () => 'Reanudar la grabaci\u00f3n',
-    record: () => 'Grabar',
-    resume: () => 'Reanudar',
     recordRefusedOwner: () =>
       'Solo quien es responsable de esta comunidad puede grabar.',
     recordRefusedFilm: () =>
       'Hay algo puesto para ver juntos. P\u00e1ralo en la pesta\u00f1a Ver para grabar.',
     recordRefusedSilent: () =>
       'No hay ning\u00fan micr\u00f3fono abierto ni nada sonando, as\u00ed que no hay nada que grabar.',
-    pauseRecording: () => 'Pausar la grabaci\u00f3n',
     stop: () => 'Parar',
     floorDecidesWhatPlays: () => 'quien tiene la palabra decide qu\u00e9 suena',
     stepInToPlayShort: () => 'entra para reproducir',
@@ -1242,7 +1235,7 @@ export const es: Strings = {
     stepInToStartAParty: () =>
       'Entra para empezar a ver algo juntos. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
     pauseTheRecordingFirst: () =>
-      'Pausa antes la grabaci\u00f3n: ver algo juntos no se graba.',
+      'Desactiva antes Audio en la pesta\u00f1a Grabado: ver algo juntos no se graba.',
     theyDecideWhichFilm: (holder: string) =>
       `${holder} tiene la palabra, as\u00ed que cambiar la pel\u00edcula es cosa suya. Cualquiera que est\u00e9 aqu\u00ed puede manejarla.`,
     youDecideWhichFilm: () =>

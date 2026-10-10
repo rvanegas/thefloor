@@ -588,6 +588,21 @@ export function chosen(
  * Undefined when this screen is not offering one by that name, which is what
  * a test asserting the whole bar is still there wants to ask.
  */
+/**
+ * A switch by its accessible name — the *Record* tab's *Audio* and *Text*,
+ * since 2026-10-09. The `Switch` element itself, so `value`, `disabled` and
+ * `onValueChange` are read and driven directly.
+ */
+export function findSwitch(
+  tree: ReactTestRenderer,
+  label: string
+): ReactTestInstance | undefined {
+  return tree.root.findAll(
+    (n) =>
+      n.props?.accessibilityLabel === label && typeof n.props?.onValueChange === 'function'
+  )[0];
+}
+
 export function findTab(
   tree: ReactTestRenderer,
   label: string

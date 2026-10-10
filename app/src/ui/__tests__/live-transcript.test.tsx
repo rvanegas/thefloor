@@ -3,7 +3,7 @@ import { act } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
 import type { LiveLine } from '../../../../core/protocol';
 import { ChannelView } from '../ChannelView';
-import { merge } from '../RecordTab';
+import { HoistedRoom, RoomLine, merge } from '../RecordTab';
 import { receiveLiveLine } from '../../live/lines';
 import {
   AUDIO,
@@ -12,6 +12,7 @@ import {
   THEM,
   channelOf,
   findButton,
+  findSwitch,
   findTab,
   render,
   resetHarness,
@@ -237,30 +238,35 @@ describe('the indicator', () => {
 });
 
 describe('the switch', () => {
-  it('is shown only to somebody who may turn it on, and asks the server', async () => {
+  /*
+    **On the *Record* tab since 2026-10-09**, as *Text* beside *Audio*, and no
+    longer in *Channel Settings*. Everybody sees it, since everybody is owed
+    what it says; only somebody on the house may move it.
+  */
+  it('is moved only by somebody who may turn it on, and asks the server', async () => {
     showChannel(channelOf());
-    const hidden = render(screen());
-    act(() => findButton(hidden, 'Settings')!.props.onPress());
-    expect(textOf(hidden)).not.toContain('Live transcript');
-    act(() => hidden.unmount());
+    const plain = render(screen());
+    act(() => findButton(plain, 'Settings')!.props.onPress());
+    expect(textOf(plain)).not.toContain('Live transcript');
+    act(() => findButton(plain, 'Close')!.props.onPress());
+    showTab(plain, 'Record');
+    expect(findSwitch(plain, 'Text')!.props.disabled).toBe(true);
+    act(() => plain.unmount());
 
     const asked = jest
       .spyOn(api, 'setLiveTranscription')
       .mockResolvedValue({ ok: true, liveTranscription: true } as never);
     showChannel(channelOf(), [], { mayTranscribeLive: true });
-    const shown = render(screen());
-    act(() => findButton(shown, 'Settings')!.props.onPress());
-    expect(textOf(shown)).toContain('Live transcript');
-    expect(textOf(shown)).toContain('Only you see this setting');
-
-    const buttons = shown.root.findAll(
-      (n) => n.props?.label === 'On' && typeof n.props?.onPress === 'function'
-    );
-    // In the order the screen draws them: Record automatically's, this
-    // one's, and a later section's.
-    await act(async () => buttons[1].props.onPress());
+    const house = render(screen());
+    act(() => findButton(house, 'Settings')!.props.onPress());
+    expect(textOf(house)).not.toContain('Live transcript');
+    act(() => findButton(house, 'Close')!.props.onPress());
+    showTab(house, 'Record');
+    const text = findSwitch(house, 'Text')!;
+    expect(text.props.disabled).toBe(false);
+    await act(async () => text.props.onValueChange(true));
     expect(asked).toHaveBeenCalledWith('token', 'sess_1', true);
-    act(() => shown.unmount());
+    act(() => house.unmount());
   });
 });
 
@@ -274,12 +280,12 @@ describe('merging lines', () => {
 
 /*
   **Rooms, since 2026-10-09**: the log is laid out in sittings, first step in
-  to last step out, and the pinned bar over it names the one at the top and
-  shares its audio.
+  to last step out, each headed by a line with its date, its hours and its
+  share, which is hoisted over the top once it scrolls off.
 */
 describe('rooms on the Record tab', () => {
   const { shareRoom } = require('../../api/download');
-  const { Alert } = require('react-native');
+  const { ActionSheetIOS, Share } = require('react-native');
 
   it('starts each room with its date and hours, and leaves out what fell in none', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
@@ -339,8 +345,51 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it("shares the audio of the room on the bar, whole", async () => {
-    showChannel(channelOf(), [segment('rec_1', 'Planning', NOW + 10_000)]);
+  /*
+    **The share asks which, since 2026-10-09**: audio, text, or both, with
+    what the room did not keep shown and refused — iOS's action sheet, which
+    can grey an option. The tests run as iOS.
+  */
+  const shareOf = (tree: ReturnType<typeof render>) =>
+    tree.root.findAll(
+      (node: { props: Record<string, unknown> }) =>
+        node.props.accessibilityLabel === 'Share this room' && !!node.props.onPress
+    )[0];
+
+  it("puts each room's line, with its share, at the head of the room", async () => {
+    showChannel(channelOf(), [
+      segment('rec_1', 'Planning', NOW + 10_000),
+      segment('rec_2', 'Review', NOW + 1_000_000),
+    ]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, ['rec_1']),
+        room('room_2', NOW + 900_000, NOW + 1_100_000, ['rec_2']),
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // Inline, one per room, and in the log between the two rooms' contents;
+    // nothing is hoisted until something has scrolled off the top, which in
+    // a renderer that measures nothing is never.
+    expect(tree.root.findAll((n: { type: unknown }) => n.type === RoomLine).map((n) => (n.props.room as { id: string }).id)).toEqual([
+      'room_1',
+      'room_2',
+    ]);
+    expect(tree.root.findAll((n: { type: unknown }) => n.type === HoistedRoom)[0].props.room).toBeNull();
+    const text = textOf(tree);
+    expect(text.indexOf('Planning')).toBeLessThan(text.indexOf('Review'));
+    act(() => tree.unmount());
+  });
+
+  it('offers audio and text, and shares the audio whole', async () => {
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(0));
+    showChannel(transcribed(), [segment('rec_1', 'Planning', NOW + 10_000)]);
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [], more: false } as never);
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [room('room_1', NOW, NOW + 60_000, ['rec_1'])],
     } as never);
@@ -348,39 +397,62 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    const share = tree.root.findAll(
-      (node: { props: Record<string, unknown> }) =>
-        node.props.accessibilityLabel === "Share this room's audio" && !!node.props.onPress
-    )[0];
+    const share = shareOf(tree);
     expect(share.props.accessibilityState.disabled).toBe(false);
     await act(async () => share.props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({
+      options: ['Audio', 'Text', 'Cancel'],
+      disabledButtonIndices: [],
+    });
     expect(shareRoom).toHaveBeenCalledWith(expect.any(String), 'sess_1', 'room_1', expect.any(String), NOW);
+    sheet.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('keeps the share icon on a room with no audio, and says why when pressed', async () => {
+  it('greys audio on a room with none, and shares its text', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
-      lines: [line('l1', ME, 'Me', NOW + 1_000, 'only written down')],
+      lines: [
+        line('l0', ME, 'Me', NOW - 5_000, 'before the room'),
+        line('l1', ME, 'Me', NOW + 1_000, 'only written down'),
+        line('l2', ME, 'Me', NOW + 2_000, 'and again'),
+      ],
       more: false,
     } as never);
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [room('room_1', NOW, NOW + 60_000, [])],
     } as never);
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
+    const handed = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as never);
     shareRoom.mockClear();
     showChannel(transcribed());
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
-    const share = tree.root.findAll(
-      (node: { props: Record<string, unknown> }) =>
-        node.props.accessibilityLabel === "Share this room's audio" && !!node.props.onPress
-    )[0];
-    expect(share.props.accessibilityState.disabled).toBe(true);
-    await act(async () => share.props.onPress());
-    expect(alert).toHaveBeenCalledWith('No audio', expect.stringContaining('Nothing was recorded'));
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
     expect(shareRoom).not.toHaveBeenCalled();
+    const message = (handed.mock.calls[0][0] as { message: string }).message;
+    expect(message).toContain('only written down\nand again');
+    expect(message).not.toContain('before the room');
+    sheet.mockRestore();
+    handed.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('greys the icon on a room that kept neither yet', async () => {
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [{ ...room('room_1', NOW, null, []), transcribed: false }],
+    } as never);
+    // A recording still running is what puts an open room in the log
+    // before anything in it is finished.
+    showChannel(channelOf(), [segment('rec_1', 'Running', NOW + 1_000)]);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    expect(shareOf(tree).props.accessibilityState.disabled).toBe(true);
     act(() => tree.unmount());
   });
 });

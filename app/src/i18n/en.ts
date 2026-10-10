@@ -984,16 +984,11 @@ export const en = {
     on: () => 'On',
     off: () => 'Off',
     autoRecordNote: () =>
-      'Off, which is where every channel starts: a recording begins when somebody presses Record. On, one begins by itself as soon as there are two of you here, and everyone sees it running.',
+      'Off, which is where every channel starts: a recording begins when somebody switches Audio on in the Record tab. On, one begins by itself as soon as there are two of you here, and everyone sees it running.',
     autoRecordHow: () =>
-      'Pause and Stop work the same either way, and stopping is final — nothing starts a second recording until everybody has left the channel and come back.',
+      'Switching Audio off works the same either way, and is final — nothing starts a second recording until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
-    liveTranscript: () => 'Live transcript',
-    liveTranscriptNote: () =>
-      'On, everything said in this channel is transcribed as it is said and kept in the Record tab, with no recording. Everyone in the channel sees that it is on.',
-    liveTranscriptOnlyYou: () =>
-      'Only you see this setting: the transcription is on the house.',
     /** Shown only to an account with `debug` set. See `transcriptionModel`. */
     transcriptionModel: () => 'Transcription model',
     transcriptionStandard: () => 'Standard',
@@ -1324,12 +1319,20 @@ export const en = {
           ? 'now'
           : new Date(to).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })
       }`,
-    shareRoom: () => "Share this room's audio",
-    preparingRoom: () => 'Preparing the audio\u2026',
+    shareRoom: () => 'Share this room',
+    preparingRoom: () => 'Preparing\u2026',
     couldNotShareRoom: () => 'Could not share the room',
-    roomNoAudioTitle: () => 'No audio',
-    roomNoAudio: () =>
-      'Nothing was recorded in this room, so there is no audio to share. Its transcript is kept here.',
+    /** Share's question, answered by `audio` and `keepText`; see `chooseWhatToShare`. */
+    shareRoomTitle: () => 'Share this room',
+    roomTextCopied: () => 'The text is copied.',
+    /**
+     * The *Record* tab's two switches: what this channel keeps of what is
+     * said, beside `audio`. Radio style — one, the other, or neither. See
+     * `KeepSwitches`.
+     */
+    keepText: () => 'Text',
+    recordRefusedText: () =>
+      'Text is being kept here instead of audio, and only whoever pays for the transcription can change that.',
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',
@@ -1434,15 +1437,11 @@ export const en = {
     everyoneHearsThis: () => 'Everyone hears this, and anyone present can change it.',
     everyoneHearsAndItIsKept: () =>
       'Whatever you play, everyone hears — and it is kept in the recording.',
-    resumeRecording: () => 'Resume recording',
-    record: () => 'Record',
-    resume: () => 'Resume',
     recordRefusedOwner: () => 'Only the owner can record in this community.',
     recordRefusedFilm: () =>
       'Something is loaded to watch together. Stop it on the Watch tab to record.',
     recordRefusedSilent: () =>
       'Nobody\u2019s microphone is open and nothing is playing, so there is nothing to record.',
-    pauseRecording: () => 'Pause recording',
     stop: () => 'Stop',
     floorDecidesWhatPlays: () => 'the floor decides what plays',
     stepInToPlayShort: () => 'step in to play',
@@ -1488,7 +1487,7 @@ export const en = {
     stepInToStartAParty: () =>
       'Step in to start a watch party. What everybody is watching is for whoever is here.',
     pauseTheRecordingFirst: () =>
-      'Pause the recording first — a watch party is not recorded.',
+      'Switch Audio off on the Record tab first — a watch party is not recorded.',
     // The floor's two sentences on *this* card, which are narrower than the
     // Listen card's pair and must stay that way: a claim decides which film is
     // on, and `canControlWatch` deliberately lets anybody in the room drive

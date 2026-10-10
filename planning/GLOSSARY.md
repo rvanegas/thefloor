@@ -104,17 +104,18 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, a pinned bar with the date of the room at the top and its share, and the recording transport under it. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, radio style — one, the other or neither, never both: *Audio* is a *recording*, *Text* the *live transcript*. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
-- **Recording** — Audio kept from a channel, started by anybody present and ended by a pause; each one a segment of the *Record*
+- **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
+- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back or its live transcript as text, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house (`ChannelState.liveTranscription`), shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on per channel by somebody on the house with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
@@ -2395,15 +2396,16 @@ and newest at the foot as plain text, the way a chat reads — no cards — each
 speaker's run of lines under their name and the time it began. Each
 *recording* is one muted line at the moment it began, the record dot and its
 name, which opens in place to what a recording's card always offered, Share
-among it. The recording transport is under the log, and the tab opens at its
-foot.
+among it. The *Audio* and *Text* switches are pinned over the log, and the
+tab opens at its foot.
 
 **Laid out in rooms.** Each *room* — a sitting, first step in to last step
-out — that kept something starts with a rule bearing its date and hours, and
-a pinned bar over the log names the one at the top of the scroll and carries
-the share glyph, which sends that room's recordings as one file, back to back.
-A room that was only transcribed keeps the glyph, faint, and says why when
-pressed. A sitting that kept nothing is not drawn. **A recording that fell in
+out — that kept something starts with a line bearing its date and hours and
+the share glyph, and the line scrolls with the log until it goes off the top,
+where it is pinned until the next room's line pushes it off. The share asks
+which: the room's recordings as one file, back to back, or its live
+transcript as text — whichever the room did not keep shown and greyed. A
+sitting that kept nothing is not drawn. **A recording that fell in
 no sitting is a room of its own** — a *stand-in*, spanning exactly the run,
 recorded and not transcribed — so every recording made before sittings were
 first written, on 2026-10-09, opens the log under its own rule and shares
@@ -2416,15 +2418,35 @@ channel may keep the conversation as audio, as text, both, or neither:
 one that only records. Spanish *Grabado*. *Recording* still means audio, and nothing else — that
 audio exists at all is what people are told about, by the red pill.
 
-**The noun, not the verb.** The Record button on the transport under the
-timeline is the verb, and the two read alike in English only; Spanish keeps
-them apart, *Grabado* and *Grabar*. Glyphs keep them apart in both: the tab
-is the scroll, `TranscriptIcon`, and the button the record dot.
+**The noun, not the verb.** There was a Record button under the timeline
+until 2026-10-09, and the two read alike in English only; Spanish keeps them
+apart, *Grabado* and *Grabar*. The verb is gone now — recording is switching
+*Audio* on — so the tab is the only *Record* left on the screen.
 
 **It was *Conversation* for 2026-10-09 alone**, and that collided with the
 *conversation* the rest of the interface means — the live talk in the room,
 which you step in to and out of. The tab is that conversation written down,
 which is what *Record* says without borrowing the word.
+
+## Audio and Text (the switches)
+
+**What a channel keeps of what is said, as two switches**, pinned under the
+channel's header on the *Record* tab since 2026-10-09 (`KeepSwitches`).
+*Audio* is a *recording*: on starts one, off ends it, on the recording's own
+rules. *Text* is the *live transcript*: `ChannelState.liveTranscription`,
+moved only by somebody on the house. They replaced the Record and Pause
+buttons and the *Live transcript* setting on *Channel Settings*.
+
+**Radio style: one, the other, or neither, and never both.** Turning one on
+turns the other off in the same press — the backlog's *keep the transcript
+and let the audio go*: a channel keeps the conversation as audio or as text.
+**The app enforces it and the server does not**, so *Record automatically*
+starting a recording under the text leaves both on, and both are drawn on.
+Somebody who may not move *Text* cannot turn *Audio* on while it holds,
+since that would be turning it off, and is told so under the pair.
+
+**Not *Record* and *Transcribe***: the words name what is kept rather than an
+act, since a switch is a state somebody sets. Spanish *Audio* and *Texto*.
 
 ## Record automatically
 
@@ -2460,12 +2482,13 @@ it. `autoRecord` in `core/types.ts` and `autoRecordStarter` in
 ## Recording
 
 Audio kept from a channel, started by anybody present and ended by them too.
-**Since 2026-10-09 there is no Stop: every pause ends the run**, and the next
-Record begins a new recording, so a conversation recorded in stretches is
-several recordings — segments of the *Record* tab, each where it began —
-rather than one file with holes in it. The app sends `STOP_RECORDING` for
-Pause; `PAUSE_RECORDING` and `RESUME_RECORDING` are still honoured for the
-builds that send them, and a run one of them paused shows Resume. *Present* is
+**Since 2026-10-09 there is no Stop: every end is final**, and the next start
+begins a new recording, so a conversation recorded in stretches is several
+recordings — segments of the *Record* tab, each where it began — rather than
+one file with holes in it. Since the same day starting and ending are the
+*Audio* switch, on and off: off sends `STOP_RECORDING`. `PAUSE_RECORDING` and
+`RESUME_RECORDING` are still honoured for the builds that send them, and a
+run one of them paused shows *Audio* off, which switching on resumes. *Present* is
 the operative word and is the whole of who may touch it: somebody
 who has stepped out is outside the conversation being recorded, and until
 2026-09-12 only the starting half of this sentence was enforced. A recording
@@ -2564,9 +2587,11 @@ year out of date.
 ## Share
 
 Handing a copy of something to whatever else is on the device: a *recording*, a
-*transcript*, or the track the channel is listening to. One verb, three
-buttons, all three labelled `Share` — and on a phone all three end at the
-system share sheet.
+*room* — its audio, or since 2026-10-09 its live transcript as text — a
+*transcript*, or the track the channel is listening to. One verb, labelled
+`Share` or drawn as the share glyph — and on a phone all of them end at the
+system share sheet. A room's asks first which of the two, in iOS's action
+sheet, with what the room did not keep greyed.
 
 **It was called *Export* until 2026-09-12**, which said what the file did and
 not what the person was doing with it. Nothing about the mechanism changed with
@@ -2672,8 +2697,10 @@ the wall clock, and kept in `live_lines` until the channel goes.
 
 **Switched on per channel, by somebody on the house.** The setting is
 `ChannelState.liveTranscription`; who may turn it is the `transcripts_unlimited`
-mark, checked by the server's route, so the switch in channel settings is drawn
-for that account and nobody else. Everybody in the room sees that it is on — the
+mark, checked by the server's route. **The switch is *Text* on the *Record*
+tab since 2026-10-09**, beside *Audio* and radio with it, and drawn for
+everybody — it says what is being kept — but moved only by that account; it
+was an On/Off pair in channel settings, drawn for that account alone. Everybody in the room sees that it is on — the
 *Transcribing* pill — because everybody's speech goes to the provider while it
 is. Read in the *Record* tab — the *Transcript* tab for its first day —
 which is the first piece of the channel as one long conversation, with the

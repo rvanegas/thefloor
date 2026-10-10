@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Platform,
   Pressable,
   StyleSheet,
@@ -33,12 +34,9 @@ import {
   nearbyMs,
   canInvite,
   canControlPlayback,
-  canResumeRecording,
   canMuteOther,
   canSetSelfMute,
   mutableAt,
-  canStartRecording,
-  recordingRefusal,
   canLoadTrack,
   canStartWatch,
   canControlWatch,
@@ -49,7 +47,6 @@ import {
   isPartyMuted,
   isWithheld,
   partyMuteRequested,
-  canStopRecording,
   canPasteClip,
   canClearClip,
   canInviteGuest,
@@ -91,9 +88,7 @@ import {
   PeopleIcon,
   MicIcon,
   ClipboardIcon,
-  PauseIcon,
   ListenIcon,
-  RecordingsIcon,
   TranscriptIcon,
   SettingsIcon,
   StepIcon,
@@ -141,7 +136,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { RecordTab, RoomBar } from './RecordTab';
+import { HoistedRoom, KeepSwitches, RecordTab } from './RecordTab';
 import type { RoomView } from '../../../core/protocol';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
@@ -373,8 +368,14 @@ export function ChannelView({
    * leaving it showing a conversation that no longer exists.
    */
   const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
-  /** The room at the top of the *Record* log, which its pinned bar names. */
-  const [roomAtTop, setRoomAtTop] = useState<RoomView | null>(null);
+  /**
+   * The room whose line has scrolled off the top of the *Record* log, drawn
+   * pinned in its place, and how far the next room's line has pushed it up —
+   * a value rather than state, since it moves on every frame of a scroll and
+   * this screen is not to render on every one. See `HoistedRoom`.
+   */
+  const [hoistedRoom, setHoistedRoom] = useState<RoomView | null>(null);
+  const hoistShift = useRef(new Animated.Value(0)).current;
 
   /**
    * Sends an action to this channel.
@@ -1646,7 +1647,6 @@ export function ChannelView({
         // screen has already resolved the snapshot.
         publicAt={view.publicAt ?? null}
         publication={view.publication}
-        mayTranscribeLive={view.mayTranscribeLive ?? false}
         onBack={() => setSettingsOpen(false)}
         onLeft={() => {
           app.leaveChannelView(channelId);
@@ -3157,16 +3157,29 @@ export function ChannelView({
           <>
             {header}
             {/* Under the channel's own header rather than in it: it is
-                about the log, and goes when the log does. See `RoomBar`. */}
-            <RoomBar
+                about what this tab keeps, and goes when the tab does. Pinned,
+                because it is the control about right now and the log under
+                it may be any length. See `KeepSwitches`. */}
+            <KeepSwitches
               channelId={channelId}
-              name={channel.name ?? derivedTitle}
-              room={roomAtTop}
+              channel={channel}
+              me={me}
+              mayTranscribeLive={view?.mayTranscribeLive ?? false}
             />
           </>
         ) : (
           header
         )
+      }
+      overlay={
+        tab === 'record' ? (
+          <HoistedRoom
+            channelId={channelId}
+            name={channel.name ?? derivedTitle}
+            room={hoistedRoom}
+            shift={hoistShift}
+          />
+        ) : undefined
       }
       footer={footer}
       aside={dockSlot}
@@ -3180,9 +3193,8 @@ export function ChannelView({
       */
       asidePlace={watchShape.columns === 2 ? 'beside' : 'above'}
       contentStyle={styles.container}
-      // The conversation grows at the bottom while people talk, with its
-      // transport under it; every other tab is read from the top. See
-      // `Screen.followEnd`.
+      // The conversation grows at the bottom while people talk; every other
+      // tab is read from the top. See `Screen.followEnd`.
       followEnd={tab === 'record'}
     >
         {/*
@@ -4072,8 +4084,10 @@ export function ChannelView({
           channelId={channelId}
           live={offersTranscript}
           transcribing={isTranscribingLive(channel)}
+          name={channel.name ?? derivedTitle}
           recordings={recordings}
-          onRoomAtTop={setRoomAtTop}
+          onHoist={setHoistedRoom}
+          hoistShift={hoistShift}
           renderRecording={(r) => (
             <RecordingRow
               key={r.id}
@@ -4098,121 +4112,12 @@ export function ChannelView({
         />
 
         {/*
-          **The transport, under the conversation it adds to**, since
-          2026-10-09. It was above the list, so that the control about right
-          now was not reached past a history of any length; the tab now opens
-          at its foot (`followEnd`) with the newest of what was said directly
-          above it, which answers the same worry from the other end — the
-          composer under a message thread.
-
-          **Two buttons, and the second is Pause.** There is no Stop: every
-          pause ends the run, and the next Record begins a new recording, so a
-          conversation recorded in stretches is a row of segments in the
-          timeline above rather than one file with holes in it. It sends
-          `STOP_RECORDING`, under Stop's rule, which is Pause's rule widened to
-          a paused run. `PAUSE_RECORDING` is still understood by the server for
-          the builds that send it, and a run one of them paused shows Resume
-          here and ends on Pause like any other.
-
-          The shape is the player's: `buttonRow` and `flexButton`, filled
-          rectangles in equal parts across the width, each glyph over its
-          word, in a `Card` with what went wrong beneath. A control you may
-          press is filled, one you may not is `disabled`, and nothing appears
-          or disappears. No RECORDING label: the run's state is the header's
-          pill, and the words under the glyphs name the acts.
+          **No transport here since 2026-10-09.** What the channel keeps —
+          audio, text, or neither — is the pair of switches pinned under the
+          header (`KeepSwitches`), which took the Record and Pause buttons'
+          place and the *Live transcript* setting's, along with the sentences
+          that stood under the buttons.
         */}
-        <Card style={styles.stack}>
-          <View style={styles.buttonRow}>
-            {/*
-              Record and Resume are one control, because they are one idea —
-              *start capturing* — and a paused run is the only state where the
-              second is what that means. `primary` for the same reason Play has
-              it one tab over: it is the one somebody came here to press.
-            */}
-            <Button
-              label={
-                channel.recording.status === 'paused'
-                  ? t.resumeRecording()
-                  : t.record()
-              }
-              sublabel={
-                channel.recording.status === 'paused' ? t.resume() : t.record()
-              }
-              variant="primary"
-              style={styles.flexButton}
-              icon={(color) => <RecordingsIcon color={color} />}
-              disabled={
-                channel.recording.status === 'paused'
-                  ? !canResumeRecording(channel, me)
-                  : !canStartRecording(channel, me)
-              }
-              onPress={() =>
-                act({
-                  type:
-                    channel.recording.status === 'paused'
-                      ? 'RESUME_RECORDING'
-                      : 'START_RECORDING',
-                })
-              }
-            />
-            <Button
-              label={t.pauseRecording()}
-              sublabel={t.pause()}
-              style={styles.flexButton}
-              icon={(color) => <PauseIcon color={color} />}
-              disabled={!canStopRecording(channel, me)}
-              onPress={() => act({ type: 'STOP_RECORDING' })}
-            />
-          </View>
-
-          {/*
-            **What is left under the row is failure, and why Record is grey
-            when nothing else says** — since 2026-09-13 and 2026-10-09: the
-            run's state is the header's pill, what was saved is the timeline
-            above, and `autoRecord` is a switch in this channel's settings. A
-            capture that stopped for a reason nobody asked for is the
-            exception, in both tenses, because nothing else on this screen
-            reports it and a recording that was not kept is not something to
-            find out later. The refusal is the other: somebody standing in the
-            room with a dead button and no way to learn it was a film loaded
-            weeks ago. `recordingRefusal` names only the reasons nothing else
-            on the screen gives — not being here is the footer's to say.
-          */}
-          {(() => {
-            const refusal = recordingRefusal(channel, me);
-            if (refusal === null) return null;
-            return (
-              <Text style={type.muted}>
-                {refusal === 'owner'
-                  ? t.recordRefusedOwner()
-                  : refusal === 'film'
-                    ? t.recordRefusedFilm()
-                    : t.recordRefusedSilent()}
-              </Text>
-            );
-          })()}
-          {channel.recording.failure ? (
-            // Capture stopping for a reason nobody asked for must not read like
-            // a recording somebody chose to end. Whoever was speaking on the
-            // strength of the indicator needs to know it was not kept.
-            <Text style={styles.warning}>
-              Recording failed — {channel.recording.failure}
-            </Text>
-          ) : null}
-
-          {/*
-            The same about the run before this one: a run that ended early is
-            the half the timeline cannot tell you, since there it is only a
-            short recording.
-          */}
-          {channel.recording.status === 'idle' &&
-          channel.lastRecording?.failure ? (
-            <Text style={styles.warning}>
-              Ended early — {formatDuration(channel.lastRecording.durationMs)}{' '}
-              captured.
-            </Text>
-          ) : null}
-        </Card>
           </>
         ) : null}
 

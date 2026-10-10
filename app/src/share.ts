@@ -56,17 +56,25 @@ export type Handoff = 'shared' | 'dismissed' | 'copied' | 'failed';
  * put a credential somewhere the person had just decided not to send it.
  */
 export async function shareLink(url: string): Promise<Handoff> {
+  return shareText(url);
+}
+
+/**
+ * The same for any text — a room's transcript, since 2026-10-09 — which is
+ * what `shareLink` always was underneath: a link is shared as a message.
+ */
+export async function shareText(text: string): Promise<Handoff> {
   if (canShare) {
     try {
-      const result = await Share.share({ message: url });
+      const result = await Share.share({ message: text });
       return result.action === Share.dismissedAction ? 'dismissed' : 'shared';
     } catch (error) {
       if ((error as { name?: string } | null)?.name === 'AbortError') {
         return 'dismissed';
       }
-      // Anything else is a share that could not happen, and the link is still
+      // Anything else is a share that could not happen, and the text is still
       // worth having. Falls through.
     }
   }
-  return (await copyText(url)) ? 'copied' : 'failed';
+  return (await copyText(text)) ? 'copied' : 'failed';
 }

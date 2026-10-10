@@ -455,6 +455,7 @@ export function Screen({
   aside,
   asidePlace = 'above',
   followEnd = false,
+  overlay,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -539,6 +540,15 @@ export function Screen({
    * unreadable for exactly as long as anybody is talking.
    */
   followEnd?: boolean;
+  /**
+   * Drawn over the top edge of the scroll, inside its frame — **the one
+   * thing allowed to cover the content**, and only because what it covers is
+   * itself: the *Record* tab's room line, hoisted once the inline one has
+   * scrolled under it (`HoistedRoom`). A pinned row in `header` that came and
+   * went with the scroll would move the content by its own height every time
+   * it did, which is the jump this exists to avoid. Positions itself.
+   */
+  overlay?: React.ReactNode;
 }) {
   const scroll = React.useRef<ScrollView>(null);
   /** Whether the reader is at the end, which is what `followEnd` asks. */
@@ -700,6 +710,7 @@ export function Screen({
         >
           {children}
         </ScrollView>
+        {overlay}
         </View>
         </BodyHeightContext.Provider>
         </View>

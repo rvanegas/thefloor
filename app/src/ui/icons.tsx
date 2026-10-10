@@ -9,10 +9,9 @@ import type { ColorValue } from 'react-native';
  * exists; the two after them are the header's *Close* and *Settings*, which
  * were words until 2026-09-02, with the house the channel screen's header
  * draws instead of the cross between them; then the six of that same screen's
- * tabs, which were words until 2026-09-12; then the two of the
- * recording transport's *Pause* and *Stop*, which were words until 2026-09-13.
- * Its third glyph is the record dot, which is `RecordingsIcon` above — the tab
- * and the control it offers are the same idea and take the same shape.
+ * tabs, which were words until 2026-09-12. The recording transport's *Pause*
+ * and *Stop* were here from 2026-09-13 until the transport became two
+ * switches on 2026-10-09, and left with it.
  *
  * Then the four of the home tier's tabs, which were words until 2026-09-22,
  * when a fourth tab arrived and the strip grew glyphs rather than let one tab
@@ -431,10 +430,10 @@ export function ListenIcon({
  * What has been kept. `lucide/circle-dot`.
  *
  * The record dot, which is the one glyph in this set nobody has to be taught —
- * it has meant this on hardware since before any of it was software. On the
- * Record button since 2026-10-09, when the tab it labelled took in
- * *Transcript* and the scroll with it; it labelled that tab until then, drawn
- * plain whether or not a recording was running.
+ * it has meant this on hardware since before any of it was software. Marks a
+ * recording's line in the *Record* log; it was on the Record button for
+ * 2026-10-09 alone, before that became the *Audio* switch, and labelled the
+ * tab until then, drawn plain whether or not a recording was running.
  */
 export function RecordingsIcon({
   color,
@@ -506,12 +505,13 @@ export function TranscriptIcon({
 }
 
 /**
- * Hands something to the rest of the phone. `lucide/share`.
+ * Hands something to the rest of the phone. `lucide/square-arrow-up`.
  *
- * The arrow leaving the box, which is the platform's own share glyph on iOS
- * and the one people already reach for to send a file somewhere. On the
- * *Record* tab's pinned bar since 2026-10-09, where it shares the audio of the
- * room at the top of the scroll.
+ * An arrow rising inside a closed box, since 2026-10-09 — it was
+ * `lucide/share`, the box open at the top with the arrow leaving it, which is
+ * iOS's own glyph; the closed one was asked for by name. On each room's rule
+ * in the *Record* tab and on the pinned bar that takes over from it, where it
+ * offers the room's audio, its text, or both.
  */
 export function ShareIcon({
   color,
@@ -522,9 +522,9 @@ export function ShareIcon({
 }) {
   return (
     <Glyph color={color} size={size}>
-      <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <Path d="m16 6-4-4-4 4" />
-      <Path d="M12 2v13" />
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
+      <Path d="m16 12-4-4-4 4" />
+      <Path d="M12 16V8" />
     </Glyph>
   );
 }
@@ -644,50 +644,6 @@ export function SupportIcon({
       <Path d="m14.83 14.83 4.24 4.24" />
       <Path d="m9.17 14.83-4.24 4.24" />
       <Circle cx="12" cy="12" r="4" />
-    </Glyph>
-  );
-}
-
-/**
- * Hold the run where it is. `lucide/pause`.
- *
- * The two bars, which mean this on every transport anybody has ever touched.
- * Drawn outlined rather than filled like the rest of this file — a filled
- * pause beside an outlined stop would read as one control being on.
- */
-export function PauseIcon({
-  color,
-  size = 22,
-}: {
-  color: ColorValue;
-  size?: number;
-}) {
-  return (
-    <Glyph color={color} size={size}>
-      <Rect x="14" y="3" width="5" height="18" rx="1" />
-      <Rect x="5" y="3" width="5" height="18" rx="1" />
-    </Glyph>
-  );
-}
-
-/**
- * End the run. `lucide/square`.
- *
- * A square, not a cross: stopping a recording finishes it and keeps it, and a
- * cross is what this application draws for closing and discarding. The one
- * that ends a recording for good is the transport square everybody learned
- * from a tape deck.
- */
-export function StopIcon({
-  color,
-  size = 22,
-}: {
-  color: ColorValue;
-  size?: number;
-}) {
-  return (
-    <Glyph color={color} size={size}>
-      <Rect x="3" y="3" width="18" height="18" rx="2" />
     </Glyph>
   );
 }
