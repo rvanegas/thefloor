@@ -1,4 +1,4 @@
-Recordings is now Record. Its Audio switch records and Pause beside it holds the recording, so what was said either side of a pause is one recording. What a channel keeps reads as a log, one room at a time, from the first person stepping in to the last stepping out, with when it ran and Share this room for all of it. When Audio cannot be switched on, the tab says why.
+Recordings is now Record. Start records and then reads Pause, which holds the recording, so what was said either side of a pause is one recording. What a channel keeps reads as a log, one room at a time, from the first person stepping in to the last stepping out, with when it ran and Share this room for all of it. When Audio cannot be switched on, the tab says why.
 
 A channel can be transcribed as it talks, with no audio kept. Its header then shows Transcribing, and what is said appears in the Record log.
 

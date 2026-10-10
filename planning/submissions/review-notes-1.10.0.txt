@@ -23,7 +23,7 @@ The tabs across the top: People, Clipboard, Invite (a contact as "Guest" or
 link, then Paste. "Start a channel", on Home, makes one holding only you; its
 Settings offer "Make channel into a community" and "This channel is a podcast".
 
-NEW: Record replaces Recordings: Audio records, Pause holds it, and the log
+NEW: Record replaces Recordings: Start records, Pause holds it, and the log
 lists what was kept a room at a time. Transcribe is on a recording's row.
 
 NEW, AND WHY UIBackgroundModes HAS voip: stepping into a channel is reported
