@@ -57,6 +57,9 @@ doing here, the description's first line is doing that work twice.
 > It's a group chat, but voice. A channel is a place you drop into: you arrive
 > when it suits you, and whoever is there is there.
 
+**Applied 2026-10-10, to 1.10.0**, the first version to carry any: it was
+null on every version before. It shows once 1.10.0 is released.
+
 **This field is the recommender's sentence**, and it is the one to get right,
 because it changes without a review and because it is the form the proposition
 predicts will actually travel: *"It's a group chat but voice, and it never
